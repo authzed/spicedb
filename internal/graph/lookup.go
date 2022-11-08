@@ -63,13 +63,16 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 		ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
 	}()
 
-	for _, id := range result.Resource.ResourceIds {
-		if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
-			ls.checker.AddResult(id)
+	for _, found := range result.Resources {
+		if found.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+			ls.checker.AddResolvedResource(&v1.ResolvedResource{
+				ResourceId:     found.ResourceId,
+				Permissionship: v1.ResolvedResource_HAS_PERMISSION,
+			})
 			continue
 		}
 
-		ls.checker.QueueToCheck(id)
+		ls.checker.QueueToCheck(found.ResourceId)
 	}
 	return nil
 }
@@ -122,28 +125,19 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	return res.Resp, res.Err
 }
 
-func lookupResult(foundResourceIDs []string, req ValidatedLookupRequest, subProblemMetadata *v1.ResponseMeta) LookupResult {
-	limitedResourceIDs := limitedSlice(foundResourceIDs, req.Limit)
-
-	resolvedONRs := make([]*core.ObjectAndRelation, 0, len(limitedResourceIDs))
-	for _, resourceID := range limitedResourceIDs {
-		resolvedONRs = append(resolvedONRs, &core.ObjectAndRelation{
-			Namespace: req.ObjectRelation.Namespace,
-			ObjectId:  resourceID,
-			Relation:  req.ObjectRelation.Relation,
-		})
-	}
+func lookupResult(foundResources []*v1.ResolvedResource, req ValidatedLookupRequest, subProblemMetadata *v1.ResponseMeta) LookupResult {
+	limitedResources := limitedSlice(foundResources, req.Limit)
 
 	return LookupResult{
 		&v1.DispatchLookupResponse{
-			Metadata:     ensureMetadata(subProblemMetadata),
-			ResolvedOnrs: resolvedONRs,
+			Metadata:          ensureMetadata(subProblemMetadata),
+			ResolvedResources: limitedResources,
 		},
 		nil,
 	}
 }
 
-func limitedSlice(slice []string, limit uint32) []string {
+func limitedSlice[T any](slice []T, limit uint32) []T {
 	if len(slice) > int(limit) {
 		return slice[0:limit]
 	}

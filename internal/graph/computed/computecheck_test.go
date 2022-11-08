@@ -1,4 +1,4 @@
-package graph
+package computed_test
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/graph/computed"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats/types"
@@ -803,7 +805,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := NewLocalOnlyDispatcher(10)
+			dispatch := graph.NewLocalOnlyDispatcher(10)
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -814,19 +816,20 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 				t.Run(r.check, func(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 
-					result, _, err := ComputeCheck(ctx, dispatch,
-						CheckParameters{
+					result, _, err := computed.ComputeCheck(ctx, dispatch,
+						computed.CheckParameters{
 							ResourceType: &core.RelationReference{
 								Namespace: rel.ResourceAndRelation.Namespace,
 								Relation:  rel.ResourceAndRelation.Relation,
 							},
-							ResourceID:         rel.ResourceAndRelation.ObjectId,
 							Subject:            rel.Subject,
 							CaveatContext:      r.context,
 							AtRevision:         revision,
 							MaximumDepth:       50,
 							IsDebuggingEnabled: true,
-						})
+						},
+						rel.ResourceAndRelation.ObjectId,
+					)
 
 					if r.error != "" {
 						require.NotNil(t, err, "missing required error: %s", r.error)
@@ -849,23 +852,82 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := graph.NewLocalOnlyDispatcher(10)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-	_, _, err = ComputeCheck(ctx, dispatch, CheckParameters{
-		ResourceType: &core.RelationReference{
-			Namespace: "a",
-			Relation:  "b",
+	_, _, err = computed.ComputeCheck(ctx, dispatch,
+		computed.CheckParameters{
+			ResourceType: &core.RelationReference{
+				Namespace: "a",
+				Relation:  "b",
+			},
+			Subject:            &core.ObjectAndRelation{},
+			CaveatContext:      nil,
+			AtRevision:         revision.NoRevision,
+			MaximumDepth:       50,
+			IsDebuggingEnabled: true,
 		},
-		ResourceID:         "id",
-		Subject:            &core.ObjectAndRelation{},
-		CaveatContext:      nil,
-		AtRevision:         revision.NoRevision,
-		MaximumDepth:       50,
-		IsDebuggingEnabled: true,
-	})
+		"id",
+	)
 	require.Error(t, err)
+}
+
+func TestComputeBulkCheck(t *testing.T) {
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	dispatch := graph.NewLocalOnlyDispatcher(10)
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+	revision, err := writeCaveatedTuples(ctx, t, ds, `
+	definition user {}
+
+	caveat somecaveat(somecondition int) {
+		somecondition == 42
+	}
+
+	definition document {
+		relation viewer: user | user with somecaveat
+		permission view = viewer
+	}
+	`, []caveatedUpdate{
+		{core.RelationTupleUpdate_CREATE, "document:direct#viewer@user:tom", "", nil},
+		{core.RelationTupleUpdate_CREATE, "document:first#viewer@user:tom", "somecaveat", map[string]any{
+			"somecondition": 42,
+		}},
+		{core.RelationTupleUpdate_CREATE, "document:second#viewer@user:tom", "somecaveat", map[string]any{}},
+		{core.RelationTupleUpdate_CREATE, "document:third#viewer@user:tom", "somecaveat", map[string]any{
+			"somecondition": 32,
+		}},
+	})
+	require.NoError(t, err)
+
+	resp, _, err := computed.ComputeBulkCheck(ctx, dispatch,
+		computed.CheckParameters{
+			ResourceType: &core.RelationReference{
+				Namespace: "document",
+				Relation:  "view",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "user",
+				ObjectId:  "tom",
+				Relation:  "...",
+			},
+			CaveatContext:      nil,
+			AtRevision:         revision,
+			MaximumDepth:       50,
+			IsDebuggingEnabled: true,
+		},
+		[]string{"direct", "first", "second", "third"},
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, resp["direct"].Membership, v1.ResourceCheckResult_MEMBER)
+	require.Equal(t, resp["first"].Membership, v1.ResourceCheckResult_MEMBER)
+	require.Equal(t, resp["second"].Membership, v1.ResourceCheckResult_CAVEATED_MEMBER)
+	require.Equal(t, resp["third"].Membership, v1.ResourceCheckResult_NOT_MEMBER)
 }
 
 func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {

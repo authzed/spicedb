@@ -2,7 +2,8 @@ package v1
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/authzed/spicedb/internal/graph/computed"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -18,7 +19,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
-	dispatchgraph "github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -69,13 +69,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		_, isDebuggingEnabled = md[string(requestmeta.RequestDebugInformation)]
 	}
 
-	cr, metadata, err := dispatchgraph.ComputeCheck(ctx, ps.dispatch,
-		dispatchgraph.CheckParameters{
+	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
+		computed.CheckParameters{
 			ResourceType: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,
 				Relation:  req.Permission,
 			},
-			ResourceID: req.Resource.ObjectId,
 			Subject: &core.ObjectAndRelation{
 				Namespace: req.Subject.Object.ObjectType,
 				ObjectId:  req.Subject.Object.ObjectId,
@@ -86,6 +85,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			MaximumDepth:       ps.config.MaximumAPIDepth,
 			IsDebuggingEnabled: isDebuggingEnabled,
 		},
+		req.Resource.ObjectId,
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 
@@ -312,12 +312,7 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
 	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
-
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
-
-	if req.Context != nil {
-		return rewriteError(ctx, status.Error(codes.Unimplemented, "caveats not yet supported"))
-	}
 
 	// Perform our preflight checks in parallel
 	errG, checksCtx := errgroup.WithContext(ctx)
@@ -358,26 +353,29 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			ObjectId:  req.Subject.Object.ObjectId,
 			Relation:  normalizeSubjectRelation(req.Subject),
 		},
-		Limit:       ^uint32(0), // Set no limit for now
-		DirectStack: nil,
-		TtuStack:    nil,
+		Context: req.Context,
+		Limit:   ^uint32(0), // Set no limit for now
 	})
 	usagemetrics.SetInContext(ctx, lookupResp.Metadata)
 	if err != nil {
 		return rewriteError(ctx, err)
 	}
 
-	for _, found := range lookupResp.ResolvedOnrs {
-		if found.Namespace != req.ResourceObjectType {
-			return rewriteError(
-				ctx,
-				fmt.Errorf("got invalid resolved object %v (expected %v)", found.Namespace, req.ResourceObjectType),
-			)
+	for _, found := range lookupResp.ResolvedResources {
+		var partial *v1.PartialCaveatInfo
+		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		if found.Permissionship == dispatch.ResolvedResource_CONDITIONALLY_HAS_PERMISSION {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partial = &v1.PartialCaveatInfo{
+				MissingRequiredContext: found.MissingRequiredContext,
+			}
 		}
 
 		err := resp.Send(&v1.LookupResourcesResponse{
-			LookedUpAt:       revisionReadAt,
-			ResourceObjectId: found.ObjectId,
+			LookedUpAt:        revisionReadAt,
+			ResourceObjectId:  found.ResourceId,
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partial,
 		})
 		if err != nil {
 			return err

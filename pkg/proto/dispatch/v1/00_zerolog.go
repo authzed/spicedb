@@ -3,8 +3,6 @@ package dispatchv1
 import (
 	"fmt"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/rs/zerolog"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -46,8 +44,7 @@ func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", lr.Metadata)
 	e.Str("object", fmt.Sprintf("%s#%s", lr.ObjectRelation.Namespace, lr.ObjectRelation.Relation))
 	e.Str("subject", tuple.StringONR(lr.Subject))
-	e.Array("direct", onArray(lr.DirectStack))
-	e.Array("ttu", onArray(lr.TtuStack))
+	e.Interface("context", lr.Context)
 	e.Uint32("limit", lr.Limit)
 }
 
@@ -69,28 +66,11 @@ func (ls *DispatchLookupSubjectsRequest) MarshalZerologObject(e *zerolog.Event) 
 
 type strArray []string
 
-type onArray []*core.RelationReference
-
-type zerologON core.RelationReference
-
 // MarshalZerologArray implements zerolog array marshalling.
 func (strs strArray) MarshalZerologArray(a *zerolog.Array) {
 	for _, val := range strs {
 		a.Str(val)
 	}
-}
-
-// MarshalZerologArray implements zerolog array marshalling.
-func (onrs onArray) MarshalZerologArray(a *zerolog.Array) {
-	for _, onr := range onrs {
-		a.Object((*zerologON)(onr))
-	}
-}
-
-// MarshalZerologObject implements zerolog object marshalling.
-func (on *zerologON) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("ns", on.Namespace)
-	e.Str("rel", on.Relation)
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

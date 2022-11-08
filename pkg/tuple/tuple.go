@@ -337,3 +337,12 @@ func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationT
 		Tuple:     FromRelationship(update.Relationship),
 	}
 }
+
+// WithCaveat adds the given caveat name to the tuple. This is for testing only and may be
+// removed in the future.
+func WithCaveat(tpl *core.RelationTuple, caveatName string) *core.RelationTuple {
+	tpl.Caveat = &core.ContextualizedCaveat{
+		CaveatName: caveatName,
+	}
+	return tpl
+}

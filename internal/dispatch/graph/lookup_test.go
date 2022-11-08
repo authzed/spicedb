@@ -25,28 +25,35 @@ func RR(namespaceName string, relationName string) *core.RelationReference {
 	}
 }
 
+func resolvedRes(resourceID string) *v1.ResolvedResource {
+	return &v1.ResolvedResource{
+		ResourceId:     resourceID,
+		Permissionship: v1.ResolvedResource_HAS_PERMISSION,
+	}
+}
+
 func TestSimpleLookup(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
 
 	testCases := []struct {
 		start                 *core.RelationReference
 		target                *core.ObjectAndRelation
-		resolvedObjects       []*core.ObjectAndRelation
+		expectedResources     []*v1.ResolvedResource
 		expectedDispatchCount int
 		expectedDepthRequired int
 	}{
 		{
 			RR("document", "view"),
 			ONR("user", "unknown", "..."),
-			[]*core.ObjectAndRelation{},
+			[]*v1.ResolvedResource{},
 			1,
 			1,
 		},
 		{
 			RR("document", "view"),
 			ONR("user", "eng_lead", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "masterplan", "view"),
+			[]*v1.ResolvedResource{
+				resolvedRes("masterplan"),
 			},
 			2,
 			2,
@@ -54,8 +61,8 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "masterplan", "owner"),
+			[]*v1.ResolvedResource{
+				resolvedRes("masterplan"),
 			},
 			2,
 			1,
@@ -63,9 +70,9 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "view"),
 			ONR("user", "legal", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "companyplan", "view"),
-				ONR("document", "masterplan", "view"),
+			[]*v1.ResolvedResource{
+				resolvedRes("companyplan"),
+				resolvedRes("masterplan"),
 			},
 			6,
 			4,
@@ -73,8 +80,8 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "view_and_edit"),
 			ONR("user", "multiroleguy", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "specialplan", "view_and_edit"),
+			[]*v1.ResolvedResource{
+				resolvedRes("specialplan"),
 			},
 			7,
 			4,
@@ -82,9 +89,9 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("folder", "view"),
 			ONR("user", "owner", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("folder", "strategy", "view"),
-				ONR("folder", "company", "view"),
+			[]*v1.ResolvedResource{
+				resolvedRes("strategy"),
+				resolvedRes("company"),
 			},
 			8,
 			5,
@@ -101,7 +108,6 @@ func TestSimpleLookup(t *testing.T) {
 
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
-
 			ctx, dispatch, revision := newLocalDispatcher(t)
 
 			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
@@ -111,13 +117,11 @@ func TestSimpleLookup(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Limit:       10,
-				DirectStack: nil,
-				TtuStack:    nil,
+				Limit: 10,
 			})
 
 			require.NoError(err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs, "Found: %v, Expected: %v", lookupResult.ResolvedOnrs, tc.resolvedObjects)
+			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.LessOrEqual(int(lookupResult.Metadata.DispatchCount), tc.expectedDispatchCount, "Found dispatch count greater than expected")
 			require.Equal(0, int(lookupResult.Metadata.CachedDispatchCount))
@@ -135,13 +139,11 @@ func TestSimpleLookup(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Limit:       10,
-				DirectStack: nil,
-				TtuStack:    nil,
+				Limit: 10,
 			})
 
 			require.NoError(err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs, "Found: %v, Expected: %v", lookupResult.ResolvedOnrs, tc.resolvedObjects)
+			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
 			require.LessOrEqual(int(lookupResult.Metadata.CachedDispatchCount), tc.expectedDispatchCount)
@@ -169,20 +171,18 @@ func TestMaxDepthLookup(t *testing.T) {
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
 		},
-		Limit:       10,
-		DirectStack: nil,
-		TtuStack:    nil,
+		Limit: 10,
 	})
 
 	require.Error(err)
 }
 
-type OrderedResolved []*core.ObjectAndRelation
+type OrderedResolved []*v1.ResolvedResource
 
 func (a OrderedResolved) Len() int { return len(a) }
 
 func (a OrderedResolved) Less(i, j int) bool {
-	return strings.Compare(tuple.StringONR(a[i]), tuple.StringONR(a[j])) < 0
+	return strings.Compare(a[i].ResourceId, a[j].ResourceId) < 0
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

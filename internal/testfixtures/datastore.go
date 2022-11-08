@@ -13,6 +13,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -212,6 +214,55 @@ func createTestCaveat(require *require.Assertions) []*core.CaveatDefinition {
 		SerializedExpression: cBytes,
 		ParameterTypes:       env.EncodedParametersTypes(),
 	}}
+}
+
+// DatastoreFromSchemaAndTestRelationships returns a validating datastore wrapping that specified,
+// loaded with the given scehma and relationships.
+func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema string, relationships []*core.RelationTuple, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+	ctx := context.Background()
+	validating := NewValidatingDatastore(ds)
+
+	emptyDefaultPrefix := ""
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schema,
+	}, &emptyDefaultPrefix)
+	require.NoError(err)
+
+	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
+		require.NoError(err)
+
+		for _, nsDef := range compiled.ObjectDefinitions {
+			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
+				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+					Namespaces: compiled.ObjectDefinitions,
+					Caveats:    compiled.CaveatDefinitions,
+				}))
+			require.NoError(err)
+
+			vts, err := ts.Validate(ctx)
+			require.NoError(err)
+
+			aerr := namespace.AnnotateNamespace(vts)
+			require.NoError(aerr)
+
+			err = rwt.WriteNamespaces(ctx, nsDef)
+			require.NoError(err)
+		}
+
+		mutations := make([]*core.RelationTupleUpdate, 0, len(relationships))
+		for _, rel := range relationships {
+			mutations = append(mutations, tuple.Create(rel))
+		}
+		err = rwt.WriteRelationships(ctx, mutations)
+		require.NoError(err)
+
+		return nil
+	})
+	require.NoError(err)
+
+	return validating, newRevision
 }
 
 type TupleChecker struct {
