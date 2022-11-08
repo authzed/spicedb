@@ -30,8 +30,13 @@ func (r *handleServerVersion) ServerReporter(ctx context.Context, _ interceptors
 				err = responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
 					responsemeta.ServerVersion: version,
 				})
+				// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
+				// this prevents logging unnecessary error messages
+				if err := ctx.Err(); err != nil {
+					return interceptors.NoopReporter{}, ctx
+				}
 				if err != nil {
-					log.Ctx(ctx).Err(err).Msg("could not report metadata")
+					log.Ctx(ctx).Warn().Err(err).Msg("serverversion: could not report metadata")
 				}
 			}
 		}
