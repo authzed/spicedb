@@ -89,10 +89,11 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			if level == pgx.LogLevelInfo {
 				level = pgx.LogLevelDebug
 			}
+
 			// do not log cancelled queries as errors
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
-				if ok && (errors.Is(err, context.Canceled)) {
+				if ok && errors.Is(err, context.Canceled) {
 					return
 				}
 			}

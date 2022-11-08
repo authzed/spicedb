@@ -407,10 +407,13 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 		for _, slice := range cachedResultRaw.([][]byte) {
 			var response v1.DispatchLookupSubjectsResponse
 			if err := response.UnmarshalVT(slice); err != nil {
-				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
+				return err
 			}
 			if err := stream.Publish(&response); err != nil {
-				return fmt.Errorf("could not publish cached lookup subjects result: %w", err)
+				// don't wrap error with additional context, as it may be a grpc status.Status.
+				// status.FromError() is unable to unwrap status.Status values, and as a consequence
+				// the Dispatcher wouldn't properly propagate the gRPC error code
+				return err
 			}
 		}
 		return nil
