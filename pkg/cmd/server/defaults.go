@@ -19,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
@@ -84,11 +85,26 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
 	return mux
 }
 
+var defaultGRPCLogOptions = []grpclog.Option{
+	// the server has a deadline set, so we consider it a normal condition
+	// this makes sure we don't log them as errors
+	grpclog.WithLevels(func(code codes.Code) grpclog.Level {
+		if code == codes.DeadlineExceeded {
+			return grpclog.INFO
+		}
+		return grpclog.DefaultServerCodeToLevel(code)
+	}),
+	// changes default logging behaviour to only log finish call message
+	grpclog.WithDecider(func(_ string, _ error) grpclog.Decision {
+		return grpclog.LogFinishCall
+	}),
+}
+
 func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
@@ -100,7 +116,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,
@@ -116,7 +132,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
@@ -125,7 +141,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger)),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,
