@@ -153,7 +153,7 @@ func (r *observableReader) LookupNamespaces(ctx context.Context, nsNames []strin
 	))
 	defer span.End()
 
-	return r.delegate.ListNamespaces(ctx)
+	return r.delegate.LookupNamespaces(ctx, nsNames)
 }
 
 func (r *observableReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
