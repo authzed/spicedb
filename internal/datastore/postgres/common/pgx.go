@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -87,6 +88,13 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 		return func(ctx context.Context, level pgx.LogLevel, msg string, data map[string]interface{}) {
 			if level == pgx.LogLevelInfo {
 				level = pgx.LogLevelDebug
+			}
+			// do not log cancelled queries as errors
+			if errArg, ok := data["err"]; ok {
+				err, ok := errArg.(error)
+				if ok && (errors.Is(err, context.Canceled)) {
+					return
+				}
 			}
 			logger.Log(ctx, level, msg, data)
 		}
