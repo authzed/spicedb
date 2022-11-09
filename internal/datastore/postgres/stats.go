@@ -43,13 +43,6 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	}
 
-	// TODO remove once the ID->XID migrations are all complete
-	if pgd.migrationPhase == writeBothReadOld {
-		filterer = func(original sq.SelectBuilder) sq.SelectBuilder {
-			return original.Where(sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID})
-		}
-	}
-
 	var uniqueID string
 	var nsDefs []*corev1.NamespaceDefinition
 	var relCount int64
@@ -64,7 +57,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 			return fmt.Errorf("unable to query unique ID: %w", err)
 		}
 
-		nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, filterer, pgd.migrationPhase)
+		nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, filterer)
 		if err != nil {
 			return fmt.Errorf("unable to load namespaces: %w", err)
 		}

@@ -38,9 +38,6 @@ const (
 	tableTuple       = "relation_tuple"
 	tableCaveat      = "caveat"
 
-	colCreatedTxnDeprecated = "created_transaction"
-	colDeletedTxnDeprecated = "deleted_transaction"
-
 	colXID               = "xid"
 	colTimestamp         = "timestamp"
 	colNamespace         = "namespace"
@@ -78,8 +75,7 @@ const (
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
 
-	livingTupleConstraintOld = "uq_relation_tuple_living"
-	livingTupleConstraint    = "uq_relation_tuple_living_xid"
+	livingTupleConstraint = "uq_relation_tuple_living_xid"
 )
 
 func init() {
@@ -226,7 +222,6 @@ func newPostgresDatastore(
 		cancelGc:                cancelGc,
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
-		migrationPhase:          migrationPhases[config.migrationPhase],
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -286,7 +281,6 @@ type pgDatastore struct {
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
 	watchEnabled            bool
-	migrationPhase          migrationPhase
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -316,21 +310,10 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
-	// TODO remove once the ID->XID migrations are all complete
-	if pgd.migrationPhase == writeBothReadOld {
-		return &pgReader{
-			createTxFunc,
-			querySplitter,
-			buildLivingObjectFilterForRevisionDeprecated(rev),
-			pgd.migrationPhase,
-		}
-	}
-
 	return &pgReader{
 		createTxFunc,
 		querySplitter,
 		buildLivingObjectFilterForRevision(rev),
-		pgd.migrationPhase,
 	}
 }
 
@@ -366,11 +349,9 @@ func (pgd *pgDatastore) ReadWriteTx(
 					longLivedTx,
 					querySplitter,
 					currentlyLivingObjects,
-					pgd.migrationPhase,
 				},
 				tx,
 				newXID,
-				pgd.migrationPhase,
 			}
 
 			return fn(rwt)
@@ -429,16 +410,6 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	// TODO remove once the ID->XID migrations are all complete
-	switch pgd.migrationPhase {
-	case writeBothReadOld:
-		return version == "add-xid-columns" || version == "add-xid-constraints", nil
-	case writeBothReadNew:
-		return version == "add-xid-constraints" || version == "drop-id-constraints", nil
-	case complete:
-		return version == "drop-id-constraints" || version == headMigration, nil
-	}
-
 	return version == headMigration, nil
 }
 
@@ -476,17 +447,6 @@ func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer
 
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(alreadyAlive).Where(notYetDead)
-	}
-}
-
-// TODO remove once the ID->XID migrations are all complete
-func buildLivingObjectFilterForRevisionDeprecated(revision postgresRevision) queryFilterer {
-	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.LtOrEq{colCreatedTxnDeprecated: revision.tx.Uint}).
-			Where(sq.Or{
-				sq.Eq{colDeletedTxnDeprecated: liveDeletedTxnID},
-				sq.Gt{colDeletedTxnDeprecated: revision.tx.Uint},
-			})
 	}
 }
 
