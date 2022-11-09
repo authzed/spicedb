@@ -1,6 +1,8 @@
 package validationfile
 
 import (
+	"sort"
+	"strings"
 	"testing"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -57,7 +59,19 @@ func TestPopulateFromFiles(t *testing.T) {
 
 			parsed, _, err := PopulateFromFiles(ds, tt.filePaths)
 			require.NoError(err)
+
+			sort.Sort(sortByTuple(tt.want))
+			sort.Sort(sortByTuple(parsed.Tuples))
+
 			require.Equal(tt.want, parsed.Tuples)
 		})
 	}
+}
+
+type sortByTuple []*core.RelationTuple
+
+func (a sortByTuple) Len() int      { return len(a) }
+func (a sortByTuple) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a sortByTuple) Less(i, j int) bool {
+	return strings.Compare(tuple.String(a[i]), tuple.String(a[j])) < 0
 }
