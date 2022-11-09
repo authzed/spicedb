@@ -219,8 +219,9 @@ func validateUpdatesToWrite(updates ...*core.RelationTupleUpdate) error {
 		}
 		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard && update.Tuple.Subject.Relation != "" {
 			return fmt.Errorf(
-				"attempt to write a wildcard relationship (`%s`) with a non-empty relation. Please report this bug",
+				"attempt to write a wildcard relationship (`%s`) with a non-empty relation `%v`. Please report this bug",
 				tuple.String(update.Tuple),
+				update.Tuple.Subject.Relation,
 			)
 		}
 	}
