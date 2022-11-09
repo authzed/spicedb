@@ -72,7 +72,10 @@ func rewriteGraphError(ctx context.Context, err error) error {
 	switch {
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
-
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Errorf(codes.DeadlineExceeded, "%s", err)
+	case errors.Is(err, context.Canceled):
+		return status.Errorf(codes.Canceled, "%s", err)
 	case err == nil:
 		return nil
 

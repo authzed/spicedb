@@ -269,7 +269,10 @@ func rewriteError(ctx context.Context, err error) error {
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 	case errors.As(err, &graph.ErrUnimplemented{}):
 		return status.Errorf(codes.Unimplemented, "%s", err)
-
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Errorf(codes.DeadlineExceeded, "%s", err)
+	case errors.Is(err, context.Canceled):
+		return status.Errorf(codes.Canceled, "%s", err)
 	default:
 		log.Ctx(ctx).Err(err).Msg("received unexpected error")
 		return err
