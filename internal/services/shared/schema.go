@@ -75,18 +75,42 @@ type AppliedSchemaChanges struct {
 	// TotalOperationCount holds the total number of "dispatch" operations performed by the schema
 	// being applied.
 	TotalOperationCount uint32
+
+	// NewObjectDefNames contains the names of the newly added object definitions.
+	NewObjectDefNames []string
+
+	// RemovedObjectDefNames contains the names of the removed object definitions.
+	RemovedObjectDefNames []string
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	// Build a map of existing caveats to determine those being removed, if any.
 	existingCaveats, err := rwt.ListCaveats(ctx)
-	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
-	existingCaveatDefNames := util.NewSet[string]()
 	if err != nil {
 		return nil, err
 	}
+
+	existingObjectDefs, err := rwt.ListNamespaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return ApplySchemaChangesOverExisting(ctx, rwt, validated, existingCaveats, existingObjectDefs)
+}
+
+// ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
+// existing caveat and object definitions given.
+func ApplySchemaChangesOverExisting(
+	ctx context.Context,
+	rwt datastore.ReadWriteTransaction,
+	validated *ValidatedSchemaChanges,
+	existingCaveats []*core.CaveatDefinition,
+	existingObjectDefs []*core.NamespaceDefinition,
+) (*AppliedSchemaChanges, error) {
+	// Build a map of existing caveats to determine those being removed, if any.
+	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
+	existingCaveatDefNames := util.NewSet[string]()
 
 	for _, existingCaveat := range existingCaveats {
 		existingCaveatDefMap[existingCaveat.Name] = existingCaveat
@@ -103,11 +127,6 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 	removedCaveatDefNames := existingCaveatDefNames.Subtract(validated.newCaveatDefNames)
 
 	// Build a map of existing definitions to determine those being removed, if any.
-	existingObjectDefs, err := rwt.ListNamespaces(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	existingObjectDefMap := make(map[string]*core.NamespaceDefinition, len(existingObjectDefs))
 	existingObjectDefNames := util.NewSet[string]()
 	for _, existingDef := range existingObjectDefs {
@@ -188,7 +207,9 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 		Msg("completed schema update")
 
 	return &AppliedSchemaChanges{
-		TotalOperationCount: uint32(len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len()),
+		TotalOperationCount:   uint32(len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len()),
+		NewObjectDefNames:     validated.newObjectDefNames.Subtract(existingObjectDefNames).AsSlice(),
+		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
 	}, nil
 }
 
