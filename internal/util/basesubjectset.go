@@ -227,6 +227,35 @@ func (bss BaseSubjectSet[T]) UnsafeRemoveExact(foundSubject T) {
 	delete(bss.concrete, foundSubject.GetSubjectId())
 }
 
+// WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied
+// to all members of this set.
+func (bss BaseSubjectSet[T]) WithParentCaveatExpression(parentCaveatExpr *v1.CaveatExpression) BaseSubjectSet[T] {
+	clone := bss.Clone()
+
+	// Apply the parent caveat expression to the wildcard, if any.
+	if wildcard, ok := clone.wildcard.get(); ok {
+		constructed := bss.constructor(
+			tuple.PublicWildcard,
+			caveatAnd(parentCaveatExpr, wildcard.GetCaveatExpression()),
+			wildcard.GetExcludedSubjects(),
+			wildcard,
+		)
+		clone.wildcard.setOrNil(&constructed)
+	}
+
+	// Apply the parent caveat expression to each concrete.
+	for subjectID, concrete := range clone.concrete {
+		clone.concrete[subjectID] = bss.constructor(
+			subjectID,
+			caveatAnd(parentCaveatExpr, concrete.GetCaveatExpression()),
+			nil,
+			concrete,
+		)
+	}
+
+	return clone
+}
+
 // unionWildcardWithWildcard performs a union operation over two wildcards, returning the updated
 // wildcard (if any).
 func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor constructor[T]) *T {

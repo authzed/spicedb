@@ -341,6 +341,7 @@ func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationT
 // WithCaveat adds the given caveat name to the tuple. This is for testing only and may be
 // removed in the future.
 func WithCaveat(tpl *core.RelationTuple, caveatName string) *core.RelationTuple {
+	tpl = tpl.CloneVT()
 	tpl.Caveat = &core.ContextualizedCaveat{
 		CaveatName: caveatName,
 	}

@@ -217,10 +217,11 @@ func validateUpdatesToWrite(updates ...*core.RelationTupleUpdate) error {
 		if update.Tuple.Subject.Relation == "" {
 			return fmt.Errorf("expected ... instead of an empty relation string relation in %v", update.Tuple)
 		}
-		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard && update.Tuple.Subject.Relation != "" {
+		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard && update.Tuple.Subject.Relation != tuple.Ellipsis {
 			return fmt.Errorf(
-				"attempt to write a wildcard relationship (`%s`) with a non-empty relation. Please report this bug",
+				"attempt to write a wildcard relationship (`%s`) with a non-empty relation `%v`. Please report this bug",
 				tuple.String(update.Tuple),
+				update.Tuple.Subject.Relation,
 			)
 		}
 	}

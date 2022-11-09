@@ -214,7 +214,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	newRevision, err := validating.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		mutations := make([]*core.RelationTupleUpdate, 0, len(relationships))
 		for _, rel := range relationships {
-			mutations = append(mutations, tuple.Create(rel))
+			mutations = append(mutations, tuple.Create(rel.CloneVT()))
 		}
 		err = rwt.WriteRelationships(ctx, mutations)
 		require.NoError(err)

@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 
+	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -143,12 +146,15 @@ func TestSimpleLookupSubjects(t *testing.T) {
 
 			foundSubjectIds := []string{}
 			for _, result := range stream.Results() {
-				for _, found := range result.FoundSubjects {
-					if len(found.ExcludedSubjects) > 0 {
-						continue
-					}
+				results, ok := result.FoundSubjectsByResourceId[tc.resourceID]
+				if ok {
+					for _, found := range results.FoundSubjects {
+						if len(found.ExcludedSubjects) > 0 {
+							continue
+						}
 
-					foundSubjectIds = append(foundSubjectIds, found.SubjectId)
+						foundSubjectIds = append(foundSubjectIds, found.SubjectId)
+					}
 				}
 			}
 
@@ -256,5 +262,480 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 				require.LessOrEqual(int(result.Metadata.DispatchCount), tc.expectedDispatchCount, "Found dispatch count greater than expected")
 			}
 		})
+	}
+}
+
+func TestCaveatedLookupSubjects(t *testing.T) {
+	testCases := []struct {
+		name          string
+		schema        string
+		relationships []*corev1.RelationTuple
+		start         *corev1.ObjectAndRelation
+		target        *corev1.RelationReference
+		expected      []*v1.FoundSubject
+	}{
+		{
+			"basic caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				permission view = viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustParse("document:first#viewer@user:sarah"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "sarah",
+				},
+				{
+					SubjectId:        "tom",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
+		{
+			"union caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				relation editor: user | user with somecaveat
+				permission view = viewer + editor
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatOr(
+						caveatexpr("somecaveat"),
+						caveatexpr("somecaveat"),
+					),
+				},
+			},
+		},
+		{
+			"union short-circuited caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				relation editor: user | user with somecaveat
+				permission view = viewer + editor
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.WithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+			},
+		},
+		{
+			"intersection caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				relation editor: user | user with anothercaveat
+				permission view = viewer & editor
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#editor@user:tom"), "anothercaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatAnd(
+						caveatexpr("somecaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+			},
+		},
+		{
+			"exclusion caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				relation banned: user | user with anothercaveat
+				permission view = viewer - banned
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId:        "sarah",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatAnd(
+						caveatexpr("somecaveat"),
+						caveatInvert(caveatexpr("anothercaveat")),
+					),
+				},
+			},
+		},
+		{
+			"arrow caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 definition org {
+				relation viewer: user								
+			 }
+
+		 	 definition document {
+				relation org: org with somecaveat
+				permission view = org->viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
+				tuple.MustParse("org:someorg#viewer@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId:        "tom",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
+		{
+			"arrow and relation caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 definition org {
+				relation viewer: user with anothercaveat					
+			 }
+
+		 	 definition document {
+				relation org: org with somecaveat
+				permission view = org->viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatAnd(
+						caveatexpr("somecaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+			},
+		},
+		{
+			"caveated wildcard with exclusions caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user:* with somecaveat
+				relation banned: user with anothercaveat
+				permission view = viewer - banned
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "*",
+					ExcludedSubjects: []*v1.FoundSubject{
+						{
+							SubjectId:        "tom",
+							CaveatExpression: caveatexpr("anothercaveat"),
+						},
+					},
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
+		{
+			"caveated wildcard with exclusions caveated",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat thirdcaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user:* with somecaveat
+				relation banned: user with anothercaveat
+				relation explicitly_allowed: user with thirdcaveat
+				permission view = (viewer - banned) + explicitly_allowed
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:first#explicitly_allowed@user:tom"), "thirdcaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId:        "tom",
+					CaveatExpression: caveatexpr("thirdcaveat"),
+				},
+				{
+					SubjectId: "*",
+					ExcludedSubjects: []*v1.FoundSubject{
+						{
+							SubjectId: "tom",
+							CaveatExpression: caveatAnd(
+								caveatexpr("anothercaveat"),
+								caveatInvert(caveatexpr("thirdcaveat")),
+							),
+						},
+					},
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
+		{
+			"multiple via arrows",
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat thirdcaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 definition org {
+				relation viewer: user | user with anothercaveat				
+			 }
+
+		 	 definition document {
+				relation org: org with somecaveat | org with thirdcaveat
+				permission view = org->viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
+				tuple.WithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
+				tuple.MustParse("org:someorg#viewer@user:sarah"),
+
+				tuple.WithCaveat(tuple.MustParse("document:first#org@org:anotherorg"), "thirdcaveat"),
+				tuple.WithCaveat(tuple.MustParse("org:anotherorg#viewer@user:amy"), "anothercaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatAnd(
+						caveatexpr("somecaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+				{
+					SubjectId:        "sarah",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+				{
+					SubjectId: "amy",
+					CaveatExpression: caveatAnd(
+						caveatexpr("thirdcaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			dispatcher := NewLocalOnlyDispatcher(10)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+
+			ctx := datastoremw.ContextWithHandle(context.Background())
+			require.NoError(datastoremw.SetInContext(ctx, ds))
+
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
+			err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+				ResourceRelation: &corev1.RelationReference{
+					Namespace: tc.start.Namespace,
+					Relation:  tc.start.Relation,
+				},
+				ResourceIds:     []string{tc.start.ObjectId},
+				SubjectRelation: tc.target,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+			}, stream)
+
+			results := []*v1.FoundSubject{}
+			for _, streamResult := range stream.Results() {
+				for _, foundSubjects := range streamResult.FoundSubjectsByResourceId {
+					results = append(results, foundSubjects.FoundSubjects...)
+				}
+			}
+			sort.Sort(byFoundSubjectAndCaveat(results))
+			sort.Sort(byFoundSubjectAndCaveat(tc.expected))
+
+			require.NoError(err)
+			require.Equal(len(tc.expected), len(results), "Found: %v, Expected: %v", results, tc.expected)
+			for index := range tc.expected {
+				require.True(proto.Equal(tc.expected[index], results[index]), "Found: %v, Expected: %v", results[index], tc.expected[index])
+			}
+		})
+	}
+}
+
+type byFoundSubjectAndCaveat []*v1.FoundSubject
+
+func (a byFoundSubjectAndCaveat) Len() int { return len(a) }
+func (a byFoundSubjectAndCaveat) Less(i, j int) bool {
+	return strings.Compare(
+		fmt.Sprintf("%s:%v", a[i].SubjectId, a[i].CaveatExpression),
+		fmt.Sprintf("%s:%v", a[j].SubjectId, a[j].CaveatExpression),
+	) < 0
+}
+func (a byFoundSubjectAndCaveat) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func caveatexpr(name string) *v1.CaveatExpression {
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Caveat{
+			Caveat: caveat(name),
+		},
+	}
+}
+
+func caveat(name string) *corev1.ContextualizedCaveat {
+	return &corev1.ContextualizedCaveat{
+		CaveatName: name,
+		Context:    &structpb.Struct{},
+	}
+}
+
+func caveatOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_OR,
+				Children: []*v1.CaveatExpression{first, second},
+			},
+		},
+	}
+}
+
+func caveatAnd(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_AND,
+				Children: []*v1.CaveatExpression{first, second},
+			},
+		},
+	}
+}
+
+func caveatInvert(ce *v1.CaveatExpression) *v1.CaveatExpression {
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_NOT,
+				Children: []*v1.CaveatExpression{ce},
+			},
+		},
 	}
 }

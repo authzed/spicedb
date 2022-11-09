@@ -2,13 +2,10 @@ package computed
 
 import (
 	"context"
-	"fmt"
 
-	"golang.org/x/exp/maps"
-
+	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -103,8 +100,10 @@ func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, res
 		return result, nil
 	}
 
-	env := caveats.NewEnvironment()
-	caveatResult, err := runExpression(ctx, env, result.Expression, params.CaveatContext, params.AtRevision)
+	ds := datastoremw.MustFromContext(ctx)
+	reader := ds.SnapshotReader(params.AtRevision)
+
+	caveatResult, err := cexpr.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
 	if err != nil {
 		return nil, err
 	}
@@ -126,113 +125,4 @@ func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, res
 	return &v1.ResourceCheckResult{
 		Membership: v1.ResourceCheckResult_NOT_MEMBER,
 	}, nil
-}
-
-type expressionResult interface {
-	Value() bool
-	IsPartial() bool
-	MissingVarNames() ([]string, error)
-}
-
-type syntheticResult struct {
-	value bool
-}
-
-func (sr syntheticResult) Value() bool {
-	return sr.value
-}
-
-func (sr syntheticResult) IsPartial() bool {
-	return false
-}
-
-func (sr syntheticResult) MissingVarNames() ([]string, error) {
-	return nil, fmt.Errorf("not a partial value")
-}
-
-func runExpression(
-	ctx context.Context,
-	env *caveats.Environment,
-	expr *v1.CaveatExpression,
-	context map[string]any,
-	revision datastore.Revision,
-) (expressionResult, error) {
-	if expr.GetCaveat() != nil {
-		ds := datastoremw.MustFromContext(ctx)
-		reader := ds.SnapshotReader(revision)
-		caveat, _, err := reader.ReadCaveatByName(ctx, expr.GetCaveat().CaveatName)
-		if err != nil {
-			return nil, err
-		}
-
-		compiled, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
-		if err != nil {
-			return nil, err
-		}
-
-		// Create a combined context, with the written context taking precedence over that specified.
-		untypedFullContext := maps.Clone(context)
-		if untypedFullContext == nil {
-			untypedFullContext = map[string]any{}
-		}
-
-		relationshipContext := expr.GetCaveat().GetContext().AsMap()
-		maps.Copy(untypedFullContext, relationshipContext)
-
-		// Perform type checking and conversion on the context map.
-		typedParameters, err := caveats.ConvertContextToParameters(
-			untypedFullContext,
-			caveat.ParameterTypes,
-			caveats.SkipUnknownParameters,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("type error for parameters for caveat `%s`: %w", caveat.Name, err)
-		}
-
-		result, err := caveats.EvaluateCaveat(compiled, typedParameters)
-		if err != nil {
-			return nil, err
-		}
-
-		return result, nil
-	}
-
-	cop := expr.GetOperation()
-	boolResult := false
-	if cop.Op == v1.CaveatOperation_AND {
-		boolResult = true
-	}
-
-	for _, child := range cop.Children {
-		childResult, err := runExpression(ctx, env, child, context, revision)
-		if err != nil {
-			return nil, err
-		}
-
-		if childResult.IsPartial() {
-			return childResult, nil
-		}
-
-		switch cop.Op {
-		case v1.CaveatOperation_AND:
-			boolResult = boolResult && childResult.Value()
-			if !boolResult {
-				return syntheticResult{false}, nil
-			}
-
-		case v1.CaveatOperation_OR:
-			boolResult = boolResult || childResult.Value()
-			if boolResult {
-				return syntheticResult{true}, nil
-			}
-
-		case v1.CaveatOperation_NOT:
-			return syntheticResult{!childResult.Value()}, nil
-
-		default:
-			panic("unknown op")
-		}
-	}
-
-	return syntheticResult{boolResult}, nil
 }
