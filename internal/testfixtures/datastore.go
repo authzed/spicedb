@@ -117,44 +117,22 @@ var StandardTuples = []string{
 	"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 }
 
+// EmptyDatastore returns an empty datastore for testing.
 func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	rev, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 	return ds, rev
 }
 
+// StandardDatastoreWithSchema returns a datastore populated with the standard test definitions.
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
-	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)
-
-	// clone to avoid races due to annotations on schema write
-	allDefs := []*core.NamespaceDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
-
-	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		for _, nsDef := range allDefs {
-			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
-				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
-					Namespaces: allDefs,
-				}))
-			require.NoError(err)
-
-			vts, err := ts.Validate(ctx)
-			require.NoError(err)
-
-			aerr := namespace.AnnotateNamespace(vts)
-			require.NoError(aerr)
-
-			err = rwt.WriteNamespaces(ctx, nsDef)
-			require.NoError(err)
-		}
-
-		return nil
-	})
-	require.NoError(err)
-
-	return validating, newRevision
+	objectDefs := []*core.NamespaceDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
+	return validating, writeDefinitions(validating, require, objectDefs, nil)
 }
 
+// StandardDatastoreWithData returns a datastore populated with both the standard test definitions
+// and relationships.
 func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
@@ -171,6 +149,8 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 	return ds, revision
 }
 
+// StandardDatastoreWithCaveatedData returns a datastore populated with both the standard test definitions
+// and some caveated relationships.
 func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
@@ -229,28 +209,9 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	}, &emptyDefaultPrefix)
 	require.NoError(err)
 
-	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
-		require.NoError(err)
+	_ = writeDefinitions(validating, require, compiled.ObjectDefinitions, compiled.CaveatDefinitions)
 
-		for _, nsDef := range compiled.ObjectDefinitions {
-			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
-				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
-					Namespaces: compiled.ObjectDefinitions,
-					Caveats:    compiled.CaveatDefinitions,
-				}))
-			require.NoError(err)
-
-			vts, err := ts.Validate(ctx)
-			require.NoError(err)
-
-			aerr := namespace.AnnotateNamespace(vts)
-			require.NoError(aerr)
-
-			err = rwt.WriteNamespaces(ctx, nsDef)
-			require.NoError(err)
-		}
-
+	newRevision, err := validating.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		mutations := make([]*core.RelationTupleUpdate, 0, len(relationships))
 		for _, rel := range relationships {
 			mutations = append(mutations, tuple.Create(rel))
@@ -265,6 +226,40 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	return validating, newRevision
 }
 
+func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
+	ctx := context.Background()
+	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		if len(caveatDefs) > 0 {
+			err := rwt.WriteCaveats(ctx, caveatDefs)
+			require.NoError(err)
+		}
+
+		for _, nsDef := range objectDefs {
+			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
+				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+					Namespaces: objectDefs,
+					Caveats:    caveatDefs,
+				}))
+			require.NoError(err)
+
+			vts, err := ts.Validate(ctx)
+			require.NoError(err)
+
+			aerr := namespace.AnnotateNamespace(vts)
+			require.NoError(aerr)
+
+			err = rwt.WriteNamespaces(ctx, nsDef)
+			require.NoError(err)
+		}
+
+		return nil
+	})
+	require.NoError(err)
+	return newRevision
+}
+
+// TupleChecker is a helper type which provides an easy way for collecting relationships/tuples from
+// an iterator and verify those found.
 type TupleChecker struct {
 	Require *require.Assertions
 	DS      datastore.Datastore
