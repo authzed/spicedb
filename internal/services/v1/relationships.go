@@ -295,13 +295,11 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 
 			// Validate caveat and its context, if applicable.
-			// TODO(jschorr): once caveats are supported on all datastores, we should elide this check if the
-			// provided context is empty, as the allowed relation check above will ensure the caveat exists.
 			if hasNonEmptyCaveatContext(update) {
 				caveat, ok := referencedCaveatMap[update.Relationship.OptionalCaveat.CaveatName]
 				if !ok {
-					// Should ideally never happen since the caveat is type checked above, but just in case.
-					return rewriteError(ctx, NewCaveatNotFoundError(update))
+					// This won't happen since caveat is type checked above
+					panic("caveat should have been type-checked but was not found")
 				}
 
 				// Verify that the provided context information matches the types of the parameters defined.
