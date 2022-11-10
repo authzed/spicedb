@@ -1,4 +1,4 @@
-package membership
+package developmentmembership
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // TrackingSubjectSet defines a set that tracks accessible subjects and their associated

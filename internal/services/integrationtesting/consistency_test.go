@@ -22,11 +22,11 @@ import (
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/developmentmembership"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	"github.com/authzed/spicedb/internal/membership"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testserver"
@@ -369,7 +369,7 @@ func accessibleViaWildcardOnly(t *testing.T, ds datastore.Datastore, dispatch di
 	})
 	require.NoError(t, err)
 
-	subjectsFound, err := membership.AccessibleExpansionSubjects(resp.TreeNode)
+	subjectsFound, err := developmentmembership.AccessibleExpansionSubjects(resp.TreeNode)
 	require.NoError(t, err)
 	return !subjectsFound.Contains(subject)
 }
@@ -726,7 +726,7 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 					})
 					vrequire.NoError(err)
 
-					subjectsFoundSet, err := membership.AccessibleExpansionSubjects(resp.TreeNode)
+					subjectsFoundSet, err := developmentmembership.AccessibleExpansionSubjects(resp.TreeNode)
 					vrequire.NoError(err)
 
 					// Ensure all terminal subjects were found in the expansion.
@@ -888,15 +888,15 @@ func (rs *accessibilitySet) AccessibleSubjectsByType(namespaceName string, relat
 }
 
 // AccessibleTerminalSubjects returns the set of terminal subjects with accessible for the given object on the given relation on the namespace
-func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) *membership.TrackingSubjectSet {
-	accessibleSubjects := membership.NewTrackingSubjectSet()
+func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, relationName string, objectIDStr string) *developmentmembership.TrackingSubjectSet {
+	accessibleSubjects := developmentmembership.NewTrackingSubjectSet()
 	for _, result := range rs.results {
 		if result.isMember == isNotMember || result.isMember == isWildcard {
 			continue
 		}
 
 		if result.object.Namespace == namespaceName && result.object.Relation == relationName && result.object.ObjectId == objectIDStr && result.subject.Relation == "..." {
-			accessibleSubjects.Add(membership.NewFoundSubject(result.subject, result.object))
+			accessibleSubjects.Add(developmentmembership.NewFoundSubject(result.subject, result.object))
 		}
 	}
 	return accessibleSubjects
