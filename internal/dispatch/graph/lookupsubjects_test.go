@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/authzed/spicedb/pkg/testutil"
+
 	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -662,6 +663,7 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 					DepthRemaining: 50,
 				},
 			}, stream)
+			require.NoError(err)
 
 			results := []*v1.FoundSubject{}
 			for _, streamResult := range stream.Results() {
@@ -669,28 +671,16 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 					results = append(results, foundSubjects.FoundSubjects...)
 				}
 			}
-			sort.Sort(byFoundSubjectAndCaveat(results))
-			sort.Sort(byFoundSubjectAndCaveat(tc.expected))
 
-			require.NoError(err)
-			require.Equal(len(tc.expected), len(results), "Found: %v, Expected: %v", results, tc.expected)
-			for index := range tc.expected {
-				require.True(proto.Equal(tc.expected[index], results[index]), "Found: %v, Expected: %v", results[index], tc.expected[index])
-			}
+			testutil.RequireProtoSlicesEqual(t, tc.expected, results, func(first *v1.FoundSubject, second *v1.FoundSubject) int {
+				return strings.Compare(
+					fmt.Sprintf("%s:%v", first.SubjectId, first.CaveatExpression),
+					fmt.Sprintf("%s:%v", second.SubjectId, second.CaveatExpression),
+				)
+			}, "found mismatch on subjects")
 		})
 	}
 }
-
-type byFoundSubjectAndCaveat []*v1.FoundSubject
-
-func (a byFoundSubjectAndCaveat) Len() int { return len(a) }
-func (a byFoundSubjectAndCaveat) Less(i, j int) bool {
-	return strings.Compare(
-		fmt.Sprintf("%s:%v", a[i].SubjectId, a[i].CaveatExpression),
-		fmt.Sprintf("%s:%v", a[j].SubjectId, a[j].CaveatExpression),
-	) < 0
-}
-func (a byFoundSubjectAndCaveat) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func caveatexpr(name string) *v1.CaveatExpression {
 	return &v1.CaveatExpression{

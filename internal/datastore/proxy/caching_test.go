@@ -8,19 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
-	"github.com/authzed/spicedb/internal/datastore/memdb"
-
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 var (
@@ -262,10 +260,10 @@ func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
 
 			reader := ds.SnapshotReader(headRev)
 			ns, _, _ := reader.ReadNamespace(ctx, tc.namespaceName)
-			require.True(t, proto.Equal(tc.nsDef, ns))
+			testutil.RequireProtoEqual(t, tc.nsDef, ns, "found different namespaces")
 
 			ns2, _, _ := reader.ReadNamespace(ctx, tc.namespaceName)
-			require.True(t, proto.Equal(tc.nsDef, ns2))
+			testutil.RequireProtoEqual(t, tc.nsDef, ns2, "found different namespaces")
 		})
 	}
 }

@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -220,7 +220,7 @@ func TestCheckOperation(t *testing.T) {
 			if tc.expectedError != nil {
 				require.NotNil(t, response.GetDeveloperErrors())
 				require.Equal(t, 1, len(response.GetDeveloperErrors().InputErrors))
-				require.True(t, proto.Equal(tc.expectedError, response.GetDeveloperErrors().InputErrors[0]), "found mismatching error: %v", response.GetDeveloperErrors().InputErrors[0])
+				testutil.RequireProtoEqual(t, tc.expectedError, response.GetDeveloperErrors().InputErrors[0], "found mismatching error")
 			} else {
 				require.Equal(t, "", response.GetInternalError())
 				require.Nil(t, response.GetDeveloperErrors())
@@ -229,7 +229,7 @@ func TestCheckOperation(t *testing.T) {
 				require.NotNil(t, checkResult)
 
 				if tc.expectedResult.Error != nil {
-					require.True(t, proto.Equal(tc.expectedResult.Error, checkResult.CheckError))
+					testutil.RequireProtoEqual(t, tc.expectedResult.Error, checkResult.CheckError, "found mismatching error")
 				} else {
 					require.Nil(t, checkResult.CheckError)
 					require.Equal(t, tc.expectedResult.IsMember, checkResult.Membership == devinterface.CheckOperationsResult_MEMBER)
@@ -862,8 +862,7 @@ assertFalse:
 						errors = append(errors, response.GetOperationsResults().Results[1].GetValidationResult().ValidationErrors...)
 					}
 				}
-
-				require.True(proto.Equal(tc.expectedError, errors[0]))
+				testutil.RequireProtoEqual(t, tc.expectedError, errors[0], "mismatch on errors")
 			} else {
 				require.Equal(0, len(response.GetOperationsResults().Results[0].GetAssertionsResult().ValidationErrors), "Failed assertion", response.GetOperationsResults().Results[0].GetAssertionsResult().ValidationErrors)
 			}
