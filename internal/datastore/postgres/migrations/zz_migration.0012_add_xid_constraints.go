@@ -10,7 +10,7 @@ import (
 const (
 	getNSConfigPkeyName = `
 	SELECT constraint_name FROM information_schema.table_constraints
-		WHERE table_schema = 'public'
+		WHERE table_schema = current_schema()
       	AND table_name = 'namespace_config'
       	AND constraint_type = 'PRIMARY KEY';`
 
