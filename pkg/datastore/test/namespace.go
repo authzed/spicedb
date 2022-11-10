@@ -225,9 +225,13 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	schemaString := `definition document {
+	schemaString := `caveat foo(someParam int) {
+	someParam == 42
+}
+
+definition document {
 	relation viewer: user | user:*
-	relation editor: user | group#member
+	relation editor: user | group#member with foo
 	relation parent: organization
 	permission edit = editor
 	permission view = viewer + edit + parent->view
@@ -243,7 +247,7 @@ func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 		SchemaString: schemaString,
 	}, &empty)
 	require.NoError(err)
-	require.Equal(1, len(compiled.OrderedDefinitions))
+	require.Equal(2, len(compiled.OrderedDefinitions))
 
 	// Write the namespace definition to the datastore.
 	ds, err := tester.New(0, veryLargeGCWindow, 1)
@@ -251,13 +255,10 @@ func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 
 	ctx := context.Background()
 	updatedRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		/*
-			 * TODO(jschorr): Uncomment once caveats are supported on all datastores and add at least
-			 * one above
-			err := rwt.WriteCaveats(compiled.CaveatDefinitions)
-			if err != nil {
-				return err
-			}*/
+		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
+		if err != nil {
+			return err
+		}
 
 		return rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...)
 	})
@@ -265,12 +266,17 @@ func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {
 
 	// Read the namespace definition back from the datastore and compare.
 	nsConfig := compiled.ObjectDefinitions[0]
-	readDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
+	readNsDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
 	require.NoError(err)
+	require.True(proto.Equal(nsConfig, readNsDef), "found changed namespace definition")
 
-	require.True(proto.Equal(nsConfig, readDef), "found changed namespace definition")
+	// Read the caveat back from the datastore and compare.
+	caveatDef := compiled.CaveatDefinitions[0]
+	readCaveatDef, _, err := ds.SnapshotReader(updatedRevision).ReadCaveatByName(ctx, caveatDef.Name)
+	require.NoError(err)
+	require.True(proto.Equal(caveatDef, readCaveatDef), "found changed namespace definition")
 
 	// Ensure the read namespace's string form matches the input as an extra check.
-	generated, _ := generator.GenerateSource(readDef)
+	generated, _ := generator.GenerateSchema([]compiler.SchemaDefinition{readCaveatDef, readNsDef})
 	require.Equal(schemaString, generated)
 }
