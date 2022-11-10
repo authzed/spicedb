@@ -10,8 +10,14 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+)
+
+var (
+	caveatexpr   = caveats.CaveatExprForTesting
+	caveatAnd    = caveats.And
+	caveatOr     = caveats.Or
+	caveatInvert = caveats.Invert
 )
 
 func TestRunCaveatExpressions(t *testing.T) {
@@ -193,53 +199,5 @@ func TestRunCaveatExpressions(t *testing.T) {
 				})
 			}
 		})
-	}
-}
-
-// TODO(jschorr): Move these into helper methods to be shared by all tests
-func caveat(name string) *core.ContextualizedCaveat {
-	return &core.ContextualizedCaveat{
-		CaveatName: name,
-	}
-}
-
-func caveatexpr(name string) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
-			Caveat: caveat(name),
-		},
-	}
-}
-
-func caveatOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-func caveatAnd(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-func caveatInvert(ce *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_NOT,
-				Children: []*v1.CaveatExpression{ce},
-			},
-		},
 	}
 }

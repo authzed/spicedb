@@ -5,6 +5,19 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
+// CaveatAsExpr wraps a contextualized caveat into a caveat expression.
+func CaveatAsExpr(caveat *core.ContextualizedCaveat) *v1.CaveatExpression {
+	if caveat == nil {
+		return nil
+	}
+
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Caveat{
+			Caveat: caveat,
+		},
+	}
+}
+
 // CaveatForTesting returns a new ContextualizedCaveat for testing, with empty context.
 func CaveatForTesting(name string) *core.ContextualizedCaveat {
 	return &core.ContextualizedCaveat{
@@ -99,6 +112,28 @@ func Invert(ce *v1.CaveatExpression) *v1.CaveatExpression {
 			Operation: &v1.CaveatOperation{
 				Op:       v1.CaveatOperation_NOT,
 				Children: []*v1.CaveatExpression{ce},
+			},
+		},
+	}
+}
+
+// Subtract returns a caveat expression representing the subtracted expression subtracted from the given
+// expression.
+func Subtract(caveat *v1.CaveatExpression, subtracted *v1.CaveatExpression) *v1.CaveatExpression {
+	inversion := Invert(subtracted)
+	if caveat == nil {
+		return inversion
+	}
+
+	if subtracted == nil {
+		panic("subtraction caveat expression is nil")
+	}
+
+	return &v1.CaveatExpression{
+		OperationOrCaveat: &v1.CaveatExpression_Operation{
+			Operation: &v1.CaveatOperation{
+				Op:       v1.CaveatOperation_AND,
+				Children: []*v1.CaveatExpression{caveat, inversion},
 			},
 		},
 	}

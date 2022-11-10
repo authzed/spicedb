@@ -1,8 +1,16 @@
 package graph
 
 import (
+	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+)
+
+var (
+	caveatOr   = caveats.Or
+	caveatAnd  = caveats.And
+	caveatSub  = caveats.Subtract
+	wrapCaveat = caveats.CaveatAsExpr
 )
 
 // CheckResultsMap defines a type that is a map from resource ID to ResourceCheckResult.
@@ -169,85 +177,4 @@ func (ms *MembershipSet) AsCheckResultsMap() CheckResultsMap {
 	}
 
 	return resultsMap
-}
-
-func wrapCaveat(caveat *core.ContextualizedCaveat) *v1.CaveatExpression {
-	if caveat == nil {
-		return nil
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
-			Caveat: caveat,
-		},
-	}
-}
-
-func caveatOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	if first == nil {
-		return second
-	}
-
-	if second == nil {
-		return first
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-func caveatAnd(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	if first == nil {
-		return second
-	}
-
-	if second == nil {
-		return first
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-func invert(ce *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_NOT,
-				Children: []*v1.CaveatExpression{ce},
-			},
-		},
-	}
-}
-
-func caveatSub(caveat *v1.CaveatExpression, subtraction *v1.CaveatExpression) *v1.CaveatExpression {
-	inversion := invert(subtraction)
-	if caveat == nil {
-		return inversion
-	}
-
-	if subtraction == nil {
-		panic("subtraction caveat expression is nil")
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{caveat, inversion},
-			},
-		},
-	}
 }

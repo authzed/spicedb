@@ -4,25 +4,29 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/testutil"
-
-	structpb "github.com/golang/protobuf/ptypes/struct"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	itestutil "github.com/authzed/spicedb/internal/testutil"
 	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+var (
+	caveatexpr   = caveats.CaveatExprForTesting
+	caveatAnd    = caveats.And
+	caveatInvert = caveats.Invert
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {
@@ -324,11 +328,8 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 			RR("user", "..."),
 			[]*v1.FoundSubject{
 				{
-					SubjectId: "tom",
-					CaveatExpression: caveatOr(
-						caveatexpr("somecaveat"),
-						caveatexpr("somecaveat"),
-					),
+					SubjectId:        "tom",
+					CaveatExpression: caveatexpr("somecaveat"),
 				},
 			},
 		},
@@ -672,60 +673,7 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				}
 			}
 
-			testutil.RequireProtoSlicesEqual(t, tc.expected, results, func(first *v1.FoundSubject, second *v1.FoundSubject) int {
-				return strings.Compare(
-					fmt.Sprintf("%s:%v", first.SubjectId, first.CaveatExpression),
-					fmt.Sprintf("%s:%v", second.SubjectId, second.CaveatExpression),
-				)
-			}, "found mismatch on subjects")
+			itestutil.RequireEquivalentSets(t, tc.expected, results)
 		})
-	}
-}
-
-func caveatexpr(name string) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
-			Caveat: caveat(name),
-		},
-	}
-}
-
-func caveat(name string) *corev1.ContextualizedCaveat {
-	return &corev1.ContextualizedCaveat{
-		CaveatName: name,
-		Context:    &structpb.Struct{},
-	}
-}
-
-func caveatOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-func caveatAnd(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-func caveatInvert(ce *v1.CaveatExpression) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_NOT,
-				Children: []*v1.CaveatExpression{ce},
-			},
-		},
 	}
 }

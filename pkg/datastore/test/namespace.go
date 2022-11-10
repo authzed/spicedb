@@ -267,8 +267,7 @@ definition document {
 	nsConfig := compiled.ObjectDefinitions[0]
 	readNsDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
 	require.NoError(err)
-	require.True(proto.Equal(nsConfig, readNsDef), "found changed namespace definition")
-	testutil.RequireProtoEqual(t, nsConfig, readDef, "found changed namespace definition")
+	testutil.RequireProtoEqual(t, nsConfig, readNsDef, "found changed namespace definition")
 
 	// Read the caveat back from the datastore and compare.
 	caveatDef := compiled.CaveatDefinitions[0]

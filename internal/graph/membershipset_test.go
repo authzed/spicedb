@@ -3,14 +3,16 @@ package graph
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+var invert = caveats.Invert
 
 func caveat(name string, context map[string]any) *v1.CaveatExpression {
 	s, _ := structpb.NewStruct(context)
