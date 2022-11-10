@@ -7,7 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/util"
 
 	"github.com/jzelinskie/stringz"
 

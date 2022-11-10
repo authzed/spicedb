@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/util"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 

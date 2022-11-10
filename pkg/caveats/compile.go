@@ -3,12 +3,11 @@ package caveats
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/util"
-
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
 
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 const anonymousCaveat = ""

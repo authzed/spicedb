@@ -10,7 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/util"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 

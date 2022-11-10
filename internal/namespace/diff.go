@@ -3,15 +3,13 @@ package namespace
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/util"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/scylladb/go-set/strset"
 
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
-
-	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // DeltaType defines the type of namespace deltas.
