@@ -20,6 +20,15 @@ import (
 
 var UserNS = ns.Namespace("user")
 
+var CaveatDef = ns.MustCaveatDefinition(
+	caveats.MustEnvForVariables(map[string]caveattypes.VariableType{
+		"secret":         caveattypes.StringType,
+		"expectedSecret": caveattypes.StringType,
+	}),
+	"test",
+	"secret == expectedSecret",
+)
+
 var DocumentNS = ns.Namespace(
 	"document",
 	ns.Relation("owner",
@@ -38,12 +47,10 @@ var DocumentNS = ns.Namespace(
 		nil,
 		ns.AllowedRelation("user", "..."),
 	),
-	/*
-		TODO(jschorr): Uncomment once caveats are supported on all datastores
-		ns.Relation("caveated_viewer",
-			nil,
-			ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("testcaveat")),
-		),*/
+	ns.Relation("caveated_viewer",
+		nil,
+		ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("test")),
+	),
 	ns.Relation("parent", nil, ns.AllowedRelation("folder", "...")),
 	ns.Relation("edit",
 		ns.Union(
@@ -128,7 +135,7 @@ func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datast
 func StandardDatastoreWithSchema(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	validating := NewValidatingDatastore(ds)
 	objectDefs := []*core.NamespaceDefinition{UserNS.CloneVT(), FolderNS.CloneVT(), DocumentNS.CloneVT()}
-	return validating, writeDefinitions(validating, require, objectDefs, nil)
+	return validating, writeDefinitions(validating, require, objectDefs, []*core.CaveatDefinition{CaveatDef})
 }
 
 // StandardDatastoreWithData returns a datastore populated with both the standard test definitions

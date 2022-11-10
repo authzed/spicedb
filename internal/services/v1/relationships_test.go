@@ -13,10 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -340,8 +343,6 @@ func TestWriteRelationships(t *testing.T) {
 	require.ErrorIs(err, io.EOF)
 }
 
-/*
-TODO(jschorr): Uncomment once caveats are supported on all datastores
 func TestWriteCaveatedRelationships(t *testing.T) {
 	req := require.New(t)
 
@@ -349,14 +350,14 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	toWrite := tuple.MustParse("document:totallynew#caveated_viewer@user:tom")
-	caveatCtx, err := structpb.NewStruct(map[string]any{"a": 1, "b": 2})
+	toWrite := tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...")
+	caveatCtx, err := structpb.NewStruct(map[string]any{"expectedSecret": "hi"})
 	req.NoError(err)
+
 	toWrite.Caveat = &core.ContextualizedCaveat{
-		CaveatName: "testcaveat",
+		CaveatName: "doesnotexist",
 		Context:    caveatCtx,
 	}
-
 	toWrite.Caveat.Context = caveatCtx
 	relWritten := tuple.MustToRelationship(toWrite)
 	writeReq := &v1.WriteRelationshipsRequest{
@@ -369,24 +370,13 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 	// Should fail due to non-existing caveat
 	ctx := context.Background()
 	_, err = client.WriteRelationships(ctx, writeReq)
-	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
-	spiceerrors.RequireReason(t, v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT, err,
-		"caveat_name",
-	)
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
-	errorMsg := fmt.Sprintf("the caveat `test` was not found for relationship `%s`", tuple.StringRelationship(relWritten))
+	errorMsg := fmt.Sprintf("subjects of type `user with doesnotexist` are not allowed on relation `%s`", tuple.StringObjectRef(relWritten.Resource))
 	req.Contains(err.Error(), errorMsg)
 
-	// TODO(vroldanbet) temporarily use Datastore to write caveat until we expose it via Schema API
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error {
-		return transaction.WriteCaveats([]*core.CaveatDefinition{{
-			Name:                 "test",
-			SerializedExpression: []byte{},
-		}})
-	})
-	req.NoError(err)
-
 	// should succeed
+	relWritten.OptionalCaveat.CaveatName = "test"
 	resp, err := client.WriteRelationships(context.Background(), writeReq)
 	req.NoError(err)
 
@@ -410,7 +400,6 @@ func readFirst(require *require.Assertions, client v1.PermissionsServiceClient, 
 	require.NoError(err)
 	return result.Relationship
 }
-*/
 
 func precondFilter(resType, resID, relation, subType, subID string, subRel *string) *v1.RelationshipFilter {
 	var optionalRel *v1.SubjectFilter_RelationFilter
