@@ -1,4 +1,4 @@
-package util
+package datasets
 
 import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"

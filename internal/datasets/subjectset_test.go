@@ -1,68 +1,25 @@
-package util
+package datasets
 
 import (
 	"fmt"
 	"math"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/internal/testutil"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func caveat(name string) *core.ContextualizedCaveat {
-	return &core.ContextualizedCaveat{
-		CaveatName: name,
-	}
-}
-
-func caveatexpr(name string) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
-			Caveat: caveat(name),
-		},
-	}
-}
-
-func sub(subjectID string) *v1.FoundSubject {
-	return &v1.FoundSubject{
-		SubjectId: subjectID,
-	}
-}
-
-func csub(subjectID string, expr *v1.CaveatExpression) *v1.FoundSubject {
-	return &v1.FoundSubject{
-		SubjectId:        subjectID,
-		CaveatExpression: expr,
-	}
-}
-
-func cwc(expr *v1.CaveatExpression, exclusions ...*v1.FoundSubject) *v1.FoundSubject {
-	return &v1.FoundSubject{
-		SubjectId:        tuple.PublicWildcard,
-		ExcludedSubjects: exclusions,
-		CaveatExpression: expr,
-	}
-}
-
-func wc(exclusions ...string) *v1.FoundSubject {
-	excludedSubjects := make([]*v1.FoundSubject, 0, len(exclusions))
-	for _, excludedID := range exclusions {
-		excludedSubjects = append(excludedSubjects, &v1.FoundSubject{
-			SubjectId: excludedID,
-		})
-	}
-
-	return &v1.FoundSubject{
-		SubjectId:        tuple.PublicWildcard,
-		ExcludedSubjects: excludedSubjects,
-	}
-}
+var (
+	caveatexpr = caveats.CaveatExprForTesting
+	sub        = testutil.FoundSubject
+	wc         = testutil.Wildcard
+	csub       = testutil.CaveatedFoundSubject
+	cwc        = testutil.CaveatedWildcard
+	wrap       = testutil.WrapFoundSubject
+)
 
 func TestSubjectSetAdd(t *testing.T) {
 	tcs := []struct {
@@ -281,7 +238,7 @@ func TestSubjectSetAdd(t *testing.T) {
 
 			expectedSet := tc.expectedSet
 			computedSet := existingSet.AsSlice()
-			requireEquivalentSets(t, expectedSet, computedSet)
+			testutil.RequireEquivalentSets(t, expectedSet, computedSet)
 		})
 	}
 }
@@ -646,7 +603,7 @@ func TestSubjectSetSubtract(t *testing.T) {
 
 			expectedSet := tc.expectedSet
 			computedSet := existingSet.AsSlice()
-			requireEquivalentSets(t, expectedSet, computedSet)
+			testutil.RequireEquivalentSets(t, expectedSet, computedSet)
 		})
 	}
 }
@@ -985,7 +942,7 @@ func TestSubjectSetIntersection(t *testing.T) {
 
 			expectedSet := tc.expectedSet
 			computedSet := existingSet.AsSlice()
-			requireEquivalentSets(t, expectedSet, computedSet)
+			testutil.RequireEquivalentSets(t, expectedSet, computedSet)
 
 			// Run the intersection inverted, which should always result in the same results.
 			t.Run("inverted", func(t *testing.T) {
@@ -1009,7 +966,7 @@ func TestSubjectSetIntersection(t *testing.T) {
 				}
 
 				computedSet := toIntersect.AsSlice()
-				requireEquivalentSets(t, expectedSet, computedSet)
+				testutil.RequireEquivalentSets(t, expectedSet, computedSet)
 			})
 		})
 	}
@@ -1349,7 +1306,7 @@ func TestMultipleOperations(t *testing.T) {
 
 			expectedSet := tc.expectedSet
 			computedSet := set.AsSlice()
-			requireEquivalentSets(t, expectedSet, computedSet)
+			testutil.RequireEquivalentSets(t, expectedSet, computedSet)
 		})
 	}
 }
@@ -1404,7 +1361,7 @@ func TestSubtractAll(t *testing.T) {
 
 			expectedSet := tc.expected
 			computedSet := set.AsSlice()
-			requireEquivalentSets(t, expectedSet, computedSet)
+			testutil.RequireEquivalentSets(t, expectedSet, computedSet)
 		})
 	}
 }
@@ -1426,7 +1383,7 @@ func TestSubjectSetClone(t *testing.T) {
 	require.False(t, cloned.IsEmpty())
 
 	clonedSubjects := cloned.AsSlice()
-	requireEquivalentSets(t, existingSubjects, clonedSubjects)
+	testutil.RequireEquivalentSets(t, existingSubjects, clonedSubjects)
 
 	// Modify the existing set and ensure the cloned is not changed.
 	ss.Subtract(sub("first"))
@@ -1435,7 +1392,7 @@ func TestSubjectSetClone(t *testing.T) {
 	clonedSubjects = cloned.AsSlice()
 	updatedExistingSubjects := ss.AsSlice()
 
-	requireEquivalentSets(t, existingSubjects, clonedSubjects)
+	testutil.RequireEquivalentSets(t, existingSubjects, clonedSubjects)
 	require.NotEqual(t, len(updatedExistingSubjects), len(clonedSubjects))
 }
 
@@ -1513,14 +1470,14 @@ func TestUnionCommutativity(t *testing.T) {
 
 			mergedLeft := left1.AsSlice()
 			mergedRight := right2.AsSlice()
-			requireEquivalentSets(t, mergedLeft, mergedRight)
+			testutil.RequireEquivalentSets(t, mergedLeft, mergedRight)
 		})
 	}
 }
 
 func TestUnionAssociativity(t *testing.T) {
 	for _, triple := range allSubsets(testSets, 3) {
-		t.Run(fmt.Sprintf("%s U %s U %s", formatSubjects(triple[0]), formatSubjects(triple[1]), formatSubjects(triple[2])), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s U %s U %s", testutil.FormatSubjects(triple[0]), testutil.FormatSubjects(triple[1]), testutil.FormatSubjects(triple[2])), func(t *testing.T) {
 			// A U (B U C) == (A U B) U C
 
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
@@ -1549,7 +1506,7 @@ func TestUnionAssociativity(t *testing.T) {
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
-			requireEquivalentSets(t, mergedLeft, mergedRight)
+			testutil.RequireEquivalentSets(t, mergedLeft, mergedRight)
 		})
 	}
 }
@@ -1574,14 +1531,14 @@ func TestIntersectionCommutativity(t *testing.T) {
 
 			mergedLeft := left1.AsSlice()
 			mergedRight := right2.AsSlice()
-			requireEquivalentSets(t, mergedLeft, mergedRight)
+			testutil.RequireEquivalentSets(t, mergedLeft, mergedRight)
 		})
 	}
 }
 
 func TestIntersectionAssociativity(t *testing.T) {
 	for _, triple := range allSubsets(testSets, 3) {
-		t.Run(fmt.Sprintf("%s ∩ %s ∩ %s", formatSubjects(triple[0]), formatSubjects(triple[1]), formatSubjects(triple[2])), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s ∩ %s ∩ %s", testutil.FormatSubjects(triple[0]), testutil.FormatSubjects(triple[1]), testutil.FormatSubjects(triple[2])), func(t *testing.T) {
 			// A ∩ (B ∩ C) == (A ∩ B) ∩ C
 
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
@@ -1610,7 +1567,7 @@ func TestIntersectionAssociativity(t *testing.T) {
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
-			requireEquivalentSets(t, mergedLeft, mergedRight)
+			testutil.RequireEquivalentSets(t, mergedLeft, mergedRight)
 		})
 	}
 }
@@ -1628,7 +1585,7 @@ func TestIdempotentUnion(t *testing.T) {
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
-			requireEquivalentSets(t, mergedLeft, mergedRight)
+			testutil.RequireEquivalentSets(t, mergedLeft, mergedRight)
 		})
 	}
 }
@@ -1646,7 +1603,7 @@ func TestIdempotentIntersection(t *testing.T) {
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
-			requireEquivalentSets(t, mergedLeft, mergedRight)
+			testutil.RequireEquivalentSets(t, mergedLeft, mergedRight)
 		})
 	}
 }
@@ -1749,14 +1706,14 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s U %s", format(tc.existing), format(tc.toUnion)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			produced := unionWildcardWithWildcard[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
 			toUnion := wrap(tc.toUnion)
 			produced2 := unionWildcardWithWildcard[*v1.FoundSubject](toUnion, tc.existing, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expectedInverse, produced2)
+			testutil.RequireExpectedSubject(t, tc.expectedInverse, produced2)
 		})
 	}
 }
@@ -1865,10 +1822,10 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s U %s", format(tc.existing), format(tc.toUnion)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			produced := unionWildcardWithConcrete[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
 }
@@ -1923,15 +1880,15 @@ func TestUnionConcreteWithConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s U %s", format(tc.existing), format(tc.toUnion)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 			toUnion := wrap(tc.toUnion)
 
 			produced := unionConcreteWithConcrete[*v1.FoundSubject](existing, toUnion, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
 			produced2 := unionConcreteWithConcrete[*v1.FoundSubject](toUnion, existing, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expectedInverted, produced2)
+			testutil.RequireExpectedSubject(t, tc.expectedInverted, produced2)
 		})
 	}
 }
@@ -2064,12 +2021,12 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s - %s", format(tc.existing), format(tc.toSubtract)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 
 			produced, concrete := subtractWildcardFromWildcard[*v1.FoundSubject](existing, tc.toSubtract, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
-			requireEquivalentSets(t, tc.expectedConcretes, concrete)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireEquivalentSets(t, tc.expectedConcretes, concrete)
 		})
 	}
 }
@@ -2171,9 +2128,9 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%v - %v", format(tc.existing), format(tc.toSubtract)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%v - %v", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractWildcardFromConcrete[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
 }
@@ -2220,9 +2177,9 @@ func TestSubtractConcreteFromConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s - %s", format(tc.existing), format(tc.toSubtract)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractConcreteFromConcrete[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
 }
@@ -2293,9 +2250,9 @@ func TestSubtractConcreteFromWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s - %s", format(tc.existing), format(tc.toSubtract)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			produced := subtractConcreteFromWildcard[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
 }
@@ -2349,11 +2306,11 @@ func TestIntersectConcreteWithConcrete(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s ∩ %s", format(tc.first), format(tc.second)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			second := wrap(tc.second)
 
 			produced := intersectConcreteWithConcrete[*v1.FoundSubject](tc.first, second, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
 }
@@ -2459,15 +2416,15 @@ func TestIntersectWildcardWithWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s ∩ %s", format(tc.first), format(tc.second)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			first := wrap(tc.first)
 			second := wrap(tc.second)
 
 			produced := intersectWildcardWithWildcard[*v1.FoundSubject](first, second, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
 			produced2 := intersectWildcardWithWildcard[*v1.FoundSubject](second, first, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expectedInverted, produced2)
+			testutil.RequireExpectedSubject(t, tc.expectedInverted, produced2)
 		})
 	}
 }
@@ -2584,383 +2541,12 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s ∩ %s", format(tc.concrete), format(tc.wildcard)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.concrete), testutil.FormatSubject(tc.wildcard)), func(t *testing.T) {
 			wildcard := wrap(tc.wildcard)
 
 			produced := intersectConcreteWithWildcard[*v1.FoundSubject](tc.concrete, wildcard, subjectSetConstructor)
-			requireExpectedSubject(t, tc.expected, produced)
+			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
-	}
-}
-
-func TestCompareSubjects(t *testing.T) {
-	tcs := []struct {
-		first              *v1.FoundSubject
-		second             *v1.FoundSubject
-		expectedEquivalent bool
-	}{
-		{
-			sub("1"),
-			sub("1"),
-			true,
-		},
-		{
-			wc(),
-			wc(),
-			true,
-		},
-		{
-			wc("1"),
-			wc("1"),
-			true,
-		},
-		{
-			wc("1", "2"),
-			wc("2", "1"),
-			true,
-		},
-		{
-			wc("1", "2", "3"),
-			wc("2", "1"),
-			false,
-		},
-		{
-			sub("1"),
-			sub("2"),
-			false,
-		},
-		{
-			csub("1", caveatexpr("first")),
-			csub("1", caveatexpr("first")),
-			true,
-		},
-		{
-			csub("1", caveatexpr("first")),
-			csub("1", caveatexpr("second")),
-			false,
-		},
-		{
-			cwc(caveatexpr("first")),
-			cwc(caveatexpr("first")),
-			true,
-		},
-		{
-			cwc(caveatexpr("first")),
-			cwc(caveatexpr("second")),
-			false,
-		},
-		{
-			cwc(caveatexpr("first"), csub("1", caveatexpr("c1"))),
-			cwc(caveatexpr("first"), csub("1", caveatexpr("c1"))),
-			true,
-		},
-		{
-			cwc(caveatexpr("first"), csub("1", caveatexpr("c1"))),
-			cwc(caveatexpr("first"), csub("1", caveatexpr("c2"))),
-			false,
-		},
-		{
-			cwc(
-				caveatAnd(
-					caveatexpr("first"),
-					caveatexpr("second"),
-				),
-			),
-			cwc(
-				caveatAnd(
-					caveatexpr("second"),
-					caveatexpr("first"),
-				),
-			),
-			true,
-		},
-		{
-			cwc(
-				caveatAnd(
-					caveatexpr("first"),
-					caveatexpr("second"),
-				),
-			),
-			cwc(
-				caveatOr(
-					caveatexpr("second"),
-					caveatexpr("first"),
-				),
-			),
-			false,
-		},
-		{
-			cwc(
-				caveatAnd(
-					caveatexpr("first"),
-					caveatexpr("first"),
-				),
-			),
-			cwc(
-				caveatexpr("first"),
-			),
-			true,
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(fmt.Sprintf("%s vs %s", format(tc.first), format(tc.second)), func(t *testing.T) {
-			err := checkEquivalentSubjects(tc.first, tc.second)
-			if tc.expectedEquivalent {
-				require.NoError(t, err)
-			} else {
-				require.NotNil(t, err)
-			}
-
-			err = checkEquivalentSets([]*v1.FoundSubject{tc.first}, []*v1.FoundSubject{tc.second})
-			if tc.expectedEquivalent {
-				require.NoError(t, err)
-			} else {
-				require.NotNil(t, err)
-			}
-		})
-	}
-}
-
-// formatSubjects formats the given slice of subjects in a human-readable string.
-func formatSubjects(subs []*v1.FoundSubject) string {
-	formatted := make([]string, 0, len(subs))
-	for _, sub := range subs {
-		formatted = append(formatted, format(sub))
-	}
-	return strings.Join(formatted, ",")
-}
-
-// format formats the given subject (which can be nil) into a human-readable string.
-func format(sub *v1.FoundSubject) string {
-	if sub == nil {
-		return "[nil]"
-	}
-
-	if sub.GetSubjectId() == tuple.PublicWildcard {
-		exclusions := make([]string, 0, len(sub.GetExcludedSubjects()))
-		for _, excludedSubject := range sub.GetExcludedSubjects() {
-			exclusions = append(exclusions, format(excludedSubject))
-		}
-
-		exclusionsStr := ""
-		if len(exclusions) > 0 {
-			exclusionsStr = fmt.Sprintf("- {%s}", strings.Join(exclusions, ","))
-		}
-
-		if sub.GetCaveatExpression() != nil {
-			return fmt.Sprintf("{*%s}[%s]", exclusionsStr, formatCaveatExpr(sub.GetCaveatExpression()))
-		}
-
-		return fmt.Sprintf("{*%s}", exclusionsStr)
-	}
-
-	if sub.GetCaveatExpression() != nil {
-		return fmt.Sprintf("%s[%s]", sub.GetSubjectId(), formatCaveatExpr(sub.GetCaveatExpression()))
-	}
-
-	return sub.GetSubjectId()
-}
-
-// formatCaveatExpr formats a caveat expression (which can be nil) into a human readable string.
-func formatCaveatExpr(expr *v1.CaveatExpression) string {
-	if expr == nil {
-		return "[nil]"
-	}
-
-	if expr.GetCaveat() != nil {
-		return expr.GetCaveat().CaveatName
-	}
-
-	switch expr.GetOperation().Op {
-	case v1.CaveatOperation_AND:
-		return fmt.Sprintf("(%s) && (%s)",
-			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
-			formatCaveatExpr(expr.GetOperation().GetChildren()[1]),
-		)
-
-	case v1.CaveatOperation_OR:
-		return fmt.Sprintf("(%s) || (%s)",
-			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
-			formatCaveatExpr(expr.GetOperation().GetChildren()[1]),
-		)
-
-	case v1.CaveatOperation_NOT:
-		return fmt.Sprintf("!(%s)",
-			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
-		)
-
-	default:
-		panic("unknown op")
-	}
-}
-
-// wrap wraps the given subject into a pointer to it, unless nil, in which case this method returns
-// nil.
-func wrap(sub *v1.FoundSubject) **v1.FoundSubject {
-	if sub == nil {
-		return nil
-	}
-
-	return &sub
-}
-
-// requireEquivalentSets requires that the given sets of subjects are equivalent.
-func requireEquivalentSets(t *testing.T, expected []*v1.FoundSubject, found []*v1.FoundSubject) {
-	err := checkEquivalentSets(expected, found)
-	require.NoError(t, err, "found different subject sets: %v", err)
-}
-
-// requireExpectedSubject requires that the given expected and produced subjects match.
-func requireExpectedSubject(t *testing.T, expected *v1.FoundSubject, produced **v1.FoundSubject) {
-	if expected == nil {
-		require.Nil(t, produced)
-	} else {
-		require.NotNil(t, produced)
-
-		found := *produced
-		err := checkEquivalentSubjects(expected, found)
-		require.NoError(t, err, "found different subjects: %v", err)
-	}
-}
-
-// checkEquivalentSets checks if the sets of subjects are equivalent and returns an error if they are not.
-func checkEquivalentSets(expected []*v1.FoundSubject, found []*v1.FoundSubject) error {
-	if len(expected) != len(found) {
-		return fmt.Errorf("found mismatch in number of elements:\n\texpected: %s\n\tfound: %s", formatSubjects(expected), formatSubjects(found))
-	}
-
-	sort.Sort(sortByID(expected))
-	sort.Sort(sortByID(found))
-
-	for index := range expected {
-		err := checkEquivalentSubjects(expected[index], found[index])
-		if err != nil {
-			return fmt.Errorf("found mismatch for subject #%d: %w", index, err)
-		}
-	}
-
-	return nil
-}
-
-// checkEquivalentSubjects checks if the given subjects are equivalent and returns an error if they are not.
-func checkEquivalentSubjects(expected *v1.FoundSubject, found *v1.FoundSubject) error {
-	if expected.SubjectId != found.SubjectId {
-		return fmt.Errorf("expected subject %s, found %s", expected.SubjectId, found.SubjectId)
-	}
-
-	err := checkEquivalentSets(expected.ExcludedSubjects, found.ExcludedSubjects)
-	if err != nil {
-		return fmt.Errorf("difference in exclusions: %w", err)
-	}
-
-	return checkEquivalentCaveatExprs(expected.CaveatExpression, found.CaveatExpression)
-}
-
-// checkEquivalentCaveatExprs checks if the given caveat expressions are equivalent and returns an error if they are not.
-func checkEquivalentCaveatExprs(expected *v1.CaveatExpression, found *v1.CaveatExpression) error {
-	if expected == nil {
-		if found != nil {
-			return fmt.Errorf("found non-nil caveat expression `%s` where expected nil", formatCaveatExpr(found))
-		}
-		return nil
-	}
-
-	if found == nil {
-		if expected != nil {
-			return fmt.Errorf("expected non-nil caveat expression `%s` where found nil", formatCaveatExpr(expected))
-		}
-		return nil
-	}
-
-	// Caveat expressions that the subjectset generates can be different in structure but *logically* equivalent,
-	// so we compare by building a boolean table for each referenced caveat name and then checking all combinations
-	// of boolean inputs to ensure the expressions produce the same output. Note that while this isn't the most
-	// efficient means of comparison, it is logically correct.
-	referencedNamesSet := NewSet[string]()
-	collectReferencedNames(expected, referencedNamesSet)
-	collectReferencedNames(found, referencedNamesSet)
-
-	referencedNames := referencedNamesSet.AsSlice()
-	for _, values := range combinatorialValues(referencedNames) {
-		expectedResult := executeCaveatExprForTesting(expected, values)
-		foundResult := executeCaveatExprForTesting(found, values)
-		if expectedResult != foundResult {
-			return fmt.Errorf("found difference between caveats for values:\n\tvalues: %v\n\texpected caveat: %s\n\tfound caveat:%s", values, formatCaveatExpr(expected), formatCaveatExpr(found))
-		}
-	}
-	return nil
-}
-
-// executeCaveatExprForTesting "executes" the given caveat expression for testing. DO NOT USE OUTSIDE OF TESTING.
-// This method *ignores* caveat context and treats each caveat as just its name.
-func executeCaveatExprForTesting(expr *v1.CaveatExpression, values map[string]bool) bool {
-	if expr.GetCaveat() != nil {
-		return values[expr.GetCaveat().CaveatName]
-	}
-
-	switch expr.GetOperation().Op {
-	case v1.CaveatOperation_AND:
-		if len(expr.GetOperation().Children) != 2 {
-			panic("found invalid child count for AND")
-		}
-		return executeCaveatExprForTesting(expr.GetOperation().Children[0], values) && executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
-
-	case v1.CaveatOperation_OR:
-		if len(expr.GetOperation().Children) != 2 {
-			panic("found invalid child count for OR")
-		}
-		return executeCaveatExprForTesting(expr.GetOperation().Children[0], values) || executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
-
-	case v1.CaveatOperation_NOT:
-		if len(expr.GetOperation().Children) != 1 {
-			panic("found invalid child count for NOT")
-		}
-		return !executeCaveatExprForTesting(expr.GetOperation().Children[0], values)
-
-	default:
-		panic("unknown op")
-	}
-}
-
-// combinatorialValues returns the combinatorial set of values where each name is either true and false.
-func combinatorialValues(names []string) []map[string]bool {
-	if len(names) == 0 {
-		return nil
-	}
-
-	name := names[0]
-	childMaps := combinatorialValues(names[1:])
-
-	cmaps := make([]map[string]bool, 0, len(childMaps)*2)
-	if len(childMaps) == 0 {
-		for _, v := range []bool{true, false} {
-			cloned := map[string]bool{}
-			cloned[name] = v
-			cmaps = append(cmaps, cloned)
-		}
-	} else {
-		for _, childMap := range childMaps {
-			for _, v := range []bool{true, false} {
-				cloned := maps.Clone(childMap)
-				cloned[name] = v
-				cmaps = append(cmaps, cloned)
-			}
-		}
-	}
-
-	return cmaps
-}
-
-// collectReferencedNames collects all referenced caveat names into the given set.
-func collectReferencedNames(expr *v1.CaveatExpression, nameSet *Set[string]) {
-	if expr.GetCaveat() != nil {
-		nameSet.Add(expr.GetCaveat().CaveatName)
-		return
-	}
-
-	for _, child := range expr.GetOperation().GetChildren() {
-		collectReferencedNames(child, nameSet)
 	}
 }
 
@@ -2988,9 +2574,3 @@ func allSubsets[T any](objs []T, n int) [][]T {
 	}
 	return all
 }
-
-type sortByID []*v1.FoundSubject
-
-func (a sortByID) Len() int           { return len(a) }
-func (a sortByID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a sortByID) Less(i, j int) bool { return strings.Compare(a[i].SubjectId, a[j].SubjectId) < 0 }
