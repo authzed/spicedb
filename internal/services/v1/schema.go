@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -51,22 +50,32 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 		return nil, rewriteError(ctx, err)
 	}
 
+	caveatDefs, err := ds.ListCaveats(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
 	if len(nsDefs) == 0 {
 		return nil, status.Errorf(codes.NotFound, "No schema has been defined; please call WriteSchema to start")
 	}
 
-	objectDefs := make([]string, 0, len(nsDefs))
-	for _, nsDef := range nsDefs {
-		objectDef, _ := generator.GenerateSource(nsDef)
-		objectDefs = append(objectDefs, objectDef)
+	schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(nsDefs)+len(caveatDefs))
+	for _, caveatDef := range caveatDefs {
+		schemaDefinitions = append(schemaDefinitions, caveatDef)
 	}
 
+	for _, nsDef := range nsDefs {
+		schemaDefinitions = append(schemaDefinitions, nsDef)
+	}
+
+	schemaText, _ := generator.GenerateSchema(schemaDefinitions)
+
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsDefs)),
+		DispatchCount: uint32(len(nsDefs) + len(caveatDefs)),
 	})
 
 	return &v1.ReadSchemaResponse{
-		SchemaText: strings.Join(objectDefs, "\n\n"),
+		SchemaText: schemaText,
 	}, nil
 }
 

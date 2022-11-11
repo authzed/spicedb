@@ -5,6 +5,7 @@ package integrationtesting_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -37,6 +38,19 @@ type writeSchema struct{ schemaText string }
 
 func (ws writeSchema) Execute(tester opsTester) error {
 	return tester.WriteSchema(context.Background(), ws.schemaText)
+}
+
+type readSchema struct{ expectedSchemaText string }
+
+func (rs readSchema) Execute(tester opsTester) error {
+	schemaText, err := tester.ReadSchema(context.Background())
+	if err != nil {
+		return err
+	}
+	if schemaText != rs.expectedSchemaText {
+		return fmt.Errorf("unexpected schema: %#v", schemaText)
+	}
+	return nil
 }
 
 type createCaveatedRelationship struct {
@@ -670,6 +684,59 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 				},
 			},
 		},
+
+		// Test: write a schema, add a caveat definition, read back, then remove, and continue.
+		{
+			"add and remove caveat in schema",
+			[]stcStep{
+				// Write the initial schema.
+				{
+					writeSchema{`
+							definition user {}
+
+							definition document {
+								relation viewer: user
+							}
+						`}, "",
+				},
+				// Read back.
+				{
+					readSchema{"definition document {\n\trelation viewer: user\n}\n\ndefinition user {}"}, "",
+				},
+				// Add a caveat definition.
+				{
+					writeSchema{`
+							definition user {}
+
+							caveat someCaveat(somecondition int) {
+								somecondition == 42
+							}
+
+							definition document {
+								relation viewer: user
+							}
+						`}, "",
+				},
+				// Read back.
+				{
+					readSchema{"caveat someCaveat(somecondition int) {\n\tsomecondition == 42\n}\n\ndefinition document {\n\trelation viewer: user\n}\n\ndefinition user {}"}, "",
+				},
+				// Remove the caveat definition.
+				{
+					writeSchema{`
+							definition user {}
+
+							definition document {
+								relation viewer: user
+							}
+						`}, "",
+				},
+				// Read back.
+				{
+					readSchema{"definition document {\n\trelation viewer: user\n}\n\ndefinition user {}"}, "",
+				},
+			},
+		},
 	}
 
 	testers := map[string]func(conn grpc.ClientConnInterface) opsTester{
@@ -707,6 +774,7 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 
 type opsTester interface {
 	Name() string
+	ReadSchema(ctx context.Context) (string, error)
 	WriteSchema(ctx context.Context, schemaString string) error
 	CreateRelationship(ctx context.Context, relationship *core.RelationTuple) error
 	TouchRelationship(ctx context.Context, relationship *core.RelationTuple) error
@@ -752,4 +820,12 @@ func (st v1OpsTester) WriteSchema(ctx context.Context, schemaString string) erro
 		Schema: schemaString,
 	})
 	return err
+}
+
+func (st v1OpsTester) ReadSchema(ctx context.Context) (string, error) {
+	resp, err := st.schemaClient.ReadSchema(ctx, &v1.ReadSchemaRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.SchemaText, nil
 }
