@@ -67,7 +67,7 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 	_, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
 	grpcutil.RequireStatus(t, codes.NotFound, err)
 
-	userSchema := `definition example/user {}`
+	userSchema := "caveat someCaveat(somecondition int) {\n\tsomecondition == 42\n}\n\ndefinition example/document {\n\trelation viewer: example/user | example/user with someCaveat\n}\n\ndefinition example/user {}"
 
 	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: userSchema,
