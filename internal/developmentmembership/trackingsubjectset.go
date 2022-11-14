@@ -1,15 +1,13 @@
-package membership
+package developmentmembership
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
+	"github.com/authzed/spicedb/internal/datasets"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // TrackingSubjectSet defines a set that tracks accessible subjects and their associated
@@ -18,13 +16,13 @@ import (
 // NOTE: This is designed solely for the developer API and testing and should *not* be used in any
 // performance sensitive code.
 type TrackingSubjectSet struct {
-	setByType map[string]util.BaseSubjectSet[FoundSubject]
+	setByType map[string]datasets.BaseSubjectSet[FoundSubject]
 }
 
 // NewTrackingSubjectSet creates a new TrackingSubjectSet, with optional initial subjects.
 func NewTrackingSubjectSet(subjects ...FoundSubject) *TrackingSubjectSet {
 	tss := &TrackingSubjectSet{
-		setByType: map[string]util.BaseSubjectSet[FoundSubject]{},
+		setByType: map[string]datasets.BaseSubjectSet[FoundSubject]{},
 	}
 	for _, subject := range subjects {
 		tss.Add(subject)
@@ -57,14 +55,14 @@ func keyFor(fs FoundSubject) string {
 	return fmt.Sprintf("%s#%s", fs.subject.Namespace, fs.subject.Relation)
 }
 
-func (tss *TrackingSubjectSet) getSetForKey(key string) util.BaseSubjectSet[FoundSubject] {
+func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[FoundSubject] {
 	if existing, ok := tss.setByType[key]; ok {
 		return existing
 	}
 
 	parts := strings.Split(key, "#")
 
-	created := util.NewBaseSubjectSet[FoundSubject](
+	created := datasets.NewBaseSubjectSet[FoundSubject](
 		func(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
 			fs := NewFoundSubject(&core.ObjectAndRelation{
 				Namespace: parts[0],
@@ -85,7 +83,7 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) util.BaseSubjectSet[Foun
 	return created
 }
 
-func (tss *TrackingSubjectSet) getSet(fs FoundSubject) util.BaseSubjectSet[FoundSubject] {
+func (tss *TrackingSubjectSet) getSet(fs FoundSubject) datasets.BaseSubjectSet[FoundSubject] {
 	fsKey := keyFor(fs)
 	return tss.getSetForKey(fsKey)
 }

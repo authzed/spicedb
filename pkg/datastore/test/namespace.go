@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -17,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -268,13 +267,13 @@ definition document {
 	nsConfig := compiled.ObjectDefinitions[0]
 	readNsDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
 	require.NoError(err)
-	require.True(proto.Equal(nsConfig, readNsDef), "found changed namespace definition")
+	testutil.RequireProtoEqual(t, nsConfig, readNsDef, "found changed namespace definition")
 
 	// Read the caveat back from the datastore and compare.
 	caveatDef := compiled.CaveatDefinitions[0]
 	readCaveatDef, _, err := ds.SnapshotReader(updatedRevision).ReadCaveatByName(ctx, caveatDef.Name)
 	require.NoError(err)
-	require.True(proto.Equal(caveatDef, readCaveatDef), "found changed namespace definition")
+	testutil.RequireProtoEqual(t, caveatDef, readCaveatDef, "found changed caveat definition")
 
 	// Ensure the read namespace's string form matches the input as an extra check.
 	generated, _ := generator.GenerateSchema([]compiler.SchemaDefinition{readCaveatDef, readNsDef})

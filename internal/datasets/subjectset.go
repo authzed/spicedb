@@ -1,4 +1,4 @@
-package util
+package datasets
 
 import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"

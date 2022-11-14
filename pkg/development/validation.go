@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/authzed/spicedb/internal/membership"
+	"github.com/authzed/spicedb/internal/developmentmembership"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -16,9 +16,9 @@ import (
 )
 
 // RunValidation runs the parsed validation block against the data in the dev context.
-func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*membership.Set, []*devinterface.DeveloperError, error) {
+func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRelations) (*developmentmembership.Set, []*devinterface.DeveloperError, error) {
 	var failures []*devinterface.DeveloperError
-	membershipSet := membership.NewMembershipSet()
+	membershipSet := developmentmembership.NewMembershipSet()
 	ctx := devContext.Ctx
 
 	for onrKey, expectedSubjects := range validation.ValidationMap {
@@ -80,7 +80,7 @@ func wrapRelationships(onrStrings []string) []string {
 	return wrapped
 }
 
-func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects, expectedSubjects []blocks.ExpectedSubject) []*devinterface.DeveloperError {
+func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.FoundSubjects, expectedSubjects []blocks.ExpectedSubject) []*devinterface.DeveloperError {
 	onr := onrKey.ObjectAndRelation
 
 	var failures []*devinterface.DeveloperError
@@ -196,7 +196,7 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs membership.FoundSubjects,
 }
 
 // GenerateValidation generates the validation block based on a membership set.
-func GenerateValidation(membershipSet *membership.Set) (string, error) {
+func GenerateValidation(membershipSet *developmentmembership.Set) (string, error) {
 	validationMap := map[string][]string{}
 	subjectsByONR := membershipSet.SubjectsByONR()
 

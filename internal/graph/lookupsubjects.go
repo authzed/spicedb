@@ -7,15 +7,16 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/authzed/spicedb/internal/datasets"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ValidatedLookupSubjectsRequest represents a request after it has been validated and parsed for internal
@@ -109,8 +110,8 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	}
 	defer it.Close()
 
-	toDispatchByType := util.NewSubjectByTypeSet()
-	foundSubjectsByResourceID := util.NewSubjectSetByResourceID()
+	toDispatchByType := datasets.NewSubjectByTypeSet()
+	foundSubjectsByResourceID := datasets.NewSubjectSetByResourceID()
 	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
@@ -199,7 +200,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 	}
 	defer it.Close()
 
-	toDispatchByTuplesetType := util.NewSubjectByTypeSet()
+	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
 	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
@@ -316,7 +317,7 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 func (cl *ConcurrentLookupSubjects) dispatchTo(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
-	toDispatchByType *util.SubjectByTypeSet,
+	toDispatchByType *datasets.SubjectByTypeSet,
 	relationshipsBySubjectONR *util.MultiMap[string, *core.RelationTuple],
 	parentStream dispatch.LookupSubjectsStream,
 ) error {
@@ -330,7 +331,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 	g, subCtx := errgroup.WithContext(cancelCtx)
 	g.SetLimit(int(cl.concurrencyLimit))
 
-	toDispatchByType.ForEachType(func(resourceType *core.RelationReference, foundSubjects util.SubjectSet) {
+	toDispatchByType.ForEachType(func(resourceType *core.RelationReference, foundSubjects datasets.SubjectSet) {
 		slice := foundSubjects.AsSlice()
 		resourceIds := make([]string, 0, len(slice))
 		for _, foundSubject := range slice {
@@ -378,7 +379,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 						}
 
 						// Otherwise, apply the caveat to all found subjects for that resource and map to the resource ID.
-						foundSubjectSet := util.NewSubjectSet()
+						foundSubjectSet := datasets.NewSubjectSet()
 						foundSubjectSet.UnionWith(foundSubjects.FoundSubjects)
 						mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combineFoundSubjects(
 							existing,
@@ -448,7 +449,7 @@ func (lsu *lookupSubjectsUnion) ForIndex(ctx context.Context, setOperationIndex 
 }
 
 func (lsu *lookupSubjectsUnion) CompletedChildOperations() error {
-	foundSubjects := util.NewSubjectSetByResourceID()
+	foundSubjects := datasets.NewSubjectSetByResourceID()
 	metadata := emptyMetadata
 
 	for index := 0; index < len(lsu.collectors); index++ {
@@ -493,7 +494,7 @@ func (lsi *lookupSubjectsIntersection) ForIndex(ctx context.Context, setOperatio
 }
 
 func (lsi *lookupSubjectsIntersection) CompletedChildOperations() error {
-	var foundSubjects util.SubjectSetByResourceID
+	var foundSubjects datasets.SubjectSetByResourceID
 	metadata := emptyMetadata
 
 	for index := 0; index < len(lsi.collectors); index++ {
@@ -502,7 +503,7 @@ func (lsi *lookupSubjectsIntersection) CompletedChildOperations() error {
 			return fmt.Errorf("missing collector for index %d", index)
 		}
 
-		results := util.NewSubjectSetByResourceID()
+		results := datasets.NewSubjectSetByResourceID()
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
 			results.UnionWith(result.FoundSubjectsByResourceId)
@@ -544,12 +545,12 @@ func (lse *lookupSubjectsExclusion) ForIndex(ctx context.Context, setOperationIn
 }
 
 func (lse *lookupSubjectsExclusion) CompletedChildOperations() error {
-	var foundSubjects util.SubjectSetByResourceID
+	var foundSubjects datasets.SubjectSetByResourceID
 	metadata := emptyMetadata
 
 	for index := 0; index < len(lse.collectors); index++ {
 		collector := lse.collectors[index]
-		results := util.NewSubjectSetByResourceID()
+		results := datasets.NewSubjectSetByResourceID()
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
 			results.UnionWith(result.FoundSubjectsByResourceId)

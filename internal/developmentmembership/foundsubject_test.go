@@ -1,4 +1,4 @@
-package membership
+package developmentmembership
 
 import (
 	"fmt"

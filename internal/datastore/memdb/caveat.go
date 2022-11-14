@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/hashicorp/go-memdb"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
-	"github.com/hashicorp/go-memdb"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 const tableCaveats = "caveats"

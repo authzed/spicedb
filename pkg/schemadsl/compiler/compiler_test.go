@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -12,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 var someTenant = "sometenant"
@@ -744,7 +744,7 @@ func TestCompile(t *testing.T) {
 						for expectedParamName, expectedParam := range expectedCaveatDef.ParameterTypes {
 							foundParam, ok := caveatDef.ParameterTypes[expectedParamName]
 							require.True(ok, "missing parameter %s", expectedParamName)
-							require.True(proto.Equal(expectedParam, foundParam))
+							testutil.RequireProtoEqual(t, expectedParam, foundParam, "mismatch type for parameter %s", expectedParamName)
 						}
 
 						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression)
@@ -761,7 +761,7 @@ func TestCompile(t *testing.T) {
 
 						require.Equal(expectedExprString, foundExprString)
 					} else {
-						require.True(proto.Equal(test.expectedProto[index], def), "proto mismatch. expected: %v, found: %v", test.expectedProto[index], def)
+						testutil.RequireProtoEqual(t, test.expectedProto[index], def, "proto mismatch")
 					}
 				}
 			}

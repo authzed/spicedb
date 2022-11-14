@@ -1,12 +1,20 @@
-package util
+package datasets
 
 import (
 	"fmt"
 
 	"golang.org/x/exp/maps"
 
+	"github.com/authzed/spicedb/internal/caveats"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+var (
+	caveatAnd        = caveats.And
+	caveatOr         = caveats.Or
+	caveatInvert     = caveats.Invert
+	shortcircuitedOr = caveats.ShortcircuitedOr
 )
 
 // Subject is a subject that can be placed into a BaseSubjectSet. It is defined in a generic
@@ -775,86 +783,4 @@ func exclusionsMapFor[T Subject[T]](wildcard T) map[string]T {
 		exclusions[excludedSubject.GetSubjectId()] = excludedSubject
 	}
 	return exclusions
-}
-
-// shortcircuitedOr combines two caveat expressions via an `||`. If one of the expressions is nil,
-// then the entire expression is *short-circuited*, and a nil is returned.
-func shortcircuitedOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	if first == nil || second == nil {
-		return nil
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-// caveatOr `||`'s together two caveat expressions. If one expression is nil, the other is returned.
-func caveatOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	if first == nil {
-		return second
-	}
-
-	if second == nil {
-		return first
-	}
-
-	if first.EqualVT(second) {
-		return first
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-// caveatAnd `&&`'s together two caveat expressions. If one expression is nil, the other is returned.
-func caveatAnd(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
-	if first == nil {
-		return second
-	}
-
-	if second == nil {
-		return first
-	}
-
-	if first.EqualVT(second) {
-		return first
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
-}
-
-// caveatInvert returns the caveat expression with a `!` placed in front of it. If the expression is
-// nil, returns nil.
-func caveatInvert(ce *v1.CaveatExpression) *v1.CaveatExpression {
-	if ce == nil {
-		return nil
-	}
-
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_NOT,
-				Children: []*v1.CaveatExpression{ce},
-			},
-		},
-	}
 }

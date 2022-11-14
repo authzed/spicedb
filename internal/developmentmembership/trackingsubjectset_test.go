@@ -1,4 +1,4 @@
-package membership
+package developmentmembership
 
 import (
 	"testing"
@@ -7,8 +7,8 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/internal/util"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 func set(subjects ...*core.ObjectAndRelation) *TrackingSubjectSet {

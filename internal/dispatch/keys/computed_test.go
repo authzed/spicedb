@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/util"
 
 	"github.com/stretchr/testify/require"
 

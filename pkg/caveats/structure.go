@@ -5,7 +5,7 @@ import (
 
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 
-	"github.com/authzed/spicedb/internal/util"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // referencedParameters traverses the expression given and finds all parameters which are referenced
