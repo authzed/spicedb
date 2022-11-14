@@ -93,7 +93,7 @@ This has strategy has become an industry best-practice and is being used to grea
 [homebrew]: https://docs.authzed.com/spicedb/installing#brew
 [docker]: https://docs.authzed.com/spicedb/installing#docker
 [examples]: https://github.com/authzed/examples
-[Docker Compose]: https://github.com/authzed/examples/tree/main/docker-compose
+[Docker Compose]: https://github.com/authzed/examples/tree/main/datastores
 [Kubernetes]: https://github.com/authzed/examples/tree/main/kubernetes
 
 ### Developing your own schema
