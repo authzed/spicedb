@@ -42,14 +42,7 @@ func ShortcircuitedOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *
 		return nil
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
-			},
-		},
-	}
+	return Or(first, second)
 }
 
 // Or `||`'s together two caveat expressions. If one expression is nil, the other is returned.
@@ -126,7 +119,7 @@ func Subtract(caveat *v1.CaveatExpression, subtracted *v1.CaveatExpression) *v1.
 	}
 
 	if subtracted == nil {
-		panic("subtraction caveat expression is nil")
+		return caveat
 	}
 
 	return &v1.CaveatExpression{
