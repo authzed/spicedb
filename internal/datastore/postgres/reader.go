@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -17,10 +16,9 @@ import (
 )
 
 type pgReader struct {
-	txSource       pgxcommon.TxFactory
-	querySplitter  common.TupleQuerySplitter
-	filterer       queryFilterer
-	migrationPhase migrationPhase
+	txSource      pgxcommon.TxFactory
+	querySplitter common.TupleQuerySplitter
+	filterer      queryFilterer
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -48,8 +46,6 @@ var (
 	}
 
 	readNamespace = psql.Select(colConfig, colCreatedXid).From(tableNamespace)
-
-	readNamespaceDeprecated = psql.Select(colConfig, colCreatedTxnDeprecated).From(tableNamespace)
 )
 
 const (
@@ -112,7 +108,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.T
 
 	defs, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
 		return filterer(original).Where(sq.Eq{colNamespace: namespace})
-	}, r.migrationPhase)
+	})
 	if err != nil {
 		return nil, postgresRevision{}, err
 	}
@@ -131,7 +127,7 @@ func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinit
 	}
 	defer txCleanup(ctx)
 
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, r.filterer, r.migrationPhase)
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, r.filterer)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -157,7 +153,7 @@ func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*c
 
 	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
 		return r.filterer(original).Where(clause)
-	}, r.migrationPhase)
+	})
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -182,16 +178,8 @@ func loadAllNamespaces(
 	ctx context.Context,
 	tx pgx.Tx,
 	filterer queryFilterer,
-	migrationPhase migrationPhase,
 ) ([]nsAndVersion, error) {
-	baseQuery := readNamespace
-
-	// TODO remove once the ID->XID migrations are all complete
-	if migrationPhase == writeBothReadOld {
-		baseQuery = readNamespaceDeprecated
-	}
-
-	sql, args, err := filterer(baseQuery).ToSql()
+	sql, args, err := filterer(readNamespace).ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -207,15 +195,7 @@ func loadAllNamespaces(
 		var config []byte
 		var version xid8
 
-		var versionDest interface{} = &version
-
-		// TODO remove once the ID->XID migrations are all complete
-		var versionTxDeprecated uint64
-		if migrationPhase == writeBothReadOld {
-			versionDest = &versionTxDeprecated
-		}
-
-		if err := rows.Scan(&config, versionDest); err != nil {
+		if err := rows.Scan(&config, &version); err != nil {
 			return nil, err
 		}
 
@@ -225,11 +205,6 @@ func loadAllNamespaces(
 		}
 
 		revision := postgresRevision{version, noXmin}
-
-		// TODO remove once the ID->XID migrations are all complete
-		if migrationPhase == writeBothReadOld {
-			revision = postgresRevision{xid8{Uint: versionTxDeprecated, Status: pgtype.Present}, noXmin}
-		}
 
 		nsDefs = append(nsDefs, nsAndVersion{loaded, revision})
 	}
