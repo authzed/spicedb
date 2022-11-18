@@ -4,6 +4,7 @@
 package config
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ import (
 // an independent test with CLI-like config where possible.
 func DatastoreConfigInitFunc(t testing.TB, options ...dsconfig.ConfigOption) testdatastore.InitFunc {
 	return func(engine, uri string) datastore.Datastore {
-		ds, err := dsconfig.NewDatastore(
+		ds, err := dsconfig.NewDatastore(context.Background(),
 			append(options,
 				dsconfig.WithEngine(engine),
 				dsconfig.WithEnableDatastoreMetrics(false),

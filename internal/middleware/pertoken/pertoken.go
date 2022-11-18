@@ -51,7 +51,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 		return nil, fmt.Errorf("failed to init datastore: %w", err)
 	}
 
-	_, _, err = validationfile.PopulateFromFiles(ds, m.configFilePaths)
+	_, _, err = validationfile.PopulateFromFiles(ctx, ds, m.configFilePaths)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config files: %w", err)
 	}

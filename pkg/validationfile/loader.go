@@ -33,7 +33,7 @@ type PopulatedValidationFile struct {
 
 // PopulateFromFiles populates the given datastore with the namespaces and tuples found in
 // the validation file(s) specified.
-func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
+func PopulateFromFiles(ctx context.Context, ds datastore.Datastore, filePaths []string) (*PopulatedValidationFile, datastore.Revision, error) {
 	contents := map[string][]byte{}
 
 	for _, filePath := range filePaths {
@@ -45,12 +45,12 @@ func PopulateFromFiles(ds datastore.Datastore, filePaths []string) (*PopulatedVa
 		contents[filePath] = fileContents
 	}
 
-	return PopulateFromFilesContents(ds, contents)
+	return PopulateFromFilesContents(ctx, ds, contents)
 }
 
 // PopulateFromFilesContents populates the given datastore with the namespaces and tuples found in
 // the validation file(s) contents specified.
-func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
+func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, filesContents map[string][]byte) (*PopulatedValidationFile, datastore.Revision, error) {
 	var schema string
 	var objectDefs []*core.NamespaceDefinition
 	var caveatDefs []*core.CaveatDefinition
@@ -101,7 +101,6 @@ func PopulateFromFilesContents(ds datastore.Datastore, filesContents map[string]
 	}
 
 	// Load the definitions and relationships into the datastore.
-	ctx := context.Background()
 	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Write the caveat definitions.
 		err := rwt.WriteCaveats(ctx, caveatDefs)

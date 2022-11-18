@@ -126,7 +126,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	ds := c.Datastore
 	if ds == nil {
 		var err error
-		ds, err = datastorecfg.NewDatastore(c.DatastoreConfig.ToOption())
+		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create datastore: %w", err)
 		}

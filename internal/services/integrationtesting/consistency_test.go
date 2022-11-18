@@ -72,8 +72,9 @@ func TestConsistency(t *testing.T) {
 							ds, err := memdb.NewMemdbDatastore(0, delta, memdb.DisableGC)
 							require.NoError(t, err)
 
-							fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
+							fullyResolved, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})
 							require.NoError(t, err)
+
 							conn, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 							t.Cleanup(cleanup)
 

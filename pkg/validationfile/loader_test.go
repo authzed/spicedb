@@ -1,6 +1,7 @@
 package validationfile
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -83,7 +84,7 @@ func TestPopulateFromFiles(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, 0)
 			require.NoError(err)
 
-			parsed, _, err := PopulateFromFiles(ds, tt.filePaths)
+			parsed, _, err := PopulateFromFiles(context.Background(), ds, tt.filePaths)
 			if tt.expectedError == "" {
 				require.NoError(err)
 
