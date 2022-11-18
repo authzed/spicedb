@@ -36,6 +36,7 @@ import (
 )
 
 func TestCertRotation(t *testing.T) {
+	t.Parallel()
 	const (
 		// length of time the initial cert is valid
 		initialValidDuration = 1 * time.Second
