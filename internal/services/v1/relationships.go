@@ -2,9 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
-
-	"github.com/authzed/spicedb/internal/relationships"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -18,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -172,7 +170,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 		if !ps.caveatsEnabled {
 			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
-				return nil, fmt.Errorf("caveats are currently not supported")
+				return nil, status.Errorf(codes.InvalidArgument, "caveats are currently not supported")
 			}
 		}
 	}
