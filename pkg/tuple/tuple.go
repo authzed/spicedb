@@ -293,6 +293,16 @@ func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
 	return FromRelationship(r)
 }
 
+// MustFromRelationships converts a slice of Relationship's into a slice of RelationTuple's.
+func MustFromRelationships(rels []*v1.Relationship) []*core.RelationTuple {
+	tuples := make([]*core.RelationTuple, 0, len(rels))
+	for _, rel := range rels {
+		tpl := MustFromRelationship(rel)
+		tuples = append(tuples, tpl)
+	}
+	return tuples
+}
+
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *core.RelationTuple {
 	var caveat *core.ContextualizedCaveat

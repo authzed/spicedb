@@ -32,6 +32,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DisableStats = c.DisableStats
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapOverwrite = c.BootstrapOverwrite
+		to.BootstrapTimeout = c.BootstrapTimeout
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
 		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
 		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
@@ -168,6 +169,13 @@ func SetBootstrapFiles(bootstrapFiles []string) ConfigOption {
 func WithBootstrapOverwrite(bootstrapOverwrite bool) ConfigOption {
 	return func(c *Config) {
 		c.BootstrapOverwrite = bootstrapOverwrite
+	}
+}
+
+// WithBootstrapTimeout returns an option that can set BootstrapTimeout on a Config
+func WithBootstrapTimeout(bootstrapTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.BootstrapTimeout = bootstrapTimeout
 	}
 }
 

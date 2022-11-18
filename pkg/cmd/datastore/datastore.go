@@ -58,6 +58,7 @@ type Config struct {
 	// Bootstrap
 	BootstrapFiles     []string
 	BootstrapOverwrite bool
+	BootstrapTimeout   time.Duration
 
 	// Hedging
 	RequestHedgingEnabled          bool
@@ -106,6 +107,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().BoolVar(&opts.ReadOnly, "datastore-readonly", false, "set the service to read-only mode")
 	cmd.Flags().StringSliceVar(&opts.BootstrapFiles, "datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
 	cmd.Flags().BoolVar(&opts.BootstrapOverwrite, "datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
+	cmd.Flags().DurationVar(&opts.BootstrapTimeout, "datastore-bootstrap-timeout", 10*time.Second, "maximum duration before timeout for the bootstrap data to be written")
 	cmd.Flags().BoolVar(&opts.RequestHedgingEnabled, "datastore-request-hedging", true, "enable request hedging")
 	cmd.Flags().DurationVar(&opts.RequestHedgingInitialSlowValue, "datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
 	cmd.Flags().Uint64Var(&opts.RequestHedgingMaxRequests, "datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
@@ -151,11 +153,12 @@ func DefaultDatastoreConfig() *Config {
 		WatchBufferLength:      128,
 		EnableDatastoreMetrics: true,
 		DisableStats:           false,
+		BootstrapTimeout:       10 * time.Second,
 	}
 }
 
 // NewDatastore initializes a datastore given the options
-func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
+func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datastore, error) {
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
@@ -178,18 +181,21 @@ func NewDatastore(options ...ConfigOption) (datastore.Datastore, error) {
 	}
 
 	if len(opts.BootstrapFiles) > 0 {
-		revision, err := ds.HeadRevision(context.Background())
+		ctx, cancel := context.WithTimeout(ctx, opts.BootstrapTimeout)
+		defer cancel()
+
+		revision, err := ds.HeadRevision(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 
-		nsDefs, err := ds.SnapshotReader(revision).ListNamespaces(context.Background())
+		nsDefs, err := ds.SnapshotReader(revision).ListNamespaces(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
 			log.Info().Msg("initializing datastore from bootstrap files")
-			_, _, err = validationfile.PopulateFromFiles(ds, opts.BootstrapFiles)
+			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
 			}

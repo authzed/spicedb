@@ -164,7 +164,7 @@ func BenchmarkServices(b *testing.B) {
 					contents, err := testFiles.ReadFile(bt.fileName)
 					require.NoError(b, err)
 
-					_, revision, err := validationfile.PopulateFromFilesContents(ds, map[string][]byte{
+					_, revision, err := validationfile.PopulateFromFilesContents(context.Background(), ds, map[string][]byte{
 						"testfile": contents,
 					})
 					brequire.NoError(err)
