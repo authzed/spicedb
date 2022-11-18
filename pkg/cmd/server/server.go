@@ -280,7 +280,8 @@ func (c *Config) Complete() (RunnableServer, error) {
 		log.Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
 	}
 
-	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	gatewayCtx, gatewayConnCancel := context.WithCancel(context.Background()) // nolint: govet
+	gatewayHandler, err := gateway.NewHandler(gatewayCtx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
@@ -301,7 +302,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 
 	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err) // nolint: govet
 	}
 
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
@@ -340,6 +341,7 @@ func (c *Config) Complete() (RunnableServer, error) {
 	}
 
 	return &completedServerConfig{
+		gatewayConnCancel:   gatewayConnCancel,
 		gRPCServer:          grpcServer,
 		dispatchGRPCServer:  dispatchGrpcServer,
 		gatewayServer:       gatewayServer,
@@ -380,6 +382,7 @@ type RunnableServer interface {
 // but is assumed have already been validated via `Complete()` on Config.
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
+	gatewayConnCancel  context.CancelFunc
 	gRPCServer         util.RunnableGRPCServer
 	dispatchGRPCServer util.RunnableGRPCServer
 	gatewayServer      util.RunnableHTTPServer
@@ -441,6 +444,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(stopOnCancel(c.gatewayServer.Close))
+	g.Go(stopOnCancel(c.gatewayConnCancel))
 
 	g.Go(c.metricsServer.ListenAndServe)
 	g.Go(stopOnCancel(c.metricsServer.Close))

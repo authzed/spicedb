@@ -44,7 +44,7 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		opts = append(opts, grpcutil.WithCustomCerts(upstreamTLSCertPath, grpcutil.SkipVerifyCA))
 	}
 
-	healthConn, err := grpc.Dial(upstreamAddr, opts...)
+	healthConn, err := grpc.DialContext(ctx, upstreamAddr, opts...)
 	if err != nil {
 		return nil, err
 	}
