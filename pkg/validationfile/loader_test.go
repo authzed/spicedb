@@ -2,10 +2,7 @@ package validationfile
 
 import (
 	"sort"
-	"strings"
 	"testing"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,39 +12,68 @@ import (
 
 func TestPopulateFromFiles(t *testing.T) {
 	tests := []struct {
-		name      string
-		filePaths []string
-		want      []*core.RelationTuple
+		name          string
+		filePaths     []string
+		want          []string
+		expectedError string
 	}{
 		{
 			name:      "no comment",
 			filePaths: []string{"testdata/loader_no_comment.yaml"},
-			want: []*core.RelationTuple{
-				tuple.Parse("example/project:pied_piper#owner@example/user:milburga"),
-				tuple.Parse("example/project:pied_piper#reader@example/user:tarben"),
-				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),
+			want: []string{
+				"example/project:pied_piper#owner@example/user:milburga",
+				"example/project:pied_piper#reader@example/user:tarben",
+				"example/project:pied_piper#writer@example/user:freyja",
 			},
+			expectedError: "",
 		},
 		{
 			name:      "with comment",
 			filePaths: []string{"testdata/loader_with_comment.yaml"},
-			want: []*core.RelationTuple{
-				tuple.Parse("example/project:pied_piper#owner@example/user:milburga"),
-				tuple.Parse("example/project:pied_piper#reader@example/user:tarben"),
-				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),
+			want: []string{
+				"example/project:pied_piper#owner@example/user:milburga",
+				"example/project:pied_piper#reader@example/user:tarben",
+				"example/project:pied_piper#writer@example/user:freyja",
 			},
+			expectedError: "",
 		},
 		{
 			name:      "multiple files",
 			filePaths: []string{"testdata/initial_schema_and_rels.yaml", "testdata/just_rels.yaml"},
-			want: []*core.RelationTuple{
-				tuple.Parse("example/project:pied_piper#owner@example/user:milburga"),
-				tuple.Parse("example/project:pied_piper#reader@example/user:tarben"),
-				tuple.Parse("example/project:pied_piper#writer@example/user:freyja"),
-				tuple.Parse("example/project:pied_piper#owner@example/user:fred"),
-				tuple.Parse("example/project:pied_piper#reader@example/user:tom"),
-				tuple.Parse("example/project:pied_piper#writer@example/user:sarah"),
+			want: []string{
+				"example/project:pied_piper#owner@example/user:milburga",
+				"example/project:pied_piper#reader@example/user:tarben",
+				"example/project:pied_piper#writer@example/user:freyja",
+				"example/project:pied_piper#owner@example/user:fred",
+				"example/project:pied_piper#reader@example/user:tom",
+				"example/project:pied_piper#writer@example/user:sarah",
 			},
+			expectedError: "",
+		},
+		{
+			name:      "multiple files",
+			filePaths: []string{"testdata/initial_schema_and_rels.yaml", "testdata/just_rels.yaml"},
+			want: []string{
+				"example/project:pied_piper#owner@example/user:milburga",
+				"example/project:pied_piper#reader@example/user:tarben",
+				"example/project:pied_piper#writer@example/user:freyja",
+				"example/project:pied_piper#owner@example/user:fred",
+				"example/project:pied_piper#reader@example/user:tom",
+				"example/project:pied_piper#writer@example/user:sarah",
+			},
+			expectedError: "",
+		},
+		{
+			name:          "missing schema",
+			filePaths:     []string{"testdata/just_rels.yaml"},
+			want:          nil,
+			expectedError: "object definition `example/project` not found",
+		},
+		{
+			name:          "legacy file",
+			filePaths:     []string{"testdata/legacy.yaml"},
+			want:          nil,
+			expectedError: "relationships must be specified in `relationships`",
 		},
 	}
 
@@ -58,20 +84,21 @@ func TestPopulateFromFiles(t *testing.T) {
 			require.NoError(err)
 
 			parsed, _, err := PopulateFromFiles(ds, tt.filePaths)
-			require.NoError(err)
+			if tt.expectedError == "" {
+				require.NoError(err)
 
-			sort.Sort(sortByTuple(tt.want))
-			sort.Sort(sortByTuple(parsed.Tuples))
+				foundRelationships := make([]string, 0, len(parsed.Tuples))
+				for _, tpl := range parsed.Tuples {
+					foundRelationships = append(foundRelationships, tuple.String(tpl))
+				}
 
-			require.Equal(tt.want, parsed.Tuples)
+				sort.Strings(tt.want)
+				sort.Strings(foundRelationships)
+				require.Equal(tt.want, foundRelationships)
+			} else {
+				require.NotNil(err)
+				require.Contains(err.Error(), tt.expectedError)
+			}
 		})
 	}
-}
-
-type sortByTuple []*core.RelationTuple
-
-func (a sortByTuple) Len() int      { return len(a) }
-func (a sortByTuple) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a sortByTuple) Less(i, j int) bool {
-	return strings.Compare(tuple.String(a[i]), tuple.String(a[j])) < 0
 }

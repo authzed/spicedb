@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/relationships"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
@@ -17,11 +19,8 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
-	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
-	ns "github.com/authzed/spicedb/pkg/namespace"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
@@ -162,31 +161,23 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := util.NewSet[string]()
-	referencedCaveatNamesWithContext := util.NewSet[string]()
 	for _, update := range req.Updates {
 		tupleStr := tuple.StringRelationship(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, rewriteError(
 				ctx,
-				status.Errorf(
-					codes.InvalidArgument,
-					"found duplicate update operation for relationship %s",
-					tupleStr,
-				),
+				NewDuplicateRelationshipErr(update),
 			)
 		}
 
-		// Only load the caveat if we need its type information for context checking.
-		if hasNonEmptyCaveatContext(update) {
-			if !ps.caveatsEnabled {
+		if !ps.caveatsEnabled {
+			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
 				return nil, fmt.Errorf("caveats are currently not supported")
 			}
-			referencedCaveatNamesWithContext.Add(update.Relationship.OptionalCaveat.CaveatName)
 		}
 	}
 
 	// Execute the write operation(s).
-	// TODO(jschorr): look into loading the type system once per type, rather than once per relationship
 	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
@@ -195,123 +186,11 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 		}
 
-		// Load caveats, if any.
-		var referencedCaveatMap map[string]*core.CaveatDefinition
-		if !referencedCaveatNamesWithContext.IsEmpty() {
-			foundCaveats, err := rwt.ListCaveats(ctx, referencedCaveatNamesWithContext.AsSlice()...)
-			if err != nil {
-				return err
-			}
-
-			referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveats))
-			for _, caveatDef := range foundCaveats {
-				referencedCaveatMap[caveatDef.Name] = caveatDef
-			}
-		}
-
 		// Validate the updates.
-		for _, update := range req.Updates {
-			if err := tuple.ValidateResourceID(update.Relationship.Resource.ObjectId); err != nil {
-				return err
-			}
-
-			if err := tuple.ValidateSubjectID(update.Relationship.Subject.Object.ObjectId); err != nil {
-				return err
-			}
-
-			if err := namespace.CheckNamespaceAndRelation(
-				ctx,
-				update.Relationship.Resource.ObjectType,
-				update.Relationship.Relation,
-				false,
-				rwt,
-			); err != nil {
-				return err
-			}
-
-			if err := namespace.CheckNamespaceAndRelation(
-				ctx,
-				update.Relationship.Subject.Object.ObjectType,
-				stringz.DefaultEmpty(update.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
-				true,
-				rwt,
-			); err != nil {
-				return err
-			}
-
-			// Build the type system for the object type.
-			_, ts, err := namespace.ReadNamespaceAndTypes(
-				ctx,
-				update.Relationship.Resource.ObjectType,
-				rwt,
-			)
-			if err != nil {
-				return err
-			}
-
-			// Validate that the relationship is not writing to a permission.
-			if ts.IsPermission(update.Relationship.Relation) {
-				return status.Errorf(
-					codes.InvalidArgument,
-					"cannot write a relationship to permission %s",
-					update.Relationship.Relation,
-				)
-			}
-
-			// Validate the subject against the allowed relation(s).
-			var relationToCheck *core.AllowedRelation
-			var caveat *core.AllowedCaveat
-
-			if update.Relationship.OptionalCaveat != nil {
-				caveat = ns.AllowedCaveat(update.Relationship.OptionalCaveat.CaveatName)
-			}
-
-			if update.Relationship.Subject.Object.ObjectId == tuple.PublicWildcard {
-				relationToCheck = ns.AllowedPublicNamespaceWithCaveat(update.Relationship.Subject.Object.ObjectType, caveat)
-			} else {
-				relationToCheck = ns.AllowedRelationWithCaveat(
-					update.Relationship.Subject.Object.ObjectType,
-					stringz.DefaultEmpty(
-						update.Relationship.Subject.OptionalRelation,
-						datastore.Ellipsis),
-					caveat)
-			}
-
-			isAllowed, err := ts.HasAllowedRelation(
-				update.Relationship.Relation,
-				relationToCheck,
-			)
-			if err != nil {
-				return err
-			}
-
-			if isAllowed != namespace.AllowedRelationValid {
-				return status.Errorf(
-					codes.InvalidArgument,
-					"subjects of type `%s` are not allowed on relation `%v`",
-					namespace.SourceForAllowedRelation(relationToCheck),
-					tuple.StringObjectRef(update.Relationship.Resource),
-				)
-			}
-
-			// Validate caveat and its context, if applicable.
-			if hasNonEmptyCaveatContext(update) {
-				caveat, ok := referencedCaveatMap[update.Relationship.OptionalCaveat.CaveatName]
-				if !ok {
-					// This won't happen since caveat is type checked above
-					panic("caveat should have been type-checked but was not found")
-				}
-
-				// Verify that the provided context information matches the types of the parameters defined.
-				_, err := caveats.ConvertContextToParameters(
-					update.Relationship.OptionalCaveat.Context.AsMap(),
-					caveat.ParameterTypes,
-					caveats.ErrorForUnknownParameters,
-				)
-				if err != nil {
-					return rewriteError(ctx, err)
-				}
-			}
+		tupleUpdates := tuple.UpdateFromRelationshipUpdates(req.Updates)
+		err := relationships.ValidateRelationshipUpdates(ctx, rwt, tupleUpdates)
+		if err != nil {
+			return rewriteError(ctx, err)
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -323,7 +202,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return err
 		}
 
-		return rwt.WriteRelationships(ctx, tuple.UpdateFromRelationshipUpdates(req.Updates))
+		return rwt.WriteRelationships(ctx, tupleUpdates)
 	})
 	if err != nil {
 		return nil, rewriteError(ctx, err)
@@ -332,13 +211,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	return &v1.WriteRelationshipsResponse{
 		WrittenAt: zedtoken.NewFromRevision(revision),
 	}, nil
-}
-
-func hasNonEmptyCaveatContext(update *v1.RelationshipUpdate) bool {
-	return update.Relationship.OptionalCaveat != nil &&
-		update.Relationship.OptionalCaveat.CaveatName != "" &&
-		update.Relationship.OptionalCaveat.Context != nil &&
-		len(update.Relationship.OptionalCaveat.Context.GetFields()) > 0
 }
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {

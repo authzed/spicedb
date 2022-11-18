@@ -372,8 +372,7 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 	_, err = client.WriteRelationships(ctx, writeReq)
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
-	errorMsg := fmt.Sprintf("subjects of type `user with doesnotexist` are not allowed on relation `%s`", tuple.StringObjectRef(relWritten.Resource))
-	req.Contains(err.Error(), errorMsg)
+	req.Contains(err.Error(), "subjects of type `user with doesnotexist` are not allowed on relation `document#caveated_viewer`")
 
 	// should succeed
 	relWritten.OptionalCaveat.CaveatName = "test"
@@ -551,7 +550,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 				rel("document", "somedoc", "parent", "user", "tom", ""),
 			},
 			codes.InvalidArgument,
-			"duplicate",
+			"found more than one update",
 		},
 		{
 			"disallowed caveat",
