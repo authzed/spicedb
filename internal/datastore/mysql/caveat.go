@@ -98,6 +98,9 @@ func (mr *mysqlReader) ListCaveats(ctx context.Context, caveatNames ...string) (
 }
 
 func (rwt *mysqlReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	if len(caveats) == 0 {
+		return nil
+	}
 	writeQuery := rwt.WriteCaveatQuery
 
 	caveatNamesToWrite := make([]string, 0, len(caveats))
