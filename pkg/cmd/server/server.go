@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -264,41 +266,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
 
-	// Configure the gateway to serve HTTP
-	if len(c.HTTPGatewayUpstreamAddr) == 0 {
-		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
-	} else {
-		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
-	}
-
-	if len(c.HTTPGatewayUpstreamTLSCertPath) == 0 {
-		c.HTTPGatewayUpstreamTLSCertPath = c.GRPCServer.TLSCertPath
-	} else {
-		log.Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
-	}
-
-	gatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
-	}
-
-	if c.HTTPGatewayCorsEnabled {
-		log.Info().Strs("origins", c.HTTPGatewayCorsAllowedOrigins).Msg("Setting REST gateway CORS policy")
-		gatewayHandler = cors.New(cors.Options{
-			AllowedOrigins:   c.HTTPGatewayCorsAllowedOrigins,
-			AllowCredentials: true,
-			AllowedHeaders:   []string{"Authorization", "Content-Type"},
-			Debug:            log.Debug().Enabled(),
-		}).Handler(gatewayHandler)
-	}
-
-	if c.HTTPGateway.Enabled {
-		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
-	}
-
-	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err) // nolint: govet
+		return nil, err
 	}
 
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
@@ -347,21 +317,68 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		presharedKeys:       c.PresharedKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
-		closeFunc: func() {
+		closeFunc: func() error {
 			if err := ds.Close(); err != nil {
-				log.Warn().Err(err).Msg("couldn't close datastore")
+				return err
 			}
 			if err := dispatcher.Close(); err != nil {
-				log.Warn().Err(err).Msg("couldn't close dispatcher")
+				return err
 			}
-			if cachingClusterDispatch == nil {
-				return
+			if cachingClusterDispatch != nil {
+				if err := cachingClusterDispatch.Close(); err != nil {
+					return err
+				}
 			}
-			if err := cachingClusterDispatch.Close(); err != nil {
-				log.Warn().Err(err).Msg("couldn't close cluster dispatcher")
+			if gatewayCloser != nil {
+				if err := gatewayCloser.Close(); err != nil {
+					return err
+				}
 			}
+			return nil
 		},
 	}, nil
+}
+
+// initializeGateway Configures the gateway to serve HTTP
+func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer, io.Closer, error) {
+	if len(c.HTTPGatewayUpstreamAddr) == 0 {
+		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
+	} else {
+		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
+	}
+
+	if len(c.HTTPGatewayUpstreamTLSCertPath) == 0 {
+		c.HTTPGatewayUpstreamTLSCertPath = c.GRPCServer.TLSCertPath
+	} else {
+		log.Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
+	}
+
+	var gatewayHandler http.Handler
+	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+	}
+	gatewayHandler = closeableGatewayHandler
+
+	if c.HTTPGatewayCorsEnabled {
+		log.Info().Strs("origins", c.HTTPGatewayCorsAllowedOrigins).Msg("Setting REST gateway CORS policy")
+		gatewayHandler = cors.New(cors.Options{
+			AllowedOrigins:   c.HTTPGatewayCorsAllowedOrigins,
+			AllowCredentials: true,
+			AllowedHeaders:   []string{"Authorization", "Content-Type"},
+			Debug:            log.Debug().Enabled(),
+		}).Handler(gatewayHandler)
+	}
+
+	if c.HTTPGateway.Enabled {
+		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
+	}
+
+	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+	}
+	return gatewayServer, closeableGatewayHandler, nil
 }
 
 // RunnableServer is a spicedb service set ready to run
@@ -388,7 +405,7 @@ type completedServerConfig struct {
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKeys       []string
-	closeFunc           func()
+	closeFunc           func() error
 }
 
 func (c *completedServerConfig) Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
@@ -428,6 +445,13 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
+	stopOnCancelWithErr := func(stopFn func() error) func() error {
+		return func() error {
+			<-ctx.Done()
+			return stopFn()
+		}
+	}
+
 	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
 	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen(ctx))
@@ -447,10 +471,11 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 
 	g.Go(func() error { return c.telemetryReporter(ctx) })
 
-	g.Go(stopOnCancel(c.closeFunc))
+	g.Go(stopOnCancelWithErr(c.closeFunc))
 
 	if err := g.Wait(); err != nil {
-		log.Warn().Err(err).Msg("error shutting down servers")
+		log.Warn().Err(err).Msg("error shutting down server")
+		return err
 	}
 
 	return nil
