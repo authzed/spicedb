@@ -113,6 +113,10 @@ func TestPostgresDatastore(t *testing.T) {
 				QuantizedRevisionTest(t, b)
 			})
 
+			t.Run("WatchNotEnabled", func(t *testing.T) {
+				WatchNotEnabledTest(t, b)
+			})
+
 			if config.migrationPhase == "" {
 				t.Run("RevisionInversion", createDatastoreTest(
 					b,
@@ -676,6 +680,30 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(g.Wait())
 	require.False(commitFirstRev.GreaterThan(commitLastRev))
 	require.False(commitFirstRev.Equal(commitLastRev))
+}
+
+func WatchNotEnabledTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	require := require.New(t)
+
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := newPostgresDatastore(uri,
+			RevisionQuantization(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+		)
+		require.NoError(err)
+		return ds
+	})
+	defer ds.Close()
+
+	ds, revision := testfixtures.StandardDatastoreWithData(ds, require)
+	_, errChan := ds.Watch(
+		context.Background(),
+		revision,
+	)
+	err := <-errChan
+	require.NotNil(err)
+	require.Contains(err.Error(), "track_commit_timestamp=on")
 }
 
 func BenchmarkPostgresQuery(b *testing.B) {
