@@ -348,10 +348,12 @@ func sanityCheckNamespaceChanges(
 				datastore.RelationshipsFilter{
 					ResourceType:             nsdef.Name,
 					OptionalResourceRelation: delta.RelationName,
-					OptionalSubjectsFilter: &datastore.SubjectsFilter{
-						SubjectType:        delta.AllowedType.Namespace,
-						OptionalSubjectIds: optionalSubjectIds,
-						RelationFilter:     relationFilter,
+					OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+						{
+							OptionalSubjectType: delta.AllowedType.Namespace,
+							OptionalSubjectIds:  optionalSubjectIds,
+							RelationFilter:      relationFilter,
+						},
 					},
 					OptionalCaveatName: optionalCaveatName,
 				},

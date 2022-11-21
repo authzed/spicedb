@@ -31,8 +31,10 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 		{
 			"resource and subject",
 			&v1.RelationshipFilter{ResourceType: "sometype", OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: "someothertype"}},
-			RelationshipsFilter{ResourceType: "sometype", OptionalSubjectsFilter: &SubjectsFilter{
-				SubjectType: "someothertype",
+			RelationshipsFilter{ResourceType: "sometype", OptionalSubjectsSelectors: []SubjectsSelector{
+				{
+					OptionalSubjectType: "someothertype",
+				},
 			}},
 		},
 		{
@@ -44,9 +46,11 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 					OptionalRelation: &v1.SubjectFilter_RelationFilter{Relation: "somerel"},
 				},
 			},
-			RelationshipsFilter{ResourceType: "sometype", OptionalSubjectsFilter: &SubjectsFilter{
-				SubjectType:    "someothertype",
-				RelationFilter: SubjectRelationFilter{}.WithNonEllipsisRelation("somerel"),
+			RelationshipsFilter{ResourceType: "sometype", OptionalSubjectsSelectors: []SubjectsSelector{
+				{
+					OptionalSubjectType: "someothertype",
+					RelationFilter:      SubjectRelationFilter{}.WithNonEllipsisRelation("somerel"),
+				},
 			}},
 		},
 		{
@@ -58,9 +62,11 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 					OptionalRelation: &v1.SubjectFilter_RelationFilter{Relation: ""},
 				},
 			},
-			RelationshipsFilter{ResourceType: "sometype", OptionalSubjectsFilter: &SubjectsFilter{
-				SubjectType:    "someothertype",
-				RelationFilter: SubjectRelationFilter{}.WithEllipsisRelation(),
+			RelationshipsFilter{ResourceType: "sometype", OptionalSubjectsSelectors: []SubjectsSelector{
+				{
+					OptionalSubjectType: "someothertype",
+					RelationFilter:      SubjectRelationFilter{}.WithEllipsisRelation(),
+				},
 			}},
 		},
 		{
@@ -79,10 +85,12 @@ func TestRelationshipsFilterFromPublicFilter(t *testing.T) {
 				ResourceType:             "sometype",
 				OptionalResourceIds:      []string{"someid"},
 				OptionalResourceRelation: "somerel",
-				OptionalSubjectsFilter: &SubjectsFilter{
-					SubjectType:        "someothertype",
-					OptionalSubjectIds: []string{"somesubjectid"},
-					RelationFilter:     SubjectRelationFilter{}.WithEllipsisRelation(),
+				OptionalSubjectsSelectors: []SubjectsSelector{
+					{
+						OptionalSubjectType: "someothertype",
+						OptionalSubjectIds:  []string{"somesubjectid"},
+						RelationFilter:      SubjectRelationFilter{}.WithEllipsisRelation(),
+					},
 				},
 			},
 		},

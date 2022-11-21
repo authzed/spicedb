@@ -212,7 +212,7 @@ func (i *observableRelationshipIterator) Close() {
 func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
 	ctx, closer := observe(ctx, "ReverseQueryRelationships")
 
-	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectFilter, options...)
+	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, options...)
 	if err != nil {
 		return iterator, err
 	}

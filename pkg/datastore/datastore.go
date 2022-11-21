@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/tuple"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -58,8 +60,9 @@ type RelationshipsFilter struct {
 	// OptionalResourceRelation is the relation of the resource to find. If empty, any relation is allowed.
 	OptionalResourceRelation string
 
-	// OptionalSubjectsFilter is the filter to use for subjects of the relationship. If nil, all subjects are allowed.
-	OptionalSubjectsFilter *SubjectsFilter
+	// OptionalSubjectsSelectors is the selectors to use for subjects of the relationship. If nil, all subjects are allowed.
+	// If specified, relationships matching *any* selector will be returned.
+	OptionalSubjectsSelectors []SubjectsSelector
 
 	// OptionalCaveatName is the filter to use for caveated relationships, filtering by a specific caveat name.
 	// If nil, all caveated and non-caveated relationships are allowed
@@ -73,7 +76,7 @@ func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) Relation
 		resourceIds = []string{filter.OptionalResourceId}
 	}
 
-	var subjectsFilter *SubjectsFilter
+	var subjectsSelectors []SubjectsSelector
 	if filter.OptionalSubjectFilter != nil {
 		var subjectIds []string
 		if filter.OptionalSubjectFilter.OptionalSubjectId != "" {
@@ -91,25 +94,25 @@ func RelationshipsFilterFromPublicFilter(filter *v1.RelationshipFilter) Relation
 			}
 		}
 
-		subjectsFilter = &SubjectsFilter{
-			SubjectType:        filter.OptionalSubjectFilter.SubjectType,
-			OptionalSubjectIds: subjectIds,
-			RelationFilter:     relationFilter,
-		}
+		subjectsSelectors = append(subjectsSelectors, SubjectsSelector{
+			OptionalSubjectType: filter.OptionalSubjectFilter.SubjectType,
+			OptionalSubjectIds:  subjectIds,
+			RelationFilter:      relationFilter,
+		})
 	}
 
 	return RelationshipsFilter{
-		ResourceType:             filter.ResourceType,
-		OptionalResourceIds:      resourceIds,
-		OptionalResourceRelation: filter.OptionalRelation,
-		OptionalSubjectsFilter:   subjectsFilter,
+		ResourceType:              filter.ResourceType,
+		OptionalResourceIds:       resourceIds,
+		OptionalResourceRelation:  filter.OptionalRelation,
+		OptionalSubjectsSelectors: subjectsSelectors,
 	}
 }
 
-// SubjectsFilter is a filter for subjects.
-type SubjectsFilter struct {
-	// SubjectType is the namespace/type for the subjects to be found.
-	SubjectType string
+// SubjectsSelector is a selector for subjects.
+type SubjectsSelector struct {
+	// OptionalSubjectType is the namespace/type for the subjects to be found, if any.
+	OptionalSubjectType string
 
 	// OptionalSubjectIds are the IDs of the subjects to find. If nil or empty, any subject ID will be allowed.
 	OptionalSubjectIds []string
@@ -128,12 +131,25 @@ type SubjectRelationFilter struct {
 	// IncludeEllipsisRelation, if true, indicates that the ellipsis relation
 	// should be included as an option.
 	IncludeEllipsisRelation bool
+
+	// OnlyNonEllipsisRelations, if true, indicates that only non-ellipsis relations
+	// should be included.
+	OnlyNonEllipsisRelations bool
+}
+
+// WithOnlyNonEllipsisRelations indicates that only non-ellipsis relations should be included.
+func (sf SubjectRelationFilter) WithOnlyNonEllipsisRelations() SubjectRelationFilter {
+	sf.OnlyNonEllipsisRelations = true
+	sf.NonEllipsisRelation = ""
+	sf.IncludeEllipsisRelation = false
+	return sf
 }
 
 // WithEllipsisRelation indicates that the subject filter should include the ellipsis relation
 // as an option for the subjects' relation.
 func (sf SubjectRelationFilter) WithEllipsisRelation() SubjectRelationFilter {
 	sf.IncludeEllipsisRelation = true
+	sf.OnlyNonEllipsisRelations = false
 	return sf
 }
 
@@ -141,90 +157,42 @@ func (sf SubjectRelationFilter) WithEllipsisRelation() SubjectRelationFilter {
 // option for the subjects' relation.
 func (sf SubjectRelationFilter) WithNonEllipsisRelation(relation string) SubjectRelationFilter {
 	sf.NonEllipsisRelation = relation
+	sf.OnlyNonEllipsisRelations = false
 	return sf
+}
+
+// WithRelation indicates that the specified relation should be included as an
+// option for the subjects' relation.
+func (sf SubjectRelationFilter) WithRelation(relation string) SubjectRelationFilter {
+	if relation == tuple.Ellipsis {
+		return sf.WithEllipsisRelation()
+	}
+	return sf.WithNonEllipsisRelation(relation)
 }
 
 // IsEmpty returns true if the subject relation filter is empty.
 func (sf SubjectRelationFilter) IsEmpty() bool {
-	return !sf.IncludeEllipsisRelation && sf.NonEllipsisRelation == ""
+	return !sf.IncludeEllipsisRelation && sf.NonEllipsisRelation == "" && !sf.OnlyNonEllipsisRelations
 }
 
-// DirectCheckRelationshipsFilter is a filter specifically for direct lookup of
-// relationships under a relation in a check operation.
-type DirectCheckRelationshipsFilter struct {
-	// ResourceType is the namespace/type for the resources to be found.
-	ResourceType string
+// SubjectsFilter is a filter for subjects.
+type SubjectsFilter struct {
+	// SubjectType is the namespace/type for the subjects to be found.
+	SubjectType string
 
-	// ResourceIds are the IDs of the resources to find.
-	ResourceIds []string
+	// OptionalSubjectIds are the IDs of the subjects to find. If nil or empty, any subject ID will be allowed.
+	OptionalSubjectIds []string
 
-	// ResourceRelation is the relation of the resource to find.
-	ResourceRelation string
-
-	// ShortCircuited, if true, indicates that if a result is found for *any* resource ID, then
-	// it should be returned immediately without results for the others. Only applies if
-	// the target subject is found.
-	ShortCircuited bool
-
-	// TargetSubject is the target subject. If not specified, then the subject
-	// itself cannot be found for the resource and that check should be skipped.
-	TargetSubject *core.ObjectAndRelation
-
-	// IncludeDirectSubject, if true, indicates that the TargetSubject should
-	// directly be included in the filter.
-	IncludeDirectSubject bool
-
-	// IncludeSubjectWildcard, if true, indicates that wildcards of type TargetSubject should
-	// also be included in the filter.
-	IncludeSubjectWildcard bool
-
-	// IncludeNestedRelations, if true, indicates that any relationships with nested relations as
-	// subjects (e.g. non-ellipsis subjects relations) should be returned.
-	IncludeNestedRelations bool
+	// RelationFilter is the filter to use for the relation(s) of the subjects. If neither field
+	// is set, any relation is allowed.
+	RelationFilter SubjectRelationFilter
 }
 
-// WithTargetSubjectWildcard indicates that the subject filter should include a wildcard
-// for the target subject type.
-func (dcrf DirectCheckRelationshipsFilter) WithTargetSubjectWildcard(subject *core.ObjectAndRelation) DirectCheckRelationshipsFilter {
-	return DirectCheckRelationshipsFilter{
-		ResourceType:           dcrf.ResourceType,
-		ResourceIds:            dcrf.ResourceIds,
-		ResourceRelation:       dcrf.ResourceRelation,
-		ShortCircuited:         dcrf.ShortCircuited,
-		TargetSubject:          subject,
-		IncludeSubjectWildcard: true,
-		IncludeDirectSubject:   dcrf.IncludeDirectSubject,
-		IncludeNestedRelations: dcrf.IncludeNestedRelations,
-	}
-}
-
-// WithTargetSubject indicates that the subject filter should include directly looking for the
-// specified target subject.
-func (dcrf DirectCheckRelationshipsFilter) WithTargetSubject(subject *core.ObjectAndRelation) DirectCheckRelationshipsFilter {
-	return DirectCheckRelationshipsFilter{
-		ResourceType:           dcrf.ResourceType,
-		ResourceIds:            dcrf.ResourceIds,
-		ResourceRelation:       dcrf.ResourceRelation,
-		ShortCircuited:         dcrf.ShortCircuited,
-		TargetSubject:          subject,
-		IncludeDirectSubject:   true,
-		IncludeSubjectWildcard: dcrf.IncludeSubjectWildcard,
-		IncludeNestedRelations: dcrf.IncludeNestedRelations,
-	}
-}
-
-// WithReturnNestedRelations indicates that the subject filter should include nested (non-`...`)
-// subject relations.
-func (dcrf DirectCheckRelationshipsFilter) WithReturnNestedRelations() DirectCheckRelationshipsFilter {
-	return DirectCheckRelationshipsFilter{
-		ResourceType:           dcrf.ResourceType,
-		ResourceIds:            dcrf.ResourceIds,
-		ResourceRelation:       dcrf.ResourceRelation,
-		ShortCircuited:         dcrf.ShortCircuited,
-		TargetSubject:          dcrf.TargetSubject,
-		IncludeDirectSubject:   dcrf.IncludeDirectSubject,
-		IncludeSubjectWildcard: dcrf.IncludeSubjectWildcard,
-		IncludeNestedRelations: true,
+func (sf SubjectsFilter) AsSelector() SubjectsSelector {
+	return SubjectsSelector{
+		OptionalSubjectType: sf.SubjectType,
+		OptionalSubjectIds:  sf.OptionalSubjectIds,
+		RelationFilter:      sf.RelationFilter,
 	}
 }
 
@@ -242,7 +210,7 @@ type Reader interface {
 	// ReverseQueryRelationships reads relationships, starting from the subject.
 	ReverseQueryRelationships(
 		ctx context.Context,
-		subjectFilter SubjectsFilter,
+		subjectsFilter SubjectsFilter,
 		options ...options.ReverseQueryOptionsOption,
 	) (RelationshipIterator, error)
 

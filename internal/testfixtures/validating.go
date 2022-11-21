@@ -83,20 +83,6 @@ func (vsr validatingSnapshotReader) LookupNamespaces(
 	return read, nil
 }
 
-func (vsr validatingSnapshotReader) QueryRelationshipsForDirectCheck(ctx context.Context,
-	filter datastore.DirectCheckRelationshipsFilter,
-	opts ...options.QueryOptionsOption,
-) (datastore.RelationshipIterator, error) {
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-	for _, sub := range queryOpts.Usersets {
-		if err := sub.Validate(); err != nil {
-			return nil, err
-		}
-	}
-
-	return vsr.delegate.QueryRelationshipsForDirectCheck(ctx, filter, opts...)
-}
-
 func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,

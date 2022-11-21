@@ -142,6 +142,26 @@ func (ms *MembershipSet) Subtract(resultsMap CheckResultsMap) {
 	}
 }
 
+// HasConcreteResourceID returns whether the resourceID was found in the set
+// and has no caveat attached.
+func (ms *MembershipSet) HasConcreteResourceID(resourceID string) bool {
+	if ms == nil {
+		return false
+	}
+
+	found, ok := ms.membersByID[resourceID]
+	return ok && found == nil
+}
+
+// Size returns the number of elements in the membership set.
+func (ms *MembershipSet) Size() int {
+	if ms == nil {
+		return 0
+	}
+
+	return len(ms.membersByID)
+}
+
 // IsEmpty returns true if the set is empty.
 func (ms *MembershipSet) IsEmpty() bool {
 	if ms == nil {

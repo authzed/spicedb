@@ -150,7 +150,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"wide direct relation check",
 			"benchconfigs/checkwidedirect.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision decimal.Decimal) error {
+			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "resource",
 					ObjectId:  "someresource",

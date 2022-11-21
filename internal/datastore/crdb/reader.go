@@ -139,23 +139,6 @@ func (cr *crdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([
 	return nsDefs, nil
 }
 
-func (cr *crdbReader) QueryRelationshipsForDirectCheck(
-	ctx context.Context,
-	filter datastore.DirectCheckRelationshipsFilter,
-	opts ...options.QueryOptionsOption,
-) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithDirectCheckFilter(filter)
-
-	if err := cr.execute(ctx, func(ctx context.Context) error {
-		iter, err = cr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-
-	return iter, nil
-}
-
 func (cr *crdbReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
@@ -182,7 +165,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).
-		FilterWithSubjectsFilter(subjectsFilter)
+		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
 	}

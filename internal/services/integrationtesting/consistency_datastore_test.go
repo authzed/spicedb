@@ -1,7 +1,7 @@
 //go:build ci && docker
 // +build ci,docker
 
-package services_test
+package integrationtesting_test
 
 import (
 	"context"
@@ -56,7 +56,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10)))
 
-					fullyResolved, revision, err := validationfile.PopulateFromFiles(ds, []string{filePath})
+					fullyResolved, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})
 					require.NoError(t, err)
 
 					conn, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)

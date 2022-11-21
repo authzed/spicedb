@@ -97,26 +97,6 @@ func (dm *MockReader) ReadNamespace(
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockReader) QueryRelationshipsForDirectCheck(
-	ctx context.Context,
-	filter datastore.DirectCheckRelationshipsFilter,
-	options ...options.QueryOptionsOption,
-) (datastore.RelationshipIterator, error) {
-	callArgs := make([]interface{}, 0, len(options)+1)
-	callArgs = append(callArgs, filter)
-	for _, option := range options {
-		callArgs = append(callArgs, option)
-	}
-
-	args := dm.Called(callArgs...)
-	var results datastore.RelationshipIterator
-	if args.Get(0) != nil {
-		results = args.Get(0).(datastore.RelationshipIterator)
-	}
-
-	return results, args.Error(1)
-}
-
 func (dm *MockReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
@@ -193,26 +173,6 @@ func (dm *MockReadWriteTransaction) ReadNamespace(
 	}
 
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
-}
-
-func (dm *MockReadWriteTransaction) QueryRelationshipsForDirectCheck(
-	ctx context.Context,
-	filter datastore.DirectCheckRelationshipsFilter,
-	options ...options.QueryOptionsOption,
-) (datastore.RelationshipIterator, error) {
-	callArgs := make([]interface{}, 0, len(options)+1)
-	callArgs = append(callArgs, filter)
-	for _, option := range options {
-		callArgs = append(callArgs, option)
-	}
-
-	args := dm.Called(callArgs...)
-	var results datastore.RelationshipIterator
-	if args.Get(0) != nil {
-		results = args.Get(0).(datastore.RelationshipIterator)
-	}
-
-	return results, args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) QueryRelationships(

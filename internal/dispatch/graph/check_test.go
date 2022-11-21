@@ -159,7 +159,7 @@ func TestMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutation := tuple.Create(tuple.Parse("folder:oops#owner@folder:oops#owner"))
+	mutation := tuple.Create(tuple.Parse("folder:oops#parent@folder:oops"))
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
@@ -171,7 +171,7 @@ func TestMaxDepth(t *testing.T) {
 	dispatch := NewLocalOnlyDispatcher(10)
 
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceRelation: RR("folder", "owner"),
+		ResourceRelation: RR("folder", "view"),
 		ResourceIds:      []string{"oops"},
 		ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 		Subject:          ONR("user", "fake", graph.Ellipsis),
