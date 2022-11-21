@@ -49,11 +49,10 @@ func (cl *ConcurrentLookupSubjects) LookupSubjects(
 	// If the resource type matches the subject type, yield directly.
 	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
-		err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
+		if err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
 			FoundSubjectsByResourceId: subjectsForConcreteIds(req.ResourceIds),
 			Metadata:                  emptyMetadata,
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}
@@ -120,7 +119,9 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 
 		if tpl.Subject.Namespace == req.SubjectRelation.Namespace &&
 			tpl.Subject.Relation == req.SubjectRelation.Relation {
-			foundSubjectsByResourceID.AddFromRelationship(tpl)
+			if err := foundSubjectsByResourceID.AddFromRelationship(tpl); err != nil {
+				return fmt.Errorf("failed to call AddFromRelationship in lookupDirectSubjects: %w", err)
+			}
 		}
 
 		if tpl.Subject.Relation != tuple.Ellipsis {
@@ -130,11 +131,10 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	}
 
 	if !foundSubjectsByResourceID.IsEmpty() {
-		err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
+		if err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
 			FoundSubjectsByResourceId: foundSubjectsByResourceID.AsMap(),
 			Metadata:                  emptyMetadata,
-		})
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 	}
@@ -149,8 +149,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	cu *core.ComputedUserset,
 ) error {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
-	err := namespace.CheckNamespaceAndRelation(ctx, parentRequest.ResourceRelation.Namespace, cu.Relation, true, ds)
-	if err != nil {
+	if err := namespace.CheckNamespaceAndRelation(ctx, parentRequest.ResourceRelation.Namespace, cu.Relation, true, ds); err != nil {
 		if errors.As(err, &namespace.ErrRelationNotFound{}) {
 			return nil
 		}
@@ -221,8 +220,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 
 	// Map the found subject types by the computed userset relation, so that we dispatch to it.
 	toDispatchByComputedRelationType, err := toDispatchByTuplesetType.Map(func(resourceType *core.RelationReference) (*core.RelationReference, error) {
-		err := namespace.CheckNamespaceAndRelation(ctx, resourceType.Namespace, ttu.ComputedUserset.Relation, false, ds)
-		if err != nil {
+		if err := namespace.CheckNamespaceAndRelation(ctx, resourceType.Namespace, ttu.ComputedUserset.Relation, false, ds); err != nil {
 			if errors.As(err, &namespace.ErrRelationNotFound{}) {
 				return nil, nil
 			}
@@ -374,17 +372,27 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 
 						// If the relationship has no caveat, simply map the resource ID.
 						if relationship.GetCaveat() == nil {
-							mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combineFoundSubjects(existing, foundSubjects)
+							combined, err := combineFoundSubjects(existing, foundSubjects)
+							if err != nil {
+								return nil, false, fmt.Errorf("could not combine caveat-less subjects: %w", err)
+							}
+							mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combined
 							continue
 						}
 
 						// Otherwise, apply the caveat to all found subjects for that resource and map to the resource ID.
 						foundSubjectSet := datasets.NewSubjectSet()
 						foundSubjectSet.UnionWith(foundSubjects.FoundSubjects)
-						mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combineFoundSubjects(
+
+						combined, err := combineFoundSubjects(
 							existing,
 							foundSubjectSet.WithParentCaveatExpression(wrapCaveat(relationship.Caveat)).AsFoundSubjects(),
 						)
+						if err != nil {
+							return nil, false, fmt.Errorf("could not combine caveated subjects: %w", err)
+						}
+
+						mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combined
 					}
 				}
 
@@ -414,14 +422,18 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 	return g.Wait()
 }
 
-func combineFoundSubjects(existing *v1.FoundSubjects, toAdd *v1.FoundSubjects) *v1.FoundSubjects {
+func combineFoundSubjects(existing *v1.FoundSubjects, toAdd *v1.FoundSubjects) (*v1.FoundSubjects, error) {
 	if existing == nil {
-		return toAdd
+		return toAdd, nil
+	}
+
+	if toAdd == nil {
+		return nil, fmt.Errorf("toAdd FoundSubject cannot be nil")
 	}
 
 	return &v1.FoundSubjects{
 		FoundSubjects: append(existing.FoundSubjects, toAdd.FoundSubjects...),
-	}
+	}, nil
 }
 
 type lookupSubjectsReducer interface {
@@ -460,7 +472,9 @@ func (lsu *lookupSubjectsUnion) CompletedChildOperations() error {
 
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
-			foundSubjects.UnionWith(result.FoundSubjectsByResourceId)
+			if err := foundSubjects.UnionWith(result.FoundSubjectsByResourceId); err != nil {
+				return fmt.Errorf("failed to UnionWith under lookupSubjectsUnion: %w", err)
+			}
 		}
 	}
 
@@ -506,7 +520,9 @@ func (lsi *lookupSubjectsIntersection) CompletedChildOperations() error {
 		results := datasets.NewSubjectSetByResourceID()
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
-			results.UnionWith(result.FoundSubjectsByResourceId)
+			if err := results.UnionWith(result.FoundSubjectsByResourceId); err != nil {
+				return fmt.Errorf("failed to UnionWith under lookupSubjectsIntersection: %w", err)
+			}
 		}
 
 		if index == 0 {
@@ -553,7 +569,9 @@ func (lse *lookupSubjectsExclusion) CompletedChildOperations() error {
 		results := datasets.NewSubjectSetByResourceID()
 		for _, result := range collector.Results() {
 			metadata = combineResponseMetadata(metadata, result.Metadata)
-			results.UnionWith(result.FoundSubjectsByResourceId)
+			if err := results.UnionWith(result.FoundSubjectsByResourceId); err != nil {
+				return fmt.Errorf("failed to UnionWith under lookupSubjectsExclusion: %w", err)
+			}
 		}
 
 		if index == 0 {

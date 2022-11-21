@@ -1,6 +1,8 @@
 package datasets
 
 import (
+	"fmt"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -18,30 +20,43 @@ type SubjectSetByResourceID struct {
 	subjectSetByResourceID map[string]SubjectSet
 }
 
-func (ssr SubjectSetByResourceID) add(resourceID string, subject *v1.FoundSubject) {
+func (ssr SubjectSetByResourceID) add(resourceID string, subject *v1.FoundSubject) error {
+	if subject == nil {
+		return fmt.Errorf("cannot add a nil subject to SubjectSetByResourceID")
+	}
+
 	_, ok := ssr.subjectSetByResourceID[resourceID]
 	if !ok {
 		ssr.subjectSetByResourceID[resourceID] = NewSubjectSet()
 	}
 	ssr.subjectSetByResourceID[resourceID].Add(subject)
+	return nil
 }
 
 // AddFromRelationship adds the subject found in the given relationship to this map, indexed at
 // the resource ID specified in the relationship.
-func (ssr SubjectSetByResourceID) AddFromRelationship(relationship *core.RelationTuple) {
-	ssr.add(relationship.ResourceAndRelation.ObjectId, &v1.FoundSubject{
+func (ssr SubjectSetByResourceID) AddFromRelationship(relationship *core.RelationTuple) error {
+	return ssr.add(relationship.ResourceAndRelation.ObjectId, &v1.FoundSubject{
 		SubjectId:        relationship.Subject.ObjectId,
 		CaveatExpression: wrapCaveat(relationship.Caveat),
 	})
 }
 
 // UnionWith unions the map's sets with the other map of sets provided.
-func (ssr SubjectSetByResourceID) UnionWith(other map[string]*v1.FoundSubjects) {
+func (ssr SubjectSetByResourceID) UnionWith(other map[string]*v1.FoundSubjects) error {
 	for resourceID, subjects := range other {
+		if subjects == nil {
+			return fmt.Errorf("received nil FoundSubjects in other map of SubjectSetByResourceID's UnionWith for key %s", resourceID)
+		}
+
 		for _, subject := range subjects.FoundSubjects {
-			ssr.add(resourceID, subject)
+			if err := ssr.add(resourceID, subject); err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }
 
 // IntersectionDifference performs an in-place intersection between the two maps' sets.

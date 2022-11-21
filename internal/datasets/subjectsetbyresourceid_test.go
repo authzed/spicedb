@@ -15,11 +15,11 @@ func TestSubjectSetByResourceIDBasicOperations(t *testing.T) {
 	ssr := NewSubjectSetByResourceID()
 	require.True(t, ssr.IsEmpty())
 
-	ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
 	require.False(t, ssr.IsEmpty())
 
-	ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#..."))
-	ssr.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#..."))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#...")))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
 	expected := map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -47,11 +47,11 @@ func TestSubjectSetByResourceIDBasicOperations(t *testing.T) {
 
 func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
 	ssr := NewSubjectSetByResourceID()
-	ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#..."))
-	ssr.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#..."))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#...")))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
-	ssr.UnionWith(map[string]*v1.FoundSubjects{
+	err := ssr.UnionWith(map[string]*v1.FoundSubjects{
 		"firstdoc": {
 			FoundSubjects: []*v1.FoundSubject{
 				{SubjectId: "tom"},
@@ -64,6 +64,7 @@ func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	found := ssr.AsMap()
 	sort.Sort(sortFoundSubjects(found["firstdoc"].FoundSubjects))
@@ -99,14 +100,14 @@ func (a sortFoundSubjects) Less(i, j int) bool {
 
 func TestSubjectSetByResourceIDIntersectionDifference(t *testing.T) {
 	first := NewSubjectSetByResourceID()
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#..."))
-	first.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#..."))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
 	second := NewSubjectSetByResourceID()
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#..."))
-	second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:george#..."))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:george#...")))
 
 	first.IntersectionDifference(second)
 
@@ -121,13 +122,13 @@ func TestSubjectSetByResourceIDIntersectionDifference(t *testing.T) {
 
 func TestSubjectSetByResourceIDIntersectionDifferenceMissingKey(t *testing.T) {
 	first := NewSubjectSetByResourceID()
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#..."))
-	first.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#..."))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
 	second := NewSubjectSetByResourceID()
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#..."))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
 
 	first.IntersectionDifference(second)
 
@@ -142,13 +143,13 @@ func TestSubjectSetByResourceIDIntersectionDifferenceMissingKey(t *testing.T) {
 
 func TestSubjectSetByResourceIDIntersectionDifferenceItemInSecondSet(t *testing.T) {
 	first := NewSubjectSetByResourceID()
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#..."))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#...")))
 
 	second := NewSubjectSetByResourceID()
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#..."))
-	second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#..."))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
 	first.IntersectionDifference(second)
 
@@ -163,14 +164,14 @@ func TestSubjectSetByResourceIDIntersectionDifferenceItemInSecondSet(t *testing.
 
 func TestSubjectSetByResourceIDSubtractAll(t *testing.T) {
 	first := NewSubjectSetByResourceID()
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#..."))
-	first.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#..."))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:sarah#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
 	second := NewSubjectSetByResourceID()
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#..."))
-	second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:george#..."))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:george#...")))
 
 	first.SubtractAll(second)
 
@@ -190,11 +191,11 @@ func TestSubjectSetByResourceIDSubtractAll(t *testing.T) {
 
 func TestSubjectSetByResourceIDSubtractAllEmpty(t *testing.T) {
 	first := NewSubjectSetByResourceID()
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#..."))
-	first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:mi#..."))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
+	require.NoError(t, first.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:mi#...")))
 
 	second := NewSubjectSetByResourceID()
-	second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:*#..."))
+	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:*#...")))
 
 	first.SubtractAll(second)
 
@@ -205,8 +206,8 @@ func TestSubjectSetByResourceIDBasicCaveatedOperations(t *testing.T) {
 	ssr := NewSubjectSetByResourceID()
 	require.True(t, ssr.IsEmpty())
 
-	ssr.AddFromRelationship(tuple.WithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "first"))
-	ssr.AddFromRelationship(tuple.WithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "second"))
+	require.NoError(t, ssr.AddFromRelationship(tuple.WithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "first")))
+	require.NoError(t, ssr.AddFromRelationship(tuple.WithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "second")))
 
 	expected := map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -224,4 +225,14 @@ func TestSubjectSetByResourceIDBasicCaveatedOperations(t *testing.T) {
 	sort.Sort(sortFoundSubjects(asMap["firstdoc"].FoundSubjects))
 
 	require.Equal(t, expected, asMap)
+}
+
+func TestSubjectSetByResoureIDUnionWithBadMap(t *testing.T) {
+	ssr := NewSubjectSetByResourceID()
+	require.True(t, ssr.IsEmpty())
+
+	err := ssr.UnionWith(map[string]*v1.FoundSubjects{
+		"isnil": nil,
+	})
+	require.NotNil(t, err)
 }
