@@ -109,6 +109,9 @@ func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([
 }
 
 func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+	if len(caveats) == 0 {
+		return nil
+	}
 	write := writeCaveat
 	writtenCaveatNames := make([]string, 0, len(caveats))
 	for _, caveat := range caveats {
