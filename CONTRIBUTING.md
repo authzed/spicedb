@@ -83,6 +83,12 @@ In order to build and test the project, the [latest stable version of Go] and kn
 go test -v ./...
 ```
 
+To run integration tests (for example when testing datastores):
+
+```sh
+go test -v --failfast --tags 'ci,docker' -count=1 ./...
+```
+
 ### Adding dependencies
 
 This project does not use anything other than the standard [Go modules] toolchain for managing dependencies.
