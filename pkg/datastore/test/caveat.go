@@ -29,8 +29,12 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	skipIfNotCaveatStorer(t, ds)
 
-	// Dupes in same transaction are fail to be written
 	ctx := context.Background()
+	// Don't fail on writing empty caveat list
+	_, err = writeCaveats(ctx, ds)
+	req.NoError(err)
+
+	// Dupes in same transaction fail to be written
 	coreCaveat := createCoreCaveat(t)
 	coreCaveat.Name = "a"
 	_, err = writeCaveats(ctx, ds, coreCaveat, coreCaveat)

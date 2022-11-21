@@ -73,9 +73,6 @@ func (sr spannerReader) ListCaveats(ctx context.Context, caveatNames ...string) 
 }
 
 func (rwt spannerReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	if len(caveats) == 0 {
-		return nil
-	}
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
