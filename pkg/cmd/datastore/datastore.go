@@ -123,6 +123,7 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.SpannerEmulatorHost, "datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
 	cmd.Flags().StringVar(&opts.MigrationPhase, "datastore-migration-phase", "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
+	cmd.Flags().Uint16Var(&opts.WatchBufferLength, "datastore-watch-buffer-length", 128, "how many events the watch buffer should queue before forcefully disconnecting reader")
 
 	// disabling stats is only for tests
 	cmd.Flags().BoolVar(&opts.DisableStats, "datastore-disable-stats", false, "disable recording relationship counts to the stats table")
