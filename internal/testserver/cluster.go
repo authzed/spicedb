@@ -210,10 +210,10 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			server.WithDispatchClusterMetricsPrefix(fmt.Sprintf("%s_%d_dispatch", prefix, i)),
 		}
 
-		srv, err := server.NewConfigWithOptions(serverOptions...).Complete()
+		ctx, cancel := context.WithCancel(context.Background())
+		srv, err := server.NewConfigWithOptions(serverOptions...).Complete(ctx)
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			require.NoError(t, srv.Run(ctx))
 		}()

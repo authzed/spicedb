@@ -122,7 +122,7 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 		Long:    "A database that stores, computes, and validates application permissions",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			server, err := config.Complete()
+			server, err := config.Complete(cmd.Context())
 			if err != nil {
 				return err
 			}

@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/grpc/backoff"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -66,7 +66,7 @@ func TestCertRotation(t *testing.T) {
 	caFile, err := os.Create(filepath.Join(certDir, "ca.crt"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		caFile.Close()
+		require.NoError(t, caFile.Close())
 	})
 	require.NoError(t, pem.Encode(caFile, &pem.Block{
 		Type:  "CERTIFICATE",
@@ -115,6 +115,7 @@ func TestCertRotation(t *testing.T) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, 10, time.Duration(90_000_000_000_000))
 	require.NoError(t, err)
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
+	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1)),
@@ -135,7 +136,7 @@ func TestCertRotation(t *testing.T) {
 		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-	).Complete()
+	).Complete(ctx)
 	require.NoError(t, err)
 
 	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
@@ -148,14 +149,17 @@ func TestCertRotation(t *testing.T) {
 		servicespecific.StreamServerInterceptor,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	wait := make(chan struct{}, 1)
 	go func() {
 		require.NoError(t, srv.Run(ctx))
+		wait <- struct{}{}
 	}()
 
-	conn, err := srv.GRPCDialContext(ctx,
+	// If previous code takes more than 1s to execute, the cert would have expired, and Dial would
+	// retry indefinitely, hence the context timeout
+	dialCtx, cancelDial := context.WithTimeout(ctx, 5*time.Second)
+	conn, err := srv.GRPCDialContext(dialCtx,
 		grpc.WithReturnConnectionError(),
-		grpc.WithBlock(),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  1 * time.Second,
@@ -166,17 +170,15 @@ func TestCertRotation(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	t.Cleanup(func() {
+	defer func() {
 		if conn != nil {
 			require.NoError(t, conn.Close())
 		}
-		cancel()
-	})
-
+	}()
 	// requests work with the old key
 	client := v1.NewPermissionsServiceClient(conn)
 	rel := tuple.MustToRelationship(tuple.Parse(tf.StandardTuples[0]))
-	_, err = client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+	_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
 				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
@@ -229,7 +231,7 @@ func TestCertRotation(t *testing.T) {
 
 	// check for three seconds (initial cert is only valid for 1 second)
 	for i := 0; i < waitFactor; i++ {
-		_, err = client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
+		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{
 				Requirement: &v1.Consistency_AtLeastAsFresh{
 					AtLeastAsFresh: zedtoken.NewFromRevision(revision),
@@ -242,4 +244,14 @@ func TestCertRotation(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(initialValidDuration)
 	}
+
+	cancel()
+	cancelDial()
+	select {
+	case <-wait:
+		return
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "ungraceful server termination")
+	}
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 }

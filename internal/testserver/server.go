@@ -50,6 +50,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
 	ds, revision := dsInitFunc(emptyDS, require)
+	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
@@ -69,7 +70,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
 		server.WithExperimentalCaveatsEnabled(true),
-	).Complete()
+	).Complete(ctx)
 	require.NoError(err)
 	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
 		logging.UnaryServerInterceptor(),
@@ -83,7 +84,6 @@ func NewTestServerWithConfig(require *require.Assertions,
 		servicespecific.StreamServerInterceptor,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		require.NoError(srv.Run(ctx))
 	}()
