@@ -35,7 +35,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 		currentTxn := transactionFromRevision(afterRevision)
 
 		for {
-			var stagedUpdates []*datastore.RevisionChanges
+			var stagedUpdates []datastore.RevisionChanges
 			var err error
 			stagedUpdates, currentTxn, err = mds.loadChanges(ctx, currentTxn)
 			if err != nil {
@@ -49,8 +49,10 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
+				changeToWrite := changeToWrite
+
 				select {
-				case updates <- changeToWrite:
+				case updates <- &changeToWrite:
 				default:
 					errs <- datastore.NewWatchDisconnectedErr()
 					return
@@ -79,7 +81,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
-) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
+) (changes []datastore.RevisionChanges, newRevision uint64, err error) {
 	newRevision, err = mds.loadRevision(ctx)
 	if err != nil {
 		return
@@ -112,7 +114,9 @@ func (mds *Datastore) loadChanges(
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges()
+	stagedChanges := common.NewChanges(func(r revision.Decimal) int64 {
+		return r.IntPart()
+	})
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{
@@ -156,7 +160,9 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	changes = stagedChanges.AsRevisionChanges(mds)
+	changes = stagedChanges.AsRevisionChanges(func(lhs, rhs int64) bool {
+		return lhs < rhs
+	})
 
 	return
 }
