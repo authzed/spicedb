@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v4"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -23,11 +24,11 @@ var (
 	// xid8 is one of the last ~2 billion transaction IDs generated. We should be garbage
 	// collecting these transactions long before we get to that point.
 	newRevisionsQuery = fmt.Sprintf(`
-	SELECT %[1]s, pg_snapshot_xmin(%[2]s) from %[3]s
-	WHERE pg_xact_commit_timestamp(%[1]s::xid) > (
-		SELECT pg_xact_commit_timestamp(%[1]s::xid) FROM relation_tuple_transaction where %[1]s = $1
-	) AND %[1]s < pg_snapshot_xmin(pg_current_snapshot())
-	ORDER BY pg_xact_commit_timestamp(%[1]s::xid);
+	SELECT %[1]s, pg_snapshot_xmin(%[2]s) FROM %[3]s
+	WHERE pg_xact_commit_timestamp(%[1]s::xid) >= (
+		SELECT pg_xact_commit_timestamp(%[1]s::xid) FROM relation_tuple_transaction WHERE %[1]s = $1
+	) AND pg_visible_in_snapshot(xid, pg_current_snapshot()) AND %[1]s <> $1
+	ORDER BY pg_xact_commit_timestamp(%[1]s::xid), xid;
 `, colXID, colSnapshot, tableTransaction)
 
 	queryChanged = psql.Select(
@@ -119,23 +120,29 @@ func (pgd *pgDatastore) getNewRevisions(
 	ctx context.Context,
 	afterTX postgresRevision,
 ) ([]postgresRevision, error) {
-	rows, err := pgd.dbpool.Query(context.Background(), newRevisionsQuery, afterTX.tx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load new revisions: %w", err)
-	}
-	defer rows.Close()
-
 	var ids []postgresRevision
-	for rows.Next() {
-		var nextXID, nextXmin xid8
-		if err := rows.Scan(&nextXID, &nextXmin); err != nil {
-			return nil, fmt.Errorf("unable to decode new revision: %w", err)
+	if err := pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.tx)
+		if err != nil {
+			return fmt.Errorf("unable to load new revisions: %w", err)
 		}
+		defer rows.Close()
 
-		ids = append(ids, postgresRevision{nextXID, nextXmin})
-	}
-	if rows.Err() != nil {
-		return nil, fmt.Errorf("unable to load new revisions: %w", err)
+
+		for rows.Next() {
+			var nextXID, nextXmin xid8
+			if err := rows.Scan(&nextXID, &nextXmin); err != nil {
+				return fmt.Errorf("unable to decode new revision: %w", err)
+			}
+
+			ids = append(ids, postgresRevision{nextXID, nextXmin})
+		}
+		if rows.Err() != nil {
+			return fmt.Errorf("unable to load new revisions: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("transaction error: %w", err)
 	}
 
 	return ids, nil
