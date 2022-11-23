@@ -267,10 +267,17 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 
 	// test relationship with caveat and context
 	tupleWithContext := createTestCaveatedTuple(t, "document:a#parent@folder:company#...", coreCaveat.Name)
+
 	revBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithContext)
+
+	// NOTE: sleep added to ensure different revisions on macOS.
+	time.Sleep(1 * time.Microsecond)
+
+	writeRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithContext)
 	require.NoError(t, err)
+	require.NotEqual(t, revBeforeWrite, writeRev, "found same transaction IDs: %v and %v", revBeforeWrite, writeRev)
+
 	expectTupleChange(t, ds, revBeforeWrite, tupleWithContext)
 
 	// test relationship with caveat and empty context
@@ -279,21 +286,35 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 
 	req.NoError(err)
 	tupleWithEmptyContext.Caveat.Context = strct
-	revBeforeWrite, err = ds.HeadRevision(ctx)
+
+	secondRevBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithEmptyContext)
+
+	// NOTE: sleep added to ensure different revisions on macOS.
+	time.Sleep(1 * time.Microsecond)
+
+	secondWriteRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithEmptyContext)
 	require.NoError(t, err)
-	expectTupleChange(t, ds, revBeforeWrite, tupleWithEmptyContext)
+	require.NotEqual(t, secondRevBeforeWrite, secondWriteRev)
+
+	expectTupleChange(t, ds, secondRevBeforeWrite, tupleWithEmptyContext)
 
 	// test relationship with caveat and empty context
 	tupleWithNilContext := createTestCaveatedTuple(t, "document:c#parent@folder:company#...", coreCaveat.Name)
 	tupleWithNilContext.Caveat.Context = nil
-	revBeforeWrite, err = ds.HeadRevision(ctx)
+
+	thirdRevBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithNilContext)
+
+	// NOTE: sleep added to ensure different revisions on macOS.
+	time.Sleep(1 * time.Microsecond)
+
+	thirdWriteRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithNilContext)
 	req.NoError(err)
+	require.NotEqual(t, thirdRevBeforeWrite, thirdWriteRev)
+
 	tupleWithNilContext.Caveat.Context = &structpb.Struct{} // nil struct comes back as zero-value struct
-	expectTupleChange(t, ds, revBeforeWrite, tupleWithNilContext)
+	expectTupleChange(t, ds, thirdRevBeforeWrite, tupleWithNilContext)
 }
 
 func expectTupleChange(t *testing.T, ds datastore.Datastore, revBeforeWrite datastore.Revision, expectedTuple *core.RelationTuple) {
@@ -301,6 +322,7 @@ func expectTupleChange(t *testing.T, ds datastore.Datastore, revBeforeWrite data
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite)
 	require.Zero(t, len(chanErr))
 
@@ -308,6 +330,7 @@ func expectTupleChange(t *testing.T, ds datastore.Datastore, revBeforeWrite data
 	select {
 	case change, ok := <-chanRevisionChanges:
 		require.True(t, ok)
+
 		// do not check length of change, may contain duplicates
 		foundDiff := cmp.Diff(expectedTuple, change.Changes[0].Tuple, protocmp.Transform())
 		require.Empty(t, foundDiff)
