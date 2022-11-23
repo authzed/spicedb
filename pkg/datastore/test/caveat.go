@@ -271,9 +271,6 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	revBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	// NOTE: sleep added to ensure different revisions on macOS.
-	time.Sleep(1 * time.Microsecond)
-
 	writeRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithContext)
 	require.NoError(t, err)
 	require.NotEqual(t, revBeforeWrite, writeRev, "found same transaction IDs: %v and %v", revBeforeWrite, writeRev)
@@ -290,9 +287,6 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	secondRevBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	// NOTE: sleep added to ensure different revisions on macOS.
-	time.Sleep(1 * time.Microsecond)
-
 	secondWriteRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithEmptyContext)
 	require.NoError(t, err)
 	require.NotEqual(t, secondRevBeforeWrite, secondWriteRev)
@@ -305,9 +299,6 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 
 	thirdRevBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-
-	// NOTE: sleep added to ensure different revisions on macOS.
-	time.Sleep(1 * time.Microsecond)
 
 	thirdWriteRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tupleWithNilContext)
 	req.NoError(err)

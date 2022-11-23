@@ -62,7 +62,7 @@ func NewMemdbDatastore(
 		db: db,
 		revisions: []snapshot{
 			{
-				revision: decimal.Zero,
+				revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
 				db:       db,
 			},
 		},
@@ -160,8 +160,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			return tx, err
 		}
 
-		newRevision := newRevisionID()
-
+		newRevision := mdb.newRevisionID()
 		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil}, newRevision}
 		if err := f(rwt); err != nil {
 			mdb.Lock()
@@ -263,7 +262,7 @@ func (mdb *memdbDatastore) Close() error {
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{
-				revision: decimal.Zero,
+				revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
 				db:       db,
 			},
 		}
