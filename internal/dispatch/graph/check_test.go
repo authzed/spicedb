@@ -27,8 +27,8 @@ var ONR = tuple.ObjectAndRelation
 
 var goleakIgnores = []goleak.Option{
 	goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
-	goleak.IgnoreTopFunction("github.com/dgraph-io/ristretto.(*lfuPolicy).processItems"),
-	goleak.IgnoreTopFunction("github.com/dgraph-io/ristretto.(*Cache).processItems"),
+	goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*lfuPolicy).processItems"),
+	goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*Cache).processItems"),
 	goleak.IgnoreCurrent(),
 }
 

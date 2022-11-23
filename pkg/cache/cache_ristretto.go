@@ -4,8 +4,8 @@
 package cache
 
 import (
-	"github.com/dgraph-io/ristretto"
-	"github.com/dgraph-io/ristretto/z"
+	"github.com/outcaste-io/ristretto"
+	"github.com/outcaste-io/ristretto/z"
 	"github.com/rs/zerolog"
 
 	"github.com/authzed/spicedb/internal/dispatch/keys"

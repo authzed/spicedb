@@ -60,7 +60,7 @@ func (h *dispatchCacheKeyHasher) WriteString(value string) {
 	}
 }
 
-// From: https://github.com/dgraph-io/ristretto/blob/master/z/rtutil.go
+// From: https://github.com/outcaste-io/ristretto/blob/master/z/rtutil.go
 type stringStruct struct {
 	str unsafe.Pointer
 	len int

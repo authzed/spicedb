@@ -128,7 +128,7 @@ func TestSimpleLookup(t *testing.T) {
 			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired), "Depth required mismatch")
 
 			// We have to sleep a while to let the cache converge:
-			// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
+			// https://github.com/outcaste-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
 			time.Sleep(10 * time.Millisecond)
 
 			// Run again with the cache available.
