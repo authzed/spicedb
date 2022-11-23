@@ -6,7 +6,7 @@ import (
 )
 
 // Config for caching.
-// See: https://github.com/dgraph-io/ristretto#Config
+// See: https://github.com/outcaste-io/ristretto#Config
 type Config struct {
 	// NumCounters determines the number of counters (keys) to keep that hold
 	// access frequency information. It's generally a good idea to have more
