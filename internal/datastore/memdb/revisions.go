@@ -10,6 +10,22 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
+// NOTE: The time.Now().UTC() only appears to have *microsecond* level
+// precision on macOS Monterey in Go 1.19.1. This means that HeadRevision
+// and the result of a ReadWriteTx can return the *same* transaction ID
+// if both are executed in sequence without any other forms of delay on
+// macOS. As memdb should only be used for testing and tooling this *should*
+// be okay, but we should investigate if there is a further fix.
+//
+// See: https://github.com/golang/go/issues/22037 which appeared to fix
+// this in Go 1.9.2, but there appears to have been a reversion with either
+// the new version of macOS or Go.
+//
+// TODO(jschorr): Investigate if there is a way to fix this.
+func newRevisionID() revision.Decimal {
+	return revisionFromTimestamp(time.Now().UTC())
+}
+
 func revisionFromTimestamp(t time.Time) revision.Decimal {
 	return revision.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
 }

@@ -160,7 +160,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			return tx, err
 		}
 
-		newRevision := revisionFromTimestamp(time.Now().UTC())
+		newRevision := newRevisionID()
 
 		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil}, newRevision}
 		if err := f(rwt); err != nil {
