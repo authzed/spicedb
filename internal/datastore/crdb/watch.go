@@ -28,6 +28,17 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	updates := make(chan *datastore.RevisionChanges, cds.watchBufferLength)
 	errs := make(chan error, 1)
 
+	features, err := cds.Features(ctx)
+	if err != nil {
+		errs <- err
+		return updates, errs
+	}
+
+	if !features.Watch.Enabled {
+		errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))
+		return updates, errs
+	}
+
 	interpolated := fmt.Sprintf(queryChangefeed, tableTuple, afterRevision)
 
 	go func() {

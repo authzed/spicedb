@@ -147,10 +147,21 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 			ds, err := NewCRDBDatastore(nonAdminConnURI)
 			require.NoError(t, err)
+
 			features, err := ds.Features(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectEnabled, features.Watch.Enabled)
 			require.Equal(t, tt.expectMessage, features.Watch.Reason)
+
+			if !features.Watch.Enabled {
+				headRevision, err := ds.HeadRevision(ctx)
+				require.NoError(t, err)
+
+				_, errChan := ds.Watch(ctx, headRevision)
+				err = <-errChan
+				require.NotNil(t, err)
+				require.Contains(t, err.Error(), "watch is currently disabled")
+			}
 		})
 	}
 }

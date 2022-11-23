@@ -29,10 +29,19 @@ type postgresTester struct {
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
 func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
+	return RunPostgresForTestingWithCommitTimestamps(t, bridgeNetworkName, targetMigration, true)
+}
+
+func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName string, targetMigration string, withCommitTimestamps bool) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
 	name := fmt.Sprintf("postgres-%s", uuid.New().String())
+	cmd := []string{"-c", "track_commit_timestamp=1"}
+	if !withCommitTimestamps {
+		cmd = []string{}
+	}
+
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "postgres",
@@ -40,7 +49,7 @@ func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigrati
 		Env:          []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 		ExposedPorts: []string{"5432/tcp"},
 		NetworkID:    bridgeNetworkName,
-		Cmd:          []string{"-c", "track_commit_timestamp=1"},
+		Cmd:          cmd,
 	})
 	require.NoError(t, err)
 

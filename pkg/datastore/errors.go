@@ -33,8 +33,11 @@ func (err ErrNamespaceNotFound) DetailsMetadata() map[string]string {
 // as a result.
 type ErrWatchDisconnected struct{ error }
 
-// ErrWatchCanceled occurs when a watch was canceled by the caller
+// ErrWatchCanceled occurs when a watch was canceled by the caller.
 type ErrWatchCanceled struct{ error }
+
+// ErrWatchDisabled occurs when watch is disabled by being unsupported by the datastore.
+type ErrWatchDisabled struct{ error }
 
 // ErrReadOnly is returned when the operation cannot be completed because the datastore is in
 // read-only mode.
@@ -101,6 +104,13 @@ func NewWatchDisconnectedErr() error {
 func NewWatchCanceledErr() error {
 	return ErrWatchCanceled{
 		error: fmt.Errorf("watch was canceled by the caller"),
+	}
+}
+
+// NewWatchDisabledErr constructs a new watch is disabled error.
+func NewWatchDisabledErr(reason string) error {
+	return ErrWatchDisabled{
+		error: fmt.Errorf("watch is currently disabled: %s", reason),
 	}
 }
 

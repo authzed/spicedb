@@ -48,10 +48,15 @@ func (pgd *pgDatastore) Watch(
 	ctx context.Context,
 	afterRevisionRaw datastore.Revision,
 ) (<-chan *datastore.RevisionChanges, <-chan error) {
-	afterRevision := afterRevisionRaw.(postgresRevision)
-
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
 	errs := make(chan error, 1)
+
+	if !pgd.watchEnabled {
+		errs <- datastore.NewWatchDisabledErr("postgres must be run with track_commit_timestamp=on for watch to be enabled. See https://spicedb.dev/d/enable-watch-api-postgres")
+		return updates, errs
+	}
+
+	afterRevision := afterRevisionRaw.(postgresRevision)
 
 	go func() {
 		defer close(updates)
