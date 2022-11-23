@@ -106,7 +106,7 @@ func TestConsistency(t *testing.T) {
 								cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
 								lrequire.NoError(err)
 
-								localDispatcher := graph.NewDispatcher(cachingDispatcher, 10)
+								localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10))
 								defer localDispatcher.Close()
 								cachingDispatcher.SetDelegate(localDispatcher)
 								dispatcher = cachingDispatcher

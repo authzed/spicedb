@@ -19,8 +19,6 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-const defaultConcurrencyLimit = 50
-
 // Option is a function-style option for configuring a combined Dispatcher.
 type Option func(*optionState)
 
@@ -31,7 +29,7 @@ type optionState struct {
 	grpcPresharedKey    string
 	grpcDialOpts        []grpc.DialOption
 	cache               cache.Cache
-	concurrencyLimit    uint16
+	concurrencyLimits   graph.ConcurrencyLimits
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -79,10 +77,10 @@ func Cache(c cache.Cache) Option {
 	}
 }
 
-// ConcurrencyLimit sets the max number of goroutines per operation
-func ConcurrencyLimit(limit uint16) Option {
+// ConcurrencyLimits sets the max number of goroutines per operation
+func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
 	return func(state *optionState) {
-		state.concurrencyLimit = limit
+		state.concurrencyLimits = limits
 	}
 }
 
@@ -104,12 +102,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		return nil, err
 	}
 
-	var concurrencyLimit uint16 = defaultConcurrencyLimit
-	if opts.concurrencyLimit != 0 {
-		concurrencyLimit = opts.concurrencyLimit
-	}
-
-	redispatch := graph.NewDispatcher(cachingRedispatch, concurrencyLimit)
+	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {

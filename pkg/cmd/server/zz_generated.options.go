@@ -3,6 +3,7 @@ package server
 
 import (
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
+	graph "github.com/authzed/spicedb/internal/dispatch/graph"
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
@@ -41,7 +42,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
 		to.DispatchMaxDepth = c.DispatchMaxDepth
-		to.DispatchConcurrencyLimit = c.DispatchConcurrencyLimit
+		to.GlobalDispatchConcurrencyLimit = c.GlobalDispatchConcurrencyLimit
+		to.DispatchConcurrencyLimits = c.DispatchConcurrencyLimits
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
@@ -201,10 +203,17 @@ func WithDispatchMaxDepth(dispatchMaxDepth uint32) ConfigOption {
 	}
 }
 
-// WithDispatchConcurrencyLimit returns an option that can set DispatchConcurrencyLimit on a Config
-func WithDispatchConcurrencyLimit(dispatchConcurrencyLimit uint16) ConfigOption {
+// WithGlobalDispatchConcurrencyLimit returns an option that can set GlobalDispatchConcurrencyLimit on a Config
+func WithGlobalDispatchConcurrencyLimit(globalDispatchConcurrencyLimit uint16) ConfigOption {
 	return func(c *Config) {
-		c.DispatchConcurrencyLimit = dispatchConcurrencyLimit
+		c.GlobalDispatchConcurrencyLimit = globalDispatchConcurrencyLimit
+	}
+}
+
+// WithDispatchConcurrencyLimits returns an option that can set DispatchConcurrencyLimits on a Config
+func WithDispatchConcurrencyLimits(dispatchConcurrencyLimits graph.ConcurrencyLimits) ConfigOption {
+	return func(c *Config) {
+		c.DispatchConcurrencyLimits = dispatchConcurrencyLimits
 	}
 }
 
