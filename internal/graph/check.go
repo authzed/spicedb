@@ -211,6 +211,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
 		}
 	}
+	it.Close()
 
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
@@ -406,6 +407,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 		subjectsToDispatch.Add(tpl.Subject)
 		relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
 	}
+	it.Close()
 
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())

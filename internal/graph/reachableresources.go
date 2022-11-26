@@ -200,20 +200,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 
 	// Fire off a query lookup in parallel.
 	g.Go(func() error {
-		it, err := reader.ReverseQueryRelationships(
-			ctx,
-			subjectsFilter,
-			options.WithResRelation(&options.ResourceRelation{
-				Namespace: relationReference.Namespace,
-				Relation:  relationReference.Relation,
-			}),
-		)
-		if err != nil {
-			return err
-		}
-		defer it.Close()
-
-		return crr.chunkedRedispatch(relationReference, it, func(rsm resourcesSubjectMap) error {
+		return crr.chunkedRedispatch(ctx, reader, subjectsFilter, relationReference, func(rsm resourcesSubjectMap) error {
 			return crr.redispatchOrReport(ctx, relationReference, rsm, rg, g, entrypoint, stream, req, dispatched)
 		})
 	})
@@ -228,34 +215,52 @@ func min(a, b int) int {
 	return a
 }
 
-func (crr *ConcurrentReachableResources) chunkedRedispatch(resourceType *core.RelationReference, it datastore.RelationshipIterator, handler func(resourcesFound resourcesSubjectMap) error) error {
+func (crr *ConcurrentReachableResources) chunkedRedispatch(
+	ctx context.Context,
+	reader datastore.Reader,
+	subjectsFilter datastore.SubjectsFilter,
+	resourceType *core.RelationReference,
+	handler func(resourcesFound resourcesSubjectMap) error,
+) error {
+	it, err := reader.ReverseQueryRelationships(
+		ctx,
+		subjectsFilter,
+		options.WithResRelation(&options.ResourceRelation{
+			Namespace: resourceType.Namespace,
+			Relation:  resourceType.Relation,
+		}),
+	)
+	if err != nil {
+		return err
+	}
+	defer it.Close()
+
+	toBeHandled := make([]resourcesSubjectMap, 0)
 	rsm := newResourcesSubjectMap(resourceType)
-
-	for chunkIndex := 0; /* until done with all relationships */ true; chunkIndex++ {
+	chunkIndex := 0
+	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		chunkSize := progressiveDispatchChunkSizes[min(chunkIndex, len(progressiveDispatchChunkSizes)-1)]
-
-		tpl := it.Next()
 		if it.Err() != nil {
 			return it.Err()
 		}
 
-		if tpl == nil {
-			break
-		}
-
 		rsm.addRelationship(tpl)
 		if rsm.len() == chunkSize {
-			err := handler(rsm)
-			if err != nil {
-				return err
-			}
-
-			rsm = newResourcesSubjectMap(resourceType)
+			chunkIndex++
+			toBeHandled = append(toBeHandled, rsm)
 		}
 	}
+	it.Close()
 
 	if rsm.len() > 0 {
-		return handler(rsm)
+		toBeHandled = append(toBeHandled, rsm)
+	}
+
+	for _, rsmToHandle := range toBeHandled {
+		err := handler(rsmToHandle)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -313,25 +318,12 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 
 	// Fire off a query lookup in parallel.
 	g.Go(func() error {
-		it, err := reader.ReverseQueryRelationships(
-			ctx,
-			subjectsFilter,
-			options.WithResRelation(&options.ResourceRelation{
-				Namespace: containingRelation.Namespace,
-				Relation:  tuplesetRelation,
-			}),
-		)
-		if err != nil {
-			return err
-		}
-		defer it.Close()
-
 		tuplesetRelationReference := &core.RelationReference{
 			Namespace: containingRelation.Namespace,
 			Relation:  tuplesetRelation,
 		}
 
-		return crr.chunkedRedispatch(tuplesetRelationReference, it, func(rsm resourcesSubjectMap) error {
+		return crr.chunkedRedispatch(ctx, reader, subjectsFilter, tuplesetRelationReference, func(rsm resourcesSubjectMap) error {
 			return crr.redispatchOrReport(ctx, containingRelation, rsm, rg, g, entrypoint, stream, req, dispatched)
 		})
 	})
