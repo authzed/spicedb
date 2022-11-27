@@ -46,7 +46,7 @@ type nsCachingProxy struct {
 
 func (p *nsCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.Datastore.SnapshotReader(rev)
-	return &nsCachingReader{delegateReader, sync.Mutex{}, rev, p}
+	return &nsCachingReader{delegateReader, rev, &sync.Map{}, p}
 }
 
 func (p *nsCachingProxy) ReadWriteTx(
@@ -61,23 +61,28 @@ func (p *nsCachingProxy) ReadWriteTx(
 
 type nsCachingReader struct {
 	datastore.Reader
-	sync.Mutex
-	rev datastore.Revision
-	p   *nsCachingProxy
+	rev         datastore.Revision
+	readerCache *sync.Map
+	proxyCache  *nsCachingProxy
 }
 
 func (r *nsCachingReader) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// Check the nsCache.
-	nsRevisionKey := nsName + "@" + r.rev.String()
+	// Check the reader cache.
+	ns, ok := r.readerCache.Load(nsName)
+	if ok {
+		return ns.(*core.NamespaceDefinition), r.rev, nil
+	}
 
-	loadedRaw, found := r.p.c.Get(nsRevisionKey)
+	// Check the proxy-wide cache.
+	nsRevisionKey := nsName + "@" + r.rev.String()
+	loadedRaw, found := r.proxyCache.c.Get(nsRevisionKey)
 	if !found {
 		// We couldn't use the cached entry, load one
 		var err error
-		loadedRaw, err, _ = r.p.readNsGroup.Do(nsRevisionKey, func() (any, error) {
+		loadedRaw, err, _ = r.proxyCache.readNsGroup.Do(nsRevisionKey, func() (any, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted namespace read
 			loaded, updatedRev, err := r.Reader.ReadNamespace(SeparateContextWithTracing(ctx), nsName)
@@ -86,18 +91,20 @@ func (r *nsCachingReader) ReadNamespace(
 				return nil, err
 			}
 
+			// Store the namespace in the reader cache.
+			r.readerCache.Store(nsName, loaded)
+
+			// Store the namespace in the proxy-wide cache.
 			marshalledNsDef, err := loaded.MarshalVT()
 			if err != nil {
-				// Propagate this error to the caller
-				return nil, err
+				return nil, err // Propagate this error to the caller
 			}
-
 			entry := &cacheEntry{marshalledNsDef, updatedRev, err}
-			r.p.c.Set(nsRevisionKey, entry, entry.Size())
+			r.proxyCache.c.Set(nsRevisionKey, entry, entry.Size())
 
 			// We have to call wait here or else Ristretto may not have the key
 			// available to a subsequent caller.
-			r.p.c.Wait()
+			r.proxyCache.c.Wait()
 
 			return entry, nil
 		})
@@ -174,6 +181,6 @@ func (c *cacheEntry) Size() int64 {
 }
 
 var (
-	_ datastore.Datastore = &nsCachingProxy{}
-	_ datastore.Reader    = &nsCachingReader{}
+	_ datastore.Datastore = (*nsCachingProxy)(nil)
+	_ datastore.Reader    = (*nsCachingReader)(nil)
 )
