@@ -117,7 +117,7 @@ var dropBackfillIndices = []string{
 }
 
 func init() {
-	if err := DatabaseMigrations.Register("backfill-xid-add-indices", "add-xid-columns",
+	if err := DatabaseMigrations.Register("backfill-xid-add-indices", "add-xid-columns-rename",
 		func(ctx context.Context, conn *pgx.Conn) error {
 			for _, stmt := range addBackfillIndices {
 				if _, err := conn.Exec(ctx, stmt); err != nil {

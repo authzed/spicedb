@@ -34,7 +34,7 @@ const (
 )
 
 func init() {
-	if err := DatabaseMigrations.Register("add-xid-columns", "add-caveats",
+	if err := DatabaseMigrations.Register("add-xid-columns-rename", "add-caveats",
 		noNonatomicMigration,
 		func(ctx context.Context, tx pgx.Tx) error {
 			for _, stmt := range []string{
