@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,27 +23,86 @@ const errDispatch = "error dispatching request: %w"
 
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
+// ConcurrencyLimits defines per-dispatch-type concurrency limits.
+type ConcurrencyLimits struct {
+	Check              uint16
+	LookupResources    uint16
+	ReachableResources uint16
+	LookupSubjects     uint16
+}
+
+const defaultConcurrencyLimit = 50
+
+// WithOverallDefaultLimit sets the overall default limit for any unspecified limits
+// and returns a new struct.
+func (cl ConcurrencyLimits) WithOverallDefaultLimit(overallDefaultLimit uint16) ConcurrencyLimits {
+	return limitsOrDefaults(cl, overallDefaultLimit)
+}
+
+func (cl ConcurrencyLimits) MarshalZerologObject(e *zerolog.Event) {
+	e.Uint16("check-permission", cl.Check)
+	e.Uint16("lookup-resources", cl.LookupResources)
+	e.Uint16("lookup-subjects", cl.LookupSubjects)
+	e.Uint16("reachable-resources", cl.ReachableResources)
+}
+
+func limitsOrDefaults(limits ConcurrencyLimits, overallDefaultLimit uint16) ConcurrencyLimits {
+	limits.Check = limitOrDefault(limits.Check, overallDefaultLimit)
+	limits.LookupResources = limitOrDefault(limits.LookupResources, overallDefaultLimit)
+	limits.LookupSubjects = limitOrDefault(limits.LookupSubjects, overallDefaultLimit)
+	limits.ReachableResources = limitOrDefault(limits.ReachableResources, overallDefaultLimit)
+	return limits
+}
+
+func limitOrDefault(limit uint16, defaultLimit uint16) uint16 {
+	if limit <= 0 {
+		return defaultLimit
+	}
+	return limit
+}
+
+// SharedConcurrencyLimits returns a ConcurrencyLimits struct with the limit
+// set to that provided for each operation.
+func SharedConcurrencyLimits(concurrencyLimit uint16) ConcurrencyLimits {
+	return ConcurrencyLimits{
+		Check:              concurrencyLimit,
+		LookupResources:    concurrencyLimit,
+		ReachableResources: concurrencyLimit,
+		LookupSubjects:     concurrencyLimit,
+	}
+}
+
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
 func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
+	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit))
+}
+
+// NewLocalOnlyDispatcherWithLimits creates a dispatcher thatg consults with the graph to formulate a response
+// and has the defined concurrency limits per dispatch type.
+func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
 	d := &localDispatcher{}
 
-	d.checker = graph.NewConcurrentChecker(d, concurrencyLimit)
+	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
+
+	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimit)
-	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimit)
-	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimit)
+	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimits.LookupResources)
+	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimits.ReachableResources)
+	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimit uint16) dispatch.Dispatcher {
-	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimit)
+func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
+	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
+
+	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimit)
-	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimit)
-	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimit)
+	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimits.LookupResources)
+	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimits.ReachableResources)
+	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects)
 
 	return &localDispatcher{
 		checker:                   checker,

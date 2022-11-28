@@ -24,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
+	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/services"
@@ -64,14 +65,15 @@ type Config struct {
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer               util.GRPCServerConfig
-	DispatchMaxDepth             uint32
-	DispatchConcurrencyLimit     uint16
-	DispatchUpstreamAddr         string
-	DispatchUpstreamCAPath       string
-	DispatchClientMetricsPrefix  string
-	DispatchClusterMetricsPrefix string
-	Dispatcher                   dispatch.Dispatcher
+	DispatchServer                 util.GRPCServerConfig
+	DispatchMaxDepth               uint32
+	GlobalDispatchConcurrencyLimit uint16
+	DispatchConcurrencyLimits      graph.ConcurrencyLimits
+	DispatchUpstreamAddr           string
+	DispatchUpstreamCAPath         string
+	DispatchClientMetricsPrefix    string
+	DispatchClusterMetricsPrefix   string
+	Dispatcher                     dispatch.Dispatcher
 
 	DispatchCacheConfig        CacheConfig
 	ClusterDispatchCacheConfig CacheConfig
@@ -159,6 +161,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			dispatchPresharedKey = c.PresharedKey[0]
 		}
 
+		specificConcurrencyLimits := c.DispatchConcurrencyLimits
+		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
+		log.Info().EmbedObject(concurrencyLimits).Msg("configured dispatch concurrency limits")
+
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
@@ -169,7 +175,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 			combineddispatch.Cache(cc),
-			combineddispatch.ConcurrencyLimit(c.DispatchConcurrencyLimit),
+			combineddispatch.ConcurrencyLimits(concurrencyLimits),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
