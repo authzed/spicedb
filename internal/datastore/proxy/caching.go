@@ -53,7 +53,7 @@ type nsCachingProxy struct {
 
 func (p *nsCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.Datastore.SnapshotReader(rev)
-	return &nsCachingReader{delegateReader, sync.Mutex{}, rev, p}
+	return &nsCachingReader{delegateReader, rev, p}
 }
 
 func (p *nsCachingProxy) ReadWriteTx(
@@ -68,7 +68,6 @@ func (p *nsCachingProxy) ReadWriteTx(
 
 type nsCachingReader struct {
 	datastore.Reader
-	sync.Mutex
 	rev datastore.Revision
 	p   *nsCachingProxy
 }
