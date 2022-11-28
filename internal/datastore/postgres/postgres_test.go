@@ -31,7 +31,7 @@ func TestPostgresDatastore(t *testing.T) {
 		targetMigration string
 		migrationPhase  string
 	}{
-		{"drop-bigserial-ids", ""},
+		{"add-caveat-covering-index", ""},
 	} {
 		config := config
 		t.Run(fmt.Sprintf("%s-%s", config.targetMigration, config.migrationPhase), func(t *testing.T) {
