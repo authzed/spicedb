@@ -407,3 +407,9 @@ func (nilRevision) MarshalBinary() ([]byte, error) {
 // revision type in the future a bit easier if necessary. Implementations
 // should use any time they want to signal an empty/error revision.
 var NoRevision Revision = nilRevision{}
+
+// QueryLoggerForTesting is an interface for logging all queries made for the purposes of
+// tests.
+type QueryLoggerForTesting interface {
+	LogSelectQuery(sqlStatement string, args []any, explain string) error
+}
