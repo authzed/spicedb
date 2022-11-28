@@ -16,6 +16,13 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+// namespaceDefinitionSizeVTMultiplier is the mulitiplier to be used for
+// estimating the in-memory cost of a NamespaceDefinition based on its
+// on-wire size, as returned by SizeVT. This was determined by testing
+// all existing namespace definitions found in consistency tests and is
+// enforced via the estimatednssize_test.
+const namespaceDefinitionSizeVTMultiplier = 10
+
 // DatastoreProxyTestCache returns a cache used for testing.
 func DatastoreProxyTestCache(t testing.TB) cache.Cache {
 	cache, err := cache.NewCache(&cache.Config{
@@ -86,13 +93,7 @@ func (r *nsCachingReader) ReadNamespace(
 				return nil, err
 			}
 
-			marshalledNsDef, err := loaded.MarshalVT()
-			if err != nil {
-				// Propagate this error to the caller
-				return nil, err
-			}
-
-			entry := &cacheEntry{marshalledNsDef, updatedRev, err}
+			entry := &cacheEntry{loaded, updatedRev, err}
 			r.p.c.Set(nsRevisionKey, entry, entry.Size())
 
 			// We have to call wait here or else Ristretto may not have the key
@@ -107,14 +108,7 @@ func (r *nsCachingReader) ReadNamespace(
 	}
 
 	loaded := loadedRaw.(*cacheEntry)
-
-	var def core.NamespaceDefinition
-	err := def.UnmarshalVT(loaded.marshalledNsDef)
-	if err != nil {
-		return nil, datastore.NoRevision, err
-	}
-
-	return &def, loaded.updated, loaded.notFound
+	return loaded.namespaceDefinition, loaded.updated, loaded.notFound
 }
 
 type nsCachingRWT struct {
@@ -164,13 +158,13 @@ func (rwt *nsCachingRWT) WriteNamespaces(ctx context.Context, newConfigs ...*cor
 }
 
 type cacheEntry struct {
-	marshalledNsDef []byte
-	updated         datastore.Revision
-	notFound        error
+	namespaceDefinition *core.NamespaceDefinition
+	updated             datastore.Revision
+	notFound            error
 }
 
 func (c *cacheEntry) Size() int64 {
-	return int64(len(c.marshalledNsDef)) + int64(unsafe.Sizeof(c))
+	return int64(c.namespaceDefinition.SizeVT()*namespaceDefinitionSizeVTMultiplier) + int64(unsafe.Sizeof(c))
 }
 
 var (
