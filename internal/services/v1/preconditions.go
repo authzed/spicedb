@@ -27,10 +27,10 @@ func checkPreconditions(
 		defer iter.Close()
 
 		first := iter.Next()
-
 		if first == nil && iter.Err() != nil {
 			return fmt.Errorf("error reading relationships from iterator: %w", err)
 		}
+		iter.Close()
 
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH:

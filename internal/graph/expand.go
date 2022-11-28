@@ -69,16 +69,18 @@ func (ce *ConcurrentExpander) expandDirect(
 		var foundNonTerminalUsersets []*core.ObjectAndRelation
 		var foundTerminalUsersets []*core.ObjectAndRelation
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+			if it.Err() != nil {
+				resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), emptyMetadata)
+				return
+			}
+
 			if tpl.Subject.Relation == Ellipsis {
 				foundTerminalUsersets = append(foundTerminalUsersets, tpl.Subject)
 			} else {
 				foundNonTerminalUsersets = append(foundNonTerminalUsersets, tpl.Subject)
 			}
 		}
-		if it.Err() != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), emptyMetadata)
-			return
-		}
+		it.Close()
 
 		// If only shallow expansion was required, or there are no non-terminal subjects found,
 		// nothing more to do.
@@ -236,12 +238,14 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req Vali
 
 		var requestsToDispatch []ReduceableExpandFunc
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+			if it.Err() != nil {
+				resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), emptyMetadata)
+				return
+			}
+
 			requestsToDispatch = append(requestsToDispatch, ce.expandComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
 		}
-		if it.Err() != nil {
-			resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), emptyMetadata)
-			return
-		}
+		it.Close()
 
 		resultChan <- expandAny(ctx, req.ResourceAndRelation, requestsToDispatch)
 	}

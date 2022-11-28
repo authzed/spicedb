@@ -129,6 +129,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 			relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
 		}
 	}
+	it.Close()
 
 	if !foundSubjectsByResourceID.IsEmpty() {
 		if err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
@@ -217,6 +218,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 			Relation:  ttu.ComputedUserset.Relation,
 		}), tpl)
 	}
+	it.Close()
 
 	// Map the found subject types by the computed userset relation, so that we dispatch to it.
 	toDispatchByComputedRelationType, err := toDispatchByTuplesetType.Map(func(resourceType *core.RelationReference) (*core.RelationReference, error) {

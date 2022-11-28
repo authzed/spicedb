@@ -124,6 +124,10 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	defer tupleIterator.Close()
 
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
+		if tupleIterator.Err() != nil {
+			return status.Errorf(codes.Internal, "error when reading tuples: %s", tupleIterator.Err())
+		}
+
 		err := resp.Send(&v1.ReadRelationshipsResponse{
 			ReadAt:       revisionReadAt,
 			Relationship: tuple.ToRelationship(tpl),
@@ -132,10 +136,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 			return err
 		}
 	}
-	if tupleIterator.Err() != nil {
-		return status.Errorf(codes.Internal, "error when reading tuples: %s", tupleIterator.Err())
-	}
-
+	tupleIterator.Close()
 	return nil
 }
 

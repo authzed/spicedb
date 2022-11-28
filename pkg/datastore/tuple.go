@@ -43,7 +43,7 @@ func (sti *sliceRelationshipIterator) Err() error {
 // Close implements TupleIterator
 func (sti *sliceRelationshipIterator) Close() {
 	if sti.closed {
-		panic("tuple iterator double closed")
+		return
 	}
 
 	sti.tuples = nil

@@ -261,13 +261,15 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 	qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 		SubjectType: namespaceName,
 	}, options.WithReverseLimit(options.LimitOne))
-	if err := errorIfTupleIteratorReturnsTuples(
+	err := errorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
 		qyErr,
 		"cannot delete object definition `%s`, as a relationship references it",
 		namespaceName,
-	); err != nil {
+	)
+	qy.Close()
+	if err != nil {
 		return err
 	}
 
@@ -319,6 +321,7 @@ func sanityCheckNamespaceChanges(
 				qy,
 				qyErr,
 				"cannot delete relation `%s` in object definition `%s`, as a relationship references it", delta.RelationName, nsdef.Name)
+			qy.Close()
 			if err != nil {
 				return diff, err
 			}
@@ -340,7 +343,7 @@ func sanityCheckNamespaceChanges(
 				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
 			}
 
-			qy, qyErr := rwt.QueryRelationships(
+			qyr, qyrErr := rwt.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
 					ResourceType:             nsdef.Name,
@@ -356,10 +359,11 @@ func sanityCheckNamespaceChanges(
 			)
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
-				qy,
-				qyErr,
+				qyr,
+				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
 				namespace.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
+			qyr.Close()
 			if err != nil {
 				return diff, err
 			}
