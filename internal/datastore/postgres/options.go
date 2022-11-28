@@ -3,6 +3,8 @@ package postgres
 import (
 	"fmt"
 	"time"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 type postgresOptions struct {
@@ -28,6 +30,8 @@ type postgresOptions struct {
 	migrationPhase string
 
 	logger *tracingLogger
+
+	queryLogger datastore.QueryLoggerForTesting
 }
 
 type migrationPhase uint8
@@ -75,6 +79,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
+		queryLogger:                 nil,
 	}
 
 	for _, option := range options {
@@ -261,6 +266,15 @@ func GCEnabled(isGCEnabled bool) Option {
 func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *postgresOptions) {
 		po.analyzeBeforeStatistics = true
+	}
+}
+
+// WithQueryLoggerForTesting adds a query logger for use in tests.
+//
+// Not specified by default.
+func WithQueryLoggerForTesting(queryLogger datastore.QueryLoggerForTesting) Option {
+	return func(po *postgresOptions) {
+		po.queryLogger = queryLogger
 	}
 }
 

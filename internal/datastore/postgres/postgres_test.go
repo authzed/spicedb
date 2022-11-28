@@ -117,6 +117,10 @@ func TestPostgresDatastore(t *testing.T) {
 				WatchNotEnabledTest(t, b)
 			})
 
+			t.Run("IndexOnlyRead", func(t *testing.T) {
+				IndexOnlyReadTest(t, b)
+			})
+
 			if config.migrationPhase == "" {
 				t.Run("RevisionInversion", createDatastoreTest(
 					b,
@@ -736,4 +740,99 @@ func BenchmarkPostgresQuery(b *testing.B) {
 			require.NoError(iter.Err())
 		}
 	})
+}
+
+type queryLogger struct {
+	explainations []string
+}
+
+func (ql *queryLogger) LogSelectQuery(sqlStatement string, args []any, explain string) error {
+	ql.explainations = append(ql.explainations, explain)
+	return nil
+}
+
+func IndexOnlyReadTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	require := require.New(t)
+
+	logger := &queryLogger{}
+
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := newPostgresDatastore(uri,
+			RevisionQuantization(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+			WithQueryLoggerForTesting(logger),
+		)
+		require.NoError(err)
+		return ds
+	})
+	defer ds.Close()
+
+	ds, revision := testfixtures.StandardDatastoreWithData(ds, require)
+
+	// Write namespaces and a few thousand relationships.
+	ctx := context.Background()
+	for i := 0; i < 1000; i++ {
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			err := rwt.WriteNamespaces(ctx, namespace.Namespace(
+				fmt.Sprintf("resource%d", i),
+				namespace.Relation("reader", nil)))
+			if err != nil {
+				return err
+			}
+
+			// Write some tuples.
+			rtu := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: testfixtures.DocumentNS.Name,
+					ObjectId:  fmt.Sprintf("doc%d", i),
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu2 := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+		})
+		require.NoError(err)
+	}
+
+	revision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Conduct a query relationships call.
+	iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		ResourceType:        testfixtures.DocumentNS.Name,
+		OptionalResourceIds: []string{"doc0", "doc1"},
+	})
+	require.NoError(err)
+
+	defer iter.Close()
+
+	for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+		require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+	}
+	require.NoError(iter.Err())
+
+	// Ensure that Index Only scans were used.
+	for _, explaination := range logger.explainations {
+		require.NotContains(explaination, "Index Scan")
+		require.NotContains(explaination, "Heap Scan")
+		require.Contains(explaination, "Index Only Scan")
+	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/jackc/pgx/v4"
@@ -21,7 +22,7 @@ const (
 )
 
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
+func NewPGXExecutor(txSource TxFactory, queryLogger datastore.QueryLoggerForTesting) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
 		span := trace.SpanFromContext(ctx)
 
@@ -30,12 +31,30 @@ func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 		defer txCleanup(ctx)
-		return queryTuples(ctx, sql, args, span, tx)
+		return queryTuples(ctx, sql, args, span, tx, queryLogger)
 	}
 }
 
 // queryTuples queries tuples for the given query and transaction.
-func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx) ([]*corev1.RelationTuple, error) {
+func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx, queryLogger datastore.QueryLoggerForTesting) ([]*corev1.RelationTuple, error) {
+	if queryLogger != nil {
+		explainRows, err := tx.Query(ctx, "EXPLAIN ANALYZE "+sqlStatement, args...)
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		}
+		defer explainRows.Close()
+
+		explanation := ""
+		for explainRows.Next() {
+			explanation += string(explainRows.RawValues()[0]) + "\n"
+		}
+
+		err = queryLogger.LogSelectQuery(sqlStatement, args, explanation)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	span.AddEvent("DB transaction established")
 	rows, err := tx.Query(ctx, sqlStatement, args...)
 	if err != nil {
@@ -60,8 +79,8 @@ func queryTuples(ctx context.Context, sqlStatement string, args []any, span trac
 			&nextTuple.Subject.Namespace,
 			&nextTuple.Subject.ObjectId,
 			&nextTuple.Subject.Relation,
-			&caveatName,
-			&caveatCtx,
+			//&caveatName,
+			//&caveatCtx,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)

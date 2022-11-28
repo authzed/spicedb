@@ -92,7 +92,7 @@ var addXIDIndices = []string{
 
 	// Add indices that will eventually back our new constraints
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_rttx_pk
-		ON relation_tuple_transaction (xid);`,
+		ON relation_tuple_transaction (xid) INCLUDE (snapshot);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_namespace_config_pk
 		ON namespace_config (namespace, created_xid, deleted_xid);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_namespace_config_living
@@ -102,7 +102,7 @@ var addXIDIndices = []string{
 						   userset_relation, created_xid, deleted_xid);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_relation_tuple_living
 		ON relation_tuple (namespace, object_id, relation, userset_namespace, userset_object_id,
-						   userset_relation, deleted_xid);`,
+						   userset_relation) INCLUDE (created_xid, deleted_xid);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_caveat_unique
 		ON caveat (name, created_xid, deleted_xid);`,
 	`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS ix_caveat_living
