@@ -239,7 +239,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
 			cd.checkFromCacheCounter.Inc()
 			// If debugging is requested, add the req and the response to the trace.
-			if req.Debug == v1.DispatchCheckRequest_ENABLE_DEBUGGING {
+			if req.Debug == v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
 				response.Metadata.DebugInfo = &v1.DebugInformation{
 					Check: &v1.CheckDebugTrace{
 						Request:        req,

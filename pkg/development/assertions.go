@@ -34,7 +34,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	// TODO(jschorr): Support caveats via some sort of `assertMaybe`?
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship(assertion.Relationship)
-		cr, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject)
+		cr, _, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject)
 		if err != nil {
 			devErr, wireErr := DistinguishGraphError(
 				devContext,

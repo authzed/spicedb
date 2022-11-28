@@ -59,13 +59,16 @@ type currentRequestContext struct {
 	// resultsSetting is the results setting to use for this request and all subsequent
 	// requests.
 	resultsSetting v1.DispatchCheckRequest_ResultsSetting
+
+	// maxDispatchCount is the maximum number of resource IDs that can be specified in each dispatch.
+	maxDispatchCount uint64
 }
 
 // Check performs a check request with the provided request and context
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
 	resolved := cc.checkInternal(ctx, req, relation)
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
-	if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
+	if req.Debug == v1.DispatchCheckRequest_NO_DEBUG {
 		return resolved.Resp, resolved.Err
 	}
 
@@ -147,6 +150,11 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		parentReq:           req,
 		filteredResourceIDs: filteredResourcesIds,
 		resultsSetting:      resultsSetting,
+		maxDispatchCount:    maxDispatchChunkSize,
+	}
+
+	if req.Debug == v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING {
+		crc.maxDispatchCount = 1
 	}
 
 	if relation.UsersetRewrite == nil {
@@ -216,7 +224,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
-		util.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
+		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
 				resourceIds:  resourceIdChunk,
@@ -265,7 +273,7 @@ func mapFoundResources(result CheckResult, resourceType *core.RelationReference,
 	}
 
 	if membershipSet.IsEmpty() {
-		return noMembers()
+		return noMembersWithMetadata(result.Resp.Metadata)
 	}
 
 	return checkResultsForMembership(membershipSet, result.Resp.Metadata)
@@ -412,7 +420,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
-		util.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
+		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
 				resourceIds:  resourceIdChunk,
@@ -426,10 +434,6 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 		toDispatch,
 		func(ctx context.Context, crc currentRequestContext, dd directDispatch) CheckResult {
 			childResult := cc.checkComputedUserset(ctx, crc, ttu.ComputedUserset, dd.resourceType, dd.resourceIds)
-			if childResult.Err != nil {
-				return childResult
-			}
-
 			if childResult.Err != nil {
 				return childResult
 			}
@@ -509,6 +513,7 @@ func all[T any](
 		parentReq:           crc.parentReq,
 		filteredResourceIDs: crc.filteredResourceIDs,
 		resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+		maxDispatchCount:    crc.maxDispatchCount,
 	}, children, handler, resultChan, concurrencyLimit)
 
 	defer func() {
@@ -534,7 +539,7 @@ func all[T any](
 			}
 
 			if membershipSet.IsEmpty() {
-				return noMembers()
+				return noMembersWithMetadata(responseMetadata)
 			}
 		case <-ctx.Done():
 			return checkResultError(NewRequestCanceledErr(), responseMetadata)
@@ -577,6 +582,7 @@ func difference[T any](
 		parentReq:           crc.parentReq,
 		filteredResourceIDs: crc.filteredResourceIDs,
 		resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+		maxDispatchCount:    crc.maxDispatchCount,
 	}, children[1:], handler, othersChan, concurrencyLimit-1)
 
 	defer func() {
@@ -601,7 +607,7 @@ func difference[T any](
 
 		membershipSet.UnionWith(base.Resp.ResultsByResourceId)
 		if membershipSet.IsEmpty() {
-			return noMembers()
+			return noMembersWithMetadata(responseMetadata)
 		}
 
 	case <-ctx.Done():
@@ -675,6 +681,15 @@ func noMembers() CheckResult {
 	return CheckResult{
 		&v1.DispatchCheckResponse{
 			Metadata: emptyMetadata,
+		},
+		nil,
+	}
+}
+
+func noMembersWithMetadata(metadata *v1.ResponseMeta) CheckResult {
+	return CheckResult{
+		&v1.DispatchCheckResponse{
+			Metadata: metadata,
 		},
 		nil,
 	}

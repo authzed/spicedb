@@ -6,6 +6,7 @@ option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
 import "google/protobuf/any.proto";
 import "validate/validate.proto";
 import "core/v1/core.proto";
+import "dispatch/v1/dispatch.proto";
 
 // DeveloperRequest is a single request made to the developer platform, containing zero or more
 // operations to run.
@@ -122,6 +123,9 @@ message CheckOperationsResult {
 
   // check_error is the error raised by the check, if any.
   DeveloperError check_error = 2;
+
+  // debug_information is the debug information for the check.
+  dispatch.v1.DebugInformation debug_information = 3;
 }
 
 // RunAssertionsParameters are the parameters for a `runAssertions` operation.

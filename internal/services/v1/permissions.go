@@ -66,9 +66,12 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, rewriteError(ctx, err)
 	}
 
-	isDebuggingEnabled := false
+	debugOption := computed.NoDebugging
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		_, isDebuggingEnabled = md[string(requestmeta.RequestDebugInformation)]
+		_, isDebuggingEnabled := md[string(requestmeta.RequestDebugInformation)]
+		if isDebuggingEnabled {
+			debugOption = computed.BasicDebuggingEnabled
+		}
 	}
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
@@ -82,16 +85,16 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			CaveatContext:      caveatContext,
-			AtRevision:         atRevision,
-			MaximumDepth:       ps.config.MaximumAPIDepth,
-			IsDebuggingEnabled: isDebuggingEnabled,
+			CaveatContext: caveatContext,
+			AtRevision:    atRevision,
+			MaximumDepth:  ps.config.MaximumAPIDepth,
+			DebugOption:   debugOption,
 		},
 		req.Resource.ObjectId,
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 
-	if isDebuggingEnabled && metadata.DebugInfo != nil {
+	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information and marshal into
 		// the footer.
 		converted, cerr := dispatchpkg.ConvertDispatchDebugInformation(ctx, metadata, ds)

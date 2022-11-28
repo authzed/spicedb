@@ -18,7 +18,8 @@ service DispatchService {
 message DispatchCheckRequest {
   enum DebugSetting {
     NO_DEBUG = 0;
-    ENABLE_DEBUGGING = 1;
+    ENABLE_BASIC_DEBUGGING = 1;
+    ENABLE_TRACE_DEBUGGING = 2;
   }
 
   enum ResultsSetting {

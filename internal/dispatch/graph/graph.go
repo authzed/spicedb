@@ -120,7 +120,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	defer span.End()
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		if req.Debug != v1.DispatchCheckRequest_ENABLE_DEBUGGING {
+		if req.Debug != v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
 			return &v1.DispatchCheckResponse{
 				Metadata: &v1.ResponseMeta{
 					DispatchCount: 0,
