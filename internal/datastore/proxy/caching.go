@@ -21,7 +21,10 @@ import (
 // on-wire size, as returned by SizeVT. This was determined by testing
 // all existing namespace definitions found in consistency tests and is
 // enforced via the estimatednssize_test.
-const namespaceDefinitionSizeVTMultiplier = 10
+const (
+	namespaceDefinitionSizeVTMultiplier = 10
+	namespaceDefinitionMinimumSize      = 150
+)
 
 // DatastoreProxyTestCache returns a cache used for testing.
 func DatastoreProxyTestCache(t testing.TB) cache.Cache {
@@ -163,10 +166,18 @@ type cacheEntry struct {
 }
 
 func (c *cacheEntry) Size() int64 {
-	return int64(c.namespaceDefinition.SizeVT()*namespaceDefinitionSizeVTMultiplier) + int64(unsafe.Sizeof(c))
+	return estimatedNamespaceDefinitionSize(c.namespaceDefinition.SizeVT()) + int64(unsafe.Sizeof(c))
 }
 
 var (
 	_ datastore.Datastore = &nsCachingProxy{}
 	_ datastore.Reader    = &nsCachingReader{}
 )
+
+func estimatedNamespaceDefinitionSize(sizevt int) int64 {
+	size := int64(sizevt * namespaceDefinitionSizeVTMultiplier)
+	if size < namespaceDefinitionMinimumSize {
+		return namespaceDefinitionMinimumSize
+	}
+	return size
+}

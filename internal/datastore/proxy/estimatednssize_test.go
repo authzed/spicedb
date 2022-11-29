@@ -6,6 +6,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -47,20 +48,27 @@ func TestEstimatedNamespaceDefinitionSize(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
-				serialized, _ := nsDef.MarshalVT()
+				t.Run(nsDef.Name, func(t *testing.T) {
+					serialized, _ := nsDef.MarshalVT()
+					sizevt := nsDef.SizeVT()
+					estimated := estimatedNamespaceDefinitionSize(sizevt)
 
-				// Calculate the memory used for deserializing the namespace definition.
-				var m1, m2 runtime.MemStats
-				runtime.ReadMemStats(&m1)
+					runtime.GC()
+					debug.FreeOSMemory()
 
-				var def core.NamespaceDefinition
-				require.NoError(t, def.UnmarshalVT(serialized))
+					// Calculate the memory used for deserializing the namespace definition.
+					var m1, m2 runtime.MemStats
+					runtime.ReadMemStats(&m1)
 
-				runtime.ReadMemStats(&m2)
-				used := m2.TotalAlloc - m1.TotalAlloc
+					var def core.NamespaceDefinition
+					require.NoError(t, def.UnmarshalVT(serialized))
 
-				// Ensure the memory used is less than the SizeVT * the multiplier.
-				require.LessOrEqual(t, used, uint64(nsDef.SizeVT()*namespaceDefinitionSizeVTMultiplier))
+					runtime.ReadMemStats(&m2)
+					used := m2.TotalAlloc - m1.TotalAlloc
+
+					// Ensure the memory used is less than the SizeVT * the multiplier.
+					require.LessOrEqual(t, used, uint64(estimated), "found size %d, for with SizeVT: %d", used, sizevt)
+				})
 			}
 		})
 	}
