@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -18,6 +20,16 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
 )
+
+var estimatedDirectDispatchQueryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "spicedb_estimated_check_direct_dispatch_query_count",
+	Help:    "estimated number of queries made per direct dispatch",
+	Buckets: []float64{1, 2},
+})
+
+func init() {
+	prometheus.MustRegister(estimatedDirectDispatchQueryHistogram)
+}
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
 func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16) *ConcurrentChecker {
@@ -198,6 +210,20 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	subjectsToDispatch := tuple.NewONRByTypeSet()
 	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
 
+	// Report the estimated direct dispatch query count.
+	hadDirectResult := false
+	hadDispatchedResult := false
+	defer (func() {
+		estimatedQueryCount := 0.0
+		if hadDirectResult {
+			estimatedQueryCount++
+		}
+		if hadDispatchedResult {
+			estimatedQueryCount++
+		}
+		estimatedDirectDispatchQueryHistogram.Observe(estimatedQueryCount)
+	})()
+
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
@@ -207,6 +233,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// a result.
 		if onrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject) {
 			foundResources.AddDirectMember(tpl.ResourceAndRelation.ObjectId, tpl.Caveat)
+			hadDirectResult = true
 			if crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT && foundResources.HasDeterminedMember() {
 				return checkResultsForMembership(foundResources, emptyMetadata)
 			}
@@ -220,6 +247,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 	}
 	it.Close()
+
+	hadDispatchedResult = subjectsToDispatch.Len() > 0
 
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
