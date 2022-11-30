@@ -1,13 +1,16 @@
 package tuple
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+	"golang.org/x/exp/maps"
+	"google.golang.org/protobuf/types/known/structpb"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -24,6 +27,7 @@ const (
 	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127}"
 	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*"
 	relationExpr      = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
+	caveatNameExpr    = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
 )
 
 var onrExpr = fmt.Sprintf(
@@ -40,6 +44,8 @@ var subjectExpr = fmt.Sprintf(
 	relationExpr,
 )
 
+var caveatExpr = fmt.Sprintf(`\[(?P<caveatName>(%s))(:(?P<caveatContext>(\{(.+)\})))?\]`, caveatNameExpr)
+
 var (
 	onrRegex        = regexp.MustCompile(fmt.Sprintf("^%s$", onrExpr))
 	subjectRegex    = regexp.MustCompile(fmt.Sprintf("^%s$", subjectExpr))
@@ -49,9 +55,10 @@ var (
 
 var parserRegex = regexp.MustCompile(
 	fmt.Sprintf(
-		`^%s@%s$`,
+		`^%s@%s(%s)?$`,
 		onrExpr,
 		subjectExpr,
+		caveatExpr,
 	),
 )
 
@@ -73,13 +80,67 @@ func ValidateSubjectID(subjectID string) error {
 	return nil
 }
 
+// MustString converts a tuple to a string. If the tuple is nil or empty, returns empty string.
+func MustString(tpl *core.RelationTuple) string {
+	tplString, err := String(tpl)
+	if err != nil {
+		panic(err)
+	}
+	return tplString
+}
+
 // String converts a tuple to a string. If the tuple is nil or empty, returns empty string.
-func String(tpl *core.RelationTuple) string {
+func String(tpl *core.RelationTuple) (string, error) {
+	if tpl == nil || tpl.ResourceAndRelation == nil || tpl.Subject == nil {
+		return "", nil
+	}
+
+	caveatString, err := StringCaveat(tpl.Caveat)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s@%s%s", StringONR(tpl.ResourceAndRelation), StringONR(tpl.Subject), caveatString), nil
+}
+
+// StringWithoutCaveat converts a tuple to a string, without its caveat included.
+func StringWithoutCaveat(tpl *core.RelationTuple) string {
 	if tpl == nil || tpl.ResourceAndRelation == nil || tpl.Subject == nil {
 		return ""
 	}
 
 	return fmt.Sprintf("%s@%s", StringONR(tpl.ResourceAndRelation), StringONR(tpl.Subject))
+}
+
+// StringCaveat converts a contextualized caveat to a string. If the caveat is nil or empty, returns empty string.
+func StringCaveat(caveat *core.ContextualizedCaveat) (string, error) {
+	if caveat == nil || caveat.CaveatName == "" {
+		return "", nil
+	}
+
+	contextString, err := StringCaveatContext(caveat.Context)
+	if err != nil {
+		return "", err
+	}
+
+	if len(contextString) > 0 {
+		contextString = ":" + contextString
+	}
+
+	return fmt.Sprintf("[%s%s]", caveat.CaveatName, contextString), nil
+}
+
+// StringCaveatContext converts the context of a caveat to a string. If the context is nil or empty, returns an empty string.
+func StringCaveatContext(context *structpb.Struct) (string, error) {
+	if context == nil || len(context.Fields) == 0 {
+		return "", nil
+	}
+
+	contextBytes, err := context.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+	return string(contextBytes), nil
 }
 
 // MustRelString converts a relationship into a string.  Will panic if
@@ -88,7 +149,7 @@ func MustRelString(rel *v1.Relationship) string {
 	if err := rel.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid relationship: %#v %s", rel, err))
 	}
-	return StringRelationship(rel)
+	return MustStringRelationship(rel)
 }
 
 // MustParse wraps Parse such that any failures panic rather than returning
@@ -116,6 +177,30 @@ func Parse(tpl string) *core.RelationTuple {
 		subjectRelation = groups[subjectRelIndex]
 	}
 
+	caveatName := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "caveatName")]
+	var optionalCaveat *core.ContextualizedCaveat
+	if caveatName != "" {
+		optionalCaveat = &core.ContextualizedCaveat{
+			CaveatName: caveatName,
+		}
+
+		caveatContextString := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "caveatContext")]
+		if len(caveatContextString) > 0 {
+			contextMap := make(map[string]any, 1)
+			err := json.Unmarshal([]byte(caveatContextString), &contextMap)
+			if err != nil {
+				return nil
+			}
+
+			caveatContext, err := structpb.NewStruct(contextMap)
+			if err != nil {
+				return nil
+			}
+
+			optionalCaveat.Context = caveatContext
+		}
+	}
+
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
@@ -127,6 +212,7 @@ func Parse(tpl string) *core.RelationTuple {
 			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")],
 			Relation:  subjectRelation,
 		},
+		Caveat: optionalCaveat,
 	}
 }
 
@@ -348,12 +434,27 @@ func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationT
 	}
 }
 
-// WithCaveat adds the given caveat name to the tuple. This is for testing only and may be
-// removed in the future.
-func WithCaveat(tpl *core.RelationTuple, caveatName string) *core.RelationTuple {
+// WithCaveat adds the given caveat name to the tuple. This is for testing only.
+func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[string]any) *core.RelationTuple {
+	var context *structpb.Struct
+
+	if len(contexts) > 0 {
+		combined := map[string]any{}
+		for _, current := range contexts {
+			maps.Copy(combined, current)
+		}
+
+		contextStruct, err := structpb.NewStruct(combined)
+		if err != nil {
+			panic(err)
+		}
+		context = contextStruct
+	}
+
 	tpl = tpl.CloneVT()
 	tpl.Caveat = &core.ContextualizedCaveat{
 		CaveatName: caveatName,
+		Context:    context,
 	}
 	return tpl
 }

@@ -44,7 +44,7 @@ type CreateRelationshipExistsError struct {
 func NewCreateRelationshipExistsError(relationship *core.RelationTuple) error {
 	msg := "could not CREATE one or more relationships, as they already existed. If this is persistent, please switch to TOUCH operations or specify a precondition"
 	if relationship != nil {
-		msg = fmt.Sprintf("could not CREATE relationship `%s`, as it already existed. If this is persistent, please switch to TOUCH operations or specify a precondition", tuple.String(relationship))
+		msg = fmt.Sprintf("could not CREATE relationship `%s`, as it already existed. If this is persistent, please switch to TOUCH operations or specify a precondition", tuple.StringWithoutCaveat(relationship))
 	}
 
 	return CreateRelationshipExistsError{

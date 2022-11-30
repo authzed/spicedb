@@ -409,6 +409,26 @@ assertFalse: garbage
 			"{}\n",
 		},
 		{
+			"assertion invalid caveated relation",
+			`
+				definition user {}
+				definition document {}
+			`,
+			[]*core.RelationTuple{},
+			"",
+			`assertFalse:
+- document:somedoc#viewer@user:jimmy[somecaveat]`,
+			&devinterface.DeveloperError{
+				Message: "cannot specify a caveat on an assertion: `document:somedoc#viewer@user:jimmy[somecaveat]`",
+				Kind:    devinterface.DeveloperError_UNKNOWN_RELATION,
+				Source:  devinterface.DeveloperError_ASSERTION,
+				Context: "document:somedoc#viewer@user:jimmy[somecaveat]",
+				Line:    2,
+				Column:  3,
+			},
+			"{}\n",
+		},
+		{
 			"assertion invalid relation",
 			`
 				definition user {}
@@ -846,6 +866,9 @@ assertFalse:
 				if response.GetDeveloperErrors() != nil {
 					errors = append(errors, response.GetDeveloperErrors().InputErrors...)
 				} else {
+					require.NotNil(response.GetOperationsResults(), "found nil results: %v", response)
+					require.GreaterOrEqual(len(response.GetOperationsResults().Results), 2, "found insufficient results")
+
 					if response.GetOperationsResults().Results[0].GetAssertionsResult().InputError != nil {
 						errors = append(errors, response.GetOperationsResults().Results[0].GetAssertionsResult().InputError)
 					}

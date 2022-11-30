@@ -34,6 +34,24 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	// TODO(jschorr): Support caveats via some sort of `assertMaybe`?
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship(assertion.Relationship)
+
+		tplString, err := tuple.String(tpl)
+		if err != nil {
+			return nil, err
+		}
+
+		if tpl.Caveat != nil {
+			failures = append(failures, &devinterface.DeveloperError{
+				Message: fmt.Sprintf("cannot specify a caveat on an assertion: `%s`", tplString),
+				Source:  devinterface.DeveloperError_ASSERTION,
+				Kind:    devinterface.DeveloperError_UNKNOWN_RELATION,
+				Context: tplString,
+				Line:    uint32(assertion.SourcePosition.LineNumber),
+				Column:  uint32(assertion.SourcePosition.ColumnPosition),
+			})
+			continue
+		}
+
 		cr, _, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject)
 		if err != nil {
 			devErr, wireErr := DistinguishGraphError(
@@ -42,7 +60,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 				devinterface.DeveloperError_ASSERTION,
 				uint32(assertion.SourcePosition.LineNumber),
 				uint32(assertion.SourcePosition.ColumnPosition),
-				tuple.String(tpl),
+				tplString,
 			)
 			if wireErr != nil {
 				return nil, wireErr
@@ -52,10 +70,10 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			}
 		} else if (cr == v1.ResourceCheckResult_MEMBER) != expected {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf(fmtString, tuple.String(tpl)),
+				Message: fmt.Sprintf(fmtString, tplString),
 				Source:  devinterface.DeveloperError_ASSERTION,
 				Kind:    devinterface.DeveloperError_ASSERTION_FAILED,
-				Context: tuple.String(tpl),
+				Context: tplString,
 				Line:    uint32(assertion.SourcePosition.LineNumber),
 				Column:  uint32(assertion.SourcePosition.ColumnPosition),
 			})

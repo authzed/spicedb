@@ -317,7 +317,7 @@ func TestWriteRelationships(t *testing.T) {
 
 	rel, err := stream.Recv()
 	require.NoError(err)
-	require.Equal(tuple.String(toWrite), tuple.MustRelString(rel.Relationship))
+	require.Equal(tuple.MustString(toWrite), tuple.MustRelString(rel.Relationship))
 
 	_, err = stream.Recv()
 	require.ErrorIs(err, io.EOF)
@@ -579,6 +579,16 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			[]*v1.Relationship{relWithCaveat("document", "somedoc", "viewer", "folder", "foo", "owner", "somecaveat")},
 			codes.InvalidArgument,
 			"folder#owner with somecaveat",
+		},
+		{
+			"caveated and uncaveated versions of the same relationship",
+			nil,
+			[]*v1.Relationship{
+				rel("document", "somedoc", "viewer", "user", "tom", ""),
+				relWithCaveat("document", "somedoc", "viewer", "user", "tom", "", "somecaveat"),
+			},
+			codes.InvalidArgument,
+			"found more than one update with relationship",
 		},
 	}
 
@@ -1104,7 +1114,7 @@ func readAll(require *require.Assertions, client v1.PermissionsServiceClient, to
 func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 	out := make(map[string]struct{}, len(tf.StandardTuples)-len(without))
 	for _, t := range tf.StandardTuples {
-		t = tuple.String(tuple.MustParse(t))
+		t = tuple.MustString(tuple.MustParse(t))
 		if _, ok := without[t]; ok {
 			continue
 		}

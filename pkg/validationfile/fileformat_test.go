@@ -139,13 +139,13 @@ func TestDecodeRelationshipsErrorLineNumberEventLater(t *testing.T) {
   definition user {}
 
 relationships: >-
-  document:firstdoc#writer@user:tom
+  document:firstdoc#writer@user:tom1
 
-  document:firstdoc#writer@user:tom
+  document:firstdoc#writer@user:tom2
 
-  document:firstdoc#writer@user:tom
+  document:firstdoc#writer@user:tom3
 
-  document:firstdoc#writer@user:tom
+  document:firstdoc#writer@user:tom4
 
   document:firstdoc#readeruser:fred
 `))
