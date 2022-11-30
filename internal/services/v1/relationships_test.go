@@ -494,6 +494,13 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			"caused by: invalid RelationshipFilter.OptionalResourceId: value does not match regex pattern",
 		},
 		{
+			"write permission",
+			nil,
+			[]*v1.Relationship{rel("document", "newdoc", "view", "user", "tom", "")},
+			codes.InvalidArgument,
+			"cannot write a relationship to permission `view`",
+		},
+		{
 			"write non-existing resource namespace",
 			nil,
 			[]*v1.Relationship{rel("notdocument", "newdoc", "parent", "folder", "afolder", "")},

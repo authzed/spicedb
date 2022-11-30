@@ -79,7 +79,8 @@ func (err ErrCannotWriteToPermission) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_CANNOT_UPDATE_PERMISSION,
 			map[string]string{
-				"caveat_name": err.update.Tuple.Caveat.CaveatName,
+				"definition_name": err.update.Tuple.ResourceAndRelation.Namespace,
+				"permission_name": err.update.Tuple.ResourceAndRelation.Relation,
 			},
 		),
 	)
