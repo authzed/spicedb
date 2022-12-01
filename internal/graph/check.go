@@ -214,12 +214,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	hadDirectResult := false
 	hadDispatchedResult := false
 	defer (func() {
-		estimatedQueryCount := 0.0
-		if hadDirectResult {
-			estimatedQueryCount++
-		}
-		if hadDispatchedResult {
-			estimatedQueryCount++
+		estimatedQueryCount := 1.0
+		if !hadDirectResult && hadDispatchedResult {
+			estimatedQueryCount = 2
 		}
 		estimatedDirectDispatchQueryHistogram.Observe(estimatedQueryCount)
 	})()
