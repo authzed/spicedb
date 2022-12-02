@@ -111,7 +111,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectEnabled: false,
-			expectMessage: "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: ERROR: rangefeeds require the kv.rangefeed.enabled setting. See https://www.cockroachlabs.com/docs/v22.1/change-data-capture.html#enable-rangefeeds-to-reduce-latency (SQLSTATE XXUUU)",
+			expectMessage: "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: ERROR: rangefeeds require the kv.rangefeed.enabled setting. See",
 		},
 		{
 			name: "rangefeeds enabled, user doesn't have permission",
@@ -151,7 +151,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 			features, err := ds.Features(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectEnabled, features.Watch.Enabled)
-			require.Equal(t, tt.expectMessage, features.Watch.Reason)
+			require.Contains(t, features.Watch.Reason, tt.expectMessage)
 
 			if !features.Watch.Enabled {
 				headRevision, err := ds.HeadRevision(ctx)
