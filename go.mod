@@ -10,7 +10,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/aws/aws-sdk-go v1.44.110
 	github.com/benbjohnson/clock v1.3.0
-	github.com/cenkalti/backoff/v4 v4.1.3
+	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/dalzilio/rudd v1.1.1-0.20220422201445-0a0cd32c7df9
 	github.com/dlmiddlecote/sqlstats v1.0.2
