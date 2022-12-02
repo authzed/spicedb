@@ -34,7 +34,7 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 				err,
 				devinterface.DeveloperError_CHECK_WATCH,
 				0, 0,
-				tuple.String(&core.RelationTuple{
+				tuple.MustString(&core.RelationTuple{
 					ResourceAndRelation: operation.CheckParameters.Resource,
 					Subject:             operation.CheckParameters.Subject,
 				}),

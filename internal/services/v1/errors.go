@@ -165,7 +165,7 @@ func NewDuplicateRelationshipErr(update *v1.RelationshipUpdate) ErrDuplicateRela
 	return ErrDuplicateRelationshipError{
 		error: fmt.Errorf(
 			"found more than one update with relationship `%s` in this request; a relationship can only be specified in an update once per overall WriteRelationships request",
-			tuple.MustRelString(update.Relationship),
+			tuple.StringRelationshipWithoutCaveat(update.Relationship),
 		),
 		update: update,
 	}

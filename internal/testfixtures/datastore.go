@@ -296,12 +296,12 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.RelationshipIterator
 	toFind := make(map[string]struct{}, 1024)
 
 	for _, tpl := range tpls {
-		toFind[tuple.String(tpl)] = struct{}{}
+		toFind[tuple.MustString(tpl)] = struct{}{}
 	}
 
 	for found := iter.Next(); found != nil; found = iter.Next() {
 		tc.Require.NoError(iter.Err())
-		foundStr := tuple.String(found)
+		foundStr := tuple.MustString(found)
 		_, ok := toFind[foundStr]
 		tc.Require.True(ok, "found unexpected tuple %s in iterator", foundStr)
 		delete(toFind, foundStr)

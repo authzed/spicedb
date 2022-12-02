@@ -300,7 +300,7 @@ func canonicalize(in []*datastore.RevisionChanges) []*datastore.RevisionChanges 
 		sort.Slice(outChanges, func(i, j int) bool {
 			// Return if i < j
 			left, right := outChanges[i], outChanges[j]
-			tupleCompareResult := strings.Compare(tuple.String(left.Tuple), tuple.String(right.Tuple))
+			tupleCompareResult := strings.Compare(tuple.StringWithoutCaveat(left.Tuple), tuple.StringWithoutCaveat(right.Tuple))
 			if tupleCompareResult < 0 {
 				return true
 			}

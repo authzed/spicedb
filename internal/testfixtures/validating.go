@@ -183,8 +183,8 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 			return err
 		}
 
-		if !tupleSet.Add(tuple.String(mutation.Tuple)) {
-			return fmt.Errorf("found duplicate update for relationship %s", tuple.String(mutation.Tuple))
+		if !tupleSet.Add(tuple.StringWithoutCaveat(mutation.Tuple)) {
+			return fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveat(mutation.Tuple))
 		}
 	}
 
@@ -220,7 +220,7 @@ func validateUpdatesToWrite(updates ...*core.RelationTupleUpdate) error {
 		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard && update.Tuple.Subject.Relation != tuple.Ellipsis {
 			return fmt.Errorf(
 				"attempt to write a wildcard relationship (`%s`) with a non-empty relation `%v`. Please report this bug",
-				tuple.String(update.Tuple),
+				tuple.MustString(update.Tuple),
 				update.Tuple.Subject.Relation,
 			)
 		}

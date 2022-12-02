@@ -54,11 +54,16 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			)
 		}
 
-		_, ok := seenTuples[tuple.String(tpl)]
+		_, ok := seenTuples[tuple.StringWithoutCaveat(tpl)]
 		if ok {
-			continue
+			return spiceerrors.NewErrorWithSource(
+				fmt.Errorf("found repeated relationship `%s`", trimmed),
+				trimmed,
+				uint64(node.Line+1+(index*2)), // +1 for the key, and *2 for newlines in YAML
+				uint64(node.Column),
+			)
 		}
-		seenTuples[tuple.String(tpl)] = true
+		seenTuples[tuple.StringWithoutCaveat(tpl)] = true
 		relationships = append(relationships, tuple.MustToRelationship(tpl))
 	}
 

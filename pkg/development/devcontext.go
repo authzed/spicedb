@@ -124,20 +124,25 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 	devErrors := make([]*devinterface.DeveloperError, 0, len(tuples))
 	updates := make([]*core.RelationTupleUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
+		tplString, err := tuple.String(tpl)
+		if err != nil {
+			return nil, err
+		}
+
 		verr := tpl.Validate()
 		if verr != nil {
 			devErrors = append(devErrors, &devinterface.DeveloperError{
 				Message: verr.Error(),
 				Source:  devinterface.DeveloperError_RELATIONSHIP,
 				Kind:    devinterface.DeveloperError_PARSE_ERROR,
-				Context: tuple.String(tpl),
+				Context: tplString,
 			})
 			continue
 		}
 
-		err := validateTupleWrite(ctx, tpl, rwt)
+		err = validateTupleWrite(ctx, tpl, rwt)
 		if err != nil {
-			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl))
+			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tplString)
 			if devErr != nil {
 				devErrors = append(devErrors, devErr)
 				continue

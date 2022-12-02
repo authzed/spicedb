@@ -3,10 +3,12 @@ package tuple
 import (
 	"testing"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func makeTuple(onr *core.ObjectAndRelation, subject *core.ObjectAndRelation) *core.RelationTuple {
@@ -29,6 +31,36 @@ func rel(resType, resID, relation, subType, subID, subRel string) *v1.Relationsh
 				ObjectId:   subID,
 			},
 			OptionalRelation: subRel,
+		},
+	}
+}
+
+func crel(resType, resID, relation, subType, subID, subRel, caveatName string, caveatContext map[string]any) *v1.Relationship {
+	context, err := structpb.NewStruct(caveatContext)
+	if err != nil {
+		panic(err)
+	}
+
+	if len(context.Fields) == 0 {
+		context = nil
+	}
+
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalCaveat: &v1.ContextualizedCaveat{
+			CaveatName: caveatName,
+			Context:    context,
 		},
 	}
 }
@@ -135,6 +167,109 @@ var testCases = []struct {
 		),
 		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "authn|foo", ""),
 	},
+	{
+		input:          "document:foo#viewer@user:tom[somecaveat]",
+		expectedOutput: "document:foo#viewer@user:tom[somecaveat]",
+		tupleFormat: WithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", nil),
+	},
+	{
+		input:          "document:foo#viewer@user:tom[tenant/somecaveat]",
+		expectedOutput: "document:foo#viewer@user:tom[tenant/somecaveat]",
+		tupleFormat: WithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"tenant/somecaveat",
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "tenant/somecaveat", nil),
+	},
+	{
+		input:          "document:foo#viewer@user:tom[somecaveat",
+		expectedOutput: "",
+		tupleFormat:    nil,
+		relFormat:      nil,
+	},
+	{
+		input:          "document:foo#viewer@user:tom[]",
+		expectedOutput: "",
+		tupleFormat:    nil,
+		relFormat:      nil,
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi": "there"}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":"there"}]`,
+		tupleFormat: WithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"hi": "there",
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{"hi": "there"}),
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo": 123}}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":123}}]`,
+		tupleFormat: WithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"hi": map[string]any{
+					"yo": 123,
+				},
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
+			"hi": map[string]any{
+				"yo": 123,
+			},
+		}),
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":true}}}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":true}}}]`,
+		tupleFormat: WithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"hi": map[string]any{
+					"yo": map[string]any{
+						"hey": true,
+					},
+				},
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
+			"hi": map[string]any{
+				"yo": map[string]any{
+					"hey": true,
+				},
+			},
+		}),
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":"hey":true}}}]`,
+		expectedOutput: "",
+		tupleFormat:    nil,
+		relFormat:      nil,
+	},
 }
 
 func TestSerialize(t *testing.T) {
@@ -144,8 +279,12 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := String(tc.tupleFormat)
+			serialized := MustString(tc.tupleFormat)
 			require.Equal(t, tc.expectedOutput, serialized)
+
+			withoutCaveat := StringWithoutCaveat(tc.tupleFormat)
+			require.Contains(t, tc.expectedOutput, withoutCaveat)
+			require.NotContains(t, withoutCaveat, "[")
 		})
 	}
 
@@ -157,6 +296,10 @@ func TestSerialize(t *testing.T) {
 
 			serialized := MustRelString(tc.relFormat)
 			require.Equal(t, tc.expectedOutput, serialized)
+
+			withoutCaveat := StringRelationshipWithoutCaveat(tc.relFormat)
+			require.Contains(t, tc.expectedOutput, withoutCaveat)
+			require.NotContains(t, withoutCaveat, "[")
 		})
 	}
 }
@@ -164,13 +307,13 @@ func TestSerialize(t *testing.T) {
 func TestParse(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("tuple/"+tc.input, func(t *testing.T) {
-			require.Equal(t, tc.tupleFormat, Parse(tc.input))
+			testutil.RequireProtoEqual(t, tc.tupleFormat, Parse(tc.input), "found difference in parsed tuple")
 		})
 	}
 
 	for _, tc := range testCases {
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
-			require.Equal(t, tc.relFormat, ParseRel(tc.input))
+			testutil.RequireProtoEqual(t, tc.relFormat, ParseRel(tc.input), "found difference in parsed relationship")
 		})
 	}
 }
@@ -181,7 +324,7 @@ func TestConvert(t *testing.T) {
 			require := require.New(t)
 
 			parsed := Parse(tc.input)
-			require.Equal(tc.tupleFormat, parsed)
+			testutil.RequireProtoEqual(t, tc.tupleFormat, parsed, "found difference in parsed tuple")
 			if parsed == nil {
 				return
 			}
@@ -191,9 +334,9 @@ func TestConvert(t *testing.T) {
 			require.Equal(tc.expectedOutput, relString)
 
 			backToTpl := FromRelationship(relationship)
-			require.Equal(tc.tupleFormat, backToTpl)
+			testutil.RequireProtoEqual(t, tc.tupleFormat, backToTpl, "found difference in converted tuple")
 
-			serialized := String(backToTpl)
+			serialized := MustString(backToTpl)
 			require.Equal(tc.expectedOutput, serialized)
 		})
 	}

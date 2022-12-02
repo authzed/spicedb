@@ -161,7 +161,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := util.NewSet[string]()
 	for _, update := range req.Updates {
-		tupleStr := tuple.StringRelationship(update.Relationship)
+		tupleStr := tuple.StringRelationshipWithoutCaveat(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, rewriteError(
 				ctx,

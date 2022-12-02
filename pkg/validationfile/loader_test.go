@@ -76,6 +76,39 @@ func TestPopulateFromFiles(t *testing.T) {
 			want:          nil,
 			expectedError: "relationships must be specified in `relationships`",
 		},
+		{
+			name:      "basic caveats",
+			filePaths: []string{"testdata/basic_caveats.yaml"},
+			want: []string{
+				"resource:first#reader@user:sarah[some_caveat:{\"somecondition\":42}]",
+				"resource:first#reader@user:tom[some_caveat]",
+			},
+			expectedError: "",
+		},
+		{
+			name:          "invalid caveat",
+			filePaths:     []string{"testdata/invalid_caveat.yaml"},
+			want:          nil,
+			expectedError: "could not lookup caveat `some_caveat` for relation `reader`: caveat with name `some_caveat` not found",
+		},
+		{
+			name:          "invalid caveated relationship",
+			filePaths:     []string{"testdata/invalid_caveated_rel.yaml"},
+			want:          nil,
+			expectedError: "subjects of type `user with some_caveat` are not allowed on relation `resource#reader`",
+		},
+		{
+			name:          "invalid caveated relationship syntax",
+			filePaths:     []string{"testdata/invalid_caveated_rel_syntax.yaml"},
+			want:          nil,
+			expectedError: "error parsing relationship",
+		},
+		{
+			name:          "repeated relationship",
+			filePaths:     []string{"testdata/repeated_relationship.yaml"},
+			want:          nil,
+			expectedError: "found repeated relationship `resource:first#reader@user:tom`",
+		},
 	}
 
 	for _, tt := range tests {
@@ -90,7 +123,7 @@ func TestPopulateFromFiles(t *testing.T) {
 
 				foundRelationships := make([]string, 0, len(parsed.Tuples))
 				for _, tpl := range parsed.Tuples {
-					foundRelationships = append(foundRelationships, tuple.String(tpl))
+					foundRelationships = append(foundRelationships, tuple.MustString(tpl))
 				}
 
 				sort.Strings(tt.want)

@@ -56,7 +56,7 @@ func (ch Changes) AddChange(
 		ch[rk] = revisionChanges
 	}
 
-	tplKey := tuple.String(tpl)
+	tplKey := tuple.StringWithoutCaveat(tpl)
 
 	switch op {
 	case core.RelationTupleUpdate_TOUCH:

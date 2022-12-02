@@ -145,7 +145,7 @@ func runAssertions(t *testing.T,
 			rel := tuple.MustFromRelationship(assertTrue.Relationship)
 			result, err := tester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, revision)
 			require.NoError(t, err)
-			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.String(rel))
+			require.True(t, result, "Assertion `%s` returned false; true expected", tuple.MustString(rel))
 
 			// Ensure the assertion passes Lookup.
 			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
@@ -163,7 +163,7 @@ func runAssertions(t *testing.T,
 			// Ensure the assertion does not pass Check.
 			result, err := tester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, revision)
 			require.NoError(t, err)
-			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.String(rel))
+			require.False(t, result, "Assertion `%s` returned true; false expected", tuple.MustString(rel))
 
 			// Ensure the assertion does not pass Lookup.
 			resolvedObjectIds, err := tester.Lookup(context.Background(), &core.RelationReference{
@@ -266,7 +266,7 @@ func runConsistencyTests(t *testing.T,
 		for _, itpl := range tuples {
 			tpl := itpl.(*core.RelationTuple)
 			err := tester.Write(context.Background(), tpl)
-			lrequire.NoError(err, "failed to write %s", tuple.String(tpl))
+			lrequire.NoError(err, "failed to write %s", tuple.MustString(tpl))
 		}
 	}
 

@@ -98,7 +98,7 @@ func NewCaveatNotFoundError(update *core.RelationTupleUpdate) ErrCaveatNotFound 
 		error: fmt.Errorf(
 			"the caveat `%s` was not found for relationship `%s`",
 			update.Tuple.Caveat.CaveatName,
-			tuple.String(update.Tuple),
+			tuple.MustString(update.Tuple),
 		),
 		update: update,
 	}
