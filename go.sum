@@ -73,6 +73,8 @@ github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed h1:u
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
 github.com/authzed/authzed-go v0.7.1-0.20221109204547-1aa903788b3b h1:EN7dZk94rsEqyYrkgj/h0tzkzSSm66IANrRBhn50lfg=
 github.com/authzed/authzed-go v0.7.1-0.20221109204547-1aa903788b3b/go.mod h1:h9Zar1MSSrVsqbcbE5/RO7gpg6Fx5QYW2C5QduSox5M=
+github.com/authzed/authzed-go v0.7.1-0.20221206211511-16b10747dd80 h1:3Y5+FhzKVzw2QPEkqLg/NUlvbP9OM9ehOkll15J2A44=
+github.com/authzed/authzed-go v0.7.1-0.20221206211511-16b10747dd80/go.mod h1:h9Zar1MSSrVsqbcbE5/RO7gpg6Fx5QYW2C5QduSox5M=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5 h1:sZM7XzdyuLyxj7pC/g7uX+XAqZ7m6NMxZzuQRovgBPw=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5/go.mod h1:rqjY3zyK/YP7NID9+B2BdIRRkvnK+cdf9/qya/zaFZE=
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
