@@ -20,7 +20,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const waitForChangesTimeout = 40 * time.Second
+const waitForChangesTimeout = 5 * time.Second
 
 // WatchTest tests whether or not the requirements for watching changes hold
 // for a particular datastore.

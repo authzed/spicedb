@@ -13,7 +13,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
+const queryChangefeed = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s', min_checkpoint_frequency = '0';"
 
 type changeDetails struct {
 	Resolved string
