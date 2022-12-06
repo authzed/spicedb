@@ -71,8 +71,6 @@ github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d/go.mod h1:rBZYJk5
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed h1:ue9pVfIcP+QMEjfgo/Ez4ZjNZfonGgR6NgjMaJMu1Cg=
 github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed/go.mod h1:F7bn7fEU90QkQ3tnmaTx3LTKLEDqnwWODIYppRQ5hnY=
-github.com/authzed/authzed-go v0.7.1-0.20221109204547-1aa903788b3b h1:EN7dZk94rsEqyYrkgj/h0tzkzSSm66IANrRBhn50lfg=
-github.com/authzed/authzed-go v0.7.1-0.20221109204547-1aa903788b3b/go.mod h1:h9Zar1MSSrVsqbcbE5/RO7gpg6Fx5QYW2C5QduSox5M=
 github.com/authzed/authzed-go v0.7.1-0.20221206211511-16b10747dd80 h1:3Y5+FhzKVzw2QPEkqLg/NUlvbP9OM9ehOkll15J2A44=
 github.com/authzed/authzed-go v0.7.1-0.20221206211511-16b10747dd80/go.mod h1:h9Zar1MSSrVsqbcbE5/RO7gpg6Fx5QYW2C5QduSox5M=
 github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5 h1:sZM7XzdyuLyxj7pC/g7uX+XAqZ7m6NMxZzuQRovgBPw=
