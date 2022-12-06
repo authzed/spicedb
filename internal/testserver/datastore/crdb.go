@@ -19,7 +19,11 @@ import (
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
-const enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
+const (
+	CRDBTestVersionTag = "v22.2.0"
+
+	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
+)
 
 type crdbTester struct {
 	conn     *pgx.Conn
@@ -37,7 +41,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForT
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
 		Repository: "cockroachdb/cockroach",
-		Tag:        "v21.2.17",
+		Tag:        CRDBTestVersionTag,
 		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 		NetworkID:  bridgeNetworkName,
 	})
