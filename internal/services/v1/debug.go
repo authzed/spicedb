@@ -113,11 +113,17 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 				return nil, err
 			}
 
+			caveatName := ""
+			if checkResult.Expression.GetCaveat() != nil {
+				caveatName = checkResult.Expression.GetCaveat().CaveatName
+			}
+
 			caveatEvalInfo = &v1.CaveatEvalInfo{
 				Expression:        exprString,
 				Result:            caveatResult,
 				Context:           contextStruct,
 				PartialCaveatInfo: partialCaveatInfo,
+				CaveatName:        caveatName,
 			}
 		}
 
