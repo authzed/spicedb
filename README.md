@@ -44,11 +44,14 @@ Have questions? Join our [Discord].
 
 Looking to contribute? See [CONTRIBUTING.md].
 
+Want to learn more about Zanzibar? Read the [annotated paper] with our commentary.
+
 You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
 There are also [good first issues].
 
 [Discord]: https://authzed.com/discord
 [CONTRIBUTING.md]: https://github.com/authzed/spicedb/blob/main/CONTRIBUTING.md
+[annotated paper]: https://zanzibar.tech
 [Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
 [High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
 [Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
