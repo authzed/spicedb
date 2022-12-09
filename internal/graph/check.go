@@ -27,8 +27,15 @@ var estimatedDirectDispatchQueryHistogram = prometheus.NewHistogram(prometheus.H
 	Buckets: []float64{1, 2},
 })
 
+var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "spicedb_check_dispatch_chunk_count",
+	Help:    "number of chunks when dispatching in check",
+	Buckets: []float64{1, 2, 3, 5, 10, 25, 100, 250},
+})
+
 func init() {
 	prometheus.MustRegister(estimatedDirectDispatchQueryHistogram)
+	prometheus.MustRegister(dispatchChunkCountHistogram)
 }
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
@@ -250,12 +257,15 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
+		chunkCount := 0.0
 		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
 				resourceIds:  resourceIdChunk,
 			})
 		})
+		dispatchChunkCountHistogram.Observe(chunkCount)
 	})
 
 	// Dispatch and map to the associated resource ID(s).
@@ -446,12 +456,15 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
+		chunkCount := 0.0
 		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
 				resourceIds:  resourceIdChunk,
 			})
 		})
+		dispatchChunkCountHistogram.Observe(chunkCount)
 	})
 
 	return union(
