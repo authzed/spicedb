@@ -5,14 +5,15 @@ import (
 )
 
 // Leaf constructs a RelationTupleTreeNode leaf.
-func Leaf(start *core.ObjectAndRelation, subjects ...*core.ObjectAndRelation) *core.RelationTupleTreeNode {
+func Leaf(start *core.ObjectAndRelation, subjects ...*core.DirectSubject) *core.RelationTupleTreeNode {
 	return &core.RelationTupleTreeNode{
 		NodeType: &core.RelationTupleTreeNode_LeafNode{
 			LeafNode: &core.DirectSubjects{
 				Subjects: subjects,
 			},
 		},
-		Expanded: start,
+		Expanded:         start,
+		CaveatExpression: nil, // Set by caller if necessary
 	}
 }
 
@@ -28,7 +29,8 @@ func setResult(
 				ChildNodes: children,
 			},
 		},
-		Expanded: start,
+		Expanded:         start,
+		CaveatExpression: nil, // Set by caller if necessary
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datasets"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -63,11 +62,14 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 	parts := strings.Split(key, "#")
 
 	created := datasets.NewBaseSubjectSet[FoundSubject](
-		func(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
-			fs := NewFoundSubject(&core.ObjectAndRelation{
-				Namespace: parts[0],
-				ObjectId:  subjectID,
-				Relation:  parts[1],
+		func(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
+			fs := NewFoundSubject(&core.DirectSubject{
+				Subject: &core.ObjectAndRelation{
+					Namespace: parts[0],
+					ObjectId:  subjectID,
+					Relation:  parts[1],
+				},
+				CaveatExpression: caveatExpression,
 			})
 			fs.excludedSubjects = excludedSubjects
 			fs.caveatExpression = caveatExpression

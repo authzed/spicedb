@@ -23,11 +23,11 @@ type CheckResultsMap map[string]*v1.ResourceCheckResult
 func NewMembershipSet() *MembershipSet {
 	return &MembershipSet{
 		hasDeterminedMember: false,
-		membersByID:         map[string]*v1.CaveatExpression{},
+		membersByID:         map[string]*core.CaveatExpression{},
 	}
 }
 
-func membershipSetFromMap(mp map[string]*v1.CaveatExpression) *MembershipSet {
+func membershipSetFromMap(mp map[string]*core.CaveatExpression) *MembershipSet {
 	ms := NewMembershipSet()
 	for resourceID, result := range mp {
 		ms.addMember(resourceID, result)
@@ -38,7 +38,7 @@ func membershipSetFromMap(mp map[string]*v1.CaveatExpression) *MembershipSet {
 // MembershipSet is a helper set that trackes the membership results for a dispatched Check
 // request, including tracking of the caveats associated with found resource IDs.
 type MembershipSet struct {
-	membersByID         map[string]*v1.CaveatExpression
+	membersByID         map[string]*core.CaveatExpression
 	hasDeterminedMember bool
 }
 
@@ -55,14 +55,14 @@ func (ms *MembershipSet) AddDirectMember(resourceID string, caveat *core.Context
 // associated.
 func (ms *MembershipSet) AddMemberViaRelationship(
 	resourceID string,
-	resourceCaveatExpression *v1.CaveatExpression,
+	resourceCaveatExpression *core.CaveatExpression,
 	parentRelationship *core.RelationTuple,
 ) {
 	intersection := caveatAnd(wrapCaveat(parentRelationship.Caveat), resourceCaveatExpression)
 	ms.addMember(resourceID, intersection)
 }
 
-func (ms *MembershipSet) addMember(resourceID string, caveatExpr *v1.CaveatExpression) {
+func (ms *MembershipSet) addMember(resourceID string, caveatExpr *core.CaveatExpression) {
 	existing, ok := ms.membersByID[resourceID]
 	if !ok {
 		ms.hasDeterminedMember = ms.hasDeterminedMember || caveatExpr == nil

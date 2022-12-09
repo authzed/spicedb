@@ -6,14 +6,12 @@ import (
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
-func NewFoundSubject(subject *core.ObjectAndRelation, resources ...*core.ObjectAndRelation) FoundSubject {
-	return FoundSubject{subject, nil, nil, tuple.NewONRSet(resources...)}
+func NewFoundSubject(subject *core.DirectSubject, resources ...*core.ObjectAndRelation) FoundSubject {
+	return FoundSubject{subject.Subject, nil, subject.CaveatExpression, tuple.NewONRSet(resources...)}
 }
 
 // FoundSubject contains a single found subject and all the relationships in which that subject
@@ -26,7 +24,7 @@ type FoundSubject struct {
 	excludedSubjects []FoundSubject
 
 	// caveatExpression is the conditional expression on the found subject.
-	caveatExpression *v1.CaveatExpression
+	caveatExpression *core.CaveatExpression
 
 	// relations are the relations under which the subject lives that informed the locating
 	// of this subject for the root ONR.
@@ -40,7 +38,7 @@ func (fs FoundSubject) GetSubjectId() string {
 	return fs.subject.ObjectId
 }
 
-func (fs FoundSubject) GetCaveatExpression() *v1.CaveatExpression {
+func (fs FoundSubject) GetCaveatExpression() *core.CaveatExpression {
 	return fs.caveatExpression
 }
 

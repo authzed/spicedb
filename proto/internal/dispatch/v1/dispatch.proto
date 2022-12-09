@@ -55,27 +55,8 @@ message ResourceCheckResult {
   }
 
   Membership membership = 1;
-  CaveatExpression expression = 2;
+  core.v1.CaveatExpression expression = 2;
   repeated string missing_expr_fields = 3;
-}
-
-message CaveatExpression {  
-  oneof operation_or_caveat {
-    CaveatOperation operation = 1;
-    core.v1.ContextualizedCaveat caveat = 2;
-  }
-}
-
-message CaveatOperation {
-  enum Operation {
-    UNKNOWN = 0;
-    OR = 1;
-    AND = 2;
-    NOT = 3;
-  }
-
-  Operation op = 1;
-  repeated CaveatExpression children = 2;
 }
 
 message DispatchExpandRequest {
@@ -172,7 +153,7 @@ message DispatchLookupSubjectsRequest {
 
 message FoundSubject {
   string subject_id = 1;
-  CaveatExpression caveat_expression = 2;
+  core.v1.CaveatExpression caveat_expression = 2;
   repeated FoundSubject excluded_subjects = 3;
 }
 

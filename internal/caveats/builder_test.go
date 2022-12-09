@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func TestShortcircuitedOr(t *testing.T) {
 	tcs := []struct {
-		first    *v1.CaveatExpression
-		second   *v1.CaveatExpression
-		expected *v1.CaveatExpression
+		first    *core.CaveatExpression
+		second   *core.CaveatExpression
+		expected *core.CaveatExpression
 	}{
 		{
 			nil,
@@ -45,9 +45,9 @@ func TestShortcircuitedOr(t *testing.T) {
 
 func TestOr(t *testing.T) {
 	tcs := []struct {
-		first    *v1.CaveatExpression
-		second   *v1.CaveatExpression
-		expected *v1.CaveatExpression
+		first    *core.CaveatExpression
+		second   *core.CaveatExpression
+		expected *core.CaveatExpression
 	}{
 		{
 			nil,
@@ -72,11 +72,11 @@ func TestOr(t *testing.T) {
 		{
 			CaveatExprForTesting("first"),
 			CaveatExprForTesting("second"),
-			&v1.CaveatExpression{
-				OperationOrCaveat: &v1.CaveatExpression_Operation{
-					Operation: &v1.CaveatOperation{
-						Op:       v1.CaveatOperation_OR,
-						Children: []*v1.CaveatExpression{CaveatExprForTesting("first"), CaveatExprForTesting("second")},
+			&core.CaveatExpression{
+				OperationOrCaveat: &core.CaveatExpression_Operation{
+					Operation: &core.CaveatOperation{
+						Op:       core.CaveatOperation_OR,
+						Children: []*core.CaveatExpression{CaveatExprForTesting("first"), CaveatExprForTesting("second")},
 					},
 				},
 			},
@@ -92,9 +92,9 @@ func TestOr(t *testing.T) {
 
 func TestAnd(t *testing.T) {
 	tcs := []struct {
-		first    *v1.CaveatExpression
-		second   *v1.CaveatExpression
-		expected *v1.CaveatExpression
+		first    *core.CaveatExpression
+		second   *core.CaveatExpression
+		expected *core.CaveatExpression
 	}{
 		{
 			nil,
@@ -119,11 +119,11 @@ func TestAnd(t *testing.T) {
 		{
 			CaveatExprForTesting("first"),
 			CaveatExprForTesting("second"),
-			&v1.CaveatExpression{
-				OperationOrCaveat: &v1.CaveatExpression_Operation{
-					Operation: &v1.CaveatOperation{
-						Op:       v1.CaveatOperation_AND,
-						Children: []*v1.CaveatExpression{CaveatExprForTesting("first"), CaveatExprForTesting("second")},
+			&core.CaveatExpression{
+				OperationOrCaveat: &core.CaveatExpression_Operation{
+					Operation: &core.CaveatOperation{
+						Op:       core.CaveatOperation_AND,
+						Children: []*core.CaveatExpression{CaveatExprForTesting("first"), CaveatExprForTesting("second")},
 					},
 				},
 			},
@@ -139,8 +139,8 @@ func TestAnd(t *testing.T) {
 
 func TestInvert(t *testing.T) {
 	tcs := []struct {
-		first    *v1.CaveatExpression
-		expected *v1.CaveatExpression
+		first    *core.CaveatExpression
+		expected *core.CaveatExpression
 	}{
 		{
 			nil,
@@ -148,11 +148,11 @@ func TestInvert(t *testing.T) {
 		},
 		{
 			CaveatExprForTesting("first"),
-			&v1.CaveatExpression{
-				OperationOrCaveat: &v1.CaveatExpression_Operation{
-					Operation: &v1.CaveatOperation{
-						Op:       v1.CaveatOperation_NOT,
-						Children: []*v1.CaveatExpression{CaveatExprForTesting("first")},
+			&core.CaveatExpression{
+				OperationOrCaveat: &core.CaveatExpression_Operation{
+					Operation: &core.CaveatOperation{
+						Op:       core.CaveatOperation_NOT,
+						Children: []*core.CaveatExpression{CaveatExprForTesting("first")},
 					},
 				},
 			},

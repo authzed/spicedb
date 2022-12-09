@@ -212,12 +212,14 @@ func TranslateRelationshipTree(tree *v1.PermissionRelationshipTree) *core.Relati
 		}
 
 	case *v1.PermissionRelationshipTree_Leaf:
-		var subjects []*core.ObjectAndRelation
+		var subjects []*core.DirectSubject
 		for _, subj := range t.Leaf.Subjects {
-			subjects = append(subjects, &core.ObjectAndRelation{
-				Namespace: subj.Object.ObjectType,
-				ObjectId:  subj.Object.ObjectId,
-				Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
+			subjects = append(subjects, &core.DirectSubject{
+				Subject: &core.ObjectAndRelation{
+					Namespace: subj.Object.ObjectType,
+					ObjectId:  subj.Object.ObjectId,
+					Relation:  stringz.DefaultEmpty(subj.OptionalRelation, graph.Ellipsis),
+				},
 			})
 		}
 
@@ -279,10 +281,10 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 		for _, found := range t.LeafNode.Subjects {
 			subjects = append(subjects, &v1.SubjectReference{
 				Object: &v1.ObjectReference{
-					ObjectType: found.Namespace,
-					ObjectId:   found.ObjectId,
+					ObjectType: found.Subject.Namespace,
+					ObjectId:   found.Subject.ObjectId,
 				},
-				OptionalRelation: denormalizeSubjectRelation(found.Relation),
+				OptionalRelation: denormalizeSubjectRelation(found.Subject.Relation),
 			})
 		}
 

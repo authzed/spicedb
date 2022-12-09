@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
@@ -32,7 +33,7 @@ func FoundSubject(subjectID string) *v1.FoundSubject {
 }
 
 // CaveatedFoundSubject returns a FoundSubject with the given ID and caveat expression.
-func CaveatedFoundSubject(subjectID string, expr *v1.CaveatExpression) *v1.FoundSubject {
+func CaveatedFoundSubject(subjectID string, expr *core.CaveatExpression) *v1.FoundSubject {
 	return &v1.FoundSubject{
 		SubjectId:        subjectID,
 		CaveatExpression: expr,
@@ -40,7 +41,7 @@ func CaveatedFoundSubject(subjectID string, expr *v1.CaveatExpression) *v1.Found
 }
 
 // CaveatedWildcard returns a wildcard FoundSubject with the given caveat expression and exclusions.
-func CaveatedWildcard(expr *v1.CaveatExpression, exclusions ...*v1.FoundSubject) *v1.FoundSubject {
+func CaveatedWildcard(expr *core.CaveatExpression, exclusions ...*v1.FoundSubject) *v1.FoundSubject {
 	return &v1.FoundSubject{
 		SubjectId:        tuple.PublicWildcard,
 		ExcludedSubjects: exclusions,
@@ -156,7 +157,7 @@ func FormatSubject(sub *v1.FoundSubject) string {
 }
 
 // formatCaveatExpr formats a caveat expression (which can be nil) into a human readable string.
-func formatCaveatExpr(expr *v1.CaveatExpression) string {
+func formatCaveatExpr(expr *core.CaveatExpression) string {
 	if expr == nil {
 		return "[nil]"
 	}
@@ -166,19 +167,19 @@ func formatCaveatExpr(expr *v1.CaveatExpression) string {
 	}
 
 	switch expr.GetOperation().Op {
-	case v1.CaveatOperation_AND:
+	case core.CaveatOperation_AND:
 		return fmt.Sprintf("(%s) && (%s)",
 			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
 			formatCaveatExpr(expr.GetOperation().GetChildren()[1]),
 		)
 
-	case v1.CaveatOperation_OR:
+	case core.CaveatOperation_OR:
 		return fmt.Sprintf("(%s) || (%s)",
 			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
 			formatCaveatExpr(expr.GetOperation().GetChildren()[1]),
 		)
 
-	case v1.CaveatOperation_NOT:
+	case core.CaveatOperation_NOT:
 		return fmt.Sprintf("!(%s)",
 			formatCaveatExpr(expr.GetOperation().GetChildren()[0]),
 		)
@@ -189,7 +190,7 @@ func formatCaveatExpr(expr *v1.CaveatExpression) string {
 }
 
 // checkEquivalentCaveatExprs checks if the given caveat expressions are equivalent and returns an error if they are not.
-func checkEquivalentCaveatExprs(expected *v1.CaveatExpression, found *v1.CaveatExpression) error {
+func checkEquivalentCaveatExprs(expected *core.CaveatExpression, found *core.CaveatExpression) error {
 	if expected == nil {
 		if found != nil {
 			return fmt.Errorf("found non-nil caveat expression `%s` where expected nil", formatCaveatExpr(found))
@@ -225,25 +226,25 @@ func checkEquivalentCaveatExprs(expected *v1.CaveatExpression, found *v1.CaveatE
 
 // executeCaveatExprForTesting "executes" the given caveat expression for testing. DO NOT USE OUTSIDE OF TESTING.
 // This method *ignores* caveat context and treats each caveat as just its name.
-func executeCaveatExprForTesting(expr *v1.CaveatExpression, values map[string]bool) bool {
+func executeCaveatExprForTesting(expr *core.CaveatExpression, values map[string]bool) bool {
 	if expr.GetCaveat() != nil {
 		return values[expr.GetCaveat().CaveatName]
 	}
 
 	switch expr.GetOperation().Op {
-	case v1.CaveatOperation_AND:
+	case core.CaveatOperation_AND:
 		if len(expr.GetOperation().Children) != 2 {
 			panic("found invalid child count for AND")
 		}
 		return executeCaveatExprForTesting(expr.GetOperation().Children[0], values) && executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
 
-	case v1.CaveatOperation_OR:
+	case core.CaveatOperation_OR:
 		if len(expr.GetOperation().Children) != 2 {
 			panic("found invalid child count for OR")
 		}
 		return executeCaveatExprForTesting(expr.GetOperation().Children[0], values) || executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
 
-	case v1.CaveatOperation_NOT:
+	case core.CaveatOperation_NOT:
 		if len(expr.GetOperation().Children) != 1 {
 			panic("found invalid child count for NOT")
 		}
@@ -284,7 +285,7 @@ func combinatorialValues(names []string) []map[string]bool {
 }
 
 // collectReferencedNames collects all referenced caveat names into the given set.
-func collectReferencedNames(expr *v1.CaveatExpression, nameSet *util.Set[string]) {
+func collectReferencedNames(expr *core.CaveatExpression, nameSet *util.Set[string]) {
 	if expr.GetCaveat() != nil {
 		nameSet.Add(expr.GetCaveat().CaveatName)
 		return

@@ -1,6 +1,7 @@
 package datasets
 
 import (
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -33,7 +34,7 @@ func (ss SubjectSet) UnionWithSet(other SubjectSet) {
 
 // WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied
 // to all members of this set.
-func (ss SubjectSet) WithParentCaveatExpression(parentCaveatExpr *v1.CaveatExpression) SubjectSet {
+func (ss SubjectSet) WithParentCaveatExpression(parentCaveatExpr *core.CaveatExpression) SubjectSet {
 	return SubjectSet{ss.BaseSubjectSet.WithParentCaveatExpression(parentCaveatExpr)}
 }
 
@@ -43,7 +44,7 @@ func (ss SubjectSet) AsFoundSubjects() *v1.FoundSubjects {
 	}
 }
 
-func subjectSetConstructor(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []*v1.FoundSubject, sources ...*v1.FoundSubject) *v1.FoundSubject {
+func subjectSetConstructor(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []*v1.FoundSubject, sources ...*v1.FoundSubject) *v1.FoundSubject {
 	return &v1.FoundSubject{
 		SubjectId:        subjectID,
 		CaveatExpression: caveatExpression,

@@ -11,7 +11,7 @@ import (
 	"github.com/authzed/spicedb/pkg/util"
 )
 
-func set(subjects ...*core.ObjectAndRelation) *TrackingSubjectSet {
+func set(subjects ...*core.DirectSubject) *TrackingSubjectSet {
 	newSet := NewTrackingSubjectSet()
 	for _, subject := range subjects {
 		newSet.Add(NewFoundSubject(subject))
@@ -65,15 +65,15 @@ func TestTrackingSubjectSet(t *testing.T) {
 	}{
 		{
 			"simple set",
-			set(ONR("user", "user1", "...")),
+			set(DS("user", "user1", "...")),
 			[]FoundSubject{fs("user", "user1", "...")},
 		},
 		{
 			"simple union",
 			union(
-				set(ONR("user", "user1", "...")),
-				set(ONR("user", "user2", "...")),
-				set(ONR("user", "user3", "...")),
+				set(DS("user", "user1", "...")),
+				set(DS("user", "user2", "...")),
+				set(DS("user", "user3", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "user1", "..."),
@@ -85,16 +85,16 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"simple intersection",
 			intersect(
 				set(
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
 				set(
-					(ONR("user", "user2", "...")),
-					(ONR("user", "user3", "...")),
+					(DS("user", "user2", "...")),
+					(DS("user", "user3", "...")),
 				),
 				set(
-					(ONR("user", "user2", "...")),
-					(ONR("user", "user4", "...")),
+					(DS("user", "user2", "...")),
+					(DS("user", "user4", "...")),
 				),
 			),
 			[]FoundSubject{fs("user", "user2", "...")},
@@ -103,12 +103,12 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"empty intersection",
 			intersect(
 				set(
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
 				set(
-					(ONR("user", "user3", "...")),
-					(ONR("user", "user4", "...")),
+					(DS("user", "user3", "...")),
+					(DS("user", "user4", "...")),
 				),
 			),
 			[]FoundSubject{},
@@ -117,11 +117,11 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"simple exclusion",
 			subtract(
 				set(
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
-				set(ONR("user", "user2", "...")),
-				set(ONR("user", "user3", "...")),
+				set(DS("user", "user2", "...")),
+				set(DS("user", "user3", "...")),
 			),
 			[]FoundSubject{fs("user", "user1", "...")},
 		},
@@ -129,11 +129,11 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"empty exclusion",
 			subtract(
 				set(
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
-				set(ONR("user", "user1", "...")),
-				set(ONR("user", "user2", "...")),
+				set(DS("user", "user1", "...")),
+				set(DS("user", "user2", "...")),
 			),
 			[]FoundSubject{},
 		},
@@ -141,9 +141,9 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard left side union",
 			union(
 				set(
-					(ONR("user", "*", "...")),
+					(DS("user", "*", "...")),
 				),
-				set(ONR("user", "user1", "...")),
+				set(DS("user", "user1", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "..."),
@@ -153,9 +153,9 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard right side union",
 			union(
-				set(ONR("user", "user1", "...")),
+				set(DS("user", "user1", "...")),
 				set(
-					(ONR("user", "*", "...")),
+					(DS("user", "*", "...")),
 				),
 			),
 			[]FoundSubject{
@@ -167,10 +167,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard left side exclusion",
 			subtract(
 				set(
-					(ONR("user", "*", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "*", "...")),
+					(DS("user", "user2", "...")),
 				),
-				set(ONR("user", "user1", "...")),
+				set(DS("user", "user1", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "...", "user1"),
@@ -181,9 +181,9 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard right side exclusion",
 			subtract(
 				set(
-					(ONR("user", "user2", "...")),
+					(DS("user", "user2", "...")),
 				),
-				set(ONR("user", "*", "...")),
+				set(DS("user", "*", "...")),
 			),
 			[]FoundSubject{},
 		},
@@ -191,9 +191,9 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard right side concrete exclusion",
 			subtract(
 				set(
-					(ONR("user", "*", "...")),
+					(DS("user", "*", "...")),
 				),
-				set(ONR("user", "user1", "...")),
+				set(DS("user", "user1", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "...", "user1"),
@@ -203,10 +203,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard both sides exclusion",
 			subtract(
 				set(
-					(ONR("user", "user2", "...")),
-					(ONR("user", "*", "...")),
+					(DS("user", "user2", "...")),
+					(DS("user", "*", "...")),
 				),
-				set(ONR("user", "*", "...")),
+				set(DS("user", "*", "...")),
 			),
 			[]FoundSubject{},
 		},
@@ -214,10 +214,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard left side intersection",
 			intersect(
 				set(
-					(ONR("user", "*", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "*", "...")),
+					(DS("user", "user2", "...")),
 				),
-				set(ONR("user", "user1", "...")),
+				set(DS("user", "user1", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "user1", "..."),
@@ -226,10 +226,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard right side intersection",
 			intersect(
-				set(ONR("user", "user1", "...")),
+				set(DS("user", "user1", "...")),
 				set(
-					(ONR("user", "*", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "*", "...")),
+					(DS("user", "user2", "...")),
 				),
 			),
 			[]FoundSubject{
@@ -240,11 +240,11 @@ func TestTrackingSubjectSet(t *testing.T) {
 			"wildcard both sides intersection",
 			intersect(
 				set(
-					(ONR("user", "*", "...")),
-					(ONR("user", "user1", "..."))),
+					(DS("user", "*", "...")),
+					(DS("user", "user1", "..."))),
 				set(
-					(ONR("user", "*", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "*", "...")),
+					(DS("user", "user2", "...")),
 				),
 			),
 			[]FoundSubject{
@@ -352,15 +352,15 @@ func TestTrackingSubjectSet(t *testing.T) {
 
 func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 	tss := NewTrackingSubjectSet()
-	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "foo", "viewer")))
-	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "bar", "viewer")))
+	tss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+	tss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "bar", "viewer")))
 
 	found, ok := tss.Get(ONR("user", "tom", "..."))
 	require.True(t, ok)
 	require.Equal(t, 2, len(found.Relationships()))
 
 	sss := NewTrackingSubjectSet()
-	sss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "baz", "viewer")))
+	sss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "baz", "viewer")))
 
 	intersection := tss.Intersect(sss)
 	found, ok = intersection.Get(ONR("user", "tom", "..."))
@@ -370,10 +370,10 @@ func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 
 func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
 	tss := NewTrackingSubjectSet()
-	tss.Add(NewFoundSubject(ONR("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+	tss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
 
 	sss := NewTrackingSubjectSet()
-	sss.Add(NewFoundSubject(ONR("user", "*", "..."), ONR("resource", "baz", "viewer")))
+	sss.Add(NewFoundSubject(DS("user", "*", "..."), ONR("resource", "baz", "viewer")))
 
 	intersection := tss.Intersect(sss)
 	found, ok := intersection.Get(ONR("user", "tom", "..."))

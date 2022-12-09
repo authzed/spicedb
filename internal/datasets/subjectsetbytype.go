@@ -97,13 +97,13 @@ func (s *SubjectByTypeSet) SubjectSetForType(rr *core.RelationReference) (Subjec
 	return found, ok
 }
 
-func wrapCaveat(caveat *core.ContextualizedCaveat) *v1.CaveatExpression {
+func wrapCaveat(caveat *core.ContextualizedCaveat) *core.CaveatExpression {
 	if caveat == nil {
 		return nil
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
 			Caveat: caveat,
 		},
 	}

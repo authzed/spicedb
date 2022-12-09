@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -23,12 +24,19 @@ import (
 	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func DS(objectType string, objectId string, objectRelation string) *core.DirectSubject {
+	return &core.DirectSubject{
+		Subject: ONR(objectType, objectId, objectRelation),
+	}
+}
+
 var (
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
-		(ONR("user", "owner", expand.Ellipsis)),
+		(DS("user", "owner", expand.Ellipsis)),
 	)
 	companyEditor = graph.Leaf(ONR("folder", "company", "editor"))
 
@@ -38,8 +46,8 @@ var (
 	)
 
 	companyViewer = graph.Leaf(ONR("folder", "company", "viewer"),
-		(ONR("user", "legal", "...")),
-		(ONR("folder", "auditors", "viewer")),
+		(DS("user", "legal", "...")),
+		(DS("folder", "auditors", "viewer")),
 	)
 
 	companyView = graph.Union(ONR("folder", "company", "view"),
@@ -58,7 +66,7 @@ var (
 	)
 
 	auditorsViewer = graph.Leaf(ONR("folder", "auditors", "viewer"),
-		(ONR("user", "auditor", "...")),
+		(DS("user", "auditor", "...")),
 	)
 
 	auditorsViewRecursive = graph.Union(ONR("folder", "auditors", "view"),
@@ -70,18 +78,18 @@ var (
 	companyViewRecursive = graph.Union(ONR("folder", "company", "view"),
 		graph.Union(ONR("folder", "company", "viewer"),
 			graph.Leaf(ONR("folder", "auditors", "viewer"),
-				(ONR("user", "auditor", "..."))),
+				(DS("user", "auditor", "..."))),
 			graph.Leaf(ONR("folder", "company", "viewer"),
-				(ONR("user", "legal", "...")),
-				(ONR("folder", "auditors", "viewer")))),
+				(DS("user", "legal", "...")),
+				(DS("folder", "auditors", "viewer")))),
 		graph.Union(ONR("folder", "company", "edit"),
 			graph.Leaf(ONR("folder", "company", "editor")),
 			graph.Leaf(ONR("folder", "company", "owner"),
-				(ONR("user", "owner", "...")))),
+				(DS("user", "owner", "...")))),
 		graph.Union(ONR("folder", "company", "view")))
 
 	docOwner = graph.Leaf(ONR("document", "masterplan", "owner"),
-		(ONR("user", "product_manager", "...")),
+		(DS("user", "product_manager", "...")),
 	)
 	docEditor = graph.Leaf(ONR("document", "masterplan", "editor"))
 
@@ -91,7 +99,7 @@ var (
 	)
 
 	docViewer = graph.Leaf(ONR("document", "masterplan", "viewer"),
-		(ONR("user", "eng_lead", "...")),
+		(DS("user", "eng_lead", "...")),
 	)
 
 	docView = graph.Union(ONR("document", "masterplan", "view"),
@@ -100,7 +108,7 @@ var (
 		graph.Union(ONR("document", "masterplan", "view"),
 			graph.Union(ONR("folder", "plans", "view"),
 				graph.Leaf(ONR("folder", "plans", "viewer"),
-					(ONR("user", "chief_financial_officer", "...")),
+					(DS("user", "chief_financial_officer", "...")),
 				),
 				graph.Union(ONR("folder", "plans", "edit"),
 					graph.Leaf(ONR("folder", "plans", "editor")),
@@ -111,16 +119,16 @@ var (
 				graph.Union(ONR("folder", "strategy", "edit"),
 					graph.Leaf(ONR("folder", "strategy", "editor")),
 					graph.Leaf(ONR("folder", "strategy", "owner"),
-						(ONR("user", "vp_product", "...")))),
+						(DS("user", "vp_product", "...")))),
 				graph.Union(ONR("folder", "strategy", "view"),
 					graph.Union(ONR("folder", "company", "view"),
 						graph.Leaf(ONR("folder", "company", "viewer"),
-							(ONR("user", "legal", "...")),
-							(ONR("folder", "auditors", "viewer"))),
+							(DS("user", "legal", "...")),
+							(DS("folder", "auditors", "viewer"))),
 						graph.Union(ONR("folder", "company", "edit"),
 							graph.Leaf(ONR("folder", "company", "editor")),
 							graph.Leaf(ONR("folder", "company", "owner"),
-								(ONR("user", "owner", "...")))),
+								(DS("user", "owner", "...")))),
 						graph.Union(ONR("folder", "company", "view")),
 					),
 				),
@@ -241,7 +249,7 @@ func serialize(node *core.RelationTupleTreeNode) *ast.CallExpr {
 	case *core.RelationTupleTreeNode_LeafNode:
 		fName = "graph.Leaf"
 		for _, subject := range node.GetLeafNode().Subjects {
-			onrExpr := onrExpr(subject)
+			onrExpr := onrExpr(subject.Subject)
 			children = append(children, &ast.CallExpr{
 				Fun:  ast.NewIdent(""),
 				Args: []ast.Expr{onrExpr},
