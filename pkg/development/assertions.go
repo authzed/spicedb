@@ -14,45 +14,45 @@ const maxDispatchDepth = 25
 // RunAllAssertions runs all assertions found in the given assertions block against the
 // developer context, returning whether any errors occurred.
 func RunAllAssertions(devContext *DevContext, assertions *blocks.Assertions) ([]*devinterface.DeveloperError, error) {
-	trueFailures, err := runAssertions(devContext, assertions.AssertTrue, true, "Expected relation or permission %s to exist")
+	trueFailures, err := runAssertions(devContext, assertions.AssertTrue, v1.ResourceCheckResult_MEMBER, "Expected relation or permission %s to exist")
 	if err != nil {
 		return nil, err
 	}
 
-	falseFailures, err := runAssertions(devContext, assertions.AssertFalse, false, "Expected relation or permission %s to not exist")
+	caveatedFailures, err := runAssertions(devContext, assertions.AssertCaveated, v1.ResourceCheckResult_CAVEATED_MEMBER, "Expected relation or permission %s to be caveated")
 	if err != nil {
 		return nil, err
 	}
 
-	failures := append(trueFailures, falseFailures...)
+	falseFailures, err := runAssertions(devContext, assertions.AssertFalse, v1.ResourceCheckResult_NOT_MEMBER, "Expected relation or permission %s to not exist")
+	if err != nil {
+		return nil, err
+	}
+
+	failures := append(trueFailures, caveatedFailures...)
+	failures = append(failures, falseFailures...)
 	return failures, nil
 }
 
-func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected bool, fmtString string) ([]*devinterface.DeveloperError, error) {
+func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expected v1.ResourceCheckResult_Membership, fmtString string) ([]*devinterface.DeveloperError, error) {
 	var failures []*devinterface.DeveloperError
 
-	// TODO(jschorr): Support caveats via some sort of `assertMaybe`?
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship(assertion.Relationship)
 
-		tplString, err := tuple.String(tpl)
-		if err != nil {
-			return nil, err
-		}
-
 		if tpl.Caveat != nil {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("cannot specify a caveat on an assertion: `%s`", tplString),
+				Message: fmt.Sprintf("cannot specify a caveat on an assertion: `%s`", assertion.RelationshipWithContextString),
 				Source:  devinterface.DeveloperError_ASSERTION,
 				Kind:    devinterface.DeveloperError_UNKNOWN_RELATION,
-				Context: tplString,
+				Context: assertion.RelationshipWithContextString,
 				Line:    uint32(assertion.SourcePosition.LineNumber),
 				Column:  uint32(assertion.SourcePosition.ColumnPosition),
 			})
 			continue
 		}
 
-		cr, _, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject)
+		cr, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject, assertion.CaveatContext)
 		if err != nil {
 			devErr, wireErr := DistinguishGraphError(
 				devContext,
@@ -60,7 +60,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 				devinterface.DeveloperError_ASSERTION,
 				uint32(assertion.SourcePosition.LineNumber),
 				uint32(assertion.SourcePosition.ColumnPosition),
-				tplString,
+				assertion.RelationshipWithContextString,
 			)
 			if wireErr != nil {
 				return nil, wireErr
@@ -68,12 +68,12 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			if devErr != nil {
 				failures = append(failures, devErr)
 			}
-		} else if (cr == v1.ResourceCheckResult_MEMBER) != expected {
+		} else if cr.Permissionship != expected {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf(fmtString, tplString),
+				Message: fmt.Sprintf(fmtString, assertion.RelationshipWithContextString),
 				Source:  devinterface.DeveloperError_ASSERTION,
 				Kind:    devinterface.DeveloperError_ASSERTION_FAILED,
-				Context: tplString,
+				Context: assertion.RelationshipWithContextString,
 				Line:    uint32(assertion.SourcePosition.LineNumber),
 				Column:  uint32(assertion.SourcePosition.ColumnPosition),
 			})

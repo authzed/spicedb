@@ -7,7 +7,6 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -64,41 +63,31 @@ func (fs FoundSubject) WildcardType() (string, bool) {
 
 // ExcludedSubjectsFromWildcard returns those subjects excluded from the wildcard subject.
 // If not a wildcard subject, returns false.
-func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]*core.ObjectAndRelation, bool) {
+func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]FoundSubject, bool) {
 	if fs.subject.ObjectId == tuple.PublicWildcard {
-		excludedSubjects := make([]*core.ObjectAndRelation, 0, len(fs.excludedSubjects))
-		for _, excludedSubject := range fs.excludedSubjects {
-			// TODO(jschorr): Fix once we add caveats support to debug tooling
-			if excludedSubject.caveatExpression != nil {
-				spiceerrors.MustPanic("not yet supported")
-			}
-
-			excludedSubjects = append(excludedSubjects, excludedSubject.subject)
-		}
-
-		return excludedSubjects, true
+		return fs.excludedSubjects, true
 	}
 
-	return []*core.ObjectAndRelation{}, false
-}
-
-func (fs FoundSubject) excludedSubjectIDs() []string {
-	excludedSubjects := make([]string, 0, len(fs.excludedSubjects))
-	for _, excludedSubject := range fs.excludedSubjects {
-		// TODO(jschorr): Fix once we add caveats support to debug tooling
-		if excludedSubject.caveatExpression != nil {
-			spiceerrors.MustPanic("not yet supported")
-		}
-
-		excludedSubjects = append(excludedSubjects, excludedSubject.subject.ObjectId)
-	}
-
-	return excludedSubjects
+	return nil, false
 }
 
 // Relationships returns all the relationships in which the subject was found as per the expand.
 func (fs FoundSubject) Relationships() []*core.ObjectAndRelation {
 	return fs.relationships.AsSlice()
+}
+
+func (fs FoundSubject) excludedSubjectStrings() []string {
+	excludedStrings := make([]string, 0, len(fs.excludedSubjects))
+	for _, excludedSubject := range fs.excludedSubjects {
+		excludedSubjectString := tuple.StringONR(excludedSubject.subject)
+		if excludedSubject.GetCaveatExpression() != nil {
+			excludedSubjectString += "[...]"
+		}
+		excludedStrings = append(excludedStrings, excludedSubjectString)
+	}
+
+	sort.Strings(excludedStrings)
+	return excludedStrings
 }
 
 // ToValidationString returns the FoundSubject in a format that is consumable by the validationfile
@@ -112,13 +101,7 @@ func (fs FoundSubject) ToValidationString() string {
 
 	excluded, isWildcard := fs.ExcludedSubjectsFromWildcard()
 	if isWildcard && len(excluded) > 0 {
-		excludedONRStrings := make([]string, 0, len(excluded))
-		for _, excludedONR := range excluded {
-			excludedONRStrings = append(excludedONRStrings, tuple.StringONR(excludedONR))
-		}
-
-		sort.Strings(excludedONRStrings)
-		validationString = fmt.Sprintf("%s - {%s}", validationString, strings.Join(excludedONRStrings, ", "))
+		validationString = fmt.Sprintf("%s - {%s}", validationString, strings.Join(fs.excludedSubjectStrings(), ", "))
 	}
 
 	return validationString

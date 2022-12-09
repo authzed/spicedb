@@ -35,8 +35,8 @@ definition document {
 	assertions := &blocks.Assertions{
 		AssertTrue: []blocks.Assertion{
 			{
-				RelationshipString: "document:somedoc#viewer@user:someuser",
-				Relationship:       tuple.MustToRelationship(tuple.MustParse("document:somedoc#viewer@user:someuser")),
+				RelationshipWithContextString: "document:somedoc#viewer@user:someuser",
+				Relationship:                  tuple.MustToRelationship(tuple.MustParse("document:somedoc#viewer@user:someuser")),
 			},
 		},
 	}

@@ -31,7 +31,17 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 		}, nil
 
 	case operation.CheckParameters != nil:
-		result, debug, err := development.RunCheck(devContext, operation.CheckParameters.Resource, operation.CheckParameters.Subject)
+		var caveatContext map[string]any
+		if operation.CheckParameters.CaveatContext != nil {
+			caveatContext = operation.CheckParameters.CaveatContext.AsMap()
+		}
+
+		cr, err := development.RunCheck(
+			devContext,
+			operation.CheckParameters.Resource,
+			operation.CheckParameters.Subject,
+			caveatContext,
+		)
 		if err != nil {
 			devErr, wireErr := development.DistinguishGraphError(
 				devContext,
@@ -54,16 +64,20 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 			}, nil
 		}
 
-		// TODO(jschorr): Support caveats here.
 		membership := devinterface.CheckOperationsResult_NOT_MEMBER
-		if result == v1.ResourceCheckResult_MEMBER {
+		if cr.Permissionship == v1.ResourceCheckResult_MEMBER {
 			membership = devinterface.CheckOperationsResult_MEMBER
+		} else if cr.Permissionship == v1.ResourceCheckResult_CAVEATED_MEMBER {
+			membership = devinterface.CheckOperationsResult_CAVEATED_MEMBER
 		}
 
 		return &devinterface.OperationResult{
 			CheckResult: &devinterface.CheckOperationsResult{
 				Membership:       membership,
-				DebugInformation: debug,
+				DebugInformation: cr.DebugInfo,
+				PartialCaveatInfo: &devinterface.PartialCaveatInfo{
+					MissingRequiredContext: cr.MissingCaveatFields,
+				},
 			},
 		}, nil
 

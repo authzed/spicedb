@@ -35,6 +35,7 @@ func TestParseAssertions(t *testing.T) {
 					{
 						"document:foo#view@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						nil,
 						spiceerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
 					},
 				},
@@ -54,11 +55,13 @@ assertFalse:
 					{
 						"document:foo#view@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						nil,
 						spiceerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
 					},
 					{
 						"document:bar#view@user:sometwo",
 						tuple.MustToRelationship(tuple.MustParse("document:bar#view@user:sometwo")),
+						nil,
 						spiceerrors.SourcePosition{LineNumber: 3, ColumnPosition: 3},
 					},
 				},
@@ -66,6 +69,7 @@ assertFalse:
 					{
 						"document:foo#write@user:someone",
 						tuple.MustToRelationship(tuple.MustParse("document:foo#write@user:someone")),
+						nil,
 						spiceerrors.SourcePosition{LineNumber: 5, ColumnPosition: 3},
 					},
 				},
@@ -90,6 +94,51 @@ assertFalse: garbage
 			"unexpected value `garbage`",
 			Assertions{},
 		},
+		{
+			"with one assertion with context",
+			`assertTrue:
+- 'document:foo#view@user:someone with {"foo": "bar"}'`,
+			"",
+			Assertions{
+				AssertTrue: []Assertion{
+					{
+						`document:foo#view@user:someone with {"foo": "bar"}`,
+						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						map[string]any{
+							"foo": "bar",
+						},
+						spiceerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
+					},
+				},
+				SourcePosition: spiceerrors.SourcePosition{LineNumber: 1, ColumnPosition: 1},
+			},
+		},
+		{
+			"with one assertion with invalid context",
+			`assertTrue:
+- 'document:foo#view@user:someone with {"foo: "bar"}'`,
+			"error parsing caveat context in assertion",
+			Assertions{},
+		},
+		{
+			"with one spaced assertion with context",
+			`assertTrue:
+- '   document:foo#view@user:someone   with   {"foo":     "bar"}   '`,
+			"",
+			Assertions{
+				AssertTrue: []Assertion{
+					{
+						`   document:foo#view@user:someone   with   {"foo":     "bar"}   `,
+						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						map[string]any{
+							"foo": "bar",
+						},
+						spiceerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
+					},
+				},
+				SourcePosition: spiceerrors.SourcePosition{LineNumber: 1, ColumnPosition: 1},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -98,7 +147,7 @@ assertFalse: garbage
 			a := Assertions{}
 			err := yamlv3.Unmarshal([]byte(tc.contents), &a)
 			if tc.expectedError != "" {
-				require.Equal(tc.expectedError, err.Error())
+				require.Contains(err.Error(), tc.expectedError)
 			} else {
 				require.NoError(err)
 				require.Equal(tc.expectedAssertions, a)

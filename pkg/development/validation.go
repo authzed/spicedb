@@ -101,12 +101,12 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 			continue
 		}
 
-		encounteredSubjects[tuple.StringONR(subjectWithExceptions.Subject)] = struct{}{}
+		encounteredSubjects[tuple.StringONR(subjectWithExceptions.Subject.Subject)] = struct{}{}
 
-		subject, ok := fs.LookupSubject(subjectWithExceptions.Subject)
+		subject, ok := fs.LookupSubject(subjectWithExceptions.Subject.Subject)
 		if !ok {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, missing expected subject `%s`", tuple.StringONR(onr), tuple.StringONR(subjectWithExceptions.Subject)),
+				Message: fmt.Sprintf("For object and permission/relation `%s`, missing expected subject `%s`", tuple.StringONR(onr), tuple.StringONR(subjectWithExceptions.Subject.Subject)),
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
@@ -125,7 +125,7 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, found different relationships for subject `%s`: Specified: `%s`, Computed: `%s`",
 					tuple.StringONR(onr),
-					tuple.StringONR(subjectWithExceptions.Subject),
+					tuple.StringONR(subjectWithExceptions.Subject.Subject),
 					strings.Join(wrapRelationships(expectedONRStrings), "/"),
 					strings.Join(wrapRelationships(foundONRStrings), "/"),
 				),
@@ -141,14 +141,14 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 		foundExcludedSubjects, isWildcard := subject.ExcludedSubjectsFromWildcard()
 		expectedExcludedSubjects := subjectWithExceptions.Exceptions
 		if isWildcard {
-			expectedExcludedONRStrings := tuple.StringsONRs(expectedExcludedSubjects)
-			foundExcludedONRStrings := tuple.StringsONRs(foundExcludedSubjects)
-			if !cmp.Equal(expectedExcludedONRStrings, foundExcludedONRStrings) {
+			expectedExcludedStrings := toExpectedRelationshipsStrings(expectedExcludedSubjects)
+			foundExcludedONRStrings := toFoundRelationshipsStrings(foundExcludedSubjects)
+			if !cmp.Equal(expectedExcludedStrings, foundExcludedONRStrings) {
 				failures = append(failures, &devinterface.DeveloperError{
 					Message: fmt.Sprintf("For object and permission/relation `%s`, found different excluded subjects for subject `%s`: Specified: `%s`, Computed: `%s`",
 						tuple.StringONR(onr),
-						tuple.StringONR(subjectWithExceptions.Subject),
-						strings.Join(wrapRelationships(expectedExcludedONRStrings), ", "),
+						tuple.StringONR(subjectWithExceptions.Subject.Subject),
+						strings.Join(wrapRelationships(expectedExcludedStrings), ", "),
 						strings.Join(wrapRelationships(foundExcludedONRStrings), ", "),
 					),
 					Source:  devinterface.DeveloperError_VALIDATION_YAML,
@@ -174,7 +174,7 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 		}
 
 		// Verify caveats.
-		if (subject.GetCaveatExpression() != nil) != subjectWithExceptions.IsCaveated {
+		if (subject.GetCaveatExpression() != nil) != subjectWithExceptions.Subject.IsCaveated {
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, found caveat mismatch",
 					tuple.StringONR(onr),
@@ -244,4 +244,24 @@ func GenerateValidation(membershipSet *developmentmembership.Set) (string, error
 	}
 
 	return string(contents), nil
+}
+
+func toExpectedRelationshipsStrings(subs []blocks.SubjectAndCaveat) []string {
+	mapped := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		if sub.IsCaveated {
+			mapped = append(mapped, fmt.Sprintf("%s[...]", tuple.StringONR(sub.Subject)))
+		} else {
+			mapped = append(mapped, tuple.StringONR(sub.Subject))
+		}
+	}
+	return mapped
+}
+
+func toFoundRelationshipsStrings(subs []developmentmembership.FoundSubject) []string {
+	mapped := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		mapped = append(mapped, sub.ToValidationString())
+	}
+	return mapped
 }

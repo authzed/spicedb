@@ -334,8 +334,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 					found, ok := tc.set.Get(fs.subject)
 					require.True(ok, "missing expected subject %s", fs.subject)
 
-					expectedExcluded := util.NewSet[string](fs.excludedSubjectIDs()...)
-					foundExcluded := util.NewSet[string](found.excludedSubjectIDs()...)
+					expectedExcluded := util.NewSet[string](fs.excludedSubjectStrings()...)
+					foundExcluded := util.NewSet[string](found.excludedSubjectStrings()...)
 					require.Len(expectedExcluded.Subtract(foundExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 					require.Len(foundExcluded.Subtract(expectedExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 				} else {
