@@ -6,8 +6,24 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
+
+func cfs(subjectType string, subjectID string, subjectRel string, excludedSubjectIDs []string, caveatName string) FoundSubject {
+	excludedSubjects := make([]FoundSubject, 0, len(excludedSubjectIDs))
+	for _, excludedSubjectID := range excludedSubjectIDs {
+		excludedSubjects = append(excludedSubjects, FoundSubject{subject: ONR(subjectType, excludedSubjectID, subjectRel)})
+	}
+
+	return FoundSubject{
+		subject:          ONR(subjectType, subjectID, subjectRel),
+		excludedSubjects: excludedSubjects,
+		relationships:    tuple.NewONRSet(),
+		caveatExpression: caveats.CaveatExprForTesting(caveatName),
+	}
+}
 
 func TestToValidationString(t *testing.T) {
 	testCases := []struct {
@@ -38,6 +54,16 @@ func TestToValidationString(t *testing.T) {
 				"user1", "user2", "user3", "user4", "user5", "user6",
 			),
 			"user:* - {user:user1, user:user2, user:user3, user:user4, user:user5, user:user6}",
+		},
+		{
+			"caveated",
+			cfs("user", "tom", "...", nil, "somecaveat"),
+			"user:tom[...]",
+		},
+		{
+			"caveated wildcard",
+			cfs("user", "*", "...", []string{"foo", "bar"}, "somecaveat"),
+			"user:*[...] - {user:bar, user:foo}",
 		},
 	}
 

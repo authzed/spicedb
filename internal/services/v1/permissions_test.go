@@ -583,9 +583,9 @@ func countLeafs(node *v1.PermissionRelationshipTree) int {
 
 var ONR = tuple.ObjectAndRelation
 
-func DS(objectType string, objectId string, objectRelation string) *core.DirectSubject {
+func DS(objectType string, objectID string, objectRelation string) *core.DirectSubject {
 	return &core.DirectSubject{
-		Subject: ONR(objectType, objectId, objectRelation),
+		Subject: ONR(objectType, objectID, objectRelation),
 	}
 }
 

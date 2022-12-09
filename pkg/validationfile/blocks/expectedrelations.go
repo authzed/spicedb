@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/jzelinskie/stringz"
+
 	yamlv3 "gopkg.in/yaml.v3"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -74,9 +76,9 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 }
 
 var (
-	vsSubjectRegex               = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
-	vsObjectAndRelationRegex     = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
-	vsSubjectWithExceptionsRegex = regexp.MustCompile(`^(.+)\s*-\s*\{([^\}]+)\}$`)
+	vsSubjectRegex                       = regexp.MustCompile(`(.*?)\[(?P<user_str>.*)\](.*?)`)
+	vsObjectAndRelationRegex             = regexp.MustCompile(`(.*?)<(?P<onr_str>[^\>]+)>(.*?)`)
+	vsSubjectWithExceptionsOrCaveatRegex = regexp.MustCompile(`^(?P<subject_onr>[^\]\s]+)(?P<caveat>\[\.\.\.\])?(\s+-\s+\{(?P<exceptions>[^\}]+)\})?$`)
 )
 
 // ExpectedSubject is a subject expected for the ObjectAndRelation.
@@ -103,6 +105,9 @@ type SubjectWithExceptions struct {
 
 	// Exceptions are those subjects removed from the subject, if it is a wildcard.
 	Exceptions []*core.ObjectAndRelation
+
+	// IsCaveated indicates whether the subject is caveated.
+	IsCaveated bool
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -161,23 +166,25 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 		return nil, nil
 	}
 
-	bracketedSubjectString := fmt.Sprintf("[%s]", subjectStr)
-
 	subjectStr = strings.TrimSpace(subjectStr)
-	if strings.HasSuffix(subjectStr, "}") {
-		result := vsSubjectWithExceptionsRegex.FindStringSubmatch(subjectStr)
-		if len(result) != 3 {
-			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
-		}
+	groups := vsSubjectWithExceptionsOrCaveatRegex.FindStringSubmatch(subjectStr)
+	if len(groups) == 0 {
+		bracketedSubjectString := fmt.Sprintf("[%s]", subjectStr)
+		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
+	}
 
-		subjectONR := tuple.ParseSubjectONR(strings.TrimSpace(result[1]))
-		if subjectONR == nil {
-			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", result[1]), result[1], 0, 0)
-		}
+	subjectONRString := groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
+	subjectONR := tuple.ParseSubjectONR(subjectONRString)
+	if subjectONR == nil {
+		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectONRString), subjectONRString, 0, 0)
+	}
 
-		exceptionsString := strings.TrimSpace(result[2])
+	exceptionsString := strings.TrimSpace(groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
+	var exceptions []*core.ObjectAndRelation
+
+	if len(exceptionsString) > 0 {
 		exceptionsStringsSlice := strings.Split(exceptionsString, ",")
-		exceptions := make([]*core.ObjectAndRelation, 0, len(exceptionsStringsSlice))
+		exceptions = make([]*core.ObjectAndRelation, 0, len(exceptionsStringsSlice))
 		for _, exceptionString := range exceptionsStringsSlice {
 			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
 			if exceptionONR == nil {
@@ -186,15 +193,10 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 
 			exceptions = append(exceptions, exceptionONR)
 		}
-
-		return &SubjectWithExceptions{subjectONR, exceptions}, nil
 	}
 
-	found := tuple.ParseSubjectONR(subjectStr)
-	if found == nil {
-		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
-	}
-	return &SubjectWithExceptions{found, nil}, nil
+	isCaveated := len(strings.TrimSpace(groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "caveat")])) > 0
+	return &SubjectWithExceptions{subjectONR, exceptions, isCaveated}, nil
 }
 
 // ONRStrings returns the ONRs contained in the ValidationString, if any.

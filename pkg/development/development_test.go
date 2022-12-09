@@ -74,3 +74,38 @@ definition document {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid resource id")
 }
+
+func TestDevelopmentCaveatedExpectedRels(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
+	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+		Schema: `definition user {}
+
+caveat somecaveat(somecondition int) {
+	somecondition == 42
+}
+
+definition document {
+	relation viewer: user with somecaveat
+}
+`,
+		Relationships: []*core.RelationTuple{
+			tuple.MustParse("document:somedoc#viewer@user:someuser[somecaveat]"),
+		},
+	})
+
+	require.Nil(t, err)
+	require.Nil(t, devErrs)
+
+	validation, devErr := ParseExpectedRelationsYAML(`document:somedoc#viewer: []`)
+	require.Nil(t, devErr)
+	require.NotNil(t, validation)
+
+	ms, _, err := RunValidation(devCtx, validation)
+	require.Nil(t, err)
+
+	generated, err := GenerateValidation(ms)
+	require.Nil(t, err)
+
+	require.Equal(t, "document:somedoc#viewer:\n- '[user:someuser[...]] is <document:somedoc#viewer>'\n", generated)
+}

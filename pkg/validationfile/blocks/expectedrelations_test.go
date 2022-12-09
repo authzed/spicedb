@@ -152,6 +152,20 @@ document:seconddoc#view:
 			0,
 		},
 		{
+			"invalid caveated subject",
+			`document:firstdoc#view:
+- "[user:tom[df]] is <document:firstdoc#writer>"`,
+			"invalid subject: `user:tom[df]`",
+			0,
+		},
+		{
+			"invalid exception subject",
+			`document:firstdoc#view:
+- "[user:*-{}] is <document:firstdoc#writer>"`,
+			"invalid subject: `user:*-{}`",
+			0,
+		},
+		{
 			"invalid resource",
 			`document:firstdoc#view:
 - "[user:tom] is <document:firstdocwriter>"`,
@@ -164,6 +178,16 @@ document:seconddoc#view:
 - "[user:tom] is <document:firstdoc#writer/document:firstdoc#reader>"`,
 			"invalid resource and relation: `document:firstdoc#writer/document:firstdoc#reader`",
 			0,
+		},
+		{
+			"valid with caveats and exceptions",
+			`document:firstdoc#view:
+- "[user:tom[...]] is <document:firstdoc#writer>"
+- "[user:fred - {user:a, user:b}] is <document:firstdoc#reader>/<document:firstdoc#writer>"
+document:seconddoc#view:
+- "[user:*[...] - {user:a, user:b}] is <document:seconddoc#reader>"`,
+			"",
+			2,
 		},
 	}
 

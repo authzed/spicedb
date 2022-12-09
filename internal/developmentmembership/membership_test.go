@@ -4,6 +4,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/authzed/spicedb/internal/caveats"
+
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -18,9 +20,16 @@ var (
 	Ellipsis = "..."
 )
 
-func DS(objectType string, objectId string, objectRelation string) *core.DirectSubject {
+func DS(objectType string, objectID string, objectRelation string) *core.DirectSubject {
 	return &core.DirectSubject{
-		Subject: ONR(objectType, objectId, objectRelation),
+		Subject: ONR(objectType, objectID, objectRelation),
+	}
+}
+
+func CaveatedDS(objectType string, objectID string, objectRelation string, caveatName string) *core.DirectSubject {
+	return &core.DirectSubject{
+		Subject:          ONR(objectType, objectID, objectRelation),
+		CaveatExpression: caveats.CaveatExprForTesting(caveatName),
 	}
 }
 
@@ -428,6 +437,40 @@ func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) 
 	require.True(ok)
 	require.NoError(err)
 	verifySubjects(t, require, fso)
+}
+
+func TestMembershipSetWithCaveats(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("user", "*", "...")),
+		),
+		graph.Leaf(_this,
+			(CaveatedDS("user", "owner", "...", "somecaveat")),
+		),
+		graph.Leaf(_this,
+			(DS("user", "*", "...")),
+		),
+	)
+	intersection.CaveatExpression = caveats.CaveatExprForTesting("anothercaveat")
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner")
+
+	// Verify the caveat on the user:owner.
+	subject, ok := fso.LookupSubject(ONR("user", "owner", "..."))
+	require.True(ok)
+
+	testutil.RequireProtoEqual(t, subject.GetCaveatExpression(), caveats.And(
+		caveats.CaveatExprForTesting("anothercaveat"),
+		caveats.CaveatExprForTesting("somecaveat"),
+	), "found invalid caveat expr for subject")
 }
 
 func verifySubjects(t *testing.T, require *require.Assertions, fs FoundSubjects, expected ...string) {
