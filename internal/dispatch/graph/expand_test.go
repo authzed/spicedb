@@ -305,3 +305,357 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	require.Error(err)
 }
+
+func TestCaveatedExpand(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	testCases := []struct {
+		name          string
+		schema        string
+		relationships []*core.RelationTuple
+
+		start *core.ObjectAndRelation
+
+		expansionMode    v1.DispatchExpandRequest_ExpansionMode
+		expectedTreeText string
+	}{
+		{
+			"basic caveated subject",
+			`
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition document {
+				relation viewer: user with somecaveat | user
+			}
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#viewer@user:sarah[somecaveat]"),
+				tuple.MustParse("document:testdoc#viewer@user:mary"),
+			},
+			tuple.ParseONR("document:testdoc#viewer"),
+			v1.DispatchExpandRequest_SHALLOW,
+			`
+			leaf_node: {
+				subjects: {
+					subject: {
+						namespace: "user"
+						object_id: "mary"
+						relation: "..."
+					}
+				}
+				subjects: {
+					subject: {
+						namespace: "user"
+						object_id: "sarah"
+						relation: "..."
+					}
+					caveat_expression: {
+						caveat: {
+							caveat_name: "somecaveat"
+							context: {}
+						}
+					}
+				}
+			}
+			expanded: {
+				namespace: "document"
+				object_id: "testdoc"
+				relation: "viewer"
+			}
+			`,
+		},
+		{
+			"caveated shallow indirect",
+			`
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition group {
+				relation member: user
+			}
+
+			definition document {
+				relation viewer: group#member with somecaveat
+			}
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#viewer@group:test#member[somecaveat]"),
+				tuple.MustParse("group:test#member@user:mary"),
+			},
+			tuple.ParseONR("document:testdoc#viewer"),
+			v1.DispatchExpandRequest_SHALLOW,
+			`
+			leaf_node: {
+				subjects: {
+					subject: {
+						namespace: "group"
+						object_id: "test"
+						relation: "member"
+					}
+					caveat_expression: {
+						caveat: {
+							caveat_name: "somecaveat"
+							context: {}
+						}
+					}
+				}
+			}
+			expanded: {
+				namespace: "document"
+				object_id: "testdoc"
+				relation: "viewer"
+			}
+			`,
+		},
+		{
+			"caveated recursive indirect",
+			`
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat anothercaveat(somecondition int) {
+				somecondition != 42
+			}
+
+			definition group {
+				relation member: user
+			}
+
+			definition document {
+				relation viewer: group#member with somecaveat
+			}
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#viewer@group:test#member[somecaveat]"),
+				tuple.MustParse("group:test#member@user:mary"),
+				tuple.MustParse("group:test#member@user:sarah[anothercaveat]"),
+			},
+			tuple.ParseONR("document:testdoc#viewer"),
+			v1.DispatchExpandRequest_RECURSIVE,
+			`
+			intermediate_node: {
+				operation: UNION
+				child_nodes: {
+					leaf_node: {
+						subjects: {
+							subject: {
+								namespace: "user"
+								object_id: "mary"
+								relation: "..."
+							}
+						}
+						subjects: {
+							subject: {
+								namespace: "user"
+								object_id: "sarah"
+								relation: "..."
+							}
+							caveat_expression: {
+								caveat: {
+									caveat_name: "anothercaveat"
+									context: {}
+								}
+							}
+						}
+					}
+					expanded: {
+						namespace: "group"
+						object_id: "test"
+						relation: "member"
+					}
+					caveat_expression: {
+						caveat: {
+							caveat_name: "somecaveat"
+							context: {}
+						}
+					}
+				}
+				child_nodes: {
+					leaf_node: {
+						subjects: {
+							subject: {
+								namespace: "group"
+								object_id: "test"
+								relation: "member"
+							}
+							caveat_expression: {
+								caveat: {
+									caveat_name: "somecaveat"
+									context: {}
+								}
+							}
+						}
+					}
+					expanded: {
+						namespace: "document"
+						object_id: "testdoc"
+						relation: "viewer"
+					}
+				}
+			}
+			expanded: {
+				namespace: "document"
+				object_id: "testdoc"
+				relation: "viewer"
+			}
+			`,
+		},
+		{
+			"shallow caveated arrow",
+			`
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat anothercaveat(somecondition int) {
+				somecondition != 42
+			}
+
+			caveat orgcaveat(somecondition int) {
+				somecondition < 42
+			}
+
+			definition organization {
+				relation admin: user | user with orgcaveat
+			}
+
+			definition document {
+				relation org: organization with somecaveat
+				relation viewer: user
+				permission view = viewer + org->admin
+			}
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#viewer@user:tom"),
+				tuple.MustParse("document:testdoc#viewer@user:fred[anothercaveat]"),
+				tuple.MustParse("document:testdoc#org@organization:someorg[somecaveat]"),
+				tuple.MustParse("organization:someorg#admin@user:sarah"),
+				tuple.MustParse("organization:someorg#admin@user:mary[orgcaveat]"),
+			},
+			tuple.ParseONR("document:testdoc#view"),
+			v1.DispatchExpandRequest_SHALLOW,
+			`
+			intermediate_node:  {
+				operation:  UNION
+				child_nodes:  {
+					leaf_node:  {
+						subjects:  {
+							subject:  {
+								namespace:  "user"
+								object_id:  "fred"
+								relation:  "..."
+							}
+							caveat_expression:  {
+								caveat:  {
+									caveat_name:  "anothercaveat"
+									context:  {}
+								}
+							}
+						}
+						subjects:  {
+							subject:  {
+								namespace:  "user"
+								object_id:  "tom"
+								relation:  "..."
+							}
+						}
+					}
+					expanded:  {
+						namespace:  "document"
+						object_id:  "testdoc"
+						relation:  "viewer"
+					}
+				}
+				child_nodes:  {
+					intermediate_node:  {
+						operation:  UNION
+						child_nodes:  {
+							leaf_node:  {
+								subjects:  {
+									subject:  {
+										namespace:  "user"
+										object_id:  "mary"
+										relation:  "..."
+									}
+									caveat_expression:  {
+										caveat:  {
+											caveat_name:  "orgcaveat"
+											context:  {}
+										}
+									}
+								}
+								subjects:  {
+									subject:  {
+										namespace:  "user"
+										object_id:  "sarah"
+										relation:  "..."
+									}
+								}
+							}
+							expanded:  {
+								namespace:  "organization"
+								object_id:  "someorg"
+								relation:  "admin"
+							}
+							caveat_expression:  {
+								caveat:  {
+									caveat_name:  "somecaveat"
+									context:  {}
+								}
+							}
+						}
+					}
+					expanded:  {
+						namespace:  "document"
+						object_id:  "testdoc"
+						relation:  "view"
+					}
+				}
+			}
+			expanded:  {
+				namespace:  "document"
+				object_id:  "testdoc"
+				relation:  "view"
+			}
+			`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ctx, dispatch, revision := newLocalDispatcherWithSchemaAndRels(t, tc.schema, tc.relationships)
+
+			expandResult, err := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
+				ResourceAndRelation: tc.start,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				ExpansionMode: tc.expansionMode,
+			})
+			require.NoError(err)
+
+			expectedTree := &core.RelationTupleTreeNode{}
+			err = prototext.Unmarshal([]byte(tc.expectedTreeText), expectedTree)
+			require.NoError(err)
+
+			require.NoError(err)
+			require.NotNil(expandResult.TreeNode)
+			testutil.RequireProtoEqual(t, expectedTree, expandResult.TreeNode, "Got different expansion trees")
+		})
+	}
+}
