@@ -82,9 +82,23 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 	configurePool(config, poolConfig)
 
-	pool, err := pgxpool.ConnectConfig(context.Background(), poolConfig)
+	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.ConnectConfig(initCtx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	var version crdbVersion
+	if err := queryServerVersion(initCtx, pool, &version); err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	changefeedQuery := queryChangefeed
+	if version.Major < 22 {
+		log.Info().Object("version", version).Msg("using changefeed query for CRDB version < 22")
+		changefeedQuery = queryChangefeedPreV22
 	}
 
 	if config.enablePrometheusStats {
@@ -97,7 +111,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		}
 	}
 
-	clusterTTLNanos, err := readClusterTTLNanos(pool)
+	clusterTTLNanos, err := readClusterTTLNanos(initCtx, pool)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -149,6 +163,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		config.splitAtUsersetCount,
 		executeWithMaxRetries(config.maxRetries),
 		config.disableStats,
+		changefeedQuery,
 	}
 
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
@@ -201,6 +216,8 @@ type crdbDatastore struct {
 	usersetBatchSize  uint16
 	execute           executeTxRetryFunc
 	disableStats      bool
+
+	beginChangefeedQuery string
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -362,7 +379,7 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	time.AfterFunc(1*time.Second, cancel)
-	_, err = cds.pool.Exec(streamCtx, fmt.Sprintf(queryChangefeed, tableTuple, head))
+	_, err = cds.pool.Exec(streamCtx, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head))
 	if err != nil && errors.Is(err, context.Canceled) {
 		features.Watch.Enabled = true
 		features.Watch.Reason = ""
@@ -387,10 +404,10 @@ func readCRDBNow(ctx context.Context, tx pgx.Tx) (revision.Decimal, error) {
 	return revision.NewFromDecimal(hlcNow), nil
 }
 
-func readClusterTTLNanos(conn *pgxpool.Pool) (int64, error) {
+func readClusterTTLNanos(ctx context.Context, conn *pgxpool.Pool) (int64, error) {
 	var target, configSQL string
 	if err := conn.
-		QueryRow(context.Background(), queryShowZoneConfig).
+		QueryRow(ctx, queryShowZoneConfig).
 		Scan(&target, &configSQL); err != nil {
 		return 0, err
 	}
