@@ -190,6 +190,10 @@ func configurePool(config crdbOptions, pgxConfig *pgxpool.Config) {
 		pgxConfig.MinConns = int32(*config.minOpenConns)
 	}
 
+	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
+		log.Warn().Int32("max-connections", pgxConfig.MaxConns).Int32("min-connections", pgxConfig.MinConns).Msg("maximum number of connections configured is less than minimum number of connections; minimum will be used")
+	}
+
 	if config.connMaxIdleTime != nil {
 		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
 	}
