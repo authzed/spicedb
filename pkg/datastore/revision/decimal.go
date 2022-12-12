@@ -57,3 +57,13 @@ func (DecimalDecoder) RevisionFromString(s string) (datastore.Revision, error) {
 	}
 	return Decimal{parsed}, nil
 }
+
+// DecimalKeyFunc is used to convert a simple Decimal to an int64 for use in maps.
+func DecimalKeyFunc(r Decimal) int64 {
+	return r.IntPart()
+}
+
+// DecimalKeyLessThanFunc is used to compare keys created by the DecimalKeyFunc.
+func DecimalKeyLessThanFunc(lhs, rhs int64) bool {
+	return lhs < rhs
+}

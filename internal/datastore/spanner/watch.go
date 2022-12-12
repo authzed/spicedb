@@ -85,9 +85,7 @@ func (sd spannerDatastore) loadChanges(
 	}
 
 	rows := sd.client.Single().Query(ctx, statementFromSQL(sql, args))
-	stagedChanges := common.NewChanges(func(rev revision.Decimal) int64 {
-		return rev.IntPart()
-	})
+	stagedChanges := common.NewChanges(revision.DecimalKeyFunc)
 
 	newTimestamp := afterTimestamp
 	err = rows.Do(func(r *spanner.Row) error {
@@ -132,9 +130,7 @@ func (sd spannerDatastore) loadChanges(
 		return nil, afterTimestamp, err
 	}
 
-	changes := stagedChanges.AsRevisionChanges(func(lhs, rhs int64) bool {
-		return lhs < rhs
-	})
+	changes := stagedChanges.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
 
 	return changes, newTimestamp, nil
 }

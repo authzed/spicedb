@@ -9,10 +9,9 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -180,9 +179,7 @@ func TestChanges(t *testing.T) {
 			require := require.New(t)
 
 			ctx := context.Background()
-			ch := NewChanges(func(d revision.Decimal) int64 {
-				return d.IntPart()
-			})
+			ch := NewChanges(revision.DecimalKeyFunc)
 			for _, step := range tc.script {
 				rel := tuple.MustParse(step.relationship)
 				ch.AddChange(ctx, revisionFromTransactionID(step.revision), rel, step.op)
@@ -190,9 +187,7 @@ func TestChanges(t *testing.T) {
 
 			require.Equal(
 				canonicalize(tc.expected),
-				canonicalize(ch.AsRevisionChanges(func(lhs, rhs int64) bool {
-					return lhs < rhs
-				})),
+				canonicalize(ch.AsRevisionChanges(revision.DecimalKeyLessThanFunc)),
 			)
 		})
 	}

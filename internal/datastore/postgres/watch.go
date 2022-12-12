@@ -182,9 +182,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
 	}
 
-	tracked := common.NewChanges(func(rev postgresRevision) uint64 {
-		return rev.tx.Uint
-	})
+	tracked := common.NewChanges(revisionKeyFunc)
 	for changes.Next() {
 		nextTuple := &core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{},

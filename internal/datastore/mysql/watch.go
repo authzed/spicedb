@@ -114,9 +114,7 @@ func (mds *Datastore) loadChanges(
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges(func(r revision.Decimal) int64 {
-		return r.IntPart()
-	})
+	stagedChanges := common.NewChanges(revision.DecimalKeyFunc)
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{
@@ -160,9 +158,7 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	changes = stagedChanges.AsRevisionChanges(func(lhs, rhs int64) bool {
-		return lhs < rhs
-	})
+	changes = stagedChanges.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
 
 	return
 }
