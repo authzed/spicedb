@@ -68,11 +68,6 @@ func (ch Changes[R, K]) AddChange(
 	}
 }
 
-type RevisionChanges[K datastore.Revision] struct {
-	Revision K
-	Changes  []*core.RelationTupleUpdate
-}
-
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
 func (ch Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) []datastore.RevisionChanges {
