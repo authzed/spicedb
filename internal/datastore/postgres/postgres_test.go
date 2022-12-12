@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"regexp"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 func TestPostgresDatastore(t *testing.T) {
@@ -117,8 +119,8 @@ func TestPostgresDatastore(t *testing.T) {
 				WatchNotEnabledTest(t, b)
 			})
 
-			t.Run("IndexOnlyRead", func(t *testing.T) {
-				IndexOnlyReadTest(t, b)
+			t.Run("QueriesServedFromCoveringIndex", func(t *testing.T) {
+				QueriesServedFromCoveringIndexTest(t, b)
 			})
 
 			if config.migrationPhase == "" {
@@ -743,18 +745,18 @@ func BenchmarkPostgresQuery(b *testing.B) {
 }
 
 type queryLogger struct {
-	explainations []string
+	explanations map[string]string
 }
 
 func (ql *queryLogger) LogSelectQuery(sqlStatement string, args []any, explain string) error {
-	ql.explainations = append(ql.explainations, explain)
+	ql.explanations[sqlStatement] = explain
 	return nil
 }
 
-func IndexOnlyReadTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	require := require.New(t)
 
-	logger := &queryLogger{}
+	logger := &queryLogger{explanations: make(map[string]string, 0)}
 
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := newPostgresDatastore(uri,
@@ -815,24 +817,59 @@ func IndexOnlyReadTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	// Conduct a query relationships call.
-	iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-		ResourceType:        testfixtures.DocumentNS.Name,
-		OptionalResourceIds: []string{"doc0", "doc1"},
-	})
+	// regular expression to identify indexes used
+	expr, err := regexp.Compile("using ([0-9A-Za-z-_]+)")
 	require.NoError(err)
 
-	defer iter.Close()
+	validateFunc := func(expectedIndexes ...string) {
+		require.NotEmpty(logger.explanations, "expected queries to be executed")
+		// Ensure that Index Only scans were used.
+		for stmt, explaination := range logger.explanations {
+			require.NotContains(explaination, "Index Scan", "statement did not have covering index:\n`%s`", stmt)
+			require.NotContains(explaination, "Heap Scan", "statement did not have covering index:\n`%s`", stmt)
+			require.Contains(explaination, "Index Only Scan", "statement did not have covering index:\n`%s`", stmt)
 
-	for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-		require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			// parse explain output to identify indexes used, and make sure it is what's expected in the test
+			found := expr.FindAllStringSubmatch(explaination, -1)
+			indexesFound := make([]string, 0, len(found))
+			for _, group := range found {
+				indexesFound = append(indexesFound, group[1])
+			}
+			indexSet := util.NewSet(indexesFound...)
+			indexSet.RemoveAll(util.NewSet(expectedIndexes...))
+			require.True(indexSet.IsEmpty(), "unexpected index %s\nused in statement %s\nexplain: %s", indexSet.AsSlice(), stmt, explaination)
+		}
 	}
-	require.NoError(iter.Err())
 
-	// Ensure that Index Only scans were used.
-	for _, explaination := range logger.explainations {
-		require.NotContains(explaination, "Index Scan")
-		require.NotContains(explaination, "Heap Scan")
-		require.Contains(explaination, "Index Only Scan")
-	}
+	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with resource filter
+	t.Run("QueryRelationships with resource filter", func(t *testing.T) {
+		logger.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:        testfixtures.DocumentNS.Name,
+			OptionalResourceIds: []string{"doc0", "doc1"},
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+		}
+		require.NoError(iter.Err())
+		validateFunc("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with caveat filter
+	t.Run("QueryRelationships with caveat filter", func(t *testing.T) {
+		logger.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			OptionalCaveatName: "rando",
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+		require.Nil(iter.Next())
+		require.NoError(iter.Err())
+		validateFunc("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
 }

@@ -79,8 +79,8 @@ func queryTuples(ctx context.Context, sqlStatement string, args []any, span trac
 			&nextTuple.Subject.Namespace,
 			&nextTuple.Subject.ObjectId,
 			&nextTuple.Subject.Relation,
-			//&caveatName,
-			//&caveatCtx,
+			&caveatName,
+			&caveatCtx,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
