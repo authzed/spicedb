@@ -137,16 +137,16 @@ func TestWatchFeatureDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			adminConn, connURIFunc := newCRDBWithUser(t, pool)
+			adminConn, connStrings := newCRDBWithUser(t, pool)
 			require.NoError(t, err)
 
-			migrationDriver, err := crdbmigrations.NewCRDBDriver(connURIFunc("testuser", "testpass"))
+			migrationDriver, err := crdbmigrations.NewCRDBDriver(connStrings[testuser])
 			require.NoError(t, err)
 			require.NoError(t, crdbmigrations.CRDBMigrations.Run(ctx, migrationDriver, migrate.Head, migrate.LiveRun))
 
 			tt.postInit(ctx, adminConn)
 
-			ds, err := NewCRDBDatastore(connURIFunc("unprivileged", "testpass2"))
+			ds, err := NewCRDBDatastore(connStrings[unprivileged])
 			require.NoError(t, err)
 
 			features, err := ds.Features(ctx)
@@ -167,7 +167,14 @@ func TestWatchFeatureDetection(t *testing.T) {
 	}
 }
 
-func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, connURIFunc func(username, password string) string) {
+type provisionedUser string
+
+const (
+	testuser     provisionedUser = "testuser"
+	unprivileged provisionedUser = "unprivileged"
+)
+
+func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
 	// in order to create users, cockroach must be running with
 	// real certs, and the root user must be authenticated with
 	// client certs.
@@ -314,8 +321,9 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	`)
 	require.NoError(t, err)
 
-	connURIFunc = func(username, password string) string {
-		return fmt.Sprintf("postgresql://%[3]s:%[4]s@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir, username, password)
+	connStrings = map[provisionedUser]string{
+		testuser:     fmt.Sprintf("postgresql://testuser:testpass@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
+		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
 	}
 
 	return
