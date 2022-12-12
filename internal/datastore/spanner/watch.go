@@ -33,7 +33,7 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 		currentTxn := timestampFromRevision(afterRevision)
 
 		for {
-			var stagedUpdates []*datastore.RevisionChanges
+			var stagedUpdates []datastore.RevisionChanges
 			var err error
 			stagedUpdates, currentTxn, err = sd.loadChanges(ctx, currentTxn)
 			if err != nil {
@@ -47,8 +47,10 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
+				changeToWrite := changeToWrite
+
 				select {
-				case updates <- changeToWrite:
+				case updates <- &changeToWrite:
 				default:
 					errs <- datastore.NewWatchDisconnectedErr()
 					return
@@ -76,14 +78,14 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 func (sd spannerDatastore) loadChanges(
 	ctx context.Context,
 	afterTimestamp time.Time,
-) ([]*datastore.RevisionChanges, time.Time, error) {
+) ([]datastore.RevisionChanges, time.Time, error) {
 	sql, args, err := queryChanged.Where(sq.Gt{colChangeTS: afterTimestamp}).ToSql()
 	if err != nil {
 		return nil, afterTimestamp, err
 	}
 
 	rows := sd.client.Single().Query(ctx, statementFromSQL(sql, args))
-	stagedChanges := common.NewChanges()
+	stagedChanges := common.NewChanges(revision.DecimalKeyFunc)
 
 	newTimestamp := afterTimestamp
 	err = rows.Do(func(r *spanner.Row) error {
@@ -128,7 +130,7 @@ func (sd spannerDatastore) loadChanges(
 		return nil, afterTimestamp, err
 	}
 
-	changes := stagedChanges.AsRevisionChanges(sd)
+	changes := stagedChanges.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
 
 	return changes, newTimestamp, nil
 }

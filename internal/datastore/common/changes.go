@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"sort"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -11,49 +10,43 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-type revisionKey string
-
-func keyFromRevision(rev datastore.Revision) revisionKey {
-	return revisionKey(rev.String())
-}
-
-func mustRevisionFromKey(key revisionKey, ds revisionDecoder) datastore.Revision {
-	rev, err := ds.RevisionFromString(string(key))
-	if err != nil {
-		panic(fmt.Errorf("unparseable revision key(%s): %w", key, err))
-	}
-	return rev
-}
-
 // Changes represents a set of tuple mutations that are kept self-consistent
 // across one or more transaction revisions.
-type Changes map[revisionKey]*changeRecord
+type Changes[R datastore.Revision, K comparable] struct {
+	records map[K]changeRecord[R]
+	keyFunc func(R) K
+}
 
-type changeRecord struct {
+type changeRecord[R datastore.Revision] struct {
+	rev          R
 	tupleTouches map[string]*core.RelationTuple
 	tupleDeletes map[string]*core.RelationTuple
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
-func NewChanges() Changes {
-	return make(Changes)
+func NewChanges[R datastore.Revision, K comparable](keyFunc func(R) K) Changes[R, K] {
+	return Changes[R, K]{
+		make(map[K]changeRecord[R], 0),
+		keyFunc,
+	}
 }
 
 // AddChange adds a specific change to the complete list of tracked changes
-func (ch Changes) AddChange(
+func (ch Changes[R, K]) AddChange(
 	ctx context.Context,
-	rev datastore.Revision,
+	rev R,
 	tpl *core.RelationTuple,
 	op core.RelationTupleUpdate_Operation,
 ) {
-	rk := keyFromRevision(rev)
-	revisionChanges, ok := ch[rk]
+	k := ch.keyFunc(rev)
+	revisionChanges, ok := ch.records[k]
 	if !ok {
-		revisionChanges = &changeRecord{
-			tupleTouches: make(map[string]*core.RelationTuple),
-			tupleDeletes: make(map[string]*core.RelationTuple),
+		revisionChanges = changeRecord[R]{
+			rev,
+			make(map[string]*core.RelationTuple),
+			make(map[string]*core.RelationTuple),
 		}
-		ch[rk] = revisionChanges
+		ch.records[k] = revisionChanges
 	}
 
 	tplKey := tuple.StringWithoutCaveat(tpl)
@@ -77,45 +70,33 @@ func (ch Changes) AddChange(
 
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
-func (ch Changes) AsRevisionChanges(ds revisionDecoder) (changes []*datastore.RevisionChanges) {
-	type keyAndRevision struct {
-		key revisionKey
-		rev datastore.Revision
-	}
-
-	revisionsWithChanges := make([]keyAndRevision, 0, len(ch))
-	for rk := range ch {
-		kar := keyAndRevision{rk, mustRevisionFromKey(rk, ds)}
-		revisionsWithChanges = append(revisionsWithChanges, kar)
+func (ch Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) []datastore.RevisionChanges {
+	revisionsWithChanges := make([]K, 0, len(ch.records))
+	for rk := range ch.records {
+		revisionsWithChanges = append(revisionsWithChanges, rk)
 	}
 	sort.Slice(revisionsWithChanges, func(i int, j int) bool {
-		return revisionsWithChanges[i].rev.LessThan(revisionsWithChanges[j].rev)
+		return lessThanFunc(revisionsWithChanges[i], revisionsWithChanges[j])
 	})
 
-	for _, kar := range revisionsWithChanges {
-		revisionChange := &datastore.RevisionChanges{
-			Revision: kar.rev,
-		}
+	changes := make([]datastore.RevisionChanges, len(revisionsWithChanges))
 
-		revisionChangeRecord := ch[kar.key]
+	for i, k := range revisionsWithChanges {
+		revisionChangeRecord := ch.records[k]
+		changes[i].Revision = revisionChangeRecord.rev
 		for _, tpl := range revisionChangeRecord.tupleTouches {
-			revisionChange.Changes = append(revisionChange.Changes, &core.RelationTupleUpdate{
+			changes[i].Changes = append(changes[i].Changes, &core.RelationTupleUpdate{
 				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tpl,
 			})
 		}
 		for _, tpl := range revisionChangeRecord.tupleDeletes {
-			revisionChange.Changes = append(revisionChange.Changes, &core.RelationTupleUpdate{
+			changes[i].Changes = append(changes[i].Changes, &core.RelationTupleUpdate{
 				Operation: core.RelationTupleUpdate_DELETE,
 				Tuple:     tpl,
 			})
 		}
-		changes = append(changes, revisionChange)
 	}
 
-	return
-}
-
-type revisionDecoder interface {
-	RevisionFromString(string) (datastore.Revision, error)
+	return changes
 }

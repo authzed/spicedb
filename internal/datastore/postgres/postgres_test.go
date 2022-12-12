@@ -31,7 +31,7 @@ func TestPostgresDatastore(t *testing.T) {
 		targetMigration string
 		migrationPhase  string
 	}{
-		{"drop-bigserial-ids", ""},
+		{"head", ""},
 	} {
 		config := config
 		t.Run(fmt.Sprintf("%s-%s", config.targetMigration, config.migrationPhase), func(t *testing.T) {
@@ -649,7 +649,6 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 			close(waitToStart)
 			<-waitToFinish
 
-			defer fmt.Println("committing last")
 			return err
 		})
 		require.NoError(err)
@@ -671,7 +670,6 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 				Relation:  "...",
 			},
 		})
-		defer fmt.Println("committing first")
 		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
 	})
 	close(waitToFinish)

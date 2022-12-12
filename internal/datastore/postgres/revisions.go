@@ -229,3 +229,7 @@ func validateRHS(rhsRaw datastore.Revision) (postgresRevision, bool) {
 }
 
 var _ datastore.Revision = postgresRevision{}
+
+func revisionKeyFunc(rev postgresRevision) uint64 {
+	return rev.tx.Uint
+}
