@@ -118,17 +118,16 @@ func TestWatchFeatureDetection(t *testing.T) {
 			postInit: func(ctx context.Context, adminConn *pgx.Conn) {
 				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
 				require.NoError(t, err)
-				_, err = adminConn.Exec(ctx, `ALTER USER testuser NOCONTROLCHANGEFEED;`)
-				require.NoError(t, err)
 			},
 			expectEnabled: false,
-			expectMessage: "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: ERROR: current user must have a role WITH CONTROLCHANGEFEED (SQLSTATE 42501)",
+			expectMessage: "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: ERROR: user unprivileged does not have CHANGEFEED privilege on relation relation_tuple (SQLSTATE 42501)",
 		},
 		{
 			name: "rangefeeds enabled, user has permission",
 			postInit: func(ctx context.Context, adminConn *pgx.Conn) {
 				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
-				_, err = adminConn.Exec(ctx, `ALTER USER testuser CONTROLCHANGEFEED;`)
+				require.NoError(t, err)
+				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT CHANGEFEED ON TABLE testspicedb.%s TO unprivileged;`, tableTuple))
 				require.NoError(t, err)
 			},
 			expectEnabled: true,
@@ -138,14 +137,16 @@ func TestWatchFeatureDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			adminConn, nonAdminConnURI := newCRDBWithUser(t, pool)
-			tt.postInit(ctx, adminConn)
+			adminConn, connStrings := newCRDBWithUser(t, pool)
+			require.NoError(t, err)
 
-			migrationDriver, err := crdbmigrations.NewCRDBDriver(nonAdminConnURI)
+			migrationDriver, err := crdbmigrations.NewCRDBDriver(connStrings[testuser])
 			require.NoError(t, err)
 			require.NoError(t, crdbmigrations.CRDBMigrations.Run(ctx, migrationDriver, migrate.Head, migrate.LiveRun))
 
-			ds, err := NewCRDBDatastore(nonAdminConnURI)
+			tt.postInit(ctx, adminConn)
+
+			ds, err := NewCRDBDatastore(connStrings[unprivileged])
 			require.NoError(t, err)
 
 			features, err := ds.Features(ctx)
@@ -166,7 +167,14 @@ func TestWatchFeatureDetection(t *testing.T) {
 	}
 }
 
-func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, nonAdminConnURI string) {
+type provisionedUser string
+
+const (
+	testuser     provisionedUser = "testuser"
+	unprivileged provisionedUser = "unprivileged"
+)
+
+func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, connStrings map[provisionedUser]string) {
 	// in order to create users, cockroach must be running with
 	// real certs, and the root user must be authenticated with
 	// client certs.
@@ -276,7 +284,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "cockroachdb/cockroach",
-		Tag:        "v22.1.4",
+		Tag:        testdatastore.CRDBTestVersionTag,
 		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
 		Mounts:     []string{certDir + ":/certs"},
 	})
@@ -299,17 +307,24 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	adminConnString := fmt.Sprintf("postgresql://root:unused@localhost:%[1]s?sslmode=require&sslrootcert=%[2]s/ca.crt&sslcert=%[2]s/client.root.crt&sslkey=%[2]s/client.root.key", port, certDir)
+
 	require.Eventually(t, func() bool {
 		adminConn, err = pgx.Connect(ctx, adminConnString)
 		return err == nil
 	}, 30*time.Second, 1*time.Second)
 
 	// create a non-admin user
-	_, err = adminConn.Exec(ctx, `CREATE DATABASE testspicedb;
-		CREATE USER testuser WITH PASSWORD testpass;
-		GRANT ALL PRIVILEGES ON DATABASE testspicedb TO testuser;`)
+	_, err = adminConn.Exec(ctx, `
+		CREATE DATABASE testspicedb;
+		CREATE USER testuser WITH PASSWORD 'testpass';
+		CREATE USER unprivileged WITH PASSWORD 'testpass2';
+	`)
 	require.NoError(t, err)
-	nonAdminConnURI = fmt.Sprintf("postgresql://testuser:testpass@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir)
+
+	connStrings = map[provisionedUser]string{
+		testuser:     fmt.Sprintf("postgresql://testuser:testpass@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
+		unprivileged: fmt.Sprintf("postgresql://unprivileged:testpass2@localhost:%[1]s/testspicedb?sslmode=require&sslrootcert=%[2]s/ca.crt", port, certDir),
+	}
 
 	return
 }
