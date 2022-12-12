@@ -92,6 +92,7 @@ func (pgd *pgDatastore) Watch(
 
 					select {
 					case updates <- &changeToWrite:
+						// Nothing to do here, we've already written to the channel.
 					default:
 						errs <- datastore.NewWatchDisconnectedErr()
 						return
@@ -127,7 +128,6 @@ func (pgd *pgDatastore) getNewRevisions(
 			return fmt.Errorf("unable to load new revisions: %w", err)
 		}
 		defer rows.Close()
-
 
 		for rows.Next() {
 			var nextXID, nextXmin xid8
