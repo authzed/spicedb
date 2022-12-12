@@ -13,7 +13,7 @@ import (
 // Changes represents a set of tuple mutations that are kept self-consistent
 // across one or more transaction revisions.
 type Changes[R datastore.Revision, K comparable] struct {
-	records map[K]*changeRecord[R]
+	records map[K]changeRecord[R]
 	keyFunc func(R) K
 }
 
@@ -26,7 +26,7 @@ type changeRecord[R datastore.Revision] struct {
 // NewChanges creates a new Changes object for change tracking and de-duplication.
 func NewChanges[R datastore.Revision, K comparable](keyFunc func(R) K) Changes[R, K] {
 	return Changes[R, K]{
-		make(map[K]*changeRecord[R], 0),
+		make(map[K]changeRecord[R], 0),
 		keyFunc,
 	}
 }
@@ -41,7 +41,7 @@ func (ch Changes[R, K]) AddChange(
 	k := ch.keyFunc(rev)
 	revisionChanges, ok := ch.records[k]
 	if !ok {
-		revisionChanges = &changeRecord[R]{
+		revisionChanges = changeRecord[R]{
 			rev,
 			make(map[string]*core.RelationTuple),
 			make(map[string]*core.RelationTuple),
