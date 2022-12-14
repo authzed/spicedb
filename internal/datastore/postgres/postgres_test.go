@@ -11,6 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgconn"
+
+	"github.com/jackc/pgtype/pgxtype"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/require"
@@ -876,26 +880,52 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	})
 }
 
-type queryLogger struct {
+type queryInterceptor struct {
 	explanations map[string]string
 }
 
-func (ql *queryLogger) LogSelectQuery(sqlStatement string, args []any, explain string) error {
-	ql.explanations[sqlStatement] = explain
-	return nil
+func (ql *queryInterceptor) InterceptExec(ctx context.Context, delegate pgxtype.Querier, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+	// TODO also intercept queries here
+	return delegate.Exec(ctx, sql, arguments...)
+}
+
+func (ql *queryInterceptor) InterceptQueryRow(ctx context.Context, delegate pgxtype.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
+	// TODO also intercept queries here
+	return delegate.QueryRow(ctx, sql, optionsAndArgs...)
+}
+
+func (ql *queryInterceptor) InterceptQuery(ctx context.Context, querier pgxtype.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
+	explainRows, err := querier.Query(ctx, "EXPLAIN ANALYZE "+sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	explanation := ""
+	for explainRows.Next() {
+		explanation += string(explainRows.RawValues()[0]) + "\n"
+	}
+	explainRows.Close()
+	if err := explainRows.Err(); err != nil {
+		return nil, err
+	}
+
+	ql.explanations[sql] = explanation
+
+	// continue with the delegate
+	return querier.Query(ctx, sql, args...)
 }
 
 func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	require := require.New(t)
 
-	logger := &queryLogger{explanations: make(map[string]string, 0)}
+	interceptor := &queryInterceptor{explanations: make(map[string]string, 0)}
 
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := newPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
-			WithQueryLoggerForTesting(logger),
+			WithQueryInterceptor(interceptor),
 		)
 		require.NoError(err)
 		return ds
@@ -954,9 +984,9 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 	require.NoError(err)
 
 	validateFunc := func(expectedIndexes ...string) {
-		require.NotEmpty(logger.explanations, "expected queries to be executed")
+		require.NotEmpty(interceptor.explanations, "expected queries to be executed")
 		// Ensure that Index Only scans were used.
-		for stmt, explaination := range logger.explanations {
+		for stmt, explaination := range interceptor.explanations {
 			require.NotContains(explaination, "Index Scan", "statement did not have covering index:\n`%s`", stmt)
 			require.NotContains(explaination, "Heap Scan", "statement did not have covering index:\n`%s`", stmt)
 			require.Contains(explaination, "Index Only Scan", "statement did not have covering index:\n`%s`", stmt)
@@ -975,7 +1005,7 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 
 	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with resource filter
 	t.Run("QueryRelationships with resource filter", func(t *testing.T) {
-		logger.explanations = make(map[string]string, 0)
+		interceptor.explanations = make(map[string]string, 0)
 		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 			ResourceType:        testfixtures.DocumentNS.Name,
 			OptionalResourceIds: []string{"doc0", "doc1"},
@@ -993,7 +1023,7 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 
 	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with caveat filter
 	t.Run("QueryRelationships with caveat filter", func(t *testing.T) {
-		logger.explanations = make(map[string]string, 0)
+		interceptor.explanations = make(map[string]string, 0)
 		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 			OptionalCaveatName: "rando",
 		})

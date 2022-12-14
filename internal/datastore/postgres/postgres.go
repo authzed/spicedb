@@ -225,8 +225,8 @@ func newPostgresDatastore(
 			maxRevisionStaleness,
 		),
 		dburl:                   url,
-		readPool:                readPool,
-		writePool:               writePool,
+		readPool:                pgxcommon.NewInterceptorPooler(readPool, config.queryInterceptor),
+		writePool:               pgxcommon.NewInterceptorPooler(writePool, config.queryInterceptor),
 		watchBufferLength:       config.watchBufferLength,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
@@ -240,7 +240,6 @@ func newPostgresDatastore(
 		cancelGc:                cancelGc,
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
-		queryLogger:             config.queryLogger,
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -268,7 +267,7 @@ type pgDatastore struct {
 	*revisions.CachedOptimizedRevisions
 
 	dburl                   string
-	readPool, writePool     *pgxpool.Pool
+	readPool, writePool     pgxcommon.ConnPooler
 	watchBufferLength       uint16
 	optimizedRevisionQuery  string
 	validTransactionQuery   string
@@ -284,8 +283,6 @@ type pgDatastore struct {
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
-
-	queryLogger datastore.QueryLoggerForTesting
 }
 
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
@@ -307,7 +304,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc, pgd.queryLogger),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
@@ -342,7 +339,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx, pgd.queryLogger),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 

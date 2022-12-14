@@ -22,7 +22,7 @@ import (
 const errUnableToQueryTuples = "unable to query tuples: %w"
 
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory, queryLogger datastore.QueryLoggerForTesting) common.ExecuteQueryFunc {
+func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
 		span := trace.SpanFromContext(ctx)
 
@@ -31,30 +31,12 @@ func NewPGXExecutor(txSource TxFactory, queryLogger datastore.QueryLoggerForTest
 			return nil, fmt.Errorf(errUnableToQueryTuples, err)
 		}
 		defer txCleanup(ctx)
-		return queryTuples(ctx, sql, args, span, tx, queryLogger)
+		return queryTuples(ctx, sql, args, span, tx)
 	}
 }
 
 // queryTuples queries tuples for the given query and transaction.
-func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx, queryLogger datastore.QueryLoggerForTesting) ([]*corev1.RelationTuple, error) {
-	if queryLogger != nil {
-		explainRows, err := tx.Query(ctx, "EXPLAIN ANALYZE "+sqlStatement, args...)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-		defer explainRows.Close()
-
-		explanation := ""
-		for explainRows.Next() {
-			explanation += string(explainRows.RawValues()[0]) + "\n"
-		}
-
-		err = queryLogger.LogSelectQuery(sqlStatement, args, explanation)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx) ([]*corev1.RelationTuple, error) {
 	span.AddEvent("DB transaction established")
 	rows, err := tx.Query(ctx, sqlStatement, args...)
 	if err != nil {
