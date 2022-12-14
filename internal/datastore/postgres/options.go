@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
 type postgresOptions struct {
@@ -31,7 +31,7 @@ type postgresOptions struct {
 
 	logger *tracingLogger
 
-	queryLogger datastore.QueryLoggerForTesting
+	queryInterceptor common.QueryInterceptor
 }
 
 type migrationPhase uint8
@@ -79,7 +79,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
-		queryLogger:                 nil,
+		queryInterceptor:            nil,
 	}
 
 	for _, option := range options {
@@ -269,12 +269,12 @@ func DebugAnalyzeBeforeStatistics() Option {
 	}
 }
 
-// WithQueryLoggerForTesting adds a query logger for use in tests.
+// WithQueryInterceptor adds a query logger for use in tests.
 //
 // Not specified by default.
-func WithQueryLoggerForTesting(queryLogger datastore.QueryLoggerForTesting) Option {
+func WithQueryInterceptor(interceptor common.QueryInterceptor) Option {
 	return func(po *postgresOptions) {
-		po.queryLogger = queryLogger
+		po.queryInterceptor = interceptor
 	}
 }
 
