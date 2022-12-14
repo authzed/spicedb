@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -135,19 +137,19 @@ func runExpression(
 	var contextValues map[string]any
 	var exprStringPieces []string
 
-	buildExprString := func() string {
+	buildExprString := func() (string, error) {
 		switch cop.Op {
 		case core.CaveatOperation_AND:
-			return strings.Join(exprStringPieces, " && ")
+			return strings.Join(exprStringPieces, " && "), nil
 
 		case core.CaveatOperation_OR:
-			return strings.Join(exprStringPieces, " || ")
+			return strings.Join(exprStringPieces, " || "), nil
 
 		case core.CaveatOperation_NOT:
-			return strings.Join(exprStringPieces, " ")
+			return strings.Join(exprStringPieces, " "), nil
 
 		default:
-			panic("unknown op")
+			return "", spiceerrors.MustBugf("unknown caveat operation: %v", cop.Op)
 		}
 	}
 
@@ -176,7 +178,12 @@ func runExpression(
 			}
 
 			if !boolResult {
-				return syntheticResult{false, contextValues, buildExprString()}, nil
+				built, err := buildExprString()
+				if err != nil {
+					return nil, err
+				}
+
+				return syntheticResult{false, contextValues, built}, nil
 			}
 
 		case core.CaveatOperation_OR:
@@ -193,7 +200,12 @@ func runExpression(
 			}
 
 			if boolResult {
-				return syntheticResult{true, contextValues, buildExprString()}, nil
+				built, err := buildExprString()
+				if err != nil {
+					return nil, err
+				}
+
+				return syntheticResult{true, contextValues, built}, nil
 			}
 
 		case core.CaveatOperation_NOT:
@@ -207,14 +219,24 @@ func runExpression(
 				exprStringPieces = append(exprStringPieces, "!("+exprString+")")
 			}
 
-			return syntheticResult{!childResult.Value(), contextValues, buildExprString()}, nil
+			built, err := buildExprString()
+			if err != nil {
+				return nil, err
+			}
+
+			return syntheticResult{!childResult.Value(), contextValues, built}, nil
 
 		default:
-			panic("unknown op")
+			return nil, spiceerrors.MustBugf("unknown caveat operation: %v", cop.Op)
 		}
 	}
 
-	return syntheticResult{boolResult, contextValues, buildExprString()}, nil
+	built, err := buildExprString()
+	if err != nil {
+		return nil, err
+	}
+
+	return syntheticResult{boolResult, contextValues, built}, nil
 }
 
 func combineMaps(first map[string]any, second map[string]any) map[string]any {

@@ -21,12 +21,12 @@ import (
 
 var (
 	testNamespace = ns.Namespace("foo/bar",
-		ns.Relation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
+		ns.MustRelation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 
 	updatedNamespace = ns.Namespace(testNamespace.Name,
-		ns.Relation("reader", nil, ns.AllowedRelation(testUserNS.Name, "...")),
-		ns.Relation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
+		ns.MustRelation("reader", nil, ns.AllowedRelation(testUserNS.Name, "...")),
+		ns.MustRelation("editor", nil, ns.AllowedRelation(testUserNS.Name, "...")),
 	)
 )
 
@@ -276,6 +276,7 @@ definition document {
 	testutil.RequireProtoEqual(t, caveatDef, readCaveatDef, "found changed caveat definition")
 
 	// Ensure the read namespace's string form matches the input as an extra check.
-	generated, _ := generator.GenerateSchema([]compiler.SchemaDefinition{readCaveatDef, readNsDef})
+	generated, _, err := generator.GenerateSchema([]compiler.SchemaDefinition{readCaveatDef, readNsDef})
+	require.NoError(err)
 	require.Equal(schemaString, generated)
 }

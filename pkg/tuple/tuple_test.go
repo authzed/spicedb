@@ -171,7 +171,7 @@ var testCases = []struct {
 	{
 		input:          "document:foo#viewer@user:tom[somecaveat]",
 		expectedOutput: "document:foo#viewer@user:tom[somecaveat]",
-		tupleFormat: WithCaveat(
+		tupleFormat: MustWithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
 				ObjectAndRelation("user", "tom", "..."),
@@ -183,7 +183,7 @@ var testCases = []struct {
 	{
 		input:          "document:foo#viewer@user:tom[tenant/somecaveat]",
 		expectedOutput: "document:foo#viewer@user:tom[tenant/somecaveat]",
-		tupleFormat: WithCaveat(
+		tupleFormat: MustWithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
 				ObjectAndRelation("user", "tom", "..."),
@@ -207,7 +207,7 @@ var testCases = []struct {
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi": "there"}]`,
 		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":"there"}]`,
-		tupleFormat: WithCaveat(
+		tupleFormat: MustWithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
 				ObjectAndRelation("user", "tom", "..."),
@@ -222,7 +222,7 @@ var testCases = []struct {
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo": 123}}]`,
 		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":123}}]`,
-		tupleFormat: WithCaveat(
+		tupleFormat: MustWithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
 				ObjectAndRelation("user", "tom", "..."),
@@ -243,7 +243,7 @@ var testCases = []struct {
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":true}}}]`,
 		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":true}}}]`,
-		tupleFormat: WithCaveat(
+		tupleFormat: MustWithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
 				ObjectAndRelation("user", "tom", "..."),
@@ -269,7 +269,7 @@ var testCases = []struct {
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
 		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
-		tupleFormat: WithCaveat(
+		tupleFormat: MustWithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
 				ObjectAndRelation("user", "tom", "..."),

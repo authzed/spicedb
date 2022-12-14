@@ -52,12 +52,12 @@ func registerBasicType(keyword string, celType *cel.Type, converter typedValueCo
 	return varType
 }
 
-// registerBasicType registers a type with at least one generic.
+// registerGenericType registers a type with at least one generic.
 func registerGenericType(
 	keyword string,
 	childTypeCount uint,
 	asVariableType func(childTypes []VariableType) VariableType,
-) func(childTypes ...VariableType) VariableType {
+) func(childTypes ...VariableType) (VariableType, error) {
 	definitions[keyword] = typeDefinition{
 		localName:      keyword,
 		childTypeCount: childTypeCount,
@@ -70,12 +70,12 @@ func registerGenericType(
 			return &built, nil
 		},
 	}
-	return func(childTypes ...VariableType) VariableType {
+	return func(childTypes ...VariableType) (VariableType, error) {
 		if uint(len(childTypes)) != childTypeCount {
-			panic("invalid number of parameters given to type constructor")
+			return VariableType{}, fmt.Errorf("invalid number of parameters given to type constructor. expected: %d, found: %d", childTypeCount, len(childTypes))
 		}
 
-		return asVariableType(childTypes)
+		return asVariableType(childTypes), nil
 	}
 }
 

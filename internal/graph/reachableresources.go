@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -131,7 +132,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 			}
 
 		default:
-			panic(fmt.Sprintf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind()))
+			return spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind())
 		}
 	}
 
@@ -147,7 +148,11 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 	stream dispatch.ReachableResourcesStream,
 	dispatched *syncONRSet,
 ) error {
-	relationReference := entrypoint.DirectRelation()
+	relationReference, err := entrypoint.DirectRelation()
+	if err != nil {
+		return err
+	}
+
 	_, relTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
 	if err != nil {
 		return err
@@ -236,7 +241,11 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 			return it.Err()
 		}
 
-		rsm.addRelationship(tpl)
+		err := rsm.addRelationship(tpl)
+		if err != nil {
+			return err
+		}
+
 		if rsm.len() == chunkSize {
 			chunkIndex++
 			toBeHandled = append(toBeHandled, rsm)
@@ -279,7 +288,10 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 		return err
 	}
 
-	tuplesetRelation := entrypoint.TuplesetRelation()
+	tuplesetRelation, err := entrypoint.TuplesetRelation()
+	if err != nil {
+		return err
+	}
 
 	// Determine the subject relation(s) for which to search. Note that we need to do so
 	// for both `...` as well as the subject's defined relation, as either is applicable in
@@ -376,8 +388,13 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
 				// Map the found resources via the subject+resources used for dispatching, to determine
 				// if any need to be made conditional due to caveats.
+				mapped, err := foundResources.mapFoundResources(result.Resources, entrypoint.IsDirectResult())
+				if err != nil {
+					return nil, false, err
+				}
+
 				return &v1.DispatchReachableResourcesResponse{
-					Resources: foundResources.mapFoundResources(result.Resources, entrypoint.IsDirectResult()),
+					Resources: mapped,
 					Metadata:  addCallToResponseMetadata(result.Metadata),
 				}, true, nil
 			},

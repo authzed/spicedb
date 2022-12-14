@@ -91,8 +91,8 @@ type Config struct {
 	MigrationPhase string
 }
 
-// RegisterDatastoreFlags adds datastore flags to a cobra command
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
+// MustRegisterDatastoreFlags adds datastore flags to a cobra command
+func MustRegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
@@ -212,12 +212,16 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			Float64("hedgingQuantile", opts.RequestHedgingQuantile).
 			Msg("request hedging enabled")
 
-		ds = proxy.NewHedgingProxy(
+		hds, err := proxy.NewHedgingProxy(
 			ds,
 			opts.RequestHedgingInitialSlowValue,
 			opts.RequestHedgingMaxRequests,
 			opts.RequestHedgingQuantile,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("error in configuring request hedging: %w", err)
+		}
+		ds = hds
 	}
 
 	if opts.ReadOnly {

@@ -22,7 +22,7 @@ func TestListReferencedNamespaces(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace(
 					"document",
-					ns.Relation("owner", nil),
+					ns.MustRelation("owner", nil),
 				),
 			},
 			[]string{"document"},
@@ -32,7 +32,7 @@ func TestListReferencedNamespaces(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace(
 					"document",
-					ns.Relation("viewer", nil, ns.AllowedRelation("user", "...")),
+					ns.MustRelation("viewer", nil, ns.AllowedRelation("user", "...")),
 				),
 				ns.Namespace("user"),
 			},
@@ -43,7 +43,7 @@ func TestListReferencedNamespaces(t *testing.T) {
 			[]*core.NamespaceDefinition{
 				ns.Namespace(
 					"document",
-					ns.Relation("viewer", nil,
+					ns.MustRelation("viewer", nil,
 						ns.AllowedRelation("group", "member"),
 						ns.AllowedRelation("group", "manager"),
 						ns.AllowedRelation("team", "member")),

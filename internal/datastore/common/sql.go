@@ -6,6 +6,8 @@ import (
 	"math"
 	"runtime"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
@@ -93,12 +95,20 @@ func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFi
 	return sqf
 }
 
+func (sqf SchemaQueryFilterer) MustFilterToResourceIDs(resourceIds []string) SchemaQueryFilterer {
+	updated, err := sqf.FilterToResourceIDs(resourceIds)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
 // FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
 // specified IDs.
-func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) SchemaQueryFilterer {
+func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
 	// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
 	if len(resourceIds) > datastore.FilterMaximumIDCount {
-		panic(fmt.Sprintf("Cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount))
+		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount)
 	}
 
 	inClause := fmt.Sprintf("%s IN (", sqf.schema.ColObjectID)
@@ -106,7 +116,7 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) SchemaQ
 
 	for index, resourceID := range resourceIds {
 		if len(resourceID) == 0 {
-			panic("got empty resource id")
+			return sqf, spiceerrors.MustBugf("got empty resource ID")
 		}
 
 		if index > 0 {
@@ -120,7 +130,7 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) SchemaQ
 	}
 
 	sqf.queryBuilder = sqf.queryBuilder.Where(inClause+")", args...)
-	return sqf
+	return sqf, nil
 }
 
 // FilterToRelation returns a new SchemaQueryFilterer that is limited to resources with the
@@ -131,9 +141,17 @@ func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilt
 	return sqf
 }
 
-// FilterWithRelationshipsFilter returns a new SchemaQueryFilterer that is limited to resources with
+// MustFilterWithRelationshipsFilter returns a new SchemaQueryFilterer that is limited to resources with
 // resources that match the specified filter.
-func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) SchemaQueryFilterer {
+func (sqf SchemaQueryFilterer) MustFilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) SchemaQueryFilterer {
+	updated, err := sqf.FilterWithRelationshipsFilter(filter)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
+func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) (SchemaQueryFilterer, error) {
 	sqf = sqf.FilterToResourceType(filter.ResourceType)
 
 	if filter.OptionalResourceRelation != "" {
@@ -141,30 +159,48 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 	}
 
 	if len(filter.OptionalResourceIds) > 0 {
-		sqf = sqf.FilterToResourceIDs(filter.OptionalResourceIds)
+		usqf, err := sqf.FilterToResourceIDs(filter.OptionalResourceIds)
+		if err != nil {
+			return sqf, err
+		}
+		sqf = usqf
 	}
 
 	if filter.OptionalSubjectsFilter != nil {
-		sqf = sqf.FilterWithSubjectsFilter(*filter.OptionalSubjectsFilter)
+		usqf, err := sqf.FilterWithSubjectsFilter(*filter.OptionalSubjectsFilter)
+		if err != nil {
+			return sqf, err
+		}
+		sqf = usqf
 	}
 
 	if filter.OptionalCaveatName != "" {
 		sqf = sqf.FilterWithCaveatName(filter.OptionalCaveatName)
 	}
 
-	return sqf
+	return sqf, nil
+}
+
+// MustFilterWithSubjectsFilter returns a new SchemaQueryFilterer that is limited to resources with
+// subjects that match the specified filter.
+func (sqf SchemaQueryFilterer) MustFilterWithSubjectsFilter(filter datastore.SubjectsFilter) SchemaQueryFilterer {
+	usqf, err := sqf.FilterWithSubjectsFilter(filter)
+	if err != nil {
+		panic(err)
+	}
+	return usqf
 }
 
 // FilterWithSubjectsFilter returns a new SchemaQueryFilterer that is limited to resources with
 // subjects that match the specified filter.
-func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.SubjectsFilter) SchemaQueryFilterer {
+func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.SubjectsFilter) (SchemaQueryFilterer, error) {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.SubjectType})
 	sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
 
 	if len(filter.OptionalSubjectIds) > 0 {
 		// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
 		if len(filter.OptionalSubjectIds) > datastore.FilterMaximumIDCount {
-			panic(fmt.Sprintf("Cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount))
+			return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount)
 		}
 
 		inClause := fmt.Sprintf("%s IN (", sqf.schema.ColUsersetObjectID)
@@ -172,7 +208,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.Subject
 
 		for index, subjectID := range filter.OptionalSubjectIds {
 			if len(subjectID) == 0 {
-				panic("got empty subject id")
+				return sqf, spiceerrors.MustBugf("got empty subject ID")
 			}
 
 			if index > 0 {
@@ -214,7 +250,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsFilter(filter datastore.Subject
 		}
 	}
 
-	return sqf
+	return sqf, nil
 }
 
 // FilterToSubjectFilter returns a new SchemaQueryFilterer that is limited to resources with
@@ -325,7 +361,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	}
 
 	iter := datastore.NewSliceRelationshipIterator(tuples)
-	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction())
+	runtime.SetFinalizer(iter, datastore.MustIteratorBeClosed)
 	return iter, nil
 }
 

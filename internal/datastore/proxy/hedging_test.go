@@ -138,9 +138,10 @@ func TestDatastoreRequestHedging(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/authzed/spicedb/internal/datastore/proxy.autoAdvance.func1"), goleak.IgnoreCurrent())
 			mockTime := clock.NewMock()
 			delegateDS := &proxy_test.MockDatastore{}
-			proxy := newHedgingProxyWithTimeSource(
+			proxy, err := newHedgingProxyWithTimeSource(
 				delegateDS, slowQueryTime, maxSampleCount, quantile, mockTime,
 			)
+			require.NoError(t, err)
 
 			delegate := &delegateDS.Mock
 
@@ -261,25 +262,17 @@ func TestBadArgs(t *testing.T) {
 	require := require.New(t)
 	delegate := &proxy_test.MockDatastore{}
 
-	badInitialThreshold := func() {
-		NewHedgingProxy(delegate, -1*time.Millisecond, maxSampleCount, quantile)
-	}
-	require.Panics(badInitialThreshold)
+	_, err := NewHedgingProxy(delegate, -1*time.Millisecond, maxSampleCount, quantile)
+	require.Error(err)
 
-	maxRequestsTooSmall := func() {
-		NewHedgingProxy(delegate, 10*time.Millisecond, 10, quantile)
-	}
-	require.Panics(maxRequestsTooSmall)
+	_, err = NewHedgingProxy(delegate, 10*time.Millisecond, 10, quantile)
+	require.Error(err)
 
-	invalidQuantileTooSmall := func() {
-		NewHedgingProxy(delegate, 10*time.Millisecond, 1000, 0.0)
-	}
-	require.Panics(invalidQuantileTooSmall)
+	_, err = NewHedgingProxy(delegate, 10*time.Millisecond, 1000, 0.0)
+	require.Error(err)
 
-	invalidQuantileTooLarge := func() {
-		NewHedgingProxy(delegate, 10*time.Millisecond, 1000, 1.0)
-	}
-	require.Panics(invalidQuantileTooLarge)
+	_, err = NewHedgingProxy(delegate, 10*time.Millisecond, 1000, 1.0)
+	require.Error(err)
 }
 
 func TestDatastoreE2E(t *testing.T) {
@@ -289,9 +282,10 @@ func TestDatastoreE2E(t *testing.T) {
 	delegateReader := &proxy_test.MockReader{}
 	mockTime := clock.NewMock()
 
-	proxy := newHedgingProxyWithTimeSource(
+	proxy, err := newHedgingProxyWithTimeSource(
 		delegateDatastore, slowQueryTime, maxSampleCount, quantile, mockTime,
 	)
+	require.NoError(err)
 
 	expectedTuples := []*core.RelationTuple{
 		{
@@ -344,9 +338,10 @@ func TestContextCancellation(t *testing.T) {
 
 	delegate := &proxy_test.MockDatastore{}
 	mockTime := clock.NewMock()
-	proxy := newHedgingProxyWithTimeSource(
+	proxy, err := newHedgingProxyWithTimeSource(
 		delegate, slowQueryTime, maxSampleCount, quantile, mockTime,
 	)
+	require.NoError(err)
 
 	delegate.
 		On("HeadRevision", mock.Anything).
@@ -362,8 +357,7 @@ func TestContextCancellation(t *testing.T) {
 
 	autoAdvance(mockTime, 150*time.Microsecond, 1*time.Millisecond)
 
-	_, err := proxy.HeadRevision(ctx)
-
+	_, err = proxy.HeadRevision(ctx)
 	require.Error(err)
 }
 

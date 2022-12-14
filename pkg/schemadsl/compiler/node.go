@@ -27,16 +27,15 @@ func (tn *dslNode) GetType() dslshape.NodeType {
 	return tn.nodeType
 }
 
-func (tn *dslNode) Connect(predicate string, other parser.AstNode) parser.AstNode {
+func (tn *dslNode) Connect(predicate string, other parser.AstNode) {
 	if tn.children[predicate] == nil {
 		tn.children[predicate] = list.New()
 	}
 
 	tn.children[predicate].PushBack(other)
-	return tn
 }
 
-func (tn *dslNode) Decorate(property string, value string) parser.AstNode {
+func (tn *dslNode) MustDecorate(property string, value string) parser.AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
 	}
@@ -45,7 +44,7 @@ func (tn *dslNode) Decorate(property string, value string) parser.AstNode {
 	return tn
 }
 
-func (tn *dslNode) DecorateWithInt(property string, value int) parser.AstNode {
+func (tn *dslNode) MustDecorateWithInt(property string, value int) parser.AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
 	}

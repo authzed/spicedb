@@ -3,9 +3,10 @@ package consistent
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var (
@@ -34,6 +35,18 @@ type Hashring struct {
 	virtualNodes virtualNodeList
 }
 
+// MustNewHashring creates a new Hashring with the specified hasher function and replicationFactor.
+//
+// replicationFactor must be >= 1 or this method will panic.
+func MustNewHashring(hasher HasherFunc, replicationFactor uint16) *Hashring {
+	hr, err := NewHashring(hasher, replicationFactor)
+	if err != nil {
+		panic(err)
+	}
+
+	return hr
+}
+
 // NewHashring creates a new Hashring with the specified hasher function and replicationFactor.
 //
 // replicationFactor must be > 0 and should be a number like 20 for higher quality key distribution.
@@ -41,16 +54,16 @@ type Hashring struct {
 // of the mean. At a replicationFactor of 1000 it will be about 3.2%. The replicationFactor should
 // be chosen carefully because a higher replicationFactor will require more memory and worse member
 // selection performance.
-func NewHashring(hasher HasherFunc, replicationFactor uint16) *Hashring {
+func NewHashring(hasher HasherFunc, replicationFactor uint16) (*Hashring, error) {
 	if replicationFactor < 1 {
-		panic("replicationFactor must be at least 1")
+		return nil, spiceerrors.MustBugf("replicationFactor must be at least 1")
 	}
 
 	return &Hashring{
 		hasher:            hasher,
 		replicationFactor: replicationFactor,
 		nodes:             map[string]nodeRecord{},
-	}
+	}, nil
 }
 
 // Add adds an object that implements the Member interface as a node in the
@@ -126,7 +139,7 @@ func (h *Hashring) Remove(member Member) error {
 			return !h.virtualNodes[i].less(vnode)
 		})
 		if vnodeIndex >= len(h.virtualNodes) {
-			panic(fmt.Sprintf("unable to find vnode to remove: %020d:%020d:%s", vnode.hashvalue, vnode.members.hashvalue, vnode.members.nodeKey))
+			return spiceerrors.MustBugf("unable to find vnode to remove: %020d:%020d:%s", vnode.hashvalue, vnode.members.hashvalue, vnode.members.nodeKey)
 		}
 
 		indexesToRemove = append(indexesToRemove, vnodeIndex)
@@ -138,7 +151,7 @@ func (h *Hashring) Remove(member Member) error {
 	})
 
 	if len(indexesToRemove) != int(h.replicationFactor) {
-		panic(fmt.Sprintf("found wrong number of vnodes to remove: %d != %d", len(indexesToRemove), h.replicationFactor))
+		return spiceerrors.MustBugf("found wrong number of vnodes to remove: %d != %d", len(indexesToRemove), h.replicationFactor)
 	}
 
 	for i, indexToRemove := range indexesToRemove {

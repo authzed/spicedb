@@ -38,7 +38,7 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.MapType(types.StringType),
+				"a": types.MustMapType(types.StringType),
 				"b": types.StringType,
 			}),
 			"a[b] == 'hi'",
@@ -58,7 +58,7 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"somemap": types.MapType(types.StringType),
+				"somemap": types.MustMapType(types.StringType),
 			}),
 			`somemap.foo == 'hi'`,
 			[]string{
@@ -67,7 +67,7 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"tweets":    types.ListType(types.MapType(types.IntType)),
+				"tweets":    types.MustListType(types.MustMapType(types.IntType)),
 				"something": types.IntType,
 			}),
 			`tweets.all(t, t.size <= 140 && something > 42)`,
@@ -78,7 +78,7 @@ func TestReferencedParameters(t *testing.T) {
 		},
 		{
 			MustEnvForVariables(map[string]types.VariableType{
-				"tweets":    types.ListType(types.MapType(types.IntType)),
+				"tweets":    types.MustListType(types.MustMapType(types.IntType)),
 				"something": types.IntType,
 			}),
 			`tweets.all(t, t.size <= 140)`,

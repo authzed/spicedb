@@ -327,7 +327,11 @@ func translateRelation(tctx translationContext, relationNode *dslNode) (*core.Re
 		allowedDirectTypes = append(allowedDirectTypes, allowedRelations...)
 	}
 
-	relation := namespace.Relation(relationName, nil, allowedDirectTypes...)
+	relation, err := namespace.Relation(relationName, nil, allowedDirectTypes...)
+	if err != nil {
+		return nil, err
+	}
+
 	err = relation.Validate()
 	if err != nil {
 		return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
@@ -352,7 +356,11 @@ func translatePermission(tctx translationContext, permissionNode *dslNode) (*cor
 		return nil, err
 	}
 
-	permission := namespace.Relation(permissionName, rewrite)
+	permission, err := namespace.Relation(permissionName, rewrite)
+	if err != nil {
+		return nil, err
+	}
+
 	err = permission.Validate()
 	if err != nil {
 		return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)

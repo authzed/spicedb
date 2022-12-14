@@ -434,8 +434,17 @@ func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationT
 	}
 }
 
+// MustWithCaveat adds the given caveat name to the tuple. This is for testing only.
+func MustWithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[string]any) *core.RelationTuple {
+	wc, err := WithCaveat(tpl, caveatName, contexts...)
+	if err != nil {
+		panic(err)
+	}
+	return wc
+}
+
 // WithCaveat adds the given caveat name to the tuple. This is for testing only.
-func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[string]any) *core.RelationTuple {
+func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[string]any) (*core.RelationTuple, error) {
 	var context *structpb.Struct
 
 	if len(contexts) > 0 {
@@ -446,7 +455,7 @@ func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[stri
 
 		contextStruct, err := structpb.NewStruct(combined)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		context = contextStruct
 	}
@@ -456,5 +465,5 @@ func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[stri
 		CaveatName: caveatName,
 		Context:    context,
 	}
-	return tpl
+	return tpl, nil
 }

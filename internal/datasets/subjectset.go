@@ -24,12 +24,20 @@ func (ss SubjectSet) SubtractAll(other SubjectSet) {
 	ss.BaseSubjectSet.SubtractAll(other.BaseSubjectSet)
 }
 
-func (ss SubjectSet) IntersectionDifference(other SubjectSet) {
-	ss.BaseSubjectSet.IntersectionDifference(other.BaseSubjectSet)
+func (ss SubjectSet) MustIntersectionDifference(other SubjectSet) {
+	ss.BaseSubjectSet.MustIntersectionDifference(other.BaseSubjectSet)
 }
 
-func (ss SubjectSet) UnionWithSet(other SubjectSet) {
-	ss.BaseSubjectSet.UnionWithSet(other.BaseSubjectSet)
+func (ss SubjectSet) IntersectionDifference(other SubjectSet) error {
+	return ss.BaseSubjectSet.IntersectionDifference(other.BaseSubjectSet)
+}
+
+func (ss SubjectSet) MustUnionWithSet(other SubjectSet) {
+	ss.BaseSubjectSet.MustUnionWithSet(other.BaseSubjectSet)
+}
+
+func (ss SubjectSet) UnionWithSet(other SubjectSet) error {
+	return ss.BaseSubjectSet.UnionWithSet(other.BaseSubjectSet)
 }
 
 // WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied

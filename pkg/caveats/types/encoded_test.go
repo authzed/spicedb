@@ -18,16 +18,16 @@ func TestEncodeDecodeTypes(t *testing.T) {
 			vtype: IntType,
 		},
 		{
-			vtype: ListType(IntType),
+			vtype: MustListType(IntType),
 		},
 		{
-			vtype: ListType(StringType),
+			vtype: MustListType(StringType),
 		},
 		{
-			vtype: MapType(AnyType),
+			vtype: MustMapType(AnyType),
 		},
 		{
-			vtype: MapType(UIntType),
+			vtype: MustMapType(UIntType),
 		},
 		{
 			vtype: IPAddressType,

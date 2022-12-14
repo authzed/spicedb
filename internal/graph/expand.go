@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // NewConcurrentExpander creates an instance of ConcurrentExpander
@@ -215,8 +216,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	var start *core.ObjectAndRelation
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if tpl == nil {
-			// TODO replace this with something else, AlwaysFail?
-			panic("computed userset for tupleset without tuple")
+			return expandError(spiceerrors.MustBugf("computed userset for tupleset without tuple"))
 		}
 
 		start = tpl.Subject

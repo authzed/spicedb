@@ -1,11 +1,11 @@
 package graph
 
 import (
-	"fmt"
 	"sync"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
 )
@@ -51,13 +51,14 @@ func subjectIDsToResourcesMap(resourceType *core.RelationReference, subjectIDs [
 
 // addRelationship adds the relationship to the resource subject map, recording a mapping from
 // the resource of the relationship to the subject, as well as whether the relationship was caveated.
-func (rsm resourcesSubjectMap) addRelationship(rel *core.RelationTuple) {
+func (rsm resourcesSubjectMap) addRelationship(rel *core.RelationTuple) error {
 	if rel.ResourceAndRelation.Namespace != rsm.resourceType.Namespace ||
 		rel.ResourceAndRelation.Relation != rsm.resourceType.Relation {
-		panic(fmt.Sprintf("invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.ResourceAndRelation))
+		return spiceerrors.MustBugf("invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.ResourceAndRelation)
 	}
 
 	rsm.resourcesAndSubjects.Add(rel.ResourceAndRelation.ObjectId, subjectInfo{rel.Subject.ObjectId, rel.Caveat != nil && rel.Caveat.CaveatName != ""})
+	return nil
 }
 
 // addSubjectIDAsFoundResourceID adds a subject ID directly as a found subject for itself as the resource,
@@ -149,7 +150,7 @@ func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoi
 
 // mapFoundResources takes in found resources and maps them via their parent relationships to
 // the resulting found resources.
-func (rsm dispatchableResourcesSubjectMap) mapFoundResources(foundResources []*v1.ReachableResource, isDirectEntrypoint bool) []*v1.ReachableResource {
+func (rsm dispatchableResourcesSubjectMap) mapFoundResources(foundResources []*v1.ReachableResource, isDirectEntrypoint bool) ([]*v1.ReachableResource, error) {
 	// For each found resource, lookup the associated entry(s) for the "ForSubjectIDs" and
 	// check if *all* are conditional. If so, then the overall status *must* be conditional.
 	// Otherwise, the status depends on the status of the incoming result and whether the result
@@ -170,7 +171,7 @@ func (rsm dispatchableResourcesSubjectMap) mapFoundResources(foundResources []*v
 			// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
 			infos, ok := rsm.resourcesAndSubjects.Get(forSubjectID)
 			if !ok {
-				panic("missing for subject ID")
+				return nil, spiceerrors.MustBugf("missing for subject ID")
 			}
 
 			for _, info := range infos {
@@ -200,5 +201,5 @@ func (rsm dispatchableResourcesSubjectMap) mapFoundResources(foundResources []*v
 		})
 	}
 
-	return resources
+	return resources, nil
 }

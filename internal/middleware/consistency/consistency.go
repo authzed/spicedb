@@ -57,7 +57,7 @@ func MustRevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedTo
 		panic("consistency middleware did not inject revision")
 	}
 
-	return rev, zedtoken.NewFromRevision(rev)
+	return rev, zedtoken.MustNewFromRevision(rev)
 }
 
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found

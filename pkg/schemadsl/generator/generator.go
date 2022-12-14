@@ -6,17 +6,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/caveats"
-
 	"golang.org/x/exp/maps"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Ellipsis is the relation name for terminal subjects.
@@ -26,31 +24,39 @@ const Ellipsis = "..."
 const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 
 // GenerateSchema generates a DSL view of the given schema.
-func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool) {
+func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
 	generated := make([]string, 0, len(definitions))
 	result := true
 	for _, definition := range definitions {
 		switch def := definition.(type) {
 		case *core.CaveatDefinition:
-			generatedCaveat, ok := GenerateCaveatSource(def)
+			generatedCaveat, ok, err := GenerateCaveatSource(def)
+			if err != nil {
+				return "", false, err
+			}
+
 			result = result && ok
 			generated = append(generated, generatedCaveat)
 
 		case *core.NamespaceDefinition:
-			generatedSchema, ok := GenerateSource(def)
+			generatedSchema, ok, err := GenerateSource(def)
+			if err != nil {
+				return "", false, err
+			}
+
 			result = result && ok
 			generated = append(generated, generatedSchema)
 
 		default:
-			panic(fmt.Sprintf("unknown type of definition %T in GenerateSchema", def))
+			return "", false, spiceerrors.MustBugf("unknown type of definition %T in GenerateSchema", def)
 		}
 	}
 
-	return strings.Join(generated, "\n\n"), result
+	return strings.Join(generated, "\n\n"), result, nil
 }
 
 // GenerateCaveatSource generates a DSL view of the given caveat definition.
-func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool) {
+func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
@@ -58,12 +64,16 @@ func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool) {
 		hasNewScope:      true,
 	}
 
-	generator.emitCaveat(caveat)
-	return generator.buf.String(), !generator.hasIssue
+	err := generator.emitCaveat(caveat)
+	if err != nil {
+		return "", false, err
+	}
+
+	return generator.buf.String(), !generator.hasIssue, nil
 }
 
 // GenerateSource generates a DSL view of the given namespace definition.
-func GenerateSource(namespace *core.NamespaceDefinition) (string, bool) {
+func GenerateSource(namespace *core.NamespaceDefinition) (string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
@@ -71,11 +81,15 @@ func GenerateSource(namespace *core.NamespaceDefinition) (string, bool) {
 		hasNewScope:      true,
 	}
 
-	generator.emitNamespace(namespace)
-	return generator.buf.String(), !generator.hasIssue
+	err := generator.emitNamespace(namespace)
+	if err != nil {
+		return "", false, err
+	}
+
+	return generator.buf.String(), !generator.hasIssue, nil
 }
 
-func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) {
+func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.emitComments(caveat.Metadata)
 	sg.append("caveat ")
 	sg.append(caveat.Name)
@@ -91,7 +105,7 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) {
 
 		decoded, err := caveattypes.DecodeParameterType(caveat.ParameterTypes[paramName])
 		if err != nil {
-			panic("invalid parameter type on caveat")
+			return fmt.Errorf("invalid parameter type on caveat: %w", err)
 		}
 
 		sg.append(paramName)
@@ -108,12 +122,12 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) {
 
 	deserializedExpression, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
 	if err != nil {
-		panic("invalid caveat expression bytes")
+		return fmt.Errorf("invalid caveat expression bytes: %w", err)
 	}
 
 	exprString, err := deserializedExpression.ExprString()
 	if err != nil {
-		panic("invalid caveat expression")
+		return fmt.Errorf("invalid caveat expression: %w", err)
 	}
 
 	sg.append(strings.TrimSpace(exprString))
@@ -121,16 +135,17 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) {
 
 	sg.dedent()
 	sg.append("}")
+	return nil
 }
 
-func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) {
+func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) error {
 	sg.emitComments(namespace.Metadata)
 	sg.append("definition ")
 	sg.append(namespace.Name)
 
 	if len(namespace.Relation) == 0 {
 		sg.append(" {}")
-		return
+		return nil
 	}
 
 	sg.append(" {")
@@ -139,15 +154,23 @@ func (sg *sourceGenerator) emitNamespace(namespace *core.NamespaceDefinition) {
 	sg.markNewScope()
 
 	for _, relation := range namespace.Relation {
-		sg.emitRelation(relation)
+		err := sg.emitRelation(relation)
+		if err != nil {
+			return err
+		}
 	}
 
 	sg.dedent()
 	sg.append("}")
+	return nil
 }
 
-func (sg *sourceGenerator) emitRelation(relation *core.Relation) {
-	hasThis := graph.HasThis(relation.UsersetRewrite)
+func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
+	hasThis, err := graph.HasThis(relation.UsersetRewrite)
+	if err != nil {
+		return err
+	}
+
 	isPermission := relation.UsersetRewrite != nil && !hasThis
 
 	sg.emitComments(relation.Metadata)
@@ -180,6 +203,7 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) {
 	}
 
 	sg.appendLine()
+	return nil
 }
 
 func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRelation) {

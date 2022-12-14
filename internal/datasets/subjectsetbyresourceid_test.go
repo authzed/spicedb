@@ -109,7 +109,8 @@ func TestSubjectSetByResourceIDIntersectionDifference(t *testing.T) {
 	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
 	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:george#...")))
 
-	first.IntersectionDifference(second)
+	err := first.IntersectionDifference(second)
+	require.NoError(t, err)
 
 	require.Equal(t, map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -130,7 +131,8 @@ func TestSubjectSetByResourceIDIntersectionDifferenceMissingKey(t *testing.T) {
 	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:tom#...")))
 	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
 
-	first.IntersectionDifference(second)
+	err := first.IntersectionDifference(second)
+	require.NoError(t, err)
 
 	require.Equal(t, map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -151,7 +153,8 @@ func TestSubjectSetByResourceIDIntersectionDifferenceItemInSecondSet(t *testing.
 	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:firstdoc#viewer@user:micah#...")))
 	require.NoError(t, second.AddFromRelationship(tuple.MustParse("document:seconddoc#viewer@user:fred#...")))
 
-	first.IntersectionDifference(second)
+	err := first.IntersectionDifference(second)
+	require.NoError(t, err)
 
 	require.Equal(t, map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -206,8 +209,8 @@ func TestSubjectSetByResourceIDBasicCaveatedOperations(t *testing.T) {
 	ssr := NewSubjectSetByResourceID()
 	require.True(t, ssr.IsEmpty())
 
-	require.NoError(t, ssr.AddFromRelationship(tuple.WithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "first")))
-	require.NoError(t, ssr.AddFromRelationship(tuple.WithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "second")))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustWithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "first")))
+	require.NoError(t, ssr.AddFromRelationship(tuple.MustWithCaveat(tuple.MustParse("document:firstdoc#viewer@user:tom#..."), "second")))
 
 	expected := map[string]*v1.FoundSubjects{
 		"firstdoc": {

@@ -37,7 +37,7 @@ var (
 	}
 )
 
-func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
+func MustRegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	cmd.Flags().StringSliceVar(&config.PresharedKey, PresharedKeyFlag, []string{}, "preshared key(s) to require for authenticated requests")
@@ -47,7 +47,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	}
 
 	// Flags for the datastore
-	datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig)
+	datastore.MustRegisterDatastoreFlags(cmd, &config.DatastoreConfig)
 
 	// Flags for the namespace cache
 	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")

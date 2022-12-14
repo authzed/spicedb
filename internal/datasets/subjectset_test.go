@@ -231,10 +231,12 @@ func TestSubjectSetAdd(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
-				existingSet.Add(existing)
+				err := existingSet.Add(existing)
+				require.NoError(t, err)
 			}
 
-			existingSet.Add(tc.toAdd)
+			err := existingSet.Add(tc.toAdd)
+			require.NoError(t, err)
 
 			expectedSet := tc.expectedSet
 			computedSet := existingSet.AsSlice()
@@ -596,7 +598,7 @@ func TestSubjectSetSubtract(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
-				existingSet.Add(existing)
+				existingSet.MustAdd(existing)
 			}
 
 			existingSet.Subtract(tc.toSubtract)
@@ -930,15 +932,15 @@ func TestSubjectSetIntersection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			existingSet := NewSubjectSet()
 			for _, existing := range tc.existing {
-				existingSet.Add(existing)
+				existingSet.MustAdd(existing)
 			}
 
 			toIntersect := NewSubjectSet()
 			for _, toAdd := range tc.toIntersect {
-				toIntersect.Add(toAdd)
+				toIntersect.MustAdd(toAdd)
 			}
 
-			existingSet.IntersectionDifference(toIntersect)
+			existingSet.MustIntersectionDifference(toIntersect)
 
 			expectedSet := tc.expectedSet
 			computedSet := existingSet.AsSlice()
@@ -948,15 +950,15 @@ func TestSubjectSetIntersection(t *testing.T) {
 			t.Run("inverted", func(t *testing.T) {
 				existingSet := NewSubjectSet()
 				for _, existing := range tc.existing {
-					existingSet.Add(existing)
+					existingSet.MustAdd(existing)
 				}
 
 				toIntersect := NewSubjectSet()
 				for _, toAdd := range tc.toIntersect {
-					toIntersect.Add(toAdd)
+					toIntersect.MustAdd(toAdd)
 				}
 
-				toIntersect.IntersectionDifference(existingSet)
+				toIntersect.MustIntersectionDifference(existingSet)
 
 				// The inverted set is necessary for some caveated sets, because their expressions may
 				// have references in reversed locations.
@@ -981,22 +983,22 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"basic adds",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
+				set.MustAdd(sub("1"))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
 
-				set.Add(sub("1"))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
+				set.MustAdd(sub("1"))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
 			},
 			[]*v1.FoundSubject{sub("1"), sub("2"), sub("3")},
 		},
 		{
 			"add and remove",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
+				set.MustAdd(sub("1"))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
 
 				set.Subtract(sub("1"))
 			},
@@ -1005,42 +1007,42 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"add and intersect",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
+				set.MustAdd(sub("1"))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
 
 				other := NewSubjectSet()
-				other.Add(sub("2"))
+				other.MustAdd(sub("2"))
 
-				set.IntersectionDifference(other)
+				set.MustIntersectionDifference(other)
 			},
 			[]*v1.FoundSubject{sub("2")},
 		},
 		{
 			"caveated adds",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
+				set.MustAdd(sub("1"))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
 
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(csub("1", caveatexpr("second")))
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(csub("1", caveatexpr("second")))
 			},
 			[]*v1.FoundSubject{sub("1"), sub("2"), sub("3")},
 		},
 		{
 			"all caveated adds",
 			func(set SubjectSet) {
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(csub("1", caveatexpr("second")))
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(csub("1", caveatexpr("second")))
 			},
 			[]*v1.FoundSubject{csub("1", caveatOr(caveatexpr("first"), caveatexpr("second")))},
 		},
 		{
 			"caveated adds and caveated sub",
 			func(set SubjectSet) {
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(csub("1", caveatexpr("second")))
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(csub("1", caveatexpr("second")))
 				set.Subtract(csub("1", caveatexpr("third")))
 			},
 			[]*v1.FoundSubject{
@@ -1055,10 +1057,10 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"caveated adds, sub and add",
 			func(set SubjectSet) {
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(csub("1", caveatexpr("second")))
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(csub("1", caveatexpr("second")))
 				set.Subtract(csub("1", caveatexpr("third")))
-				set.Add(csub("1", caveatexpr("fourth")))
+				set.MustAdd(csub("1", caveatexpr("fourth")))
 			},
 			[]*v1.FoundSubject{
 				csub("1",
@@ -1075,10 +1077,10 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"caveated adds, sub and concrete add",
 			func(set SubjectSet) {
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(csub("1", caveatexpr("second")))
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(csub("1", caveatexpr("second")))
 				set.Subtract(csub("1", caveatexpr("third")))
-				set.Add(sub("1"))
+				set.MustAdd(sub("1"))
 			},
 			[]*v1.FoundSubject{
 				sub("1"),
@@ -1087,8 +1089,8 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"add concrete, add wildcard, sub concrete",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(wc())
+				set.MustAdd(sub("1"))
+				set.MustAdd(wc())
 				set.Subtract(sub("1"))
 				set.Subtract(sub("1"))
 			},
@@ -1097,30 +1099,30 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"add concrete, add wildcard, sub concrete, add concrete",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(wc())
+				set.MustAdd(sub("1"))
+				set.MustAdd(wc())
 				set.Subtract(sub("1"))
-				set.Add(sub("1"))
+				set.MustAdd(sub("1"))
 			},
 			[]*v1.FoundSubject{wc(), sub("1")},
 		},
 		{
 			"caveated concrete subtracted from wildcard and then concrete added back",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(wc())
+				set.MustAdd(sub("1"))
+				set.MustAdd(wc())
 				set.Subtract(csub("1", caveatexpr("first")))
-				set.Add(sub("1"))
+				set.MustAdd(sub("1"))
 			},
 			[]*v1.FoundSubject{wc(), sub("1")},
 		},
 		{
 			"concrete subtracted from wildcard and then caveated added back",
 			func(set SubjectSet) {
-				set.Add(sub("1"))
-				set.Add(wc())
+				set.MustAdd(sub("1"))
+				set.MustAdd(wc())
 				set.Subtract(sub("1"))
-				set.Add(csub("1", caveatexpr("first")))
+				set.MustAdd(csub("1", caveatexpr("first")))
 			},
 			[]*v1.FoundSubject{
 				cwc(nil, csub("1", caveatInvert(caveatexpr("first")))),
@@ -1133,11 +1135,11 @@ func TestMultipleOperations(t *testing.T) {
 				// Start with two sets of concretes and a wildcard.
 				// Example: permission view = viewer + editor
 				//														^ {*}    ^ {1,2,3,4}
-				set.Add(sub("1"))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
-				set.Add(sub("4"))
-				set.Add(wc())
+				set.MustAdd(sub("1"))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
+				set.MustAdd(sub("4"))
+				set.MustAdd(wc())
 
 				// Subtract out banned users.
 				// Example: permission view_but_not_banned = view - banned
@@ -1150,11 +1152,11 @@ func TestMultipleOperations(t *testing.T) {
 				// Example: permission result = view_but_not_banned & another_set
 				//																										^ {1,3,*}
 				other := NewSubjectSet()
-				other.Add(sub("1"))
-				other.Add(sub("3"))
-				other.Add(wc())
+				other.MustAdd(sub("1"))
+				other.MustAdd(sub("3"))
+				other.MustAdd(wc())
 
-				set.IntersectionDifference(other)
+				set.MustIntersectionDifference(other)
 
 				// Remaining
 				// `1` from `view` and `another_set`
@@ -1175,10 +1177,10 @@ func TestMultipleOperations(t *testing.T) {
 				// Start with two sets of concretes and a wildcard.
 				// Example: permission view = viewer + editor
 				//														^ {1}    ^ {2,3,4}
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
-				set.Add(sub("4"))
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
+				set.MustAdd(sub("4"))
 
 				// Subtract out banned users.
 				// Example: permission view_but_not_banned = view - banned
@@ -1191,10 +1193,10 @@ func TestMultipleOperations(t *testing.T) {
 				// Example: permission result = view_but_not_banned & another_set
 				//																										^ {1,3,*}
 				other := NewSubjectSet()
-				other.Add(sub("1"))
-				other.Add(csub("3", caveatexpr("second")))
+				other.MustAdd(sub("1"))
+				other.MustAdd(csub("3", caveatexpr("second")))
 
-				set.IntersectionDifference(other)
+				set.MustIntersectionDifference(other)
 			},
 			[]*v1.FoundSubject{
 				csub("1", caveatexpr("first")),
@@ -1210,11 +1212,11 @@ func TestMultipleOperations(t *testing.T) {
 				// Start with two sets of concretes and a wildcard.
 				// Example: permission view = viewer + editor
 				//														^ {*}    ^ {1,2,3,4}
-				set.Add(csub("1", caveatexpr("first")))
-				set.Add(sub("2"))
-				set.Add(sub("3"))
-				set.Add(sub("4"))
-				set.Add(wc())
+				set.MustAdd(csub("1", caveatexpr("first")))
+				set.MustAdd(sub("2"))
+				set.MustAdd(sub("3"))
+				set.MustAdd(sub("4"))
+				set.MustAdd(wc())
 
 				// Subtract out banned users.
 				// Example: permission view_but_not_banned = view - banned
@@ -1227,11 +1229,11 @@ func TestMultipleOperations(t *testing.T) {
 				// Example: permission result = view_but_not_banned & another_set
 				//																										^ {1,3,*}
 				other := NewSubjectSet()
-				other.Add(sub("1"))
-				other.Add(csub("3", caveatexpr("second")))
-				other.Add(wc())
+				other.MustAdd(sub("1"))
+				other.MustAdd(csub("3", caveatexpr("second")))
+				other.MustAdd(wc())
 
-				set.IntersectionDifference(other)
+				set.MustIntersectionDifference(other)
 			},
 			[]*v1.FoundSubject{
 				// `1` is included without caveat because it is non-caveated in other and there is a
@@ -1268,15 +1270,15 @@ func TestMultipleOperations(t *testing.T) {
 		{
 			"subtraction followed by intersection without wildcard",
 			func(set SubjectSet) {
-				set.Add(sub("3"))
-				set.Add(wc())
+				set.MustAdd(sub("3"))
+				set.MustAdd(wc())
 
 				set.Subtract(csub("3", caveatexpr("banned")))
 
 				other := NewSubjectSet()
-				other.Add(csub("3", caveatexpr("second")))
+				other.MustAdd(csub("3", caveatexpr("second")))
 
-				set.IntersectionDifference(other)
+				set.MustIntersectionDifference(other)
 			},
 			[]*v1.FoundSubject{
 				// `3` inclusion expression:
@@ -1349,12 +1351,12 @@ func TestSubtractAll(t *testing.T) {
 			set := NewSubjectSet()
 
 			for _, starting := range tc.startingSubjects {
-				set.Add(starting)
+				set.MustAdd(starting)
 			}
 
 			toRemove := NewSubjectSet()
 			for _, toSubtract := range tc.toSubtract {
-				toRemove.Add(toSubtract)
+				toRemove.MustAdd(toSubtract)
 			}
 
 			set.SubtractAll(toRemove)
@@ -1370,10 +1372,10 @@ func TestSubjectSetClone(t *testing.T) {
 	ss := NewSubjectSet()
 	require.True(t, ss.IsEmpty())
 
-	ss.Add(sub("first"))
-	ss.Add(sub("second"))
-	ss.Add(csub("third", caveatexpr("somecaveat")))
-	ss.Add(wc("one", "two"))
+	ss.MustAdd(sub("first"))
+	ss.MustAdd(sub("second"))
+	ss.MustAdd(csub("third", caveatexpr("somecaveat")))
+	ss.MustAdd(wc("one", "two"))
 	require.False(t, ss.IsEmpty())
 
 	existingSubjects := ss.AsSlice()
@@ -1400,10 +1402,10 @@ func TestSubjectSetGet(t *testing.T) {
 	ss := NewSubjectSet()
 	require.True(t, ss.IsEmpty())
 
-	ss.Add(sub("first"))
-	ss.Add(sub("second"))
-	ss.Add(csub("third", caveatexpr("somecaveat")))
-	ss.Add(wc("one", "two"))
+	ss.MustAdd(sub("first"))
+	ss.MustAdd(sub("second"))
+	ss.MustAdd(csub("third", caveatexpr("somecaveat")))
+	ss.MustAdd(wc("one", "two"))
 	require.False(t, ss.IsEmpty())
 
 	found, ok := ss.Get("first")
@@ -1455,18 +1457,19 @@ func TestUnionCommutativity(t *testing.T) {
 		t.Run(fmt.Sprintf("%v", pair), func(t *testing.T) {
 			left1, left2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range pair[0] {
-				left1.Add(l)
-				left2.Add(l)
+				left1.MustAdd(l)
+				left2.MustAdd(l)
 			}
 			right1, right2 := NewSubjectSet(), NewSubjectSet()
 			for _, r := range pair[1] {
-				right1.Add(r)
-				right2.Add(r)
+				right1.MustAdd(r)
+				right2.MustAdd(r)
 			}
 			// left union right
-			left1.UnionWithSet(right1)
+			left1.MustUnionWithSet(right1)
+
 			// right union left
-			right2.UnionWithSet(left2)
+			right2.MustUnionWithSet(left2)
 
 			mergedLeft := left1.AsSlice()
 			mergedRight := right2.AsSlice()
@@ -1482,27 +1485,27 @@ func TestUnionAssociativity(t *testing.T) {
 
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range triple[0] {
-				A1.Add(l)
-				A2.Add(l)
+				A1.MustAdd(l)
+				A2.MustAdd(l)
 			}
 			B1, B2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range triple[1] {
-				B1.Add(l)
-				B2.Add(l)
+				B1.MustAdd(l)
+				B2.MustAdd(l)
 			}
 			C1, C2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range triple[2] {
-				C1.Add(l)
-				C2.Add(l)
+				C1.MustAdd(l)
+				C2.MustAdd(l)
 			}
 
 			// A U (B U C)
-			B1.UnionWithSet(C1)
-			A1.UnionWithSet(B1)
+			B1.MustUnionWithSet(C1)
+			A1.MustUnionWithSet(B1)
 
 			// (A U B) U C
-			A2.UnionWithSet(B2)
-			A2.UnionWithSet(C2)
+			A2.MustUnionWithSet(B2)
+			A2.MustUnionWithSet(C2)
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
@@ -1516,18 +1519,18 @@ func TestIntersectionCommutativity(t *testing.T) {
 		t.Run(fmt.Sprintf("%v", pair), func(t *testing.T) {
 			left1, left2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range pair[0] {
-				left1.Add(l)
-				left2.Add(l)
+				left1.MustAdd(l)
+				left2.MustAdd(l)
 			}
 			right1, right2 := NewSubjectSet(), NewSubjectSet()
 			for _, r := range pair[1] {
-				right1.Add(r)
-				right2.Add(r)
+				right1.MustAdd(r)
+				right2.MustAdd(r)
 			}
 			// left intersect right
-			left1.IntersectionDifference(right1)
+			left1.MustIntersectionDifference(right1)
 			// right intersects left
-			right2.IntersectionDifference(left2)
+			right2.MustIntersectionDifference(left2)
 
 			mergedLeft := left1.AsSlice()
 			mergedRight := right2.AsSlice()
@@ -1543,27 +1546,27 @@ func TestIntersectionAssociativity(t *testing.T) {
 
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range triple[0] {
-				A1.Add(l)
-				A2.Add(l)
+				A1.MustAdd(l)
+				A2.MustAdd(l)
 			}
 			B1, B2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range triple[1] {
-				B1.Add(l)
-				B2.Add(l)
+				B1.MustAdd(l)
+				B2.MustAdd(l)
 			}
 			C1, C2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range triple[2] {
-				C1.Add(l)
-				C2.Add(l)
+				C1.MustAdd(l)
+				C2.MustAdd(l)
 			}
 
 			// A ∩ (B ∩ C)
-			B1.IntersectionDifference(C1)
-			A1.IntersectionDifference(B1)
+			B1.MustIntersectionDifference(C1)
+			A1.MustIntersectionDifference(B1)
 
 			// (A ∩ B) ∩ C
-			A2.IntersectionDifference(B2)
-			A2.IntersectionDifference(C2)
+			A2.MustIntersectionDifference(B2)
+			A2.MustIntersectionDifference(C2)
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
@@ -1578,10 +1581,10 @@ func TestIdempotentUnion(t *testing.T) {
 			// A U A == A
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range set {
-				A1.Add(l)
-				A2.Add(l)
+				A1.MustAdd(l)
+				A2.MustAdd(l)
 			}
-			A1.UnionWithSet(A2)
+			A1.MustUnionWithSet(A2)
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
@@ -1596,10 +1599,10 @@ func TestIdempotentIntersection(t *testing.T) {
 			// A ∩ A == A
 			A1, A2 := NewSubjectSet(), NewSubjectSet()
 			for _, l := range set {
-				A1.Add(l)
-				A2.Add(l)
+				A1.MustAdd(l)
+				A2.MustAdd(l)
 			}
-			A1.IntersectionDifference(A2)
+			A1.MustIntersectionDifference(A2)
 
 			mergedLeft := A1.AsSlice()
 			mergedRight := A2.AsSlice()
@@ -1708,11 +1711,13 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
-			produced := unionWildcardWithWildcard[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
+			produced, err := unionWildcardWithWildcard[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
+			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
 			toUnion := wrap(tc.toUnion)
-			produced2 := unionWildcardWithWildcard[*v1.FoundSubject](toUnion, tc.existing, subjectSetConstructor)
+			produced2, err := unionWildcardWithWildcard[*v1.FoundSubject](toUnion, tc.existing, subjectSetConstructor)
+			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expectedInverse, produced2)
 		})
 	}
@@ -2420,10 +2425,12 @@ func TestIntersectWildcardWithWildcard(t *testing.T) {
 			first := wrap(tc.first)
 			second := wrap(tc.second)
 
-			produced := intersectWildcardWithWildcard[*v1.FoundSubject](first, second, subjectSetConstructor)
+			produced, err := intersectWildcardWithWildcard[*v1.FoundSubject](first, second, subjectSetConstructor)
+			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
-			produced2 := intersectWildcardWithWildcard[*v1.FoundSubject](second, first, subjectSetConstructor)
+			produced2, err := intersectWildcardWithWildcard[*v1.FoundSubject](second, first, subjectSetConstructor)
+			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expectedInverted, produced2)
 		})
 	}
@@ -2544,7 +2551,8 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.concrete), testutil.FormatSubject(tc.wildcard)), func(t *testing.T) {
 			wildcard := wrap(tc.wildcard)
 
-			produced := intersectConcreteWithWildcard[*v1.FoundSubject](tc.concrete, wildcard, subjectSetConstructor)
+			produced, err := intersectConcreteWithWildcard[*v1.FoundSubject](tc.concrete, wildcard, subjectSetConstructor)
+			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}

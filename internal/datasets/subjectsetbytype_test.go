@@ -40,14 +40,24 @@ func TestSubjectByTypeSet(t *testing.T) {
 	require.True(t, set.IsEmpty())
 
 	// Add some concrete subjects.
-	set.AddConcreteSubject(tuple.ParseONR("document:foo#viewer"))
-	set.AddConcreteSubject(tuple.ParseONR("document:bar#viewer"))
-	set.AddConcreteSubject(tuple.ParseONR("team:something#member"))
-	set.AddConcreteSubject(tuple.ParseONR("team:other#member"))
-	set.AddConcreteSubject(tuple.ParseONR("team:other#manager"))
+	err := set.AddConcreteSubject(tuple.ParseONR("document:foo#viewer"))
+	require.NoError(t, err)
+
+	err = set.AddConcreteSubject(tuple.ParseONR("document:bar#viewer"))
+	require.NoError(t, err)
+
+	err = set.AddConcreteSubject(tuple.ParseONR("team:something#member"))
+	require.NoError(t, err)
+
+	err = set.AddConcreteSubject(tuple.ParseONR("team:other#member"))
+	require.NoError(t, err)
+
+	err = set.AddConcreteSubject(tuple.ParseONR("team:other#manager"))
+	require.NoError(t, err)
 
 	// Add a caveated subject.
-	set.AddSubjectOf(tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "first"))
+	err = set.AddSubjectOf(tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "first"))
+	require.NoError(t, err)
 
 	require.False(t, set.IsEmpty())
 
@@ -77,7 +87,8 @@ func TestSubjectSetByTypeWithCaveats(t *testing.T) {
 	set := NewSubjectByTypeSet()
 	require.True(t, set.IsEmpty())
 
-	set.AddSubjectOf(tuple.WithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "first"))
+	err := set.AddSubjectOf(tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "first"))
+	require.NoError(t, err)
 
 	ss, ok := set.SubjectSetForType(&core.RelationReference{
 		Namespace: "user",

@@ -12,6 +12,8 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 )
 
+// TODO(jschorr): Replace with a real dashboard
+
 const rootTemplate = `
 <html>
 	<head>
@@ -146,7 +148,13 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 			}
 
 			for _, nsDef := range nsDefs {
-				objectDef, _ := generator.GenerateSource(nsDef)
+				objectDef, _, err := generator.GenerateSource(nsDef)
+				if err != nil {
+					log.Ctx(r.Context()).Error().AnErr("genErr", err).Msg("Got error when trying to generate namespace")
+					fmt.Fprintf(w, "Internal Error")
+					return
+				}
+
 				objectDefs = append(objectDefs, objectDef)
 
 				if nsDef.Name == "user" {

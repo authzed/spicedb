@@ -125,7 +125,11 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 		}
 
 		if tpl.Subject.Relation != tuple.Ellipsis {
-			toDispatchByType.AddSubjectOf(tpl)
+			err := toDispatchByType.AddSubjectOf(tpl)
+			if err != nil {
+				return err
+			}
+
 			relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
 		}
 	}
@@ -208,7 +212,10 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 		}
 
 		// Add the subject to be dispatched.
-		toDispatchByTuplesetType.AddSubjectOf(tpl)
+		err := toDispatchByTuplesetType.AddSubjectOf(tpl)
+		if err != nil {
+			return err
+		}
 
 		// Add the *rewritten* subject to the relationships multimap for mapping back to the associated
 		// relationship, as we will be mapping from the computed relation, not the tupleset relation.
@@ -384,7 +391,10 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 
 						// Otherwise, apply the caveat to all found subjects for that resource and map to the resource ID.
 						foundSubjectSet := datasets.NewSubjectSet()
-						foundSubjectSet.UnionWith(foundSubjects.FoundSubjects)
+						err := foundSubjectSet.UnionWith(foundSubjects.FoundSubjects)
+						if err != nil {
+							return nil, false, fmt.Errorf("could not combine subject sets: %w", err)
+						}
 
 						combined, err := combineFoundSubjects(
 							existing,
@@ -530,7 +540,11 @@ func (lsi *lookupSubjectsIntersection) CompletedChildOperations() error {
 		if index == 0 {
 			foundSubjects = results
 		} else {
-			foundSubjects.IntersectionDifference(results)
+			err := foundSubjects.IntersectionDifference(results)
+			if err != nil {
+				return err
+			}
+
 			if foundSubjects.IsEmpty() {
 				return nil
 			}

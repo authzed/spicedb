@@ -42,7 +42,7 @@ caveat somecaveat(someParam int) {
 			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
 				map[string]caveattypes.VariableType{
 					"someParam":    caveattypes.IntType,
-					"anotherParam": caveattypes.MapType(caveattypes.UIntType),
+					"anotherParam": caveattypes.MustMapType(caveattypes.UIntType),
 				},
 			), "somecaveat", "someParam == 42"),
 			`
@@ -69,7 +69,8 @@ caveat somecaveat(someParam int) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok := GenerateCaveatSource(test.input)
+			source, ok, err := GenerateCaveatSource(test.input)
+			require.NoError(err)
 			require.Equal(strings.TrimSpace(test.expected), source)
 			require.Equal(test.okay, ok)
 		})
@@ -94,7 +95,7 @@ func TestGenerateNamespace(t *testing.T) {
 		{
 			"simple relation",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", nil, namespace.AllowedRelation("foos/bars", "hiya")),
+				namespace.MustRelation("somerel", nil, namespace.AllowedRelation("foos/bars", "hiya")),
 			),
 			`definition foos/test {
 	relation somerel: foos/bars#hiya
@@ -104,7 +105,7 @@ func TestGenerateNamespace(t *testing.T) {
 		{
 			"simple permission",
 			namespace.Namespace("foos/test",
-				namespace.Relation("someperm", namespace.Union(
+				namespace.MustRelation("someperm", namespace.Union(
 					namespace.ComputedUserset("anotherrel"),
 				)),
 			),
@@ -116,7 +117,7 @@ func TestGenerateNamespace(t *testing.T) {
 		{
 			"complex permission",
 			namespace.Namespace("foos/test",
-				namespace.Relation("someperm", namespace.Union(
+				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
 							namespace.ComputedUserset("rela"),
@@ -135,7 +136,7 @@ func TestGenerateNamespace(t *testing.T) {
 		{
 			"complex permission with nil",
 			namespace.Namespace("foos/test",
-				namespace.Relation("someperm", namespace.Union(
+				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
 							namespace.ComputedUserset("rela"),
@@ -155,7 +156,7 @@ func TestGenerateNamespace(t *testing.T) {
 		{
 			"legacy relation",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", namespace.Union(
+				namespace.MustRelation("somerel", namespace.Union(
 					&core.SetOperation_Child{
 						ChildType: &core.SetOperation_Child_XThis{},
 					},
@@ -170,7 +171,7 @@ func TestGenerateNamespace(t *testing.T) {
 		{
 			"missing type information",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", nil),
+				namespace.MustRelation("somerel", nil),
 			),
 			`definition foos/test {
 	relation somerel: /* missing allowed types */
@@ -183,10 +184,10 @@ func TestGenerateNamespace(t *testing.T) {
 			namespace.WithComment("foos/document", `/**
 * Some comment goes here
 */`,
-				namespace.Relation("owner", nil,
+				namespace.MustRelation("owner", nil,
 					namespace.AllowedRelation("foos/user", "..."),
 				),
-				namespace.RelationWithComment("reader", "//foobar", nil,
+				namespace.MustRelationWithComment("reader", "//foobar", nil,
 					namespace.AllowedRelation("foos/user", "..."),
 					namespace.AllowedPublicNamespace("foos/user"),
 					namespace.AllowedRelation("foos/group", "member"),
@@ -194,7 +195,7 @@ func TestGenerateNamespace(t *testing.T) {
 					namespace.AllowedRelationWithCaveat("foos/group", "member", namespace.AllowedCaveat("somecaveat")),
 					namespace.AllowedPublicNamespaceWithCaveat("foos/user", namespace.AllowedCaveat("somecaveat")),
 				),
-				namespace.Relation("read", namespace.Union(
+				namespace.MustRelation("read", namespace.Union(
 					namespace.ComputedUserset("reader"),
 					namespace.ComputedUserset("owner"),
 				)),
@@ -214,7 +215,8 @@ definition foos/document {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok := GenerateSource(test.input)
+			source, ok, err := GenerateSource(test.input)
+			require.NoError(err)
 			require.Equal(test.expected, source)
 			require.Equal(test.okay, ok)
 		})
@@ -360,7 +362,8 @@ definition foos/document {
 			}, nil)
 			require.NoError(err)
 
-			source, _ := GenerateSchema(compiled.OrderedDefinitions)
+			source, _, err := GenerateSchema(compiled.OrderedDefinitions)
+			require.NoError(err)
 			require.Equal(test.expected, source)
 		})
 	}

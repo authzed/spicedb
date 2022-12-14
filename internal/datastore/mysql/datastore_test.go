@@ -157,7 +157,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
+				namespace.MustRelation("reader", nil),
 			),
 			namespace.Namespace("user"),
 		)
@@ -178,8 +178,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
-				namespace.Relation("unused", nil),
+				namespace.MustRelation("reader", nil),
+				namespace.MustRelation("unused", nil),
 			),
 			namespace.Namespace("user"),
 		)
@@ -295,7 +295,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
+				namespace.MustRelation("reader", nil),
 			),
 			namespace.Namespace("user"),
 		)
@@ -368,7 +368,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
+				namespace.MustRelation("reader", nil),
 			),
 			namespace.Namespace("user"),
 		)

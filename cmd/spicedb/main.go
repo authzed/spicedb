@@ -66,7 +66,7 @@ func main() {
 	// Add server commands
 	var serverConfig cmdutil.Config
 	serveCmd := cmd.NewServeCommand(rootCmd.Use, &serverConfig)
-	cmd.RegisterServeFlags(serveCmd, &serverConfig)
+	cmd.MustRegisterServeFlags(serveCmd, &serverConfig)
 	rootCmd.AddCommand(serveCmd)
 
 	devtoolsCmd := cmd.NewDevtoolsCommand(rootCmd.Use)

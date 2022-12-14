@@ -28,7 +28,7 @@ var ignoredTokenTypes = map[lexer.TokenType]bool{
 // consumeTopLevel attempts to consume the top-level definitions.
 func (p *sourceParser) consumeTopLevel() AstNode {
 	rootNode := p.startNode(dslshape.NodeTypeFile)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// Start at the first token.
 	p.consumeToken()
@@ -75,7 +75,7 @@ Loop:
 // ```caveat somecaveat(param1 type, param2 type) { ... }```
 func (p *sourceParser) consumeCaveat() AstNode {
 	defNode := p.startNode(dslshape.NodeTypeCaveatDefinition)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// caveat ...
 	p.consumeKeyword("caveat")
@@ -84,7 +84,7 @@ func (p *sourceParser) consumeCaveat() AstNode {
 		return defNode
 	}
 
-	defNode.Decorate(dslshape.NodeCaveatDefinitionPredicateName, caveatName)
+	defNode.MustDecorate(dslshape.NodeCaveatDefinitionPredicateName, caveatName)
 
 	// Parameters:
 	// (
@@ -135,7 +135,7 @@ func (p *sourceParser) consumeCaveat() AstNode {
 
 func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
 	exprNode := p.startNode(dslshape.NodeTypeCaveatExpession)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
 	// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
@@ -175,7 +175,7 @@ consumer:
 	}
 
 	caveatExpression := p.input[startToken.Position : int(endToken.Position)+len(endToken.Value)]
-	exprNode.Decorate(dslshape.NodeCaveatExpressionPredicateExpression, caveatExpression)
+	exprNode.MustDecorate(dslshape.NodeCaveatExpressionPredicateExpression, caveatExpression)
 	return exprNode, true
 }
 
@@ -183,14 +183,14 @@ consumer:
 // ```(paramName paramtype)```
 func (p *sourceParser) consumeCaveatParameter() (AstNode, bool) {
 	paramNode := p.startNode(dslshape.NodeTypeCaveatParameter)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	name, ok := p.consumeIdentifier()
 	if !ok {
 		return paramNode, false
 	}
 
-	paramNode.Decorate(dslshape.NodeCaveatParameterPredicateName, name)
+	paramNode.MustDecorate(dslshape.NodeCaveatParameterPredicateName, name)
 	paramNode.Connect(dslshape.NodeCaveatParameterPredicateType, p.consumeCaveatTypeReference())
 	return paramNode, true
 }
@@ -199,14 +199,14 @@ func (p *sourceParser) consumeCaveatParameter() (AstNode, bool) {
 // ```typeName<childType>```
 func (p *sourceParser) consumeCaveatTypeReference() AstNode {
 	typeRefNode := p.startNode(dslshape.NodeTypeCaveatTypeReference)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	name, ok := p.consumeIdentifier()
 	if !ok {
 		return typeRefNode
 	}
 
-	typeRefNode.Decorate(dslshape.NodeCaveatTypeReferencePredicateType, name)
+	typeRefNode.MustDecorate(dslshape.NodeCaveatTypeReferencePredicateType, name)
 
 	// Check for child type(s).
 	// <
@@ -231,7 +231,7 @@ func (p *sourceParser) consumeCaveatTypeReference() AstNode {
 // ```definition somedef { ... }```
 func (p *sourceParser) consumeDefinition() AstNode {
 	defNode := p.startNode(dslshape.NodeTypeDefinition)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// definition ...
 	p.consumeKeyword("definition")
@@ -240,7 +240,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		return defNode
 	}
 
-	defNode.Decorate(dslshape.NodeDefinitionPredicateName, definitionName)
+	defNode.MustDecorate(dslshape.NodeDefinitionPredicateName, definitionName)
 
 	// {
 	_, ok = p.consume(lexer.TokenTypeLeftBrace)
@@ -278,7 +278,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 // ```relation foo: sometype```
 func (p *sourceParser) consumeRelation() AstNode {
 	relNode := p.startNode(dslshape.NodeTypeRelation)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// relation ...
 	p.consumeKeyword("relation")
@@ -287,7 +287,7 @@ func (p *sourceParser) consumeRelation() AstNode {
 		return relNode
 	}
 
-	relNode.Decorate(dslshape.NodePredicateName, relationName)
+	relNode.MustDecorate(dslshape.NodePredicateName, relationName)
 
 	// :
 	_, ok = p.consume(lexer.TokenTypeColon)
@@ -305,7 +305,7 @@ func (p *sourceParser) consumeRelation() AstNode {
 // ```sometype | anothertype | anothertype:* ```
 func (p *sourceParser) consumeTypeReference() AstNode {
 	refNode := p.startNode(dslshape.NodeTypeTypeReference)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	for {
 		refNode.Connect(dslshape.NodeTypeReferencePredicateType, p.consumeSpecificTypeWithCaveat())
@@ -336,7 +336,7 @@ func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 	}
 
 	caveatNode := p.startNode(dslshape.NodeTypeCaveatReference)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	if ok := p.consumeKeyword("with"); !ok {
 		return nil, ok
@@ -347,21 +347,21 @@ func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 		return caveatNode, true
 	}
 
-	caveatNode.Decorate(dslshape.NodeCaveatPredicateCaveat, consumed)
+	caveatNode.MustDecorate(dslshape.NodeCaveatPredicateCaveat, consumed)
 	return caveatNode, true
 }
 
 // consumeSpecificType consumes an identifier as a specific type reference.
 func (p *sourceParser) consumeSpecificType() AstNode {
 	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	typeName, ok := p.consumeTypePath()
 	if !ok {
 		return specificNode
 	}
 
-	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateType, typeName)
+	specificNode.MustDecorate(dslshape.NodeSpecificReferencePredicateType, typeName)
 
 	// Check for a wildcard
 	if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
@@ -370,7 +370,7 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 			return specificNode
 		}
 
-		specificNode.Decorate(dslshape.NodeSpecificReferencePredicateWildcard, "true")
+		specificNode.MustDecorate(dslshape.NodeSpecificReferencePredicateWildcard, "true")
 		return specificNode
 	}
 
@@ -385,7 +385,7 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 		return specificNode
 	}
 
-	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
+	specificNode.MustDecorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
 	return specificNode
 }
 
@@ -412,7 +412,7 @@ func (p *sourceParser) consumeTypePath() (string, bool) {
 // ```permission foo = bar + baz```
 func (p *sourceParser) consumePermission() AstNode {
 	permNode := p.startNode(dslshape.NodeTypePermission)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// permission ...
 	p.consumeKeyword("permission")
@@ -421,7 +421,7 @@ func (p *sourceParser) consumePermission() AstNode {
 		return permNode
 	}
 
-	permNode.Decorate(dslshape.NodePredicateName, permissionName)
+	permNode.MustDecorate(dslshape.NodePredicateName, permissionName)
 
 	// =
 	_, ok = p.consume(lexer.TokenTypeEquals)
@@ -529,10 +529,10 @@ func (p *sourceParser) tryConsumeIdentifierLiteral() (AstNode, bool) {
 	}
 
 	identNode := p.startNode(dslshape.NodeTypeIdentifier)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	identifier, _ := p.consumeIdentifier()
-	identNode.Decorate(dslshape.NodeIdentiferPredicateValue, identifier)
+	identNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, identifier)
 	return identNode, true
 }
 
@@ -543,6 +543,6 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 
 	node := p.startNode(dslshape.NodeTypeNilExpression)
 	p.consumeKeyword("nil")
-	defer p.finishNode()
+	defer p.mustFinishNode()
 	return node, true
 }

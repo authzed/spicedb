@@ -103,15 +103,15 @@ func (ds *devServer) LookupShared(ctx context.Context, req *v0.LookupShareReques
 }
 
 func (ds *devServer) EditCheck(ctx context.Context, req *v0.EditCheckRequest) (*v0.EditCheckResponse, error) {
-	panic("No longer implemented. Please use the WebAssembly development pacakge")
+	return nil, fmt.Errorf("no longer implemented. Please use the WebAssembly development package")
 }
 
 func (ds *devServer) Validate(ctx context.Context, req *v0.ValidateRequest) (*v0.ValidateResponse, error) {
-	panic("No longer implemented. Please use the WebAssembly development pacakge")
+	return nil, fmt.Errorf("no longer implemented. Please use the WebAssembly development package")
 }
 
 func (ds *devServer) FormatSchema(ctx context.Context, req *v0.FormatSchemaRequest) (*v0.FormatSchemaResponse, error) {
-	panic("No longer implemented. Please use the WebAssembly development pacakge")
+	return nil, fmt.Errorf("no longer implemented. Please use the WebAssembly development package")
 }
 
 func upgradeSchema(configs []string) (string, error) {
@@ -123,7 +123,11 @@ func upgradeSchema(configs []string) (string, error) {
 			return "", fmt.Errorf("could not upgrade schema due to parse error: %w", nerr)
 		}
 
-		generated, _ := generator.GenerateSource(&nsDef)
+		generated, _, err := generator.GenerateSource(&nsDef)
+		if err != nil {
+			return "", err
+		}
+
 		schema += generated
 		schema += "\n\n"
 	}

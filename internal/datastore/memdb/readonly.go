@@ -31,7 +31,7 @@ func (r *memdbReader) QueryRelationships(
 		return nil, r.initErr
 	}
 
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -61,13 +61,14 @@ func (r *memdbReader) QueryRelationships(
 		limit: queryOpts.Limit,
 	}
 
-	runtime.SetFinalizer(iter, func(iter *memdbTupleIterator) {
-		if !iter.closed {
-			panic("Tuple iterator garbage collected before Close() was called")
-		}
-	})
-
+	runtime.SetFinalizer(iter, mustHaveBeenClosed)
 	return iter, nil
+}
+
+func mustHaveBeenClosed(iter *memdbTupleIterator) {
+	if !iter.closed {
+		panic("Tuple iterator garbage collected before Close() was called")
+	}
 }
 
 // ReverseQueryRelationships reads relationships starting from the subject.
@@ -80,7 +81,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 		return nil, r.initErr
 	}
 
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -136,7 +137,7 @@ func (r *memdbReader) ReadNamespace(ctx context.Context, nsName string) (ns *cor
 		return nil, datastore.NoRevision, r.initErr
 	}
 
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -169,7 +170,7 @@ func (r *memdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 		return nil, r.initErr
 	}
 
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -207,7 +208,7 @@ func (r *memdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([
 		return nil, nil
 	}
 
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -243,7 +244,7 @@ func (r *memdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([
 	return nsDefs, nil
 }
 
-func (r *memdbReader) lockOrPanic() {
+func (r *memdbReader) mustLock() {
 	if !r.TryLock() {
 		panic("detected concurrent use of ReadWriteTransaction")
 	}

@@ -1,10 +1,8 @@
 package namespace
 
 import (
-	"fmt"
-
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/scylladb/go-set/strset"
+	"google.golang.org/protobuf/proto"
 
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -261,24 +259,5 @@ func isPermission(relation *core.Relation) bool {
 }
 
 func areDifferentExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite) bool {
-	m := &jsonpb.Marshaler{}
-	existingRewriteJSON := ""
-	updatedRewriteJSON := ""
-	var merr error
-
-	if existing != nil {
-		existingRewriteJSON, merr = m.MarshalToString(existing)
-		if merr != nil {
-			panic(fmt.Sprintf("got error in marshaling rewrite: %v", merr))
-		}
-	}
-
-	if updated != nil {
-		updatedRewriteJSON, merr = m.MarshalToString(updated)
-		if merr != nil {
-			panic(fmt.Sprintf("got error in marshaling rewrite: %v", merr))
-		}
-	}
-
-	return existingRewriteJSON != updatedRewriteJSON
+	return !proto.Equal(existing, updated)
 }

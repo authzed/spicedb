@@ -170,7 +170,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		{
 			"map evaluation",
 			MustEnvForVariables(map[string]types.VariableType{
-				"m":   types.MapType(types.BooleanType),
+				"m":   types.MustMapType(types.BooleanType),
 				"idx": types.StringType,
 			}),
 			"m[idx]",
@@ -188,7 +188,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		{
 			"map dot evaluation",
 			MustEnvForVariables(map[string]types.VariableType{
-				"m": types.MapType(types.BooleanType),
+				"m": types.MustMapType(types.BooleanType),
 			}),
 			"m.foo",
 			map[string]any{
@@ -204,7 +204,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		{
 			"nested evaluation",
 			MustEnvForVariables(map[string]types.VariableType{
-				"metadata.l":   types.ListType(types.StringType),
+				"metadata.l":   types.MustListType(types.StringType),
 				"metadata.idx": types.IntType,
 			}),
 			"metadata.l[metadata.idx] == 'hello'",
@@ -220,7 +220,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		{
 			"nested evaluation with missing value",
 			MustEnvForVariables(map[string]types.VariableType{
-				"metadata.l":   types.ListType(types.StringType),
+				"metadata.l":   types.MustListType(types.StringType),
 				"metadata.idx": types.IntType,
 			}),
 			"metadata.l[metadata.idx] == 'hello'",
@@ -235,7 +235,7 @@ func TestEvaluateCaveat(t *testing.T) {
 		{
 			"nested evaluation with missing list",
 			MustEnvForVariables(map[string]types.VariableType{
-				"metadata.l":   types.ListType(types.StringType),
+				"metadata.l":   types.MustListType(types.StringType),
 				"metadata.idx": types.IntType,
 			}),
 			"metadata.l[metadata.idx] == 'hello'",

@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var Engines []string
@@ -322,11 +323,11 @@ func (nilRevision) LessThan(rhs Revision) bool {
 }
 
 func (nilRevision) String() string {
-	panic("the nil revision should never be serialized")
+	return "nil"
 }
 
 func (nilRevision) MarshalBinary() ([]byte, error) {
-	panic("the nil revision should never be serialized")
+	return nil, spiceerrors.MustBugf("the nil revision should never be serialized")
 }
 
 // NoRevision is a zero type for the revision that will make changing the

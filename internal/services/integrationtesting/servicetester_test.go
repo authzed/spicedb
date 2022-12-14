@@ -69,7 +69,7 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndR
 		},
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
 	})
@@ -88,7 +88,7 @@ func (v1st v1ServiceTester) Expand(ctx context.Context, resource *core.ObjectAnd
 		Permission: resource.Relation,
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
 	})
@@ -118,7 +118,7 @@ func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 		},
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
 	})
@@ -167,7 +167,7 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *core.R
 		},
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
 	})
@@ -204,7 +204,7 @@ func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.O
 		OptionalSubjectRelation: optionalizeRelation(subjectRelation.Relation),
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
 	})

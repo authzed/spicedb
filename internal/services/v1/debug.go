@@ -48,7 +48,11 @@ func convertCheckDispatchDebugInformation(
 		defs = append(defs, ns)
 	}
 
-	schema, _ := generator.GenerateSchema(defs)
+	schema, _, err := generator.GenerateSchema(defs)
+	if err != nil {
+		return nil, err
+	}
+
 	converted, err := convertCheckTrace(ctx, caveatContext, debugInfo.Check, reader)
 	if err != nil {
 		return nil, err

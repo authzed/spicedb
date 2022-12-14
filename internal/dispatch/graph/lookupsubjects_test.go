@@ -292,7 +292,7 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = viewer
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
 				tuple.MustParse("document:first#viewer@user:sarah"),
 			},
 			ONR("document", "first", "view"),
@@ -321,8 +321,8 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = viewer + editor
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -348,7 +348,7 @@ func TestCaveatedLookupSubjects(t *testing.T) {
   		 }`,
 			[]*corev1.RelationTuple{
 				tuple.MustParse("document:first#viewer@user:tom"),
-				tuple.WithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -376,9 +376,9 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = viewer & editor
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#editor@user:tom"), "anothercaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -410,9 +410,9 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = viewer - banned
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -447,7 +447,7 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = org->viewer
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
 				tuple.MustParse("org:someorg#viewer@user:tom"),
 			},
 			ONR("document", "first", "view"),
@@ -480,8 +480,8 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = org->viewer
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -513,8 +513,8 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = viewer - banned
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -554,9 +554,9 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = (viewer - banned) + explicitly_allowed
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#explicitly_allowed@user:tom"), "thirdcaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#explicitly_allowed@user:tom"), "thirdcaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),
@@ -605,12 +605,12 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				permission view = org->viewer
   		 }`,
 			[]*corev1.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
-				tuple.WithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
 				tuple.MustParse("org:someorg#viewer@user:sarah"),
 
-				tuple.WithCaveat(tuple.MustParse("document:first#org@org:anotherorg"), "thirdcaveat"),
-				tuple.WithCaveat(tuple.MustParse("org:anotherorg#viewer@user:amy"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:anotherorg"), "thirdcaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("org:anotherorg#viewer@user:amy"), "anothercaveat"),
 			},
 			ONR("document", "first", "view"),
 			RR("user", "..."),

@@ -1,9 +1,8 @@
 package keys
 
 import (
-	"fmt"
-
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -42,19 +41,21 @@ func checkRequestToKey(req *v1.DispatchCheckRequest, option dispatchCacheKeyHash
 
 // checkRequestToKeyWithCanonical converts a check request into a cache key based
 // on the canonical key.
-func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey string) DispatchCacheKey {
-	if canonicalKey == "" {
-		panic(fmt.Sprintf("given empty canonical key for request: %s => %s", req.ResourceRelation, tuple.StringONR(req.Subject)))
-	}
-
+func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey string) (DispatchCacheKey, error) {
 	// NOTE: canonical cache keys are only unique *within* a version of a namespace.
-	return dispatchCacheKeyHash(checkViaCanonicalPrefix, req.Metadata.AtRevision, computeBothHashes,
+	cacheKey := dispatchCacheKeyHash(checkViaCanonicalPrefix, req.Metadata.AtRevision, computeBothHashes,
 		hashableString(req.ResourceRelation.Namespace),
 		hashableString(canonicalKey),
 		hashableIds(req.ResourceIds),
 		hashableOnr{req.Subject},
 		hashableResultSetting(req.ResultsSetting),
 	)
+
+	if canonicalKey == "" {
+		return cacheKey, spiceerrors.MustBugf("given empty canonical key for request: %s => %s", req.ResourceRelation, tuple.StringONR(req.Subject))
+	}
+
+	return cacheKey, nil
 }
 
 // lookupRequestToKey converts a lookup request into a cache key

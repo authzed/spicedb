@@ -402,7 +402,7 @@ func createCoreCaveat(t *testing.T) *core.CaveatDefinition {
 	err = env.AddVariable("foo", caveattypes.IntType)
 	require.NoError(t, err)
 
-	err = env.AddVariable("bar", caveattypes.MapType(caveattypes.BytesType))
+	err = env.AddVariable("bar", caveattypes.MustMapType(caveattypes.BytesType))
 	require.NoError(t, err)
 
 	coreCaveat := &core.CaveatDefinition{

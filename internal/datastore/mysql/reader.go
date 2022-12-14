@@ -53,7 +53,11 @@ func (mr *mysqlReader) QueryRelationships(
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	qBuilder := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).FilterWithRelationshipsFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+
 	return mr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
 }
 
@@ -63,8 +67,11 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	qBuilder := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
 		FilterWithSubjectsFilter(subjectsFilter)
+	if err != nil {
+		return nil, err
+	}
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 

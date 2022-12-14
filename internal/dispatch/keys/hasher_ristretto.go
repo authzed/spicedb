@@ -50,6 +50,12 @@ func newDispatchCacheKeyHasher(prefix cachePrefix, computeOption dispatchCacheKe
 
 // WriteString writes a single string to the hasher.
 func (h *dispatchCacheKeyHasher) WriteString(value string) {
+	h.mustWriteString(value)
+}
+
+func (h *dispatchCacheKeyHasher) mustWriteString(value string) {
+	// NOTE: xxhash doesn't seem to ever return an error for WriteString, but we check it just
+	// to be on the safe side.
 	_, err := h.stableHasher.WriteString(value)
 	if err != nil {
 		panic(fmt.Errorf("got an error from writing to the stable hasher: %w", err))

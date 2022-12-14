@@ -11,6 +11,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
 )
@@ -215,8 +216,16 @@ func checkEquivalentCaveatExprs(expected *core.CaveatExpression, found *core.Cav
 
 	referencedNames := referencedNamesSet.AsSlice()
 	for _, values := range combinatorialValues(referencedNames) {
-		expectedResult := executeCaveatExprForTesting(expected, values)
-		foundResult := executeCaveatExprForTesting(found, values)
+		expectedResult, err := executeCaveatExprForTesting(expected, values)
+		if err != nil {
+			return err
+		}
+
+		foundResult, err := executeCaveatExprForTesting(found, values)
+		if err != nil {
+			return err
+		}
+
 		if expectedResult != foundResult {
 			return fmt.Errorf("found difference between caveats for values:\n\tvalues: %v\n\texpected caveat: %s\n\tfound caveat:%s", values, formatCaveatExpr(expected), formatCaveatExpr(found))
 		}
@@ -226,32 +235,59 @@ func checkEquivalentCaveatExprs(expected *core.CaveatExpression, found *core.Cav
 
 // executeCaveatExprForTesting "executes" the given caveat expression for testing. DO NOT USE OUTSIDE OF TESTING.
 // This method *ignores* caveat context and treats each caveat as just its name.
-func executeCaveatExprForTesting(expr *core.CaveatExpression, values map[string]bool) bool {
+func executeCaveatExprForTesting(expr *core.CaveatExpression, values map[string]bool) (bool, error) {
 	if expr.GetCaveat() != nil {
-		return values[expr.GetCaveat().CaveatName]
+		return values[expr.GetCaveat().CaveatName], nil
 	}
 
 	switch expr.GetOperation().Op {
 	case core.CaveatOperation_AND:
 		if len(expr.GetOperation().Children) != 2 {
-			panic("found invalid child count for AND")
+			return false, spiceerrors.MustBugf("found invalid child count for AND")
 		}
-		return executeCaveatExprForTesting(expr.GetOperation().Children[0], values) && executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
+
+		left, err := executeCaveatExprForTesting(expr.GetOperation().Children[0], values)
+		if err != nil {
+			return false, err
+		}
+
+		right, err := executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
+		if err != nil {
+			return false, err
+		}
+
+		return left && right, nil
 
 	case core.CaveatOperation_OR:
 		if len(expr.GetOperation().Children) != 2 {
-			panic("found invalid child count for OR")
+			return false, spiceerrors.MustBugf("found invalid child count for OR")
 		}
-		return executeCaveatExprForTesting(expr.GetOperation().Children[0], values) || executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
+
+		left, err := executeCaveatExprForTesting(expr.GetOperation().Children[0], values)
+		if err != nil {
+			return false, err
+		}
+
+		right, err := executeCaveatExprForTesting(expr.GetOperation().Children[1], values)
+		if err != nil {
+			return false, err
+		}
+
+		return left || right, nil
 
 	case core.CaveatOperation_NOT:
 		if len(expr.GetOperation().Children) != 1 {
-			panic("found invalid child count for NOT")
+			return false, spiceerrors.MustBugf("found invalid child count for NOT")
 		}
-		return !executeCaveatExprForTesting(expr.GetOperation().Children[0], values)
+
+		result, err := executeCaveatExprForTesting(expr.GetOperation().Children[0], values)
+		if err != nil {
+			return false, err
+		}
+		return !result, nil
 
 	default:
-		panic("unknown op")
+		return false, spiceerrors.MustBugf("unknown caveat operation")
 	}
 }
 

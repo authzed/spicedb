@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	"github.com/google/cel-go/cel"
 )
 
@@ -66,7 +68,7 @@ func convertNumericType[T int64 | uint64 | float64](value any) (any, error) {
 		return numericValue, nil
 
 	default:
-		panic("unsupported numeric type")
+		return nil, spiceerrors.MustBugf("unsupported numeric type in caveat number type conversion: %T", n)
 	}
 }
 
@@ -174,3 +176,19 @@ var (
 		},
 	)
 )
+
+func MustListType(childTypes ...VariableType) VariableType {
+	t, err := ListType(childTypes...)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func MustMapType(childTypes ...VariableType) VariableType {
+	t, err := MapType(childTypes...)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
