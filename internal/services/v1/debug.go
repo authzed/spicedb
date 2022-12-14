@@ -15,9 +15,9 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// convertDispatchDebugInformation converts dispatch debug information found in the response metadata
+// convertCheckDispatchDebugInformation converts dispatch debug information found in the response metadata
 // into DebugInformation returnable to the API.
-func convertDispatchDebugInformation(
+func convertCheckDispatchDebugInformation(
 	ctx context.Context,
 	caveatContext map[string]any,
 	metadata *dispatch.ResponseMeta,
@@ -78,8 +78,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		if ok {
 			if checkResult.Membership == dispatch.ResourceCheckResult_MEMBER {
 				permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
-			}
-			if checkResult.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER {
+			} else if checkResult.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER {
 				permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 			}
 		}

@@ -1311,6 +1311,7 @@ func TestCheckPermissionWithCaveatedDebugInfoHasPermission(t *testing.T) {
 
 	var trailer metadata.MD
 
+	// Check with a caveat that evaluates to true.
 	caveatContext, err := structpb.NewStruct(map[string]any{
 		"somecondition":    42,
 		"anothercondition": "hello",
@@ -1392,6 +1393,7 @@ func TestCheckPermissionWithCaveatedDebugInfoNoPermission(t *testing.T) {
 
 	var trailer metadata.MD
 
+	// Check with a caveat that evaluates to false.
 	caveatContext, err := structpb.NewStruct(map[string]any{
 		"somecondition":    42,
 		"anothercondition": "hewo", // Will result in no permission
@@ -1433,4 +1435,72 @@ func TestCheckPermissionWithCaveatedDebugInfoNoPermission(t *testing.T) {
 
 	req.Equal(`somecondition == 42`, debugInfo.Check.GetSubProblems().Traces[0].CaveatEvaluationInfo.Expression)
 	req.Equal(v1.CaveatEvalInfo_RESULT_TRUE, debugInfo.Check.GetSubProblems().Traces[0].CaveatEvaluationInfo.Result)
+}
+
+func TestCheckPermissionWithCaveatedDebugInfoMissingContext(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+				definition user {}
+
+				caveat testcaveat(somecondition int) {
+					somecondition == 42
+				}
+
+				caveat anothercaveat(anothercondition string) {
+					anothercondition == 'hello'
+				}
+
+				definition organization {					
+					relation viewer: user | user with testcaveat
+				}
+
+				definition document {
+					relation parent: organization with anothercaveat
+					permission view = parent->viewer
+				}
+			`, []*core.RelationTuple{
+				tuple.WithCaveat(tuple.MustParse("organization:someorg#viewer@user:tom"), "testcaveat"),
+				tuple.WithCaveat(tuple.MustParse("document:somedoc#parent@organization:someorg"), "anothercaveat"),
+			}, req)
+		})
+
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	var trailer metadata.MD
+
+	// Check with a caveat that evaluates to maybe.
+	caveatContext, err := structpb.NewStruct(map[string]any{})
+	req.NoError(err)
+
+	checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+			},
+		},
+		Resource:   obj("document", "somedoc"),
+		Permission: "view",
+		Subject:    sub("user", "tom", ""),
+		Context:    caveatContext,
+	}, grpc.Trailer(&trailer))
+
+	req.NoError(err)
+	req.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION, checkResp.Permissionship)
+
+	encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
+	req.NoError(err)
+	req.NotNil(encodedDebugInfo)
+
+	debugInfo := &v1.DebugInformation{}
+	err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
+	req.NoError(err)
+
+	req.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
+	req.NotEmpty(debugInfo.SchemaUsed)
 }
