@@ -18,6 +18,8 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
+const retryCount = 5
+
 func TestEstimatedNamespaceDefinitionSize(t *testing.T) {
 	// Load all consistency and benchmark YAMLs to get a set of sample namespace
 	// definitions for testing.
@@ -53,21 +55,30 @@ func TestEstimatedNamespaceDefinitionSize(t *testing.T) {
 					sizevt := nsDef.SizeVT()
 					estimated := estimatedNamespaceDefinitionSize(sizevt)
 
-					runtime.GC()
-					debug.FreeOSMemory()
+					succeeded := false
+					var used uint64
+					for i := 0; i < retryCount; i++ {
+						runtime.GC()
+						debug.FreeOSMemory()
 
-					// Calculate the memory used for deserializing the namespace definition.
-					var m1, m2 runtime.MemStats
-					runtime.ReadMemStats(&m1)
+						// Calculate the memory used for deserializing the namespace definition.
+						var m1, m2 runtime.MemStats
+						runtime.ReadMemStats(&m1)
 
-					var def core.NamespaceDefinition
-					require.NoError(t, def.UnmarshalVT(serialized))
+						var def core.NamespaceDefinition
+						require.NoError(t, def.UnmarshalVT(serialized))
 
-					runtime.ReadMemStats(&m2)
-					used := m2.TotalAlloc - m1.TotalAlloc
+						runtime.ReadMemStats(&m2)
+						used := m2.TotalAlloc - m1.TotalAlloc
 
-					// Ensure the memory used is less than the SizeVT * the multiplier.
-					require.LessOrEqual(t, used, uint64(estimated), "found size %d, for with SizeVT: %d", used, sizevt)
+						// Ensure the memory used is less than the SizeVT * the multiplier.
+						if used <= uint64(estimated) {
+							succeeded = true
+							break
+						}
+					}
+
+					require.True(t, succeeded, "found size %d, for with SizeVT: %d", used, sizevt)
 				})
 			}
 		})
