@@ -91,8 +91,12 @@ type Config struct {
 	MetricsAPI   util.HTTPServerConfig
 
 	// Middleware for grpc
-	UnaryMiddleware     []grpc.UnaryServerInterceptor
-	StreamingMiddleware []grpc.StreamServerInterceptor
+	PrependUnaryMiddleware            []grpc.UnaryServerInterceptor
+	PrependStreamingMiddleware        []grpc.StreamServerInterceptor
+	ReplaceDefaultUnaryMiddleware     []grpc.UnaryServerInterceptor
+	ReplaceDefaultStreamingMiddleware []grpc.StreamServerInterceptor
+	AppendUnaryMiddleware             []grpc.UnaryServerInterceptor
+	AppendStreamingMiddleware         []grpc.StreamServerInterceptor
 
 	// Middleware for dispatch
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
@@ -292,9 +296,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
-	if len(c.UnaryMiddleware) == 0 && len(c.StreamingMiddleware) == 0 {
-		c.UnaryMiddleware, c.StreamingMiddleware = DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	defaultMiddlewareFunc := func() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+		return DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	}
+	unaryMiddleware, streamingMiddleware := c.buildMiddleware(defaultMiddlewareFunc)
 
 	permSysConfig := v1svc.PermissionsServerConfig{
 		MaxPreconditionsCount: c.MaximumPreconditionCount,
@@ -376,13 +381,46 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		gatewayServer:       gatewayServer,
 		metricsServer:       metricsServer,
 		dashboardServer:     dashboardServer,
-		unaryMiddleware:     c.UnaryMiddleware,
-		streamingMiddleware: c.StreamingMiddleware,
+		unaryMiddleware:     unaryMiddleware,
+		streamingMiddleware: streamingMiddleware,
 		presharedKeys:       c.PresharedKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
 		closeFunc:           closeables.Close,
 	}, nil
+}
+
+func (c *Config) buildMiddleware(defaultMiddlewareFunc func() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	var outputUnaryMiddleware []grpc.UnaryServerInterceptor
+	var outputStreamingMiddleware []grpc.StreamServerInterceptor
+
+	if defaultMiddlewareFunc != nil {
+		outputUnaryMiddleware, outputStreamingMiddleware = defaultMiddlewareFunc()
+	}
+	if len(c.ReplaceDefaultUnaryMiddleware) != 0 {
+		outputUnaryMiddleware = c.ReplaceDefaultUnaryMiddleware
+	}
+	if len(c.ReplaceDefaultStreamingMiddleware) != 0 {
+		outputStreamingMiddleware = c.ReplaceDefaultStreamingMiddleware
+	}
+	if len(c.PrependUnaryMiddleware) != 0 {
+		tempMiddlewareChain := make([]grpc.UnaryServerInterceptor, len(c.PrependUnaryMiddleware))
+		copy(tempMiddlewareChain, c.PrependUnaryMiddleware)
+		outputUnaryMiddleware = append(tempMiddlewareChain, outputUnaryMiddleware...) //nolint makezero
+	}
+	if len(c.PrependStreamingMiddleware) != 0 {
+		tempMiddlewareChain := make([]grpc.StreamServerInterceptor, len(c.PrependStreamingMiddleware))
+		copy(tempMiddlewareChain, c.PrependStreamingMiddleware)
+		outputStreamingMiddleware = append(tempMiddlewareChain, outputStreamingMiddleware...) //nolint makezero
+	}
+	if len(c.AppendUnaryMiddleware) != 0 {
+		outputUnaryMiddleware = append(outputUnaryMiddleware, c.AppendUnaryMiddleware...)
+	}
+	if len(c.AppendStreamingMiddleware) != 0 {
+		outputStreamingMiddleware = append(outputStreamingMiddleware, c.AppendStreamingMiddleware...)
+	}
+
+	return outputUnaryMiddleware, outputStreamingMiddleware
 }
 
 // initializeGateway Configures the gateway to serve HTTP
@@ -430,8 +468,6 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 // RunnableServer is a spicedb service set ready to run
 type RunnableServer interface {
 	Run(ctx context.Context) error
-	Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)
-	SetMiddleware(unaryInterceptors []grpc.UnaryServerInterceptor, streamingInterceptors []grpc.StreamServerInterceptor) RunnableServer
 	GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	DispatchNetDialContext(ctx context.Context, s string) (net.Conn, error)
 }
@@ -452,16 +488,6 @@ type completedServerConfig struct {
 	streamingMiddleware []grpc.StreamServerInterceptor
 	presharedKeys       []string
 	closeFunc           func() error
-}
-
-func (c *completedServerConfig) Middleware() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	return c.unaryMiddleware, c.streamingMiddleware
-}
-
-func (c *completedServerConfig) SetMiddleware(unaryInterceptors []grpc.UnaryServerInterceptor, streamingInterceptors []grpc.StreamServerInterceptor) RunnableServer {
-	c.unaryMiddleware = unaryInterceptors
-	c.streamingMiddleware = streamingInterceptors
-	return c
 }
 
 func (c *completedServerConfig) GRPCDialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {

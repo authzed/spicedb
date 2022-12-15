@@ -58,8 +58,12 @@ func (c *Config) ToOption() ConfigOption {
 		to.ExperimentalCaveatsEnabled = c.ExperimentalCaveatsEnabled
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
-		to.UnaryMiddleware = c.UnaryMiddleware
-		to.StreamingMiddleware = c.StreamingMiddleware
+		to.PrependUnaryMiddleware = c.PrependUnaryMiddleware
+		to.PrependStreamingMiddleware = c.PrependStreamingMiddleware
+		to.ReplaceDefaultUnaryMiddleware = c.ReplaceDefaultUnaryMiddleware
+		to.ReplaceDefaultStreamingMiddleware = c.ReplaceDefaultStreamingMiddleware
+		to.AppendUnaryMiddleware = c.AppendUnaryMiddleware
+		to.AppendStreamingMiddleware = c.AppendStreamingMiddleware
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -315,31 +319,87 @@ func WithMetricsAPI(metricsAPI util.HTTPServerConfig) ConfigOption {
 	}
 }
 
-// WithUnaryMiddleware returns an option that can append UnaryMiddlewares to Config.UnaryMiddleware
-func WithUnaryMiddleware(unaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
+// WithPrependUnaryMiddleware returns an option that can append PrependUnaryMiddlewares to Config.PrependUnaryMiddleware
+func WithPrependUnaryMiddleware(prependUnaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
 	return func(c *Config) {
-		c.UnaryMiddleware = append(c.UnaryMiddleware, unaryMiddleware)
+		c.PrependUnaryMiddleware = append(c.PrependUnaryMiddleware, prependUnaryMiddleware)
 	}
 }
 
-// SetUnaryMiddleware returns an option that can set UnaryMiddleware on a Config
-func SetUnaryMiddleware(unaryMiddleware []grpc.UnaryServerInterceptor) ConfigOption {
+// SetPrependUnaryMiddleware returns an option that can set PrependUnaryMiddleware on a Config
+func SetPrependUnaryMiddleware(prependUnaryMiddleware []grpc.UnaryServerInterceptor) ConfigOption {
 	return func(c *Config) {
-		c.UnaryMiddleware = unaryMiddleware
+		c.PrependUnaryMiddleware = prependUnaryMiddleware
 	}
 }
 
-// WithStreamingMiddleware returns an option that can append StreamingMiddlewares to Config.StreamingMiddleware
-func WithStreamingMiddleware(streamingMiddleware grpc.StreamServerInterceptor) ConfigOption {
+// WithPrependStreamingMiddleware returns an option that can append PrependStreamingMiddlewares to Config.PrependStreamingMiddleware
+func WithPrependStreamingMiddleware(prependStreamingMiddleware grpc.StreamServerInterceptor) ConfigOption {
 	return func(c *Config) {
-		c.StreamingMiddleware = append(c.StreamingMiddleware, streamingMiddleware)
+		c.PrependStreamingMiddleware = append(c.PrependStreamingMiddleware, prependStreamingMiddleware)
 	}
 }
 
-// SetStreamingMiddleware returns an option that can set StreamingMiddleware on a Config
-func SetStreamingMiddleware(streamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
+// SetPrependStreamingMiddleware returns an option that can set PrependStreamingMiddleware on a Config
+func SetPrependStreamingMiddleware(prependStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
 	return func(c *Config) {
-		c.StreamingMiddleware = streamingMiddleware
+		c.PrependStreamingMiddleware = prependStreamingMiddleware
+	}
+}
+
+// WithReplaceDefaultUnaryMiddleware returns an option that can append ReplaceDefaultUnaryMiddlewares to Config.ReplaceDefaultUnaryMiddleware
+func WithReplaceDefaultUnaryMiddleware(replaceDefaultUnaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.ReplaceDefaultUnaryMiddleware = append(c.ReplaceDefaultUnaryMiddleware, replaceDefaultUnaryMiddleware)
+	}
+}
+
+// SetReplaceDefaultUnaryMiddleware returns an option that can set ReplaceDefaultUnaryMiddleware on a Config
+func SetReplaceDefaultUnaryMiddleware(replaceDefaultUnaryMiddleware []grpc.UnaryServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.ReplaceDefaultUnaryMiddleware = replaceDefaultUnaryMiddleware
+	}
+}
+
+// WithReplaceDefaultStreamingMiddleware returns an option that can append ReplaceDefaultStreamingMiddlewares to Config.ReplaceDefaultStreamingMiddleware
+func WithReplaceDefaultStreamingMiddleware(replaceDefaultStreamingMiddleware grpc.StreamServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.ReplaceDefaultStreamingMiddleware = append(c.ReplaceDefaultStreamingMiddleware, replaceDefaultStreamingMiddleware)
+	}
+}
+
+// SetReplaceDefaultStreamingMiddleware returns an option that can set ReplaceDefaultStreamingMiddleware on a Config
+func SetReplaceDefaultStreamingMiddleware(replaceDefaultStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.ReplaceDefaultStreamingMiddleware = replaceDefaultStreamingMiddleware
+	}
+}
+
+// WithAppendUnaryMiddleware returns an option that can append AppendUnaryMiddlewares to Config.AppendUnaryMiddleware
+func WithAppendUnaryMiddleware(appendUnaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.AppendUnaryMiddleware = append(c.AppendUnaryMiddleware, appendUnaryMiddleware)
+	}
+}
+
+// SetAppendUnaryMiddleware returns an option that can set AppendUnaryMiddleware on a Config
+func SetAppendUnaryMiddleware(appendUnaryMiddleware []grpc.UnaryServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.AppendUnaryMiddleware = appendUnaryMiddleware
+	}
+}
+
+// WithAppendStreamingMiddleware returns an option that can append AppendStreamingMiddlewares to Config.AppendStreamingMiddleware
+func WithAppendStreamingMiddleware(appendStreamingMiddleware grpc.StreamServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.AppendStreamingMiddleware = append(c.AppendStreamingMiddleware, appendStreamingMiddleware)
+	}
+}
+
+// SetAppendStreamingMiddleware returns an option that can set AppendStreamingMiddleware on a Config
+func SetAppendStreamingMiddleware(appendStreamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
+	return func(c *Config) {
+		c.AppendStreamingMiddleware = appendStreamingMiddleware
 	}
 }
 

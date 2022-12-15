@@ -70,19 +70,20 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
 		server.WithExperimentalCaveatsEnabled(true),
+		server.SetReplaceDefaultUnaryMiddleware([]grpc.UnaryServerInterceptor{
+			logging.UnaryServerInterceptor(),
+			datastoremw.UnaryServerInterceptor(ds),
+			consistency.UnaryServerInterceptor(),
+			servicespecific.UnaryServerInterceptor,
+		}),
+		server.SetReplaceDefaultStreamingMiddleware([]grpc.StreamServerInterceptor{
+			logging.StreamServerInterceptor(),
+			datastoremw.StreamServerInterceptor(ds),
+			consistency.StreamServerInterceptor(),
+			servicespecific.StreamServerInterceptor,
+		}),
 	).Complete(ctx)
 	require.NoError(err)
-	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
-		logging.UnaryServerInterceptor(),
-		datastoremw.UnaryServerInterceptor(ds),
-		consistency.UnaryServerInterceptor(),
-		servicespecific.UnaryServerInterceptor,
-	}, []grpc.StreamServerInterceptor{
-		logging.StreamServerInterceptor(),
-		datastoremw.StreamServerInterceptor(ds),
-		consistency.StreamServerInterceptor(),
-		servicespecific.StreamServerInterceptor,
-	})
 
 	go func() {
 		require.NoError(srv.Run(ctx))
