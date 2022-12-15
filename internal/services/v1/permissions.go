@@ -97,7 +97,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information and marshal into
 		// the footer.
-		converted, cerr := dispatchpkg.ConvertDispatchDebugInformation(ctx, metadata, ds)
+		converted, cerr := convertCheckDispatchDebugInformation(ctx, caveatContext, metadata, ds)
 		if cerr != nil {
 			return nil, rewriteError(ctx, cerr)
 		}
