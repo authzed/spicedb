@@ -665,7 +665,7 @@ func difference[T any](
 
 			membershipSet.Subtract(sub.Resp.ResultsByResourceId)
 			if membershipSet.IsEmpty() {
-				return noMembers()
+				return noMembersWithMetadata(responseMetadata)
 			}
 
 		case <-ctx.Done():
@@ -779,21 +779,28 @@ func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.Res
 		CachedDispatchCount: existing.CachedDispatchCount + responseMetadata.CachedDispatchCount,
 	}
 
-	if responseMetadata.DebugInfo == nil {
+	if existing.DebugInfo == nil && responseMetadata.DebugInfo == nil {
 		return combined
 	}
 
-	debugInfo := existing.DebugInfo
-	if debugInfo == nil {
-		debugInfo = &v1.DebugInformation{
-			Check: &v1.CheckDebugTrace{},
+	debugInfo := &v1.DebugInformation{
+		Check: &v1.CheckDebugTrace{},
+	}
+
+	if existing.DebugInfo != nil {
+		if existing.DebugInfo.Check.Request != nil {
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, existing.DebugInfo.Check)
+		} else {
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, existing.DebugInfo.Check.SubProblems...)
 		}
 	}
 
-	if responseMetadata.DebugInfo.Check.Request != nil {
-		debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check)
-	} else {
-		debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check.SubProblems...)
+	if responseMetadata.DebugInfo != nil {
+		if responseMetadata.DebugInfo.Check.Request != nil {
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check)
+		} else {
+			debugInfo.Check.SubProblems = append(debugInfo.Check.SubProblems, responseMetadata.DebugInfo.Check.SubProblems...)
+		}
 	}
 
 	combined.DebugInfo = debugInfo
