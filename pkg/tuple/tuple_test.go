@@ -1,6 +1,7 @@
 package tuple
 
 import (
+	"strings"
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -266,8 +267,8 @@ var testCases = []struct {
 	},
 
 	{
-		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1, 2, 3]}}}]`,
-		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1, 2, 3]}}}]`,
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
 		tupleFormat: WithCaveat(
 			makeTuple(
 				ObjectAndRelation("document", "foo", "viewer"),
@@ -356,13 +357,13 @@ func TestConvert(t *testing.T) {
 			}
 
 			relationship := ToRelationship(parsed)
-			relString := MustRelString(relationship)
+			relString := strings.Replace(MustRelString(relationship), " ", "", -1)
 			require.Equal(tc.expectedOutput, relString)
 
 			backToTpl := FromRelationship(relationship)
 			testutil.RequireProtoEqual(t, tc.tupleFormat, backToTpl, "found difference in converted tuple")
 
-			serialized := MustString(backToTpl)
+			serialized := strings.Replace(MustString(backToTpl), " ", "", -1)
 			require.Equal(tc.expectedOutput, serialized)
 		})
 	}
