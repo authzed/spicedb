@@ -60,7 +60,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	// Flags for HTTP gateway
-	util.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "http", ":8443", false)
+	util.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "gateway", ":8443", false)
 	cmd.Flags().StringVar(&config.HTTPGatewayUpstreamAddr, "http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-addr"); err != nil {
 		panic("failed to mark flag as hidden: " + err.Error())

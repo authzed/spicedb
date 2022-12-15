@@ -405,7 +405,7 @@ func RegisterHTTPServerFlags(flags *pflag.FlagSet, config *HTTPServerConfig, fla
 	flags.StringVar(&config.Address, flagPrefix+"-addr", defaultAddr, "address to listen on to serve "+serviceName)
 	flags.StringVar(&config.TLSCertPath, flagPrefix+"-tls-cert-path", "", "local path to the TLS certificate used to serve "+serviceName)
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
-	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" http server")
+	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable http "+serviceName+" server")
 }
 
 type disabledHTTPServer struct{}
