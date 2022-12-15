@@ -8,13 +8,12 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var invert = caveats.Invert
 
-func caveat(name string, context map[string]any) *v1.CaveatExpression {
+func caveat(name string, context map[string]any) *core.CaveatExpression {
 	s, _ := structpb.NewStruct(context)
 	return wrapCaveat(
 		&core.ContextualizedCaveat{
@@ -26,10 +25,10 @@ func caveat(name string, context map[string]any) *v1.CaveatExpression {
 func TestMembershipSetAddDirectMember(t *testing.T) {
 	tcs := []struct {
 		name                string
-		existingMembers     map[string]*v1.CaveatExpression
+		existingMembers     map[string]*core.CaveatExpression
 		directMemberID      string
-		directMemberCaveat  *v1.CaveatExpression
-		expectedMembers     map[string]*v1.CaveatExpression
+		directMemberCaveat  *core.CaveatExpression
+		expectedMembers     map[string]*core.CaveatExpression
 		hasDeterminedMember bool
 	}{
 		{
@@ -37,7 +36,7 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 			nil,
 			"somedoc",
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -47,19 +46,19 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 			nil,
 			"somedoc",
 			caveat("somecaveat", nil),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("somecaveat", nil),
 			},
 			false,
 		},
 		{
 			"add caveated member to set with other members",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("somecaveat", nil),
 			},
 			"anotherdoc",
 			caveat("anothercaveat", nil),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    caveat("somecaveat", nil),
 				"anotherdoc": caveat("anothercaveat", nil),
 			},
@@ -67,36 +66,36 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 		},
 		{
 			"add non-caveated member to caveated member",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("somecaveat", nil),
 			},
 			"somedoc",
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
 		},
 		{
 			"add caveated member to non-caveated member",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			"somedoc",
 			caveat("somecaveat", nil),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
 		},
 		{
 			"add caveated member to caveated member",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c1", nil),
 			},
 			"somedoc",
 			caveat("c2", nil),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatOr(
 					caveat("c1", nil),
 					caveat("c2", nil),
@@ -106,14 +105,14 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 		},
 		{
 			"add caveats with the same name, different args",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c1", nil),
 			},
 			"somedoc",
 			caveat("c1", map[string]any{
 				"hi": "hello",
 			}),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatOr(
 					caveat("c1", nil),
 					caveat("c1", map[string]any{
@@ -139,11 +138,11 @@ func TestMembershipSetAddDirectMember(t *testing.T) {
 func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 	tcs := []struct {
 		name                     string
-		existingMembers          map[string]*v1.CaveatExpression
+		existingMembers          map[string]*core.CaveatExpression
 		resourceID               string
-		resourceCaveatExpression *v1.CaveatExpression
+		resourceCaveatExpression *core.CaveatExpression
 		parentRelationship       *core.RelationTuple
-		expectedMembers          map[string]*v1.CaveatExpression
+		expectedMembers          map[string]*core.CaveatExpression
 		hasDeterminedMember      bool
 	}{
 		{
@@ -152,7 +151,7 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 			"somedoc",
 			nil,
 			tuple.MustParse("document:foo#viewer@user:tom"),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -163,7 +162,7 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 			"somedoc",
 			caveat("somecaveat", nil),
 			tuple.MustParse("document:foo#viewer@user:tom"),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("somecaveat", nil),
 			},
 			false,
@@ -174,7 +173,7 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 			"somedoc",
 			nil,
 			withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), caveat("somecaveat", nil)),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("somecaveat", nil),
 			},
 			false,
@@ -185,7 +184,7 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 			"somedoc",
 			caveat("c1", nil),
 			withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), caveat("c2", nil)),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatAnd(
 					caveat("c2", nil),
 					caveat("c1", nil),
@@ -195,26 +194,26 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 		},
 		{
 			"add caveated member, via caveated relationship, to determined set",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			"somedoc",
 			caveat("c1", nil),
 			withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), caveat("c2", nil)),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
 		},
 		{
 			"add caveated member, via caveated relationship, to caveated set",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c0", nil),
 			},
 			"somedoc",
 			caveat("c1", nil),
 			withCaveat(tuple.MustParse("document:foo#viewer@user:tom"), caveat("c2", nil)),
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatOr(
 					caveat("c0", nil),
 					caveatAnd(
@@ -240,9 +239,9 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 func TestMembershipSetUnionWith(t *testing.T) {
 	tcs := []struct {
 		name                string
-		set1                map[string]*v1.CaveatExpression
-		set2                map[string]*v1.CaveatExpression
-		expected            map[string]*v1.CaveatExpression
+		set1                map[string]*core.CaveatExpression
+		set2                map[string]*core.CaveatExpression
+		expected            map[string]*core.CaveatExpression
 		hasDeterminedMember bool
 		isEmpty             bool
 	}{
@@ -250,17 +249,17 @@ func TestMembershipSetUnionWith(t *testing.T) {
 			"empty with empty",
 			nil,
 			nil,
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"set with empty",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -269,10 +268,10 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		{
 			"empty with set",
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -280,13 +279,13 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		},
 		{
 			"non-overlapping",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": nil,
 			},
@@ -295,13 +294,13 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		},
 		{
 			"non-overlapping with caveats",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": caveat("c1", nil),
 			},
@@ -310,13 +309,13 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		},
 		{
 			"overlapping without caveats",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -324,13 +323,13 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		},
 		{
 			"overlapping with single caveat",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -338,13 +337,13 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		},
 		{
 			"overlapping with multiple caveats",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatOr(caveat("c1", nil), caveat("c2", nil)),
 			},
 			false,
@@ -352,14 +351,14 @@ func TestMembershipSetUnionWith(t *testing.T) {
 		},
 		{
 			"overlapping with multiple caveats and a determined member",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    caveat("c1", nil),
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 				"somedoc":    caveatOr(caveat("c1", nil), caveat("c2", nil)),
 			},
@@ -383,9 +382,9 @@ func TestMembershipSetUnionWith(t *testing.T) {
 func TestMembershipSetIntersectWith(t *testing.T) {
 	tcs := []struct {
 		name                string
-		set1                map[string]*v1.CaveatExpression
-		set2                map[string]*v1.CaveatExpression
-		expected            map[string]*v1.CaveatExpression
+		set1                map[string]*core.CaveatExpression
+		set2                map[string]*core.CaveatExpression
+		expected            map[string]*core.CaveatExpression
 		hasDeterminedMember bool
 		isEmpty             bool
 	}{
@@ -393,39 +392,39 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 			"empty with empty",
 			nil,
 			nil,
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"set with empty",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			nil,
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"empty with set",
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"basic set with set",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -433,26 +432,26 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 		},
 		{
 			"non-overlapping set with set",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"partially overlapping set with set",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
 			true,
@@ -460,14 +459,14 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 		},
 		{
 			"set with partially overlapping set",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
 			true,
@@ -475,14 +474,14 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 		},
 		{
 			"partially overlapping sets with one caveat",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": caveat("c2", nil),
 			},
 			false,
@@ -490,14 +489,14 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 		},
 		{
 			"partially overlapping sets with one caveat (other side)",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": caveat("c1", nil),
 			},
 			false,
@@ -505,14 +504,14 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 		},
 		{
 			"partially overlapping sets with caveats",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": caveatAnd(
 					caveat("c1", nil),
 					caveat("c2", nil),
@@ -523,16 +522,16 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 		},
 		{
 			"overlapping sets with caveats and a determined member",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"thirddoc":   nil,
 				"anotherdoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    nil,
 				"anotherdoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 				"anotherdoc": caveatAnd(
 					caveat("c1", nil),
@@ -559,9 +558,9 @@ func TestMembershipSetIntersectWith(t *testing.T) {
 func TestMembershipSetSubtract(t *testing.T) {
 	tcs := []struct {
 		name                string
-		set1                map[string]*v1.CaveatExpression
-		set2                map[string]*v1.CaveatExpression
-		expected            map[string]*v1.CaveatExpression
+		set1                map[string]*core.CaveatExpression
+		set2                map[string]*core.CaveatExpression
+		expected            map[string]*core.CaveatExpression
 		hasDeterminedMember bool
 		isEmpty             bool
 	}{
@@ -569,27 +568,27 @@ func TestMembershipSetSubtract(t *testing.T) {
 			"empty with empty",
 			nil,
 			nil,
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"empty with set",
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"set with empty",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			nil,
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -597,13 +596,13 @@ func TestMembershipSetSubtract(t *testing.T) {
 		},
 		{
 			"non overlapping sets",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
 			true,
@@ -611,37 +610,37 @@ func TestMembershipSetSubtract(t *testing.T) {
 		},
 		{
 			"overlapping sets with no caveats",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"overlapping sets with first having a caveat",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{},
+			map[string]*core.CaveatExpression{},
 			false,
 			true,
 		},
 		{
 			"overlapping sets with second having a caveat",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": invert(caveat("c2", nil)),
 			},
 			false,
@@ -649,13 +648,13 @@ func TestMembershipSetSubtract(t *testing.T) {
 		},
 		{
 			"overlapping sets with both having caveats",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c1", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatAnd(
 					caveat("c1", nil),
 					invert(caveat("c2", nil)),
@@ -666,14 +665,14 @@ func TestMembershipSetSubtract(t *testing.T) {
 		},
 		{
 			"overlapping sets with both having caveats and determined member",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    caveat("c1", nil),
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveat("c2", nil),
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"anotherdoc": nil,
 				"somedoc": caveatAnd(
 					caveat("c1", nil),
@@ -685,15 +684,15 @@ func TestMembershipSetSubtract(t *testing.T) {
 		},
 		{
 			"overlapping sets with both having caveats and determined members",
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    caveat("c1", nil),
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc":    caveat("c2", nil),
 				"anotherdoc": nil,
 			},
-			map[string]*v1.CaveatExpression{
+			map[string]*core.CaveatExpression{
 				"somedoc": caveatAnd(
 					caveat("c1", nil),
 					invert(caveat("c2", nil)),
@@ -716,14 +715,14 @@ func TestMembershipSetSubtract(t *testing.T) {
 	}
 }
 
-func unwrapCaveat(ce *v1.CaveatExpression) *core.ContextualizedCaveat {
+func unwrapCaveat(ce *core.CaveatExpression) *core.ContextualizedCaveat {
 	if ce == nil {
 		return nil
 	}
 	return ce.GetCaveat()
 }
 
-func withCaveat(tple *core.RelationTuple, ce *v1.CaveatExpression) *core.RelationTuple {
+func withCaveat(tple *core.RelationTuple, ce *core.CaveatExpression) *core.RelationTuple {
 	tple.Caveat = unwrapCaveat(ce)
 	return tple
 }

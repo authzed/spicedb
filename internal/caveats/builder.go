@@ -2,17 +2,16 @@ package caveats
 
 import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // CaveatAsExpr wraps a contextualized caveat into a caveat expression.
-func CaveatAsExpr(caveat *core.ContextualizedCaveat) *v1.CaveatExpression {
+func CaveatAsExpr(caveat *core.ContextualizedCaveat) *core.CaveatExpression {
 	if caveat == nil {
 		return nil
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
 			Caveat: caveat,
 		},
 	}
@@ -27,9 +26,9 @@ func CaveatForTesting(name string) *core.ContextualizedCaveat {
 
 // CaveatExprForTesting returns a CaveatExpression referencing a caveat with the given name and
 // empty context.
-func CaveatExprForTesting(name string) *v1.CaveatExpression {
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Caveat{
+func CaveatExprForTesting(name string) *core.CaveatExpression {
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
 			Caveat: CaveatForTesting(name),
 		},
 	}
@@ -37,7 +36,7 @@ func CaveatExprForTesting(name string) *v1.CaveatExpression {
 
 // ShortcircuitedOr combines two caveat expressions via an `||`. If one of the expressions is nil,
 // then the entire expression is *short-circuited*, and a nil is returned.
-func ShortcircuitedOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+func ShortcircuitedOr(first *core.CaveatExpression, second *core.CaveatExpression) *core.CaveatExpression {
 	if first == nil || second == nil {
 		return nil
 	}
@@ -46,7 +45,7 @@ func ShortcircuitedOr(first *v1.CaveatExpression, second *v1.CaveatExpression) *
 }
 
 // Or `||`'s together two caveat expressions. If one expression is nil, the other is returned.
-func Or(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+func Or(first *core.CaveatExpression, second *core.CaveatExpression) *core.CaveatExpression {
 	if first == nil {
 		return second
 	}
@@ -59,18 +58,18 @@ func Or(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpre
 		return first
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_OR,
-				Children: []*v1.CaveatExpression{first, second},
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       core.CaveatOperation_OR,
+				Children: []*core.CaveatExpression{first, second},
 			},
 		},
 	}
 }
 
 // And `&&`'s together two caveat expressions. If one expression is nil, the other is returned.
-func And(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpression {
+func And(first *core.CaveatExpression, second *core.CaveatExpression) *core.CaveatExpression {
 	if first == nil {
 		return second
 	}
@@ -83,11 +82,11 @@ func And(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpr
 		return first
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{first, second},
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       core.CaveatOperation_AND,
+				Children: []*core.CaveatExpression{first, second},
 			},
 		},
 	}
@@ -95,16 +94,16 @@ func And(first *v1.CaveatExpression, second *v1.CaveatExpression) *v1.CaveatExpr
 
 // Invert returns the caveat expression with a `!` placed in front of it. If the expression is
 // nil, returns nil.
-func Invert(ce *v1.CaveatExpression) *v1.CaveatExpression {
+func Invert(ce *core.CaveatExpression) *core.CaveatExpression {
 	if ce == nil {
 		return nil
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_NOT,
-				Children: []*v1.CaveatExpression{ce},
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       core.CaveatOperation_NOT,
+				Children: []*core.CaveatExpression{ce},
 			},
 		},
 	}
@@ -112,7 +111,7 @@ func Invert(ce *v1.CaveatExpression) *v1.CaveatExpression {
 
 // Subtract returns a caveat expression representing the subtracted expression subtracted from the given
 // expression.
-func Subtract(caveat *v1.CaveatExpression, subtracted *v1.CaveatExpression) *v1.CaveatExpression {
+func Subtract(caveat *core.CaveatExpression, subtracted *core.CaveatExpression) *core.CaveatExpression {
 	inversion := Invert(subtracted)
 	if caveat == nil {
 		return inversion
@@ -122,11 +121,11 @@ func Subtract(caveat *v1.CaveatExpression, subtracted *v1.CaveatExpression) *v1.
 		return caveat
 	}
 
-	return &v1.CaveatExpression{
-		OperationOrCaveat: &v1.CaveatExpression_Operation{
-			Operation: &v1.CaveatOperation{
-				Op:       v1.CaveatOperation_AND,
-				Children: []*v1.CaveatExpression{caveat, inversion},
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Operation{
+			Operation: &core.CaveatOperation{
+				Op:       core.CaveatOperation_AND,
+				Children: []*core.CaveatExpression{caveat, inversion},
 			},
 		},
 	}

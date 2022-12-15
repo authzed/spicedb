@@ -6,7 +6,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datasets"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -63,11 +62,14 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 	parts := strings.Split(key, "#")
 
 	created := datasets.NewBaseSubjectSet[FoundSubject](
-		func(subjectID string, caveatExpression *v1.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
-			fs := NewFoundSubject(&core.ObjectAndRelation{
-				Namespace: parts[0],
-				ObjectId:  subjectID,
-				Relation:  parts[1],
+		func(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
+			fs := NewFoundSubject(&core.DirectSubject{
+				Subject: &core.ObjectAndRelation{
+					Namespace: parts[0],
+					ObjectId:  subjectID,
+					Relation:  parts[1],
+				},
+				CaveatExpression: caveatExpression,
 			})
 			fs.excludedSubjects = excludedSubjects
 			fs.caveatExpression = caveatExpression
@@ -137,9 +139,20 @@ func (tss *TrackingSubjectSet) Intersect(otherSet *TrackingSubjectSet) *Tracking
 	return newSet
 }
 
+// ApplyParentCaveatExpression applies the given parent caveat expression (if any) to each subject set.
+func (tss *TrackingSubjectSet) ApplyParentCaveatExpression(parentCaveatExpr *core.CaveatExpression) {
+	if parentCaveatExpr == nil {
+		return
+	}
+
+	for key, bss := range tss.setByType {
+		tss.setByType[key] = bss.WithParentCaveatExpression(parentCaveatExpr)
+	}
+}
+
 // removeExact removes the given subject(s) from the set. If the subject is a wildcard, only
 // the exact matching wildcard will be removed.
-func (tss TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
+func (tss *TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 	for _, subject := range subjects {
 		if set, ok := tss.setByType[fmt.Sprintf("%s#%s", subject.Namespace, subject.Relation)]; ok {
 			set.UnsafeRemoveExact(FoundSubject{
@@ -149,7 +162,7 @@ func (tss TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 	}
 }
 
-func (tss TrackingSubjectSet) getSubjects() []string {
+func (tss *TrackingSubjectSet) getSubjects() []string {
 	var subjects []string
 	for _, subjectSet := range tss.setByType {
 		for _, foundSubject := range subjectSet.AsSlice() {
@@ -160,7 +173,7 @@ func (tss TrackingSubjectSet) getSubjects() []string {
 }
 
 // ToSlice returns a slice of all subjects found in the set.
-func (tss TrackingSubjectSet) ToSlice() []FoundSubject {
+func (tss *TrackingSubjectSet) ToSlice() []FoundSubject {
 	subjects := []FoundSubject{}
 	for _, bss := range tss.setByType {
 		subjects = append(subjects, bss.AsSlice()...)
@@ -170,12 +183,12 @@ func (tss TrackingSubjectSet) ToSlice() []FoundSubject {
 }
 
 // ToFoundSubjects returns the set as a FoundSubjects struct.
-func (tss TrackingSubjectSet) ToFoundSubjects() FoundSubjects {
+func (tss *TrackingSubjectSet) ToFoundSubjects() FoundSubjects {
 	return FoundSubjects{tss}
 }
 
 // IsEmpty returns true if the tracking subject set is empty.
-func (tss TrackingSubjectSet) IsEmpty() bool {
+func (tss *TrackingSubjectSet) IsEmpty() bool {
 	for _, bss := range tss.setByType {
 		if !bss.IsEmpty() {
 			return false

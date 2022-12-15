@@ -420,3 +420,21 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 
 	return ctx, cachingDispatcher, revision
 }
+
+func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*core.RelationTuple) (context.Context, dispatch.Dispatcher, datastore.Revision) {
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
+
+	dispatch := NewLocalOnlyDispatcher(10)
+
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher.SetDelegate(dispatch)
+	require.NoError(t, err)
+
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+	return ctx, cachingDispatcher, revision
+}

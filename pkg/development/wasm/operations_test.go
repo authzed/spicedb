@@ -521,7 +521,7 @@ assertFalse: garbage
 				Message: "invalid subject: `user`",
 				Kind:    devinterface.DeveloperError_PARSE_ERROR,
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
-				Context: "[user]",
+				Context: "user",
 				Line:    2,
 				Column:  3,
 			},

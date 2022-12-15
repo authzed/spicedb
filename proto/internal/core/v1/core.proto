@@ -115,6 +115,7 @@ message RelationTupleTreeNode {
     DirectSubjects leaf_node = 2;
   }
   ObjectAndRelation expanded = 3;
+  CaveatExpression caveat_expression = 4;
 }
 
 message SetOperationUserset {
@@ -129,7 +130,14 @@ message SetOperationUserset {
   repeated RelationTupleTreeNode child_nodes = 2;
 }
 
-message DirectSubjects { repeated ObjectAndRelation subjects = 1; }
+message DirectSubject {
+  ObjectAndRelation subject = 1;
+  CaveatExpression caveat_expression = 2;
+}
+
+message DirectSubjects { 
+  repeated DirectSubject subjects = 1;
+}
 
 /**
  * Metadata is compiler metadata added to namespace definitions, such as doc comments and
@@ -466,4 +474,23 @@ message ComputedUserset {
 message SourcePosition {
   uint64 zero_indexed_line_number = 1;
   uint64 zero_indexed_column_position = 2;
+}
+
+message CaveatExpression {  
+  oneof operation_or_caveat {
+    CaveatOperation operation = 1;
+    core.v1.ContextualizedCaveat caveat = 2;
+  }
+}
+
+message CaveatOperation {
+  enum Operation {
+    UNKNOWN = 0;
+    OR = 1;
+    AND = 2;
+    NOT = 3;
+  }
+
+  Operation op = 1;
+  repeated CaveatExpression children = 2;
 }

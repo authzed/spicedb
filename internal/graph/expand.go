@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/caveats"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -66,18 +68,22 @@ func (ce *ConcurrentExpander) expandDirect(
 		}
 		defer it.Close()
 
-		var foundNonTerminalUsersets []*core.ObjectAndRelation
-		var foundTerminalUsersets []*core.ObjectAndRelation
+		var foundNonTerminalUsersets []*core.DirectSubject
+		var foundTerminalUsersets []*core.DirectSubject
 		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 			if it.Err() != nil {
 				resultChan <- expandResultError(NewExpansionFailureErr(it.Err()), emptyMetadata)
 				return
 			}
 
+			ds := &core.DirectSubject{
+				Subject:          tpl.Subject,
+				CaveatExpression: caveats.CaveatAsExpr(tpl.Caveat),
+			}
 			if tpl.Subject.Relation == Ellipsis {
-				foundTerminalUsersets = append(foundTerminalUsersets, tpl.Subject)
+				foundTerminalUsersets = append(foundTerminalUsersets, ds)
 			} else {
-				foundNonTerminalUsersets = append(foundNonTerminalUsersets, tpl.Subject)
+				foundNonTerminalUsersets = append(foundNonTerminalUsersets, ds)
 			}
 		}
 		it.Close()
@@ -103,14 +109,16 @@ func (ce *ConcurrentExpander) expandDirect(
 		// found terminals together.
 		var requestsToDispatch []ReduceableExpandFunc
 		for _, nonTerminalUser := range foundNonTerminalUsersets {
-			requestsToDispatch = append(requestsToDispatch, ce.dispatch(ValidatedExpandRequest{
+			toDispatch := ce.dispatch(ValidatedExpandRequest{
 				&v1.DispatchExpandRequest{
-					ResourceAndRelation: nonTerminalUser,
+					ResourceAndRelation: nonTerminalUser.Subject,
 					Metadata:            decrementDepth(req.Metadata),
 					ExpansionMode:       req.ExpansionMode,
 				},
 				req.Revision,
-			}))
+			})
+
+			requestsToDispatch = append(requestsToDispatch, decorateWithCaveatIfNecessary(toDispatch, nonTerminalUser.CaveatExpression))
 		}
 
 		result := expandAny(ctx, req.ResourceAndRelation, requestsToDispatch)
@@ -128,6 +136,29 @@ func (ce *ConcurrentExpander) expandDirect(
 			},
 			Expanded: req.ResourceAndRelation,
 		})
+		resultChan <- result
+	}
+}
+
+func decorateWithCaveatIfNecessary(toDispatch ReduceableExpandFunc, caveatExpr *core.CaveatExpression) ReduceableExpandFunc {
+	// If no caveat expression, simply return the func unmodified.
+	if caveatExpr == nil {
+		return toDispatch
+	}
+
+	// Otherwise return a wrapped function that expands the underlying func to be dispatched, and then decorates
+	// the resulting node with the caveat expression.
+	//
+	// TODO(jschorr): This will generate a lot of function closures, so we should change Expand to avoid them
+	// like we did in Check.
+	return func(ctx context.Context, resultChan chan<- ExpandResult) {
+		result := expandOne(ctx, toDispatch)
+		if result.Err != nil {
+			resultChan <- result
+			return
+		}
+
+		result.Resp.TreeNode.CaveatExpression = caveatExpr
 		resultChan <- result
 	}
 }
@@ -243,7 +274,8 @@ func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req Vali
 				return
 			}
 
-			requestsToDispatch = append(requestsToDispatch, ce.expandComputedUserset(ctx, req, ttu.ComputedUserset, tpl))
+			toDispatch := ce.expandComputedUserset(ctx, req, ttu.ComputedUserset, tpl)
+			requestsToDispatch = append(requestsToDispatch, decorateWithCaveatIfNecessary(toDispatch, caveats.CaveatAsExpr(tpl.Caveat)))
 		}
 		it.Close()
 

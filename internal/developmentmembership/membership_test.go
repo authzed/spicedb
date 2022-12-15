@@ -4,6 +4,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/authzed/spicedb/internal/caveats"
+
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -18,14 +20,27 @@ var (
 	Ellipsis = "..."
 )
 
+func DS(objectType string, objectID string, objectRelation string) *core.DirectSubject {
+	return &core.DirectSubject{
+		Subject: ONR(objectType, objectID, objectRelation),
+	}
+}
+
+func CaveatedDS(objectType string, objectID string, objectRelation string, caveatName string) *core.DirectSubject {
+	return &core.DirectSubject{
+		Subject:          ONR(objectType, objectID, objectRelation),
+		CaveatExpression: caveats.CaveatExprForTesting(caveatName),
+	}
+}
+
 var (
 	_this *core.ObjectAndRelation
 
 	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
-		(ONR("user", "owner", Ellipsis)),
+		(DS("user", "owner", Ellipsis)),
 	)
 	companyEditor = graph.Union(ONR("folder", "company", "editor"),
-		graph.Leaf(_this, (ONR("user", "writer", Ellipsis))),
+		graph.Leaf(_this, (DS("user", "writer", Ellipsis))),
 		companyOwner,
 	)
 
@@ -38,7 +53,7 @@ var (
 
 	auditorsViewerRecursive = graph.Union(ONR("folder", "auditors", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "auditor", "...")),
+			(DS("user", "auditor", "...")),
 		),
 		auditorsEditor,
 		graph.Union(ONR("folder", "auditors", "viewer")),
@@ -48,8 +63,8 @@ var (
 		graph.Union(ONR("folder", "company", "viewer"),
 			auditorsViewerRecursive,
 			graph.Leaf(_this,
-				(ONR("user", "legal", "...")),
-				(ONR("folder", "auditors", "viewer")),
+				(DS("user", "legal", "...")),
+				(DS("folder", "auditors", "viewer")),
 			),
 		),
 		companyEditor,
@@ -84,11 +99,11 @@ func TestMembershipSetIntersectionBasic(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 	)
 
@@ -104,12 +119,12 @@ func TestMembershipSetIntersectionWithDifferentTypesOneMissingLeft(t *testing.T)
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
-			(ONR("folder", "foobar", "...")),
+			(DS("user", "legal", "...")),
+			(DS("folder", "foobar", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 	)
 
@@ -125,12 +140,12 @@ func TestMembershipSetIntersectionWithDifferentTypesOneMissingRight(t *testing.T
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
-			(ONR("folder", "foobar", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("folder", "foobar", "...")),
 		),
 	)
 
@@ -146,14 +161,14 @@ func TestMembershipSetIntersectionWithDifferentTypes(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
-			(ONR("folder", "foobar", "...")),
-			(ONR("folder", "barbaz", "...")),
+			(DS("user", "legal", "...")),
+			(DS("folder", "foobar", "...")),
+			(DS("folder", "barbaz", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
-			(ONR("folder", "barbaz", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("folder", "barbaz", "...")),
 		),
 	)
 
@@ -169,11 +184,11 @@ func TestMembershipSetExclusion(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 	)
 
@@ -189,15 +204,15 @@ func TestMembershipSetExclusionMultiple(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
-			(ONR("user", "third", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("user", "third", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
+			(DS("user", "owner", "...")),
 		),
 	)
 
@@ -213,14 +228,14 @@ func TestMembershipSetExclusionMultipleWithWildcard(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -236,15 +251,15 @@ func TestMembershipSetExclusionMultipleMiddle(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
-			(ONR("user", "third", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("user", "third", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "another", "...")),
+			(DS("user", "another", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
+			(DS("user", "owner", "...")),
 		),
 	)
 
@@ -260,11 +275,11 @@ func TestMembershipSetIntersectionWithOneWildcard(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "*", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 	)
 
@@ -280,11 +295,11 @@ func TestMembershipSetIntersectionWithAllWildcardLeft(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "*", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -300,11 +315,11 @@ func TestMembershipSetIntersectionWithAllWildcardRight(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "*", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -320,11 +335,11 @@ func TestMembershipSetExclusionWithLeftWildcard(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "*", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "legal", "...")),
+			(DS("user", "legal", "...")),
 		),
 	)
 
@@ -340,11 +355,11 @@ func TestMembershipSetExclusionWithRightWildcard(t *testing.T) {
 
 	exclusion := graph.Exclusion(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -360,14 +375,14 @@ func TestMembershipSetIntersectionWithThreeWildcards(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -383,15 +398,15 @@ func TestMembershipSetIntersectionWithOneBranchMissingWildcards(t *testing.T) {
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
-			(ONR("user", "*", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("user", "*", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
+			(DS("user", "owner", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -407,14 +422,14 @@ func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) 
 
 	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
 		graph.Leaf(_this,
-			(ONR("user", "owner", "...")),
-			(ONR("user", "legal", "...")),
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "another", "...")),
+			(DS("user", "another", "...")),
 		),
 		graph.Leaf(_this,
-			(ONR("user", "*", "...")),
+			(DS("user", "*", "...")),
 		),
 	)
 
@@ -422,6 +437,40 @@ func TestMembershipSetIntersectionWithTwoBranchesMissingWildcards(t *testing.T) 
 	require.True(ok)
 	require.NoError(err)
 	verifySubjects(t, require, fso)
+}
+
+func TestMembershipSetWithCaveats(t *testing.T) {
+	require := require.New(t)
+	ms := NewMembershipSet()
+
+	intersection := graph.Intersection(ONR("folder", "company", "viewer"),
+		graph.Leaf(_this,
+			(DS("user", "owner", "...")),
+			(DS("user", "legal", "...")),
+			(DS("user", "*", "...")),
+		),
+		graph.Leaf(_this,
+			(CaveatedDS("user", "owner", "...", "somecaveat")),
+		),
+		graph.Leaf(_this,
+			(DS("user", "*", "...")),
+		),
+	)
+	intersection.CaveatExpression = caveats.CaveatExprForTesting("anothercaveat")
+
+	fso, ok, err := ms.AddExpansion(ONR("folder", "company", "viewer"), intersection)
+	require.True(ok)
+	require.NoError(err)
+	verifySubjects(t, require, fso, "user:owner")
+
+	// Verify the caveat on the user:owner.
+	subject, ok := fso.LookupSubject(ONR("user", "owner", "..."))
+	require.True(ok)
+
+	testutil.RequireProtoEqual(t, subject.GetCaveatExpression(), caveats.And(
+		caveats.CaveatExprForTesting("anothercaveat"),
+		caveats.CaveatExprForTesting("somecaveat"),
+	), "found invalid caveat expr for subject")
 }
 
 func verifySubjects(t *testing.T, require *require.Assertions, fs FoundSubjects, expected ...string) {

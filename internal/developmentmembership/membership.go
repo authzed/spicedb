@@ -74,6 +74,8 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 
 				toReturn.AddFrom(tss)
 			}
+
+			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
 			return toReturn, nil
 
 		case core.SetOperationUserset_INTERSECTION:
@@ -96,6 +98,8 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 				}
 				toReturn = toReturn.Intersect(childSet)
 			}
+
+			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
 			return toReturn, nil
 
 		case core.SetOperationUserset_EXCLUSION:
@@ -119,6 +123,7 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 				toReturn = toReturn.Exclude(childSet)
 			}
 
+			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
 			return toReturn, nil
 
 		default:

@@ -172,6 +172,20 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				})
 			}
 		}
+
+		// Verify caveats.
+		if (subject.GetCaveatExpression() != nil) != subjectWithExceptions.IsCaveated {
+			failures = append(failures, &devinterface.DeveloperError{
+				Message: fmt.Sprintf("For object and permission/relation `%s`, found caveat mismatch",
+					tuple.StringONR(onr),
+				),
+				Source:  devinterface.DeveloperError_VALIDATION_YAML,
+				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
+				Context: string(expectedSubject.ValidationString),
+				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
+				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+			})
+		}
 	}
 
 	// Verify that every subject found was referenced.

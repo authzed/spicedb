@@ -897,7 +897,8 @@ func (rs *accessibilitySet) AccessibleTerminalSubjects(namespaceName string, rel
 		}
 
 		if result.object.Namespace == namespaceName && result.object.Relation == relationName && result.object.ObjectId == objectIDStr && result.subject.Relation == "..." {
-			accessibleSubjects.Add(developmentmembership.NewFoundSubject(result.subject, result.object))
+			// TODO(jschorr): update to support caveats
+			accessibleSubjects.Add(developmentmembership.NewFoundSubject(&core.DirectSubject{Subject: result.subject}, result.object))
 		}
 	}
 	return accessibleSubjects

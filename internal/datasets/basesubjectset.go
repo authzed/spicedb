@@ -6,7 +6,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -25,7 +25,7 @@ type Subject[T any] interface {
 	GetSubjectId() string
 
 	// GetCaveatExpression returns the caveat expression for this subject, if it is conditional.
-	GetCaveatExpression() *v1.CaveatExpression
+	GetCaveatExpression() *core.CaveatExpression
 
 	// GetExcludedSubjects returns the list of subjects excluded. Must only have values
 	// for wildcards and must never be nested.
@@ -61,7 +61,7 @@ func NewBaseSubjectSet[T Subject[T]](constructor constructor[T]) BaseSubjectSet[
 // a subject ID, its (optional) conditional expression, any excluded subjects, and any sources
 // for bookkeeping. The sources are those other subjects that were combined to create the current
 // subject.
-type constructor[T Subject[T]] func(subjectID string, conditionalExpression *v1.CaveatExpression, excludedSubjects []T, sources ...T) T
+type constructor[T Subject[T]] func(subjectID string, conditionalExpression *core.CaveatExpression, excludedSubjects []T, sources ...T) T
 
 // Add adds the found subject to the set. This is equivalent to a Union operation between the
 // existing set of subjects and a set containing the single subject, but modifies the set
@@ -237,7 +237,7 @@ func (bss BaseSubjectSet[T]) UnsafeRemoveExact(foundSubject T) {
 
 // WithParentCaveatExpression returns a copy of the subject set with the parent caveat expression applied
 // to all members of this set.
-func (bss BaseSubjectSet[T]) WithParentCaveatExpression(parentCaveatExpr *v1.CaveatExpression) BaseSubjectSet[T] {
+func (bss BaseSubjectSet[T]) WithParentCaveatExpression(parentCaveatExpr *core.CaveatExpression) BaseSubjectSet[T] {
 	clone := bss.Clone()
 
 	// Apply the parent caveat expression to the wildcard, if any.

@@ -10,7 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var (
@@ -23,7 +23,7 @@ var (
 func TestRunCaveatExpressions(t *testing.T) {
 	tcs := []struct {
 		name          string
-		expression    *v1.CaveatExpression
+		expression    *core.CaveatExpression
 		context       map[string]any
 		expectedValue bool
 	}{

@@ -581,36 +581,42 @@ func countLeafs(node *v1.PermissionRelationshipTree) int {
 	}
 }
 
-func TestTranslateExpansionTree(t *testing.T) {
-	ONR := tuple.ObjectAndRelation
+var ONR = tuple.ObjectAndRelation
 
+func DS(objectType string, objectID string, objectRelation string) *core.DirectSubject {
+	return &core.DirectSubject{
+		Subject: ONR(objectType, objectID, objectRelation),
+	}
+}
+
+func TestTranslateExpansionTree(t *testing.T) {
 	table := []struct {
 		name  string
 		input *core.RelationTupleTreeNode
 	}{
-		{"simple leaf", pgraph.Leaf(nil, (ONR("user", "user1", "...")))},
+		{"simple leaf", pgraph.Leaf(nil, (DS("user", "user1", "...")))},
 		{
 			"simple union",
 			pgraph.Union(nil,
-				pgraph.Leaf(nil, (ONR("user", "user1", "..."))),
-				pgraph.Leaf(nil, (ONR("user", "user2", "..."))),
-				pgraph.Leaf(nil, (ONR("user", "user3", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user1", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user2", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user3", "..."))),
 			),
 		},
 		{
 			"simple intersection",
 			pgraph.Intersection(nil,
 				pgraph.Leaf(nil,
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
 				pgraph.Leaf(nil,
-					(ONR("user", "user2", "...")),
-					(ONR("user", "user3", "...")),
+					(DS("user", "user2", "...")),
+					(DS("user", "user3", "...")),
 				),
 				pgraph.Leaf(nil,
-					(ONR("user", "user2", "...")),
-					(ONR("user", "user4", "...")),
+					(DS("user", "user2", "...")),
+					(DS("user", "user4", "...")),
 				),
 			),
 		},
@@ -618,12 +624,12 @@ func TestTranslateExpansionTree(t *testing.T) {
 			"empty intersection",
 			pgraph.Intersection(nil,
 				pgraph.Leaf(nil,
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
 				pgraph.Leaf(nil,
-					(ONR("user", "user3", "...")),
-					(ONR("user", "user4", "...")),
+					(DS("user", "user3", "...")),
+					(DS("user", "user4", "...")),
 				),
 			),
 		},
@@ -631,22 +637,22 @@ func TestTranslateExpansionTree(t *testing.T) {
 			"simple exclusion",
 			pgraph.Exclusion(nil,
 				pgraph.Leaf(nil,
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
-				pgraph.Leaf(nil, (ONR("user", "user2", "..."))),
-				pgraph.Leaf(nil, (ONR("user", "user3", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user2", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user3", "..."))),
 			),
 		},
 		{
 			"empty exclusion",
 			pgraph.Exclusion(nil,
 				pgraph.Leaf(nil,
-					(ONR("user", "user1", "...")),
-					(ONR("user", "user2", "...")),
+					(DS("user", "user1", "...")),
+					(DS("user", "user2", "...")),
 				),
-				pgraph.Leaf(nil, (ONR("user", "user1", "..."))),
-				pgraph.Leaf(nil, (ONR("user", "user2", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user1", "..."))),
+				pgraph.Leaf(nil, (DS("user", "user2", "..."))),
 			),
 		},
 	}

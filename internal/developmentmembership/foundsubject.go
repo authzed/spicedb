@@ -6,14 +6,12 @@ import (
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
-func NewFoundSubject(subject *core.ObjectAndRelation, resources ...*core.ObjectAndRelation) FoundSubject {
-	return FoundSubject{subject, nil, nil, tuple.NewONRSet(resources...)}
+func NewFoundSubject(subject *core.DirectSubject, resources ...*core.ObjectAndRelation) FoundSubject {
+	return FoundSubject{subject.Subject, nil, subject.CaveatExpression, tuple.NewONRSet(resources...)}
 }
 
 // FoundSubject contains a single found subject and all the relationships in which that subject
@@ -26,7 +24,7 @@ type FoundSubject struct {
 	excludedSubjects []FoundSubject
 
 	// caveatExpression is the conditional expression on the found subject.
-	caveatExpression *v1.CaveatExpression
+	caveatExpression *core.CaveatExpression
 
 	// relations are the relations under which the subject lives that informed the locating
 	// of this subject for the root ONR.
@@ -40,7 +38,7 @@ func (fs FoundSubject) GetSubjectId() string {
 	return fs.subject.ObjectId
 }
 
-func (fs FoundSubject) GetCaveatExpression() *v1.CaveatExpression {
+func (fs FoundSubject) GetCaveatExpression() *core.CaveatExpression {
 	return fs.caveatExpression
 }
 
@@ -104,12 +102,12 @@ func (fs FoundSubject) Relationships() []*core.ObjectAndRelation {
 // ToValidationString returns the FoundSubject in a format that is consumable by the validationfile
 // package.
 func (fs FoundSubject) ToValidationString() string {
+	onrString := tuple.StringONR(fs.Subject())
+	validationString := onrString
 	if fs.caveatExpression != nil {
-		// TODO(jschorr): Implement once we have a format for this.
-		panic("conditional found subjects not yet supported")
+		validationString = fmt.Sprintf("%s[...]", validationString)
 	}
 
-	onrString := tuple.StringONR(fs.Subject())
 	excluded, isWildcard := fs.ExcludedSubjectsFromWildcard()
 	if isWildcard && len(excluded) > 0 {
 		excludedONRStrings := make([]string, 0, len(excluded))
@@ -118,16 +116,16 @@ func (fs FoundSubject) ToValidationString() string {
 		}
 
 		sort.Strings(excludedONRStrings)
-		return fmt.Sprintf("%s - {%s}", onrString, strings.Join(excludedONRStrings, ", "))
+		validationString = fmt.Sprintf("%s - {%s}", validationString, strings.Join(excludedONRStrings, ", "))
 	}
 
-	return onrString
+	return validationString
 }
 
 // FoundSubjects contains the subjects found for a specific ONR.
 type FoundSubjects struct {
 	// subjects is a map from the Subject ONR (as a string) to the FoundSubject information.
-	subjects TrackingSubjectSet
+	subjects *TrackingSubjectSet
 }
 
 // ListFound returns a slice of all the FoundSubject's.

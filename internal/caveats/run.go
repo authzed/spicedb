@@ -9,7 +9,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
@@ -27,7 +27,7 @@ const (
 // RunCaveatExpression runs a caveat expression over the given context and returns the result.
 func RunCaveatExpression(
 	ctx context.Context,
-	expr *v1.CaveatExpression,
+	expr *core.CaveatExpression,
 	context map[string]any,
 	reader datastore.CaveatReader,
 	debugOption RunCaveatExpressionDebugOption,
@@ -83,7 +83,7 @@ func (sr syntheticResult) ExpressionString() (string, error) {
 func runExpression(
 	ctx context.Context,
 	env *caveats.Environment,
-	expr *v1.CaveatExpression,
+	expr *core.CaveatExpression,
 	context map[string]any,
 	reader datastore.CaveatReader,
 	debugOption RunCaveatExpressionDebugOption,
@@ -128,7 +128,7 @@ func runExpression(
 
 	cop := expr.GetOperation()
 	boolResult := false
-	if cop.Op == v1.CaveatOperation_AND {
+	if cop.Op == core.CaveatOperation_AND {
 		boolResult = true
 	}
 
@@ -137,13 +137,13 @@ func runExpression(
 
 	buildExprString := func() string {
 		switch cop.Op {
-		case v1.CaveatOperation_AND:
+		case core.CaveatOperation_AND:
 			return strings.Join(exprStringPieces, " && ")
 
-		case v1.CaveatOperation_OR:
+		case core.CaveatOperation_OR:
 			return strings.Join(exprStringPieces, " || ")
 
-		case v1.CaveatOperation_NOT:
+		case core.CaveatOperation_NOT:
 			return strings.Join(exprStringPieces, " ")
 
 		default:
@@ -162,7 +162,7 @@ func runExpression(
 		}
 
 		switch cop.Op {
-		case v1.CaveatOperation_AND:
+		case core.CaveatOperation_AND:
 			boolResult = boolResult && childResult.Value()
 
 			if debugOption == RunCaveatExpressionWithDebugInformation {
@@ -179,7 +179,7 @@ func runExpression(
 				return syntheticResult{false, contextValues, buildExprString()}, nil
 			}
 
-		case v1.CaveatOperation_OR:
+		case core.CaveatOperation_OR:
 			boolResult = boolResult || childResult.Value()
 
 			if debugOption == RunCaveatExpressionWithDebugInformation {
@@ -196,7 +196,7 @@ func runExpression(
 				return syntheticResult{true, contextValues, buildExprString()}, nil
 			}
 
-		case v1.CaveatOperation_NOT:
+		case core.CaveatOperation_NOT:
 			if debugOption == RunCaveatExpressionWithDebugInformation {
 				contextValues = combineMaps(contextValues, childResult.ContextValues())
 				exprString, err := childResult.ExpressionString()
