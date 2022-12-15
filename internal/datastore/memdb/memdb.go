@@ -103,7 +103,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready")}
 	}
 
-	if err := mdb.checkRevisionLocal(dr); err != nil {
+	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
 		return &memdbReader{nil, nil, err}
 	}
 
