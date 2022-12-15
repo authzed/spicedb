@@ -264,6 +264,32 @@ var testCases = []struct {
 			},
 		}),
 	},
+
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1, 2, 3]}}}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1, 2, 3]}}}]`,
+		tupleFormat: WithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"hi": map[string]any{
+					"yo": map[string]any{
+						"hey": []any{1, 2, 3},
+					},
+				},
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
+			"hi": map[string]any{
+				"yo": map[string]any{
+					"hey": []any{1, 2, 3},
+				},
+			},
+		}),
+	},
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":"hey":true}}}]`,
 		expectedOutput: "",
