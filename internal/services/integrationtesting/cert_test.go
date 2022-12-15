@@ -136,18 +136,18 @@ func TestCertRotation(t *testing.T) {
 		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
+		server.SetReplaceDefaultUnaryMiddleware([]grpc.UnaryServerInterceptor{
+			datastoremw.UnaryServerInterceptor(ds),
+			consistency.UnaryServerInterceptor(),
+			servicespecific.UnaryServerInterceptor,
+		}),
+		server.SetReplaceDefaultStreamingMiddleware([]grpc.StreamServerInterceptor{
+			datastoremw.StreamServerInterceptor(ds),
+			consistency.StreamServerInterceptor(),
+			servicespecific.StreamServerInterceptor,
+		}),
 	).Complete(ctx)
 	require.NoError(t, err)
-
-	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
-		datastoremw.UnaryServerInterceptor(ds),
-		consistency.UnaryServerInterceptor(),
-		servicespecific.UnaryServerInterceptor,
-	}, []grpc.StreamServerInterceptor{
-		datastoremw.StreamServerInterceptor(ds),
-		consistency.StreamServerInterceptor(),
-		servicespecific.StreamServerInterceptor,
-	})
 
 	wait := make(chan struct{}, 1)
 	go func() {
