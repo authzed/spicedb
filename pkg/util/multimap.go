@@ -4,6 +4,25 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+// ReadOnlyMultimap is a read-only version of the multimap.
+type ReadOnlyMultimap[T comparable, Q any] interface {
+	// Has returns true if the key is found in the map.
+	Has(key T) bool
+
+	// Get returns the values for the given key in the map and whether the key existed. If the key
+	// does not exist, an empty slice is returned.
+	Get(key T) ([]Q, bool)
+
+	// IsEmpty returns true if the map is currently empty.
+	IsEmpty() bool
+
+	// Len returns the length of the map, e.g. the number of *keys* present.
+	Len() int
+
+	// Keys returns the keys of the map.
+	Keys() []T
+}
+
 // NewMultiMap creates and returns a new MultiMap from keys of type T to values of type Q.
 func NewMultiMap[T comparable, Q any]() *MultiMap[T, Q] {
 	return &MultiMap[T, Q]{
@@ -66,5 +85,48 @@ func (mm *MultiMap[T, Q]) Len() int {
 
 // Keys returns the keys of the map.
 func (mm *MultiMap[T, Q]) Keys() []T {
+	return maps.Keys(mm.items)
+}
+
+// AsReadOnly returns a read-only *copy* of the mulitmap.
+func (mm *MultiMap[T, Q]) AsReadOnly() ReadOnlyMultimap[T, Q] {
+	return readOnlyMultimap[T, Q]{
+		maps.Clone(mm.items),
+	}
+}
+
+type readOnlyMultimap[T comparable, Q any] struct {
+	items map[T][]Q
+}
+
+// Has returns true if the key is found in the map.
+func (mm readOnlyMultimap[T, Q]) Has(key T) bool {
+	_, ok := mm.items[key]
+	return ok
+}
+
+// Get returns the values for the given key in the map and whether the key existed. If the key
+// does not exist, an empty slice is returned.
+func (mm readOnlyMultimap[T, Q]) Get(key T) ([]Q, bool) {
+	found, ok := mm.items[key]
+	if !ok {
+		return []Q{}, false
+	}
+
+	return found, true
+}
+
+// IsEmpty returns true if the map is currently empty.
+func (mm readOnlyMultimap[T, Q]) IsEmpty() bool {
+	return len(mm.items) == 0
+}
+
+// Len returns the length of the map, e.g. the number of *keys* present.
+func (mm readOnlyMultimap[T, Q]) Len() int {
+	return len(mm.items)
+}
+
+// Keys returns the keys of the map.
+func (mm readOnlyMultimap[T, Q]) Keys() []T {
 	return maps.Keys(mm.items)
 }
