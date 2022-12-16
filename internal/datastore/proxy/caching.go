@@ -54,6 +54,11 @@ type nsCachingProxy struct {
 	readNsGroup singleflight.Group
 }
 
+func (p *nsCachingProxy) Close() error {
+	p.c.Close()
+	return p.Datastore.Close()
+}
+
 func (p *nsCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.Datastore.SnapshotReader(rev)
 	return &nsCachingReader{delegateReader, rev, p}
