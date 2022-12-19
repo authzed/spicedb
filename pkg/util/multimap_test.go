@@ -74,3 +74,28 @@ func TestMultimapOperations(t *testing.T) {
 	require.Equal(t, 0, mm.Len())
 	require.True(t, mm.IsEmpty())
 }
+
+func TestMultimapReadOnly(t *testing.T) {
+	mm := NewMultiMap[string, int]()
+	require.Equal(t, 0, mm.Len())
+	require.True(t, mm.IsEmpty())
+
+	// Add some values to the map.
+	mm.Add("odd", 1)
+	mm.Add("odd", 3)
+	mm.Add("odd", 5)
+
+	// Make a read-only copy.
+	ro := mm.AsReadOnly()
+
+	// Add some values to the original map.
+	mm.Add("even", 2)
+	mm.Add("zero", 0)
+
+	// Make sure the read-only map was not modified.
+	require.Equal(t, 3, mm.Len())
+	require.Equal(t, 1, ro.Len())
+
+	require.True(t, mm.Has("even"))
+	require.False(t, ro.Has("even"))
+}
