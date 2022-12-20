@@ -2,6 +2,8 @@ package v1
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -53,118 +55,99 @@ func convertCheckDispatchDebugInformation(
 	}
 
 	return &v1.DebugInformation{
-		Check:      converted[0],
+		Check:      converted,
 		SchemaUsed: strings.TrimSpace(schema),
 	}, nil
 }
 
-func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datastore.Reader) ([]*v1.CheckDebugTrace, error) {
-	traces := make([]*v1.CheckDebugTrace, 0, len(ct.Request.ResourceIds))
-	for _, resourceID := range ct.Request.ResourceIds {
-		permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
-		if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
-			permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
-		} else if ct.ResourceRelationType == dispatch.CheckDebugTrace_RELATION {
-			permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_RELATION
+func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *dispatch.CheckDebugTrace, reader datastore.Reader) (*v1.CheckDebugTrace, error) {
+	permissionType := v1.CheckDebugTrace_PERMISSION_TYPE_UNSPECIFIED
+	if ct.ResourceRelationType == dispatch.CheckDebugTrace_PERMISSION {
+		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_PERMISSION
+	} else if ct.ResourceRelationType == dispatch.CheckDebugTrace_RELATION {
+		permissionType = v1.CheckDebugTrace_PERMISSION_TYPE_RELATION
+	}
+
+	subRelation := ct.Request.Subject.Relation
+	if subRelation == tuple.Ellipsis {
+		subRelation = ""
+	}
+
+	permissionship := v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION
+	var partialResults []*dispatch.ResourceCheckResult
+	for _, checkResult := range ct.Results {
+		if checkResult.Membership == dispatch.ResourceCheckResult_MEMBER {
+			permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
+			break
 		}
 
-		subRelation := ct.Request.Subject.Relation
-		if subRelation == tuple.Ellipsis {
-			subRelation = ""
+		if checkResult.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER && permissionship != v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION {
+			permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partialResults = append(partialResults, checkResult)
+		}
+	}
+
+	var caveatEvalInfo *v1.CaveatEvalInfo
+	if permissionship == v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION && len(partialResults) == 1 {
+		partialCheckResult := partialResults[0]
+		computedResult, err := cexpr.RunCaveatExpression(ctx, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
+		if err != nil {
+			return nil, err
 		}
 
-		permissionship := v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION
-		checkResult, ok := ct.Results[resourceID]
-		if ok {
-			if checkResult.Membership == dispatch.ResourceCheckResult_MEMBER {
-				permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION
-			} else if checkResult.Membership == dispatch.ResourceCheckResult_CAVEATED_MEMBER {
-				permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+		var partialCaveatInfo *v1.PartialCaveatInfo
+		caveatResult := v1.CaveatEvalInfo_RESULT_FALSE
+		if computedResult.Value() {
+			caveatResult = v1.CaveatEvalInfo_RESULT_TRUE
+		} else if computedResult.IsPartial() {
+			caveatResult = v1.CaveatEvalInfo_RESULT_MISSING_SOME_CONTEXT
+			missingNames, _ := computedResult.MissingVarNames()
+			partialCaveatInfo = &v1.PartialCaveatInfo{
+				MissingRequiredContext: missingNames,
 			}
 		}
 
-		var caveatEvalInfo *v1.CaveatEvalInfo
-		if ok && checkResult.Expression != nil {
-			computedResult, err := cexpr.RunCaveatExpression(ctx, checkResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
+		contextStruct, err := structpb.NewStruct(computedResult.ContextValues())
+		if err != nil {
+			return nil, err
+		}
+
+		exprString, err := computedResult.ExpressionString()
+		if err != nil {
+			return nil, err
+		}
+
+		caveatName := ""
+		if partialCheckResult.Expression.GetCaveat() != nil {
+			caveatName = partialCheckResult.Expression.GetCaveat().CaveatName
+		}
+
+		caveatEvalInfo = &v1.CaveatEvalInfo{
+			Expression:        exprString,
+			Result:            caveatResult,
+			Context:           contextStruct,
+			PartialCaveatInfo: partialCaveatInfo,
+			CaveatName:        caveatName,
+		}
+	}
+
+	if len(ct.SubProblems) > 0 {
+		subProblems := make([]*v1.CheckDebugTrace, 0, len(ct.SubProblems))
+		for _, subProblem := range ct.SubProblems {
+			converted, err := convertCheckTrace(ctx, caveatContext, subProblem, reader)
 			if err != nil {
 				return nil, err
 			}
 
-			var partialCaveatInfo *v1.PartialCaveatInfo
-			caveatResult := v1.CaveatEvalInfo_RESULT_FALSE
-			if computedResult.Value() {
-				caveatResult = v1.CaveatEvalInfo_RESULT_TRUE
-			} else if computedResult.IsPartial() {
-				caveatResult = v1.CaveatEvalInfo_RESULT_MISSING_SOME_CONTEXT
-				missingNames, _ := computedResult.MissingVarNames()
-				partialCaveatInfo = &v1.PartialCaveatInfo{
-					MissingRequiredContext: missingNames,
-				}
-			}
-
-			contextStruct, err := structpb.NewStruct(computedResult.ContextValues())
-			if err != nil {
-				return nil, err
-			}
-
-			exprString, err := computedResult.ExpressionString()
-			if err != nil {
-				return nil, err
-			}
-
-			caveatName := ""
-			if checkResult.Expression.GetCaveat() != nil {
-				caveatName = checkResult.Expression.GetCaveat().CaveatName
-			}
-
-			caveatEvalInfo = &v1.CaveatEvalInfo{
-				Expression:        exprString,
-				Result:            caveatResult,
-				Context:           contextStruct,
-				PartialCaveatInfo: partialCaveatInfo,
-				CaveatName:        caveatName,
-			}
+			subProblems = append(subProblems, converted)
 		}
 
-		if len(ct.SubProblems) > 0 {
-			subProblems := make([]*v1.CheckDebugTrace, 0, len(ct.SubProblems))
-			for _, subProblem := range ct.SubProblems {
-				converted, err := convertCheckTrace(ctx, caveatContext, subProblem, reader)
-				if err != nil {
-					return nil, err
-				}
+		sort.Sort(sortByResource(subProblems))
 
-				subProblems = append(subProblems, converted...)
-			}
-
-			traces = append(traces, &v1.CheckDebugTrace{
-				Resource: &v1.ObjectReference{
-					ObjectType: ct.Request.ResourceRelation.Namespace,
-					ObjectId:   resourceID,
-				},
-				Permission:     ct.Request.ResourceRelation.Relation,
-				PermissionType: permissionType,
-				Subject: &v1.SubjectReference{
-					Object: &v1.ObjectReference{
-						ObjectType: ct.Request.Subject.Namespace,
-						ObjectId:   ct.Request.Subject.ObjectId,
-					},
-					OptionalRelation: subRelation,
-				},
-				CaveatEvaluationInfo: caveatEvalInfo,
-				Result:               permissionship,
-				Resolution: &v1.CheckDebugTrace_SubProblems_{
-					SubProblems: &v1.CheckDebugTrace_SubProblems{
-						Traces: subProblems,
-					},
-				},
-			})
-		}
-
-		traces = append(traces, &v1.CheckDebugTrace{
+		return &v1.CheckDebugTrace{
 			Resource: &v1.ObjectReference{
 				ObjectType: ct.Request.ResourceRelation.Namespace,
-				ObjectId:   resourceID,
+				ObjectId:   strings.Join(ct.Request.ResourceIds, ","),
 			},
 			Permission:     ct.Request.ResourceRelation.Relation,
 			PermissionType: permissionType,
@@ -177,11 +160,44 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 			},
 			CaveatEvaluationInfo: caveatEvalInfo,
 			Result:               permissionship,
-			Resolution: &v1.CheckDebugTrace_WasCachedResult{
-				WasCachedResult: ct.IsCachedResult,
+			Resolution: &v1.CheckDebugTrace_SubProblems_{
+				SubProblems: &v1.CheckDebugTrace_SubProblems{
+					Traces: subProblems,
+				},
 			},
-		})
+		}, nil
 	}
 
-	return traces, nil
+	return &v1.CheckDebugTrace{
+		Resource: &v1.ObjectReference{
+			ObjectType: ct.Request.ResourceRelation.Namespace,
+			ObjectId:   strings.Join(ct.Request.ResourceIds, ","),
+		},
+		Permission:     ct.Request.ResourceRelation.Relation,
+		PermissionType: permissionType,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: ct.Request.Subject.Namespace,
+				ObjectId:   ct.Request.Subject.ObjectId,
+			},
+			OptionalRelation: subRelation,
+		},
+		CaveatEvaluationInfo: caveatEvalInfo,
+		Result:               permissionship,
+		Resolution: &v1.CheckDebugTrace_WasCachedResult{
+			WasCachedResult: ct.IsCachedResult,
+		},
+	}, nil
+}
+
+type sortByResource []*v1.CheckDebugTrace
+
+func (a sortByResource) Len() int      { return len(a) }
+func (a sortByResource) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a sortByResource) Less(i, j int) bool {
+	return strings.Compare(stringRes(a[i].Resource), stringRes(a[j].Resource)) < 0
+}
+
+func stringRes(resource *v1.ObjectReference) string {
+	return fmt.Sprintf("%s:%s", resource.ObjectType, resource.ObjectId)
 }
