@@ -93,7 +93,7 @@ jobs:
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
-          timeout: "10m"
+          timeout: "15m"
           working_directory: "internal/services/integrationtesting"
 
   datastore:
