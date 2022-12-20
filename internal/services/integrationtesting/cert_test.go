@@ -136,15 +136,27 @@ func TestCertRotation(t *testing.T) {
 		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-		server.SetReplaceDefaultUnaryMiddleware([]grpc.UnaryServerInterceptor{
-			datastoremw.UnaryServerInterceptor(ds),
-			consistency.UnaryServerInterceptor(),
-			servicespecific.UnaryServerInterceptor,
-		}),
-		server.SetReplaceDefaultStreamingMiddleware([]grpc.StreamServerInterceptor{
-			datastoremw.StreamServerInterceptor(ds),
-			consistency.StreamServerInterceptor(),
-			servicespecific.StreamServerInterceptor,
+		server.SetMiddlewareModification([]server.MiddlewareModification{
+			{
+				Operation: server.OperationReplaceAllUnsafe,
+				Middlewares: []server.ReferenceableMiddleware{
+					{
+						Name:                "datastore",
+						UnaryMiddleware:     datastoremw.UnaryServerInterceptor(ds),
+						StreamingMiddleware: datastoremw.StreamServerInterceptor(ds),
+					},
+					{
+						Name:                "consistency",
+						UnaryMiddleware:     consistency.UnaryServerInterceptor(),
+						StreamingMiddleware: consistency.StreamServerInterceptor(),
+					},
+					{
+						Name:                "servicespecific",
+						UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
+						StreamingMiddleware: servicespecific.StreamServerInterceptor,
+					},
+				},
+			},
 		}),
 	).Complete(ctx)
 	require.NoError(t, err)

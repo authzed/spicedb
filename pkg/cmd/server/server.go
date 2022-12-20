@@ -90,15 +90,10 @@ type Config struct {
 	DashboardAPI util.HTTPServerConfig
 	MetricsAPI   util.HTTPServerConfig
 
-	// Middleware for grpc
-	PrependUnaryMiddleware            []grpc.UnaryServerInterceptor
-	PrependStreamingMiddleware        []grpc.StreamServerInterceptor
-	ReplaceDefaultUnaryMiddleware     []grpc.UnaryServerInterceptor
-	ReplaceDefaultStreamingMiddleware []grpc.StreamServerInterceptor
-	AppendUnaryMiddleware             []grpc.UnaryServerInterceptor
-	AppendStreamingMiddleware         []grpc.StreamServerInterceptor
+	// Middleware for grpc API
+	MiddlewareModification []MiddlewareModification
 
-	// Middleware for dispatch
+	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
 	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
 
@@ -296,10 +291,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
-	defaultMiddlewareFunc := func() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-		return DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	defaultMiddlewareChain := DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	unaryMiddleware, streamingMiddleware, err := c.buildMiddleware(defaultMiddlewareChain)
+	if err != nil {
+		return nil, fmt.Errorf("error building Middlewares: %w", err)
 	}
-	unaryMiddleware, streamingMiddleware := c.buildMiddleware(defaultMiddlewareFunc)
 
 	permSysConfig := v1svc.PermissionsServerConfig{
 		MaxPreconditionsCount: c.MaximumPreconditionCount,
@@ -390,37 +386,16 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}, nil
 }
 
-func (c *Config) buildMiddleware(defaultMiddlewareFunc func() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor)) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	var outputUnaryMiddleware []grpc.UnaryServerInterceptor
-	var outputStreamingMiddleware []grpc.StreamServerInterceptor
-
-	if defaultMiddlewareFunc != nil {
-		outputUnaryMiddleware, outputStreamingMiddleware = defaultMiddlewareFunc()
+func (c *Config) buildMiddleware(defaultMiddleware *MiddlewareChain) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor, error) {
+	chain := MiddlewareChain{}
+	if defaultMiddleware != nil {
+		chain.chain = append(chain.chain, defaultMiddleware.chain...)
 	}
-	if len(c.ReplaceDefaultUnaryMiddleware) != 0 {
-		outputUnaryMiddleware = c.ReplaceDefaultUnaryMiddleware
+	if err := chain.modify(c.MiddlewareModification...); err != nil {
+		return nil, nil, err
 	}
-	if len(c.ReplaceDefaultStreamingMiddleware) != 0 {
-		outputStreamingMiddleware = c.ReplaceDefaultStreamingMiddleware
-	}
-	if len(c.PrependUnaryMiddleware) != 0 {
-		tempMiddlewareChain := make([]grpc.UnaryServerInterceptor, len(c.PrependUnaryMiddleware))
-		copy(tempMiddlewareChain, c.PrependUnaryMiddleware)
-		outputUnaryMiddleware = append(tempMiddlewareChain, outputUnaryMiddleware...) //nolint makezero
-	}
-	if len(c.PrependStreamingMiddleware) != 0 {
-		tempMiddlewareChain := make([]grpc.StreamServerInterceptor, len(c.PrependStreamingMiddleware))
-		copy(tempMiddlewareChain, c.PrependStreamingMiddleware)
-		outputStreamingMiddleware = append(tempMiddlewareChain, outputStreamingMiddleware...) //nolint makezero
-	}
-	if len(c.AppendUnaryMiddleware) != 0 {
-		outputUnaryMiddleware = append(outputUnaryMiddleware, c.AppendUnaryMiddleware...)
-	}
-	if len(c.AppendStreamingMiddleware) != 0 {
-		outputStreamingMiddleware = append(outputStreamingMiddleware, c.AppendStreamingMiddleware...)
-	}
-
-	return outputUnaryMiddleware, outputStreamingMiddleware
+	unaryOutput, streamingOutput := chain.ToGRPCInterceptors()
+	return unaryOutput, streamingOutput, nil
 }
 
 // initializeGateway Configures the gateway to serve HTTP
