@@ -16,7 +16,7 @@ import (
 func SignalContextWithGracePeriod(ctx context.Context, gracePeriod time.Duration) context.Context {
 	newCtx, cancelfn := context.WithCancel(ctx)
 	go func() {
-		signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		signalctx, _ := signal.NotifyContext(newCtx, os.Interrupt, syscall.SIGTERM)
 		<-signalctx.Done()
 		log.Info().Msg("received interrupt")
 

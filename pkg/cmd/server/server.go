@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/grpcutil"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -104,10 +105,58 @@ type Config struct {
 	TelemetryInterval        time.Duration
 }
 
+type closeableStack struct {
+	closers []func() error
+}
+
+func (c *closeableStack) AddWithError(closer func() error) {
+	c.closers = append(c.closers, closer)
+}
+
+func (c *closeableStack) AddCloser(closer io.Closer) {
+	if closer != nil {
+		c.closers = append(c.closers, closer.Close)
+	}
+}
+
+func (c *closeableStack) AddWithoutError(closer func()) {
+	c.closers = append(c.closers, func() error {
+		closer()
+		return nil
+	})
+}
+
+func (c *closeableStack) Close() error {
+	var err error
+	// closer in reverse order how it's expected in deferred funcs
+	for i := len(c.closers) - 1; i >= 0; i-- {
+		if closerErr := c.closers[i](); closerErr != nil {
+			err = multierror.Append(err, closerErr)
+		}
+	}
+	return err
+}
+
+func (c *closeableStack) CloseIfError(err error) error {
+	if err != nil {
+		return c.Close()
+	}
+	return nil
+}
+
 // Complete validates the config and fills out defaults.
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
+	closeables := closeableStack{}
+	var err error
+	defer func() {
+		// if an error happens during the execution of Complete, all resources are cleaned up
+		if closeableErr := closeables.CloseIfError(err); closeableErr != nil {
+			log.Err(closeableErr).Msg("failed to clean up resources on Config.Complete")
+		}
+	}()
+
 	if len(c.PresharedKey) < 1 && c.GRPCAuthFunc == nil {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
 	}
@@ -135,6 +184,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			return nil, fmt.Errorf("failed to create datastore: %w", err)
 		}
 	}
+	closeables.AddWithError(ds.Close)
 
 	nscc, err := c.NamespaceCacheConfig.Complete()
 	if err != nil {
@@ -144,16 +194,17 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	ds = proxy.NewCachingDatastoreProxy(ds, nscc)
 	ds = proxy.NewObservableDatastoreProxy(ds)
+	closeables.AddWithError(ds.Close)
 
 	enableGRPCHistogram()
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		var err error
-		cc, cerr := c.DispatchCacheConfig.Complete()
-		if cerr != nil {
-			return nil, fmt.Errorf("failed to create dispatcher: %w", cerr)
+		cc, err := c.DispatchCacheConfig.Complete()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
+		closeables.AddWithoutError(cc.Close)
 		log.Info().EmbedObject(cc).Msg("configured dispatch cache")
 
 		dispatchPresharedKey := ""
@@ -181,6 +232,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
 	}
+	closeables.AddWithError(dispatcher.Close)
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
@@ -192,13 +244,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, cerr := c.ClusterDispatchCacheConfig.Complete()
-		if cerr != nil {
-			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", cerr)
+		cdcc, err := c.ClusterDispatchCacheConfig.Complete()
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
 		log.Info().EmbedObject(cdcc).Msg("configured cluster dispatch cache")
+		closeables.AddWithoutError(cdcc.Close)
 
-		var err error
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
@@ -207,6 +259,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
+		closeables.AddWithError(cachingClusterDispatch.Close)
 	}
 
 	dispatchGrpcServer, err := c.DispatchServer.Complete(zerolog.InfoLevel,
@@ -219,6 +272,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
 	}
+	closeables.AddWithoutError(dispatchGrpcServer.GracefulStop)
 
 	datastoreFeatures, err := ds.Features(ctx)
 	if err != nil {
@@ -271,11 +325,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
+	closeables.AddWithoutError(grpcServer.GracefulStop)
 
 	gatewayServer, gatewayCloser, err := c.initializeGateway(ctx)
 	if err != nil {
 		return nil, err
 	}
+	closeables.AddCloser(gatewayCloser)
 
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
 		c.GRPCServer.Address,
@@ -286,6 +342,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize dashboard server: %w", err)
 	}
+	closeables.AddWithoutError(dashboardServer.Close)
 
 	registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
 	if err != nil {
@@ -311,6 +368,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
 	}
+	closeables.AddWithoutError(metricsServer.Close)
 
 	return &completedServerConfig{
 		gRPCServer:          grpcServer,
@@ -323,25 +381,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		presharedKeys:       c.PresharedKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
-		closeFunc: func() error {
-			if err := ds.Close(); err != nil {
-				return err
-			}
-			if err := dispatcher.Close(); err != nil {
-				return err
-			}
-			if cachingClusterDispatch != nil {
-				if err := cachingClusterDispatch.Close(); err != nil {
-					return err
-				}
-			}
-			if gatewayCloser != nil {
-				if err := gatewayCloser.Close(); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
+		closeFunc:           closeables.Close,
 	}, nil
 }
 
@@ -443,14 +483,6 @@ func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s st
 func (c *completedServerConfig) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 
-	stopOnCancel := func(stopFn func()) func() error {
-		return func() error {
-			<-ctx.Done()
-			stopFn()
-			return nil
-		}
-	}
-
 	stopOnCancelWithErr := func(stopFn func() error) func() error {
 		return func() error {
 			<-ctx.Done()
@@ -461,20 +493,10 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
 	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen(ctx))
-	g.Go(stopOnCancel(grpcServer.GracefulStop))
-
 	g.Go(c.dispatchGRPCServer.Listen(ctx))
-	g.Go(stopOnCancel(c.dispatchGRPCServer.GracefulStop))
-
 	g.Go(c.gatewayServer.ListenAndServe)
-	g.Go(stopOnCancel(c.gatewayServer.Close))
-
 	g.Go(c.metricsServer.ListenAndServe)
-	g.Go(stopOnCancel(c.metricsServer.Close))
-
 	g.Go(c.dashboardServer.ListenAndServe)
-	g.Go(stopOnCancel(c.dashboardServer.Close))
-
 	g.Go(func() error { return c.telemetryReporter(ctx) })
 
 	g.Go(stopOnCancelWithErr(c.closeFunc))

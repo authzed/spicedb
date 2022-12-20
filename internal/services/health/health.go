@@ -73,7 +73,7 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 				}
 
 			case <-ctx.Done():
-				log.Warn().Msg("datastore health context was canceled")
+				log.Info().Msg("datastore health check canceled")
 				return nil
 			}
 

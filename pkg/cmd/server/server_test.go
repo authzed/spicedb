@@ -29,3 +29,15 @@ func TestServerGracefulTermination(t *testing.T) {
 	cancel()
 	<-ch
 }
+
+func TestServerGracefulTerminationOnError(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
+	require.NoError(t, err)
+	c := ConfigWithOptions(&Config{}, WithPresharedKey("psk"), WithDatastore(ds))
+	cancel()
+	_, err = c.Complete(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
