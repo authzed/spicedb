@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
@@ -25,8 +26,14 @@ import (
 func NewSchemaServer(additiveOnly, caveatsEnabled bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary:  grpcvalidate.UnaryServerInterceptor(true),
-			Stream: grpcvalidate.StreamServerInterceptor(true),
+			Unary: middleware.ChainUnaryServer(
+				grpcvalidate.UnaryServerInterceptor(true),
+				usagemetrics.UnaryServerInterceptor(),
+			),
+			Stream: middleware.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(true),
+				usagemetrics.StreamServerInterceptor(),
+			),
 		},
 		additiveOnly:   additiveOnly,
 		caveatsEnabled: caveatsEnabled,
