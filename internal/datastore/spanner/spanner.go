@@ -114,7 +114,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		}
 		ds.stopGC = cancel
 	} else {
-		log.Warn().Msg("datastore garbage collection disabled")
+		log.Warn().Msg("datastore background garbage collection disabled")
 	}
 
 	return ds, nil

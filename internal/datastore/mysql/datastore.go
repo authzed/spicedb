@@ -231,7 +231,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 			)
 		})
 	} else {
-		log.Warn().Msg("datastore garbage collection disabled")
+		log.Warn().Msg("datastore background garbage collection disabled")
 	}
 
 	return store, nil

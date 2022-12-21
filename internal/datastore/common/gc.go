@@ -107,7 +107,7 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 			return ctx.Err()
 
 		case <-time.After(nextInterval):
-			err := collect(gc, window, timeout)
+			err := RunGarbageCollection(gc, window, timeout)
 			if err != nil {
 				nextInterval = backoffInterval.NextBackOff()
 				log.Ctx(ctx).Warn().Err(err).
@@ -130,7 +130,8 @@ func maxDuration(d1 time.Duration, d2 time.Duration) time.Duration {
 	return d2
 }
 
-func collect(gc GarbageCollector, window, timeout time.Duration) error {
+// RunGarbageCollection runs garbage collection for the datastore.
+func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
