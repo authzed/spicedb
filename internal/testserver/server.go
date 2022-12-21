@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/authzed/spicedb/internal/middleware/servicespecific"
+
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -70,19 +71,35 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
 		server.WithExperimentalCaveatsEnabled(true),
+		server.SetMiddlewareModification([]server.MiddlewareModification{
+			{
+				Operation: server.OperationReplaceAllUnsafe,
+				Middlewares: []server.ReferenceableMiddleware{
+					{
+						Name:                "logging",
+						UnaryMiddleware:     logging.UnaryServerInterceptor(),
+						StreamingMiddleware: logging.StreamServerInterceptor(),
+					},
+					{
+						Name:                "datastore",
+						UnaryMiddleware:     datastoremw.UnaryServerInterceptor(ds),
+						StreamingMiddleware: datastoremw.StreamServerInterceptor(ds),
+					},
+					{
+						Name:                "consistency",
+						UnaryMiddleware:     consistency.UnaryServerInterceptor(),
+						StreamingMiddleware: consistency.StreamServerInterceptor(),
+					},
+					{
+						Name:                "servicespecific",
+						UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
+						StreamingMiddleware: servicespecific.StreamServerInterceptor,
+					},
+				},
+			},
+		}),
 	).Complete(ctx)
 	require.NoError(err)
-	srv.SetMiddleware([]grpc.UnaryServerInterceptor{
-		logging.UnaryServerInterceptor(),
-		datastoremw.UnaryServerInterceptor(ds),
-		consistency.UnaryServerInterceptor(),
-		servicespecific.UnaryServerInterceptor,
-	}, []grpc.StreamServerInterceptor{
-		logging.StreamServerInterceptor(),
-		datastoremw.StreamServerInterceptor(ds),
-		consistency.StreamServerInterceptor(),
-		servicespecific.StreamServerInterceptor,
-	})
 
 	go func() {
 		require.NoError(srv.Run(ctx))

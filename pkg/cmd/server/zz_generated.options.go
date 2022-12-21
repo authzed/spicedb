@@ -58,8 +58,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.ExperimentalCaveatsEnabled = c.ExperimentalCaveatsEnabled
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
-		to.UnaryMiddleware = c.UnaryMiddleware
-		to.StreamingMiddleware = c.StreamingMiddleware
+		to.MiddlewareModification = c.MiddlewareModification
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -315,31 +314,17 @@ func WithMetricsAPI(metricsAPI util.HTTPServerConfig) ConfigOption {
 	}
 }
 
-// WithUnaryMiddleware returns an option that can append UnaryMiddlewares to Config.UnaryMiddleware
-func WithUnaryMiddleware(unaryMiddleware grpc.UnaryServerInterceptor) ConfigOption {
+// WithMiddlewareModification returns an option that can append MiddlewareModifications to Config.MiddlewareModification
+func WithMiddlewareModification(middlewareModification MiddlewareModification) ConfigOption {
 	return func(c *Config) {
-		c.UnaryMiddleware = append(c.UnaryMiddleware, unaryMiddleware)
+		c.MiddlewareModification = append(c.MiddlewareModification, middlewareModification)
 	}
 }
 
-// SetUnaryMiddleware returns an option that can set UnaryMiddleware on a Config
-func SetUnaryMiddleware(unaryMiddleware []grpc.UnaryServerInterceptor) ConfigOption {
+// SetMiddlewareModification returns an option that can set MiddlewareModification on a Config
+func SetMiddlewareModification(middlewareModification []MiddlewareModification) ConfigOption {
 	return func(c *Config) {
-		c.UnaryMiddleware = unaryMiddleware
-	}
-}
-
-// WithStreamingMiddleware returns an option that can append StreamingMiddlewares to Config.StreamingMiddleware
-func WithStreamingMiddleware(streamingMiddleware grpc.StreamServerInterceptor) ConfigOption {
-	return func(c *Config) {
-		c.StreamingMiddleware = append(c.StreamingMiddleware, streamingMiddleware)
-	}
-}
-
-// SetStreamingMiddleware returns an option that can set StreamingMiddleware on a Config
-func SetStreamingMiddleware(streamingMiddleware []grpc.StreamServerInterceptor) ConfigOption {
-	return func(c *Config) {
-		c.StreamingMiddleware = streamingMiddleware
+		c.MiddlewareModification = middlewareModification
 	}
 }
 
