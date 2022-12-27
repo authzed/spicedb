@@ -240,6 +240,7 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 		if rsm.len() == chunkSize {
 			chunkIndex++
 			toBeHandled = append(toBeHandled, rsm)
+			rsm = newResourcesSubjectMap(resourceType)
 		}
 	}
 	it.Close()
