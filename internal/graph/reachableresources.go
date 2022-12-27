@@ -246,6 +246,10 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 	it.Close()
 
 	if rsm.len() > 0 {
+		if rsm.len() > datastore.FilterMaximumIDCount {
+			return fmt.Errorf("found reachableresources chunk in excess of expected max size")
+		}
+
 		toBeHandled = append(toBeHandled, rsm)
 	}
 
