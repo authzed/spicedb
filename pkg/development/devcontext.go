@@ -3,18 +3,25 @@ package development
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	maingraph "github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -23,6 +30,8 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+const defaultConnBufferSize = 1024 * 1204
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
@@ -100,6 +109,55 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		Revision:       currentRevision,
 		Dispatcher:     graph.NewLocalOnlyDispatcher(10),
 	}, nil, nil
+}
+
+// RunV1InMemoryService runs a V1 server in-memory on a buffconn over the given
+// development context and returns a client connection and a function to shutdown
+// the server. It is the responsibility of the caller to call the function to close
+// the server.
+func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
+	listener := bufconn.Listen(defaultConnBufferSize)
+
+	s := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			datastoremw.UnaryServerInterceptor(dc.Datastore),
+			consistency.UnaryServerInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			datastoremw.StreamServerInterceptor(dc.Datastore),
+			consistency.StreamServerInterceptor(),
+		),
+	)
+	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{
+		MaxUpdatesPerWrite:    50,
+		MaxPreconditionsCount: 50,
+		MaximumAPIDepth:       50,
+	}, true)
+	ss := v1svc.NewSchemaServer(false, true)
+
+	v1.RegisterPermissionsServiceServer(s, ps)
+	v1.RegisterSchemaServiceServer(s, ss)
+
+	go func() {
+		if err := s.Serve(listener); err != nil {
+			panic(err)
+		}
+	}()
+
+	conn, err := grpc.DialContext(
+		context.Background(),
+		"",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return listener.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	return conn, func() {
+		conn.Close()
+		listener.Close()
+		s.Stop()
+	}, err
 }
 
 // Dispose disposes of the DevContext and its underlying datastore.

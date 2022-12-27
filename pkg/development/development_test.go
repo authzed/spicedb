@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -108,4 +109,34 @@ definition document {
 	require.Nil(t, err)
 
 	require.Equal(t, "document:somedoc#viewer:\n- '[user:someuser[...]] is <document:somedoc#viewer>'\n", generated)
+}
+
+func TestDevContextV1Service(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
+
+	devCtx, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+		Schema: `definition user {}
+
+definition document {
+	relation viewer: user
+}
+`,
+		Relationships: []*core.RelationTuple{
+			tuple.MustParse("document:somedoc#viewer@user:someuser"),
+		},
+	})
+
+	require.Nil(t, err)
+	require.Nil(t, devErrs)
+
+	conn, shutdown, err := devCtx.RunV1InMemoryService()
+	require.Nil(t, err)
+	t.Cleanup(shutdown)
+
+	client := v1.NewSchemaServiceClient(conn)
+	resp, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	require.Nil(t, err)
+	require.Contains(t, resp.SchemaText, "definition document")
+
+	shutdown()
 }
