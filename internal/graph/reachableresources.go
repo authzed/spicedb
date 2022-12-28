@@ -240,11 +240,16 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 		if rsm.len() == chunkSize {
 			chunkIndex++
 			toBeHandled = append(toBeHandled, rsm)
+			rsm = newResourcesSubjectMap(resourceType)
 		}
 	}
 	it.Close()
 
 	if rsm.len() > 0 {
+		if rsm.len() > datastore.FilterMaximumIDCount {
+			return fmt.Errorf("found reachableresources chunk in excess of expected max size")
+		}
+
 		toBeHandled = append(toBeHandled, rsm)
 	}
 

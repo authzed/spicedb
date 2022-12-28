@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
@@ -83,12 +84,20 @@ func (g DeletionCounts) MarshalZerologObject(e *zerolog.Event) {
 		Int64("namespaces", g.Namespaces)
 }
 
+var MaxGCInterval = 60 * time.Minute
+
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
 	log.Info().
 		Dur("interval", interval).
 		Msg("datastore garbage collection worker started")
+
+	backoffInterval := backoff.NewExponentialBackOff()
+	backoffInterval.InitialInterval = interval
+	backoffInterval.MaxElapsedTime = maxDuration(MaxGCInterval, interval)
+
+	nextInterval := interval
 
 	for {
 		select {
@@ -97,14 +106,28 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 				Msg("shutting down datastore garbage collection worker")
 			return ctx.Err()
 
-		case <-time.After(interval):
+		case <-time.After(nextInterval):
 			err := collect(gc, window, timeout)
 			if err != nil {
+				nextInterval = backoffInterval.NextBackOff()
 				log.Ctx(ctx).Warn().Err(err).
+					Dur("next-attempt-in", nextInterval).
 					Msg("error attempting to perform garbage collection")
+				continue
 			}
+			backoffInterval.Reset()
+			log.Debug().
+				Dur("next-run-in", interval).
+				Msg("datastore garbage collection completed successfully")
 		}
 	}
+}
+
+func maxDuration(d1 time.Duration, d2 time.Duration) time.Duration {
+	if d1 > d2 {
+		return d1
+	}
+	return d2
 }
 
 func collect(gc GarbageCollector, window, timeout time.Duration) error {

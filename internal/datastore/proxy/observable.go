@@ -4,6 +4,8 @@ import (
 	"context"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -14,7 +16,27 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-var tracer = otel.Tracer("spicedb/datastore/proxy/observable")
+var (
+	tracer = otel.Tracer("spicedb/datastore/proxy/observable")
+
+	loadedRelationshipCount = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "loaded_relationships_count",
+		Buckets:   []float64{1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
+		Help:      "total number of relationships loaded for a query",
+	})
+
+	queryLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "query_latency",
+		Buckets:   []float64{.0005, .001, .002, .005, .01, .02, .05, .1, .2, .5},
+		Help:      "response latency for a database query",
+	}, []string{
+		"operation",
+	})
+)
 
 func filterToAttributes(filter *v1.RelationshipFilter) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
@@ -57,27 +79,24 @@ func (p *observableProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFun
 }
 
 func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "OptimizedRevision")
-	defer span.End()
+	ctx, closer := observe(ctx, "OptimizedRevision")
+	defer closer()
 
 	return p.delegate.OptimizedRevision(ctx)
 }
 
 func (p *observableProxy) CheckRevision(ctx context.Context, revision datastore.Revision) error {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "CheckRevision", trace.WithAttributes(
+	ctx, closer := observe(ctx, "CheckRevision", trace.WithAttributes(
 		attribute.String("revision", revision.String()),
 	))
-	defer span.End()
+	defer closer()
 
 	return p.delegate.CheckRevision(ctx, revision)
 }
 
 func (p *observableProxy) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "HeadRevision")
-	defer span.End()
+	ctx, closer := observe(ctx, "HeadRevision")
+	defer closer()
 
 	return p.delegate.HeadRevision(ctx)
 }
@@ -91,25 +110,22 @@ func (p *observableProxy) Watch(ctx context.Context, afterRevision datastore.Rev
 }
 
 func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "Features")
-	defer span.End()
+	ctx, closer := observe(ctx, "Features")
+	defer closer()
 
 	return p.delegate.Features(ctx)
 }
 
 func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "Statistics")
-	defer span.End()
+	ctx, closer := observe(ctx, "Statistics")
+	defer closer()
 
 	return p.delegate.Statistics(ctx)
 }
 
 func (p *observableProxy) IsReady(ctx context.Context) (bool, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "IsReady")
-	defer span.End()
+	ctx, closer := observe(ctx, "IsReady")
+	defer closer()
 
 	return p.delegate.IsReady(ctx)
 }
@@ -119,81 +135,88 @@ func (p *observableProxy) Close() error { return p.delegate.Close() }
 type observableReader struct{ delegate datastore.Reader }
 
 func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "ReadCaveatByName", trace.WithAttributes(
+	ctx, closer := observe(ctx, "ReadCaveatByName", trace.WithAttributes(
 		attribute.String("name", name),
 	))
-	defer span.End()
+	defer closer()
 
 	return r.delegate.ReadCaveatByName(ctx, name)
 }
 
 func (r *observableReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "ListCaveats", trace.WithAttributes(
+	ctx, closer := observe(ctx, "ListCaveats", trace.WithAttributes(
 		attribute.StringSlice("names", caveatNamesForFiltering),
 	))
-	defer span.End()
+	defer closer()
 
 	return r.delegate.ListCaveats(ctx, caveatNamesForFiltering...)
 }
 
 func (r *observableReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "ListNamespaces")
-	defer span.End()
+	ctx, closer := observe(ctx, "ListNamespaces")
+	defer closer()
 
 	return r.delegate.ListNamespaces(ctx)
 }
 
 func (r *observableReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "LookupNamespaces", trace.WithAttributes(
+	ctx, closer := observe(ctx, "LookupNamespaces", trace.WithAttributes(
 		attribute.StringSlice("names", nsNames),
 	))
-	defer span.End()
+	defer closer()
 
 	return r.delegate.LookupNamespaces(ctx, nsNames)
 }
 
 func (r *observableReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "ReadNamespace", trace.WithAttributes(
+	ctx, closer := observe(ctx, "ReadNamespace", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
-	defer span.End()
+	defer closer()
 
 	return r.delegate.ReadNamespace(ctx, nsName)
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "QueryRelationships")
+	ctx, closer := observe(ctx, "QueryRelationships")
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)
 	if err != nil {
 		return iterator, err
 	}
-	return observableRelationshipIterator{span, iterator}, nil
+	return &observableRelationshipIterator{closer, iterator, 0}, nil
 }
 
 type observableRelationshipIterator struct {
-	span     trace.Span
+	closer   func()
 	delegate datastore.RelationshipIterator
+	count    uint32
 }
 
-func (i observableRelationshipIterator) Next() *core.RelationTuple { return i.delegate.Next() }
-func (i observableRelationshipIterator) Err() error                { return i.delegate.Err() }
-func (i observableRelationshipIterator) Close()                    { i.span.End(); i.delegate.Close() }
+func (i *observableRelationshipIterator) Next() *core.RelationTuple {
+	if next := i.delegate.Next(); next != nil {
+		i.count++
+		return next
+	}
+	return nil
+}
+
+func (i *observableRelationshipIterator) Err() error { return i.delegate.Err() }
+
+func (i *observableRelationshipIterator) Close() {
+	loadedRelationshipCount.Observe(float64(i.count))
+	i.closer()
+	i.delegate.Close()
+}
 
 func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "ReverseQueryRelationships")
+	ctx, closer := observe(ctx, "ReverseQueryRelationships")
 
 	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectFilter, options...)
 	if err != nil {
 		return iterator, err
 	}
-	return observableRelationshipIterator{span, iterator}, nil
+	return &observableRelationshipIterator{closer, iterator, 0}, nil
 }
 
 type observableRWT struct {
@@ -207,31 +230,28 @@ func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.Cave
 		caveatNames = append(caveatNames, caveat.Name)
 	}
 
-	ctx, span := tracer.Start(
-		ctx,
-		"WriteCaveats",
-		trace.WithAttributes(attribute.StringSlice("names", caveatNames)),
-	)
-	defer span.End()
+	ctx, closer := observe(ctx, "WriteCaveats", trace.WithAttributes(
+		attribute.StringSlice("names", caveatNames),
+	))
+	defer closer()
 
 	return rwt.delegate.WriteCaveats(ctx, caveats)
 }
 
 func (rwt *observableRWT) DeleteCaveats(ctx context.Context, names []string) error {
-	ctx, span := tracer.Start(ctx, "DeleteCaveats", trace.WithAttributes(
+	ctx, closer := observe(ctx, "DeleteCaveats", trace.WithAttributes(
 		attribute.StringSlice("names", names),
 	))
-	defer span.End()
+	defer closer()
 
 	return rwt.delegate.DeleteCaveats(ctx, names)
 }
 
 func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "WriteRelationships", trace.WithAttributes(
+	ctx, closer := observe(ctx, "WriteRelationships", trace.WithAttributes(
 		attribute.Int("mutations", len(mutations)),
 	))
-	defer span.End()
+	defer closer()
 
 	return rwt.delegate.WriteRelationships(ctx, mutations)
 }
@@ -242,35 +262,40 @@ func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*co
 		nsNames = append(nsNames, ns.Name)
 	}
 
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "WriteNamespaces", trace.WithAttributes(
-		attribute.StringSlice("name", nsNames),
+	ctx, closer := observe(ctx, "WriteNamespaces", trace.WithAttributes(
+		attribute.StringSlice("names", nsNames),
 	))
-	defer span.End()
+	defer closer()
 
 	return rwt.delegate.WriteNamespaces(ctx, newConfigs...)
 }
 
 func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
-	var span trace.Span
-	ctx, span = tracer.Start(ctx, "DeleteNamespace", trace.WithAttributes(
+	ctx, closer := observe(ctx, "DeleteNamespaces", trace.WithAttributes(
 		attribute.StringSlice("names", nsNames),
 	))
-	defer span.End()
+	defer closer()
 
 	return rwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
 func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	var span trace.Span
-	ctx, span = tracer.Start(
-		ctx,
-		"DeleteRelationships",
-		trace.WithAttributes(filterToAttributes(filter)...),
-	)
-	defer span.End()
+	ctx, closer := observe(ctx, "DeleteRelationships", trace.WithAttributes(
+		filterToAttributes(filter)...,
+	))
+	defer closer()
 
 	return rwt.delegate.DeleteRelationships(ctx, filter)
+}
+
+func observe(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, func()) {
+	ctx, span := tracer.Start(ctx, name, opts...)
+	timer := prometheus.NewTimer(queryLatency.WithLabelValues(name))
+
+	return ctx, func() {
+		timer.ObserveDuration()
+		span.End()
+	}
 }
 
 var (
