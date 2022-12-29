@@ -159,7 +159,7 @@ func newHedgingProxyWithTimeSource(
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
-		return nil, fmt.Errorf("hedingQuantile must be in the range (0.0-1.0) exclusive")
+		return nil, fmt.Errorf("hedgingQuantile must be in the range (0.0-1.0) exclusive")
 	}
 
 	return hedgingProxy{

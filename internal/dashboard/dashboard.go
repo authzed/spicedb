@@ -150,7 +150,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 			for _, nsDef := range nsDefs {
 				objectDef, _, err := generator.GenerateSource(nsDef)
 				if err != nil {
-					log.Ctx(r.Context()).Error().AnErr("genErr", err).Msg("Got error when trying to generate namespace")
+					log.Ctx(r.Context()).Error().Err(err).Msg("Got error when trying to generate namespace")
 					fmt.Fprintf(w, "Internal Error")
 					return
 				}

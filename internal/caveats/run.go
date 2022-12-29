@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
