@@ -291,7 +291,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
-	defaultMiddlewareChain := DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	defaultMiddlewareChain, err := DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	if err != nil {
+		return nil, fmt.Errorf("error building default middleware: %w", err)
+	}
+
 	unaryMiddleware, streamingMiddleware, err := c.buildMiddleware(defaultMiddlewareChain)
 	if err != nil {
 		return nil, fmt.Errorf("error building Middlewares: %w", err)

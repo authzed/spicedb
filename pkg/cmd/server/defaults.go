@@ -116,7 +116,7 @@ const (
 )
 
 // DefaultMiddleware generates the default middleware chain used for the public SpiceDB gRPC API
-func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) *MiddlewareChain {
+func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) (*MiddlewareChain, error) {
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware{
 		{
 			Name:                DefaultMiddlewareRequestID,
@@ -179,10 +179,7 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 			StreamingMiddleware: serverversion.StreamServerInterceptor(enableVersionResponse),
 		},
 	}...)
-	if err != nil {
-		panic("error creating default middleware layer")
-	}
-	return &chain
+	return &chain, err
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
