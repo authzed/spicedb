@@ -31,21 +31,21 @@ func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_Re
 }
 
 // TuplesetRelation returns the tupleset relation of the TTU, if a TUPLESET_TO_USERSET_ENTRYPOINT.
-func (re ReachabilityEntrypoint) TuplesetRelation() string {
+func (re ReachabilityEntrypoint) TuplesetRelation() (string, error) {
 	if re.EntrypointKind() != core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT {
-		panic(fmt.Sprintf("cannot call TupleToUserset for kind %v", re.EntrypointKind()))
+		return "", fmt.Errorf("cannot call TupleToUserset for kind %v", re.EntrypointKind())
 	}
 
-	return re.re.TuplesetRelation
+	return re.re.TuplesetRelation, nil
 }
 
 // DirectRelation is the relation that this entrypoint represents, if a RELATION_ENTRYPOINT.
-func (re ReachabilityEntrypoint) DirectRelation() *core.RelationReference {
+func (re ReachabilityEntrypoint) DirectRelation() (*core.RelationReference, error) {
 	if re.EntrypointKind() != core.ReachabilityEntrypoint_RELATION_ENTRYPOINT {
-		panic(fmt.Sprintf("cannot call DirectRelation for kind %v", re.EntrypointKind()))
+		return nil, fmt.Errorf("cannot call DirectRelation for kind %v", re.EntrypointKind())
 	}
 
-	return re.re.TargetRelation
+	return re.re.TargetRelation, nil
 }
 
 // ContainingRelationOrPermission is the relation or permission containing this entrypoint.

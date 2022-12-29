@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"hash/fnv"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	"github.com/dalzilio/rudd"
 
 	"github.com/authzed/spicedb/pkg/graph"
@@ -53,7 +55,11 @@ const computedKeyPrefix = "%"
 // representing the same *logical* expressions for a permission, even if the relations have
 // different names.
 func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
-	varMap := buildBddVarMap(typeSystem.nsDef.Relation, aliasMap)
+	varMap, err := buildBddVarMap(typeSystem.nsDef.Relation, aliasMap)
+	if err != nil {
+		return nil, err
+	}
+
 	if varMap.Len() == 0 {
 		return map[string]string{}, nil
 	}
@@ -75,14 +81,19 @@ func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMa
 		}
 
 		hasher := fnv.New64a()
-		bdd.Print(hasher, convertRewriteToBdd(rel, bdd, rewrite, varMap))
+		node, err := convertRewriteToBdd(rel, bdd, rewrite, varMap)
+		if err != nil {
+			return nil, err
+		}
+
+		bdd.Print(hasher, node)
 		cacheKeys[rel.Name] = fmt.Sprintf("%s%x", computedKeyPrefix, hasher.Sum64())
 	}
 
 	return cacheKeys, nil
 }
 
-func convertRewriteToBdd(relation *core.Relation, bdd *rudd.BDD, rewrite *core.UsersetRewrite, varMap bddVarMap) rudd.Node {
+func convertRewriteToBdd(relation *core.Relation, bdd *rudd.BDD, rewrite *core.UsersetRewrite, varMap bddVarMap) (rudd.Node, error) {
 	switch rw := rewrite.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
 		return convertToBdd(relation, bdd, rw.Union, bdd.Or, func(childIndex int, varIndex int) rudd.Node {
@@ -103,7 +114,7 @@ func convertRewriteToBdd(relation *core.Relation, bdd *rudd.BDD, rewrite *core.U
 		}, varMap)
 
 	default:
-		panic(fmt.Sprintf("Unknown rewrite kind %v", rw))
+		return nil, spiceerrors.MustBugf("Unknown rewrite kind %v", rw)
 	}
 }
 
@@ -112,25 +123,45 @@ type (
 	builder  func(childIndex int, varIndex int) rudd.Node
 )
 
-func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation, combiner combiner, builder builder, varMap bddVarMap) rudd.Node {
+func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation, combiner combiner, builder builder, varMap bddVarMap) (rudd.Node, error) {
 	values := make([]rudd.Node, 0, len(so.Child))
 	for index, childOneof := range so.Child {
 		switch child := childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			panic("use of _this is disallowed")
+			return nil, spiceerrors.MustBugf("use of _this is disallowed")
+
 		case *core.SetOperation_Child_ComputedUserset:
-			values = append(values, builder(index, varMap.Get(child.ComputedUserset.Relation)))
+			cuIndex, err := varMap.Get(child.ComputedUserset.Relation)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, builder(index, cuIndex))
+
 		case *core.SetOperation_Child_UsersetRewrite:
-			values = append(values, convertRewriteToBdd(relation, bdd, child.UsersetRewrite, varMap))
+			node, err := convertRewriteToBdd(relation, bdd, child.UsersetRewrite, varMap)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, node)
+
 		case *core.SetOperation_Child_TupleToUserset:
-			values = append(values, builder(index, varMap.GetArrow(child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)))
+			arrowIndex, err := varMap.GetArrow(child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, builder(index, arrowIndex))
+
 		case *core.SetOperation_Child_XNil:
 			values = append(values, builder(index, varMap.Nil()))
+
 		default:
-			panic(fmt.Sprintf("Unknown set operation child %T", child))
+			return nil, spiceerrors.MustBugf("unknown set operation child %T", child)
 		}
 	}
-	return combiner(values...)
+	return combiner(values...), nil
 }
 
 type bddVarMap struct {
@@ -138,36 +169,36 @@ type bddVarMap struct {
 	varMap   map[string]int
 }
 
-func (bvm bddVarMap) GetArrow(tuplesetName string, relName string) int {
+func (bvm bddVarMap) GetArrow(tuplesetName string, relName string) (int, error) {
 	key := fmt.Sprintf("%s->%s", tuplesetName, relName)
 	index, ok := bvm.varMap[key]
 	if !ok {
-		panic(fmt.Sprintf("Missing arrow key %s in varMap", key))
+		return -1, spiceerrors.MustBugf("missing arrow key %s in varMap", key)
 	}
-	return index
+	return index, nil
 }
 
 func (bvm bddVarMap) Nil() int {
 	return len(bvm.varMap)
 }
 
-func (bvm bddVarMap) Get(relName string) int {
+func (bvm bddVarMap) Get(relName string) (int, error) {
 	if alias, ok := bvm.aliasMap[relName]; ok {
 		return bvm.Get(alias)
 	}
 
 	index, ok := bvm.varMap[relName]
 	if !ok {
-		panic(fmt.Sprintf("Missing key %s in varMap", relName))
+		return -1, spiceerrors.MustBugf("missing key %s in varMap", relName)
 	}
-	return index
+	return index, nil
 }
 
 func (bvm bddVarMap) Len() int {
 	return len(bvm.varMap) + 1 // +1 for `nil`
 }
 
-func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) bddVarMap {
+func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) (bddVarMap, error) {
 	varMap := map[string]int{}
 	for _, rel := range relations {
 		if _, ok := aliasMap[rel.Name]; ok {
@@ -181,7 +212,7 @@ func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) bddV
 			continue
 		}
 
-		graph.WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) interface{} {
+		_, err := graph.WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) interface{} {
 			switch child := childOneof.ChildType.(type) {
 			case *core.SetOperation_Child_TupleToUserset:
 				key := fmt.Sprintf("%s->%s", child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)
@@ -191,9 +222,12 @@ func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) bddV
 			}
 			return nil
 		})
+		if err != nil {
+			return bddVarMap{}, err
+		}
 	}
 	return bddVarMap{
 		aliasMap: aliasMap,
 		varMap:   varMap,
-	}
+	}, nil
 }

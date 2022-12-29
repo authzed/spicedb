@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -68,7 +70,7 @@ func (fs FoundSubject) ExcludedSubjectsFromWildcard() ([]*core.ObjectAndRelation
 		for _, excludedSubject := range fs.excludedSubjects {
 			// TODO(jschorr): Fix once we add caveats support to debug tooling
 			if excludedSubject.caveatExpression != nil {
-				panic("not yet supported")
+				spiceerrors.MustPanic("not yet supported")
 			}
 
 			excludedSubjects = append(excludedSubjects, excludedSubject.subject)
@@ -85,7 +87,7 @@ func (fs FoundSubject) excludedSubjectIDs() []string {
 	for _, excludedSubject := range fs.excludedSubjects {
 		// TODO(jschorr): Fix once we add caveats support to debug tooling
 		if excludedSubject.caveatExpression != nil {
-			panic("not yet supported")
+			spiceerrors.MustPanic("not yet supported")
 		}
 
 		excludedSubjects = append(excludedSubjects, excludedSubject.subject.ObjectId)

@@ -26,7 +26,7 @@ func (c *caveat) Unwrap() (*core.CaveatDefinition, error) {
 }
 
 func (r *memdbReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -61,7 +61,7 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 }
 
 func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	r.lockOrPanic()
+	r.mustLock()
 	defer r.Unlock()
 
 	tx, err := r.txSource()
@@ -92,7 +92,7 @@ func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*
 }
 
 func (rwt *memdbReadWriteTx) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	rwt.lockOrPanic()
+	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
 	if err != nil {
@@ -124,7 +124,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDe
 }
 
 func (rwt *memdbReadWriteTx) DeleteCaveats(ctx context.Context, names []string) error {
-	rwt.lockOrPanic()
+	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
 	if err != nil {

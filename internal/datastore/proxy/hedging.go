@@ -133,7 +133,7 @@ func NewHedgingProxy(
 	initialSlowRequestThreshold time.Duration,
 	maxSampleCount uint64,
 	hedgingQuantile float64,
-) datastore.Datastore {
+) (datastore.Datastore, error) {
 	return newHedgingProxyWithTimeSource(
 		delegate,
 		initialSlowRequestThreshold,
@@ -149,17 +149,17 @@ func newHedgingProxyWithTimeSource(
 	maxSampleCount uint64,
 	hedgingQuantile float64,
 	timeSource clock.Clock,
-) datastore.Datastore {
+) (datastore.Datastore, error) {
 	if initialSlowRequestThreshold < 0 {
-		panic("initial slow request threshold negative")
+		return nil, fmt.Errorf("initial slow request threshold negative")
 	}
 
 	if maxSampleCount < minMaxRequestsThreshold {
-		panic(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
+		return nil, fmt.Errorf(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
-		panic("hedingQuantile must be in the range (0.0-1.0) exclusive")
+		return nil, fmt.Errorf("hedgingQuantile must be in the range (0.0-1.0) exclusive")
 	}
 
 	return hedgingProxy{
@@ -168,7 +168,7 @@ func newHedgingProxyWithTimeSource(
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
-	}
+	}, nil
 }
 
 func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Revision, err error) {

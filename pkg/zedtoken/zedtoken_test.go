@@ -30,7 +30,9 @@ func TestZedTokenEncode(t *testing.T) {
 	for _, rev := range encodeRevisionTests {
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
-			encoded := NewFromRevision(rev)
+			encoded, err := NewFromRevision(rev)
+			require.NoError(err)
+
 			decoded, err := DecodeRevision(encoded, revision.DecimalDecoder{})
 			require.NoError(err)
 			require.True(rev.Equal(decoded))

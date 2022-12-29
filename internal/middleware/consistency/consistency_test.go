@@ -89,7 +89,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(exact),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(exact),
 			},
 		},
 	}, ds)
@@ -109,7 +109,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.NewFromRevision(exact),
+				AtExactSnapshot: zedtoken.MustNewFromRevision(exact),
 			},
 		},
 	}, ds)
@@ -129,7 +129,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.NewFromRevision(zero),
+				AtExactSnapshot: zedtoken.MustNewFromRevision(zero),
 			},
 		},
 	}, ds)

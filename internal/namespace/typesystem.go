@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/util"
-
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/graph"
@@ -13,6 +11,7 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // AllowedDirectRelation indicates whether a relation is allowed on the right side of another relation.
@@ -224,7 +223,7 @@ func (nts *TypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*co
 		}
 
 		if allowed.GetRelation() == "" {
-			panic("Got an empty relation for a non-wildcard type definition under namespace")
+			return nil, spiceerrors.MustBugf("got an empty relation for a non-wildcard type definition under namespace")
 		}
 
 		filtered = append(filtered, &core.RelationReference{
@@ -332,7 +331,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 	for _, relation := range nts.relationMap {
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
-		rerr := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) interface{} {
+		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) interface{} {
 			switch child := childOneof.ChildType.(type) {
 			case *core.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
@@ -395,6 +394,9 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 		if rerr != nil {
 			return nil, asTypeError(rerr.(error))
 		}
+		if err != nil {
+			return nil, err
+		}
 
 		// Validate type information.
 		typeInfo := relation.TypeInformation
@@ -406,7 +408,10 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 
 		// Check for a _this or the lack of a userset_rewrite. If either is found,
 		// then the allowed list must have at least one type.
-		hasThis := graph.HasThis(usersetRewrite)
+		hasThis, err := graph.HasThis(usersetRewrite)
+		if err != nil {
+			return nil, err
+		}
 
 		if usersetRewrite == nil || hasThis {
 			if len(allowedDirectRelations) == 0 {
@@ -525,10 +530,6 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 
 	if allowedRelation.GetPublicWildcard() != nil {
 		return fmt.Sprintf("%s:*%s", allowedRelation.GetNamespace(), caveatStr)
-	}
-
-	if allowedRelation.GetRelation() == "" {
-		panic("invalid allowed relation: relation is empty for a non-wildcard")
 	}
 
 	if allowedRelation.GetRelation() != tuple.Ellipsis {

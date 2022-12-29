@@ -121,7 +121,7 @@ func (c *CanonicalKeyHandler) CheckCacheKey(ctx context.Context, req *v1.Dispatc
 		// TODO(jschorr): Remove this conditional once we have a verified migration ordering system that ensures a backfill migration has
 		// run after the namespace annotation code has been fully deployed by users.
 		if relation.CanonicalCacheKey != "" {
-			return checkRequestToKeyWithCanonical(req, relation.CanonicalCacheKey), nil
+			return checkRequestToKeyWithCanonical(req, relation.CanonicalCacheKey)
 		}
 	}
 

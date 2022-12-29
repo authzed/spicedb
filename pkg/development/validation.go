@@ -23,7 +23,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 
 	for onrKey, expectedSubjects := range validation.ValidationMap {
 		if onrKey.ObjectAndRelation == nil {
-			panic("Got nil ObjectAndRelation")
+			return nil, nil, fmt.Errorf("got nil ObjectAndRelation for key %s", onrKey.ObjectRelationString)
 		}
 
 		// Run a full recursive expansion over the ONR.

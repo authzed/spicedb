@@ -67,7 +67,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo", nil,
+					namespace.MustRelation("foo", nil,
 						namespace.AllowedRelation("sometenant/bar", "..."),
 					),
 				),
@@ -82,7 +82,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("sometenant/bars", "mehs"),
 					),
 				),
@@ -97,7 +97,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedPublicNamespace("sometenant/bars"),
 					),
 				),
@@ -112,7 +112,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("anothertenant/bars", "mehs"),
 					),
 				),
@@ -128,10 +128,10 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("sometenant/bars", "mehs"),
 					),
-					namespace.Relation("hello", nil,
+					namespace.MustRelation("hello", nil,
 						namespace.AllowedRelation("sometenant/there", "..."),
 						namespace.AllowedRelation("sometenant/world", "..."),
 					),
@@ -147,7 +147,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("viewer", nil,
+					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
 							namespace.AllowedCaveat("somecaveat")),
 					),
@@ -163,7 +163,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("viewer", nil,
+					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
 							namespace.AllowedCaveat("somecaveat")),
 						namespace.AllowedRelation("sometenant/user", "..."),
@@ -180,7 +180,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("viewer", nil,
+					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
 							namespace.AllowedCaveat("somecaveat")),
 						namespace.AllowedRelation("sometenant/user", "..."),
@@ -199,7 +199,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 						),
@@ -216,7 +216,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
@@ -234,7 +234,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Intersection(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
@@ -252,7 +252,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Exclusion(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
@@ -270,7 +270,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.Rewrite(
 								namespace.Union(
@@ -293,7 +293,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Exclusion(
 							namespace.Rewrite(
 								namespace.Union(
@@ -316,7 +316,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 							namespace.Rewrite(
@@ -339,7 +339,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/arrowed",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.TupleToUserset("bars", "bazs"),
 						),
@@ -370,7 +370,7 @@ func TestCompile(t *testing.T) {
 				"",
 				[]SchemaDefinition{
 					namespace.Namespace("sometenant/arrowed",
-						namespace.Relation("foo",
+						namespace.MustRelation("foo",
 							namespace.Union(
 								namespace.TupleToUserset("bar", "baz"),
 							),
@@ -389,7 +389,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/expressioned",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Exclusion(
 							namespace.Rewrite(
 								namespace.Union(
@@ -415,25 +415,25 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/multiple",
-					namespace.Relation("first",
+					namespace.MustRelation("first",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
 						),
 					),
-					namespace.Relation("second",
+					namespace.MustRelation("second",
 						namespace.Exclusion(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
 						),
 					),
-					namespace.Relation("third",
+					namespace.MustRelation("third",
 						namespace.Intersection(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
 						),
 					),
-					namespace.Relation("fourth",
+					namespace.MustRelation("fourth",
 						namespace.Union(
 							namespace.TupleToUserset("bars", "bazs"),
 						),
@@ -450,7 +450,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.Rewrite(
 								namespace.Union(
@@ -514,7 +514,7 @@ func TestCompile(t *testing.T) {
 			"",
 			[]SchemaDefinition{
 				namespace.Namespace("some_tenant/foos",
-					namespace.Relation(
+					namespace.MustRelation(
 						"somerel",
 						nil,
 						namespace.AllowedRelation("some_tenant/bars", "..."),
@@ -547,7 +547,7 @@ func TestCompile(t *testing.T) {
 				namespace.WithComment("sometenant/single", `/**
 * single is a thing
 */`,
-					namespace.RelationWithComment("first", `/**
+					namespace.MustRelationWithComment("first", `/**
 * some permission
 */`,
 						namespace.Union(
@@ -676,7 +676,7 @@ func TestCompile(t *testing.T) {
 					map[string]caveattypes.VariableType{
 						"someParam":    caveattypes.IntType,
 						"anotherParam": caveattypes.StringType,
-						"thirdParam":   caveattypes.ListType(caveattypes.IntType),
+						"thirdParam":   caveattypes.MustListType(caveattypes.IntType),
 					},
 				), "sometenant/foo",
 					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
@@ -709,8 +709,8 @@ func TestCompile(t *testing.T) {
 			[]SchemaDefinition{
 				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
 					map[string]caveattypes.VariableType{
-						"someMap":    caveattypes.MapType(caveattypes.AnyType),
-						"anotherMap": caveattypes.MapType(caveattypes.AnyType),
+						"someMap":    caveattypes.MustMapType(caveattypes.AnyType),
+						"anotherMap": caveattypes.MustMapType(caveattypes.AnyType),
 					},
 				), "sometenant/something",
 					`someMap.isSubtreeOf(anotherMap)`),

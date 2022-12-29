@@ -85,7 +85,10 @@ func TestModifyMiddleware(t *testing.T) {
 			},
 		},
 	}}
-	defaultMw := DefaultMiddleware(logging.Logger, nil, false, nil, nil)
+
+	defaultMw, err := DefaultMiddleware(logging.Logger, nil, false, nil, nil)
+	require.NoError(t, err)
+
 	unary, streaming, err := c.buildMiddleware(defaultMw)
 	require.NoError(t, err)
 	require.Len(t, unary, len(defaultMw.chain)+1)

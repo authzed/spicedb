@@ -253,7 +253,7 @@ func TestCheckPermissions(t *testing.T) {
 							checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 								Consistency: &v1.Consistency{
 									Requirement: &v1.Consistency_AtLeastAsFresh{
-										AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+										AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 									},
 								},
 								Resource:   tc.resource,
@@ -309,7 +309,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:   obj("document", "masterplan"),
@@ -474,7 +474,7 @@ func TestLookupResources(t *testing.T) {
 						Subject:            tc.subject,
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 							},
 						},
 					}, grpc.Trailer(&trailer))
@@ -544,7 +544,7 @@ func TestExpand(t *testing.T) {
 						Permission: tc.startPermission,
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 							},
 						},
 					}, grpc.Trailer(&trailer))
@@ -777,7 +777,7 @@ func TestLookupSubjects(t *testing.T) {
 						OptionalSubjectRelation: tc.subjectRelation,
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 							},
 						},
 					}, grpc.Trailer(&trailer))
@@ -825,7 +825,7 @@ func TestCheckWithCaveats(t *testing.T) {
 	request := &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:   obj("document", "companyplan"),
@@ -882,7 +882,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 				}
 			`, []*core.RelationTuple{
 				tuple.MustParse("document:first#viewer@user:tom"),
-				tuple.WithCaveat(tuple.MustParse("document:second#viewer@user:tom"), "testcaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:second#viewer@user:tom"), "testcaveat"),
 			}, require)
 		})
 
@@ -898,7 +898,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	request := &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		ResourceObjectType: "document",
@@ -941,7 +941,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	request = &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		ResourceObjectType: "document",
@@ -1003,7 +1003,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 				}
 			`, []*core.RelationTuple{
 				tuple.MustParse("document:first#viewer@user:tom"),
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "testcaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "testcaveat"),
 			}, require)
 		})
 
@@ -1019,7 +1019,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	request := &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1064,7 +1064,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	request = &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1109,7 +1109,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	request = &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1166,8 +1166,8 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 					permission view = viewer - banned
 				}
 			`, []*core.RelationTuple{
-				tuple.WithCaveat(tuple.MustParse("document:first#viewer@user:*"), "testcaveat"),
-				tuple.WithCaveat(tuple.MustParse("document:first#banned@user:bannedguy"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "testcaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:bannedguy"), "anothercaveat"),
 			}, require)
 		})
 
@@ -1183,7 +1183,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 	request := &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1222,7 +1222,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 	request = &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
 		Resource:          obj("document", "first"),

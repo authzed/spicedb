@@ -18,7 +18,11 @@ import (
 func runOperation(devContext *development.DevContext, operation *devinterface.Operation) (*devinterface.OperationResult, error) {
 	switch {
 	case operation.FormatSchemaParameters != nil:
-		formatted, _ := generator.GenerateSchema(devContext.CompiledSchema.OrderedDefinitions)
+		formatted, _, err := generator.GenerateSchema(devContext.CompiledSchema.OrderedDefinitions)
+		if err != nil {
+			return nil, err
+		}
+
 		trimmed := strings.TrimSpace(formatted)
 		return &devinterface.OperationResult{
 			FormatSchemaResult: &devinterface.FormatSchemaResult{

@@ -44,7 +44,7 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			[]Delta{
 				{Type: AddedRelation, RelationName: "somerel"},
@@ -54,7 +54,7 @@ func TestNamespaceDiff(t *testing.T) {
 			"remove relation",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			ns.Namespace(
 				"document",
@@ -67,11 +67,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"renamed relation",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel2", nil),
+				ns.MustRelation("somerel2", nil),
 			),
 			[]Delta{
 				{Type: RemovedRelation, RelationName: "somerel"},
@@ -85,7 +85,7 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
+				ns.MustRelation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
 			),
 			[]Delta{
 				{Type: AddedPermission, RelationName: "someperm"},
@@ -95,7 +95,7 @@ func TestNamespaceDiff(t *testing.T) {
 			"remove permission",
 			ns.Namespace(
 				"document",
-				ns.Relation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
+				ns.MustRelation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
 			),
 			ns.Namespace(
 				"document",
@@ -108,11 +108,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"renamed permission",
 			ns.Namespace(
 				"document",
-				ns.Relation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
+				ns.MustRelation("someperm", ns.Union(ns.ComputedUserset("hiya"))),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("someperm2", ns.Union(ns.ComputedUserset("hiya"))),
+				ns.MustRelation("someperm2", ns.Union(ns.ComputedUserset("hiya"))),
 			),
 			[]Delta{
 				{Type: RemovedPermission, RelationName: "someperm"},
@@ -123,7 +123,7 @@ func TestNamespaceDiff(t *testing.T) {
 			"legacy changed relation impl",
 			ns.Namespace(
 				"document",
-				ns.Relation(
+				ns.MustRelation(
 					"somerel",
 					nil,
 					ns.AllowedRelation("someothernamespace", "somerel"),
@@ -131,7 +131,7 @@ func TestNamespaceDiff(t *testing.T) {
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel",
+				ns.MustRelation("somerel",
 					ns.Union(
 						ns.ComputedUserset("owner"),
 					),
@@ -146,13 +146,13 @@ func TestNamespaceDiff(t *testing.T) {
 			"changed permission impl",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("editor"),
 				)),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
 			),
@@ -164,13 +164,13 @@ func TestNamespaceDiff(t *testing.T) {
 			"no changes",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
 			),
@@ -180,11 +180,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"added direct type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("foo", "bar")),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{
 				{
@@ -198,11 +198,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"removed direct type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("foo", "bar")),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			[]Delta{
 				{
@@ -216,13 +216,13 @@ func TestNamespaceDiff(t *testing.T) {
 			"no changes with types",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
@@ -232,13 +232,13 @@ func TestNamespaceDiff(t *testing.T) {
 			"type added and removed",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo2", "bar")),
 			),
@@ -259,13 +259,13 @@ func TestNamespaceDiff(t *testing.T) {
 			"wildcard type added and removed",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedPublicNamespace("foo")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedPublicNamespace("foo2")),
 			),
@@ -286,13 +286,13 @@ func TestNamespaceDiff(t *testing.T) {
 			"wildcard type changed",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedPublicNamespace("foo")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(
+				ns.MustRelation("somerel", ns.Union(
 					ns.ComputedUserset("owner"),
 				), ns.AllowedRelation("foo", "something")),
 			),
@@ -313,11 +313,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"wildcard type changed no rewrite",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedPublicNamespace("user")),
+				ns.MustRelation("somerel", nil, ns.AllowedPublicNamespace("user")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("organization", "user")),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("organization", "user")),
 			),
 			[]Delta{
 				{
@@ -336,11 +336,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"added relation and removed permission with same name",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(ns.ComputedUserset("someotherrel"))),
+				ns.MustRelation("somerel", ns.Union(ns.ComputedUserset("someotherrel"))),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			[]Delta{
 				{Type: AddedRelation, RelationName: "somerel"},
@@ -351,11 +351,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"added permission and removed relation with same name",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", ns.Union(ns.ComputedUserset("someotherrel"))),
+				ns.MustRelation("somerel", ns.Union(ns.ComputedUserset("someotherrel"))),
 			),
 			[]Delta{
 				{Type: RemovedRelation, RelationName: "somerel"},
@@ -366,11 +366,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"added required caveat type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("user", "...")),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("user", "...")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			[]Delta{
 				{
@@ -389,11 +389,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"added optional caveat type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("user", "...")),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("user", "...")),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			[]Delta{
 				{
@@ -407,11 +407,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"changed required caveat type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("anothercaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("anothercaveat"))),
 			),
 			[]Delta{
 				{
@@ -430,11 +430,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"removed required caveat type",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil),
+				ns.MustRelation("somerel", nil),
 			),
 			[]Delta{
 				{
@@ -448,11 +448,11 @@ func TestNamespaceDiff(t *testing.T) {
 			"change required caveat type to optional",
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			ns.Namespace(
 				"document",
-				ns.Relation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
+				ns.MustRelation("somerel", nil, ns.AllowedRelation("user", "..."), ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))),
 			),
 			[]Delta{
 				{

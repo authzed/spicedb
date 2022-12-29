@@ -18,21 +18,43 @@ type TrackingSubjectSet struct {
 	setByType map[string]datasets.BaseSubjectSet[FoundSubject]
 }
 
-// NewTrackingSubjectSet creates a new TrackingSubjectSet, with optional initial subjects.
-func NewTrackingSubjectSet(subjects ...FoundSubject) *TrackingSubjectSet {
+// NewTrackingSubjectSet creates a new TrackingSubjectSet
+func NewTrackingSubjectSet() *TrackingSubjectSet {
 	tss := &TrackingSubjectSet{
 		setByType: map[string]datasets.BaseSubjectSet[FoundSubject]{},
 	}
+	return tss
+}
+
+// MustNewTrackingSubjectSetWith creates a new TrackingSubjectSet, and adds the specified
+// subjects to it.
+func MustNewTrackingSubjectSetWith(subjects ...FoundSubject) *TrackingSubjectSet {
+	tss := NewTrackingSubjectSet()
 	for _, subject := range subjects {
-		tss.Add(subject)
+		err := tss.Add(subject)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return tss
 }
 
 // AddFrom adds the subjects found in the other set to this set.
-func (tss *TrackingSubjectSet) AddFrom(otherSet *TrackingSubjectSet) {
+func (tss *TrackingSubjectSet) AddFrom(otherSet *TrackingSubjectSet) error {
 	for key, oss := range otherSet.setByType {
-		tss.getSetForKey(key).UnionWithSet(oss)
+		err := tss.getSetForKey(key).UnionWithSet(oss)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MustAddFrom adds the subjects found in the other set to this set.
+func (tss *TrackingSubjectSet) MustAddFrom(otherSet *TrackingSubjectSet) {
+	err := tss.AddFrom(otherSet)
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -43,11 +65,23 @@ func (tss *TrackingSubjectSet) RemoveFrom(otherSet *TrackingSubjectSet) {
 	}
 }
 
-// Add adds the given subjects to this set.
-func (tss *TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) {
-	for _, fs := range subjectsAndResources {
-		tss.getSet(fs).Add(fs)
+// MustAdd adds the given subjects to this set.
+func (tss *TrackingSubjectSet) MustAdd(subjectsAndResources ...FoundSubject) {
+	err := tss.Add(subjectsAndResources...)
+	if err != nil {
+		panic(err)
 	}
+}
+
+// Add adds the given subjects to this set.
+func (tss *TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) error {
+	for _, fs := range subjectsAndResources {
+		err := tss.getSet(fs).Add(fs)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func keyFor(fs FoundSubject) string {
@@ -122,21 +156,36 @@ func (tss *TrackingSubjectSet) Exclude(otherSet *TrackingSubjectSet) *TrackingSu
 	return newSet
 }
 
+// MustIntersect returns a new set that contains the items in this set *and* the other set. Note that
+// if wildcard is found in *both* sets, it will be returned *along* with any concrete subjects found
+// on the other side of the intersection.
+func (tss *TrackingSubjectSet) MustIntersect(otherSet *TrackingSubjectSet) *TrackingSubjectSet {
+	updated, err := tss.Intersect(otherSet)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
 // Intersect returns a new set that contains the items in this set *and* the other set. Note that
 // if wildcard is found in *both* sets, it will be returned *along* with any concrete subjects found
 // on the other side of the intersection.
-func (tss *TrackingSubjectSet) Intersect(otherSet *TrackingSubjectSet) *TrackingSubjectSet {
+func (tss *TrackingSubjectSet) Intersect(otherSet *TrackingSubjectSet) (*TrackingSubjectSet, error) {
 	newSet := NewTrackingSubjectSet()
 
 	for key, bss := range tss.setByType {
 		if oss, ok := otherSet.setByType[key]; ok {
 			cloned := bss.Clone()
-			cloned.IntersectionDifference(oss)
+			err := cloned.IntersectionDifference(oss)
+			if err != nil {
+				return nil, err
+			}
+
 			newSet.setByType[key] = cloned
 		}
 	}
 
-	return newSet
+	return newSet, nil
 }
 
 // ApplyParentCaveatExpression applies the given parent caveat expression (if any) to each subject set.

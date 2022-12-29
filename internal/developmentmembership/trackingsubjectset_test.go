@@ -13,7 +13,7 @@ import (
 func set(subjects ...*core.DirectSubject) *TrackingSubjectSet {
 	newSet := NewTrackingSubjectSet()
 	for _, subject := range subjects {
-		newSet.Add(NewFoundSubject(subject))
+		newSet.MustAdd(NewFoundSubject(subject))
 	}
 	return newSet
 }
@@ -21,7 +21,7 @@ func set(subjects ...*core.DirectSubject) *TrackingSubjectSet {
 func union(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *TrackingSubjectSet {
 	current := firstSet
 	for _, set := range sets {
-		current.AddFrom(set)
+		current.MustAddFrom(set)
 	}
 
 	return current
@@ -30,7 +30,7 @@ func union(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *TrackingS
 func intersect(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *TrackingSubjectSet {
 	current := firstSet
 	for _, set := range sets {
-		current = current.Intersect(set)
+		current = current.MustIntersect(set)
 	}
 	return current
 }
@@ -255,8 +255,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard with exclusions union",
 			union(
-				NewTrackingSubjectSet(fs("user", "*", "...", "user1")),
-				NewTrackingSubjectSet(fs("user", "*", "...", "user2")),
+				MustNewTrackingSubjectSetWith(fs("user", "*", "...", "user1")),
+				MustNewTrackingSubjectSetWith(fs("user", "*", "...", "user2")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "..."),
@@ -265,8 +265,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard with exclusions intersection",
 			intersect(
-				NewTrackingSubjectSet(fs("user", "*", "...", "user1")),
-				NewTrackingSubjectSet(fs("user", "*", "...", "user2")),
+				MustNewTrackingSubjectSetWith(fs("user", "*", "...", "user1")),
+				MustNewTrackingSubjectSetWith(fs("user", "*", "...", "user2")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "...", "user1", "user2"),
@@ -275,10 +275,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard with exclusions over subtraction",
 			subtract(
-				NewTrackingSubjectSet(
+				MustNewTrackingSubjectSetWith(
 					fs("user", "*", "...", "user1"),
 				),
-				NewTrackingSubjectSet(fs("user", "*", "...", "user2")),
+				MustNewTrackingSubjectSetWith(fs("user", "*", "...", "user2")),
 			),
 			[]FoundSubject{
 				fs("user", "user2", "..."),
@@ -287,10 +287,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard with exclusions excluded user added",
 			subtract(
-				NewTrackingSubjectSet(
+				MustNewTrackingSubjectSetWith(
 					fs("user", "*", "...", "user1"),
 				),
-				NewTrackingSubjectSet(fs("user", "user2", "...")),
+				MustNewTrackingSubjectSetWith(fs("user", "user2", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "...", "user1", "user2"),
@@ -299,11 +299,11 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"wildcard multiple exclusions",
 			subtract(
-				NewTrackingSubjectSet(
+				MustNewTrackingSubjectSetWith(
 					fs("user", "*", "...", "user1"),
 				),
-				NewTrackingSubjectSet(fs("user", "user2", "...")),
-				NewTrackingSubjectSet(fs("user", "user3", "...")),
+				MustNewTrackingSubjectSetWith(fs("user", "user2", "...")),
+				MustNewTrackingSubjectSetWith(fs("user", "user3", "...")),
 			),
 			[]FoundSubject{
 				fs("user", "*", "...", "user1", "user2", "user3"),
@@ -312,10 +312,10 @@ func TestTrackingSubjectSet(t *testing.T) {
 		{
 			"intersection of exclusions",
 			intersect(
-				NewTrackingSubjectSet(
+				MustNewTrackingSubjectSetWith(
 					fs("user", "*", "...", "user1"),
 				),
-				NewTrackingSubjectSet(
+				MustNewTrackingSubjectSetWith(
 					fs("user", "*", "...", "user2"),
 				),
 			),
@@ -351,17 +351,19 @@ func TestTrackingSubjectSet(t *testing.T) {
 
 func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 	tss := NewTrackingSubjectSet()
-	tss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
-	tss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "bar", "viewer")))
+	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "bar", "viewer")))
 
 	found, ok := tss.Get(ONR("user", "tom", "..."))
 	require.True(t, ok)
 	require.Equal(t, 2, len(found.Relationships()))
 
 	sss := NewTrackingSubjectSet()
-	sss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "baz", "viewer")))
+	sss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "baz", "viewer")))
 
-	intersection := tss.Intersect(sss)
+	intersection, err := tss.Intersect(sss)
+	require.NoError(t, err)
+
 	found, ok = intersection.Get(ONR("user", "tom", "..."))
 	require.True(t, ok)
 	require.Equal(t, 3, len(found.Relationships()))
@@ -369,12 +371,14 @@ func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 
 func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
 	tss := NewTrackingSubjectSet()
-	tss.Add(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
 
 	sss := NewTrackingSubjectSet()
-	sss.Add(NewFoundSubject(DS("user", "*", "..."), ONR("resource", "baz", "viewer")))
+	sss.MustAdd(NewFoundSubject(DS("user", "*", "..."), ONR("resource", "baz", "viewer")))
 
-	intersection := tss.Intersect(sss)
+	intersection, err := tss.Intersect(sss)
+	require.NoError(t, err)
+
 	found, ok := intersection.Get(ONR("user", "tom", "..."))
 	require.True(t, ok)
 	require.Equal(t, 1, len(found.Relationships()))

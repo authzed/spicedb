@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -51,7 +52,7 @@ func (ls *collectingStream) Context() context.Context {
 
 func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesResponse) error {
 	if result == nil {
-		panic("Got nil result")
+		return spiceerrors.MustBugf("got nil result for Lookup publish")
 	}
 
 	func() {

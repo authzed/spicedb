@@ -1,12 +1,11 @@
 package datasets
 
 import (
-	"fmt"
-
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -63,31 +62,46 @@ func NewBaseSubjectSet[T Subject[T]](constructor constructor[T]) BaseSubjectSet[
 // subject.
 type constructor[T Subject[T]] func(subjectID string, conditionalExpression *core.CaveatExpression, excludedSubjects []T, sources ...T) T
 
+// MustAdd adds the found subject to the set. This is equivalent to a Union operation between the
+// existing set of subjects and a set containing the single subject, but modifies the set
+// *in place*.
+func (bss BaseSubjectSet[T]) MustAdd(foundSubject T) {
+	err := bss.Add(foundSubject)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Add adds the found subject to the set. This is equivalent to a Union operation between the
 // existing set of subjects and a set containing the single subject, but modifies the set
 // *in place*.
-func (bss BaseSubjectSet[T]) Add(foundSubject T) {
+func (bss BaseSubjectSet[T]) Add(foundSubject T) error {
 	if foundSubject.GetSubjectId() == tuple.PublicWildcard {
 		existing := bss.wildcard.getOrNil()
-		existing = unionWildcardWithWildcard(existing, foundSubject, bss.constructor)
-		bss.wildcard.setOrNil(existing)
+		updated, err := unionWildcardWithWildcard(existing, foundSubject, bss.constructor)
+		if err != nil {
+			return err
+		}
+
+		bss.wildcard.setOrNil(updated)
 
 		for _, concrete := range bss.concrete {
-			existing = unionWildcardWithConcrete(existing, concrete, bss.constructor)
+			updated = unionWildcardWithConcrete(updated, concrete, bss.constructor)
 		}
-		bss.wildcard.setOrNil(existing)
-		return
+		bss.wildcard.setOrNil(updated)
+		return nil
 	}
 
-	var existingOrNil *T
-	if existing, ok := bss.concrete[foundSubject.GetSubjectId()]; ok {
-		existingOrNil = &existing
+	var updatedOrNil *T
+	if updated, ok := bss.concrete[foundSubject.GetSubjectId()]; ok {
+		updatedOrNil = &updated
 	}
-	bss.setConcrete(foundSubject.GetSubjectId(), unionConcreteWithConcrete(existingOrNil, &foundSubject, bss.constructor))
+	bss.setConcrete(foundSubject.GetSubjectId(), unionConcreteWithConcrete(updatedOrNil, &foundSubject, bss.constructor))
 
 	wildcard := bss.wildcard.getOrNil()
 	wildcard = unionWildcardWithConcrete(wildcard, foundSubject, bss.constructor)
 	bss.wildcard.setOrNil(wildcard)
+	return nil
 }
 
 func (bss BaseSubjectSet[T]) setConcrete(subjectID string, subjectOrNil *T) {
@@ -135,13 +149,28 @@ func (bss BaseSubjectSet[T]) SubtractAll(other BaseSubjectSet[T]) {
 	}
 }
 
+// MustIntersectionDifference performs an intersection between this set and the other set, modifying
+// this set *in place*.
+func (bss BaseSubjectSet[T]) MustIntersectionDifference(other BaseSubjectSet[T]) {
+	err := bss.IntersectionDifference(other)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // IntersectionDifference performs an intersection between this set and the other set, modifying
 // this set *in place*.
-func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) {
+func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) error {
 	// Intersect the wildcards of the sets, if any.
 	existingWildcard := bss.wildcard.getOrNil()
 	otherWildcard := other.wildcard.getOrNil()
-	bss.wildcard.setOrNil(intersectWildcardWithWildcard(existingWildcard, otherWildcard, bss.constructor))
+
+	intersection, err := intersectWildcardWithWildcard(existingWildcard, otherWildcard, bss.constructor)
+	if err != nil {
+		return err
+	}
+
+	bss.wildcard.setOrNil(intersection)
 
 	// Intersect the concretes of each set, as well as with the wildcards.
 	updatedConcretes := make(map[string]T, len(bss.concrete))
@@ -153,7 +182,10 @@ func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) {
 		}
 
 		concreteIntersected := intersectConcreteWithConcrete(concreteSubject, otherConcreteOrNil, bss.constructor)
-		otherWildcardIntersected := intersectConcreteWithWildcard(concreteSubject, otherWildcard, bss.constructor)
+		otherWildcardIntersected, err := intersectConcreteWithWildcard(concreteSubject, otherWildcard, bss.constructor)
+		if err != nil {
+			return err
+		}
 
 		result := unionConcreteWithConcrete(concreteIntersected, otherWildcardIntersected, bss.constructor)
 		if result != nil {
@@ -163,7 +195,11 @@ func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) {
 
 	if existingWildcard != nil {
 		for _, otherSubject := range other.concrete {
-			existingWildcardIntersect := intersectConcreteWithWildcard(otherSubject, existingWildcard, bss.constructor)
+			existingWildcardIntersect, err := intersectConcreteWithWildcard(otherSubject, existingWildcard, bss.constructor)
+			if err != nil {
+				return err
+			}
+
 			if existingUpdated, ok := updatedConcretes[otherSubject.GetSubjectId()]; ok {
 				result := unionConcreteWithConcrete(&existingUpdated, existingWildcardIntersect, bss.constructor)
 				updatedConcretes[otherSubject.GetSubjectId()] = *result
@@ -175,19 +211,33 @@ func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) {
 
 	maps.Clear(bss.concrete)
 	maps.Copy(bss.concrete, updatedConcretes)
+	return nil
 }
 
 // UnionWith adds the given subjects to this set, via a union call.
-func (bss BaseSubjectSet[T]) UnionWith(foundSubjects []T) {
+func (bss BaseSubjectSet[T]) UnionWith(foundSubjects []T) error {
 	for _, fs := range foundSubjects {
-		bss.Add(fs)
+		err := bss.Add(fs)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // UnionWithSet performs a union operation between this set and the other set, modifying this
 // set *in place*.
-func (bss BaseSubjectSet[T]) UnionWithSet(other BaseSubjectSet[T]) {
-	bss.UnionWith(other.AsSlice())
+func (bss BaseSubjectSet[T]) UnionWithSet(other BaseSubjectSet[T]) error {
+	return bss.UnionWith(other.AsSlice())
+}
+
+// MustUnionWithSet performs a union operation between this set and the other set, modifying this
+// set *in place*.
+func (bss BaseSubjectSet[T]) MustUnionWithSet(other BaseSubjectSet[T]) {
+	err := bss.UnionWithSet(other)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Get returns the found subject with the given ID in the set, if any.
@@ -266,10 +316,10 @@ func (bss BaseSubjectSet[T]) WithParentCaveatExpression(parentCaveatExpr *core.C
 
 // unionWildcardWithWildcard performs a union operation over two wildcards, returning the updated
 // wildcard (if any).
-func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor constructor[T]) *T {
+func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor constructor[T]) (*T, error) {
 	// If there is no existing wildcard, return the added one.
 	if existing == nil {
-		return &adding
+		return &adding, nil
 	}
 
 	// Otherwise, union together the conditionals for the wildcards and *intersect* their exclusion
@@ -293,20 +343,31 @@ func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor 
 	exisingConcreteExclusions := NewBaseSubjectSet(constructor)
 	for _, excludedSubject := range existingWildcard.GetExcludedSubjects() {
 		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
-			panic("wildcards are not allowed in exclusions")
+			return nil, spiceerrors.MustBugf("wildcards are not allowed in exclusions")
 		}
-		exisingConcreteExclusions.Add(excludedSubject)
+
+		err := exisingConcreteExclusions.Add(excludedSubject)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	foundConcreteExclusions := NewBaseSubjectSet(constructor)
 	for _, excludedSubject := range adding.GetExcludedSubjects() {
 		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
-			panic("wildcards are not allowed in exclusions")
+			return nil, spiceerrors.MustBugf("wildcards are not allowed in exclusions")
 		}
-		foundConcreteExclusions.Add(excludedSubject)
+
+		err := foundConcreteExclusions.Add(excludedSubject)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	exisingConcreteExclusions.IntersectionDifference(foundConcreteExclusions)
+	err := exisingConcreteExclusions.IntersectionDifference(foundConcreteExclusions)
+	if err != nil {
+		return nil, err
+	}
 
 	constructed := constructor(
 		tuple.PublicWildcard,
@@ -314,7 +375,7 @@ func unionWildcardWithWildcard[T Subject[T]](existing *T, adding T, constructor 
 		exisingConcreteExclusions.AsSlice(),
 		*existing,
 		adding)
-	return &constructed
+	return &constructed, nil
 }
 
 // unionWildcardWithConcrete performs a union operation between a wildcard and a concrete subject
@@ -643,10 +704,10 @@ func intersectConcreteWithConcrete[T Subject[T]](first T, second *T, constructor
 
 // intersectWildcardWithWildcard performs intersection between two wildcards, returning the resolved
 // wildcard subject, if any.
-func intersectWildcardWithWildcard[T Subject[T]](first *T, second *T, constructor constructor[T]) *T {
+func intersectWildcardWithWildcard[T Subject[T]](first *T, second *T, constructor constructor[T]) (*T, error) {
 	// If either wildcard does not exist, then no wildcard is placed into the resulting set.
 	if first == nil || second == nil {
-		return nil
+		return nil, nil
 	}
 
 	// If the other wildcard exists, then the intersection between the two wildcards is an && of
@@ -657,16 +718,24 @@ func intersectWildcardWithWildcard[T Subject[T]](first *T, second *T, constructo
 	concreteExclusions := NewBaseSubjectSet(constructor)
 	for _, excludedSubject := range firstWildcard.GetExcludedSubjects() {
 		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
-			panic("wildcards are not allowed in exclusions")
+			return nil, spiceerrors.MustBugf("wildcards are not allowed in exclusions")
 		}
-		concreteExclusions.Add(excludedSubject)
+
+		err := concreteExclusions.Add(excludedSubject)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for _, excludedSubject := range secondWildcard.GetExcludedSubjects() {
 		if excludedSubject.GetSubjectId() == tuple.PublicWildcard {
-			panic("wildcards are not allowed in exclusions")
+			return nil, spiceerrors.MustBugf("wildcards are not allowed in exclusions")
 		}
-		concreteExclusions.Add(excludedSubject)
+
+		err := concreteExclusions.Add(excludedSubject)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	constructed := constructor(
@@ -675,15 +744,15 @@ func intersectWildcardWithWildcard[T Subject[T]](first *T, second *T, constructo
 		concreteExclusions.AsSlice(),
 		firstWildcard,
 		secondWildcard)
-	return &constructed
+	return &constructed, nil
 }
 
 // intersectConcreteWithWildcard performs intersection between a concrete subject and a wildcard
 // subject, returning the concrete, if any.
-func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constructor constructor[T]) *T {
+func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constructor constructor[T]) (*T, error) {
 	// If no wildcard exists, then the concrete cannot exist (for this branch)
 	if wildcard == nil {
-		return nil
+		return nil, nil
 	}
 
 	wildcardToIntersect := *wildcard
@@ -701,7 +770,7 @@ func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constr
 	case !isExcluded && wildcardToIntersect.GetCaveatExpression() == nil:
 		// If the concrete is not excluded and the wildcard conditional is empty, then the concrete is always found.
 		// Example: {user:tom} & {*} => {user:tom}
-		return &concrete
+		return &concrete, nil
 
 	case !isExcluded && wildcardToIntersect.GetCaveatExpression() != nil:
 		// The concrete subject is only included if the wildcard's caveat is true.
@@ -712,13 +781,13 @@ func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constr
 			nil,
 			concrete,
 			wildcardToIntersect)
-		return &constructed
+		return &constructed, nil
 
 	case isExcluded && exclusion.GetCaveatExpression() == nil:
 		// If the concrete is excluded and the exclusion is not conditional, then the concrete can never show up,
 		// regardless of whether the wildcard is conditional.
 		// Example: {user:tom} & {* - user:tom}[somecaveat] => {}
-		return nil
+		return nil, nil
 
 	case isExcluded && exclusion.GetCaveatExpression() != nil:
 		// NOTE: whether the wildcard is itself conditional or not is handled within the expression combinators below.
@@ -736,10 +805,11 @@ func intersectConcreteWithWildcard[T Subject[T]](concrete T, wildcard *T, constr
 			concrete,
 			wildcardToIntersect,
 			exclusion)
-		return &constructed
-	}
+		return &constructed, nil
 
-	panic(fmt.Sprintf("unhandled case in basesubjectset intersectConcreteWithWildcard: %v & %v", concrete, wildcardToIntersect))
+	default:
+		return nil, spiceerrors.MustBugf("unhandled case in basesubjectset intersectConcreteWithWildcard: %v & %v", concrete, wildcardToIntersect)
+	}
 }
 
 type handle[T any] struct {

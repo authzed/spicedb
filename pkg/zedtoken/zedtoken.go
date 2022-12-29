@@ -24,8 +24,17 @@ const (
 // zedtoken argument to Decode
 var ErrNilZedToken = errors.New("zedtoken pointer was nil")
 
+// MustNewFromRevision generates an encoded zedtoken from an integral revision.
+func MustNewFromRevision(revision datastore.Revision) *v1.ZedToken {
+	encoded, err := NewFromRevision(revision)
+	if err != nil {
+		panic(err)
+	}
+	return encoded
+}
+
 // NewFromRevision generates an encoded zedtoken from an integral revision.
-func NewFromRevision(revision datastore.Revision) *v1.ZedToken {
+func NewFromRevision(revision datastore.Revision) (*v1.ZedToken, error) {
 	toEncode := &zedtoken.DecodedZedToken{
 		VersionOneof: &zedtoken.DecodedZedToken_V1{
 			V1: &zedtoken.DecodedZedToken_V1ZedToken{
@@ -35,10 +44,10 @@ func NewFromRevision(revision datastore.Revision) *v1.ZedToken {
 	}
 	encoded, err := Encode(toEncode)
 	if err != nil {
-		panic(fmt.Errorf(errEncodeError, err))
+		return nil, fmt.Errorf(errEncodeError, err)
 	}
 
-	return encoded
+	return encoded, nil
 }
 
 // Encode converts a decoded zedtoken to its opaque version.

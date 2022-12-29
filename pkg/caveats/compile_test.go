@@ -75,7 +75,7 @@ func TestCompile(t *testing.T) {
 		{
 			"valid expression over a list",
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.ListType(types.IntType),
+				"a": types.MustListType(types.IntType),
 			}),
 			"a[0] == 1",
 			[]string{},
@@ -83,7 +83,7 @@ func TestCompile(t *testing.T) {
 		{
 			"invalid expression over a list",
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.ListType(types.UIntType),
+				"a": types.MustListType(types.UIntType),
 			}),
 			"a['hi']",
 			[]string{"found no matching overload for '_[_]'"},
@@ -91,7 +91,7 @@ func TestCompile(t *testing.T) {
 		{
 			"valid expression over a map",
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.MapType(types.IntType),
+				"a": types.MustMapType(types.IntType),
 			}),
 			"a['hi'] == 1",
 			[]string{},
@@ -99,7 +99,7 @@ func TestCompile(t *testing.T) {
 		{
 			"invalid expression over a map",
 			MustEnvForVariables(map[string]types.VariableType{
-				"a": types.MapType(types.UIntType),
+				"a": types.MustMapType(types.UIntType),
 			}),
 			"a[42]",
 			[]string{"found no matching overload for '_[_]'"},

@@ -92,7 +92,7 @@ type Config struct {
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
+func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) error {
 	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
@@ -128,13 +128,15 @@ func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) {
 	// disabling stats is only for tests
 	cmd.Flags().BoolVar(&opts.DisableStats, "datastore-disable-stats", false, "disable recording relationship counts to the stats table")
 	if err := cmd.Flags().MarkHidden("datastore-disable-stats"); err != nil {
-		panic("failed to mark flag hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
 	cmd.Flags().DurationVar(&opts.LegacyFuzzing, "datastore-revision-fuzzing-duration", -1, "amount of time to advertize stale revisions")
 	if err := cmd.Flags().MarkDeprecated("datastore-revision-fuzzing-duration", "please use datastore-revision-quantization-interval instead"); err != nil {
-		panic("failed to mark flag deprecated: " + err.Error())
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
+
+	return nil
 }
 
 func DefaultDatastoreConfig() *Config {
@@ -212,12 +214,16 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			Float64("hedgingQuantile", opts.RequestHedgingQuantile).
 			Msg("request hedging enabled")
 
-		ds = proxy.NewHedgingProxy(
+		hds, err := proxy.NewHedgingProxy(
 			ds,
 			opts.RequestHedgingInitialSlowValue,
 			opts.RequestHedgingMaxRequests,
 			opts.RequestHedgingQuantile,
 		)
+		if err != nil {
+			return nil, fmt.Errorf("error in configuring request hedging: %w", err)
+		}
+		ds = hds
 	}
 
 	if opts.ReadOnly {

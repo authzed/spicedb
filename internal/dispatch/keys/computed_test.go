@@ -82,7 +82,7 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"canonical check",
 			func() DispatchCacheKey {
-				return checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
+				key, _ := checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
 					ResourceRelation: RR("document", "view"),
 					ResourceIds:      []string{"foo", "bar"},
 					Subject:          ONR("user", "tom", "..."),
@@ -90,6 +90,7 @@ func TestStableCacheKeys(t *testing.T) {
 						AtRevision: "1234",
 					},
 				}, "view")
+				return key
 			},
 			"a1ebd1d6a7a8b18fff01",
 		},
@@ -315,18 +316,19 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
-				ResourceRelation: resourceRelation,
-				ResourceIds:      resourceIds,
-				Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
-				Metadata:         metadata,
-			}, resourceRelation.Relation), append([]string{
-				resourceRelation.Namespace,
-				resourceRelation.Relation,
-				subjectRelation.Namespace,
-				subjectIds[0],
-				subjectRelation.Relation,
-			}, resourceIds...)
+		key, _ := checkRequestToKeyWithCanonical(&v1.DispatchCheckRequest{
+			ResourceRelation: resourceRelation,
+			ResourceIds:      resourceIds,
+			Subject:          ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
+			Metadata:         metadata,
+		}, resourceRelation.Relation)
+		return key, append([]string{
+			resourceRelation.Namespace,
+			resourceRelation.Relation,
+			subjectRelation.Namespace,
+			subjectIds[0],
+			subjectRelation.Relation,
+		}, resourceIds...)
 	},
 
 	// Lookup Resources.

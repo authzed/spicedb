@@ -29,7 +29,7 @@ func TestPresharedKeys(t *testing.T) {
 
 	for _, testcase := range testcases {
 		t.Run(testcase.name, func(t *testing.T) {
-			f := RequirePresharedKey(testcase.presharedkeys)
+			f := MustRequirePresharedKey(testcase.presharedkeys)
 			ctx := context.Background()
 			if testcase.withMetadata {
 				ctx = withTokenMetadata(testcase.authzHeader)

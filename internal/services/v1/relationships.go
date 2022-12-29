@@ -208,7 +208,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	return &v1.WriteRelationshipsResponse{
-		WrittenAt: zedtoken.NewFromRevision(revision),
+		WrittenAt: zedtoken.MustNewFromRevision(revision),
 	}, nil
 }
 
@@ -243,6 +243,6 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}
 
 	return &v1.DeleteRelationshipsResponse{
-		DeletedAt: zedtoken.NewFromRevision(revision),
+		DeletedAt: zedtoken.MustNewFromRevision(revision),
 	}, nil
 }

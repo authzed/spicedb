@@ -21,7 +21,7 @@ type memdbReadWriteTx struct {
 }
 
 func (rwt *memdbReadWriteTx) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	rwt.lockOrPanic()
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -105,7 +105,7 @@ func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdat
 }
 
 func (rwt *memdbReadWriteTx) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	rwt.lockOrPanic()
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -139,7 +139,7 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 }
 
 func (rwt *memdbReadWriteTx) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
-	rwt.lockOrPanic()
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -165,7 +165,7 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(ctx context.Context, newConfigs ...
 }
 
 func (rwt *memdbReadWriteTx) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
-	rwt.lockOrPanic()
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()

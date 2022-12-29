@@ -39,7 +39,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"resource IDs filter",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterToResourceIDs([]string{"someresourceid", "anotherresourceid"})
+				return filterer.MustFilterToResourceIDs([]string{"someresourceid", "anotherresourceid"})
 			},
 			"SELECT * WHERE object_id IN (?, ?)",
 			[]any{"someresourceid", "anotherresourceid"},
@@ -63,7 +63,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"relationships filter with no IDs or relations",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{
 					ResourceType: "sometype",
 				})
 			},
@@ -73,7 +73,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"relationships filter with single ID",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{
 					ResourceType:        "sometype",
 					OptionalResourceIds: []string{"someid"},
 				})
@@ -84,7 +84,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"relationships filter with no IDs",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{
 					ResourceType:        "sometype",
 					OptionalResourceIds: []string{},
 				})
@@ -95,7 +95,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"relationships filter with multiple IDs",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithRelationshipsFilter(datastore.RelationshipsFilter{
+				return filterer.MustFilterWithRelationshipsFilter(datastore.RelationshipsFilter{
 					ResourceType:        "sometype",
 					OptionalResourceIds: []string{"someid", "anotherid"},
 				})
@@ -106,7 +106,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with no IDs or relations",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType: "somesubjectype",
 				})
 			},
@@ -116,7 +116,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with single ID",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType:        "somesubjectype",
 					OptionalSubjectIds: []string{"somesubjectid"},
 				})
@@ -127,7 +127,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with multiple IDs",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType:        "somesubjectype",
 					OptionalSubjectIds: []string{"somesubjectid", "anothersubjectid"},
 				})
@@ -138,7 +138,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with single ellipsis relation",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType:    "somesubjectype",
 					RelationFilter: datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
 				})
@@ -149,7 +149,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with single defined relation",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType:    "somesubjectype",
 					RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel"),
 				})
@@ -160,7 +160,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with defined relation and ellipsis",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType:    "somesubjectype",
 					RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
 				})
@@ -171,7 +171,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithSubjectsFilter(datastore.SubjectsFilter{
+				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
 					SubjectType:        "somesubjectype",
 					OptionalSubjectIds: []string{"somesubjectid", "anothersubjectid"},
 					RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
@@ -271,7 +271,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"full resources filter",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.FilterWithRelationshipsFilter(
+				return filterer.MustFilterWithRelationshipsFilter(
 					datastore.RelationshipsFilter{
 						ResourceType:             "someresourcetype",
 						OptionalResourceIds:      []string{"someid", "anotherid"},

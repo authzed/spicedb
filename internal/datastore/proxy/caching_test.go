@@ -227,11 +227,11 @@ func TestSnapshotNamespaceCachingRealDatastore(t *testing.T) {
 			"defined namespace",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner",
+				ns.MustRelation("owner",
 					nil,
 					ns.AllowedRelation("user", "..."),
 				),
-				ns.Relation("editor",
+				ns.MustRelation("editor",
 					nil,
 					ns.AllowedRelation("user", "..."),
 				),

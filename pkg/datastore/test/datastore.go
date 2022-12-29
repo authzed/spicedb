@@ -67,7 +67,7 @@ func All(t *testing.T, tester DatastoreTester) {
 
 var testResourceNS = namespace.Namespace(
 	testResourceNamespace,
-	namespace.Relation(testReaderRelation, nil),
+	namespace.MustRelation(testReaderRelation, nil),
 )
 
 var testUserNS = namespace.Namespace(testUserNamespace)

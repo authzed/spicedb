@@ -38,7 +38,8 @@ func TestHashring(t *testing.T) {
 		t.Run(strconv.Itoa(int(tc.replicationFactor)), func(t *testing.T) {
 			require := require.New(t)
 
-			ring := NewHashring(xxhash.Sum64, tc.replicationFactor)
+			ring, err := NewHashring(xxhash.Sum64, tc.replicationFactor)
+			require.NoError(err)
 
 			require.NotNil(ring.hasher)
 			require.Equal(tc.replicationFactor, ring.replicationFactor)
@@ -86,7 +87,9 @@ func TestHashring(t *testing.T) {
 			}
 
 			// Build a consistent hash that adds the nodes in reverse order
-			reverseRing := NewHashring(xxhash.Sum64, tc.replicationFactor)
+			reverseRing, err := NewHashring(xxhash.Sum64, tc.replicationFactor)
+			require.NoError(err)
+
 			for i := 0; i < len(tc.nodes); i++ {
 				toAdd := tc.nodes[len(tc.nodes)-1-i]
 
@@ -140,7 +143,8 @@ func TestBackendBalance(t *testing.T) {
 			t.Parallel()
 			require := require.New(t)
 
-			ring := NewHashring(hasherFunc, 100)
+			ring, err := NewHashring(hasherFunc, 100)
+			require.NoError(err)
 
 			memberKeyCount := map[member]int{}
 
@@ -270,7 +274,9 @@ func verify(require *require.Assertions, ring *Hashring,
 func TestConsistency(t *testing.T) {
 	require := require.New(t)
 
-	ring := NewHashring(xxhash.Sum64, 100)
+	ring, err := NewHashring(xxhash.Sum64, 100)
+	require.NoError(err)
+
 	for memberNum := 0; memberNum < 5; memberNum++ {
 		require.NoError(ring.Add(member(memberNum)))
 	}
@@ -287,7 +293,10 @@ func BenchmarkRemapping(b *testing.B) {
 	require := require.New(b)
 	numKeys := 1000
 	numMembers := 5
-	ring := NewHashring(xxhash.Sum64, 100)
+
+	ring, err := NewHashring(xxhash.Sum64, 100)
+	require.NoError(err)
+
 	for memberNum := 0; memberNum < numMembers; memberNum++ {
 		require.NoError(ring.Add(member(memberNum)))
 	}

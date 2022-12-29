@@ -170,7 +170,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			log.Trace().Int(fmt.Sprintf("preshared-key-%d-length", index+1), len(presharedKey)).Msg("preshared key configured")
 		}
 
-		c.GRPCAuthFunc = auth.RequirePresharedKey(c.PresharedKey)
+		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedKey)
 	} else {
 		log.Trace().Msg("using preconfigured auth function")
 	}
@@ -235,7 +235,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.RequirePresharedKey(c.PresharedKey), ds)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedKey), ds)
 		} else {
 			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds)
 		}
@@ -291,7 +291,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
-	defaultMiddlewareChain := DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	defaultMiddlewareChain, err := DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	if err != nil {
+		return nil, fmt.Errorf("error building default middleware: %w", err)
+	}
+
 	unaryMiddleware, streamingMiddleware, err := c.buildMiddleware(defaultMiddlewareChain)
 	if err != nil {
 		return nil, fmt.Errorf("error building Middlewares: %w", err)

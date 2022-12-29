@@ -17,6 +17,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
 )
@@ -356,14 +357,14 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	var targetResourceIds []string
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
 		if rr == nil || len(resourceIds) == 0 {
-			panic("computed userset for tupleset without tuples")
+			return checkResultError(spiceerrors.MustBugf("computed userset for tupleset without tuples"), emptyMetadata)
 		}
 
 		startNamespace = rr.Namespace
 		targetResourceIds = resourceIds
 	} else if cu.Object == core.ComputedUserset_TUPLE_OBJECT {
 		if rr != nil {
-			panic("computed userset for tupleset with wrong object type")
+			return checkResultError(spiceerrors.MustBugf("computed userset for tupleset with wrong object type"), emptyMetadata)
 		}
 
 		startNamespace = crc.parentReq.ResourceRelation.Namespace

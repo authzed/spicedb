@@ -211,7 +211,7 @@ func TestReadRelationships(t *testing.T) {
 					stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.NewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 							},
 						},
 						RelationshipFilter: tc.filter,

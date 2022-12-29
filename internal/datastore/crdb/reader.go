@@ -144,7 +144,10 @@ func (cr *crdbReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		iter, err = cr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
@@ -161,8 +164,11 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).
 		FilterWithSubjectsFilter(subjectsFilter)
+	if err != nil {
+		return nil, err
+	}
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 

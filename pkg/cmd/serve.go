@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -37,22 +38,24 @@ var (
 	}
 )
 
-func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
+func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	cmd.Flags().StringSliceVar(&config.PresharedKey, PresharedKeyFlag, []string{}, "preshared key(s) to require for authenticated requests")
 	cmd.Flags().DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 	if err := cmd.MarkFlagRequired(PresharedKeyFlag); err != nil {
-		panic("failed to mark flag as required: " + err.Error())
+		return fmt.Errorf("failed to mark flag as required: %w", err)
 	}
 
 	// Flags for the datastore
-	datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig)
+	if err := datastore.RegisterDatastoreFlags(cmd, &config.DatastoreConfig); err != nil {
+		return err
+	}
 
 	// Flags for the namespace cache
 	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {
-		panic("failed to mark flag hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 	server.RegisterCacheFlags(cmd.Flags(), "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
@@ -63,19 +66,19 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	util.RegisterHTTPServerFlags(cmd.Flags(), &config.HTTPGateway, "http", "gateway", ":8443", false)
 	cmd.Flags().StringVar(&config.HTTPGatewayUpstreamAddr, "http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-addr"); err != nil {
-		panic("failed to mark flag as hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 	cmd.Flags().StringVar(&config.HTTPGatewayUpstreamTLSCertPath, "http-upstream-override-tls-cert-path", "", "Override the upstream TLS certificate")
 	if err := cmd.Flags().MarkHidden("http-upstream-override-tls-cert-path"); err != nil {
-		panic("failed to mark flag as hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 	cmd.Flags().BoolVar(&config.HTTPGatewayCorsEnabled, "http-cors-enabled", false, "DANGEROUS: Enable CORS on the http gateway")
 	if err := cmd.Flags().MarkHidden("http-cors-enabled"); err != nil {
-		panic("failed to mark flag as hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 	cmd.Flags().StringSliceVar(&config.HTTPGatewayCorsAllowedOrigins, "http-cors-allowed-origins", []string{"*"}, "Set CORS allowed origins for http gateway, defaults to all origins")
 	if err := cmd.Flags().MarkHidden("http-cors-allowed-origins"); err != nil {
-		panic("failed to mark flag as hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
 	// Flags for configuring the dispatch server
@@ -103,7 +106,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 
 	cmd.Flags().BoolVar(&config.V1SchemaAdditiveOnly, "testing-only-schema-additive-writes", false, "append new definitions to the existing schema, rather than overwriting it")
 	if err := cmd.Flags().MarkHidden("testing-only-schema-additive-writes"); err != nil {
-		panic("failed to mark flag hidden: " + err.Error())
+		return fmt.Errorf("failed to mark flag as required: %w", err)
 	}
 
 	// Flags for misc services
@@ -116,9 +119,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) {
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
 
 	cmd.Flags().BoolVar(&config.ExperimentalCaveatsEnabled, "experiment-enable-caveats", false, "if true, experimental support for caveats is enabled; note that these are not fully implemented and may break")
-	if err := cmd.Flags().MarkDeprecated("experiment-enable-caveats", "this is an experiment"); err != nil {
-		panic("failed to mark flag deprecated: " + err.Error())
-	}
+	return nil
 }
 
 func NewServeCommand(programName string, config *server.Config) *cobra.Command {

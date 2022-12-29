@@ -5,6 +5,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -72,7 +73,10 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 					return nil, err
 				}
 
-				toReturn.AddFrom(tss)
+				err = toReturn.AddFrom(tss)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
@@ -89,14 +93,23 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 			}
 
 			toReturn := NewTrackingSubjectSet()
-			toReturn.AddFrom(firstChildSet)
+			err = toReturn.AddFrom(firstChildSet)
+			if err != nil {
+				return nil, err
+			}
 
 			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
 				childSet, err := populateFoundSubjects(rootONR, child)
 				if err != nil {
 					return nil, err
 				}
-				toReturn = toReturn.Intersect(childSet)
+
+				updated, err := toReturn.Intersect(childSet)
+				if err != nil {
+					return nil, err
+				}
+
+				toReturn = updated
 			}
 
 			toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
@@ -113,7 +126,10 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 			}
 
 			toReturn := NewTrackingSubjectSet()
-			toReturn.AddFrom(firstChildSet)
+			err = toReturn.AddFrom(firstChildSet)
+			if err != nil {
+				return nil, err
+			}
 
 			for _, child := range typed.IntermediateNode.ChildNodes[1:] {
 				childSet, err := populateFoundSubjects(rootONR, child)
@@ -127,19 +143,23 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 			return toReturn, nil
 
 		default:
-			panic("unknown expand operation")
+			return nil, spiceerrors.MustBugf("unknown expand operation")
 		}
 
 	case *core.RelationTupleTreeNode_LeafNode:
 		toReturn := NewTrackingSubjectSet()
 		for _, subject := range typed.LeafNode.Subjects {
 			fs := NewFoundSubject(subject)
-			toReturn.Add(fs)
+			err := toReturn.Add(fs)
+			if err != nil {
+				return nil, err
+			}
+
 			fs.relationships.Add(resource)
 		}
 		return toReturn, nil
 
 	default:
-		panic("unknown TreeNode type")
+		return nil, spiceerrors.MustBugf("unknown TreeNode type")
 	}
 }

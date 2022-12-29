@@ -39,7 +39,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 	// Make the namespace very large to increase the likelihood of overlapping
 	relationList := make([]*corev1.Relation, 0, 1000)
 	for i := 0; i < 1000; i++ {
-		relationList = append(relationList, ns.Relation(fmt.Sprintf("reader%d", i), nil))
+		relationList = append(relationList, ns.MustRelation(fmt.Sprintf("reader%d", i), nil))
 	}
 
 	numPanics := uint64(0)

@@ -30,10 +30,12 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 	rsm.addSubjectIDAsFoundResourceID("second")
 	require.Equal(t, 2, rsm.len())
 
-	rsm.addRelationship(tuple.MustParse("document:third#view@user:tom"))
+	err := rsm.addRelationship(tuple.MustParse("document:third#view@user:tom"))
+	require.NoError(t, err)
 	require.Equal(t, 3, rsm.len())
 
-	rsm.addRelationship(tuple.MustParse("document:fourth#view@user:sarah[somecaveat]"))
+	err = rsm.addRelationship(tuple.MustParse("document:fourth#view@user:sarah[somecaveat]"))
+	require.NoError(t, err)
 	require.Equal(t, 4, rsm.len())
 
 	filtered := rsm.filterForDispatch(&syncONRSet{})
@@ -186,7 +188,8 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 					})
 
 					for _, rel := range tc.rels {
-						rsm.addRelationship(rel)
+						err := rsm.addRelationship(rel)
+						require.NoError(t, err)
 					}
 
 					expected := make([]*v1.ReachableResource, 0, len(tc.expected))
@@ -401,7 +404,8 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 					})
 
 					for _, rel := range tc.rels {
-						rsm.addRelationship(rel)
+						err := rsm.addRelationship(rel)
+						require.NoError(t, err)
 					}
 
 					expected := make([]*v1.ReachableResource, 0, len(tc.expected))
@@ -415,7 +419,9 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 					}
 
 					filtered := rsm.filterForDispatch(&syncONRSet{})
-					resources := filtered.mapFoundResources(tc.foundResources, isDirectEntrypoint)
+					resources, err := filtered.mapFoundResources(tc.foundResources, isDirectEntrypoint)
+					require.NoError(t, err)
+
 					for _, r := range resources {
 						sort.Strings(r.ForSubjectIds)
 					}

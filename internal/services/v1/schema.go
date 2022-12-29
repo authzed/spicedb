@@ -75,7 +75,10 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 		schemaDefinitions = append(schemaDefinitions, nsDef)
 	}
 
-	schemaText, _ := generator.GenerateSchema(schemaDefinitions)
+	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 		DispatchCount: uint32(len(nsDefs) + len(caveatDefs)),
