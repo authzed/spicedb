@@ -91,7 +91,7 @@ type Config struct {
 	MigrationPhase string
 }
 
-// MustRegisterDatastoreFlags adds datastore flags to a cobra command
+// RegisterDatastoreFlags adds datastore flags to a cobra command
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) error {
 	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
