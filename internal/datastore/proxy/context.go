@@ -81,6 +81,10 @@ func (p *ctxProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return &ctxReader{delegateReader}
 }
 
+func (p *ctxProxy) Unwrap() datastore.Datastore {
+	return p.delegate
+}
+
 type ctxReader struct{ delegate datastore.Reader }
 
 func (r *ctxReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {

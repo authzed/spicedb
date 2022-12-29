@@ -239,7 +239,7 @@ func newPostgresDatastore(
 			)
 		})
 	} else {
-		log.Warn().Msg("datastore garbage collection disabled")
+		log.Warn().Msg("datastore background garbage collection disabled")
 	}
 
 	return datastore, nil

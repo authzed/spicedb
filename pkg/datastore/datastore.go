@@ -243,6 +243,13 @@ type Datastore interface {
 	Close() error
 }
 
+// UnwrappableDatastore represents a datastore that can be unwrapped into the underlying
+// datastore.
+type UnwrappableDatastore interface {
+	// Unwrap returns the wrapped datastore.
+	Unwrap() Datastore
+}
+
 // Feature represents a capability that a datastore can support, plus an
 // optional message explaining the feature is available (or not).
 type Feature struct {
