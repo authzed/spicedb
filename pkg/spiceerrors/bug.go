@@ -9,7 +9,7 @@ import (
 // Based on: https://stackoverflow.com/a/58945030
 func isInTests() bool {
 	for _, arg := range os.Args {
-		if strings.HasPrefix(arg, "-test.v=") {
+		if strings.HasPrefix(arg, "-test.") {
 			return true
 		}
 	}
