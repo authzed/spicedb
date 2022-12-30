@@ -436,13 +436,17 @@ func validateValidation(t *testing.T, devContext *development.DevContext, vctx *
 		for _, expectedSubject := range expectedSubjects {
 			onr := onrKey.ObjectAndRelation
 			subjectWithExceptions := expectedSubject.SubjectWithExceptions
+
+			// TODO(jschorr): Fix for caveats once caveats are fully supported in consistency tests
+			require.False(t, subjectWithExceptions.Subject.IsCaveated)
+
 			require.NotNil(t, subjectWithExceptions, "Found expected relation without subject: %s", expectedSubject.ValidationString)
 			require.Nil(t, err)
 			require.True(t,
-				(vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isMember ||
-					vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject) == isWildcard),
+				(vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject.Subject) == isMember ||
+					vctx.accessibilitySet.GetIsMember(onr, subjectWithExceptions.Subject.Subject) == isWildcard),
 				"Generated expected relations returned inaccessible member %s for %s in `%s`",
-				tuple.StringONR(subjectWithExceptions.Subject),
+				tuple.StringONR(subjectWithExceptions.Subject.Subject),
 				tuple.StringONR(onr),
 				updatedValidationYaml)
 		}
@@ -502,17 +506,19 @@ func validateEditChecks(t *testing.T, devContext *development.DevContext, vctx *
 							ObjectId:  objectIDStr,
 							Relation:  objectRelation.Relation,
 						}
-						membership, _, err := development.RunCheck(devContext, resource, subject)
+
+						// TODO(jschorr): add support for caveat context here
+						cr, err := development.RunCheck(devContext, resource, subject, nil)
 						vrequire.NoError(err, "Got unexpected error from edit check")
 
 						expectedMember := vctx.accessibilitySet.GetIsMember(resource, subject)
 						vrequire.Equal(expectedMember == isMember || expectedMember == isMemberViaWildcard,
-							membership == dispatchv1.ResourceCheckResult_MEMBER,
+							cr.Permissionship == dispatchv1.ResourceCheckResult_MEMBER,
 							"Found unexpected membership difference for %s@%s. Expected %v, Found: %v",
 							tuple.StringONR(resource),
 							tuple.StringONR(subject),
 							expectedMember,
-							membership)
+							cr.Permissionship)
 					}
 				})
 			}
@@ -735,11 +741,15 @@ func validateExpansionSubjects(t *testing.T, ds datastore.Datastore, vctx *valid
 
 					// Ensure every subject found matches Check.
 					for _, foundSubject := range subjectsFoundSet.ToSlice() {
-						excludedSubjects, isWildcard := foundSubject.ExcludedSubjectsFromWildcard()
+						excludedSubjectsWithCaveats, isWildcard := foundSubject.ExcludedSubjectsFromWildcard()
 
 						// If the subject is a wildcard, then check every matching subject.
 						if isWildcard {
-							excludedSubjectsSet := tuple.NewONRSet(excludedSubjects...)
+							// TODO(jschorr): Fix for caveats once fully supported in consistency tests.
+							excludedSubjectsSet := tuple.NewONRSet()
+							for _, excludedSubject := range excludedSubjectsWithCaveats {
+								excludedSubjectsSet.Add(excludedSubject.Subject())
+							}
 
 							allSubjectObjectIds, ok := vctx.objectsPerNamespace.Get(foundSubject.Subject().Namespace)
 							if !ok {
