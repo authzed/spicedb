@@ -9,9 +9,9 @@
 
 SpiceDB is an open source database system for managing security-critical application permissions inspired by Google's [Zanzibar] paper.
 
-Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
+Developers create a schema that models their permissions requirements and use any of the official or community mantained [client libraries] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
-[client library]: https://github.com/orgs/authzed/repositories?q=client+library
+[client libraries]: https://github.com/authzed/awesome-spicedb
 
 Features that distinguish SpiceDB from other systems include:
 
