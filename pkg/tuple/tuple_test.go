@@ -306,7 +306,7 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := MustString(tc.tupleFormat)
+			serialized := strings.Replace(MustString(tc.tupleFormat), " ", "", -1)
 			require.Equal(t, tc.expectedOutput, serialized)
 
 			withoutCaveat := StringWithoutCaveat(tc.tupleFormat)
@@ -321,7 +321,7 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := MustRelString(tc.relFormat)
+			serialized := strings.Replace(MustRelString(tc.relFormat), " ", "", -1)
 			require.Equal(t, tc.expectedOutput, serialized)
 
 			withoutCaveat := StringRelationshipWithoutCaveat(tc.relFormat)

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"cloud.google.com/go/spanner"
-	"google.golang.org/genproto/googleapis/spanner/admin/database/v1"
+	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 )
 
 const (
@@ -49,7 +49,7 @@ const (
 
 func init() {
 	if err := SpannerMigrations.Register("initial", "", func(ctx context.Context, w Wrapper) error {
-		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
+		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &databasepb.UpdateDatabaseDdlRequest{
 			Database: w.client.DatabaseName(),
 			Statements: []string{
 				createNamespaceConfig,

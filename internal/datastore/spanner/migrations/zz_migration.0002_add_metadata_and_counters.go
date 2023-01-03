@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"cloud.google.com/go/spanner"
+	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/google/uuid"
-	"google.golang.org/genproto/googleapis/spanner/admin/database/v1"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 
 func init() {
 	if err := SpannerMigrations.Register("add-metadata-and-counters", "initial", func(ctx context.Context, w Wrapper) error {
-		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &database.UpdateDatabaseDdlRequest{
+		updateOp, err := w.adminClient.UpdateDatabaseDdl(ctx, &databasepb.UpdateDatabaseDdlRequest{
 			Database: w.client.DatabaseName(),
 			Statements: []string{
 				createMetadata,
