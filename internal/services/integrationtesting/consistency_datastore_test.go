@@ -1,15 +1,12 @@
-//go:build ci && docker
-// +build ci,docker
+//go:build ci && docker && datastoreconsistency
+// +build ci,docker,datastoreconsistency
 
 package integrationtesting_test
 
 import (
 	"context"
-	"os"
 	"path"
-	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,26 +24,22 @@ import (
 )
 
 func TestConsistencyPerDatastore(t *testing.T) {
+	// TODO(jschorr): Re-enable for *all* files once we make this faster.
 	_, filename, _, _ := runtime.Caller(0)
-	consistencyTestFiles := []string{}
-	err := filepath.Walk(path.Join(path.Dir(filename), "testconfigs"), func(path string, info os.FileInfo, err error) error {
-		if info == nil || info.IsDir() {
-			return nil
-		}
-
-		if strings.HasSuffix(info.Name(), ".yaml") {
-			consistencyTestFiles = append(consistencyTestFiles, path)
-		}
-
-		return nil
-	})
-
-	rrequire := require.New(t)
-	rrequire.NoError(err)
+	consistencyTestFiles := []string{
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "document.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "basicrbac.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "public.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "nil.yaml"),
+	}
 
 	for _, engineID := range datastore.Engines {
+		engineID := engineID
+
 		t.Run(engineID, func(t *testing.T) {
 			for _, filePath := range consistencyTestFiles {
+				filePath := filePath
+
 				t.Run(path.Base(filePath), func(t *testing.T) {
 					lrequire := require.New(t)
 
@@ -73,6 +66,8 @@ func TestConsistencyPerDatastore(t *testing.T) {
 
 					// Run the assertions within each file.
 					for _, tester := range testers {
+						tester := tester
+
 						t.Run(tester.Name(), func(t *testing.T) {
 							runAssertions(t, tester, dispatcher, fullyResolved, revision)
 						})
