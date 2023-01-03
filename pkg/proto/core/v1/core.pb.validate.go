@@ -1464,9 +1464,18 @@ func (m *RelationTupleTreeNode) validate(all bool) error {
 		}
 	}
 
-	switch m.NodeType.(type) {
-
+	switch v := m.NodeType.(type) {
 	case *RelationTupleTreeNode_IntermediateNode:
+		if v == nil {
+			err := RelationTupleTreeNodeValidationError{
+				field:  "NodeType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetIntermediateNode()).(type) {
@@ -1498,6 +1507,16 @@ func (m *RelationTupleTreeNode) validate(all bool) error {
 		}
 
 	case *RelationTupleTreeNode_LeafNode:
+		if v == nil {
+			err := RelationTupleTreeNodeValidationError{
+				field:  "NodeType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetLeafNode()).(type) {
@@ -1528,6 +1547,8 @@ func (m *RelationTupleTreeNode) validate(all bool) error {
 			}
 		}
 
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
@@ -3381,9 +3402,18 @@ func (m *AllowedRelation) validate(all bool) error {
 		}
 	}
 
-	switch m.RelationOrWildcard.(type) {
-
+	switch v := m.RelationOrWildcard.(type) {
 	case *AllowedRelation_Relation:
+		if v == nil {
+			err := AllowedRelationValidationError{
+				field:  "RelationOrWildcard",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if len(m.GetRelation()) > 64 {
 			err := AllowedRelationValidationError{
@@ -3408,6 +3438,16 @@ func (m *AllowedRelation) validate(all bool) error {
 		}
 
 	case *AllowedRelation_PublicWildcard_:
+		if v == nil {
+			err := AllowedRelationValidationError{
+				field:  "RelationOrWildcard",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetPublicWildcard()).(type) {
@@ -3438,6 +3478,8 @@ func (m *AllowedRelation) validate(all bool) error {
 			}
 		}
 
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
@@ -3675,9 +3717,20 @@ func (m *UsersetRewrite) validate(all bool) error {
 		}
 	}
 
-	switch m.RewriteOperation.(type) {
-
+	oneofRewriteOperationPresent := false
+	switch v := m.RewriteOperation.(type) {
 	case *UsersetRewrite_Union:
+		if v == nil {
+			err := UsersetRewriteValidationError{
+				field:  "RewriteOperation",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofRewriteOperationPresent = true
 
 		if m.GetUnion() == nil {
 			err := UsersetRewriteValidationError{
@@ -3720,6 +3773,17 @@ func (m *UsersetRewrite) validate(all bool) error {
 		}
 
 	case *UsersetRewrite_Intersection:
+		if v == nil {
+			err := UsersetRewriteValidationError{
+				field:  "RewriteOperation",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofRewriteOperationPresent = true
 
 		if m.GetIntersection() == nil {
 			err := UsersetRewriteValidationError{
@@ -3762,6 +3826,17 @@ func (m *UsersetRewrite) validate(all bool) error {
 		}
 
 	case *UsersetRewrite_Exclusion:
+		if v == nil {
+			err := UsersetRewriteValidationError{
+				field:  "RewriteOperation",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofRewriteOperationPresent = true
 
 		if m.GetExclusion() == nil {
 			err := UsersetRewriteValidationError{
@@ -3804,6 +3879,9 @@ func (m *UsersetRewrite) validate(all bool) error {
 		}
 
 	default:
+		_ = v // ensures v is used
+	}
+	if !oneofRewriteOperationPresent {
 		err := UsersetRewriteValidationError{
 			field:  "RewriteOperation",
 			reason: "value is required",
@@ -3812,7 +3890,6 @@ func (m *UsersetRewrite) validate(all bool) error {
 			return err
 		}
 		errors = append(errors, err)
-
 	}
 
 	if len(errors) > 0 {
@@ -4547,9 +4624,18 @@ func (m *CaveatExpression) validate(all bool) error {
 
 	var errors []error
 
-	switch m.OperationOrCaveat.(type) {
-
+	switch v := m.OperationOrCaveat.(type) {
 	case *CaveatExpression_Operation:
+		if v == nil {
+			err := CaveatExpressionValidationError{
+				field:  "OperationOrCaveat",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetOperation()).(type) {
@@ -4581,6 +4667,16 @@ func (m *CaveatExpression) validate(all bool) error {
 		}
 
 	case *CaveatExpression_Caveat:
+		if v == nil {
+			err := CaveatExpressionValidationError{
+				field:  "OperationOrCaveat",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetCaveat()).(type) {
@@ -4611,6 +4707,8 @@ func (m *CaveatExpression) validate(all bool) error {
 			}
 		}
 
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
@@ -4981,9 +5079,20 @@ func (m *SetOperation_Child) validate(all bool) error {
 		}
 	}
 
-	switch m.ChildType.(type) {
-
+	oneofChildTypePresent := false
+	switch v := m.ChildType.(type) {
 	case *SetOperation_Child_XThis:
+		if v == nil {
+			err := SetOperation_ChildValidationError{
+				field:  "ChildType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofChildTypePresent = true
 
 		if all {
 			switch v := interface{}(m.GetXThis()).(type) {
@@ -5015,6 +5124,17 @@ func (m *SetOperation_Child) validate(all bool) error {
 		}
 
 	case *SetOperation_Child_ComputedUserset:
+		if v == nil {
+			err := SetOperation_ChildValidationError{
+				field:  "ChildType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofChildTypePresent = true
 
 		if m.GetComputedUserset() == nil {
 			err := SetOperation_ChildValidationError{
@@ -5057,6 +5177,17 @@ func (m *SetOperation_Child) validate(all bool) error {
 		}
 
 	case *SetOperation_Child_TupleToUserset:
+		if v == nil {
+			err := SetOperation_ChildValidationError{
+				field:  "ChildType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofChildTypePresent = true
 
 		if m.GetTupleToUserset() == nil {
 			err := SetOperation_ChildValidationError{
@@ -5099,6 +5230,17 @@ func (m *SetOperation_Child) validate(all bool) error {
 		}
 
 	case *SetOperation_Child_UsersetRewrite:
+		if v == nil {
+			err := SetOperation_ChildValidationError{
+				field:  "ChildType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofChildTypePresent = true
 
 		if m.GetUsersetRewrite() == nil {
 			err := SetOperation_ChildValidationError{
@@ -5141,6 +5283,17 @@ func (m *SetOperation_Child) validate(all bool) error {
 		}
 
 	case *SetOperation_Child_XNil:
+		if v == nil {
+			err := SetOperation_ChildValidationError{
+				field:  "ChildType",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofChildTypePresent = true
 
 		if all {
 			switch v := interface{}(m.GetXNil()).(type) {
@@ -5172,6 +5325,9 @@ func (m *SetOperation_Child) validate(all bool) error {
 		}
 
 	default:
+		_ = v // ensures v is used
+	}
+	if !oneofChildTypePresent {
 		err := SetOperation_ChildValidationError{
 			field:  "ChildType",
 			reason: "value is required",
@@ -5180,7 +5336,6 @@ func (m *SetOperation_Child) validate(all bool) error {
 			return err
 		}
 		errors = append(errors, err)
-
 	}
 
 	if len(errors) > 0 {

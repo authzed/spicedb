@@ -59,9 +59,18 @@ func (m *DecodedCaveat) validate(all bool) error {
 
 	// no validation rules for Name
 
-	switch m.KindOneof.(type) {
-
+	switch v := m.KindOneof.(type) {
 	case *DecodedCaveat_Cel:
+		if v == nil {
+			err := DecodedCaveatValidationError{
+				field:  "KindOneof",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetCel()).(type) {
@@ -92,6 +101,8 @@ func (m *DecodedCaveat) validate(all bool) error {
 			}
 		}
 
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
@@ -196,9 +207,18 @@ func (m *DecodedZookie) validate(all bool) error {
 
 	// no validation rules for Version
 
-	switch m.VersionOneof.(type) {
-
+	switch v := m.VersionOneof.(type) {
 	case *DecodedZookie_V1:
+		if v == nil {
+			err := DecodedZookieValidationError{
+				field:  "VersionOneof",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetV1()).(type) {
@@ -230,6 +250,16 @@ func (m *DecodedZookie) validate(all bool) error {
 		}
 
 	case *DecodedZookie_V2:
+		if v == nil {
+			err := DecodedZookieValidationError{
+				field:  "VersionOneof",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetV2()).(type) {
@@ -260,6 +290,8 @@ func (m *DecodedZookie) validate(all bool) error {
 			}
 		}
 
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
@@ -362,9 +394,18 @@ func (m *DecodedZedToken) validate(all bool) error {
 
 	var errors []error
 
-	switch m.VersionOneof.(type) {
-
+	switch v := m.VersionOneof.(type) {
 	case *DecodedZedToken_DeprecatedV1Zookie:
+		if v == nil {
+			err := DecodedZedTokenValidationError{
+				field:  "VersionOneof",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetDeprecatedV1Zookie()).(type) {
@@ -396,6 +437,16 @@ func (m *DecodedZedToken) validate(all bool) error {
 		}
 
 	case *DecodedZedToken_V1:
+		if v == nil {
+			err := DecodedZedTokenValidationError{
+				field:  "VersionOneof",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 
 		if all {
 			switch v := interface{}(m.GetV1()).(type) {
@@ -426,6 +477,8 @@ func (m *DecodedZedToken) validate(all bool) error {
 			}
 		}
 
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
