@@ -72,7 +72,7 @@ var testResourceNS = namespace.Namespace(
 
 var testGroupNS = namespace.Namespace(
 	testGroupNamespace,
-	namespace.Relation(testMemberRelation, nil),
+	namespace.MustRelation(testMemberRelation, nil),
 )
 
 var testUserNS = namespace.Namespace(testUserNamespace)

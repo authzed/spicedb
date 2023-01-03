@@ -214,7 +214,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 
 			for index, subjectID := range selector.OptionalSubjectIds {
 				if len(subjectID) == 0 {
-					panic("got empty subject id")
+					return sqf, spiceerrors.MustBugf("got empty subject ID")
 				}
 
 				if index > 0 {

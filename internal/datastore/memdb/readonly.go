@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
-
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 
@@ -63,8 +61,14 @@ func (r *memdbReader) QueryRelationships(
 		limit: queryOpts.Limit,
 	}
 
-	runtime.SetFinalizer(iter, common.MustHaveBeenClosed)
+	runtime.SetFinalizer(iter, mustHaveBeenClosed)
 	return iter, nil
+}
+
+func mustHaveBeenClosed(iter *memdbTupleIterator) {
+	if !iter.closed {
+		panic("Tuple iterator garbage collected before Close() was called")
+	}
 }
 
 // ReverseQueryRelationships reads relationships starting from the subject.
