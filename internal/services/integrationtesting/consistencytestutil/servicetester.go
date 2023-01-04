@@ -1,15 +1,13 @@
-//go:build !skipintegrationtests
-// +build !skipintegrationtests
-
-package integrationtesting_test
+package consistencytestutil
 
 import (
 	"context"
 	"errors"
 	"io"
-	"sort"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -18,14 +16,20 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-type serviceTester interface {
+func ServiceTesters(conn *grpc.ClientConn) []ServiceTester {
+	return []ServiceTester{
+		v1ServiceTester{v1.NewPermissionsServiceClient(conn)},
+	}
+}
+
+type ServiceTester interface {
 	Name() string
-	Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision datastore.Revision) (bool, error)
+	Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision datastore.Revision, caveatContext map[string]any) (v1.CheckPermissionResponse_Permissionship, error)
 	Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error)
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
-	Lookup(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) ([]string, error)
-	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision) ([]string, error)
+	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error)
+	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision) (map[string]*v1.LookupSubjectsResponse, error)
 }
 
 func optionalizeRelation(relation string) string {
@@ -53,7 +57,16 @@ func (v1st v1ServiceTester) Name() string {
 	return "v1"
 }
 
-func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision datastore.Revision) (bool, error) {
+func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision datastore.Revision, caveatContext map[string]any) (v1.CheckPermissionResponse_Permissionship, error) {
+	var context *structpb.Struct
+	if caveatContext != nil {
+		built, err := structpb.NewStruct(caveatContext)
+		if err != nil {
+			return v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED, err
+		}
+		context = built
+	}
+
 	checkResp, err := v1st.permClient.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Resource: &v1.ObjectReference{
 			ObjectType: resource.Namespace,
@@ -72,11 +85,12 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndR
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
+		Context: context,
 	})
 	if err != nil {
-		return false, err
+		return v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED, err
 	}
-	return checkResp.Permissionship == v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, nil
+	return checkResp.Permissionship, nil
 }
 
 func (v1st v1ServiceTester) Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error) {
@@ -154,7 +168,7 @@ func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 	return tuples, nil
 }
 
-func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) ([]string, error) {
+func (v1st v1ServiceTester) LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error) {
 	lookupResp, err := v1st.permClient.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 		ResourceObjectType: resourceRelation.Namespace,
 		Permission:         resourceRelation.Relation,
@@ -175,7 +189,7 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *core.R
 		return nil, err
 	}
 
-	var objectIds []string
+	found := map[string]*v1.LookupResourcesResponse{}
 	for {
 		resp, err := lookupResp.Recv()
 		if errors.Is(err, io.EOF) {
@@ -186,14 +200,12 @@ func (v1st v1ServiceTester) Lookup(ctx context.Context, resourceRelation *core.R
 			return nil, err
 		}
 
-		objectIds = append(objectIds, resp.ResourceObjectId)
+		found[resp.ResourceObjectId] = resp
 	}
-
-	sort.Strings(objectIds)
-	return objectIds, nil
+	return found, nil
 }
 
-func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision) ([]string, error) {
+func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision) (map[string]*v1.LookupSubjectsResponse, error) {
 	lookupResp, err := v1st.permClient.LookupSubjects(context.Background(), &v1.LookupSubjectsRequest{
 		Resource: &v1.ObjectReference{
 			ObjectType: resource.Namespace,
@@ -212,7 +224,7 @@ func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.O
 		return nil, err
 	}
 
-	var objectIds []string
+	found := map[string]*v1.LookupSubjectsResponse{}
 	for {
 		resp, err := lookupResp.Recv()
 		if errors.Is(err, io.EOF) {
@@ -223,9 +235,7 @@ func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.O
 			return nil, err
 		}
 
-		objectIds = append(objectIds, resp.SubjectObjectId)
+		found[resp.Subject.SubjectObjectId] = resp
 	}
-
-	sort.Strings(objectIds)
-	return objectIds, nil
+	return found, nil
 }

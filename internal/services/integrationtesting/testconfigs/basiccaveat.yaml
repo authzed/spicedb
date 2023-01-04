@@ -1,0 +1,33 @@
+---
+schema: |+
+  definition user {}
+
+  caveat some_caveat(somecondition int) {
+    somecondition == 42
+  }
+
+  definition document {
+  	relation viewer: user with some_caveat | user
+    permission view = viewer
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tom[some_caveat:{"somecondition":42}]
+
+  document:firstdoc#viewer@user:fred[some_caveat:{"somecondition":41}]
+
+  document:firstdoc#viewer@user:sarah[some_caveat]
+
+  document:firstdoc#viewer@user:tracy
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:tom"
+    - "document:firstdoc#view@user:tracy"
+    - 'document:firstdoc#view@user:sarah with {"somecondition": 42}'
+    - 'document:firstdoc#view@user:tom with {"somecondition": 41}' # Context written overrides specified at check time.
+  assertCaveated:
+    - "document:firstdoc#view@user:sarah"
+  assertFalse:
+    - "document:firstdoc#view@user:fred"
+    - 'document:firstdoc#view@user:sarah with {"somecondition": 41}'
+    - 'document:firstdoc#view@user:fred with {"somecondition": 42}' # Context written overrides specified at check time.
