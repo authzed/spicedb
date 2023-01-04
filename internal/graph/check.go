@@ -22,20 +22,20 @@ import (
 	"github.com/authzed/spicedb/pkg/util"
 )
 
-var estimatedDirectDispatchQueryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-	Name:    "spicedb_estimated_check_direct_dispatch_query_count",
-	Help:    "estimated number of queries made per direct dispatch",
-	Buckets: []float64{1, 2},
-})
-
 var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "spicedb_check_dispatch_chunk_count",
 	Help:    "number of chunks when dispatching in check",
 	Buckets: []float64{1, 2, 3, 5, 10, 25, 100, 250},
 })
 
+var directDispatchQueryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "spicedb_check_direct_dispatch_query_count",
+	Help:    "number of queries made per direct dispatch",
+	Buckets: []float64{1, 2},
+})
+
 func init() {
-	prometheus.MustRegister(estimatedDirectDispatchQueryHistogram)
+	prometheus.MustRegister(directDispatchQueryHistogram)
 	prometheus.MustRegister(dispatchChunkCountHistogram)
 }
 
@@ -178,7 +178,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	if relation.UsersetRewrite == nil {
-		return combineResultWithFoundResources(cc.checkDirect(ctx, crc), membershipSet)
+		return combineResultWithFoundResources(cc.checkDirect(ctx, crc, relation), membershipSet)
 	}
 
 	return combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet)
@@ -198,62 +198,168 @@ type directDispatch struct {
 	resourceIds  []string
 }
 
-func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequestContext) CheckResult {
+func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequestContext, relation *core.Relation) CheckResult {
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
-	// TODO(jschorr): Use type information to further optimize this query.
-	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+	// Build a filter for finding the direct relationships for the check. There are three
+	// classes of relationships to be found:
+	// 1) the target subject itself, if allowed on this relation
+	// 2) the wildcard form of the target subject, if a wildcard is allowed on this relation
+	// 3) Otherwise, any non-terminal (non-`...`) subjects, if allowed on this relation, to be
+	//    redispatched outward
+	hasNonTerminals := false
+	hasDirectSubject := false
+	hasWildcardSubject := false
+
+	for _, allowedDirectRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
+		// If the namespace of the allowed direct relation matches the subject type, there are two
+		// cases to optimize:
+		// 1) Finding the target subject itself, as a direct lookup
+		// 2) Finding a wildcard for the subject type+relation
+		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.Namespace {
+			if allowedDirectRelation.GetPublicWildcard() != nil {
+				hasWildcardSubject = true
+			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
+				hasDirectSubject = true
+			}
+		}
+
+		// If the relation found is not an ellipsis, then this is a nested relation that
+		// might need to be followed, so indicate that such relationships should be returned
+		//
+		// TODO(jschorr): Use type information to *further* optimize this query around which nested
+		// relations can reach the target subject type.
+		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
+			hasNonTerminals = true
+		}
+	}
+
+	foundResources := NewMembershipSet()
+
+	// If the direct subject or a wildcard form can be found, issue a query for just that
+	// subject.
+	var queryCount float64
+	defer func() {
+		directDispatchQueryHistogram.Observe(queryCount)
+	}()
+
+	if hasDirectSubject || hasWildcardSubject {
+		subjectSelectors := []datastore.SubjectsSelector{}
+
+		if hasDirectSubject {
+			subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+				OptionalSubjectType: crc.parentReq.Subject.Namespace,
+				OptionalSubjectIds:  []string{crc.parentReq.Subject.ObjectId},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation(crc.parentReq.Subject.Relation),
+			})
+		}
+
+		if hasWildcardSubject {
+			subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+				OptionalSubjectType: crc.parentReq.Subject.Namespace,
+				OptionalSubjectIds:  []string{tuple.PublicWildcard},
+				RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+			})
+		}
+
+		filter := datastore.RelationshipsFilter{
+			ResourceType:              crc.parentReq.ResourceRelation.Namespace,
+			OptionalResourceIds:       crc.filteredResourceIDs,
+			OptionalResourceRelation:  crc.parentReq.ResourceRelation.Relation,
+			OptionalSubjectsSelectors: subjectSelectors,
+		}
+
+		it, err := ds.QueryRelationships(ctx, filter)
+		if err != nil {
+			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
+		}
+		defer it.Close()
+		queryCount += 1.0
+
+		// Find the matching subject(s).
+		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+			if it.Err() != nil {
+				return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
+			}
+
+			// If the subject of the relationship matches the target subject, then we've found
+			// a result.
+			if !onrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject) {
+				tplString, err := tuple.String(tpl)
+				if err != nil {
+					return checkResultError(err, emptyMetadata)
+				}
+
+				return checkResultError(
+					NewCheckFailureErr(
+						fmt.Errorf("somehow got invalid ONR for direct check matching: %s vs %s", tuple.StringONR(crc.parentReq.Subject), tplString),
+					),
+					emptyMetadata,
+				)
+			}
+
+			foundResources.AddDirectMember(tpl.ResourceAndRelation.ObjectId, tpl.Caveat)
+			if crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT && foundResources.HasDeterminedMember() {
+				return checkResultsForMembership(foundResources, emptyMetadata)
+			}
+		}
+		it.Close()
+	}
+
+	// Filter down the resource IDs for further dispatch based on whether they exist as found
+	// subjects in the existing membership set.
+	furtherFilteredResourceIDs := make([]string, 0, len(crc.filteredResourceIDs)-foundResources.Size())
+	for _, resourceID := range crc.filteredResourceIDs {
+		if foundResources.HasConcreteResourceID(resourceID) {
+			continue
+		}
+
+		furtherFilteredResourceIDs = append(furtherFilteredResourceIDs, resourceID)
+	}
+
+	// If there are no possible non-terminals, then the check is completed.
+	if !hasNonTerminals || len(furtherFilteredResourceIDs) == 0 {
+		return checkResultsForMembership(foundResources, emptyMetadata)
+	}
+
+	// Otherwise, for any remaining resource IDs, query for redispatch.
+	filter := datastore.RelationshipsFilter{
 		ResourceType:             crc.parentReq.ResourceRelation.Namespace,
-		OptionalResourceIds:      crc.filteredResourceIDs,
+		OptionalResourceIds:      furtherFilteredResourceIDs,
 		OptionalResourceRelation: crc.parentReq.ResourceRelation.Relation,
-	})
+		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+			{
+				RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
+			},
+		},
+	}
+
+	it, err := ds.QueryRelationships(ctx, filter)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
 	defer it.Close()
+	queryCount += 1.0
 
 	// Find the subjects over which to dispatch.
-	foundResources := NewMembershipSet()
 	subjectsToDispatch := tuple.NewONRByTypeSet()
 	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
-
-	// Report the estimated direct dispatch query count.
-	hadDirectResult := false
-	hadDispatchedResult := false
-	defer (func() {
-		estimatedQueryCount := 1.0
-		if !hadDirectResult && hadDispatchedResult {
-			estimatedQueryCount = 2
-		}
-		estimatedDirectDispatchQueryHistogram.Observe(estimatedQueryCount)
-	})()
 
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 		}
 
-		// If the subject of the relationship matches the target subject, then we've found
-		// a result.
-		if onrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject) {
-			foundResources.AddDirectMember(tpl.ResourceAndRelation.ObjectId, tpl.Caveat)
-			hadDirectResult = true
-			if crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT && foundResources.HasDeterminedMember() {
-				return checkResultsForMembership(foundResources, emptyMetadata)
-			}
-			continue
+		// Add the subject as an object over which to dispatch.
+		if tpl.Subject.Relation == Ellipsis {
+			return checkResultError(NewCheckFailureErr(fmt.Errorf("got a terminal for a non-terminal query")), emptyMetadata)
 		}
 
-		// If the subject of the relationship is a non-terminal, add to be dispatched.
-		if tpl.Subject.Relation != Ellipsis {
-			subjectsToDispatch.Add(tpl.Subject)
-			relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
-		}
+		subjectsToDispatch.Add(tpl.Subject)
+		relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
 	}
 	it.Close()
-
-	hadDispatchedResult = subjectsToDispatch.Len() > 0
 
 	// Convert the subjects into batched requests.
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())

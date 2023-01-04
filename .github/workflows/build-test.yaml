@@ -93,7 +93,7 @@ jobs:
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
-          timeout: "10m"
+          timeout: "15m"
           working_directory: "internal/services/integrationtesting"
 
   datastore:
@@ -114,6 +114,24 @@ jobs:
           tags: "ci,docker"
           timeout: "10m"
           working_directory: "internal/datastore/${{ matrix.datastore }}"
+
+  datastoreconsistency:
+    name: "Datastore Consistency Tests"
+    runs-on: "ubuntu-latest"
+    strategy:
+      fail-fast: false
+      matrix:
+        datastore: ["cockroachdb", "mysql", "postgres", "spanner"]
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "actions/setup-go@v3"
+        with:
+          go-version: "${{ env.GO_VERSION }}"
+          cache: "true"
+      - name: "Run Datastore Consistency Tests"
+        working-directory: "internal/services/integrationtesting"
+        run: "go test --failfast -count=1 -timeout '10m' --tags='ci,docker,datastoreconsistency' ./... -run TestConsistencyPerDatastore/${{ matrix.datastore }}"
+
   e2e:
     name: "E2E"
     runs-on: "ubuntu-latest"

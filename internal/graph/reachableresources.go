@@ -186,11 +186,11 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(ctx context.Co
 
 	// Lookup the subjects and then redispatch/report results.
 	subjectsFilter := datastore.SubjectsFilter{
-		SubjectType: req.SubjectRelation.Namespace,
+		SubjectType:        req.SubjectRelation.Namespace,
+		OptionalSubjectIds: subjectIds,
 		RelationFilter: datastore.SubjectRelationFilter{
 			NonEllipsisRelation: req.SubjectRelation.Relation,
 		},
-		OptionalSubjectIds: subjectIds,
 	}
 
 	// Fire off a query lookup in parallel.
@@ -321,8 +321,8 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 	// Search for the resolved subjects in the tupleset of the TTU.
 	subjectsFilter := datastore.SubjectsFilter{
 		SubjectType:        req.SubjectRelation.Namespace,
-		RelationFilter:     relationFilter,
 		OptionalSubjectIds: req.SubjectIds,
+		RelationFilter:     relationFilter,
 	}
 
 	// Fire off a query lookup in parallel.

@@ -70,6 +70,11 @@ var testResourceNS = namespace.Namespace(
 	namespace.MustRelation(testReaderRelation, nil),
 )
 
+var testGroupNS = namespace.Namespace(
+	testGroupNamespace,
+	namespace.MustRelation(testMemberRelation, nil),
+)
+
 var testUserNS = namespace.Namespace(testUserNamespace)
 
 func makeTestTuple(resourceID, userID string) *core.RelationTuple {
@@ -91,7 +96,7 @@ func setupDatastore(ds datastore.Datastore, require *require.Assertions) datasto
 	ctx := context.Background()
 
 	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, testResourceNS, testUserNS)
+		return rwt.WriteNamespaces(ctx, testGroupNS, testResourceNS, testUserNS)
 	})
 	require.NoError(err)
 

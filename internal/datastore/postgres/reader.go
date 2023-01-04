@@ -72,7 +72,7 @@ func (r *pgReader) ReverseQueryRelationships(
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).
-		FilterWithSubjectsFilter(subjectsFilter)
+		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
 	}

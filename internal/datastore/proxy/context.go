@@ -111,8 +111,8 @@ func (r *ctxReader) QueryRelationships(ctx context.Context, filter datastore.Rel
 	return r.delegate.QueryRelationships(SeparateContextWithTracing(ctx), filter, options...)
 }
 
-func (r *ctxReader) ReverseQueryRelationships(ctx context.Context, subjectFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return r.delegate.ReverseQueryRelationships(SeparateContextWithTracing(ctx), subjectFilter, options...)
+func (r *ctxReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	return r.delegate.ReverseQueryRelationships(SeparateContextWithTracing(ctx), subjectsFilter, options...)
 }
 
 var (

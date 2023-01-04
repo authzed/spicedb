@@ -50,7 +50,7 @@ func (r *memdbReader) QueryRelationships(
 		filter.ResourceType,
 		filter.OptionalResourceIds,
 		filter.OptionalResourceRelation,
-		filter.OptionalSubjectsFilter,
+		filter.OptionalSubjectsSelectors,
 		filter.OptionalCaveatName,
 		queryOpts.Usersets,
 	)
@@ -110,7 +110,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 		filterObjectType,
 		nil,
 		filterRelation,
-		&subjectsFilter,
+		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		"",
 		nil,
 	)
@@ -270,7 +270,7 @@ func filterFuncForFilters(
 	optionalResourceType string,
 	optionalResourceIds []string,
 	optionalRelation string,
-	optionalSubjectsFilter *datastore.SubjectsFilter,
+	optionalSubjectsSelectors []datastore.SubjectsSelector,
 	optionalCaveatFilter string,
 	usersets []*core.ObjectAndRelation,
 ) memdb.FilterFunc {
@@ -288,22 +288,40 @@ func filterFuncForFilters(
 			return true
 		}
 
-		if optionalSubjectsFilter != nil {
+		applySubjectSelector := func(selector datastore.SubjectsSelector) bool {
+			switch {
+			case len(selector.OptionalSubjectType) > 0 && selector.OptionalSubjectType != tuple.subjectNamespace:
+				return false
+			case len(selector.OptionalSubjectIds) > 0 && !stringz.SliceContains(selector.OptionalSubjectIds, tuple.subjectObjectID):
+				return false
+			}
+
+			if selector.RelationFilter.OnlyNonEllipsisRelations {
+				return tuple.subjectRelation != datastore.Ellipsis
+			}
+
 			relations := make([]string, 0, 2)
-			if optionalSubjectsFilter.RelationFilter.IncludeEllipsisRelation {
+			if selector.RelationFilter.IncludeEllipsisRelation {
 				relations = append(relations, datastore.Ellipsis)
 			}
 
-			if optionalSubjectsFilter.RelationFilter.NonEllipsisRelation != "" {
-				relations = append(relations, optionalSubjectsFilter.RelationFilter.NonEllipsisRelation)
+			if selector.RelationFilter.NonEllipsisRelation != "" {
+				relations = append(relations, selector.RelationFilter.NonEllipsisRelation)
 			}
 
-			switch {
-			case optionalSubjectsFilter.SubjectType != tuple.subjectNamespace:
-				return true
-			case len(optionalSubjectsFilter.OptionalSubjectIds) > 0 && !stringz.SliceContains(optionalSubjectsFilter.OptionalSubjectIds, tuple.subjectObjectID):
-				return true
-			case len(relations) > 0 && !stringz.SliceContains(relations, tuple.subjectRelation):
+			return len(relations) == 0 || stringz.SliceContains(relations, tuple.subjectRelation)
+		}
+
+		if len(optionalSubjectsSelectors) > 0 {
+			hasMatchingSelector := false
+			for _, selector := range optionalSubjectsSelectors {
+				if applySubjectSelector(selector) {
+					hasMatchingSelector = true
+					break
+				}
+			}
+
+			if !hasMatchingSelector {
 				return true
 			}
 		}

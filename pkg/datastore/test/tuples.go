@@ -24,7 +24,9 @@ import (
 const (
 	testUserNamespace     = "test/user"
 	testResourceNamespace = "test/resource"
+	testGroupNamespace    = "test/group"
 	testReaderRelation    = "reader"
+	testMemberRelation    = "member"
 	ellipsis              = "..."
 )
 
@@ -215,9 +217,11 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			// Filter it down to a single tuple with a userset
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
-				OptionalSubjectsFilter: &datastore.SubjectsFilter{
-					SubjectType:        testUserNamespace,
-					OptionalSubjectIds: []string{"user0"},
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: testUserNamespace,
+						OptionalSubjectIds:  []string{"user0"},
+					},
 				},
 			})
 			require.NoError(err)

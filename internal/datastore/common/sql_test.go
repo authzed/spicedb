@@ -106,79 +106,143 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"subjects filter with no IDs or relations",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType: "somesubjectype",
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
 				})
 			},
-			"SELECT * WHERE subject_ns = ?",
+			"SELECT * WHERE ((subject_ns = ?))",
 			[]any{"somesubjectype"},
+		},
+		{
+			"multiple subjects filters with just types",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+				}, datastore.SubjectsSelector{
+					OptionalSubjectType: "anothersubjectype",
+				})
+			},
+			"SELECT * WHERE ((subject_ns = ?) OR (subject_ns = ?))",
+			[]any{"somesubjectype", "anothersubjectype"},
 		},
 		{
 			"subjects filter with single ID",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType:        "somesubjectype",
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					OptionalSubjectIds:  []string{"somesubjectid"},
+				})
+			},
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?)))",
+			[]any{"somesubjectype", "somesubjectid"},
+		},
+		{
+			"subjects filter with single ID and no type",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectIds: []string{"somesubjectid"},
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_object_id IN (?)",
-			[]any{"somesubjectype", "somesubjectid"},
+			"SELECT * WHERE ((subject_object_id IN (?)))",
+			[]any{"somesubjectid"},
+		},
+		{
+			"empty subjects filter",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{})
+			},
+			"SELECT * WHERE ((1=1))",
+			nil,
 		},
 		{
 			"subjects filter with multiple IDs",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType:        "somesubjectype",
-					OptionalSubjectIds: []string{"somesubjectid", "anothersubjectid"},
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					OptionalSubjectIds:  []string{"somesubjectid", "anothersubjectid"},
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_object_id IN (?, ?)",
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid"},
 		},
 		{
 			"subjects filter with single ellipsis relation",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType:    "somesubjectype",
-					RelationFilter: datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
+			"SELECT * WHERE ((subject_ns = ? AND subject_relation = ?))",
 			[]any{"somesubjectype", "..."},
 		},
 		{
 			"subjects filter with single defined relation",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType:    "somesubjectype",
-					RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel"),
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel"),
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
+			"SELECT * WHERE ((subject_ns = ? AND subject_relation = ?))",
 			[]any{"somesubjectype", "somesubrel"},
+		},
+		{
+			"subjects filter with only non-ellipsis",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
+				})
+			},
+			"SELECT * WHERE ((subject_ns = ? AND subject_relation <> ?))",
+			[]any{"somesubjectype", "..."},
 		},
 		{
 			"subjects filter with defined relation and ellipsis",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType:    "somesubjectype",
-					RelationFilter: datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND (subject_relation = ? OR subject_relation = ?)",
+			"SELECT * WHERE ((subject_ns = ? AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "...", "somesubrel"},
 		},
 		{
 			"subjects filter",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithSubjectsFilter(datastore.SubjectsFilter{
-					SubjectType:        "somesubjectype",
-					OptionalSubjectIds: []string{"somesubjectid", "anothersubjectid"},
-					RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					OptionalSubjectIds:  []string{"somesubjectid", "anothersubjectid"},
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)",
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
+		},
+		{
+			"multiple subjects filter",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(
+					datastore.SubjectsSelector{
+						OptionalSubjectType: "somesubjectype",
+						OptionalSubjectIds:  []string{"a", "b"},
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
+					},
+					datastore.SubjectsSelector{
+						OptionalSubjectType: "anothersubjecttype",
+						OptionalSubjectIds:  []string{"b", "c"},
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("anotherrel").WithEllipsisRelation(),
+					},
+					datastore.SubjectsSelector{
+						OptionalSubjectType: "thirdsubjectype",
+						RelationFilter:      datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
+					},
+				)
+			},
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_relation <> ?))",
+			[]any{"somesubjectype", "a", "b", "...", "somesubrel", "anothersubjecttype", "b", "c", "...", "anotherrel", "thirdsubjectype", "..."},
 		},
 		{
 			"v1 subject filter with namespace",
@@ -276,15 +340,17 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						ResourceType:             "someresourcetype",
 						OptionalResourceIds:      []string{"someid", "anotherid"},
 						OptionalResourceRelation: "somerelation",
-						OptionalSubjectsFilter: &datastore.SubjectsFilter{
-							SubjectType:        "somesubjectype",
-							OptionalSubjectIds: []string{"somesubjectid", "anothersubjectid"},
-							RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
+						OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+							{
+								OptionalSubjectType: "somesubjectype",
+								OptionalSubjectIds:  []string{"somesubjectid", "anothersubjectid"},
+								RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
+							},
 						},
 					},
 				)
 			},
-			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?, ?) AND subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)",
+			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?, ?) AND ((subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 		},
 	}

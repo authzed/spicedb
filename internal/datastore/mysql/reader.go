@@ -68,7 +68,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 ) (iter datastore.RelationshipIterator, err error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
-		FilterWithSubjectsFilter(subjectsFilter)
+		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
 	}

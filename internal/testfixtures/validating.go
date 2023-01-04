@@ -80,7 +80,7 @@ func (vsr validatingSnapshotReader) LookupNamespaces(
 		}
 	}
 
-	return read, err
+	return read, nil
 }
 
 func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
