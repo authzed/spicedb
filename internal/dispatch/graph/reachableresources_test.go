@@ -141,9 +141,12 @@ func TestSimpleReachableResources(t *testing.T) {
 		)
 
 		t.Run(name, func(t *testing.T) {
+			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 			require := require.New(t)
 
 			ctx, dispatcher, revision := newLocalDispatcher(t)
+			defer dispatcher.Close()
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
@@ -172,6 +175,8 @@ func TestSimpleReachableResources(t *testing.T) {
 					})
 				}
 			}
+			dispatcher.Close()
+
 			sort.Sort(byONRAndPermission(results))
 			sort.Sort(byONRAndPermission(tc.reachable))
 
