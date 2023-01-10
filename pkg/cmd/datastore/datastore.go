@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -91,48 +92,60 @@ type Config struct {
 	MigrationPhase string
 }
 
-// RegisterDatastoreFlags adds datastore flags to a cobra command
+// RegisterDatastoreFlags adds datastore flags to a cobra command.
 func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) error {
-	cmd.Flags().StringVar(&opts.Engine, "datastore-engine", "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
-	cmd.Flags().StringVar(&opts.URI, "datastore-conn-uri", "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
-	cmd.Flags().IntVar(&opts.MaxOpenConns, "datastore-conn-max-open", 20, "number of concurrent connections open in a remote datastore's connection pool")
-	cmd.Flags().IntVar(&opts.MinOpenConns, "datastore-conn-min-open", 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
-	cmd.Flags().DurationVar(&opts.MaxLifetime, "datastore-conn-max-lifetime", 30*time.Minute, "maximum amount of time a connection can live in a remote datastore's connection pool")
-	cmd.Flags().DurationVar(&opts.MaxIdleTime, "datastore-conn-max-idletime", 30*time.Minute, "maximum amount of time a connection can idle in a remote datastore's connection pool")
-	cmd.Flags().DurationVar(&opts.HealthCheckPeriod, "datastore-conn-healthcheck-interval", 30*time.Second, "time between a remote datastore's connection pool health checks")
-	cmd.Flags().DurationVar(&opts.GCWindow, "datastore-gc-window", 24*time.Hour, "amount of time before revisions are garbage collected")
-	cmd.Flags().DurationVar(&opts.GCInterval, "datastore-gc-interval", 3*time.Minute, "amount of time between passes of garbage collection (postgres driver only)")
-	cmd.Flags().DurationVar(&opts.GCMaxOperationTime, "datastore-gc-max-operation-time", 1*time.Minute, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
-	cmd.Flags().DurationVar(&opts.RevisionQuantization, "datastore-revision-quantization-interval", 5*time.Second, "boundary interval to which to round the quantized revision")
-	cmd.Flags().BoolVar(&opts.ReadOnly, "datastore-readonly", false, "set the service to read-only mode")
-	cmd.Flags().StringSliceVar(&opts.BootstrapFiles, "datastore-bootstrap-files", []string{}, "bootstrap data yaml files to load")
-	cmd.Flags().BoolVar(&opts.BootstrapOverwrite, "datastore-bootstrap-overwrite", false, "overwrite any existing data with bootstrap data")
-	cmd.Flags().DurationVar(&opts.BootstrapTimeout, "datastore-bootstrap-timeout", 10*time.Second, "maximum duration before timeout for the bootstrap data to be written")
-	cmd.Flags().BoolVar(&opts.RequestHedgingEnabled, "datastore-request-hedging", true, "enable request hedging")
-	cmd.Flags().DurationVar(&opts.RequestHedgingInitialSlowValue, "datastore-request-hedging-initial-slow-value", 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
-	cmd.Flags().Uint64Var(&opts.RequestHedgingMaxRequests, "datastore-request-hedging-max-requests", 1_000_000, "maximum number of historical requests to consider")
-	cmd.Flags().Float64Var(&opts.RequestHedgingQuantile, "datastore-request-hedging-quantile", 0.95, "quantile of historical datastore request time over which a request will be considered slow")
-	cmd.Flags().BoolVar(&opts.EnableDatastoreMetrics, "datastore-prometheus-metrics", true, "set to false to disabled prometheus metrics from the datastore")
+	return RegisterDatastoreFlagsWithPrefix(cmd.Flags(), "", opts)
+}
+
+// RegisterDatastoreFlagsWithPrefix adds datastore flags to a cobra command, with each flag prefixed with the provided
+// prefix argument. If left empty, the datastore flags are not prefixed.
+func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opts *Config) error {
+	if prefix != "" {
+		prefix = prefix + "-"
+	}
+	flagName := func(flag string) string {
+		return fmt.Sprintf("%s%s", prefix, flag)
+	}
+	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), "memory", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
+	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), "", `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+	flagSet.IntVar(&opts.MaxOpenConns, flagName("datastore-conn-max-open"), 20, "number of concurrent connections open in a remote datastore's connection pool")
+	flagSet.IntVar(&opts.MinOpenConns, flagName("datastore-conn-min-open"), 10, "number of minimum concurrent connections open in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.MaxLifetime, flagName("datastore-conn-max-lifetime"), 30*time.Minute, "maximum amount of time a connection can live in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.MaxIdleTime, flagName("datastore-conn-max-idletime"), 30*time.Minute, "maximum amount of time a connection can idle in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.HealthCheckPeriod, flagName("datastore-conn-healthcheck-interval"), 30*time.Second, "time between a remote datastore's connection pool health checks")
+	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), 24*time.Hour, "amount of time before revisions are garbage collected")
+	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), 3*time.Minute, "amount of time between passes of garbage collection (postgres driver only)")
+	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), 1*time.Minute, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
+	flagSet.DurationVar(&opts.RevisionQuantization, flagName("datastore-revision-quantization-interval"), 5*time.Second, "boundary interval to which to round the quantized revision")
+	flagSet.BoolVar(&opts.ReadOnly, flagName("datastore-readonly"), false, "set the service to read-only mode")
+	flagSet.StringSliceVar(&opts.BootstrapFiles, flagName("datastore-bootstrap-files"), []string{}, "bootstrap data yaml files to load")
+	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), false, "overwrite any existing data with bootstrap data")
+	flagSet.DurationVar(&opts.BootstrapTimeout, flagName("datastore-bootstrap-timeout"), 10*time.Second, "maximum duration before timeout for the bootstrap data to be written")
+	flagSet.BoolVar(&opts.RequestHedgingEnabled, flagName("datastore-request-hedging"), true, "enable request hedging")
+	flagSet.DurationVar(&opts.RequestHedgingInitialSlowValue, flagName("datastore-request-hedging-initial-slow-value"), 10*time.Millisecond, "initial value to use for slow datastore requests, before statistics have been collected")
+	flagSet.Uint64Var(&opts.RequestHedgingMaxRequests, flagName("datastore-request-hedging-max-requests"), 1_000_000, "maximum number of historical requests to consider")
+	flagSet.Float64Var(&opts.RequestHedgingQuantile, flagName("datastore-request-hedging-quantile"), 0.95, "quantile of historical datastore request time over which a request will be considered slow")
+	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), true, "set to false to disabled prometheus metrics from the datastore")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	cmd.Flags().DurationVar(&opts.FollowerReadDelay, "datastore-follower-read-delay-duration", 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
-	cmd.Flags().Uint16Var(&opts.SplitQueryCount, "datastore-query-userset-batch-size", 1024, "number of usersets after which a relationship query will be split into multiple queries")
-	cmd.Flags().IntVar(&opts.MaxRetries, "datastore-max-tx-retries", 10, "number of times a retriable transaction should be retried")
-	cmd.Flags().StringVar(&opts.OverlapStrategy, "datastore-tx-overlap-strategy", "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
-	cmd.Flags().StringVar(&opts.OverlapKey, "datastore-tx-overlap-key", "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
-	cmd.Flags().StringVar(&opts.SpannerCredentialsFile, "datastore-spanner-credentials", "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
-	cmd.Flags().StringVar(&opts.SpannerEmulatorHost, "datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
-	cmd.Flags().StringVar(&opts.TablePrefix, "datastore-mysql-table-prefix", "", "prefix to add to the name of all SpiceDB database tables")
-	cmd.Flags().StringVar(&opts.MigrationPhase, "datastore-migration-phase", "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
-	cmd.Flags().Uint16Var(&opts.WatchBufferLength, "datastore-watch-buffer-length", 1024, "how many events the watch buffer should queue before forcefully disconnecting reader")
+	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
+	flagSet.Uint16Var(&opts.SplitQueryCount, flagName("datastore-query-userset-batch-size"), 1024, "number of usersets after which a relationship query will be split into multiple queries")
+	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
+	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
+	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
+	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
+	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
+	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
+	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
+	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how many events the watch buffer should queue before forcefully disconnecting reader")
 
 	// disabling stats is only for tests
-	cmd.Flags().BoolVar(&opts.DisableStats, "datastore-disable-stats", false, "disable recording relationship counts to the stats table")
-	if err := cmd.Flags().MarkHidden("datastore-disable-stats"); err != nil {
+	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
+	if err := flagSet.MarkHidden(flagName("datastore-disable-stats")); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
-	cmd.Flags().DurationVar(&opts.LegacyFuzzing, "datastore-revision-fuzzing-duration", -1, "amount of time to advertize stale revisions")
-	if err := cmd.Flags().MarkDeprecated("datastore-revision-fuzzing-duration", "please use datastore-revision-quantization-interval instead"); err != nil {
+	flagSet.DurationVar(&opts.LegacyFuzzing, flagName("datastore-revision-fuzzing-duration"), -1, "amount of time to advertize stale revisions")
+	if err := flagSet.MarkDeprecated(flagName("datastore-revision-fuzzing-duration"), "please use datastore-revision-quantization-interval instead"); err != nil {
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 
