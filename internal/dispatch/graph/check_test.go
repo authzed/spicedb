@@ -403,13 +403,13 @@ func TestCheckDebugging(t *testing.T) {
 	}
 }
 
-func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, datastore.Revision) {
+func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint16) (context.Context, dispatch.Dispatcher, datastore.Revision) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(concurrencyLimit)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
@@ -419,6 +419,10 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
 	return ctx, cachingDispatcher, revision
+}
+
+func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, datastore.Revision) {
+	return newLocalDispatcherWithConcurrencyLimit(t, 10)
 }
 
 func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*core.RelationTuple) (context.Context, dispatch.Dispatcher, datastore.Revision) {

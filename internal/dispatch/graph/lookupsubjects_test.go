@@ -132,9 +132,13 @@ func TestSimpleLookupSubjects(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
+			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
+			defer dis.Close()
+
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 			err := dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -183,6 +187,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 				require.NoError(err)
 				require.Equal(v1.ResourceCheckResult_MEMBER, checkResult.ResultsByResourceId[tc.resourceID].Membership)
 			}
+			dis.Close()
 		})
 	}
 }

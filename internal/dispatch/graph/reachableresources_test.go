@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -141,9 +142,12 @@ func TestSimpleReachableResources(t *testing.T) {
 		)
 
 		t.Run(name, func(t *testing.T) {
+			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 			require := require.New(t)
 
 			ctx, dispatcher, revision := newLocalDispatcher(t)
+			defer dispatcher.Close()
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
@@ -172,6 +176,8 @@ func TestSimpleReachableResources(t *testing.T) {
 					})
 				}
 			}
+			dispatcher.Close()
+
 			sort.Sort(byONRAndPermission(results))
 			sort.Sort(byONRAndPermission(tc.reachable))
 
@@ -602,4 +608,110 @@ func TestCaveatedReachableResources(t *testing.T) {
 			require.Equal(tc.reachable, results, "Found: %v, Expected: %v", results, tc.reachable)
 		})
 	}
+}
+
+func TestReachableResourcesWithConsistencyLimitOf1(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	ctx, dispatcher, revision := newLocalDispatcherWithConcurrencyLimit(t, 1)
+	defer dispatcher.Close()
+
+	target := ONR("user", "owner", "...")
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
+	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+		ResourceRelation: RR("folder", "view"),
+		SubjectRelation: &core.RelationReference{
+			Namespace: target.Namespace,
+			Relation:  target.Relation,
+		},
+		SubjectIds: []string{target.ObjectId},
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+	}, stream)
+	require.NoError(t, err)
+
+	for range stream.Results() {
+		// Break early
+		break
+	}
+	dispatcher.Close()
+}
+
+func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	testRels := make([]*core.RelationTuple, 0)
+	for i := 0; i < 25; i++ {
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#viewer@user:tom", i)))
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#namespace@namespace:ns%d", i, i)))
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("namespace:ns%d#parent@namespace:ns%d", i+1, i)))
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("organization:org%d#member@user:tom", i)))
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("namespace:ns%d#viewer@user:tom", i)))
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:someresource#org@organization:org%d", i)))
+	}
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
+		rawDS,
+		`
+			definition user {}
+
+			definition organization {
+				relation direct_member: user
+				relation admin: user
+				permission member = direct_member + admin
+			}
+
+			definition namespace {
+				relation parent: namespace
+				relation viewer: user
+				relation admin: user
+				permission view = viewer + admin + parent->view
+			}
+
+			definition resource {
+				relation org: organization
+				relation admin: user
+				relation writer: user
+				relation viewer: user
+				relation namespace: namespace
+				permission view = viewer + writer + admin + namespace->view + org->member
+			}
+		`,
+		testRels,
+		require.New(t),
+	)
+	dispatcher := NewLocalOnlyDispatcher(2)
+
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+	// Dispatch reachable resources but terminate the stream early by canceling.
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
+	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+		ResourceRelation: RR("resource", "view"),
+		SubjectRelation: &core.RelationReference{
+			Namespace: "user",
+			Relation:  "...",
+		},
+		SubjectIds: []string{"tom"},
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+	}, stream)
+	require.NoError(t, err)
+
+	for range stream.Results() {
+		// Break early
+		break
+	}
+
+	// Cancel, which should terminate all the existing goroutines in the dispatch.
+	cancel()
 }

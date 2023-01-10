@@ -107,8 +107,11 @@ func TestSimpleLookup(t *testing.T) {
 		)
 
 		t.Run(name, func(t *testing.T) {
+			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 			require := require.New(t)
 			ctx, dispatch, revision := newLocalDispatcher(t)
+			defer dispatch.Close()
 
 			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 				ObjectRelation: tc.start,
@@ -141,6 +144,7 @@ func TestSimpleLookup(t *testing.T) {
 				},
 				Limit: 10,
 			})
+			dispatch.Close()
 
 			require.NoError(err)
 			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
