@@ -7,9 +7,9 @@
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
 [![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square&label=@authzed "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is an open source database system for managing security-critical application permissions inspired by Google's [Zanzibar] paper.
+SpiceDB is an open source, Google [Zanzibar]-inspired, database system for creating and managing security-critical application permissions.
 
-Developers create a schema that models their permissions requirements and use any of the official or community mantained [client libraries] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
+Developers create a schema that models their permissions requirements and use any of the official or community maintained [client libraries] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
 
 [client libraries]: https://github.com/authzed/awesome-spicedb
 
