@@ -31,7 +31,7 @@ func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	cfg := datastore.Config{}
 
 	gcCmd := NewGCDatastoreCommand(datastoreCmd.Use, &cfg)
-	if err := datastore.RegisterDatastoreFlags(gcCmd, &cfg); err != nil {
+	if err := datastore.RegisterDatastoreFlagsWithPrefix(gcCmd.Flags(), "", &cfg); err != nil {
 		return nil, err
 	}
 	datastoreCmd.AddCommand(gcCmd)
