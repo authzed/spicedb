@@ -176,7 +176,10 @@ func BenchmarkServices(b *testing.B) {
 					ds := rde.NewDatastore(b, config.DatastoreConfigInitFunc(b,
 						dsconfig.WithWatchBufferLength(0),
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-						dsconfig.WithRevisionQuantization(10)))
+						dsconfig.WithRevisionQuantization(10),
+						dsconfig.WithMaxRetries(50),
+						dsconfig.WithRequestHedgingEnabled(false),
+					))
 
 					contents, err := testFiles.ReadFile(bt.fileName)
 					require.NoError(b, err)

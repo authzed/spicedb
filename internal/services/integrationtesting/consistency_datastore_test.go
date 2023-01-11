@@ -47,7 +47,9 @@ func TestConsistencyPerDatastore(t *testing.T) {
 					ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 						dsconfig.WithWatchBufferLength(0),
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-						dsconfig.WithRevisionQuantization(10)))
+						dsconfig.WithRevisionQuantization(10),
+						dsconfig.WithMaxRetries(50),
+						dsconfig.WithRequestHedgingEnabled(false)))
 
 					fullyResolved, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})
 					require.NoError(t, err)

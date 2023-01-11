@@ -32,7 +32,9 @@ func TestHealthCheck(t *testing.T) {
 			ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 				dsconfig.WithWatchBufferLength(0),
 				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-				dsconfig.WithRevisionQuantization(10)))
+				dsconfig.WithRevisionQuantization(10),
+				dsconfig.WithMaxRetries(50),
+				dsconfig.WithRequestHedgingEnabled(false)))
 			ds, _ = tf.StandardDatastoreWithData(ds, require)
 
 			dispatchConns, cleanup := testserver.TestClusterWithDispatch(t, 2, ds)
