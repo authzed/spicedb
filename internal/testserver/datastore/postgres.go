@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pgmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
@@ -45,7 +46,7 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "postgres",
-		Tag:          "13.8",
+		Tag:          pgversion.MinimumSupportedPostgresVersion,
 		Env:          []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 		ExposedPorts: []string{"5432/tcp"},
 		NetworkID:    bridgeNetworkName,
