@@ -343,6 +343,25 @@ func TestWriteRelationships(t *testing.T) {
 	require.ErrorIs(err, io.EOF)
 }
 
+func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
+	require := require.New(t)
+
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	toDelete := tuple.MustParse("document:totallynew#parent@folder:plans")
+
+	// Delete the non-existent relationship
+	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+			Relationship: tuple.MustToRelationship(toDelete),
+		}},
+	})
+	require.NoError(err)
+}
+
 func TestWriteCaveatedRelationships(t *testing.T) {
 	req := require.New(t)
 
