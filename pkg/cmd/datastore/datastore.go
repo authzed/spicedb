@@ -198,7 +198,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	}
 
 	if opts.LegacyFuzzing >= 0 {
-		log.Warn().Stringer("period", opts.LegacyFuzzing).Msg("deprecated datastore-revision-fuzzing-duration flag specified")
+		log.Ctx(ctx).Warn().Stringer("period", opts.LegacyFuzzing).Msg("deprecated datastore-revision-fuzzing-duration flag specified")
 		opts.RevisionQuantization = opts.LegacyFuzzing
 	}
 
@@ -206,7 +206,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	if !ok {
 		return nil, fmt.Errorf("unknown datastore engine type: %s", opts.Engine)
 	}
-	log.Info().Msgf("using %s datastore engine", opts.Engine)
+	log.Ctx(ctx).Info().Msgf("using %s datastore engine", opts.Engine)
 
 	ds, err := dsBuilder(*opts)
 	if err != nil {
@@ -227,7 +227,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
-			log.Info().Msg("initializing datastore from bootstrap files")
+			log.Ctx(ctx).Info().Msg("initializing datastore from bootstrap files")
 			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
@@ -238,7 +238,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	}
 
 	if opts.RequestHedgingEnabled {
-		log.Info().
+		log.Ctx(ctx).Info().
 			Stringer("initialSlowRequest", opts.RequestHedgingInitialSlowValue).
 			Uint64("maxRequests", opts.RequestHedgingMaxRequests).
 			Float64("hedgingQuantile", opts.RequestHedgingQuantile).
@@ -257,7 +257,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	}
 
 	if opts.ReadOnly {
-		log.Warn().Msg("setting the datastore to read-only")
+		log.Ctx(ctx).Warn().Msg("setting the datastore to read-only")
 		ds = proxy.NewReadonlyDatastore(ds)
 	}
 	return ds, nil

@@ -117,7 +117,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 		return fmt.Errorf("unable to compute migration list: %w", err)
 	}
 	if len(toRun) == 0 {
-		log.Info().Str("targetRevision", requestedRevision).Msg("server already at requested revision")
+		log.Ctx(ctx).Info().Str("targetRevision", requestedRevision).Msg("server already at requested revision")
 	}
 
 	if !dryRun {
@@ -132,7 +132,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 				return fmt.Errorf("migration attempting to run out of order: %s != %s", currentVersion, migrationToRun.replaces)
 			}
 
-			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
+			log.Ctx(ctx).Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
 			if migrationToRun.up != nil {
 				if err = migrationToRun.up(ctx, driver.Conn()); err != nil {
 					return fmt.Errorf("error executing migration function: %w", err)

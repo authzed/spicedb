@@ -16,11 +16,11 @@ import (
 // it cleans up and stops when ctx is Done.
 func (sd spannerDatastore) runGC(ctx context.Context) error {
 	if sd.config.gcInterval <= 0 {
-		log.Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: disabled")
+		log.Ctx(ctx).Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: disabled")
 		return nil
 	}
 
-	log.Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: starting")
+	log.Ctx(ctx).Info().Stringer("interval", sd.config.gcInterval).Msg("garbage collection: starting")
 
 	s := gocron.NewScheduler(time.UTC)
 
@@ -34,14 +34,14 @@ func (sd spannerDatastore) runGC(ctx context.Context) error {
 
 		spannerNow, err := sd.now(ctx)
 		if err != nil {
-			log.Error().Err(err).Msg("garbage collection: error computing datastore time")
+			log.Ctx(ctx).Error().Err(err).Msg("garbage collection: error computing datastore time")
 		}
 
 		oldestRevision := spannerNow.Add(-1 * sd.config.gcWindow)
 
 		stmt, args, err := sql.Delete(tableChangelog).Where(sq.Lt{colChangeTS: oldestRevision}).ToSql()
 		if err != nil {
-			log.Error().Err(err).Msg("garbage collection: error creating delete statement")
+			log.Ctx(ctx).Error().Err(err).Msg("garbage collection: error creating delete statement")
 		}
 
 		_, err = sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
@@ -49,10 +49,10 @@ func (sd spannerDatastore) runGC(ctx context.Context) error {
 			return err
 		})
 		if err != nil {
-			log.Error().Err(err).Msg("garbage collection: error deleting entries")
+			log.Ctx(ctx).Error().Err(err).Msg("garbage collection: error deleting entries")
 		}
 
-		log.Info().Int64("removed", numRemoved).Stringer("before", oldestRevision).
+		log.Ctx(ctx).Info().Int64("removed", numRemoved).Stringer("before", oldestRevision).
 			Msg("garbage collection: removed changelog entries")
 	})
 	if err != nil {
@@ -61,7 +61,7 @@ func (sd spannerDatastore) runGC(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		log.Info().Msg("garbage collection: stopping")
+		log.Ctx(ctx).Info().Msg("garbage collection: stopping")
 		s.Stop()
 	}()
 	return nil

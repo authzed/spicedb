@@ -532,7 +532,7 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 	if lastInsertID != noLastInsertID {
 		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
 		// was already seeded by another processes (i.e. race condition).
-		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
+		log.Ctx(ctx).Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
 	}
 
 	uuidSQL, uuidArgs, err := sb.
@@ -558,7 +558,7 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 	if lastInsertID != noLastInsertID {
 		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
 		// was already seeded by another processes (i.e. race condition).
-		log.Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore unique ID")
+		log.Ctx(ctx).Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore unique ID")
 	}
 
 	err = tx.Commit()

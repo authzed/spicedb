@@ -89,7 +89,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 				schema += parsed.Schema.Schema + "\n\n"
 			}
 
-			log.Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).Msg("adding schema definitions")
+			log.Ctx(ctx).Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).Msg("adding schema definitions")
 			objectDefs = append(objectDefs, defs...)
 			caveatDefs = append(caveatDefs, parsed.Schema.CompiledSchema.CaveatDefinitions...)
 		}

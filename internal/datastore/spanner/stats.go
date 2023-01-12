@@ -85,7 +85,7 @@ func updateCounter(ctx context.Context, rwt *spanner.ReadWriteTransaction, chang
 		newValue += currentValue
 	}
 
-	log.Trace().
+	log.Ctx(ctx).Trace().
 		Bytes("counterID", counterID).
 		Int64("newValue", newValue).
 		Int64("change", change).

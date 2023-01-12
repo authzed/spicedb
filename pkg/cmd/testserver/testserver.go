@@ -180,7 +180,7 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	g.Go(stopOnCancel(c.readOnlyGatewayServer.Close))
 
 	if err := g.Wait(); err != nil {
-		log.Warn().Err(err).Msg("error shutting down servers")
+		log.Ctx(ctx).Warn().Err(err).Msg("error shutting down servers")
 	}
 
 	return nil

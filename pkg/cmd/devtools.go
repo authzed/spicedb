@@ -65,19 +65,19 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 			grpcprom.UnaryServerInterceptor,
 		))
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to create gRPC server")
+		log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed to create gRPC server")
 	}
 
 	shareStore, err := shareStoreFromCmd(cmd)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to configure share store")
+		log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed to configure share store")
 	}
 
 	registerDeveloperGrpcServices(grpcServer, shareStore)
 
 	go func() {
 		if err := grpcBuilder.ListenFromFlags(cmd, grpcServer); err != nil {
-			log.Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
+			log.Ctx(cmd.Context()).Warn().Err(err).Msg("gRPC service did not shutdown cleanly")
 		}
 	}()
 
@@ -86,7 +86,7 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 	metricsSrv := metricsHTTP.ServerFromFlags(cmd)
 	go func() {
 		if err := metricsHTTP.ListenFromFlags(cmd, metricsSrv); err != nil {
-			log.Fatal().Err(err).Msg("failed while serving metrics")
+			log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed while serving metrics")
 		}
 	}()
 
@@ -96,19 +96,19 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 	downloadSrv.ReadHeaderTimeout = 5 * time.Second
 	go func() {
 		if err := downloadHTTP.ListenFromFlags(cmd, downloadSrv); err != nil {
-			log.Fatal().Err(err).Msg("failed while serving download http api")
+			log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed while serving download http api")
 		}
 	}()
 	signalctx, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 	<-signalctx.Done()
-	log.Info().Msg("received interrupt")
+	log.Ctx(cmd.Context()).Info().Msg("received interrupt")
 	grpcServer.GracefulStop()
 	if err := metricsSrv.Close(); err != nil {
-		log.Err(err).Msg("failed while shutting down metrics server")
+		log.Ctx(cmd.Context()).Err(err).Msg("failed while shutting down metrics server")
 		return err
 	}
 	if err := downloadSrv.Close(); err != nil {
-		log.Err(err).Msg("failed while shutting down download server")
+		log.Ctx(cmd.Context()).Err(err).Msg("failed while shutting down download server")
 		return err
 	}
 
@@ -141,7 +141,7 @@ func grpcServiceBuilder() *cobragrpc.Builder {
 func shareStoreFromCmd(cmd *cobra.Command) (v0svc.ShareStore, error) {
 	shareStoreSalt := cobrautil.MustGetStringExpanded(cmd, "share-store-salt")
 	shareStoreKind := cobrautil.MustGetStringExpanded(cmd, "share-store")
-	event := log.Info()
+	event := log.Ctx(cmd.Context()).Info()
 
 	var shareStore v0svc.ShareStore
 	switch shareStoreKind {

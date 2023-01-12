@@ -233,7 +233,7 @@ func (c *completedGRPCServer) Listen(ctx context.Context) func() error {
 	if c.certWatcher != nil {
 		go func() {
 			if err := c.certWatcher.Start(ctx); err != nil {
-				log.Error().Err(err).Msg("error watching tls certs")
+				log.Ctx(ctx).Error().Err(err).Msg("error watching tls certs")
 			}
 		}()
 	}

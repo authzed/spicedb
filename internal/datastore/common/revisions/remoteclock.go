@@ -57,7 +57,7 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 		quantized -= afterLastQuantization
 		validForNanos = rcr.quantizationNanos - afterLastQuantization
 	}
-	log.Debug().Int64("readSkew", rcr.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
+	log.Ctx(ctx).Debug().Int64("readSkew", rcr.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
 
 	return revision.NewFromDecimal(decimal.NewFromInt(quantized)), time.Duration(validForNanos) * time.Nanosecond, nil
 }
@@ -88,13 +88,13 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 
 	isStale := revisionNanos < (nowNanos - rcr.gcWindowNanos)
 	if isStale {
-		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
+		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("stale revision")
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
 	isUnknown := revisionNanos > nowNanos
 	if isUnknown {
-		log.Debug().Stringer("now", now).Stringer("revision", revision).Msg("unknown revision")
+		log.Ctx(ctx).Debug().Stringer("now", now).Stringer("revision", revision).Msg("unknown revision")
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
