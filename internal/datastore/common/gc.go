@@ -89,7 +89,7 @@ var MaxGCInterval = 60 * time.Minute
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
-	log.Info().
+	log.Ctx(ctx).Info().
 		Dur("interval", interval).
 		Msg("datastore garbage collection worker started")
 
@@ -116,7 +116,7 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 				continue
 			}
 			backoffInterval.Reset()
-			log.Debug().
+			log.Ctx(ctx).Debug().
 				Dur("next-run-in", interval).
 				Msg("datastore garbage collection completed successfully")
 		}

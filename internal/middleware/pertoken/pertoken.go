@@ -45,7 +45,7 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 		return tokenDatastore.(datastore.Datastore), nil
 	}
 
-	log.Debug().Str("token", tokenStr).Msg("initializing new upstream for token")
+	log.Ctx(ctx).Debug().Str("token", tokenStr).Msg("initializing new upstream for token")
 	ds, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init datastore: %w", err)

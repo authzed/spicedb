@@ -240,7 +240,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		setTxTime := fmt.Sprintf(querySetTransactionTime, rev)
 		if _, err := tx.Exec(ctx, setTxTime); err != nil {
 			if err := tx.Rollback(ctx); err != nil {
-				log.Warn().Err(err).Msg(
+				log.Ctx(ctx).Warn().Err(err).Msg(
 					"error rolling back transaction after failing to set transaction time",
 				)
 			}

@@ -82,7 +82,7 @@ func rewriteGraphError(ctx context.Context, err error) error {
 	case errors.As(err, &graph.ErrAlwaysFail{}):
 		fallthrough
 	default:
-		log.Err(err).Msg("unexpected graph error")
+		log.Ctx(ctx).Err(err).Msg("unexpected graph error")
 		return err
 	}
 }

@@ -18,21 +18,21 @@ func SignalContextWithGracePeriod(ctx context.Context, gracePeriod time.Duration
 	go func() {
 		signalctx, _ := signal.NotifyContext(newCtx, os.Interrupt, syscall.SIGTERM)
 		<-signalctx.Done()
-		log.Info().Msg("received interrupt")
+		log.Ctx(ctx).Info().Msg("received interrupt")
 
 		if gracePeriod > 0 {
 			interruptGrace, _ := signal.NotifyContext(context.Background(), os.Interrupt)
 			graceTimer := time.NewTimer(gracePeriod)
 
-			log.Info().Stringer("timeout", gracePeriod).Msg("starting shutdown grace period")
+			log.Ctx(ctx).Info().Stringer("timeout", gracePeriod).Msg("starting shutdown grace period")
 
 			select {
 			case <-graceTimer.C:
 			case <-interruptGrace.Done():
-				log.Warn().Msg("interrupted shutdown grace period")
+				log.Ctx(ctx).Warn().Msg("interrupted shutdown grace period")
 			}
 		}
-		log.Info().Msg("shutting down")
+		log.Ctx(ctx).Info().Msg("shutting down")
 		cancelfn()
 	}()
 

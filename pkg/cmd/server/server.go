@@ -152,7 +152,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	defer func() {
 		// if an error happens during the execution of Complete, all resources are cleaned up
 		if closeableErr := closeables.CloseIfError(err); closeableErr != nil {
-			log.Err(closeableErr).Msg("failed to clean up resources on Config.Complete")
+			log.Ctx(ctx).Err(closeableErr).Msg("failed to clean up resources on Config.Complete")
 		}
 	}()
 
@@ -161,18 +161,18 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	if c.GRPCAuthFunc == nil {
-		log.Trace().Int("preshared-keys-count", len(c.PresharedKey)).Msg("using gRPC auth with preshared key(s)")
+		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedKey)).Msg("using gRPC auth with preshared key(s)")
 		for index, presharedKey := range c.PresharedKey {
 			if len(presharedKey) == 0 {
 				return nil, fmt.Errorf("preshared key #%d is empty", index+1)
 			}
 
-			log.Trace().Int(fmt.Sprintf("preshared-key-%d-length", index+1), len(presharedKey)).Msg("preshared key configured")
+			log.Ctx(ctx).Trace().Int(fmt.Sprintf("preshared-key-%d-length", index+1), len(presharedKey)).Msg("preshared key configured")
 		}
 
 		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedKey)
 	} else {
-		log.Trace().Msg("using preconfigured auth function")
+		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
 	}
 
 	ds := c.Datastore
@@ -189,7 +189,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
-	log.Info().EmbedObject(nscc).Msg("configured namespace cache")
+	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
 	ds = proxy.NewCachingDatastoreProxy(ds, nscc)
 	ds = proxy.NewObservableDatastoreProxy(ds)
@@ -204,7 +204,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
 		closeables.AddWithoutError(cc.Close)
-		log.Info().EmbedObject(cc).Msg("configured dispatch cache")
+		log.Ctx(ctx).Info().EmbedObject(cc).Msg("configured dispatch cache")
 
 		dispatchPresharedKey := ""
 		if len(c.PresharedKey) > 0 {
@@ -213,7 +213,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
 		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
-		log.Info().EmbedObject(concurrencyLimits).Msg("configured dispatch concurrency limits")
+		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).Msg("configured dispatch concurrency limits")
 
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
@@ -247,7 +247,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
-		log.Info().EmbedObject(cdcc).Msg("configured cluster dispatch cache")
+		log.Ctx(ctx).Info().EmbedObject(cdcc).Msg("configured cluster dispatch cache")
 		closeables.AddWithoutError(cdcc.Close)
 
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
@@ -287,7 +287,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	watchServiceOption := services.WatchServiceEnabled
 	if !datastoreFeatures.Watch.Enabled {
-		log.Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg("watch api disabled; underlying datastore does not support it")
+		log.Ctx(ctx).Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg("watch api disabled; underlying datastore does not support it")
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
@@ -309,7 +309,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	caveatsOption := services.CaveatsDisabled
 	if c.ExperimentalCaveatsEnabled {
-		log.Warn().Msg("experimental caveats support enabled")
+		log.Ctx(ctx).Warn().Msg("experimental caveats support enabled")
 		caveatsOption = services.CaveatsEnabled
 	}
 
@@ -351,7 +351,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
 	if err != nil {
-		log.Warn().Err(err).Msg("unable to initialize telemetry collector")
+		log.Ctx(ctx).Warn().Err(err).Msg("unable to initialize telemetry collector")
 	}
 
 	reporter := telemetry.DisabledReporter
@@ -407,13 +407,13 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	if len(c.HTTPGatewayUpstreamAddr) == 0 {
 		c.HTTPGatewayUpstreamAddr = c.GRPCServer.Address
 	} else {
-		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
+		log.Ctx(ctx).Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("Overriding REST gateway upstream")
 	}
 
 	if len(c.HTTPGatewayUpstreamTLSCertPath) == 0 {
 		c.HTTPGatewayUpstreamTLSCertPath = c.GRPCServer.TLSCertPath
 	} else {
-		log.Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
+		log.Ctx(ctx).Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
 	}
 
 	var gatewayHandler http.Handler
@@ -424,7 +424,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	gatewayHandler = closeableGatewayHandler
 
 	if c.HTTPGatewayCorsEnabled {
-		log.Info().Strs("origins", c.HTTPGatewayCorsAllowedOrigins).Msg("Setting REST gateway CORS policy")
+		log.Ctx(ctx).Info().Strs("origins", c.HTTPGatewayCorsAllowedOrigins).Msg("Setting REST gateway CORS policy")
 		gatewayHandler = cors.New(cors.Options{
 			AllowedOrigins:   c.HTTPGatewayCorsAllowedOrigins,
 			AllowCredentials: true,
@@ -434,7 +434,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	if c.HTTPGateway.Enabled {
-		log.Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
+		log.Ctx(ctx).Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
 	}
 
 	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
@@ -507,7 +507,7 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	g.Go(stopOnCancelWithErr(c.closeFunc))
 
 	if err := g.Wait(); err != nil {
-		log.Warn().Err(err).Msg("error shutting down server")
+		log.Ctx(ctx).Warn().Err(err).Msg("error shutting down server")
 		return err
 	}
 

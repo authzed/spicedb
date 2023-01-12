@@ -51,7 +51,7 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 	}
 
 	if !value.Valid {
-		log.Debug().Time("before", before).Msg("no stale transactions found in the datastore")
+		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
 		return datastore.NoRevision, nil
 	}
 	return revision.NewFromDecimal(decimal.NewFromInt(value.Int64)), nil

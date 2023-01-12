@@ -47,7 +47,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	migrationBatachSize := cobrautil.MustGetUint64(cmd, "migration-backfill-batch-size")
 
 	if datastoreEngine == "cockroachdb" {
-		log.Info().Msg("migrating cockroachdb datastore")
+		log.Ctx(cmd.Context()).Info().Msg("migrating cockroachdb datastore")
 
 		var err error
 		migrationDriver, err := crdbmigrations.NewCRDBDriver(dbURL)
@@ -56,7 +56,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		}
 		return runMigration(cmd.Context(), migrationDriver, crdbmigrations.CRDBMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "postgres" {
-		log.Info().Msg("migrating postgres datastore")
+		log.Ctx(cmd.Context()).Info().Msg("migrating postgres datastore")
 
 		var err error
 		migrationDriver, err := migrations.NewAlembicPostgresDriver(dbURL)
@@ -65,13 +65,13 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		}
 		return runMigration(cmd.Context(), migrationDriver, migrations.DatabaseMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "spanner" {
-		log.Info().Msg("migrating spanner datastore")
+		log.Ctx(cmd.Context()).Info().Msg("migrating spanner datastore")
 
 		credFile := cobrautil.MustGetStringExpanded(cmd, "datastore-spanner-credentials")
 		var err error
 		emulatorHost, err := cmd.Flags().GetString("datastore-spanner-emulator-host")
 		if err != nil {
-			log.Fatal().Err(err).Msg("unable to get spanner emulator host")
+			log.Ctx(cmd.Context()).Fatal().Err(err).Msg("unable to get spanner emulator host")
 		}
 		migrationDriver, err := spannermigrations.NewSpannerDriver(dbURL, credFile, emulatorHost)
 		if err != nil {
@@ -79,12 +79,12 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		}
 		return runMigration(cmd.Context(), migrationDriver, spannermigrations.SpannerMigrations, args[0], timeout, migrationBatachSize)
 	} else if datastoreEngine == "mysql" {
-		log.Info().Msg("migrating mysql datastore")
+		log.Ctx(cmd.Context()).Info().Msg("migrating mysql datastore")
 
 		var err error
 		tablePrefix, err := cmd.Flags().GetString("datastore-mysql-table-prefix")
 		if err != nil {
-			log.Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
+			log.Ctx(cmd.Context()).Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
 		}
 
 		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
@@ -105,7 +105,7 @@ func runMigration[D migrate.Driver[C, T], C any, T any](
 	timeout time.Duration,
 	backfillBatchSize uint64,
 ) error {
-	log.Info().Str("targetRevision", targetRevision).Msg("running migrations")
+	log.Ctx(ctx).Info().Str("targetRevision", targetRevision).Msg("running migrations")
 	ctxWithBatch := context.WithValue(ctx, migrate.BackfillBatchSize, backfillBatchSize)
 	ctx, cancel := context.WithTimeout(ctxWithBatch, timeout)
 	defer cancel()

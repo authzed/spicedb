@@ -45,13 +45,13 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	localNow := cor.clockFn.Now()
 	lastRevision := cor.lastQuantizedRevision.get()
 	if localNow.Before(lastRevision.validThrough) {
-		log.Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("returning cached revision")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("returning cached revision")
 		span.AddEvent("returning cached revision")
 		return lastRevision.revision, nil
 	}
 
 	lastQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
-		log.Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("computing new revision")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("computing new revision")
 		span.AddEvent("computing new revision")
 
 		optimized, validFor, err := cor.optimizedFunc(ctx)
@@ -63,7 +63,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 			Add(validFor).
 			Add(cor.maxRevisionStaleness)
 		cor.lastQuantizedRevision.set(validRevision{optimized, rvt})
-		log.Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
 
 		return optimized, nil
 	})

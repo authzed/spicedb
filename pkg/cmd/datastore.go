@@ -70,12 +70,12 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				return fmt.Errorf("datastore of type %T does not support garbage collection", ds)
 			}
 
-			log.Info().Msg("Running garbage collection...")
+			log.Ctx(ctx).Info().Msg("Running garbage collection...")
 			err = common.RunGarbageCollection(gc, cfg.GCWindow, cfg.GCMaxOperationTime)
 			if err != nil {
 				return err
 			}
-			log.Info().Msg("Garbage collection completed")
+			log.Ctx(ctx).Info().Msg("Garbage collection completed")
 			return nil
 		},
 	}

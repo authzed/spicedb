@@ -30,25 +30,25 @@ func CheckAndLogRunE() cobrautil.CobraRunFunc {
 
 		state, currentVersion, release, err := CheckIsLatestVersion(ctx, CurrentVersion, GetLatestRelease)
 		if err != nil {
-			log.Warn().Str("this-version", currentVersion).Err(err).Msg("could not perform version checking; if this problem persists or to skip this check, add --skip-release-check=true")
+			log.Ctx(ctx).Warn().Str("this-version", currentVersion).Err(err).Msg("could not perform version checking; if this problem persists or to skip this check, add --skip-release-check=true")
 			return nil
 		}
 
 		switch state {
 		case UnreleasedVersion:
-			log.Warn().Str("version", currentVersion).Msg("not running a released version of SpiceDB")
+			log.Ctx(ctx).Warn().Str("version", currentVersion).Msg("not running a released version of SpiceDB")
 			return nil
 
 		case UpdateAvailable:
-			log.Warn().Str("this-version", currentVersion).Str("latest-released-version", release.Version).Msgf("this version of SpiceDB is out of date. See: %s", release.ViewURL)
+			log.Ctx(ctx).Warn().Str("this-version", currentVersion).Str("latest-released-version", release.Version).Msgf("this version of SpiceDB is out of date. See: %s", release.ViewURL)
 			return nil
 
 		case UpToDate:
-			log.Info().Str("latest-released-version", release.Version).Msg("this is the latest released version of SpiceDB")
+			log.Ctx(ctx).Info().Str("latest-released-version", release.Version).Msg("this is the latest released version of SpiceDB")
 			return nil
 
 		case Unknown:
-			log.Warn().Str("unknown-released-version", release.Version).Msg("unable to check for a new SpiceDB version")
+			log.Ctx(ctx).Warn().Str("unknown-released-version", release.Version).Msg("unable to check for a new SpiceDB version")
 			return nil
 
 		default:
