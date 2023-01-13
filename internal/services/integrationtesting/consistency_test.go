@@ -123,7 +123,8 @@ func runConsistencyTestsWithServiceTester(
 	// Call a write on each relationship to make sure it type checks.
 	ensureRelationshipWrites(t, vctx)
 
-	// TODO(jschorr): Add read consistency test here.
+	// Call a read on each relationship resource type and ensure it finds all expected relationships.
+	validateRelationshipReads(t, vctx)
 
 	// Run the assertions defined in the file.
 	runAssertions(t, vctx)
@@ -143,6 +144,23 @@ func runConsistencyTestsWithServiceTester(
 
 	// Run the development system over the full set of context and ensure they also return the expected information.
 	validateDevelopment(t, vctx)
+}
+
+// testForEachRelationship runs a subtest for each relationship defined.
+func testForEachRelationship(
+	t *testing.T,
+	vctx validationContext,
+	prefix string,
+	handler func(t *testing.T, relationship *core.RelationTuple),
+) {
+	t.Helper()
+
+	for _, relationship := range vctx.clusterAndData.Populated.Tuples {
+		t.Run(fmt.Sprintf("%s_%s", prefix, tuple.MustString(relationship)),
+			func(t *testing.T) {
+				handler(t, relationship)
+			})
+	}
 }
 
 // testForEachResource runs a subtest for each possible resource+relation in the schema.
@@ -208,6 +226,24 @@ func ensureRelationshipWrites(t *testing.T, vctx validationContext) {
 			require.NoError(t, err, "failed to write %s", tuple.MustString(relationship))
 		}
 	}
+}
+
+// validateRelationshipReads ensures that all defined relationships are returned by the Read API.
+func validateRelationshipReads(t *testing.T, vctx validationContext) {
+	testForEachRelationship(t, vctx, "read", func(t *testing.T, relationship *core.RelationTuple) {
+		foundRelationships, err := vctx.serviceTester.Read(context.Background(),
+			relationship.ResourceAndRelation.Namespace,
+			vctx.revision,
+		)
+		require.NoError(t, err)
+
+		foundRelationshipsSet := util.NewSet[string]()
+		for _, rel := range foundRelationships {
+			foundRelationshipsSet.Add(tuple.MustString(rel))
+		}
+
+		require.True(t, foundRelationshipsSet.Has(tuple.MustString(relationship)), "missing expected relationship %s in read results: %s", tuple.MustString(relationship), foundRelationshipsSet.AsSlice())
+	})
 }
 
 // ensureNoExpansionErrors runs basic expansion on each relation and ensures no errors are raised.
