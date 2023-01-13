@@ -1,7 +1,6 @@
 package developmentmembership
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/authzed/spicedb/internal/datasets"
@@ -84,8 +83,10 @@ func (tss *TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) error {
 	return nil
 }
 
+func typeKey(ns, rel string) string { return ns + "#" + rel }
+
 func keyFor(fs FoundSubject) string {
-	return fmt.Sprintf("%s#%s", fs.subject.Namespace, fs.subject.Relation)
+	return typeKey(fs.subject.Namespace, fs.subject.Relation)
 }
 
 func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[FoundSubject] {
@@ -126,7 +127,7 @@ func (tss *TrackingSubjectSet) getSet(fs FoundSubject) datasets.BaseSubjectSet[F
 
 // Get returns the found subject in the set, if any.
 func (tss *TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
-	set, ok := tss.setByType[fmt.Sprintf("%s#%s", subject.Namespace, subject.Relation)]
+	set, ok := tss.setByType[typeKey(subject.Namespace, subject.Relation)]
 	if !ok {
 		return FoundSubject{}, false
 	}
@@ -203,7 +204,7 @@ func (tss *TrackingSubjectSet) ApplyParentCaveatExpression(parentCaveatExpr *cor
 // the exact matching wildcard will be removed.
 func (tss *TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 	for _, subject := range subjects {
-		if set, ok := tss.setByType[fmt.Sprintf("%s#%s", subject.Namespace, subject.Relation)]; ok {
+		if set, ok := tss.setByType[typeKey(subject.Namespace, subject.Relation)]; ok {
 			set.UnsafeRemoveExact(FoundSubject{
 				subject: subject,
 			})

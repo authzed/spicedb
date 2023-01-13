@@ -1,7 +1,6 @@
 package developmentmembership
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -96,12 +95,12 @@ func (fs FoundSubject) ToValidationString() string {
 	onrString := tuple.StringONR(fs.Subject())
 	validationString := onrString
 	if fs.caveatExpression != nil {
-		validationString = fmt.Sprintf("%s[...]", validationString)
+		validationString = validationString + "[...]"
 	}
 
 	excluded, isWildcard := fs.ExcludedSubjectsFromWildcard()
 	if isWildcard && len(excluded) > 0 {
-		validationString = fmt.Sprintf("%s - {%s}", validationString, strings.Join(fs.excludedSubjectStrings(), ", "))
+		validationString = validationString + " - {" + strings.Join(fs.excludedSubjectStrings(), ", ") + "}"
 	}
 
 	return validationString

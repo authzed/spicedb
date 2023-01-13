@@ -265,7 +265,7 @@ func (nts *TypeSystem) referencesWildcardType(ctx context.Context, relationName 
 }
 
 func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
-	relString := fmt.Sprintf("%s#%s", nts.nsDef.Name, relationName)
+	relString := nts.nsDef.Name + "#" + relationName
 	if _, ok := encountered[relString]; ok {
 		return nil, nil
 	}
@@ -525,18 +525,18 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 	caveatStr := ""
 
 	if allowedRelation.GetRequiredCaveat() != nil {
-		caveatStr = fmt.Sprintf(" with %s", allowedRelation.GetRequiredCaveat().CaveatName)
+		caveatStr = " with " + allowedRelation.RequiredCaveat.CaveatName
 	}
 
 	if allowedRelation.GetPublicWildcard() != nil {
-		return fmt.Sprintf("%s:*%s", allowedRelation.GetNamespace(), caveatStr)
+		return allowedRelation.Namespace + ":*" + caveatStr
 	}
 
-	if allowedRelation.GetRelation() != tuple.Ellipsis {
-		return fmt.Sprintf("%s#%s%s", allowedRelation.GetNamespace(), allowedRelation.GetRelation(), caveatStr)
+	if rel := allowedRelation.GetRelation(); rel != tuple.Ellipsis {
+		return allowedRelation.Namespace + "#" + rel + caveatStr
 	}
 
-	return fmt.Sprintf("%s%s", allowedRelation.GetNamespace(), caveatStr)
+	return allowedRelation.Namespace + caveatStr
 }
 
 func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*TypeSystem, error) {

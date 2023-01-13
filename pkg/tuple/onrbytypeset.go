@@ -1,7 +1,6 @@
 package tuple
 
 import (
-	"fmt"
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -21,7 +20,7 @@ func NewONRByTypeSet() *ONRByTypeSet {
 
 // Add adds the specified ObjectAndRelation to the set.
 func (s *ONRByTypeSet) Add(onr *core.ObjectAndRelation) {
-	typeKey := fmt.Sprintf("%s#%s", onr.Namespace, onr.Relation)
+	typeKey := onr.Namespace + "#" + onr.Relation
 	if _, ok := s.byType[typeKey]; !ok {
 		s.byType[typeKey] = []string{}
 	}
@@ -57,7 +56,7 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 		if updatedType == nil {
 			continue
 		}
-		updatedTypeKey := fmt.Sprintf("%s#%s", updatedType.Namespace, updatedType.Relation)
+		updatedTypeKey := updatedType.Namespace + "#" + updatedType.Relation
 		mapped.byType[updatedTypeKey] = objectIds
 	}
 	return mapped, nil

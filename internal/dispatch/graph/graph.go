@@ -167,7 +167,7 @@ type stringableRelRef struct {
 }
 
 func (rr stringableRelRef) String() string {
-	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
+	return rr.Namespace + "::" + rr.Relation
 }
 
 // DispatchCheck implements dispatch.Check interface

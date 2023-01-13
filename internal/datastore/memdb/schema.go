@@ -1,8 +1,6 @@
 package memdb
 
 import (
-	"fmt"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
@@ -70,19 +68,10 @@ func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCave
 func (r relationship) String() string {
 	caveat := ""
 	if r.caveat != nil {
-		caveat = fmt.Sprintf("[%s]", r.caveat.caveatName)
+		caveat = "[" + r.caveat.caveatName + "]"
 	}
 
-	return fmt.Sprintf(
-		"%s:%s#%s@%s:%s#%s%s",
-		r.namespace,
-		r.resourceID,
-		r.relation,
-		r.subjectNamespace,
-		r.subjectObjectID,
-		r.subjectRelation,
-		caveat,
-	)
+	return r.namespace + ":" + r.resourceID + "#" + r.relation + "@" + r.subjectNamespace + ":" + r.subjectObjectID + "#" + r.subjectRelation + caveat
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {

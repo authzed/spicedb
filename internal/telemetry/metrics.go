@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"github.com/jzelinskie/cobrautil/v2"
@@ -55,7 +56,7 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 				"os":         runtime.GOOS,
 				"arch":       runtime.GOARCH,
 				"go":         buildInfo.GoVersion,
-				"vcpu":       fmt.Sprintf("%d", runtime.NumCPU()),
+				"vcpu":       strconv.Itoa(runtime.NumCPU()),
 				"ds_engine":  datastoreEngine,
 			},
 		),

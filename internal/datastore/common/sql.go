@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"runtime"
 
@@ -110,7 +109,7 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (Schema
 		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount)
 	}
 
-	inClause := fmt.Sprintf("%s IN (", sqf.schema.ColObjectID)
+	inClause := sqf.schema.ColObjectID + " IN ("
 	args := make([]any, 0, len(resourceIds))
 
 	for index, resourceID := range resourceIds {
@@ -209,7 +208,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount)
 			}
 
-			inClause := fmt.Sprintf("%s IN (", sqf.schema.ColUsersetObjectID)
+			inClause := sqf.schema.ColUsersetObjectID + " IN ("
 			args := make([]any, 0, len(selector.OptionalSubjectIds))
 
 			for index, subjectID := range selector.OptionalSubjectIds {

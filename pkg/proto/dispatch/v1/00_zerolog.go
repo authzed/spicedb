@@ -1,8 +1,6 @@
 package dispatchv1
 
 import (
-	"fmt"
-
 	"github.com/rs/zerolog"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -11,7 +9,7 @@ import (
 // MarshalZerologObject implements zerolog object marshalling.
 func (cr *DispatchCheckRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
-	e.Str("resource-type", fmt.Sprintf("%s#%s", cr.ResourceRelation.Namespace, cr.ResourceRelation.Relation))
+	e.Str("resource-type", cr.ResourceRelation.Namespace+"#"+cr.ResourceRelation.Relation)
 	e.Str("subject", tuple.StringONR(cr.Subject))
 	e.Array("resource-ids", strArray(cr.ResourceIds))
 }
@@ -42,7 +40,7 @@ func (cr *DispatchExpandResponse) MarshalZerologObject(e *zerolog.Event) {
 // MarshalZerologObject implements zerolog object marshalling.
 func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", lr.Metadata)
-	e.Str("object", fmt.Sprintf("%s#%s", lr.ObjectRelation.Namespace, lr.ObjectRelation.Relation))
+	e.Str("object", lr.ObjectRelation.Namespace+"#"+lr.ObjectRelation.Relation)
 	e.Str("subject", tuple.StringONR(lr.Subject))
 	e.Interface("context", lr.Context)
 	e.Uint32("limit", lr.Limit)
@@ -51,16 +49,16 @@ func (lr *DispatchLookupRequest) MarshalZerologObject(e *zerolog.Event) {
 // MarshalZerologObject implements zerolog object marshalling.
 func (lr *DispatchReachableResourcesRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", lr.Metadata)
-	e.Str("resource-type", fmt.Sprintf("%s#%s", lr.ResourceRelation.Namespace, lr.ResourceRelation.Relation))
-	e.Str("subject-type", fmt.Sprintf("%s#%s", lr.SubjectRelation.Namespace, lr.SubjectRelation.Relation))
+	e.Str("resource-type", lr.ResourceRelation.Namespace+"#"+lr.ResourceRelation.Relation)
+	e.Str("subject-type", lr.SubjectRelation.Namespace+"#"+lr.SubjectRelation.Relation)
 	e.Array("subject-ids", strArray(lr.SubjectIds))
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (ls *DispatchLookupSubjectsRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", ls.Metadata)
-	e.Str("resource-type", fmt.Sprintf("%s#%s", ls.ResourceRelation.Namespace, ls.ResourceRelation.Relation))
-	e.Str("subject-type", fmt.Sprintf("%s#%s", ls.SubjectRelation.Namespace, ls.SubjectRelation.Relation))
+	e.Str("resource-type", ls.ResourceRelation.Namespace+"#"+ls.ResourceRelation.Relation)
+	e.Str("subject-type", ls.SubjectRelation.Namespace+"#"+ls.SubjectRelation.Relation)
 	e.Array("resource-ids", strArray(ls.ResourceIds))
 }
 

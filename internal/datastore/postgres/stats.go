@@ -48,7 +48,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 	var relCount int64
 	if err := pgd.dbpool.BeginTxFunc(ctx, pgd.readTxOptions, func(tx pgx.Tx) error {
 		if pgd.analyzeBeforeStatistics {
-			if _, err := tx.Exec(ctx, fmt.Sprintf("ANALYZE %s", tableTuple)); err != nil {
+			if _, err := tx.Exec(ctx, "ANALYZE "+tableTuple); err != nil {
 				return fmt.Errorf("unable to analyze tuple table: %w", err)
 			}
 		}

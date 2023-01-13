@@ -1,18 +1,11 @@
 package tuple
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/jzelinskie/stringz"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-)
-
-const (
-	// Format is the serialized form of the tuple
-	formatWithRel            = "%s:%s#%s"
-	formatImplicitSubjectRel = "%s:%s"
 )
 
 // ObjectAndRelation creates an ONR from string pieces.
@@ -76,7 +69,7 @@ func StringRR(rr *core.RelationReference) string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s#%s", rr.Namespace, rr.Relation)
+	return rr.Namespace + "#" + rr.Relation
 }
 
 // StringONR converts an ONR object to a string.
@@ -85,11 +78,12 @@ func StringONR(onr *core.ObjectAndRelation) string {
 		return ""
 	}
 
+	// Implicit subject relation
 	if onr.Relation == Ellipsis {
-		return fmt.Sprintf(formatImplicitSubjectRel, onr.Namespace, onr.ObjectId)
+		return onr.Namespace + ":" + onr.ObjectId
 	}
 
-	return fmt.Sprintf(formatWithRel, onr.Namespace, onr.ObjectId, onr.Relation)
+	return onr.Namespace + ":" + onr.ObjectId + "#" + onr.Relation
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.

@@ -213,9 +213,9 @@ func (pr postgresRevision) LessThan(rhsRaw datastore.Revision) bool {
 
 func (pr postgresRevision) String() string {
 	if pr.xmin.Status == pgtype.Present {
-		return fmt.Sprintf("%d.%d", pr.tx.Uint, pr.xmin.Uint)
+		return strconv.FormatUint(pr.tx.Uint, 10) + "." + strconv.FormatUint(pr.xmin.Uint, 10)
 	}
-	return fmt.Sprintf("%d", pr.tx.Uint)
+	return strconv.FormatUint(pr.tx.Uint, 10)
 }
 
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {

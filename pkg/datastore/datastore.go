@@ -30,7 +30,7 @@ func EngineOptions() string {
 	ids := SortedEngineIDs()
 	quoted := make([]string, 0, len(ids))
 	for _, id := range ids {
-		quoted = append(quoted, fmt.Sprintf("%q", id))
+		quoted = append(quoted, `"`+id+`"`)
 	}
 	return strings.Join(quoted, ", ")
 }

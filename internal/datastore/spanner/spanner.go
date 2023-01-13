@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -193,8 +194,7 @@ func (sd spannerDatastore) Close() error {
 func statementFromSQL(sql string, args []interface{}) spanner.Statement {
 	params := make(map[string]interface{}, len(args))
 	for index, arg := range args {
-		paramName := fmt.Sprintf("p%d", index+1)
-		params[paramName] = arg
+		params["p"+strconv.Itoa(index+1)] = arg
 	}
 
 	return spanner.Statement{

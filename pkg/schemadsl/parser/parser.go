@@ -2,8 +2,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
@@ -405,7 +403,7 @@ func (p *sourceParser) consumeTypePath() (string, bool) {
 		return "", false
 	}
 
-	return fmt.Sprintf("%s/%s", typeNameOrNamespace, typeName), true
+	return typeNameOrNamespace + "/" + typeName, true
 }
 
 // consumePermission consumes a permission.

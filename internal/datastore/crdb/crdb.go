@@ -62,9 +62,8 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	errRevision            = "unable to find revision: %w"
 
-	querySelectNow          = "SELECT cluster_logical_timestamp()"
-	queryShowZoneConfig     = "SHOW ZONE CONFIGURATION FOR RANGE default;"
-	querySetTransactionTime = "SET TRANSACTION AS OF SYSTEM TIME %s"
+	querySelectNow      = "SELECT cluster_logical_timestamp()"
+	queryShowZoneConfig = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 
 	livingTupleConstraint = "pk_relation_tuple"
 )
@@ -237,7 +236,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 			}
 		}
 
-		setTxTime := fmt.Sprintf(querySetTransactionTime, rev)
+		setTxTime := "SET TRANSACTION AS OF SYSTEM TIME " + rev.String()
 		if _, err := tx.Exec(ctx, setTxTime); err != nil {
 			if err := tx.Rollback(ctx); err != nil {
 				log.Ctx(ctx).Warn().Err(err).Msg(

@@ -1,7 +1,7 @@
 package namespace
 
 import (
-	"fmt"
+	"encoding/hex"
 	"hash/fnv"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -87,7 +87,7 @@ func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMa
 		}
 
 		bdd.Print(hasher, node)
-		cacheKeys[rel.Name] = fmt.Sprintf("%s%x", computedKeyPrefix, hasher.Sum64())
+		cacheKeys[rel.Name] = computedKeyPrefix + hex.EncodeToString(hasher.Sum(nil))
 	}
 
 	return cacheKeys, nil
@@ -170,7 +170,7 @@ type bddVarMap struct {
 }
 
 func (bvm bddVarMap) GetArrow(tuplesetName string, relName string) (int, error) {
-	key := fmt.Sprintf("%s->%s", tuplesetName, relName)
+	key := tuplesetName + "->" + relName
 	index, ok := bvm.varMap[key]
 	if !ok {
 		return -1, spiceerrors.MustBugf("missing arrow key %s in varMap", key)
@@ -215,7 +215,7 @@ func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) (bdd
 		_, err := graph.WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) interface{} {
 			switch child := childOneof.ChildType.(type) {
 			case *core.SetOperation_Child_TupleToUserset:
-				key := fmt.Sprintf("%s->%s", child.TupleToUserset.Tupleset.Relation, child.TupleToUserset.ComputedUserset.Relation)
+				key := child.TupleToUserset.Tupleset.Relation + "->" + child.TupleToUserset.ComputedUserset.Relation
 				if _, ok := varMap[key]; !ok {
 					varMap[key] = len(varMap)
 				}

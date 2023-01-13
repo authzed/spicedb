@@ -1,8 +1,6 @@
 package tuple
 
 import (
-	"fmt"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 )
 
@@ -66,5 +64,5 @@ func StringCaveatRef(caveat *v1.ContextualizedCaveat) (string, error) {
 		contextString = ":" + contextString
 	}
 
-	return fmt.Sprintf("[%s%s]", caveat.CaveatName, contextString), nil
+	return "[" + caveat.CaveatName + contextString + "]", nil
 }

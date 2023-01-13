@@ -1,7 +1,5 @@
 package migrations
 
-import "fmt"
-
 const (
 	tableNamespaceDefault   = "namespace_config"
 	tableTransactionDefault = "relation_tuple_transaction"
@@ -22,12 +20,12 @@ type tables struct {
 
 func newTables(prefix string) *tables {
 	return &tables{
-		tableMigrationVersion: fmt.Sprintf("%s%s", prefix, tableMigrationVersion),
-		tableTransaction:      fmt.Sprintf("%s%s", prefix, tableTransactionDefault),
-		tableTuple:            fmt.Sprintf("%s%s", prefix, tableTupleDefault),
-		tableNamespace:        fmt.Sprintf("%s%s", prefix, tableNamespaceDefault),
-		tableMetadata:         fmt.Sprintf("%s%s", prefix, tableMetadataDefault),
-		tableCaveat:           fmt.Sprintf("%s%s", prefix, tableCaveatDefault),
+		tableMigrationVersion: prefix + tableMigrationVersion,
+		tableTransaction:      prefix + tableTransactionDefault,
+		tableTuple:            prefix + tableTupleDefault,
+		tableNamespace:        prefix + tableNamespaceDefault,
+		tableMetadata:         prefix + tableMetadataDefault,
+		tableCaveat:           prefix + tableCaveatDefault,
 	}
 }
 

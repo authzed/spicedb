@@ -113,7 +113,7 @@ func (s *sessionVariableConnector) Driver() driver.Driver {
 func addSessionVariables(c driver.Connector, variables map[string]string) (driver.Connector, error) {
 	statements := make([]string, 0, len(variables))
 	for sessionVar, value := range variables {
-		statements = append(statements, fmt.Sprintf("SET SESSION %s=%s", sessionVar, value))
+		statements = append(statements, "SET SESSION "+sessionVar+"="+value)
 	}
 
 	return &sessionVariableConnector{

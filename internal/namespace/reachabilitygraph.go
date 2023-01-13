@@ -3,6 +3,7 @@ package namespace
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -100,7 +101,7 @@ func (rg *ReachabilityGraph) HasOptimizedEntrypointsForSubjectToResource(
 	subjectType *core.RelationReference,
 	resourceType *core.RelationReference,
 ) (bool, error) {
-	cacheKey := fmt.Sprintf("%s#%s=>%s#%s", subjectType.Namespace, subjectType.Relation, resourceType.Namespace, resourceType.Relation)
+	cacheKey := subjectType.Namespace + "#" + subjectType.Relation + "=>" + resourceType.Namespace + "#" + resourceType.Relation
 	if result, ok := rg.hasOptimizedEntrypointCache.Load(cacheKey); ok {
 		return result.(bool), nil
 	}
@@ -141,7 +142,7 @@ func (rg *ReachabilityGraph) entrypointsForSubjectToResource(
 func (rg *ReachabilityGraph) getOrBuildGraph(ctx context.Context, resourceType *core.RelationReference, reachabilityOption reachabilityOption) (*core.ReachabilityGraph, error) {
 	// Check the cache.
 	// TODO(jschorr): Move this to a global cache.
-	cacheKey := fmt.Sprintf("%s#%s-%v", resourceType.Namespace, resourceType.Relation, reachabilityOption)
+	cacheKey := resourceType.Namespace + "#" + resourceType.Relation + "-" + strconv.Itoa(int(reachabilityOption))
 	if cached, ok := rg.cachedGraphs.Load(cacheKey); ok {
 		return cached.(*core.ReachabilityGraph), nil
 	}

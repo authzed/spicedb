@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -203,5 +202,5 @@ func (a sortByResource) Less(i, j int) bool {
 }
 
 func stringRes(resource *v1.ObjectReference) string {
-	return fmt.Sprintf("%s:%s", resource.ObjectType, resource.ObjectId)
+	return resource.ObjectType + ":" + resource.ObjectId
 }

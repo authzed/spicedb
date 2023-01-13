@@ -236,5 +236,5 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.Re
 }
 
 func relationKey(namespaceName string, relationName string) string {
-	return fmt.Sprintf("%s#%s", namespaceName, relationName)
+	return namespaceName + "#" + relationName
 }
