@@ -15,14 +15,13 @@ type TaskRunner struct {
 	ctx    context.Context
 	cancel func()
 
-	// err holds the error returned by any task, if any. If the context is canceled,
-	// this err will hold the cancelation error.
-	err     error
-	errOnce sync.Once
-
 	// sem is a chan of length `concurrencyLimit` used to ensure the task runner does
 	// not exceed the concurrencyLimit with spawned goroutines.
 	sem chan token
+
+	// err holds the error returned by any task, if any. If the context is canceled,
+	// this err will hold the cancelation error.
+	err error
 
 	wg    sync.WaitGroup
 	lock  sync.Mutex
@@ -50,13 +49,9 @@ func NewTaskRunner(ctx context.Context, concurrencyLimit uint16) *TaskRunner {
 // Schedule schedules a task to be run. This is safe to call from within another
 // task handler function and immediately returns.
 func (tr *TaskRunner) Schedule(f TaskFunc) {
-	tr.wg.Add(1)
-
-	tr.lock.Lock()
-	tr.tasks = append(tr.tasks, f)
-	tr.lock.Unlock()
-
-	tr.spawnIfAvailable()
+	if tr.addTask(f) {
+		tr.spawnIfAvailable()
+	}
 }
 
 func (tr *TaskRunner) spawnIfAvailable() {
@@ -81,48 +76,81 @@ func (tr *TaskRunner) runner() {
 		select {
 		case <-tr.ctx.Done():
 			// If the context was canceled, mark all the remaining tasks as "Done".
-			tr.errOnce.Do(func() {
-				tr.err = tr.ctx.Err()
-			})
-			tr.lock.Lock()
-			for {
-				if len(tr.tasks) == 0 {
-					break
-				}
-
-				tr.tasks = tr.tasks[1:]
-				tr.wg.Done()
-			}
-			tr.lock.Unlock()
+			tr.emptyForCancel()
 			return
 
 		default:
 			// Select a task from the list, if any.
-			tr.lock.Lock()
-			var task TaskFunc
-			if len(tr.tasks) == 0 {
+			task := tr.selectTask()
+			if task == nil {
 				// If there are no further tasks, then "return" the token by reading
 				// it from the channel (freeing a slot potentially for another worker
-				// to be spawned later) and then shutdown this worker.
+				// to be spawned later).
 				<-tr.sem
-				tr.lock.Unlock()
 				return
 			}
 
-			task = tr.tasks[0]
-			tr.tasks = tr.tasks[1:]
-			tr.lock.Unlock()
-
+			// Run the task. If an error occurs, store it and cancel any further tasks.
 			err := task(tr.ctx)
 			if err != nil {
-				tr.errOnce.Do(func() {
-					tr.err = err
-				})
-				tr.cancel()
+				tr.storeErrorAndCancel(err)
 			}
-
 			tr.wg.Done()
 		}
+	}
+}
+
+func (tr *TaskRunner) addTask(f TaskFunc) bool {
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	if tr.err != nil {
+		return false
+	}
+
+	tr.wg.Add(1)
+	tr.tasks = append(tr.tasks, f)
+	return true
+}
+
+func (tr *TaskRunner) selectTask() TaskFunc {
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	if len(tr.tasks) == 0 {
+		return nil
+	}
+
+	task := tr.tasks[0]
+	tr.tasks = tr.tasks[1:]
+	return task
+}
+
+func (tr *TaskRunner) storeErrorAndCancel(err error) {
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	if tr.err == nil {
+		tr.err = err
+		tr.cancel()
+	}
+}
+
+func (tr *TaskRunner) emptyForCancel() {
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	if tr.err == nil {
+		tr.err = tr.ctx.Err()
+	}
+
+	for {
+		if len(tr.tasks) == 0 {
+			break
+		}
+
+		tr.tasks = tr.tasks[1:]
+		tr.wg.Done()
 	}
 }
 
