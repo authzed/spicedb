@@ -1,8 +1,6 @@
 package developmentmembership
 
 import (
-	"strings"
-
 	"github.com/authzed/spicedb/internal/datasets"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -83,26 +81,19 @@ func (tss *TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) error {
 	return nil
 }
 
-func typeKey(ns, rel string) string { return ns + "#" + rel }
-
-func keyFor(fs FoundSubject) string {
-	return typeKey(fs.subject.Namespace, fs.subject.Relation)
-}
-
 func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[FoundSubject] {
 	if existing, ok := tss.setByType[key]; ok {
 		return existing
 	}
 
-	parts := strings.Split(key, "#")
-
-	created := datasets.NewBaseSubjectSet[FoundSubject](
+	ns, rel := tuple.MustParseRelationTypeString(key)
+	created := datasets.NewBaseSubjectSet(
 		func(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
 			fs := NewFoundSubject(&core.DirectSubject{
 				Subject: &core.ObjectAndRelation{
-					Namespace: parts[0],
+					Namespace: ns,
 					ObjectId:  subjectID,
-					Relation:  parts[1],
+					Relation:  rel,
 				},
 				CaveatExpression: caveatExpression,
 			})
@@ -121,13 +112,12 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 }
 
 func (tss *TrackingSubjectSet) getSet(fs FoundSubject) datasets.BaseSubjectSet[FoundSubject] {
-	fsKey := keyFor(fs)
-	return tss.getSetForKey(fsKey)
+	return tss.getSetForKey(tuple.RelationTypeString(fs.subject.Namespace, fs.subject.Relation))
 }
 
 // Get returns the found subject in the set, if any.
 func (tss *TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
-	set, ok := tss.setByType[typeKey(subject.Namespace, subject.Relation)]
+	set, ok := tss.setByType[tuple.RelationTypeString(subject.Namespace, subject.Relation)]
 	if !ok {
 		return FoundSubject{}, false
 	}
@@ -204,7 +194,7 @@ func (tss *TrackingSubjectSet) ApplyParentCaveatExpression(parentCaveatExpr *cor
 // the exact matching wildcard will be removed.
 func (tss *TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 	for _, subject := range subjects {
-		if set, ok := tss.setByType[typeKey(subject.Namespace, subject.Relation)]; ok {
+		if set, ok := tss.setByType[tuple.RelationTypeString(subject.Namespace, subject.Relation)]; ok {
 			set.UnsafeRemoveExact(FoundSubject{
 				subject: subject,
 			})

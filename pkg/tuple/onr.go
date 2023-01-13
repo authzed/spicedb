@@ -2,6 +2,7 @@ package tuple
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/jzelinskie/stringz"
 
@@ -63,13 +64,28 @@ func ParseONR(onr string) *core.ObjectAndRelation {
 	}
 }
 
+// JoinRelRef joins the namespace and relation together into the same
+// format as `StringRR()`.
+func JoinRelRef(namespace, relation string) string { return namespace + "#" + relation }
+
+// MustSplitRelRef splits a string produced by `JoinRelRef()` and panics if
+// it fails.
+func MustSplitRelRef(relRef string) (namespace, relation string) {
+	var ok bool
+	namespace, relation, ok = strings.Cut(relRef, "#")
+	if !ok {
+		panic("improperly formatted relation reference")
+	}
+	return
+}
+
 // StringRR converts a RR object to a string.
 func StringRR(rr *core.RelationReference) string {
 	if rr == nil {
 		return ""
 	}
 
-	return rr.Namespace + "#" + rr.Relation
+	return JoinRelRef(rr.Namespace, rr.Relation)
 }
 
 // StringONR converts an ONR object to a string.

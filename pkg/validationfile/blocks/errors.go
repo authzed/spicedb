@@ -29,7 +29,7 @@ func convertYamlError(err error) error {
 		if len(unmarshalPieces) == 2 {
 			source = unmarshalPieces[1]
 			if strings.Contains(source, " ") {
-				source = strings.Split(source, " ")[0]
+				source, _, _ = strings.Cut(source, " ")
 			}
 
 			message = fmt.Sprintf("unexpected value `%s`", source)

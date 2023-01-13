@@ -177,7 +177,7 @@ func (rg *ReachabilityGraph) collectEntrypoints(
 	entrypointLookupOption entrypointLookupOption,
 ) error {
 	// Ensure that we only process each relation once.
-	key := relationKey(resourceType.Namespace, resourceType.Relation)
+	key := tuple.JoinRelRef(resourceType.Namespace, resourceType.Relation)
 	if _, ok := encounteredRelations[key]; ok {
 		return nil
 	}
@@ -200,7 +200,7 @@ func (rg *ReachabilityGraph) collectEntrypoints(
 	}
 
 	// Add subject relation entrypoints.
-	subjectRelationEntrypoints, ok := rrg.EntrypointsBySubjectRelation[relationKey(subjectType.Namespace, subjectType.Relation)]
+	subjectRelationEntrypoints, ok := rrg.EntrypointsBySubjectRelation[tuple.JoinRelRef(subjectType.Namespace, subjectType.Relation)]
 	if ok {
 		addEntrypoints(subjectRelationEntrypoints, resourceType, collected)
 	}

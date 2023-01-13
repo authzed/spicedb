@@ -167,7 +167,7 @@ type stringableRelRef struct {
 }
 
 func (rr stringableRelRef) String() string {
-	return rr.Namespace + "::" + rr.Relation
+	return tuple.StringRR(rr.RelationReference)
 }
 
 // DispatchCheck implements dispatch.Check interface
