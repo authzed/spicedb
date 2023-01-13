@@ -40,14 +40,6 @@ func optionalizeRelation(relation string) string {
 	return relation
 }
 
-func deoptionalizeRelation(relation string) string {
-	if relation == "" {
-		return datastore.Ellipsis
-	}
-
-	return relation
-}
-
 // v1ServiceTester tests the V1 API.
 type v1ServiceTester struct {
 	permClient v1.PermissionsServiceClient
@@ -151,18 +143,7 @@ func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 			return nil, err
 		}
 
-		tuples = append(tuples, &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: resp.Relationship.Resource.ObjectType,
-				ObjectId:  resp.Relationship.Resource.ObjectId,
-				Relation:  resp.Relationship.Relation,
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: resp.Relationship.Subject.Object.ObjectType,
-				ObjectId:  resp.Relationship.Subject.Object.ObjectId,
-				Relation:  deoptionalizeRelation(resp.Relationship.Subject.OptionalRelation),
-			},
-		})
+		tuples = append(tuples, tuple.MustFromRelationship(resp.Relationship))
 	}
 
 	return tuples, nil
