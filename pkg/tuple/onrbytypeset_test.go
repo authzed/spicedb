@@ -20,7 +20,7 @@ func TestONRByTypeSet(t *testing.T) {
 	assertHasObjectIds := func(s *ONRByTypeSet, rr *core.RelationReference, expected []string) {
 		wasFound := false
 		s.ForEachType(func(foundRR *core.RelationReference, objectIds []string) {
-			if rr.Namespace == foundRR.Namespace && rr.Relation == foundRR.Relation {
+			if rr.EqualVT(foundRR) {
 				sort.Strings(objectIds)
 				require.Equal(t, expected, objectIds)
 				wasFound = true

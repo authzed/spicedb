@@ -265,7 +265,7 @@ func (nts *TypeSystem) referencesWildcardType(ctx context.Context, relationName 
 }
 
 func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
-	relString := nts.nsDef.Name + "#" + relationName
+	relString := tuple.JoinRelRef(nts.nsDef.Name, relationName)
 	if _, ok := encountered[relString]; ok {
 		return nil, nil
 	}
@@ -497,7 +497,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 								tuple.StringRR(referencedWildcard.ReferencingRelation),
 							),
 							allowedRelation,
-							allowedRelation.GetNamespace()+"#"+allowedRelation.GetRelation(),
+							tuple.JoinRelRef(allowedRelation.GetNamespace(), allowedRelation.GetRelation()),
 						)
 					}
 				}
@@ -529,11 +529,11 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 	}
 
 	if allowedRelation.GetPublicWildcard() != nil {
-		return allowedRelation.Namespace + ":*" + caveatStr
+		return tuple.JoinObjectRef(allowedRelation.Namespace, "*") + caveatStr
 	}
 
 	if rel := allowedRelation.GetRelation(); rel != tuple.Ellipsis {
-		return allowedRelation.Namespace + "#" + rel + caveatStr
+		return tuple.JoinRelRef(allowedRelation.Namespace, rel) + caveatStr
 	}
 
 	return allowedRelation.Namespace + caveatStr

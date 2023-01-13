@@ -12,6 +12,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type hashableValue interface {
@@ -27,7 +28,7 @@ type hashableRelationReference struct {
 }
 
 func (hrr hashableRelationReference) AppendToHash(hasher hasherInterface) {
-	hasher.WriteString(hrr.Namespace + "#" + hrr.Relation)
+	hasher.WriteString(tuple.StringRR(hrr.RelationReference))
 }
 
 type hashableResultSetting v1.DispatchCheckRequest_ResultsSetting

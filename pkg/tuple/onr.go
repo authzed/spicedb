@@ -93,13 +93,10 @@ func StringONR(onr *core.ObjectAndRelation) string {
 	if onr == nil {
 		return ""
 	}
-
-	// Implicit subject relation
 	if onr.Relation == Ellipsis {
-		return onr.Namespace + ":" + onr.ObjectId
+		return JoinObjectRef(onr.Namespace, onr.ObjectId)
 	}
-
-	return onr.Namespace + ":" + onr.ObjectId + "#" + onr.Relation
+	return JoinRelRef(JoinObjectRef(onr.Namespace, onr.ObjectId), onr.Relation)
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.

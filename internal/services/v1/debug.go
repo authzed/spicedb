@@ -198,9 +198,5 @@ type sortByResource []*v1.CheckDebugTrace
 func (a sortByResource) Len() int      { return len(a) }
 func (a sortByResource) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a sortByResource) Less(i, j int) bool {
-	return strings.Compare(stringRes(a[i].Resource), stringRes(a[j].Resource)) < 0
-}
-
-func stringRes(resource *v1.ObjectReference) string {
-	return resource.ObjectType + ":" + resource.ObjectId
+	return strings.Compare(tuple.StringObjectRef(a[i].Resource), tuple.StringObjectRef(a[j].Resource)) < 0
 }

@@ -86,7 +86,7 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 		return existing
 	}
 
-	ns, rel := tuple.MustParseRelationTypeString(key)
+	ns, rel := tuple.MustSplitRelRef(key)
 	created := datasets.NewBaseSubjectSet(
 		func(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
 			fs := NewFoundSubject(&core.DirectSubject{
@@ -112,12 +112,12 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 }
 
 func (tss *TrackingSubjectSet) getSet(fs FoundSubject) datasets.BaseSubjectSet[FoundSubject] {
-	return tss.getSetForKey(tuple.RelationTypeString(fs.subject.Namespace, fs.subject.Relation))
+	return tss.getSetForKey(tuple.JoinRelRef(fs.subject.Namespace, fs.subject.Relation))
 }
 
 // Get returns the found subject in the set, if any.
 func (tss *TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
-	set, ok := tss.setByType[tuple.RelationTypeString(subject.Namespace, subject.Relation)]
+	set, ok := tss.setByType[tuple.JoinRelRef(subject.Namespace, subject.Relation)]
 	if !ok {
 		return FoundSubject{}, false
 	}
@@ -194,7 +194,7 @@ func (tss *TrackingSubjectSet) ApplyParentCaveatExpression(parentCaveatExpr *cor
 // the exact matching wildcard will be removed.
 func (tss *TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
 	for _, subject := range subjects {
-		if set, ok := tss.setByType[tuple.RelationTypeString(subject.Namespace, subject.Relation)]; ok {
+		if set, ok := tss.setByType[tuple.JoinRelRef(subject.Namespace, subject.Relation)]; ok {
 			set.UnsafeRemoveExact(FoundSubject{
 				subject: subject,
 			})

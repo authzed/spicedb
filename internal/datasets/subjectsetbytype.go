@@ -72,7 +72,7 @@ func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Re
 		if updatedType == nil {
 			continue
 		}
-		mapped.byType[tuple.JoinRelRef(ns, rel)] = subjectset
+		mapped.byType[tuple.JoinRelRef(updatedType.Namespace, updatedType.Relation)] = subjectset
 	}
 	return mapped, nil
 }

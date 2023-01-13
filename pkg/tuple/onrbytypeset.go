@@ -54,7 +54,7 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 		if updatedType == nil {
 			continue
 		}
-		mapped.byType[JoinRelRef(ns, rel)] = objectIds
+		mapped.byType[JoinRelRef(updatedType.Namespace, updatedType.Relation)] = objectIds
 	}
 	return mapped, nil
 }
