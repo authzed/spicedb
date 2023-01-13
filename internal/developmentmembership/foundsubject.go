@@ -107,6 +107,10 @@ func (fs FoundSubject) ToValidationString() string {
 	return validationString
 }
 
+func (fs FoundSubject) String() string {
+	return fs.ToValidationString()
+}
+
 // FoundSubjects contains the subjects found for a specific ONR.
 type FoundSubjects struct {
 	// subjects is a map from the Subject ONR (as a string) to the FoundSubject information.

@@ -21,6 +21,9 @@ type ReadOnlyMultimap[T comparable, Q any] interface {
 
 	// Keys returns the keys of the map.
 	Keys() []T
+
+	// Values returns all values in the map.
+	Values() []Q
 }
 
 // NewMultiMap creates and returns a new MultiMap from keys of type T to values of type Q.
@@ -88,6 +91,15 @@ func (mm *MultiMap[T, Q]) Keys() []T {
 	return maps.Keys(mm.items)
 }
 
+// Values returns all values in the map.
+func (mm MultiMap[T, Q]) Values() []Q {
+	values := make([]Q, 0, len(mm.items)*2)
+	for _, valueSlice := range maps.Values(mm.items) {
+		values = append(values, valueSlice...)
+	}
+	return values
+}
+
 // AsReadOnly returns a read-only *copy* of the mulitmap.
 func (mm *MultiMap[T, Q]) AsReadOnly() ReadOnlyMultimap[T, Q] {
 	return readOnlyMultimap[T, Q]{
@@ -129,4 +141,13 @@ func (mm readOnlyMultimap[T, Q]) Len() int {
 // Keys returns the keys of the map.
 func (mm readOnlyMultimap[T, Q]) Keys() []T {
 	return maps.Keys(mm.items)
+}
+
+// Values returns all values in the map.
+func (mm readOnlyMultimap[T, Q]) Values() []Q {
+	values := make([]Q, 0, len(mm.items)*2)
+	for _, valueSlice := range maps.Values(mm.items) {
+		values = append(values, valueSlice...)
+	}
+	return values
 }

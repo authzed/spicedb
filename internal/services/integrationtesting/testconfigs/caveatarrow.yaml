@@ -1,0 +1,61 @@
+---
+schema: |+
+  definition user {}
+
+  caveat some_caveat(somecondition int) {
+    somecondition == 42
+  }
+
+  caveat another_caveat(anothercondition string) {
+    anothercondition == 'hello world'
+  }
+
+  definition organization {
+    relation viewer: user with some_caveat | user
+    permission view = viewer
+  }
+
+  definition document {
+    relation org: organization with another_caveat | organization
+    permission view = org->view
+  }
+
+relationships: >-
+  organization:someorg#viewer@user:tom[some_caveat:{"somecondition":42}]
+
+  organization:someorg#viewer@user:fred[some_caveat:{"somecondition":41}]
+
+  organization:someorg#viewer@user:sarah[some_caveat]
+
+  organization:anotherorg#viewer@user:tom[some_caveat:{"somecondition":42}]
+
+  organization:anotherorg#viewer@user:fred[some_caveat:{"somecondition":41}]
+
+  organization:anotherorg#viewer@user:sarah[some_caveat]
+
+  document:directorgdoc#org@organization:someorg
+
+  document:caveatedorgdoc#org@organization:anotherorg[another_caveat]
+
+  document:staticorgdoc#org@organization:anotherorg[another_caveat:{"anothercondition":"hello world"}]
+
+  document:staticnoorgdoc#org@organization:anotherorg[another_caveat:{"anothercondition":"nope"}]
+assertions:
+  assertTrue:
+    - "document:directorgdoc#view@user:tom"
+    - "document:staticorgdoc#view@user:tom"
+    - 'document:caveatedorgdoc#view@user:tom with {"anothercondition": "hello world"}'
+    - 'document:caveatedorgdoc#view@user:sarah with {"somecondition": 42, "anothercondition": "hello world"}'
+  assertCaveated:
+    - "document:directorgdoc#view@user:sarah"
+    - "document:caveatedorgdoc#view@user:tom"
+    - "document:staticorgdoc#view@user:sarah"
+    - "document:caveatedorgdoc#view@user:sarah"
+    - "document:caveatedorgdoc#view@user:fred"
+    - 'document:caveatedorgdoc#view@user:sarah with {"anothercondition": "hello world"}'
+  assertFalse:
+    - "document:directorgdoc#view@user:fred"
+    - "document:staticnoorgdoc#view@user:tom"
+    - "document:staticorgdoc#view@user:fred"
+    - 'document:caveatedorgdoc#view@user:tom with {"anothercondition": "nope"}'
+    - 'document:caveatedorgdoc#view@user:sarah with {"somecondition": 41, "anothercondition": "hello world"}'

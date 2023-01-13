@@ -9,16 +9,17 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -30,13 +31,13 @@ func BenchmarkServices(b *testing.B) {
 	bts := []struct {
 		title    string
 		fileName string
-		runner   func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error
+		runner   func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error
 	}{
 		{
 			"basic lookup of view for a user",
 			"testconfigs/basicrbac.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
-				results, err := tester.Lookup(ctx, &core.RelationReference{
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+				results, err := tester.LookupResources(ctx, &core.RelationReference{
 					Namespace: "example/document",
 					Relation:  "view",
 				}, &core.ObjectAndRelation{
@@ -51,8 +52,8 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"recursively through groups",
 			"testconfigs/simplerecursive.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
-				results, err := tester.Lookup(ctx, &core.RelationReference{
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+				results, err := tester.LookupResources(ctx, &core.RelationReference{
 					Namespace: "srrr/resource",
 					Relation:  "viewer",
 				}, &core.ObjectAndRelation{
@@ -67,8 +68,8 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"recursively through wide groups",
 			"benchconfigs/widegroups.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
-				results, err := tester.Lookup(ctx, &core.RelationReference{
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+				results, err := tester.LookupResources(ctx, &core.RelationReference{
 					Namespace: "resource",
 					Relation:  "view",
 				}, &core.ObjectAndRelation{
@@ -83,8 +84,8 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"lookup with intersection",
 			"benchconfigs/lookupintersection.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
-				results, err := tester.Lookup(ctx, &core.RelationReference{
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
+				results, err := tester.LookupResources(ctx, &core.RelationReference{
 					Namespace: "resource",
 					Relation:  "view",
 				}, &core.ObjectAndRelation{
@@ -99,7 +100,7 @@ func BenchmarkServices(b *testing.B) {
 		{
 			"basic check for a user",
 			"testconfigs/basicrbac.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "example/document",
 					ObjectId:  "firstdoc",
@@ -108,15 +109,15 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "example/user",
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
-				}, revision)
-				require.True(b, result)
+				}, revision, nil)
+				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
 				return err
 			},
 		},
 		{
 			"recursive check for a user",
 			"testconfigs/quay.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "quay/repo",
 					ObjectId:  "buynlarge/orgrepo",
@@ -125,15 +126,15 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "quay/user",
 					ObjectId:  "cto",
 					Relation:  tuple.Ellipsis,
-				}, revision)
-				require.True(b, result)
+				}, revision, nil)
+				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
 				return err
 			},
 		},
 		{
 			"wide groups check for a user",
 			"benchconfigs/checkwidegroups.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "resource",
 					ObjectId:  "someresource",
@@ -142,15 +143,15 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "user",
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
-				}, revision)
-				require.True(b, result)
+				}, revision, nil)
+				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
 				return err
 			},
 		},
 		{
 			"wide direct relation check",
 			"benchconfigs/checkwidedirect.yaml",
-			func(ctx context.Context, b *testing.B, tester serviceTester, revision datastore.Revision) error {
+			func(ctx context.Context, b *testing.B, tester consistencytestutil.ServiceTester, revision datastore.Revision) error {
 				result, err := tester.Check(ctx, &core.ObjectAndRelation{
 					Namespace: "resource",
 					ObjectId:  "someresource",
@@ -159,8 +160,8 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "user",
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
-				}, revision)
-				require.True(b, result)
+				}, revision, nil)
+				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
 				return err
 			},
 		},
@@ -195,9 +196,7 @@ func BenchmarkServices(b *testing.B) {
 					dsCtx := datastoremw.ContextWithHandle(context.Background())
 					brequire.NoError(datastoremw.SetInContext(dsCtx, ds))
 
-					testers := []serviceTester{
-						v1ServiceTester{v1.NewPermissionsServiceClient(conn[0])},
-					}
+					testers := consistencytestutil.ServiceTesters(conn[0])
 
 					for _, tester := range testers {
 						b.Run(tester.Name(), func(b *testing.B) {

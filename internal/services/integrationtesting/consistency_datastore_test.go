@@ -4,7 +4,6 @@
 package integrationtesting_test
 
 import (
-	"context"
 	"path"
 	"runtime"
 	"testing"
@@ -12,15 +11,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
 func TestConsistencyPerDatastore(t *testing.T) {
@@ -41,8 +37,6 @@ func TestConsistencyPerDatastore(t *testing.T) {
 				filePath := filePath
 
 				t.Run(path.Base(filePath), func(t *testing.T) {
-					lrequire := require.New(t)
-
 					rde := testdatastore.RunDatastoreEngine(t, engineID)
 					ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 						dsconfig.WithWatchBufferLength(0),
@@ -51,27 +45,28 @@ func TestConsistencyPerDatastore(t *testing.T) {
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false)))
 
-					fullyResolved, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})
+					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
+					dispatcher := graph.NewLocalOnlyDispatcher(10)
+					accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
+
+					headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
 					require.NoError(t, err)
 
-					conn, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
-					t.Cleanup(cleanup)
-
-					dsCtx := datastoremw.ContextWithHandle(context.Background())
-					lrequire.NoError(datastoremw.SetInContext(dsCtx, ds))
-
-					dispatcher := graph.NewLocalOnlyDispatcher(10)
-
-					testers := []serviceTester{
-						v1ServiceTester{v1.NewPermissionsServiceClient(conn[0])},
-					}
-
 					// Run the assertions within each file.
+					testers := consistencytestutil.ServiceTesters(cad.Conn)
 					for _, tester := range testers {
 						tester := tester
 
+						vctx := validationContext{
+							clusterAndData:   cad,
+							accessibilitySet: accessibilitySet,
+							serviceTester:    tester,
+							revision:         headRevision,
+							dispatcher:       dispatcher,
+						}
+
 						t.Run(tester.Name(), func(t *testing.T) {
-							runAssertions(t, tester, dispatcher, fullyResolved, revision)
+							runAssertions(t, vctx)
 						})
 					}
 				})
