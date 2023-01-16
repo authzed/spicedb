@@ -1,20 +1,25 @@
 #!/usr/bin/env -S buf generate -o pkg/proto proto/internal --template
 ---
-version: "v1"
+version: 'v1'
 managed:
   enabled: true
   go_package_prefix:
-    default: "github.com/authzed/spicedb/pkg/proto"
+    default: 'github.com/authzed/spicedb/pkg/proto'
     except:
-      - "buf.build/envoyproxy/protoc-gen-validate"
-      - "buf.build/authzed/api"
+      - 'buf.build/envoyproxy/protoc-gen-validate'
+      - 'buf.build/authzed/api'
+      - 'buf.build/googleapis/googleapis'
 plugins:
-  - name: "go"
-    out: "."
-    opt: "paths=source_relative"
-  - name: "go-grpc"
-    out: "."
-    opt: "paths=source_relative"
-  - name: "validate"
-    out: "."
-    opt: "paths=source_relative,lang=go"
+  - name: 'go'
+    out: '.'
+    opt: 'paths=source_relative'
+  - name: 'go-grpc'
+    out: '.'
+    opt: 'paths=source_relative'
+  - name: 'go-vtproto'
+    out: '.'
+    # To generate pooling methods, you must add an additional `pool=fully/qualified.ProtoMessageType`
+    opt: 'paths=source_relative,features=marshal+unmarshal+size+clone+pool+equal'
+  - name: 'validate'
+    out: '.'
+    opt: 'paths=source_relative,lang=go'

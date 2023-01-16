@@ -1,45 +1,32 @@
 package compiler
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 type positionMapper struct {
-	schemas         []InputSchema
-	mappersBySource map[input.Source]input.SourcePositionMapper
+	schema InputSchema
+	mapper input.SourcePositionMapper
 }
 
-func newPositionMapper(schemas []InputSchema) input.PositionMapper {
-	mappersBySource := map[input.Source]input.SourcePositionMapper{}
-	for _, schema := range schemas {
-		mappersBySource[schema.Source] = input.CreateSourcePositionMapper([]byte(schema.SchemaString))
-	}
-
+func newPositionMapper(schema InputSchema) input.PositionMapper {
 	return &positionMapper{
-		schemas:         schemas,
-		mappersBySource: mappersBySource,
+		schema: schema,
+		mapper: input.CreateSourcePositionMapper([]byte(schema.SchemaString)),
 	}
 }
 
 func (pm *positionMapper) RunePositionToLineAndCol(runePosition int, source input.Source) (int, int, error) {
-	sourceMapper := pm.mappersBySource[source]
-	return sourceMapper.RunePositionToLineAndCol(runePosition)
+	return pm.mapper.RunePositionToLineAndCol(runePosition)
 }
 
 func (pm *positionMapper) LineAndColToRunePosition(lineNumber int, colPosition int, source input.Source) (int, error) {
-	sourceMapper := pm.mappersBySource[source]
-	return sourceMapper.LineAndColToRunePosition(lineNumber, colPosition)
+	return pm.mapper.LineAndColToRunePosition(lineNumber, colPosition)
 }
 
 func (pm *positionMapper) TextForLine(lineNumber int, source input.Source) (string, error) {
-	for _, schema := range pm.schemas {
-		if schema.Source == source {
-			lines := strings.Split(schema.SchemaString, "\n")
-			return lines[lineNumber], nil
-		}
-	}
-	return "", fmt.Errorf("unknown schema source")
+	lines := strings.Split(pm.schema.SchemaString, "\n")
+	return lines[lineNumber], nil
 }

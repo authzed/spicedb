@@ -4,6 +4,7 @@ package core.v1;
 option go_package = "github.com/authzed/spicedb/pkg/proto/core/v1";
 
 import "google/protobuf/any.proto";
+import "google/protobuf/struct.proto";
 import "validate/validate.proto";
 
 message RelationTuple {
@@ -12,6 +13,49 @@ message RelationTuple {
 
   /** subject is the subject for the tuple */
   ObjectAndRelation subject = 2 [ (validate.rules).message.required = true ];
+
+  /** caveat is a reference to a the caveat that must be enforced over the tuple **/
+  ContextualizedCaveat caveat = 3 [ (validate.rules).message.required = false ];
+}
+
+/**
+ * ContextualizedCaveat represents a reference to a caveat used to by caveated tuples.
+ * The context are key-value pairs that will be injected at evaluation time.
+ */
+message ContextualizedCaveat {
+  /** caveat_name is the name used in the schema for a stored caveat **/
+  string caveat_name = 1 [ (validate.rules).string = {
+    pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
+    max_bytes : 128,
+  } ];
+
+  /** context are arguments used as input during caveat evaluation with a predefined value **/
+  google.protobuf.Struct context = 2 [ (validate.rules).message.required = false ];
+}
+
+message CaveatDefinition {
+  /** name represents the globally-unique identifier of the caveat **/
+  string name = 1 [ (validate.rules).string = {
+    pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
+    max_bytes : 128,
+  } ];
+
+  /** serialized_expression is the byte representation of a caveat's logic */
+  bytes serialized_expression = 2 [(validate.rules).bytes = {min_len: 0, max_len: 4096}];
+
+  /** parameters_and_types is a map from parameter name to its type */
+  map<string, CaveatTypeReference> parameter_types = 3 [(validate.rules).map = {min_pairs: 1, max_pairs: 20}];
+
+  /** metadata contains compiler metadata from schemas compiled into caveats */
+  Metadata metadata = 4;
+
+  /** source_position contains the position of the caveat in the source schema, if any */
+  SourcePosition source_position = 5;
+}
+
+message CaveatTypeReference {
+  string type_name = 1;
+  repeated CaveatTypeReference child_types = 2 [(validate.rules).repeated = {min_items: 0, max_items: 1}];
 }
 
 message ObjectAndRelation {
@@ -71,6 +115,7 @@ message RelationTupleTreeNode {
     DirectSubjects leaf_node = 2;
   }
   ObjectAndRelation expanded = 3;
+  CaveatExpression caveat_expression = 4;
 }
 
 message SetOperationUserset {
@@ -85,7 +130,14 @@ message SetOperationUserset {
   repeated RelationTupleTreeNode child_nodes = 2;
 }
 
-message DirectSubjects { repeated ObjectAndRelation subjects = 1; }
+message DirectSubject {
+  ObjectAndRelation subject = 1;
+  CaveatExpression caveat_expression = 2;
+}
+
+message DirectSubjects { 
+  repeated DirectSubject subjects = 1;
+}
 
 /**
  * Metadata is compiler metadata added to namespace definitions, such as doc comments and
@@ -327,6 +379,21 @@ message AllowedRelation {
 
   /** source_position contains the position of the type in the source schema, if any */
   SourcePosition source_position = 5;
+
+  /** 
+   * required_caveat defines the required caveat on this relation. 
+   */
+  AllowedCaveat required_caveat = 6;
+}
+
+/**
+ * AllowedCaveat is an allowed caveat of a relation.
+ */
+message AllowedCaveat {
+  /**
+   * caveat_name is the name of the allowed caveat.
+   */
+  string caveat_name = 1;
 }
 
 message UsersetRewrite {
@@ -407,4 +474,23 @@ message ComputedUserset {
 message SourcePosition {
   uint64 zero_indexed_line_number = 1;
   uint64 zero_indexed_column_position = 2;
+}
+
+message CaveatExpression {  
+  oneof operation_or_caveat {
+    CaveatOperation operation = 1;
+    core.v1.ContextualizedCaveat caveat = 2;
+  }
+}
+
+message CaveatOperation {
+  enum Operation {
+    UNKNOWN = 0;
+    OR = 1;
+    AND = 2;
+    NOT = 3;
+  }
+
+  Operation op = 1;
+  repeated CaveatExpression children = 2;
 }

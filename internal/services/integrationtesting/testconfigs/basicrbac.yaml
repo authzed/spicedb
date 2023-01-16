@@ -1,0 +1,26 @@
+---
+schema: |+
+  definition example/user {}
+
+  definition example/document {
+  	relation writer: example/user
+  	relation reader: example/user
+      permission write = writer
+      permission view = reader + write
+  }
+
+relationships: >-
+  example/document:firstdoc#writer@example/user:tom#...
+
+  example/document:firstdoc#reader@example/user:fred#...
+
+  example/document:seconddoc#reader@example/user:tom#...
+assertions:
+  assertTrue:
+    - "example/document:firstdoc#write@example/user:tom#..."
+    - "example/document:firstdoc#view@example/user:tom#..."
+    - "example/document:firstdoc#view@example/user:fred#..."
+    - "example/document:seconddoc#view@example/user:tom#..."
+  assertFalse:
+    - "example/document:firstdoc#write@example/user:fred#..."
+    - "example/document:seconddoc#write@example/user:tom#..."

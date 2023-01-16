@@ -27,16 +27,15 @@ func (tn *dslNode) GetType() dslshape.NodeType {
 	return tn.nodeType
 }
 
-func (tn *dslNode) Connect(predicate string, other parser.AstNode) parser.AstNode {
+func (tn *dslNode) Connect(predicate string, other parser.AstNode) {
 	if tn.children[predicate] == nil {
 		tn.children[predicate] = list.New()
 	}
 
 	tn.children[predicate].PushBack(other)
-	return tn
 }
 
-func (tn *dslNode) Decorate(property string, value string) parser.AstNode {
+func (tn *dslNode) MustDecorate(property string, value string) parser.AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
 	}
@@ -45,7 +44,7 @@ func (tn *dslNode) Decorate(property string, value string) parser.AstNode {
 	return tn
 }
 
-func (tn *dslNode) DecorateWithInt(property string, value int) parser.AstNode {
+func (tn *dslNode) MustDecorateWithInt(property string, value int) parser.AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
 	}
@@ -156,7 +155,16 @@ func (tn *dslNode) Lookup(predicateName string) (*dslNode, error) {
 
 func (tn *dslNode) Errorf(message string, args ...interface{}) error {
 	return errorWithNode{
-		error: fmt.Errorf(message, args...),
-		node:  tn,
+		error:           fmt.Errorf(message, args...),
+		errorSourceCode: "",
+		node:            tn,
+	}
+}
+
+func (tn *dslNode) ErrorWithSourcef(sourceCode string, message string, args ...interface{}) error {
+	return errorWithNode{
+		error:           fmt.Errorf(message, args...),
+		errorSourceCode: sourceCode,
+		node:            tn,
 	}
 }

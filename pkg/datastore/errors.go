@@ -13,21 +13,31 @@ type ErrNamespaceNotFound struct {
 }
 
 // NotFoundNamespaceName is the name of the namespace not found.
-func (enf ErrNamespaceNotFound) NotFoundNamespaceName() string {
-	return enf.namespaceName
+func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
+	return err.namespaceName
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (enf ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("error", enf.Error()).Str("namespace", enf.namespaceName)
+func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Str("namespace", err.namespaceName)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrNamespaceNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"definition_name": err.namespaceName,
+	}
 }
 
 // ErrWatchDisconnected occurs when a watch has fallen too far behind and was forcibly disconnected
 // as a result.
 type ErrWatchDisconnected struct{ error }
 
-// ErrWatchCanceled occurs when a watch was canceled by the caller
+// ErrWatchCanceled occurs when a watch was canceled by the caller.
 type ErrWatchCanceled struct{ error }
+
+// ErrWatchDisabled occurs when watch is disabled by being unsupported by the datastore.
+type ErrWatchDisabled struct{ error }
 
 // ErrReadOnly is returned when the operation cannot be completed because the datastore is in
 // read-only mode.
@@ -40,10 +50,6 @@ const (
 	// RevisionStale is the reason returned when a revision is outside the window of
 	// validity by being too old.
 	RevisionStale InvalidRevisionReason = iota
-
-	// RevisionInFuture is the reason returned when a revision is outside the window of
-	// validity by being too new.
-	RevisionInFuture
 
 	// CouldNotDetermineRevision is the reason returned when a revision for a
 	// request could not be determined.
@@ -58,26 +64,24 @@ type ErrInvalidRevision struct {
 }
 
 // InvalidRevision is the revision that failed.
-func (eri ErrInvalidRevision) InvalidRevision() Revision {
-	return eri.revision
+func (err ErrInvalidRevision) InvalidRevision() Revision {
+	return err.revision
 }
 
 // Reason is the reason the revision failed.
-func (eri ErrInvalidRevision) Reason() InvalidRevisionReason {
-	return eri.reason
+func (err ErrInvalidRevision) Reason() InvalidRevisionReason {
+	return err.reason
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (eri ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
-	switch eri.reason {
+func (err ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
+	switch err.reason {
 	case RevisionStale:
-		e.Str("error", eri.Error()).Str("reason", "stale")
-	case RevisionInFuture:
-		e.Str("error", eri.Error()).Str("reason", "future")
+		e.Err(err.error).Str("reason", "stale")
 	case CouldNotDetermineRevision:
-		e.Str("error", eri.Error()).Str("reason", "indeterminate")
+		e.Err(err.error).Str("reason", "indeterminate")
 	default:
-		e.Str("error", eri.Error()).Str("reason", "unknown")
+		e.Err(err.error).Str("reason", "unknown")
 	}
 }
 
@@ -103,6 +107,13 @@ func NewWatchCanceledErr() error {
 	}
 }
 
+// NewWatchDisabledErr constructs a new watch is disabled error.
+func NewWatchDisabledErr(reason string) error {
+	return ErrWatchDisabled{
+		error: fmt.Errorf("watch is currently disabled: %s", reason),
+	}
+}
+
 // NewReadonlyErr constructs an error for when a request has failed because
 // the datastore has been configured to be read-only.
 func NewReadonlyErr() error {
@@ -121,18 +132,37 @@ func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) erro
 			reason:   reason,
 		}
 
-	case RevisionInFuture:
-		return ErrInvalidRevision{
-			error:    fmt.Errorf("revision is for a future time"),
-			revision: revision,
-			reason:   reason,
-		}
-
 	default:
 		return ErrInvalidRevision{
 			error:    fmt.Errorf("revision was invalid"),
 			revision: revision,
 			reason:   reason,
 		}
+	}
+}
+
+// ErrCaveatNameNotFound is the error returned when a caveat is not found by its name
+type ErrCaveatNameNotFound struct {
+	error
+	name string
+}
+
+// CaveatName returns the name of the caveat that couldn't be found
+func (err ErrCaveatNameNotFound) CaveatName() string {
+	return err.name
+}
+
+// NewCaveatNameNotFoundErr constructs a new caveat name not found error.
+func NewCaveatNameNotFoundErr(name string) error {
+	return ErrCaveatNameNotFound{
+		error: fmt.Errorf("caveat with name `%s` not found", name),
+		name:  name,
+	}
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrCaveatNameNotFound) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"caveat_name": err.name,
 	}
 }

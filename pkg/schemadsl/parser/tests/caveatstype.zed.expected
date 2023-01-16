@@ -1,0 +1,89 @@
+NodeTypeFile
+  end-rune = 189
+  input-source = caveats type test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 189
+      input-source = caveats type test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 100
+          input-source = caveats type test
+          relation-name = writer
+          start-rune = 24
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 100
+              input-source = caveats type test
+              start-rune = 41
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 44
+                  input-source = caveats type test
+                  start-rune = 41
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 51
+                  input-source = caveats type test
+                  start-rune = 48
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = somecaveat
+                      end-rune = 67
+                      input-source = caveats type test
+                      start-rune = 53
+                NodeTypeSpecificTypeReference
+                  end-rune = 81
+                  input-source = caveats type test
+                  relation-name = member
+                  start-rune = 71
+                  type-name = team
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = anothercaveat
+                      end-rune = 100
+                      input-source = caveats type test
+                      start-rune = 83
+        NodeTypeRelation
+          end-rune = 187
+          input-source = caveats type test
+          relation-name = viewer
+          start-rune = 104
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 187
+              input-source = caveats type test
+              start-rune = 121
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 124
+                  input-source = caveats type test
+                  start-rune = 121
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 133
+                  input-source = caveats type test
+                  start-rune = 128
+                  type-name = user
+                  type-wildcard = true
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = wildcardcaveat
+                      end-rune = 153
+                      input-source = caveats type test
+                      start-rune = 135
+                NodeTypeSpecificTypeReference
+                  end-rune = 160
+                  input-source = caveats type test
+                  start-rune = 157
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = someprefix/somecaveat
+                      end-rune = 187
+                      input-source = caveats type test
+                      start-rune = 162

@@ -10,7 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -22,9 +22,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"github.com/rs/zerolog/log"
 	prompb "go.buf.build/protocolbuffers/go/prometheus/prometheus"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
@@ -74,7 +74,7 @@ func writeTimeSeries(ctx context.Context, client *http.Client, endpoint string, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf(
 			"unexpected Prometheus remote write response: %d: %s",
 			resp.StatusCode,
@@ -167,7 +167,7 @@ func RemoteReporter(
 		// Smear the startup delay out over 10% of the reporting interval
 		startupDelay := time.Duration(rand.Int63n(int64(interval.Seconds()/10))) * time.Second
 
-		log.Info().
+		log.Ctx(ctx).Info().
 			Stringer("interval", interval).
 			Str("endpoint", endpoint).
 			Stringer("next", startupDelay).
@@ -188,13 +188,13 @@ func RemoteReporter(
 				nextPush := backoffInterval.InitialInterval
 				if err := discoverAndWriteMetrics(ctx, registry, client, endpoint); err != nil {
 					nextPush = backoffInterval.NextBackOff()
-					log.Warn().
+					log.Ctx(ctx).Warn().
 						Err(err).
 						Str("endpoint", endpoint).
 						Stringer("next", nextPush).
 						Msg("failed to push telemetry metric")
 				} else {
-					log.Debug().
+					log.Ctx(ctx).Debug().
 						Str("endpoint", endpoint).
 						Stringer("next", nextPush).
 						Msg("reported telemetry")
@@ -216,7 +216,7 @@ func RemoteReporter(
 }
 
 func DisabledReporter(ctx context.Context) error {
-	log.Info().Msg("telemetry disabled")
+	log.Ctx(ctx).Info().Msg("telemetry disabled")
 	return nil
 }
 

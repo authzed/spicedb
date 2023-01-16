@@ -1,8 +1,14 @@
 # PostgreSQL Datastore
 
+**Minimum required version** can be found here defined as `MinimumSupportedPostgresVersion` in [version.go](version/version.go)
+
 PostgreSQL is a traditional relational database management system that is very popular.
 This datastore implementation allows you to use a PostgreSQL database as the backing durable storage for SpiceDB.
 Recommended usage: when you are comfortable with having all permissions data stored in a single region.
+
+## Configuration
+
+`track_commit_timestamp` must be set to `on` for the Watch API to be enabled.
 
 ## Implementation Caveats
 

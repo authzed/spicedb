@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -19,7 +20,9 @@ const (
 
 var queryChanged = sql.Select(allChangelogCols...).From(tableChangelog)
 
-func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+	afterRevision := afterRevisionRaw.(revision.Decimal)
+
 	updates := make(chan *datastore.RevisionChanges, sd.config.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -30,7 +33,7 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 		currentTxn := timestampFromRevision(afterRevision)
 
 		for {
-			var stagedUpdates []*datastore.RevisionChanges
+			var stagedUpdates []datastore.RevisionChanges
 			var err error
 			stagedUpdates, currentTxn, err = sd.loadChanges(ctx, currentTxn)
 			if err != nil {
@@ -44,8 +47,10 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
+				changeToWrite := changeToWrite
+
 				select {
-				case updates <- changeToWrite:
+				case updates <- &changeToWrite:
 				default:
 					errs <- datastore.NewWatchDisconnectedErr()
 					return
@@ -73,14 +78,14 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 func (sd spannerDatastore) loadChanges(
 	ctx context.Context,
 	afterTimestamp time.Time,
-) ([]*datastore.RevisionChanges, time.Time, error) {
+) ([]datastore.RevisionChanges, time.Time, error) {
 	sql, args, err := queryChanged.Where(sq.Gt{colChangeTS: afterTimestamp}).ToSql()
 	if err != nil {
 		return nil, afterTimestamp, err
 	}
 
 	rows := sd.client.Single().Query(ctx, statementFromSQL(sql, args))
-	stagedChanges := common.NewChanges()
+	stagedChanges := common.NewChanges(revision.DecimalKeyFunc)
 
 	newTimestamp := afterTimestamp
 	err = rows.Do(func(r *spanner.Row) error {
@@ -92,6 +97,8 @@ func (sd spannerDatastore) loadChanges(
 		var op int64
 		var timestamp time.Time
 		var colChangeUUID string
+		var caveatName spanner.NullString
+		var caveatCtx spanner.NullJSON
 		err := r.Columns(
 			&timestamp,
 			&colChangeUUID,
@@ -102,7 +109,13 @@ func (sd spannerDatastore) loadChanges(
 			&tpl.Subject.Namespace,
 			&tpl.Subject.ObjectId,
 			&tpl.Subject.Relation,
+			&caveatName,
+			&caveatCtx,
 		)
+		if err != nil {
+			return err
+		}
+		tpl.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
 		if err != nil {
 			return err
 		}
@@ -117,7 +130,7 @@ func (sd spannerDatastore) loadChanges(
 		return nil, afterTimestamp, err
 	}
 
-	changes := stagedChanges.AsRevisionChanges()
+	changes := stagedChanges.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
 
 	return changes, newTimestamp, nil
 }

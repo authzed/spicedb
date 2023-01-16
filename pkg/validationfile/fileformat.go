@@ -33,11 +33,11 @@ type ValidationFile struct {
 	ExpectedRelations blocks.ParsedExpectedRelations `yaml:"validation"`
 
 	// NamespaceConfigs are the namespace configuration protos, in text format.
-	// Deprecated: only for internal use. Use Schema.
+	// Deprecated: only for internal use. Use `schema`.
 	NamespaceConfigs []string `yaml:"namespace_configs"`
 
 	// ValidationTuples are the validation tuples, in tuple string syntax.
-	// Deprecated: only for internal use. Use Relationships.
+	// Deprecated: only for internal use. Use `relationships`.
 	ValidationTuples []string `yaml:"validation_tuples"`
 }
 

@@ -65,7 +65,8 @@ func (b *consistentHashringPickerBuilder) Build(info base.PickerBuildInfo) balan
 	if len(info.ReadySCs) == 0 {
 		return base.NewErrPicker(balancer.ErrNoSubConnAvailable)
 	}
-	hashring := consistent.NewHashring(b.hasher, b.replicationFactor)
+
+	hashring := consistent.MustNewHashring(b.hasher, b.replicationFactor)
 	for sc, scInfo := range info.ReadySCs {
 		if err := hashring.Add(subConnMember{
 			SubConn: sc,

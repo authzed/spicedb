@@ -3,52 +3,48 @@ package development
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	maingraph "github.com/authzed/spicedb/internal/graph"
+	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/shared"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// DeveloperErrors is a struct holding the various kinds of errors for a DevContext operation.
-type DeveloperErrors struct {
-	// InputErrors hold any errors found in the input to the development tooling,
-	// e.g. invalid schema, invalid relationship, etc.
-	InputErrors []*devinterface.DeveloperError
-
-	// ValidationErrors holds any validation errors/inconsistencies found,
-	// e.g. assertion failure, incorrect expection relations, etc.
-	ValidationErrors []*devinterface.DeveloperError
-}
+const defaultConnBufferSize = 1024 * 1204
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {
-	Ctx        context.Context
-	Datastore  datastore.Datastore
-	Revision   decimal.Decimal
-	Namespaces []*core.NamespaceDefinition
-	Dispatcher dispatch.Dispatcher
+	Ctx            context.Context
+	Datastore      datastore.Datastore
+	Revision       datastore.Revision
+	CompiledSchema *compiler.CompiledSchema
+	Dispatcher     dispatch.Dispatcher
 }
 
 // NewDevContext creates a new DevContext from the specified request context, parsing and populating
 // the datastore as needed.
-func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *DeveloperErrors, error) {
+func NewDevContext(ctx context.Context, requestContext *devinterface.RequestContext) (*DevContext, *devinterface.DeveloperErrors, error) {
 	ds, err := memdb.NewMemdbDatastore(0, 0*time.Second, memdb.DisableGC)
 	if err != nil {
 		return nil, nil, err
@@ -59,7 +55,7 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	if nerr != nil || devErrs != nil {
 		// If any form of error occurred, immediately close the datastore
 		derr := ds.Close()
-		if err != nil {
+		if derr != nil {
 			return nil, nil, derr
 		}
 
@@ -69,24 +65,23 @@ func NewDevContext(ctx context.Context, requestContext *devinterface.RequestCont
 	return dctx, nil, nil
 }
 
-func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *DeveloperErrors, error) {
-	// Compile the schema and load its namespaces into the datastore.
-	namespaces, devError, err := CompileSchema(requestContext.Schema)
+func newDevContextWithDatastore(ctx context.Context, requestContext *devinterface.RequestContext, ds datastore.Datastore) (*DevContext, *devinterface.DeveloperErrors, error) {
+	// Compile the schema and load its caveats and namespaces into the datastore.
+	compiled, devError, err := CompileSchema(requestContext.Schema)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if devError != nil {
-		return nil, &DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
+		return nil, &devinterface.DeveloperErrors{InputErrors: []*devinterface.DeveloperError{devError}}, nil
 	}
 
 	var inputErrors []*devinterface.DeveloperError
-	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inputErrors, err = loadNamespaces(ctx, namespaces, rwt)
+	currentRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		inputErrors, err = loadCompiled(ctx, compiled, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
-
 		// Load the test relationships into the datastore.
 		inputErrors, err = loadTuples(ctx, requestContext.Relationships, rwt)
 		if err != nil || len(inputErrors) > 0 {
@@ -96,7 +91,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		return nil
 	})
 	if err != nil || len(inputErrors) > 0 {
-		return nil, &DeveloperErrors{InputErrors: inputErrors}, err
+		return nil, &devinterface.DeveloperErrors{InputErrors: inputErrors}, err
 	}
 
 	// Sanity check: Make sure the request context for the developer is fully valid. We do this after
@@ -108,12 +103,61 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	}
 
 	return &DevContext{
-		Ctx:        ctx,
-		Datastore:  ds,
-		Namespaces: namespaces,
-		Revision:   currentRevision,
-		Dispatcher: graph.NewLocalOnlyDispatcher(),
+		Ctx:            ctx,
+		Datastore:      ds,
+		CompiledSchema: compiled,
+		Revision:       currentRevision,
+		Dispatcher:     graph.NewLocalOnlyDispatcher(10),
 	}, nil, nil
+}
+
+// RunV1InMemoryService runs a V1 server in-memory on a buffconn over the given
+// development context and returns a client connection and a function to shutdown
+// the server. It is the responsibility of the caller to call the function to close
+// the server.
+func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
+	listener := bufconn.Listen(defaultConnBufferSize)
+
+	s := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			datastoremw.UnaryServerInterceptor(dc.Datastore),
+			consistency.UnaryServerInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			datastoremw.StreamServerInterceptor(dc.Datastore),
+			consistency.StreamServerInterceptor(),
+		),
+	)
+	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{
+		MaxUpdatesPerWrite:    50,
+		MaxPreconditionsCount: 50,
+		MaximumAPIDepth:       50,
+	}, true)
+	ss := v1svc.NewSchemaServer(false, true)
+
+	v1.RegisterPermissionsServiceServer(s, ps)
+	v1.RegisterSchemaServiceServer(s, ss)
+
+	go func() {
+		if err := s.Serve(listener); err != nil {
+			panic(err)
+		}
+	}()
+
+	conn, err := grpc.DialContext(
+		context.Background(),
+		"",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
+			return listener.Dial()
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	return conn, func() {
+		conn.Close()
+		listener.Close()
+		s.Stop()
+	}, err
 }
 
 // Dispose disposes of the DevContext and its underlying datastore.
@@ -136,22 +180,27 @@ func (dc *DevContext) Dispose() {
 
 func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore.ReadWriteTransaction) ([]*devinterface.DeveloperError, error) {
 	devErrors := make([]*devinterface.DeveloperError, 0, len(tuples))
-	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
+	updates := make([]*core.RelationTupleUpdate, 0, len(tuples))
 	for _, tpl := range tuples {
+		tplString, err := tuple.String(tpl)
+		if err != nil {
+			return nil, err
+		}
+
 		verr := tpl.Validate()
 		if verr != nil {
 			devErrors = append(devErrors, &devinterface.DeveloperError{
 				Message: verr.Error(),
 				Source:  devinterface.DeveloperError_RELATIONSHIP,
 				Kind:    devinterface.DeveloperError_PARSE_ERROR,
-				Context: tuple.String(tpl),
+				Context: tplString,
 			})
 			continue
 		}
 
-		err := validateTupleWrite(ctx, tpl, rwt)
+		err = validateTupleWrite(ctx, tpl, rwt)
 		if err != nil {
-			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tuple.String(tpl))
+			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tplString)
 			if devErr != nil {
 				devErrors = append(devErrors, devErr)
 				continue
@@ -160,27 +209,58 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 			return devErrors, wireErr
 		}
 
-		updates = append(updates, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: tuple.MustToRelationship(tpl),
-		})
+		updates = append(updates, tuple.Touch(tpl))
 	}
 
-	err := rwt.WriteRelationships(updates)
+	err := rwt.WriteRelationships(ctx, updates)
 
 	return devErrors, err
 }
 
-func loadNamespaces(
+func loadCompiled(
 	ctx context.Context,
-	namespaces []*core.NamespaceDefinition,
+	compiled *compiler.CompiledSchema,
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
-	errors := make([]*devinterface.DeveloperError, 0, len(namespaces))
-	for _, nsDef := range namespaces {
-		ts, terr := namespace.BuildNamespaceTypeSystemForDefs(nsDef, namespaces)
+	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
+	resolver := namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+		Namespaces: compiled.ObjectDefinitions,
+		Caveats:    compiled.CaveatDefinitions,
+	})
+
+	for _, caveatDef := range compiled.CaveatDefinitions {
+		cverr := namespace.ValidateCaveatDefinition(caveatDef)
+		if cverr == nil {
+			if err := rwt.WriteCaveats(ctx, []*core.CaveatDefinition{caveatDef}); err != nil {
+				return errors, err
+			}
+			continue
+		}
+
+		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
+		if ok {
+			errors = append(errors, &devinterface.DeveloperError{
+				Message: cverr.Error(),
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
+				Context: errWithSource.SourceCodeString,
+				Line:    uint32(errWithSource.LineNumber),
+				Column:  uint32(errWithSource.ColumnPosition),
+			})
+		} else {
+			errors = append(errors, &devinterface.DeveloperError{
+				Message: cverr.Error(),
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
+				Context: caveatDef.Name,
+			})
+		}
+	}
+
+	for _, nsDef := range compiled.ObjectDefinitions {
+		ts, terr := namespace.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
-			errWithSource, ok := commonerrors.AsErrorWithSource(terr)
+			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
@@ -204,13 +284,13 @@ func loadNamespaces(
 
 		_, tverr := ts.Validate(ctx)
 		if tverr == nil {
-			if err := rwt.WriteNamespaces(nsDef); err != nil {
+			if err := rwt.WriteNamespaces(ctx, nsDef); err != nil {
 				return errors, err
 			}
 			continue
 		}
 
-		errWithSource, ok := commonerrors.AsErrorWithSource(tverr)
+		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
 		if ok {
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
@@ -300,8 +380,6 @@ func rewriteACLError(ctx context.Context, err error) error {
 		fallthrough
 	case errors.As(err, &relNotFoundError):
 		fallthrough
-	case errors.As(err, &shared.ErrPreconditionFailed{}):
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &maingraph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)
@@ -316,7 +394,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
 	case errors.As(err, &maingraph.ErrAlwaysFail{}):
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("internal graph error in devcontext")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 
 	default:
@@ -324,7 +402,7 @@ func rewriteACLError(ctx context.Context, err error) error {
 			return status.Errorf(codes.InvalidArgument, "%s", err)
 		}
 
-		log.Ctx(ctx).Err(err)
+		log.Ctx(ctx).Err(err).Msg("unexpected graph error in devcontext")
 		return err
 	}
 }

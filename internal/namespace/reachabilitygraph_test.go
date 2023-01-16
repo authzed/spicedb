@@ -5,7 +5,6 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -486,16 +485,23 @@ func TestReachabilityGraph(t *testing.T) {
 			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
 
 			empty := ""
-			defs, err := compiler.Compile([]compiler.InputSchema{
-				{Source: input.Source("schema"), SchemaString: tc.schema},
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: tc.schema,
 			}, &empty)
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
 			var rts *ValidatedNamespaceTypeSystem
-			for _, nsDef := range defs {
+			for _, nsDef := range compiled.ObjectDefinitions {
 				reader := ds.SnapshotReader(lastRevision)
-				ts, err := BuildNamespaceTypeSystemWithFallback(nsDef, reader, defs)
+				ts, err := NewNamespaceTypeSystem(nsDef,
+					ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
+						Namespaces: compiled.ObjectDefinitions,
+						Caveats:    compiled.CaveatDefinitions,
+					}))
 				require.NoError(err)
 
 				vts, terr := ts.Validate(ctx)

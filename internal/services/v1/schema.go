@@ -2,26 +2,20 @@ package v1
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
-	"github.com/rs/zerolog/log"
-	"github.com/scylladb/go-set/strset"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
-	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/serviceerrors"
 	"github.com/authzed/spicedb/internal/services/shared"
-	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/commonerrors"
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -29,18 +23,29 @@ import (
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer() v1.SchemaServiceServer {
+func NewSchemaServer(additiveOnly, caveatsEnabled bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary:  grpcvalidate.UnaryServerInterceptor(),
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Unary: middleware.ChainUnaryServer(
+				grpcvalidate.UnaryServerInterceptor(true),
+				usagemetrics.UnaryServerInterceptor(),
+			),
+			Stream: middleware.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(true),
+				usagemetrics.StreamServerInterceptor(),
+			),
 		},
+		additiveOnly:   additiveOnly,
+		caveatsEnabled: caveatsEnabled,
 	}
 }
 
 type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
 	shared.WithServiceSpecificInterceptors
+
+	additiveOnly   bool
+	caveatsEnabled bool
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
@@ -49,25 +54,38 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 
 	nsDefs, err := ds.ListNamespaces(ctx)
 	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
+		return nil, rewriteError(ctx, err)
+	}
+
+	caveatDefs, err := ds.ListCaveats(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
 	}
 
 	if len(nsDefs) == 0 {
 		return nil, status.Errorf(codes.NotFound, "No schema has been defined; please call WriteSchema to start")
 	}
 
-	objectDefs := make([]string, 0, len(nsDefs))
+	schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(nsDefs)+len(caveatDefs))
+	for _, caveatDef := range caveatDefs {
+		schemaDefinitions = append(schemaDefinitions, caveatDef)
+	}
+
 	for _, nsDef := range nsDefs {
-		objectDef, _ := generator.GenerateSource(nsDef)
-		objectDefs = append(objectDefs, objectDef)
+		schemaDefinitions = append(schemaDefinitions, nsDef)
+	}
+
+	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsDefs)),
+		DispatchCount: uint32(len(nsDefs) + len(caveatDefs)),
 	})
 
 	return &v1.ReadSchemaResponse{
-		SchemaText: strings.Join(objectDefs, "\n\n"),
+		SchemaText: schemaText,
 	}, nil
 }
 
@@ -76,130 +94,41 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	ds := datastoremw.MustFromContext(ctx)
 
-	inputSchema := compiler.InputSchema{
-		Source:       input.Source("schema"),
-		SchemaString: in.GetSchema(),
-	}
-
 	// Compile the schema into the namespace definitions.
 	emptyDefaultPrefix := ""
-	nsdefs, err := compiler.Compile([]compiler.InputSchema{inputSchema}, &emptyDefaultPrefix)
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: in.GetSchema(),
+	}, &emptyDefaultPrefix)
 	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
-	log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("compiled namespace definitions")
+	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
-	// Do as much validation as we can before talking to the datastore
-	newDefs := strset.NewWithSize(len(nsdefs))
-	for _, nsdef := range nsdefs {
-		ts, err := namespace.BuildNamespaceTypeSystemForDefs(nsdef, nsdefs)
-		if err != nil {
-			return nil, rewriteSchemaError(ctx, err)
-		}
-
-		vts, err := ts.Validate(ctx)
-		if err != nil {
-			return nil, rewriteSchemaError(ctx, err)
-		}
-
-		if err := namespace.AnnotateNamespace(vts); err != nil {
-			return nil, rewriteSchemaError(ctx, err)
-		}
-
-		newDefs.Add(nsdef.Name)
+	if !ss.caveatsEnabled && len(compiled.CaveatDefinitions) > 0 {
+		return nil, fmt.Errorf("caveats are currently not supported")
 	}
 
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		// Build a map of existing definitions to determine those being removed, if any.
-		existingDefs, err := rwt.ListNamespaces(ctx)
+	// Do as much validation as we can before talking to the datastore.
+	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.additiveOnly)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
+	// Update the schema.
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		applied, err := shared.ApplySchemaChanges(ctx, rwt, validated)
 		if err != nil {
 			return err
 		}
-
-		existingDefMap := make(map[string]*core.NamespaceDefinition, len(existingDefs))
-		existing := strset.NewWithSize(len(existingDefs))
-		for _, existingDef := range existingDefs {
-			existingDefMap[existingDef.Name] = existingDef
-			existing.Add(existingDef.Name)
-		}
-
-		// For each definition, perform a diff and ensure the changes will not result in any
-		// relationships left without associated schema.
-		for _, nsdef := range nsdefs {
-			if err := shared.SanityCheckExistingRelationships(ctx, rwt, nsdef, existingDefMap); err != nil {
-				return err
-			}
-		}
-		log.Ctx(ctx).Trace().Interface("namespaceDefinitions", nsdefs).Msg("validated namespace definitions")
-
-		// Ensure that deleting namespaces will not result in any relationships left without associated
-		// schema.
-		removed := strset.Difference(existing, newDefs)
-		var checkRelErr error
-		removed.Each(func(nsdefName string) bool {
-			checkRelErr = shared.EnsureNoRelationshipsExist(ctx, rwt, nsdefName)
-			return checkRelErr == nil
-		})
-		if checkRelErr != nil {
-			return checkRelErr
-		}
-
-		// Write the new namespaces.
-		if err := rwt.WriteNamespaces(nsdefs...); err != nil {
-			return err
-		}
-
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: uint32(len(nsdefs)),
+			DispatchCount: applied.TotalOperationCount,
 		})
-
-		// Delete the removed namespaces.
-		var removeErr error
-		removed.Each(func(nsdefName string) bool {
-			removeErr = rwt.DeleteNamespace(nsdefName)
-			return removeErr == nil
-		})
-		if removeErr != nil {
-			return removeErr
-		}
-
-		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: uint32(len(nsdefs) + removed.Size()),
-		})
-
-		log.Ctx(ctx).Trace().
-			Interface("namespaceDefinitions", nsdefs).
-			Strs("addedOrChanged", newDefs.List()).
-			Strs("removed", removed.List()).
-			Msg("wrote namespace definitions")
-
 		return nil
 	})
 	if err != nil {
-		return nil, rewriteSchemaError(ctx, err)
+		return nil, rewriteError(ctx, err)
 	}
 
 	return &v1.WriteSchemaResponse{}, nil
-}
-
-func rewriteSchemaError(ctx context.Context, err error) error {
-	var nsNotFoundError sharederrors.UnknownNamespaceError
-	var errWithContext compiler.ErrorWithContext
-
-	errWithSource, ok := commonerrors.AsErrorWithSource(err)
-	if ok {
-		return status.Errorf(codes.InvalidArgument, "%s", errWithSource.Error())
-	}
-
-	switch {
-	case errors.As(err, &nsNotFoundError):
-		return status.Errorf(codes.NotFound, "Object Definition `%s` not found", nsNotFoundError.NotFoundNamespaceName())
-	case errors.As(err, &errWithContext):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return serviceerrors.ErrServiceReadOnly
-	default:
-		log.Ctx(ctx).Err(err).Msg("received unexpected error")
-		return err
-	}
 }

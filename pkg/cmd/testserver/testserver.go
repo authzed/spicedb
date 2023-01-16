@@ -2,13 +2,15 @@ package testserver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/gateway"
+	log "github.com/authzed/spicedb/internal/logging"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
@@ -16,7 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
-	v1alpha1svc "github.com/authzed/spicedb/internal/services/v1alpha1"
+	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
@@ -24,9 +26,13 @@ const maxDepth = 50
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	GRPCServer         util.GRPCServerConfig
-	ReadOnlyGRPCServer util.GRPCServerConfig
-	LoadConfigs        []string
+	GRPCServer               util.GRPCServerConfig
+	ReadOnlyGRPCServer       util.GRPCServerConfig
+	HTTPGateway              util.HTTPServerConfig
+	ReadOnlyHTTPGateway      util.HTTPServerConfig
+	LoadConfigs              []string
+	MaximumUpdatesPerWrite   uint16
+	MaximumPreconditionCount uint16
 }
 
 type RunnableTestServer interface {
@@ -42,7 +48,7 @@ func (dr datastoreReady) IsReady(ctx context.Context) (bool, error) {
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	dispatcher := graph.NewLocalOnlyDispatcher()
+	dispatcher := graph.NewLocalOnlyDispatcher(10)
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
 
@@ -53,9 +59,14 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			srv,
 			healthManager,
 			dispatcher,
-			maxDepth,
-			v1alpha1svc.PrefixNotRequired,
 			services.V1SchemaServiceEnabled,
+			services.WatchServiceEnabled,
+			services.CaveatsEnabled,
+			v1svc.PermissionsServerConfig{
+				MaxPreconditionsCount: c.MaximumPreconditionCount,
+				MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
+				MaximumAPIDepth:       maxDepth,
+			},
 		)
 	}
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
@@ -96,17 +107,51 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		return nil, err
 	}
 
+	gatewayHandler, err := gateway.NewHandler(context.TODO(), c.GRPCServer.Address, c.GRPCServer.TLSCertPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
+	}
+
+	if c.HTTPGateway.Enabled {
+		log.Info().Msg("starting REST gateway")
+	}
+
+	gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, gatewayHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+	}
+
+	readOnlyGatewayHandler, err := gateway.NewHandler(context.TODO(), c.ReadOnlyGRPCServer.Address, c.ReadOnlyGRPCServer.TLSCertPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
+	}
+
+	if c.ReadOnlyHTTPGateway.Enabled {
+		log.Info().Msg("starting REST gateway")
+	}
+
+	readOnlyGatewayServer, err := c.ReadOnlyHTTPGateway.Complete(zerolog.InfoLevel, readOnlyGatewayHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize rest gateway: %w", err)
+	}
+
 	return &completedTestServer{
-		gRPCServer:         gRPCSrv,
-		readOnlyGRPCServer: readOnlyGRPCSrv,
-		healthManager:      healthManager,
+		gRPCServer:            gRPCSrv,
+		readOnlyGRPCServer:    readOnlyGRPCSrv,
+		gatewayServer:         gatewayServer,
+		readOnlyGatewayServer: readOnlyGatewayServer,
+		healthManager:         healthManager,
 	}, nil
 }
 
 type completedTestServer struct {
 	gRPCServer         util.RunnableGRPCServer
 	readOnlyGRPCServer util.RunnableGRPCServer
-	healthManager      health.Manager
+
+	gatewayServer         util.RunnableHTTPServer
+	readOnlyGatewayServer util.RunnableHTTPServer
+
+	healthManager health.Manager
 }
 
 func (c *completedTestServer) Run(ctx context.Context) error {
@@ -121,13 +166,21 @@ func (c *completedTestServer) Run(ctx context.Context) error {
 	}
 
 	g.Go(c.healthManager.Checker(ctx))
-	g.Go(c.gRPCServer.Listen)
+
+	g.Go(c.gRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.gRPCServer.GracefulStop))
-	g.Go(c.readOnlyGRPCServer.Listen)
+
+	g.Go(c.readOnlyGRPCServer.Listen(ctx))
 	g.Go(stopOnCancel(c.readOnlyGRPCServer.GracefulStop))
 
+	g.Go(c.gatewayServer.ListenAndServe)
+	g.Go(stopOnCancel(c.gatewayServer.Close))
+
+	g.Go(c.readOnlyGatewayServer.ListenAndServe)
+	g.Go(stopOnCancel(c.readOnlyGatewayServer.Close))
+
 	if err := g.Wait(); err != nil {
-		log.Warn().Err(err).Msg("error shutting down servers")
+		log.Ctx(ctx).Warn().Err(err).Msg("error shutting down servers")
 	}
 
 	return nil

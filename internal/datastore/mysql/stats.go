@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/common"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/Masterminds/squirrel"
@@ -48,13 +49,26 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 		return datastore.Stats{}, err
 	}
 
+	if count == 0 {
+		// If we get a count of zero, its possible the information schema table has not yet
+		// been updated, so we use a slower count(*) call.
+		query, args, err := mds.QueryBuilder.CountTupleQuery.ToSql()
+		if err != nil {
+			return datastore.Stats{}, err
+		}
+		err = mds.db.QueryRowContext(ctx, query, args...).Scan(&count)
+		if err != nil {
+			return datastore.Stats{}, err
+		}
+	}
+
 	nsQuery := mds.ReadNamespaceQuery.Where(squirrel.Eq{colDeletedTxn: liveDeletedTxnID})
 
 	tx, err := mds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return datastore.Stats{}, err
 	}
-	defer migrations.LogOnError(ctx, tx.Rollback)
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, nsQuery)
 	if err != nil {

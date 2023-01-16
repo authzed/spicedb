@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -14,17 +15,14 @@ import (
 
 const (
 	tableNamespace = "namespace"
-	indexName      = "id"
 
-	tableRelationship               = "relationship"
-	indexID                         = "id"
-	indexNamespace                  = "namespace"
-	indexNamespaceAndResourceID     = "namespaceAndResourceID"
-	indexNamespaceAndRelation       = "namespaceAndRelation"
-	indexNamespaceAndSubjectID      = "namespaceAndSubjectID"
-	indexSubjectNamespace           = "subjectNamespace"
-	indexFullSubject                = "subject"
-	indexSubjectAndResourceRelation = "subjectAndResourceRelation"
+	tableRelationship           = "relationship"
+	indexID                     = "id"
+	indexNamespace              = "namespace"
+	indexNamespaceAndResourceID = "namespaceAndResourceID"
+	indexNamespaceAndRelation   = "namespaceAndRelation"
+	indexNamespaceAndSubjectID  = "namespaceAndSubjectID"
+	indexSubjectNamespace       = "subjectNamespace"
 
 	tableChangelog = "changelog"
 	indexRevision  = "id"
@@ -47,18 +45,48 @@ type relationship struct {
 	subjectNamespace string
 	subjectObjectID  string
 	subjectRelation  string
+	caveat           *contextualizedCaveat
 }
 
-func (r relationship) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("rel", fmt.Sprintf(
-		"%s:%s#%s@%s:%s#%s",
+type contextualizedCaveat struct {
+	caveatName string
+	context    map[string]any
+}
+
+func (cr *contextualizedCaveat) ContextualizedCaveat() (*core.ContextualizedCaveat, error) {
+	if cr == nil {
+		return nil, nil
+	}
+	v, err := structpb.NewStruct(cr.context)
+	if err != nil {
+		return nil, err
+	}
+	return &core.ContextualizedCaveat{
+		CaveatName: cr.caveatName,
+		Context:    v,
+	}, nil
+}
+
+func (r relationship) String() string {
+	caveat := ""
+	if r.caveat != nil {
+		caveat = fmt.Sprintf("[%s]", r.caveat.caveatName)
+	}
+
+	return fmt.Sprintf(
+		"%s:%s#%s@%s:%s#%s%s",
 		r.namespace,
 		r.resourceID,
 		r.relation,
 		r.subjectNamespace,
 		r.subjectObjectID,
 		r.subjectRelation,
-	))
+		caveat,
+	)
+}
+
+func (r relationship) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("rel", r.String())
 }
 
 func (r relationship) Relationship() *v1.Relationship {
@@ -78,7 +106,11 @@ func (r relationship) Relationship() *v1.Relationship {
 	}
 }
 
-func (r relationship) RelationTuple() *core.RelationTuple {
+func (r relationship) RelationTuple() (*core.RelationTuple, error) {
+	cr, err := r.caveat.ContextualizedCaveat()
+	if err != nil {
+		return nil, err
+	}
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
@@ -90,7 +122,8 @@ func (r relationship) RelationTuple() *core.RelationTuple {
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
 		},
-	}
+		Caveat: cr,
+	}, nil
 }
 
 type changelog struct {
@@ -103,8 +136,8 @@ var schema = &memdb.DBSchema{
 		tableNamespace: {
 			Name: tableNamespace,
 			Indexes: map[string]*memdb.IndexSchema{
-				indexName: {
-					Name:    indexName,
+				indexID: {
+					Name:    indexID,
 					Unique:  true,
 					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
@@ -178,27 +211,15 @@ var schema = &memdb.DBSchema{
 					Unique:  false,
 					Indexer: &memdb.StringFieldIndex{Field: "subjectNamespace"},
 				},
-				indexFullSubject: {
-					Name:   indexFullSubject,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "subjectNamespace"},
-							&memdb.StringFieldIndex{Field: "subjectObjectID"},
-							&memdb.StringFieldIndex{Field: "subjectRelation"},
-						},
-					},
-				},
-				indexSubjectAndResourceRelation: {
-					Name:   indexSubjectAndResourceRelation,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "subjectNamespace"},
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "relation"},
-						},
-					},
+			},
+		},
+		tableCaveats: {
+			Name: tableCaveats,
+			Indexes: map[string]*memdb.IndexSchema{
+				indexID: {
+					Name:    indexID,
+					Unique:  true,
+					Indexer: &memdb.StringFieldIndex{Field: "name"},
 				},
 			},
 		},

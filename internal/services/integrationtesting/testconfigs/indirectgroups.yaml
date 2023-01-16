@@ -1,0 +1,30 @@
+---
+schema: |+
+  definition user {}
+
+  definition group {
+    relation direct_member: user
+    relation intern: user
+    permission non_intern_member = direct_member - intern
+  }
+
+  definition document {
+    relation viewer: user | group#non_intern_member
+    permission view = viewer
+  }
+
+relationships: |
+  document:firstdoc#viewer@user:tom#...
+  document:firstdoc#viewer@group:engineering#non_intern_member
+  group:engineering#direct_member@user:sarah#...
+  group:engineering#direct_member@user:fred#...
+  group:engineering#direct_member@user:james#...
+  group:engineering#intern@user:james#...
+  group:engineering#intern@user:tom#...
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:tom#..."
+    - "document:firstdoc#view@user:sarah#..."
+    - "document:firstdoc#view@user:fred#..."
+  assertFalse:
+    - "document:firstdoc#view@user:james#..."

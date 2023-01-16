@@ -13,18 +13,22 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - "-s -w"
-      - "-X github.com/jzelinskie/cobrautil.Version=v{{ .Version }}"
+      - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
 nfpms:
   - vendor: "authzed inc."
     homepage: "https://spicedb.io"
     maintainer: "authzed <support@authzed.com>"
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache 2.0"
-    epoch: 0
+    epoch: "0"
     formats:
       - "apk"
       - "deb"
       - "rpm"
+furies:
+  - account: "authzed"
+    secret_name: "GEMFURY_PUSH_TOKEN"
+
 brews:
   - tap:
       owner: "authzed"
@@ -49,7 +53,7 @@ brews:
       system "#{bin}/spicedb version"
     install: |
       if !File.exists? "spicedb"
-        system "go build --ldflags \"-s -w -X github.com/jzelinskie/cobrautil.Version=$(git describe --always --abbrev=7 --dirty --tags)\" ./cmd/spicedb"
+        system "go build --ldflags \"-s -w -X github.com/jzelinskie/cobrautil/v2.Version=$(git describe --always --abbrev=7 --dirty --tags)\" ./cmd/spicedb"
       end
       bin.install "spicedb"
       (bash_completion/"spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "bash")
@@ -67,6 +71,18 @@ dockers:
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
+  # AMD64 (debug)
+  - image_templates:
+      - &amd_debug_image_quay "quay.io/authzed/spicedb:v{{ .Version }}-amd64-debug"
+      - &amd_debug_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-amd64-debug"
+      - &amd_debug_image_dh "authzed/spicedb:v{{ .Version }}-amd64-debug"
+    dockerfile: &dockerfile "Dockerfile.release"
+    goos: "linux"
+    goarch: "amd64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=BASE=distroless.dev/busybox"
   # ARM64
   - image_templates:
       - &arm_image_quay "quay.io/authzed/spicedb:v{{ .Version }}-arm64"
@@ -78,6 +94,18 @@ dockers:
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/arm64"
+  # ARM64 (debug)
+  - image_templates:
+      - &arm_debug_image_quay "quay.io/authzed/spicedb:v{{ .Version }}-arm64-debug"
+      - &arm_debug_image_gh "ghcr.io/authzed/spicedb:v{{ .Version }}-arm64-debug"
+      - &arm_debug_image_dh "authzed/spicedb:v{{ .Version }}-arm64-debug"
+    dockerfile: *dockerfile
+    goos: "linux"
+    goarch: "arm64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=BASE=distroless.dev/busybox"
 docker_manifests:
   # Quay
   - name_template: "quay.io/authzed/spicedb:v{{ .Version }}"
@@ -94,6 +122,24 @@ docker_manifests:
     image_templates: [*amd_image_dh, *arm_image_dh]
   - name_template: "authzed/spicedb:latest"
     image_templates: [*amd_image_dh, *arm_image_dh]
+
+  # Debug Images:
+
+  # Quay (debug)
+  - name_template: "quay.io/authzed/spicedb:v{{ .Version }}-debug"
+    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay]
+  - name_template: "quay.io/authzed/spicedb:latest-debug"
+    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay]
+  # GitHub Registry
+  - name_template: "ghcr.io/authzed/spicedb:v{{ .Version }}-debug"
+    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh]
+  - name_template: "ghcr.io/authzed/spicedb:latest-debug"
+    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh]
+  # Docker Hub
+  - name_template: "authzed/spicedb:v{{ .Version }}-debug"
+    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh]
+  - name_template: "authzed/spicedb:latest-debug"
+    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh]
 checksum:
   name_template: "checksums.txt"
 snapshot:

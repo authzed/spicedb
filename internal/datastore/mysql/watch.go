@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
@@ -22,7 +22,9 @@ const (
 // All events following afterRevision will be sent to the caller.
 //
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+	afterRevision := afterRevisionRaw.(revision.Decimal)
+
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -33,7 +35,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revisio
 		currentTxn := transactionFromRevision(afterRevision)
 
 		for {
-			var stagedUpdates []*datastore.RevisionChanges
+			var stagedUpdates []datastore.RevisionChanges
 			var err error
 			stagedUpdates, currentTxn, err = mds.loadChanges(ctx, currentTxn)
 			if err != nil {
@@ -47,8 +49,10 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revisio
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
+				changeToWrite := changeToWrite
+
 				select {
-				case updates <- changeToWrite:
+				case updates <- &changeToWrite:
 				default:
 					errs <- datastore.NewWatchDisconnectedErr()
 					return
@@ -77,7 +81,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevision datastore.Revisio
 func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
-) (changes []*datastore.RevisionChanges, newRevision uint64, err error) {
+) (changes []datastore.RevisionChanges, newRevision uint64, err error) {
 	newRevision, err = mds.loadRevision(ctx)
 	if err != nil {
 		return
@@ -108,9 +112,9 @@ func (mds *Datastore) loadChanges(
 		}
 		return
 	}
-	defer migrations.LogOnError(ctx, rows.Close)
+	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges()
+	stagedChanges := common.NewChanges(revision.DecimalKeyFunc)
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{
@@ -120,6 +124,8 @@ func (mds *Datastore) loadChanges(
 
 		var createdTxn uint64
 		var deletedTxn uint64
+		var caveatName string
+		var caveatContext caveatContextWrapper
 		err = rows.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
 			&nextTuple.ResourceAndRelation.ObjectId,
@@ -127,9 +133,15 @@ func (mds *Datastore) loadChanges(
 			&nextTuple.Subject.Namespace,
 			&nextTuple.Subject.ObjectId,
 			&nextTuple.Subject.Relation,
+			&caveatName,
+			&caveatContext,
 			&createdTxn,
 			&deletedTxn,
 		)
+		if err != nil {
+			return
+		}
+		nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 		if err != nil {
 			return
 		}
@@ -146,7 +158,7 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	changes = stagedChanges.AsRevisionChanges()
+	changes = stagedChanges.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
 
 	return
 }

@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpc_testing "github.com/grpc-ecosystem/go-grpc-middleware/testing"
-	pb_testproto "github.com/grpc-ecosystem/go-grpc-middleware/testing/testproto"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/testing/testpb"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,14 +16,15 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 var (
-	zero      = decimal.NewFromInt(0)
-	optimized = decimal.NewFromInt(100)
-	exact     = decimal.NewFromInt(123)
-	head      = decimal.NewFromInt(145)
+	zero      = revision.NewFromDecimal(decimal.NewFromInt(0))
+	optimized = revision.NewFromDecimal(decimal.NewFromInt(100))
+	exact     = revision.NewFromDecimal(decimal.NewFromInt(123))
+	head      = revision.NewFromDecimal(decimal.NewFromInt(145))
 )
 
 func TestAddRevisionToContextNoneSupplied(t *testing.T) {
@@ -36,7 +36,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds)
 	require.NoError(err)
-	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(optimized.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -55,7 +55,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(optimized.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(optimized.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -74,7 +74,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(head.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -83,17 +83,18 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.NewFromRevision(exact),
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(exact),
 			},
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(exact.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(exact.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -102,17 +103,18 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", exact).Return(nil).Times(1)
+	ds.On("RevisionFromString", exact.String()).Return(exact, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.NewFromRevision(exact),
+				AtExactSnapshot: zedtoken.MustNewFromRevision(exact),
 			},
 		},
 	}, ds)
 	require.NoError(err)
-	require.Equal(exact.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(exact.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -121,12 +123,13 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 
 	ds := &proxy_test.MockDatastore{}
 	ds.On("CheckRevision", zero).Return(errors.New("bad revision")).Times(1)
+	ds.On("RevisionFromString", zero.String()).Return(zero, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtExactSnapshot{
-				AtExactSnapshot: zedtoken.NewFromRevision(zero),
+				AtExactSnapshot: zedtoken.MustNewFromRevision(zero),
 			},
 		},
 	}, ds)
@@ -143,7 +146,7 @@ func TestAddRevisionToContextAPIAlwaysFullyConsistent(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	err := AddRevisionToContext(updated, &v1.WriteSchemaRequest{}, ds)
 	require.NoError(err)
-	require.Equal(head.IntPart(), RevisionFromContext(updated).IntPart())
+	require.True(head.Equal(RevisionFromContext(updated)))
 	ds.AssertExpectations(t)
 }
 
@@ -152,7 +155,7 @@ func TestMiddlewareConsistencyTestSuite(t *testing.T) {
 	ds.On("HeadRevision").Return(head, nil)
 
 	s := &ConsistencyTestSuite{
-		InterceptorTestSuite: &grpc_testing.InterceptorTestSuite{
+		InterceptorTestSuite: &testpb.InterceptorTestSuite{
 			ServerOpts: []grpc.ServerOption{
 				grpc.ChainStreamInterceptor(
 					datastoremw.StreamServerInterceptor(ds),
@@ -169,10 +172,13 @@ func TestMiddlewareConsistencyTestSuite(t *testing.T) {
 	ds.AssertExpectations(t)
 }
 
-var goodPing = &pb_testproto.PingRequest{Value: "something"}
+var (
+	goodPing = &testpb.PingRequest{Value: "something"}
+	goodList = &testpb.PingListRequest{Value: "something"}
+)
 
 type ConsistencyTestSuite struct {
-	*grpc_testing.InterceptorTestSuite
+	*testpb.InterceptorTestSuite
 }
 
 func (s *ConsistencyTestSuite) TestValidPasses_Unary() {
@@ -183,7 +189,7 @@ func (s *ConsistencyTestSuite) TestValidPasses_Unary() {
 
 func (s *ConsistencyTestSuite) TestValidPasses_ServerStream() {
 	require := require.New(s.T())
-	stream, err := s.Client.PingList(s.SimpleCtx(), goodPing)
+	stream, err := s.Client.PingList(s.SimpleCtx(), goodList)
 	require.NoError(err)
 	for {
 		_, err := stream.Recv()

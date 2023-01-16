@@ -2,6 +2,7 @@ package revisions
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 type trackingRevisionFunction struct {
@@ -20,18 +22,18 @@ type trackingRevisionFunction struct {
 
 func (m *trackingRevisionFunction) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	args := m.Called()
-	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.Error(2)
+	return args.Get(0).(revision.Decimal), args.Get(1).(time.Duration), args.Error(2)
 }
 
 var (
-	one   = decimal.NewFromInt(1)
-	two   = decimal.NewFromInt(2)
-	three = decimal.NewFromInt(3)
+	one   = revision.NewFromDecimal(decimal.NewFromInt(1))
+	two   = revision.NewFromDecimal(decimal.NewFromInt(2))
+	three = revision.NewFromDecimal(decimal.NewFromInt(3))
 )
 
 func TestOptimizedRevisionCache(t *testing.T) {
 	type revisionResponse struct {
-		rev      decimal.Decimal
+		rev      datastore.Revision
 		validFor time.Duration
 	}
 
@@ -39,7 +41,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 		name                  string
 		maxStaleness          time.Duration
 		expectedCallResponses []revisionResponse
-		expectedRevisions     []decimal.Decimal
+		expectedRevisions     []datastore.Revision
 	}{
 		{
 			"single request",
@@ -47,7 +49,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			[]revisionResponse{
 				{one, 0},
 			},
-			[]decimal.Decimal{one},
+			[]datastore.Revision{one},
 		},
 		{
 			"simple no caching request",
@@ -57,7 +59,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{two, 0},
 				{three, 0},
 			},
-			[]decimal.Decimal{one, two, three},
+			[]datastore.Revision{one, two, three},
 		},
 		{
 			"simple cached once",
@@ -66,7 +68,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{one, 7 * time.Millisecond},
 				{two, 0},
 			},
-			[]decimal.Decimal{one, one, two},
+			[]datastore.Revision{one, one, two},
 		},
 		{
 			"cached by staleness",
@@ -75,7 +77,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{one, 0},
 				{two, 0},
 			},
-			[]decimal.Decimal{one, one, two, two},
+			[]datastore.Revision{one, one, two, two},
 		},
 		{
 			"cached by staleness and validity",
@@ -85,7 +87,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{two, 0},
 				{three, 0},
 			},
-			[]decimal.Decimal{one, one, two, three},
+			[]datastore.Revision{one, one, two, three},
 		},
 		{
 			"cached for a while",
@@ -94,7 +96,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{one, 28 * time.Millisecond},
 				{two, 0},
 			},
-			[]decimal.Decimal{one, one, one, one, one, one, two},
+			[]datastore.Revision{one, one, one, one, one, one, two},
 		},
 	}
 
@@ -118,7 +120,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			for _, expectedRev := range tc.expectedRevisions {
 				revision, err := or.OptimizedRevision(ctx)
 				require.NoError(err)
-				require.True(expectedRev.Equals(revision), "must return the proper revision %s != %s", expectedRev, revision)
+				require.True(expectedRev.Equal(revision), "must return the proper revision %s != %s", expectedRev, revision)
 
 				mockTime.Add(5 * time.Millisecond)
 			}
@@ -151,7 +153,7 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			require.True(one.Equals(revision), "must return the proper revision %s != %s", one, revision)
+			require.True(one.Equal(revision), "must return the proper revision %s != %s", one, revision)
 			return nil
 		})
 		time.Sleep(1 * time.Millisecond)
@@ -160,5 +162,25 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	err := g.Wait()
 	require.NoError(err)
 
+	mock.AssertExpectations(t)
+}
+
+func TestSingleFlightError(t *testing.T) {
+	req := require.New(t)
+
+	or := NewCachedOptimizedRevisions(0)
+	mock := trackingRevisionFunction{}
+	or.SetOptimizedRevisionFunc(mock.optimizedRevisionFunc)
+
+	mock.
+		On("optimizedRevisionFunc").
+		Return(one, time.Duration(0), errors.New("fail")).
+		Once()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	_, err := or.OptimizedRevision(ctx)
+	req.Error(err)
 	mock.AssertExpectations(t)
 }

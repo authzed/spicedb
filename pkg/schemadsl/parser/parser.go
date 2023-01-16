@@ -28,7 +28,7 @@ var ignoredTokenTypes = map[lexer.TokenType]bool{
 // consumeTopLevel attempts to consume the top-level definitions.
 func (p *sourceParser) consumeTopLevel() AstNode {
 	rootNode := p.startNode(dslshape.NodeTypeFile)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// Start at the first token.
 	p.consumeToken()
@@ -51,12 +51,16 @@ Loop:
 			break Loop
 		}
 
-		// The top level of the DSL is a set of definitions:
+		// The top level of the DSL is a set of definitions and caveats:
 		// definition foobar { ... }
+		// caveat somecaveat (...) { ... }
 
 		switch {
 		case p.isKeyword("definition"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDefinition())
+
+		case p.isKeyword("caveat"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
@@ -67,11 +71,167 @@ Loop:
 	return rootNode
 }
 
+// consumeCaveat attempts to consume a single caveat definition.
+// ```caveat somecaveat(param1 type, param2 type) { ... }```
+func (p *sourceParser) consumeCaveat() AstNode {
+	defNode := p.startNode(dslshape.NodeTypeCaveatDefinition)
+	defer p.mustFinishNode()
+
+	// caveat ...
+	p.consumeKeyword("caveat")
+	caveatName, ok := p.consumeTypePath()
+	if !ok {
+		return defNode
+	}
+
+	defNode.MustDecorate(dslshape.NodeCaveatDefinitionPredicateName, caveatName)
+
+	// Parameters:
+	// (
+	_, ok = p.consume(lexer.TokenTypeLeftParen)
+	if !ok {
+		return defNode
+	}
+
+	for {
+		paramNode, ok := p.consumeCaveatParameter()
+		if !ok {
+			return defNode
+		}
+
+		defNode.Connect(dslshape.NodeCaveatDefinitionPredicateParameters, paramNode)
+		if _, ok := p.tryConsume(lexer.TokenTypeComma); !ok {
+			break
+		}
+	}
+
+	// )
+	_, ok = p.consume(lexer.TokenTypeRightParen)
+	if !ok {
+		return defNode
+	}
+
+	// {
+	_, ok = p.consume(lexer.TokenTypeLeftBrace)
+	if !ok {
+		return defNode
+	}
+
+	exprNode, ok := p.consumeCaveatExpression()
+	if !ok {
+		return defNode
+	}
+
+	defNode.Connect(dslshape.NodeCaveatDefinitionPredicateExpession, exprNode)
+
+	// }
+	_, ok = p.consume(lexer.TokenTypeRightBrace)
+	if !ok {
+		return defNode
+	}
+
+	return defNode
+}
+
+func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
+	exprNode := p.startNode(dslshape.NodeTypeCaveatExpession)
+	defer p.mustFinishNode()
+
+	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
+	// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
+	// here.
+	braceDepth := 1 // Starting at 1 from the open brace above
+	var startToken *commentedLexeme
+	var endToken *commentedLexeme
+consumer:
+	for {
+		currentToken := p.currentToken
+		switch currentToken.Kind {
+		case lexer.TokenTypeLeftBrace:
+			braceDepth++
+
+		case lexer.TokenTypeRightBrace:
+			if braceDepth == 1 {
+				break consumer
+			}
+
+			braceDepth--
+
+		case lexer.TokenTypeEOF:
+			break consumer
+		}
+
+		if startToken == nil {
+			startToken = &currentToken
+		}
+
+		endToken = &currentToken
+		p.consumeToken()
+	}
+
+	if startToken == nil {
+		p.emitErrorf("missing caveat expression")
+		return exprNode, false
+	}
+
+	caveatExpression := p.input[startToken.Position : int(endToken.Position)+len(endToken.Value)]
+	exprNode.MustDecorate(dslshape.NodeCaveatExpressionPredicateExpression, caveatExpression)
+	return exprNode, true
+}
+
+// consumeCaveatParameter attempts to consume a caveat parameter.
+// ```(paramName paramtype)```
+func (p *sourceParser) consumeCaveatParameter() (AstNode, bool) {
+	paramNode := p.startNode(dslshape.NodeTypeCaveatParameter)
+	defer p.mustFinishNode()
+
+	name, ok := p.consumeIdentifier()
+	if !ok {
+		return paramNode, false
+	}
+
+	paramNode.MustDecorate(dslshape.NodeCaveatParameterPredicateName, name)
+	paramNode.Connect(dslshape.NodeCaveatParameterPredicateType, p.consumeCaveatTypeReference())
+	return paramNode, true
+}
+
+// consumeCaveatTypeReference attempts to consume a caveat type reference.
+// ```typeName<childType>```
+func (p *sourceParser) consumeCaveatTypeReference() AstNode {
+	typeRefNode := p.startNode(dslshape.NodeTypeCaveatTypeReference)
+	defer p.mustFinishNode()
+
+	name, ok := p.consumeIdentifier()
+	if !ok {
+		return typeRefNode
+	}
+
+	typeRefNode.MustDecorate(dslshape.NodeCaveatTypeReferencePredicateType, name)
+
+	// Check for child type(s).
+	// <
+	if _, ok := p.tryConsume(lexer.TokenTypeLessThan); !ok {
+		return typeRefNode
+	}
+
+	for {
+		childTypeRef := p.consumeCaveatTypeReference()
+		typeRefNode.Connect(dslshape.NodeCaveatTypeReferencePredicateChildTypes, childTypeRef)
+		if _, ok := p.tryConsume(lexer.TokenTypeComma); !ok {
+			break
+		}
+	}
+
+	// >
+	p.consume(lexer.TokenTypeGreaterThan)
+	return typeRefNode
+}
+
 // consumeDefinition attempts to consume a single schema definition.
-// ```definition somedef { ... }````
+// ```definition somedef { ... }```
 func (p *sourceParser) consumeDefinition() AstNode {
 	defNode := p.startNode(dslshape.NodeTypeDefinition)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// definition ...
 	p.consumeKeyword("definition")
@@ -80,7 +240,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		return defNode
 	}
 
-	defNode.Decorate(dslshape.NodeDefinitionPredicateName, definitionName)
+	defNode.MustDecorate(dslshape.NodeDefinitionPredicateName, definitionName)
 
 	// {
 	_, ok = p.consume(lexer.TokenTypeLeftBrace)
@@ -118,7 +278,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 // ```relation foo: sometype```
 func (p *sourceParser) consumeRelation() AstNode {
 	relNode := p.startNode(dslshape.NodeTypeRelation)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// relation ...
 	p.consumeKeyword("relation")
@@ -127,7 +287,7 @@ func (p *sourceParser) consumeRelation() AstNode {
 		return relNode
 	}
 
-	relNode.Decorate(dslshape.NodePredicateName, relationName)
+	relNode.MustDecorate(dslshape.NodePredicateName, relationName)
 
 	// :
 	_, ok = p.consume(lexer.TokenTypeColon)
@@ -145,10 +305,10 @@ func (p *sourceParser) consumeRelation() AstNode {
 // ```sometype | anothertype | anothertype:* ```
 func (p *sourceParser) consumeTypeReference() AstNode {
 	refNode := p.startNode(dslshape.NodeTypeTypeReference)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	for {
-		refNode.Connect(dslshape.NodeTypeReferencePredicateType, p.consumeSpecificType())
+		refNode.Connect(dslshape.NodeTypeReferencePredicateType, p.consumeSpecificTypeWithCaveat())
 		if _, ok := p.tryConsume(lexer.TokenTypePipe); !ok {
 			break
 		}
@@ -157,17 +317,51 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 	return refNode
 }
 
+// consumeSpecificType consumes an identifier as a specific type reference, with optional caveat.
+func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
+	specificNode := p.consumeSpecificType()
+
+	caveatNode, ok := p.tryConsumeWithCaveat()
+	if ok {
+		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
+	}
+
+	return specificNode
+}
+
+// tryConsumeWithCaveat tries to consume a caveat `with` expression.
+func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
+	if !p.isKeyword("with") {
+		return nil, false
+	}
+
+	caveatNode := p.startNode(dslshape.NodeTypeCaveatReference)
+	defer p.mustFinishNode()
+
+	if ok := p.consumeKeyword("with"); !ok {
+		return nil, ok
+	}
+
+	consumed, ok := p.consumeTypePath()
+	if !ok {
+		return caveatNode, true
+	}
+
+	caveatNode.MustDecorate(dslshape.NodeCaveatPredicateCaveat, consumed)
+	return caveatNode, true
+}
+
 // consumeSpecificType consumes an identifier as a specific type reference.
 func (p *sourceParser) consumeSpecificType() AstNode {
 	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	typeName, ok := p.consumeTypePath()
 	if !ok {
 		return specificNode
 	}
 
-	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateType, typeName)
+	specificNode.MustDecorate(dslshape.NodeSpecificReferencePredicateType, typeName)
 
 	// Check for a wildcard
 	if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
@@ -176,7 +370,7 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 			return specificNode
 		}
 
-		specificNode.Decorate(dslshape.NodeSpecificReferencePredicateWildcard, "true")
+		specificNode.MustDecorate(dslshape.NodeSpecificReferencePredicateWildcard, "true")
 		return specificNode
 	}
 
@@ -191,8 +385,7 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 		return specificNode
 	}
 
-	specificNode.Decorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
-
+	specificNode.MustDecorate(dslshape.NodeSpecificReferencePredicateRelation, consumed.Value)
 	return specificNode
 }
 
@@ -219,7 +412,7 @@ func (p *sourceParser) consumeTypePath() (string, bool) {
 // ```permission foo = bar + baz```
 func (p *sourceParser) consumePermission() AstNode {
 	permNode := p.startNode(dslshape.NodeTypePermission)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	// permission ...
 	p.consumeKeyword("permission")
@@ -228,7 +421,7 @@ func (p *sourceParser) consumePermission() AstNode {
 		return permNode
 	}
 
-	permNode.Decorate(dslshape.NodePredicateName, permissionName)
+	permNode.MustDecorate(dslshape.NodePredicateName, permissionName)
 
 	// =
 	_, ok = p.consume(lexer.TokenTypeEquals)
@@ -329,17 +522,17 @@ func (p *sourceParser) tryConsumeBaseExpression() (AstNode, bool) {
 // tryConsumeIdentifierLiteral attempts to consume an identifier as a literal
 // expression.
 //
-/// ```foo```
+// ```foo```
 func (p *sourceParser) tryConsumeIdentifierLiteral() (AstNode, bool) {
 	if !p.isToken(lexer.TokenTypeIdentifier) {
 		return nil, false
 	}
 
 	identNode := p.startNode(dslshape.NodeTypeIdentifier)
-	defer p.finishNode()
+	defer p.mustFinishNode()
 
 	identifier, _ := p.consumeIdentifier()
-	identNode.Decorate(dslshape.NodeIdentiferPredicateValue, identifier)
+	identNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, identifier)
 	return identNode, true
 }
 
@@ -350,6 +543,6 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 
 	node := p.startNode(dslshape.NodeTypeNilExpression)
 	p.consumeKeyword("nil")
-	defer p.finishNode()
+	defer p.mustFinishNode()
 	return node, true
 }

@@ -8,8 +8,9 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
-	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
@@ -23,8 +24,17 @@ const (
 // zedtoken argument to Decode
 var ErrNilZedToken = errors.New("zedtoken pointer was nil")
 
+// MustNewFromRevision generates an encoded zedtoken from an integral revision.
+func MustNewFromRevision(revision datastore.Revision) *v1.ZedToken {
+	encoded, err := NewFromRevision(revision)
+	if err != nil {
+		panic(err)
+	}
+	return encoded
+}
+
 // NewFromRevision generates an encoded zedtoken from an integral revision.
-func NewFromRevision(revision decimal.Decimal) *v1.ZedToken {
+func NewFromRevision(revision datastore.Revision) (*v1.ZedToken, error) {
 	toEncode := &zedtoken.DecodedZedToken{
 		VersionOneof: &zedtoken.DecodedZedToken_V1{
 			V1: &zedtoken.DecodedZedToken_V1ZedToken{
@@ -34,15 +44,15 @@ func NewFromRevision(revision decimal.Decimal) *v1.ZedToken {
 	}
 	encoded, err := Encode(toEncode)
 	if err != nil {
-		panic(fmt.Errorf(errEncodeError, err))
+		return nil, fmt.Errorf(errEncodeError, err)
 	}
 
-	return encoded
+	return encoded, nil
 }
 
 // Encode converts a decoded zedtoken to its opaque version.
 func Encode(decoded *zedtoken.DecodedZedToken) (*v1.ZedToken, error) {
-	marshalled, err := proto.Marshal(decoded)
+	marshalled, err := decoded.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf(errEncodeError, err)
 	}
@@ -62,29 +72,33 @@ func Decode(encoded *v1.ZedToken) (*zedtoken.DecodedZedToken, error) {
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
 	decoded := &zedtoken.DecodedZedToken{}
-	if err := proto.Unmarshal(decodedBytes, decoded); err != nil {
+	if err := decoded.UnmarshalVT(decodedBytes); err != nil {
 		return nil, fmt.Errorf(errDecodeError, err)
 	}
 	return decoded, nil
 }
 
 // DecodeRevision converts and extracts the revision from a zedtoken or legacy zookie.
-func DecodeRevision(encoded *v1.ZedToken) (decimal.Decimal, error) {
+func DecodeRevision(encoded *v1.ZedToken, ds revisionDecoder) (datastore.Revision, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
-		return decimal.Zero, err
+		return datastore.NoRevision, err
 	}
 
 	switch ver := decoded.VersionOneof.(type) {
 	case *zedtoken.DecodedZedToken_DeprecatedV1Zookie:
-		return decimal.NewFromInt(int64(ver.DeprecatedV1Zookie.Revision)), nil
+		return revision.NewFromDecimal(decimal.NewFromInt(int64(ver.DeprecatedV1Zookie.Revision))), nil
 	case *zedtoken.DecodedZedToken_V1:
-		parsed, err := decimal.NewFromString(ver.V1.Revision)
+		parsed, err := ds.RevisionFromString(ver.V1.Revision)
 		if err != nil {
-			return decimal.Zero, fmt.Errorf(errDecodeError, err)
+			return datastore.NoRevision, fmt.Errorf(errDecodeError, err)
 		}
 		return parsed, nil
 	default:
-		return decimal.Zero, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
+		return datastore.NoRevision, fmt.Errorf(errDecodeError, fmt.Errorf("unknown zookie version: %T", decoded.VersionOneof))
 	}
+}
+
+type revisionDecoder interface {
+	RevisionFromString(string) (datastore.Revision, error)
 }

@@ -4,13 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-	"github.com/rs/zerolog/log"
-
 	"github.com/authzed/grpcutil"
+	"github.com/cenkalti/backoff/v4"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 const datastoreReadyTimeout = time.Millisecond * 500
@@ -69,12 +68,12 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 			select {
 			case _, ok := <-ticker:
 				if !ok {
-					log.Warn().Msg("backoff error while waiting for dispatcher or datastore health")
+					log.Ctx(ctx).Warn().Msg("backoff error while waiting for dispatcher or datastore health")
 					return nil
 				}
 
 			case <-ctx.Done():
-				log.Warn().Msg("datastore health context was canceled")
+				log.Ctx(ctx).Info().Msg("datastore health check canceled")
 				return nil
 			}
 
@@ -88,7 +87,7 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 
 			nextPush := backoffInterval.NextBackOff()
 			if nextPush == backoff.Stop {
-				log.Warn().Msg("exceed max attempts to check for dispatch or datastore ready")
+				log.Ctx(ctx).Warn().Msg("exceed max attempts to check for dispatch or datastore ready")
 				return nil
 			}
 			ticker = time.After(nextPush)
@@ -97,17 +96,17 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 }
 
 func (hm *healthManager) checkIsReady(ctx context.Context) bool {
-	log.Debug().Msg("checking if datastore and dispatcher are ready")
+	log.Ctx(ctx).Debug().Msg("checking if datastore and dispatcher are ready")
 
 	ctx, cancel := context.WithTimeout(ctx, datastoreReadyTimeout)
 	defer cancel()
 
 	dsReady, err := hm.dsc.IsReady(ctx)
 	if err != nil {
-		log.Warn().Err(err).Msg("could not check if the datastore was ready")
+		log.Ctx(ctx).Warn().Err(err).Msg("could not check if the datastore was ready")
 	}
 
 	dispatchReady := hm.dispatcher.IsReady()
-	log.Debug().Bool("datastoreReady", dsReady).Bool("dispatchReady", dispatchReady).Msg("completed dispatcher and datastore readiness checks")
+	log.Ctx(ctx).Debug().Bool("datastoreReady", dsReady).Bool("dispatchReady", dispatchReady).Msg("completed dispatcher and datastore readiness checks")
 	return dsReady && dispatchReady
 }

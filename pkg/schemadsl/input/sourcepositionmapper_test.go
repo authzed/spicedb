@@ -1,14 +1,14 @@
 package input
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPositionMapping(t *testing.T) {
-	mappingText, err := ioutil.ReadFile("tests/mapping.txt")
+	mappingText, err := os.ReadFile("tests/mapping.txt")
 	if !assert.Nil(t, err, "Got error reading mapping file") {
 		return
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 const (
@@ -54,26 +55,22 @@ const (
 		) as fresh, ? > (
 			SELECT MAX(%[1]s)
 			FROM   %[2]s
-		) as future;`
+		) as unknown;`
 )
 
 func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	var revision uint64
+	var rev uint64
 	var validForNanos time.Duration
-	if err := mds.db.QueryRowContext(
-		datastore.SeparateContextWithTracing(ctx), mds.optimizedRevisionQuery,
-	).Scan(&revision, &validForNanos); err != nil {
-		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
+		Scan(&rev, &validForNanos); err != nil {
+		return revision.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
-	return revisionFromTransaction(revision), validForNanos, nil
+	return revisionFromTransaction(rev), validForNanos, nil
 }
 
 func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
 	// implementation deviates slightly from PSQL implementation in order to support
 	// database seeding in runtime, instead of through migrate command
-	ctx, span := tracer.Start(ctx, "HeadRevision")
-	defer span.End()
-
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
@@ -85,14 +82,18 @@ func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, err
 	return revisionFromTransaction(revision), nil
 }
 
-func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+func (mds *Datastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
+	if revisionRaw == datastore.NoRevision {
+		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
+	}
+
+	revision := revisionRaw.(revision.Decimal)
+
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(ctx, "CheckRevision")
-	defer span.End()
 
 	revisionTx := transactionFromRevision(revision)
 
-	freshEnough, future, err := mds.checkValidTransaction(ctx, revisionTx)
+	freshEnough, unknown, err := mds.checkValidTransaction(ctx, revisionTx)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}
@@ -100,8 +101,8 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 	if !freshEnough {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
-	if future {
-		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionInFuture)
+	if unknown {
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
 	return nil
@@ -119,7 +120,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	}
 
 	var revision *uint64
-	err = mds.db.QueryRowContext(datastore.SeparateContextWithTracing(ctx), query, args...).Scan(&revision)
+	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&revision)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
@@ -138,18 +139,17 @@ func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint
 	ctx, span := tracer.Start(ctx, "checkValidTransaction")
 	defer span.End()
 
-	var freshEnough, future sql.NullBool
+	var freshEnough, unknown sql.NullBool
 
-	err := mds.db.QueryRowContext(
-		datastore.SeparateContextWithTracing(ctx), mds.validTransactionQuery, revisionTx, revisionTx,
-	).Scan(&freshEnough, &future)
+	err := mds.db.QueryRowContext(ctx, mds.validTransactionQuery, revisionTx, revisionTx).
+		Scan(&freshEnough, &unknown)
 	if err != nil {
 		return false, false, fmt.Errorf(errCheckRevision, err)
 	}
 
 	span.AddEvent("DB returned validTransaction checks")
 
-	return freshEnough.Bool, future.Bool, nil
+	return freshEnough.Bool, unknown.Bool, nil
 }
 
 func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
@@ -174,10 +174,10 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 	return uint64(lastInsertID), nil
 }
 
-func revisionFromTransaction(txID uint64) datastore.Revision {
-	return decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0)
+func revisionFromTransaction(txID uint64) revision.Decimal {
+	return revision.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0))
 }
 
-func transactionFromRevision(revision datastore.Revision) uint64 {
-	return revision.BigInt().Uint64()
+func transactionFromRevision(revision revision.Decimal) uint64 {
+	return uint64(revision.IntPart())
 }

@@ -3,41 +3,39 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 
-	"github.com/shopspring/decimal"
-
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const MaxConcurrentSlowLookupChecks = 10
-
 // NewConcurrentLookup creates and instance of ConcurrentLookup.
-func NewConcurrentLookup(c dispatch.Check, r dispatch.ReachableResources) *ConcurrentLookup {
-	return &ConcurrentLookup{c: c, r: r}
+func NewConcurrentLookup(c dispatch.Check, r dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentLookup {
+	return &ConcurrentLookup{c, r, concurrencyLimit}
 }
 
 // ConcurrentLookup exposes a method to perform Lookup requests, and delegates subproblems to the
 // provided dispatch.Lookup instance.
 type ConcurrentLookup struct {
-	c dispatch.Check
-	r dispatch.ReachableResources
+	c                dispatch.Check
+	r                dispatch.ReachableResources
+	concurrencyLimit uint16
 }
 
 // ValidatedLookupRequest represents a request after it has been validated and parsed for internal
 // consumption.
 type ValidatedLookupRequest struct {
 	*v1.DispatchLookupRequest
-	Revision decimal.Decimal
+	Revision datastore.Revision
 }
 
 type collectingStream struct {
-	checker *ParallelChecker
+	checker *parallelChecker
 	req     ValidatedLookupRequest
 	context context.Context
 
@@ -54,7 +52,7 @@ func (ls *collectingStream) Context() context.Context {
 
 func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesResponse) error {
 	if result == nil {
-		panic("Got nil result")
+		return spiceerrors.MustBugf("got nil result for Lookup publish")
 	}
 
 	func() {
@@ -66,15 +64,17 @@ func (ls *collectingStream) Publish(result *v1.DispatchReachableResourcesRespons
 		ls.depthRequired = max(result.Metadata.DepthRequired, ls.depthRequired)
 	}()
 
-	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
-		ls.checker.AddResult(result.Resource.Resource)
-		return nil
-	}
+	for _, found := range result.Resources {
+		if found.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+			ls.checker.AddResolvedResource(&v1.ResolvedResource{
+				ResourceId:     found.ResourceId,
+				Permissionship: v1.ResolvedResource_HAS_PERMISSION,
+			})
+			continue
+		}
 
-	ls.checker.QueueCheck(result.Resource.Resource, &v1.ResolverMeta{
-		AtRevision:     ls.req.Revision.String(),
-		DepthRemaining: ls.req.Metadata.DepthRemaining,
-	})
+		ls.checker.QueueToCheck(found.ResourceId)
+	}
 	return nil
 }
 
@@ -84,10 +84,10 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 		return resp.Resp, resp.Err
 	}
 
-	cancelCtx, checkCancel := context.WithCancel(ctx)
-	defer checkCancel()
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	checker := NewParallelChecker(cancelCtx, cl.c, req.Subject, 10)
+	checker := newParallelChecker(cancelCtx, cancel, cl.c, req, cl.concurrencyLimit)
 	stream := &collectingStream{checker, req, cancelCtx, 0, 0, 0, sync.Mutex{}}
 
 	// Start the checker.
@@ -95,13 +95,19 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 
 	// Dispatch to the reachability API to find all reachable objects and queue them
 	// either for checks, or directly as results.
+	// NOTE: This dispatch call is blocking until all results have been sent to the specified
+	// stream.
 	err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ObjectRelation: req.ObjectRelation,
-		Subject:        req.Subject,
-		Metadata:       req.Metadata,
+		ResourceRelation: req.ObjectRelation,
+		SubjectRelation: &core.RelationReference{
+			Namespace: req.Subject.Namespace,
+			Relation:  req.Subject.Relation,
+		},
+		SubjectIds: []string{req.Subject.ObjectId},
+		Metadata:   req.Metadata,
 	}, stream)
 	if err != nil {
-		resp := lookupResultError(NewErrInvalidArgument(fmt.Errorf("error in reachablility: %w", err)), emptyMetadata)
+		resp := lookupResultError(err, emptyMetadata)
 		return resp.Resp, resp.Err
 	}
 
@@ -112,7 +118,7 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 		return resp.Resp, resp.Err
 	}
 
-	res := lookupResult(limitedSlice(allowed.AsSlice(), req.Limit), &v1.ResponseMeta{
+	res := lookupResult(allowed, req, &v1.ResponseMeta{
 		DispatchCount:       stream.dispatchCount + checker.DispatchCount() + 1, // +1 for the lookup
 		CachedDispatchCount: stream.cachedDispatchCount + checker.CachedDispatchCount(),
 		DepthRequired:       max(stream.depthRequired, checker.DepthRequired()) + 1, // +1 for the lookup
@@ -120,17 +126,19 @@ func (cl *ConcurrentLookup) LookupViaReachability(ctx context.Context, req Valid
 	return res.Resp, res.Err
 }
 
-func lookupResult(resolvedONRs []*core.ObjectAndRelation, subProblemMetadata *v1.ResponseMeta) LookupResult {
+func lookupResult(foundResources []*v1.ResolvedResource, req ValidatedLookupRequest, subProblemMetadata *v1.ResponseMeta) LookupResult {
+	limitedResources := limitedSlice(foundResources, req.Limit)
+
 	return LookupResult{
 		&v1.DispatchLookupResponse{
-			Metadata:     ensureMetadata(subProblemMetadata),
-			ResolvedOnrs: resolvedONRs,
+			Metadata:          ensureMetadata(subProblemMetadata),
+			ResolvedResources: limitedResources,
 		},
 		nil,
 	}
 }
 
-func limitedSlice(slice []*core.ObjectAndRelation, limit uint32) []*core.ObjectAndRelation {
+func limitedSlice[T any](slice []T, limit uint32) []T {
 	if len(slice) > int(limit) {
 		return slice[0:limit]
 	}

@@ -4,8 +4,7 @@ import (
 	"errors"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/validator"
-	"github.com/shopspring/decimal"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -28,7 +27,7 @@ type watchServer struct {
 func NewWatchServer() v1.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
-			Stream: grpcvalidate.StreamServerInterceptor(),
+			Stream: grpcvalidate.StreamServerInterceptor(true),
 		},
 	}
 	return s
@@ -43,9 +42,9 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		objectTypesMap[objectType] = struct{}{}
 	}
 
-	var afterRevision decimal.Decimal
+	var afterRevision datastore.Revision
 	if req.OptionalStartCursor != nil && req.OptionalStartCursor.Token != "" {
-		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartCursor)
+		decodedRevision, err := zedtoken.DecodeRevision(req.OptionalStartCursor, ds)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to decode start revision: %s", err)
 		}
@@ -72,7 +71,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 				if len(filtered) > 0 {
 					if err := stream.Send(&v1.WatchResponse{
 						Updates:        filtered,
-						ChangesThrough: zedtoken.NewFromRevision(update.Revision),
+						ChangesThrough: zedtoken.MustNewFromRevision(update.Revision),
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}

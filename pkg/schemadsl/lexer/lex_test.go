@@ -126,6 +126,56 @@ var lexerTests = []lexerTest{
 		tEOF,
 	}},
 
+	{"relation with caveat", "/* foo */relation viewer: user with somecaveat\n", []Lexeme{
+		{TokenTypeMultilineComment, 0, "/* foo */", ""},
+		{TokenTypeKeyword, 0, "relation", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "viewer", ""},
+		{TokenTypeColon, 0, ":", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "user", ""},
+		tWhitespace,
+		{TokenTypeKeyword, 0, "with", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "somecaveat", ""},
+		{TokenTypeSyntheticSemicolon, 0, "\n", ""},
+		tEOF,
+	}},
+
+	{"relation with wildcard caveat", "/* foo */relation viewer: user:* with somecaveat\n", []Lexeme{
+		{TokenTypeMultilineComment, 0, "/* foo */", ""},
+		{TokenTypeKeyword, 0, "relation", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "viewer", ""},
+		{TokenTypeColon, 0, ":", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "user", ""},
+		{TokenTypeColon, 0, ":", ""},
+		{TokenTypeStar, 0, "*", ""},
+		tWhitespace,
+		{TokenTypeKeyword, 0, "with", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "somecaveat", ""},
+		{TokenTypeSyntheticSemicolon, 0, "\n", ""},
+		tEOF,
+	}},
+
+	{"relation with invalid caveat", "/* foo */relation viewer: user with with\n", []Lexeme{
+		{TokenTypeMultilineComment, 0, "/* foo */", ""},
+		{TokenTypeKeyword, 0, "relation", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "viewer", ""},
+		{TokenTypeColon, 0, ":", ""},
+		tWhitespace,
+		{TokenTypeIdentifier, 0, "user", ""},
+		tWhitespace,
+		{TokenTypeKeyword, 0, "with", ""},
+		tWhitespace,
+		{TokenTypeKeyword, 0, "with", ""},
+		{TokenTypeSyntheticSemicolon, 0, "\n", ""},
+		tEOF,
+	}},
+
 	{"expression with parens", "(foo->bar)\n", []Lexeme{
 		{TokenTypeLeftParen, 0, "(", ""},
 		{TokenTypeIdentifier, 0, "foo", ""},
@@ -135,6 +185,55 @@ var lexerTests = []lexerTest{
 		{TokenTypeSyntheticSemicolon, 0, "\n", ""},
 		tEOF,
 	}},
+	{
+		"cel lexemes", "[a<=b]",
+		[]Lexeme{
+			{TokenTypeLeftBracket, 0, "[", ""},
+			{TokenTypeIdentifier, 0, "a", ""},
+			{TokenTypeLessThanOrEqual, 0, "<=", ""},
+			{TokenTypeIdentifier, 0, "b", ""},
+			{TokenTypeRightBracket, 0, "]", ""},
+			tEOF,
+		},
+	},
+	{
+		"more cel lexemes", "[a>=b.?]",
+		[]Lexeme{
+			{TokenTypeLeftBracket, 0, "[", ""},
+			{TokenTypeIdentifier, 0, "a", ""},
+			{TokenTypeGreaterThanOrEqual, 0, ">=", ""},
+			{TokenTypeIdentifier, 0, "b", ""},
+			{TokenTypePeriod, 0, ".", ""},
+			{TokenTypeQuestionMark, 0, "?", ""},
+			{TokenTypeRightBracket, 0, "]", ""},
+			tEOF,
+		},
+	},
+	{
+		"cel string literal", `"hi there"`,
+		[]Lexeme{
+			{TokenTypeString, 0, `"hi there"`, ""},
+			tEOF,
+		},
+	},
+	{
+		"cel string literal with terminators", `"""hi "there" """`,
+		[]Lexeme{
+			{TokenTypeString, 0, `"""hi "there" """`, ""},
+			tEOF,
+		},
+	},
+	{
+		"unterminated cel string literal", "\"hi\nthere\"",
+		[]Lexeme{
+			{
+				Kind:     TokenTypeError,
+				Position: 0,
+				Value:    "\n",
+				Error:    "Unterminated string",
+			},
+		},
+	},
 }
 
 func TestLexer(t *testing.T) {

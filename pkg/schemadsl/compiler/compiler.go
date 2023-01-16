@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"google.golang.org/protobuf/proto"
 
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/parser"
@@ -20,57 +21,51 @@ type InputSchema struct {
 	SchemaString string
 }
 
-// ErrorWithContext defines an error which contains contextual information.
-type ErrorWithContext struct {
-	BaseCompilerError
-	SourceRange     input.SourceRange
-	Source          input.Source
-	ErrorSourceCode string
+// SchemaDefinition represents an object or caveat definition in a schema.
+type SchemaDefinition interface {
+	proto.Message
+
+	GetName() string
 }
 
-// BaseCompilerError defines an error with contains the base message of the issue
-// that occurred.
-type BaseCompilerError struct {
-	error
-	BaseMessage string
+// CompiledSchema is the result of compiling a schema when there are no errors.
+type CompiledSchema struct {
+	// ObjectDefinitions holds the object definitions in the schema.
+	ObjectDefinitions []*core.NamespaceDefinition
+
+	// CaveatDefinitions holds the caveat definitions in the schema.
+	CaveatDefinitions []*core.CaveatDefinition
+
+	// OrderedDefinitions holds the object and caveat definitions in the schema, in the
+	// order in which they were found.
+	OrderedDefinitions []SchemaDefinition
 }
 
-type errorWithNode struct {
-	error
-	node *dslNode
-}
-
-// Compile compilers the input schema(s) into a set of namespace definition protos.
-func Compile(schemas []InputSchema, objectTypePrefix *string) ([]*core.NamespaceDefinition, error) {
-	mapper := newPositionMapper(schemas)
-
-	// Parse and translate the various schemas.
-	definitions := []*core.NamespaceDefinition{}
-	for _, schema := range schemas {
-		root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
-		errs := root.FindAll(dslshape.NodeTypeError)
-		if len(errs) > 0 {
-			err := errorNodeToError(errs[0], mapper)
-			return []*core.NamespaceDefinition{}, err
-		}
-
-		translatedDefs, err := translate(translationContext{
-			objectTypePrefix: objectTypePrefix,
-			mapper:           mapper,
-		}, root)
-		if err != nil {
-			var errorWithNode errorWithNode
-			if errors.As(err, &errorWithNode) {
-				err = toContextError(errorWithNode.error.Error(), "", errorWithNode.node, mapper)
-			}
-
-			return []*core.NamespaceDefinition{}, err
-		}
-
-		definitions = append(definitions, translatedDefs...)
+// Compile compilers the input schema into a set of namespace definition protos.
+func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, error) {
+	mapper := newPositionMapper(schema)
+	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
+	errs := root.FindAll(dslshape.NodeTypeError)
+	if len(errs) > 0 {
+		err := errorNodeToError(errs[0], mapper)
+		return nil, err
 	}
 
-	return definitions, nil
+	compiled, err := translate(translationContext{
+		objectTypePrefix: objectTypePrefix,
+		mapper:           mapper,
+		schemaString:     schema.SchemaString,
+	}, root)
+	if err != nil {
+		var errorWithNode errorWithNode
+		if errors.As(err, &errorWithNode) {
+			err = toContextError(errorWithNode.error.Error(), errorWithNode.errorSourceCode, errorWithNode.node, mapper)
+		}
+
+		return nil, err
+	}
+
+	return compiled, nil
 }
 
 func errorNodeToError(node *dslNode, mapper input.PositionMapper) error {

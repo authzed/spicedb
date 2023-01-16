@@ -50,14 +50,34 @@ const (
 	TokenTypeHash       // #
 	TokenTypeEllipsis   // ...
 	TokenTypeStar       // *
+
+	// Additional tokens for CEL: https://github.com/google/cel-spec/blob/master/doc/langdef.md#syntax
+	TokenTypeQuestionMark       // ?
+	TokenTypeConditionalOr      // ||
+	TokenTypeConditionalAnd     // &&
+	TokenTypeExclamationPoint   // !
+	TokenTypeLeftBracket        // [
+	TokenTypeRightBracket       // ]
+	TokenTypePeriod             // .
+	TokenTypeComma              // ,
+	TokenTypePercent            // %
+	TokenTypeLessThan           // <
+	TokenTypeGreaterThan        // >
+	TokenTypeLessThanOrEqual    // <=
+	TokenTypeGreaterThanOrEqual // >=
+	TokenTypeEqualEqual         // ==
+	TokenTypeNotEqual           // !=
+	TokenTypeString             // "...", '...', """...""", '''...'''
 )
 
 // keywords contains the full set of keywords supported.
 var keywords = map[string]struct{}{
 	"definition": {},
+	"caveat":     {},
 	"relation":   {},
 	"permission": {},
 	"nil":        {},
+	"with":       {},
 }
 
 // IsKeyword returns whether the specified input string is a reserved keyword.
@@ -102,13 +122,61 @@ Loop:
 			l.emit(TokenTypePlus)
 
 		case r == '|':
-			l.emit(TokenTypePipe)
+			if l.acceptString("|") {
+				l.emit(TokenTypeConditionalOr)
+			} else {
+				l.emit(TokenTypePipe)
+			}
 
 		case r == '&':
-			l.emit(TokenTypeAnd)
+			if l.acceptString("&") {
+				l.emit(TokenTypeConditionalAnd)
+			} else {
+				l.emit(TokenTypeAnd)
+			}
+
+		case r == '?':
+			l.emit(TokenTypeQuestionMark)
+
+		case r == '!':
+			if l.acceptString("=") {
+				l.emit(TokenTypeNotEqual)
+			} else {
+				l.emit(TokenTypeExclamationPoint)
+			}
+
+		case r == '[':
+			l.emit(TokenTypeLeftBracket)
+
+		case r == ']':
+			l.emit(TokenTypeRightBracket)
+
+		case r == '%':
+			l.emit(TokenTypePercent)
+
+		case r == '<':
+			if l.acceptString("=") {
+				l.emit(TokenTypeLessThanOrEqual)
+			} else {
+				l.emit(TokenTypeLessThan)
+			}
+
+		case r == '>':
+			if l.acceptString("=") {
+				l.emit(TokenTypeGreaterThanOrEqual)
+			} else {
+				l.emit(TokenTypeGreaterThan)
+			}
+
+		case r == ',':
+			l.emit(TokenTypeComma)
 
 		case r == '=':
-			l.emit(TokenTypeEquals)
+			if l.acceptString("=") {
+				l.emit(TokenTypeEqualEqual)
+			} else {
+				l.emit(TokenTypeEquals)
+			}
 
 		case r == ':':
 			l.emit(TokenTypeColon)
@@ -126,7 +194,7 @@ Loop:
 			if l.acceptString("..") {
 				l.emit(TokenTypeEllipsis)
 			} else {
-				return l.errorf(r, "unrecognized character at this location: %#U", r)
+				l.emit(TokenTypePeriod)
 			}
 
 		case r == '-':
@@ -152,6 +220,10 @@ Loop:
 			l.backup()
 			return lexIdentifierOrKeyword
 
+		case r == '\'' || r == '"':
+			l.backup()
+			return lexStringLiteral
+
 		case r == '/':
 			// Check for comments.
 			if l.peekValue("/") {
@@ -172,6 +244,42 @@ Loop:
 
 	l.emit(TokenTypeEOF)
 	return nil
+}
+
+// lexStringLiteral scan until the close of the string literal or EOFRUNE
+func lexStringLiteral(l *Lexer) stateFn {
+	allowNewlines := false
+	terminator := ""
+
+	if l.acceptString(`"""`) {
+		terminator = `"""`
+		allowNewlines = true
+	} else if l.acceptString(`'''`) {
+		terminator = `"""`
+		allowNewlines = true
+	} else if l.acceptString(`"`) {
+		terminator = `"`
+	} else if l.acceptString(`'`) {
+		terminator = `'`
+	}
+
+	for {
+		if l.peekValue(terminator) {
+			l.acceptString(terminator)
+			l.emit(TokenTypeString)
+			return lexSource
+		}
+
+		// Otherwise, consume until we hit EOFRUNE.
+		r := l.next()
+		if !allowNewlines && isNewline(r) {
+			return l.errorf(r, "Unterminated string")
+		}
+
+		if r == EOFRUNE {
+			return l.errorf(r, "Unterminated string")
+		}
+	}
 }
 
 // lexSinglelineComment scans until newline or EOFRUNE

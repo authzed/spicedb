@@ -1,5 +1,5 @@
-//go:build ci
-// +build ci
+//go:build ci && docker
+// +build ci,docker
 
 package mysql
 
@@ -11,10 +11,10 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -38,7 +38,7 @@ type datastoreTester struct {
 
 func (dst *datastoreTester) createDatastore(revisionQuantization, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
-		ds, err := NewMySQLDatastore(uri,
+		ds, err := newMySQLDatastore(uri,
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(0*time.Second),
@@ -71,7 +71,7 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewMySQLDatastore(uri, options...)
+			ds, err := newMySQLDatastore(uri, options...)
 			require.NoError(t, err)
 			return ds
 		})
@@ -152,11 +152,12 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.True(ok)
 
 	// Write basic namespaces.
-	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	writtenAt, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
+			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
+				namespace.MustRelation("reader", nil),
 			),
 			namespace.Namespace("user"),
 		)
@@ -166,129 +167,115 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC at the transaction and ensure no relationships are removed.
 	mds := ds.(*Datastore)
 
-	relsDeleted, _, err := mds.collectGarbageForTransaction(ctx, uint64(writtenAt.IntPart()))
-	req.Zero(relsDeleted)
+	removed, err := mds.DeleteBeforeTx(ctx, writtenAt)
 	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.Zero(removed.Namespaces)
 
-	// Write a relationship.
-
-	tpl := &corev1.RelationTuple{
-		ResourceAndRelation: &corev1.ObjectAndRelation{
-			Namespace: "resource",
-			ObjectId:  "someresource",
-			Relation:  "reader",
-		},
-		Subject: &corev1.ObjectAndRelation{
-			Namespace: "user",
-			ObjectId:  "someuser",
-			Relation:  "...",
-		},
-	}
-	relationship := tuple.ToRelationship(tpl)
-
-	relWrittenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relationship,
-		}})
+	// Replace the namespace with a new one.
+	writtenAt, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(
+			ctx,
+			namespace.Namespace(
+				"resource",
+				namespace.MustRelation("reader", nil),
+				namespace.MustRelation("unused", nil),
+			),
+			namespace.Namespace("user"),
+		)
 	})
 	req.NoError(err)
 
-	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
-	relsDeleted, transactionsDeleted, err := mds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	req.Zero(relsDeleted)
-	req.Equal(int64(1), transactionsDeleted)
+	// Run GC to remove the old namespace
+	removed, err = mds.DeleteBeforeTx(ctx, writtenAt)
+	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.Equal(int64(1), removed.Transactions)
+	req.Equal(int64(2), removed.Namespaces)
+
+	// Write a relationship.
+
+	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
+	relWrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 
-	// Run GC again and ensure there are no changes.
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relWrittenAt.IntPart()))
-	req.Zero(relsDeleted)
-	req.Zero(transactionsDeleted)
+	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
+	removed, err = mds.DeleteBeforeTx(ctx, relWrittenAt)
 	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.Equal(int64(1), removed.Transactions)
+	req.Zero(removed.Namespaces)
+
+	// Run GC again and ensure there are no changes.
+	removed, err = mds.DeleteBeforeTx(ctx, relWrittenAt)
+	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.Zero(removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.TupleChecker{Require: req, DS: ds}
 	tRequire.TupleExists(ctx, tpl, relWrittenAt)
 
 	// Overwrite the relationship.
-	relOverwrittenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	relOverwrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	req.Equal(int64(1), relsDeleted)
-	req.Equal(int64(1), transactionsDeleted)
+	removed, err = mds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	req.NoError(err)
+	req.Equal(int64(1), removed.Relationships)
+	req.Equal(int64(1), removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relOverwrittenAt.IntPart()))
-	req.Zero(relsDeleted)
-	req.Zero(transactionsDeleted)
+	removed, err = mds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.Zero(removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
 
 	// Delete the relationship.
-	relDeletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: relationship,
-		}})
-	})
+	relDeletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tpl)
 	req.NoError(err)
 
 	// Ensure the relationship is gone.
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	req.Equal(int64(1), relsDeleted)
-	req.Equal(int64(1), transactionsDeleted)
+	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
 	req.NoError(err)
+	req.Equal(int64(1), removed.Relationships)
+	req.Equal(int64(1), removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relDeletedAt.IntPart()))
-	req.Zero(relsDeleted)
-	req.Zero(transactionsDeleted)
+	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
 	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.Zero(removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Write the relationship a few times.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
-	relLastWriteAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-			Relationship: relationship,
-		}})
-	})
+	relLastWriteAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
 	// as well as the 2 older write transactions and the older delete transaction.
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageForTransaction(ctx, uint64(relLastWriteAt.IntPart()))
-	req.Equal(int64(2), relsDeleted)
-	req.Equal(int64(3), transactionsDeleted)
+	removed, err = mds.DeleteBeforeTx(ctx, relLastWriteAt)
 	req.NoError(err)
+	req.Equal(int64(2), removed.Relationships)
+	req.Equal(int64(3), removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
@@ -303,11 +290,12 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
+			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
+				namespace.MustRelation("reader", nil),
 			),
 			namespace.Namespace("user"),
 		)
@@ -320,36 +308,23 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Write a relationship.
-	tpl := &corev1.RelationTuple{
-		ResourceAndRelation: &corev1.ObjectAndRelation{
-			Namespace: "resource",
-			ObjectId:  "someresource",
-			Relation:  "reader",
-		},
-		Subject: &corev1.ObjectAndRelation{
-			Namespace: "user",
-			ObjectId:  "someuser",
-			Relation:  "...",
-		},
-	}
-	relationship := tuple.ToRelationship(tpl)
+	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
 
-	relLastWriteAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relationship,
-		}})
-	})
+	relLastWriteAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := mds.getNow(ctx)
+	afterWrite, err := mds.Now(ctx)
 	req.NoError(err)
 
-	relsDeleted, transactionsDeleted, err := mds.collectGarbageBefore(ctx, afterWrite)
-	req.Zero(relsDeleted)
-	req.NotZero(transactionsDeleted)
+	afterWriteTx, err := mds.TxIDBefore(ctx, afterWrite)
 	req.NoError(err)
+
+	removed, err := mds.DeleteBeforeTx(ctx, afterWriteTx)
+	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.NotZero(removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.TupleChecker{Require: req, DS: ds}
@@ -359,22 +334,21 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete the relationship.
-	relDeletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: relationship,
-		}})
-	})
+	relDeletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tpl)
 	req.NoError(err)
 
 	// Run GC and ensure the relationship is removed.
-	afterDelete, err := mds.getNow(ctx)
+	afterDelete, err := mds.Now(ctx)
 	req.NoError(err)
 
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageBefore(ctx, afterDelete)
-	req.Equal(int64(1), relsDeleted)
-	req.Equal(int64(1), transactionsDeleted)
+	afterDeleteTx, err := mds.TxIDBefore(ctx, afterDelete)
 	req.NoError(err)
+
+	removed, err = mds.DeleteBeforeTx(ctx, afterDeleteTx)
+	req.NoError(err)
+	req.Equal(int64(1), removed.Relationships)
+	req.Equal(int64(1), removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still not present.
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
@@ -389,11 +363,12 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.True(ok)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
+			ctx,
 			namespace.Namespace(
 				"resource",
-				namespace.Relation("reader", nil),
+				namespace.MustRelation("reader", nil),
 			),
 			namespace.Namespace("user"),
 		)
@@ -405,34 +380,13 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Prepare relationships to write.
 	var tuples []*corev1.RelationTuple
 	for i := 0; i < chunkRelationshipCount; i++ {
-		tpl := &corev1.RelationTuple{
-			ResourceAndRelation: &corev1.ObjectAndRelation{
-				Namespace: "resource",
-				ObjectId:  fmt.Sprintf("resource-%d", i),
-				Relation:  "reader",
-			},
-			Subject: &corev1.ObjectAndRelation{
-				Namespace: "user",
-				ObjectId:  "someuser",
-				Relation:  "...",
-			},
-		}
+		tpl := tuple.Parse(fmt.Sprintf("resource:resource-%d#reader@user:someuser#...", i))
 		tuples = append(tuples, tpl)
 	}
 
 	// Write a large number of relationships.
-	updates := make([]*v1.RelationshipUpdate, 0, len(tuples))
-	for _, tpl := range tuples {
-		relationship := tuple.ToRelationship(tpl)
-		updates = append(updates, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relationship,
-		})
-	}
 
-	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(updates)
-	})
+	writtenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tuples...)
 	req.NoError(err)
 
 	// Ensure the relationships were written.
@@ -442,30 +396,23 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	}
 
 	// Run GC and ensure only transactions were removed.
-	afterWrite, err := mds.getNow(ctx)
+	afterWrite, err := mds.Now(ctx)
 	req.NoError(err)
 
-	relsDeleted, transactionsDeleted, err := mds.collectGarbageBefore(ctx, afterWrite)
-	req.Zero(relsDeleted)
-	req.NotZero(transactionsDeleted)
+	afterWriteTx, err := mds.TxIDBefore(ctx, afterWrite)
 	req.NoError(err)
+
+	removed, err := mds.DeleteBeforeTx(ctx, afterWriteTx)
+	req.NoError(err)
+	req.Zero(removed.Relationships)
+	req.NotZero(removed.Transactions)
+	req.Zero(removed.Namespaces)
 
 	// Sleep to ensure the relationships will GC.
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete all the relationships.
-	deletes := make([]*v1.RelationshipUpdate, 0, len(tuples))
-	for _, tpl := range tuples {
-		relationship := tuple.ToRelationship(tpl)
-		deletes = append(deletes, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: relationship,
-		})
-	}
-
-	deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(deletes)
-	})
+	deletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tuples...)
 	req.NoError(err)
 
 	// Ensure the relationships were deleted.
@@ -477,13 +424,17 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Run GC and ensure all the stale relationships are removed.
-	afterDelete, err := mds.getNow(ctx)
+	afterDelete, err := mds.Now(ctx)
 	req.NoError(err)
 
-	relsDeleted, transactionsDeleted, err = mds.collectGarbageBefore(ctx, afterDelete)
-	req.Equal(int64(chunkRelationshipCount), relsDeleted)
-	req.Equal(int64(1), transactionsDeleted)
+	afterDeleteTx, err := mds.TxIDBefore(ctx, afterDelete)
 	req.NoError(err)
+
+	removed, err = mds.DeleteBeforeTx(ctx, afterDeleteTx)
+	req.NoError(err)
+	req.Equal(int64(chunkRelationshipCount), removed.Relationships)
+	req.Equal(int64(1), removed.Transactions)
+	req.Zero(removed.Namespaces)
 }
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
@@ -532,7 +483,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			defer cancel()
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-				ds, err := NewMySQLDatastore(
+				ds, err := newMySQLDatastore(
 					uri,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
@@ -543,7 +494,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			})
 			mds := ds.(*Datastore)
 
-			dbNow, err := mds.getNow(ctx)
+			dbNow, err := mds.Now(ctx)
 			require.NoError(err)
 
 			tx, err := mds.db.BeginTx(ctx, nil)
@@ -599,7 +550,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	req.True(ok)
 
 	// Get timestamp in UTC as reference
-	startTimeUTC, err := ds.(*Datastore).getNow(ctx)
+	startTimeUTC, err := ds.(*Datastore).Now(ctx)
 	req.NoError(err)
 
 	// Transaction timestamp should not be stored in system time zone
@@ -616,7 +567,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	err = db.QueryRowContext(ctx, query, args...).Scan(&ts)
 	req.NoError(err)
 
-	// Let's make sure both getNow() and transactionCreated() have timezones aligned
+	// Let's make sure both Now() and transactionCreated() have timezones aligned
 	req.True(ts.Sub(startTimeUTC) < 5*time.Minute)
 
 	revision, err := ds.OptimizedRevision(ctx)

@@ -6,10 +6,11 @@ import (
 )
 
 type crdbOptions struct {
-	connMaxIdleTime *time.Duration
-	connMaxLifetime *time.Duration
-	minOpenConns    *int
-	maxOpenConns    *int
+	connMaxIdleTime         *time.Duration
+	connMaxLifetime         *time.Duration
+	connHealthCheckInterval *time.Duration
+	minOpenConns            *int
+	maxOpenConns            *int
 
 	watchBufferLength           uint16
 	revisionQuantization        time.Duration
@@ -20,6 +21,9 @@ type crdbOptions struct {
 	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
+	disableStats                bool
+
+	enablePrometheusStats bool
 }
 
 const (
@@ -38,6 +42,8 @@ const (
 	defaultMaxRetries      = 5
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
+
+	defaultEnablePrometheusStats = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -55,6 +61,8 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		maxRetries:                  defaultMaxRetries,
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
+		disableStats:                false,
+		enablePrometheusStats:       defaultEnablePrometheusStats,
 	}
 
 	for _, option := range options {
@@ -80,6 +88,24 @@ func generateConfig(options []Option) (crdbOptions, error) {
 func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 	return func(po *crdbOptions) {
 		po.splitAtUsersetCount = splitAtUsersetCount
+	}
+}
+
+// ConnHealthCheckInterval is the frequency at which both idle and max lifetime connections
+// are checked, and also the frequency at which the minimum number of connections is
+// checked. This happens asynchronously.
+//
+// This is not the only approach to evaluate these counts: connection idle/max lifetime
+// is also checked when connections are released to the pool.
+//
+// There is no guarantee connections won't last longer than their specified idle/max lifetime. It's largely
+// dependent on the health-check goroutine being able to pull them from the connection pool. The health-check
+// may not be able to clean up those connections if they are held by the application very frequently.
+//
+// This value defaults to 30s.
+func ConnHealthCheckInterval(interval time.Duration) Option {
+	return func(po *crdbOptions) {
+		po.connHealthCheckInterval = &interval
 	}
 }
 
@@ -195,5 +221,22 @@ func OverlapStrategy(strategy string) Option {
 func OverlapKey(key string) Option {
 	return func(po *crdbOptions) {
 		po.overlapKey = key
+	}
+}
+
+// DisableStats disables recording counts to the stats table
+func DisableStats(disable bool) Option {
+	return func(po *crdbOptions) {
+		po.disableStats = disable
+	}
+}
+
+// WithEnablePrometheusStats marks whether Prometheus metrics provided by the Postgres
+// clients being used by the datastore are enabled.
+//
+// Prometheus metrics are disabled by default.
+func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
+	return func(po *crdbOptions) {
+		po.enablePrometheusStats = enablePrometheusStats
 	}
 }

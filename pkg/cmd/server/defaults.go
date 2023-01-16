@@ -6,15 +6,20 @@ import (
 	"net/http/pprof"
 
 	"github.com/fatih/color"
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"github.com/go-logr/zerologr"
+	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jzelinskie/cobrautil"
+	"github.com/jzelinskie/cobrautil/v2"
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
+	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
@@ -52,8 +57,14 @@ func ServeExample(programName string) string {
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
 		cobrautil.SyncViperPreRunE(programName),
-		cobrautil.ZeroLogRunE("log", zerolog.InfoLevel),
-		cobrautil.OpenTelemetryRunE("otel", zerolog.InfoLevel),
+		cobrazerolog.New(
+			cobrazerolog.WithTarget(func(logger zerolog.Logger) {
+				logging.SetGlobalLogger(logger)
+			}),
+		).RunE(),
+		cobraotel.New("spicedb",
+			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
+		).RunE(),
 		releases.CheckAndLogRunE(),
 	)
 }
@@ -74,39 +85,109 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
 	return mux
 }
 
-func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	return []grpc.UnaryServerInterceptor{
-			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(logging.InterceptorLogger(logger)),
-			otelgrpc.UnaryServerInterceptor(),
-			grpcauth.UnaryServerInterceptor(authFunc),
-			grpcprom.UnaryServerInterceptor,
-			dispatchmw.UnaryServerInterceptor(dispatcher),
-			datastoremw.UnaryServerInterceptor(ds),
-			consistencymw.UnaryServerInterceptor(),
-			servicespecific.UnaryServerInterceptor,
-			serverversion.UnaryServerInterceptor(enableVersionResponse),
-		}, []grpc.StreamServerInterceptor{
-			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(logging.InterceptorLogger(logger)),
-			otelgrpc.StreamServerInterceptor(),
-			grpcauth.StreamServerInterceptor(authFunc),
-			grpcprom.StreamServerInterceptor,
-			dispatchmw.StreamServerInterceptor(dispatcher),
-			datastoremw.StreamServerInterceptor(ds),
-			consistencymw.StreamServerInterceptor(),
-			servicespecific.StreamServerInterceptor,
-			serverversion.StreamServerInterceptor(enableVersionResponse),
+var defaultGRPCLogOptions = []grpclog.Option{
+	// the server has a deadline set, so we consider it a normal condition
+	// this makes sure we don't log them as errors
+	grpclog.WithLevels(func(code codes.Code) grpclog.Level {
+		if code == codes.DeadlineExceeded {
+			return grpclog.INFO
 		}
+		return grpclog.DefaultServerCodeToLevel(code)
+	}),
+	// changes default logging behaviour to only log finish call message
+	grpclog.WithDecider(func(_ string, _ error) grpclog.Decision {
+		return grpclog.LogFinishCall
+	}),
 }
 
+const (
+	DefaultMiddlewareRequestID = "requestid"
+	DefaultMiddlewareLog       = "log"
+	DefaultMiddlewareGRPCLog   = "grpclog"
+	DefaultMiddlewareOTelGRPC  = "otelgrpc"
+	DefaultMiddlewareGRPCAuth  = "grpcauth"
+	DefaultMiddlewareGRPCProm  = "grpcprom"
+
+	DefaultInternalMiddlewareDispatch       = "dispatch"
+	DefaultInternalMiddlewareDatastore      = "datastore"
+	DefaultInternalMiddlewareConsistency    = "consistency"
+	DefaultInternalMiddlewareServerSpecific = "servicespecific"
+	DefaultInternalMiddlewareServerVersion  = "serverversion"
+)
+
+// DefaultMiddleware generates the default middleware chain used for the public SpiceDB gRPC API
+func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) (*MiddlewareChain, error) {
+	chain, err := NewMiddlewareChain([]ReferenceableMiddleware{
+		{
+			Name:                DefaultMiddlewareRequestID,
+			UnaryMiddleware:     requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
+			StreamingMiddleware: requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
+		},
+		{
+			Name:                DefaultMiddlewareLog,
+			UnaryMiddleware:     logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			StreamingMiddleware: logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+		},
+		{
+			Name:                DefaultMiddlewareGRPCLog,
+			UnaryMiddleware:     grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
+			StreamingMiddleware: grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
+		},
+		{
+			Name:                DefaultMiddlewareOTelGRPC,
+			UnaryMiddleware:     otelgrpc.UnaryServerInterceptor(),
+			StreamingMiddleware: otelgrpc.StreamServerInterceptor(),
+		},
+		{
+			Name:                DefaultMiddlewareGRPCAuth,
+			UnaryMiddleware:     grpcauth.UnaryServerInterceptor(authFunc),
+			StreamingMiddleware: grpcauth.StreamServerInterceptor(authFunc),
+		},
+		{
+			Name:                DefaultMiddlewareGRPCProm,
+			UnaryMiddleware:     grpcprom.UnaryServerInterceptor,
+			StreamingMiddleware: grpcprom.StreamServerInterceptor,
+		},
+		{
+			Name:                DefaultInternalMiddlewareDispatch,
+			Internal:            true,
+			UnaryMiddleware:     dispatchmw.UnaryServerInterceptor(dispatcher),
+			StreamingMiddleware: dispatchmw.StreamServerInterceptor(dispatcher),
+		},
+		{
+			Name:                DefaultInternalMiddlewareDatastore,
+			Internal:            true,
+			UnaryMiddleware:     datastoremw.UnaryServerInterceptor(ds),
+			StreamingMiddleware: datastoremw.StreamServerInterceptor(ds),
+		},
+		{
+			Name:                DefaultInternalMiddlewareConsistency,
+			Internal:            true,
+			UnaryMiddleware:     consistencymw.UnaryServerInterceptor(),
+			StreamingMiddleware: consistencymw.StreamServerInterceptor(),
+		},
+		{
+			Name:                DefaultInternalMiddlewareServerSpecific,
+			Internal:            true,
+			UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
+			StreamingMiddleware: servicespecific.StreamServerInterceptor,
+		},
+		{
+			Name:                DefaultInternalMiddlewareServerVersion,
+			Internal:            true,
+			UnaryMiddleware:     serverversion.UnaryServerInterceptor(enableVersionResponse),
+			StreamingMiddleware: serverversion.StreamServerInterceptor(enableVersionResponse),
+		},
+	}...)
+	return &chain, err
+}
+
+// DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
 func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(logging.InterceptorLogger(logger)),
+			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
@@ -115,7 +196,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(logging.InterceptorLogger(logger)),
+			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.StreamServerInterceptor(),
 			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,

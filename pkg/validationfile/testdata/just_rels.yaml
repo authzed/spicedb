@@ -1,0 +1,11 @@
+---
+relationships: >-
+  example/project:pied_piper#owner@example/user:fred
+
+  example/project:pied_piper#reader@example/user:tom
+
+  example/project:pied_piper#writer@example/user:sarah
+assertions:
+  assertTrue: []
+  assertFalse: []
+validation: null

@@ -90,19 +90,11 @@ func (c *Node) Conn() *pgx.Conn {
 // the value that is referenced by other crdb metadata to identify range leader,
 // follower nodes, etc.
 func (c *Node) NodeID(ctx context.Context) (int, error) {
-	rows, err := c.conn.Query(ctx, "SHOW node_id")
-	defer rows.Close()
-	if err != nil {
+	var nodeID string
+	if err := c.conn.QueryRow(ctx, "SHOW node_id").Scan(&nodeID); err != nil {
 		return -1, err
 	}
-	// despite being an int, crdb returns node id as a string
-	var nodeID string
-	for rows.Next() {
-		if err := rows.Scan(&nodeID); err != nil {
-			return -1, err
-		}
-		break
-	}
+
 	i, err := strconv.Atoi(nodeID)
 	if err != nil {
 		return -1, err

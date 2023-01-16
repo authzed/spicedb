@@ -6,10 +6,10 @@ import (
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/releases"
 )
 
@@ -30,8 +30,13 @@ func (r *handleServerVersion) ServerReporter(ctx context.Context, _ interceptors
 				err = responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
 					responsemeta.ServerVersion: version,
 				})
+				// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
+				// this prevents logging unnecessary error messages
+				if err := ctx.Err(); err != nil {
+					return interceptors.NoopReporter{}, ctx
+				}
 				if err != nil {
-					log.Ctx(ctx).Err(err).Msg("could not report metadata")
+					log.Ctx(ctx).Warn().Err(err).Msg("serverversion: could not report metadata")
 				}
 			}
 		}

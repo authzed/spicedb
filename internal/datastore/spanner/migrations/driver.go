@@ -6,10 +6,10 @@ import (
 
 	"cloud.google.com/go/spanner"
 	admin "cloud.google.com/go/spanner/admin/database/apiv1"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
@@ -42,8 +42,8 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*Span
 			return nil, err
 		}
 	}
-	log.Info().Str("spanner-emulator-host", os.Getenv(emulatorSettingKey)).Msg("spanner emulator")
-	log.Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
+	log.Ctx(ctx).Info().Str("spanner-emulator-host", os.Getenv(emulatorSettingKey)).Msg("spanner emulator")
+	log.Ctx(ctx).Info().Str("credentials", credentialsFilePath).Str("db", database).Msg("connecting")
 	client, err := spanner.NewClient(ctx, database, option.WithCredentialsFile(credentialsFilePath))
 	if err != nil {
 		return nil, err

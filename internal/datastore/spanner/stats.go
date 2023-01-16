@@ -6,18 +6,15 @@ import (
 	"math/rand"
 
 	"cloud.google.com/go/spanner"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 var queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)
 
 func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	ctx, span := tracer.Start(ctx, "Statistics")
-	defer span.End()
-
 	idRows := sd.client.Single().Read(
 		context.Background(),
 		tableMetadata,
@@ -88,7 +85,7 @@ func updateCounter(ctx context.Context, rwt *spanner.ReadWriteTransaction, chang
 		newValue += currentValue
 	}
 
-	log.Trace().
+	log.Ctx(ctx).Trace().
 		Bytes("counterID", counterID).
 		Int64("newValue", newValue).
 		Int64("change", change).

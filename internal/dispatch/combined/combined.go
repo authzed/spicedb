@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/authzed/grpcutil"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -28,7 +28,8 @@ type optionState struct {
 	upstreamCAPath      string
 	grpcPresharedKey    string
 	grpcDialOpts        []grpc.DialOption
-	cacheConfig         *cache.Config
+	cache               cache.Cache
+	concurrencyLimits   graph.ConcurrencyLimits
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -69,10 +70,17 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 	}
 }
 
-// CacheConfig sets the configuration for the local dispatcher's cache.
-func CacheConfig(config *cache.Config) Option {
+// Cache sets the cache for the dispatcher.
+func Cache(c cache.Cache) Option {
 	return func(state *optionState) {
-		state.cacheConfig = config
+		state.cache = c
+	}
+}
+
+// ConcurrencyLimits sets the max number of goroutines per operation
+func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
+	return func(state *optionState) {
+		state.concurrencyLimits = limits
 	}
 }
 
@@ -89,12 +97,12 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
 
-	redispatch := graph.NewDispatcher(cachingRedispatch)
+	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
@@ -109,6 +117,8 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		}
+
+		opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
 
 		conn, err := grpc.Dial(opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {

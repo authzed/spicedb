@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/goleak"
 )
 
 func TestOtelForwarding(t *testing.T) {
@@ -41,4 +42,16 @@ func TestOtelForwarding(t *testing.T) {
 	_, spanCtx := otelgrpc.Extract(outCtx, &md, defaultOtelOpts...)
 	require.True(t, spanCtx.HasTraceID())
 	require.Equal(t, traceID, spanCtx.TraceID())
+}
+
+func TestCloseConnections(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	gatewayHandler, err := NewHandler(context.Background(), "192.0.2.0:4321", "")
+	require.NoError(t, err)
+	// 3 conns for permission+schema+watch services, 1 for health check
+	require.Len(t, gatewayHandler.closers, 4)
+
+	// if connections are not closed, goleak would detect it
+	require.NoError(t, gatewayHandler.Close())
 }

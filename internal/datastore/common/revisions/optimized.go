@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/rs/zerolog/log"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/singleflight"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -25,7 +24,7 @@ type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, va
 // NewCachedOptimizedRevisions returns a CachedOptimizedRevisions for the given configuration
 func NewCachedOptimizedRevisions(maxRevisionStaleness time.Duration) *CachedOptimizedRevisions {
 	rev := atomicRevision{}
-	rev.set(validRevision{decimal.Zero, time.Time{}})
+	rev.set(validRevision{datastore.NoRevision, time.Time{}})
 	return &CachedOptimizedRevisions{
 		maxRevisionStaleness:  maxRevisionStaleness,
 		lastQuantizedRevision: &rev,
@@ -46,13 +45,13 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	localNow := cor.clockFn.Now()
 	lastRevision := cor.lastQuantizedRevision.get()
 	if localNow.Before(lastRevision.validThrough) {
-		log.Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("returning cached revision")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("returning cached revision")
 		span.AddEvent("returning cached revision")
 		return lastRevision.revision, nil
 	}
 
 	lastQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
-		log.Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("computing new revision")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("computing new revision")
 		span.AddEvent("computing new revision")
 
 		optimized, validFor, err := cor.optimizedFunc(ctx)
@@ -64,12 +63,14 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 			Add(validFor).
 			Add(cor.maxRevisionStaleness)
 		cor.lastQuantizedRevision.set(validRevision{optimized, rvt})
-		log.Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
 
 		return optimized, nil
 	})
-
-	return lastQuantizedRevision.(decimal.Decimal), err
+	if err != nil {
+		return datastore.NoRevision, err
+	}
+	return lastQuantizedRevision.(datastore.Revision), err
 }
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
@@ -87,7 +88,7 @@ type CachedOptimizedRevisions struct {
 }
 
 type validRevision struct {
-	revision     decimal.Decimal
+	revision     datastore.Revision
 	validThrough time.Time
 }
 

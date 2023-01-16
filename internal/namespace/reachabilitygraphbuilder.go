@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -78,11 +80,14 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 
 		case *core.SetOperation_Child_ComputedUserset:
 			// A computed userset adds an entrypoint indicating that the relation is rewritten.
-			addSubjectEntrypoint(graph, ts.nsDef.Name, child.ComputedUserset.Relation, &core.ReachabilityEntrypoint{
+			err := addSubjectEntrypoint(graph, ts.nsDef.Name, child.ComputedUserset.Relation, &core.ReachabilityEntrypoint{
 				Kind:           core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT,
 				TargetRelation: rr,
 				ResultStatus:   operationResultState,
 			})
+			if err != nil {
+				return err
+			}
 
 		case *core.SetOperation_Child_UsersetRewrite:
 			err := computeRewriteReachability(ctx, graph, child.UsersetRewrite, operationResultState, targetRelation, ts, option)
@@ -135,12 +140,15 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 				}
 
 				if relTypeSystem.HasRelation(computedUsersetRelation) {
-					addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
+					err := addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
 						Kind:             core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
 						TargetRelation:   rr,
 						ResultStatus:     operationResultState,
 						TuplesetRelation: tuplesetRelation,
 					})
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -156,10 +164,10 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 	return nil
 }
 
-func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, relationName string, entrypoint *core.ReachabilityEntrypoint) {
+func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, relationName string, entrypoint *core.ReachabilityEntrypoint) error {
 	key := relationKey(namespaceName, relationName)
 	if relationName == "" {
-		panic("found empty relation name for subject entrypoint")
+		return spiceerrors.MustBugf("found empty relation name for subject entrypoint")
 	}
 
 	if graph.EntrypointsBySubjectRelation[key] == nil {
@@ -176,6 +184,8 @@ func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, r
 		graph.EntrypointsBySubjectRelation[key].Entrypoints,
 		entrypoint,
 	)
+
+	return nil
 }
 
 func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus, relation *core.Relation, ts *TypeSystem) error {
@@ -212,11 +222,14 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.Re
 			continue
 		}
 
-		addSubjectEntrypoint(graph, directRelation.Namespace, directRelation.GetRelation(), &core.ReachabilityEntrypoint{
+		err := addSubjectEntrypoint(graph, directRelation.Namespace, directRelation.GetRelation(), &core.ReachabilityEntrypoint{
 			Kind:           core.ReachabilityEntrypoint_RELATION_ENTRYPOINT,
 			TargetRelation: rr,
 			ResultStatus:   operationResultState,
 		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

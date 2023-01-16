@@ -7,28 +7,33 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
-var encodeRevisionTests = []decimal.Decimal{
-	decimal.Zero,
-	decimal.NewFromInt(1),
-	decimal.NewFromInt(2),
-	decimal.NewFromInt(4),
-	decimal.NewFromInt(8),
-	decimal.NewFromInt(16),
-	decimal.NewFromInt(128),
-	decimal.NewFromInt(256),
-	decimal.NewFromInt(1621538189028928000),
-	decimal.New(12345, -2),
-	decimal.New(0, -10),
+var encodeRevisionTests = []datastore.Revision{
+	revision.NewFromDecimal(decimal.Zero),
+	revision.NewFromDecimal(decimal.NewFromInt(1)),
+	revision.NewFromDecimal(decimal.NewFromInt(2)),
+	revision.NewFromDecimal(decimal.NewFromInt(4)),
+	revision.NewFromDecimal(decimal.NewFromInt(8)),
+	revision.NewFromDecimal(decimal.NewFromInt(16)),
+	revision.NewFromDecimal(decimal.NewFromInt(128)),
+	revision.NewFromDecimal(decimal.NewFromInt(256)),
+	revision.NewFromDecimal(decimal.NewFromInt(1621538189028928000)),
+	revision.NewFromDecimal(decimal.New(12345, -2)),
+	revision.NewFromDecimal(decimal.New(0, -10)),
 }
 
 func TestZedTokenEncode(t *testing.T) {
 	for _, rev := range encodeRevisionTests {
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
-			encoded := NewFromRevision(rev)
-			decoded, err := DecodeRevision(encoded)
+			encoded, err := NewFromRevision(rev)
+			require.NoError(err)
+
+			decoded, err := DecodeRevision(encoded, revision.DecimalDecoder{})
 			require.NoError(err)
 			require.True(rev.Equal(decoded))
 		})
@@ -117,13 +122,13 @@ func TestDecode(t *testing.T) {
 
 			decoded, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
-			})
+			}, revision.DecimalDecoder{})
 			if testCase.expectError {
 				require.Error(err)
 			} else {
 				require.NoError(err)
 				require.True(
-					testCase.expectedRevision.Equal(decoded),
+					revision.NewFromDecimal(testCase.expectedRevision).Equal(decoded),
 					"%s != %s",
 					testCase.expectedRevision,
 					decoded,

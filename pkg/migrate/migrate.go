@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 const (
@@ -99,6 +99,7 @@ func (m *Manager[D, C, T]) Register(version, replaces string, up MigrationFunc[C
 // Run will actually perform the necessary migrations to bring the backing datastore
 // from its current revision to the specified revision.
 func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision string, dryRun RunType) error {
+	requestedRevision := throughRevision
 	starting, err := driver.Version(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to compute target revision: %w", err)
@@ -115,6 +116,9 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 	if err != nil {
 		return fmt.Errorf("unable to compute migration list: %w", err)
 	}
+	if len(toRun) == 0 {
+		log.Ctx(ctx).Info().Str("targetRevision", requestedRevision).Msg("server already at requested revision")
+	}
 
 	if !dryRun {
 		for _, migrationToRun := range toRun {
@@ -128,7 +132,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 				return fmt.Errorf("migration attempting to run out of order: %s != %s", currentVersion, migrationToRun.replaces)
 			}
 
-			log.Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
+			log.Ctx(ctx).Info().Str("from", migrationToRun.replaces).Str("to", migrationToRun.version).Msg("migrating")
 			if migrationToRun.up != nil {
 				if err = migrationToRun.up(ctx, driver.Conn()); err != nil {
 					return fmt.Errorf("error executing migration function: %w", err)
@@ -148,7 +152,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 
 				return nil
 			}); err != nil {
-				return fmt.Errorf("error executing migration transaction function: %w", err)
+				return fmt.Errorf("error executing migration `%s`: %w", migrationToRun.version, err)
 			}
 
 			currentVersion, err = driver.Version(ctx)

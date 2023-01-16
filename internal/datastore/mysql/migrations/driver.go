@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
+
 	sq "github.com/Masterminds/squirrel"
 	sqlDriver "github.com/go-sql-driver/mysql"
-	"github.com/rs/zerolog/log"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
@@ -83,9 +85,9 @@ func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 		}
 		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
 	}
-	defer LogOnError(ctx, rows.Close)
+	defer common.LogOnError(ctx, rows.Close)
 	if rows.Err() != nil {
-		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
+		return "", fmt.Errorf("unable to load driver migration revision: %w", rows.Err())
 	}
 	cols, err := rows.Columns()
 	if err != nil {
@@ -123,7 +125,7 @@ func BeginTxFunc(ctx context.Context, db *sql.DB, txOptions *sql.TxOptions, f fu
 	if err != nil {
 		return err
 	}
-	defer LogOnError(ctx, tx.Rollback)
+	defer common.LogOnError(ctx, tx.Rollback)
 
 	if err := f(tx); err != nil {
 		return err
@@ -153,14 +155,6 @@ func (driver *MySQLDriver) WriteVersion(ctx context.Context, txWrapper TxWrapper
 
 func (driver *MySQLDriver) Close(_ context.Context) error {
 	return driver.db.Close()
-}
-
-// LogOnError executes the function and logs the error.
-// Useful to avoid silently ignoring errors in defer statements
-func LogOnError(ctx context.Context, f func() error) {
-	if err := f(); err != nil {
-		log.Ctx(ctx).Error().Err(err)
-	}
 }
 
 var _ migrate.Driver[Wrapper, TxWrapper] = &MySQLDriver{}

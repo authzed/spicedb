@@ -6,12 +6,64 @@ option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
 import "google/protobuf/any.proto";
 import "validate/validate.proto";
 import "core/v1/core.proto";
+import "dispatch/v1/dispatch.proto";
+import "google/protobuf/struct.proto";
 
+// DeveloperRequest is a single request made to the developer platform, containing zero or more
+// operations to run.
+message DeveloperRequest {
+  // context is the context for the developer request.
+  RequestContext context = 1;
+
+  // operations are the operations to be run as part of the developer request.
+  repeated Operation operations = 2;
+}
+
+// DeveloperResponse is the response to a single request made to the developer platform.
+message DeveloperResponse {
+  // internal_error is the internal error that occurred when attempting to run this operation, if any.
+  string internal_error = 1;
+
+  // developer_errors are the developer error(s) returned in the operation, if any.
+  DeveloperErrors developer_errors = 2;
+
+  // operations_results holds the results of the operations, if any and no errors.
+  OperationsResults operations_results = 3;
+}
+
+// RequestContext is the context for setting up a development package environment for one or more
+// operations.
 message RequestContext {
+  // schema is the schema on which to run the developer request.
   string schema = 1;
+
+  // relationships are the test data relationships for the developer request.
   repeated core.v1.RelationTuple relationships = 2;
 }
 
+// Operation is a single operation to be processed by the development package.
+message Operation {
+  CheckOperationParameters check_parameters = 1;
+  RunAssertionsParameters assertions_parameters = 2;
+  RunValidationParameters validation_parameters = 3;
+  FormatSchemaParameters format_schema_parameters = 4;
+}
+
+// OperationsResults holds the results for the operations, indexed by the operation.
+message OperationsResults {
+  map<uint64, OperationResult> results = 1;  
+}
+
+// OperationResult contains the result data given to the callback for an operation.
+message OperationResult {
+  CheckOperationsResult check_result = 1;
+  RunAssertionsResult assertions_result = 2;
+  RunValidationResult validation_result = 3;
+  FormatSchemaResult format_schema_result = 4;
+}
+
+// DeveloperError represents a single error raised by the development package. Unlike an internal
+// error, it represents an issue with the entered information by the calling developer.
 message DeveloperError {
   enum Source {
     UNKNOWN_SOURCE = 0;
@@ -46,4 +98,92 @@ message DeveloperError {
   // context holds the context for the error. For schema issues, this will be the
   // name of the object type. For relationship issues, the full relationship string.
   string context = 7;
+}
+
+// DeveloperErrors represents the developer error(s) found after the run has completed.
+message DeveloperErrors {
+  // input_errors are those error(s) in the schema, relationships, or assertions inputted by the developer.
+  repeated DeveloperError input_errors = 1;
+}
+
+// CheckOperationParameters are the parameters for a `check` operation.
+message CheckOperationParameters {
+  core.v1.ObjectAndRelation resource = 1;
+  core.v1.ObjectAndRelation subject = 2;
+
+  /** caveat_context consists of any named values that are defined at write time for the caveat expression **/
+  google.protobuf.Struct caveat_context = 3 [ (validate.rules).message.required = false ];
+}
+
+// CheckOperationsResult is the result for a `check` operation.
+message CheckOperationsResult {
+  enum Membership {
+    UNKNOWN = 0;
+    NOT_MEMBER = 1;
+    MEMBER = 2;
+    CAVEATED_MEMBER = 3;
+  }
+
+  Membership membership = 1;
+
+  // check_error is the error raised by the check, if any.
+  DeveloperError check_error = 2;
+
+  // debug_information is the debug information for the check.
+  dispatch.v1.DebugInformation debug_information = 3;
+
+  // partial_caveat_info holds information a partial evaluation of a caveat.
+  PartialCaveatInfo partial_caveat_info = 4;
+}
+
+// PartialCaveatInfo carries information necessary for the client to take action
+// in the event a response contains a partially evaluated caveat
+message PartialCaveatInfo {
+  // missing_required_context is a list of one or more fields that were missing and prevented caveats
+  // from being fully evaluated
+  repeated string missing_required_context = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+// RunAssertionsParameters are the parameters for a `runAssertions` operation.
+message RunAssertionsParameters {
+  // assertions_yaml are the assertions, in YAML form, to be run.
+  string assertions_yaml = 1;
+}
+
+// RunAssertionsResult is the result for a `runAssertions` operation.
+message RunAssertionsResult {
+  // input_error is an error in the given YAML.
+  DeveloperError input_error = 1;
+
+  // validation_errors are the validation errors which occurred, if any.
+  repeated DeveloperError validation_errors = 2;
+}
+
+// RunValidationParameters are the parameters for a `runValidation` operation.
+message RunValidationParameters {
+  // validation_yaml is the expected relations validation, in YAML form, to be run.
+  string validation_yaml = 1;
+}
+
+// RunValidationResult is the result for a `runValidation` operation.
+message RunValidationResult {
+  // input_error is an error in the given YAML.
+  DeveloperError input_error = 1;
+
+  // updated_validation_yaml contains the generated and updated validation YAML for the expected
+  // relations tab.
+  string updated_validation_yaml = 2;
+
+  // validation_errors are the validation errors which occurred, if any.
+  repeated DeveloperError validation_errors = 3;
+}
+
+// FormatSchemaParameters are the parameters for a `formatSchema` operation.
+message FormatSchemaParameters {
+    // empty
+}
+
+// FormatSchemaResult is the result of the `formatSchema` operation.
+message FormatSchemaResult {
+  string formatted_schema = 1;
 }

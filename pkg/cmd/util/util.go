@@ -12,7 +12,6 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -20,6 +19,14 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 
+	// Register Snappy S2 compression
+	_ "github.com/mostynb/go-grpc-compression/experimental/s2"
+
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	// Register cert watcher metrics
+	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
+
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
@@ -77,7 +84,7 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		MaxConnectionAge: c.MaxConnAge,
 	}), grpc.NumStreamWorkers(c.MaxWorkers))
 
-	tlsOpts, err := c.tlsOpts()
+	tlsOpts, certWatcher, err := c.tlsOpts()
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +99,13 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on addr for gRPC server: %w", err)
 	}
-	log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
-		Str("prefix", c.flagPrefix).Uint32("workers", c.MaxWorkers).Msg("grpc server started listening")
+	log.WithLevel(level).
+		Str("addr", c.Address).
+		Str("network", c.Network).
+		Str("service", c.flagPrefix).
+		Uint32("workers", c.MaxWorkers).
+		Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+		Msg("grpc server started serving")
 
 	srv := grpc.NewServer(opts...)
 	svcRegistrationFn(srv)
@@ -107,11 +119,15 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		dial:    dial,
 		netDial: netDial,
 		prestopFunc: func() {
-			log.WithLevel(level).Str("addr", c.Address).Str("network", c.Network).
-				Str("prefix", c.flagPrefix).Msg("grpc server stopped listening")
+			log.WithLevel(level).
+				Str("addr", c.Address).
+				Str("network", c.Network).
+				Str("service", c.flagPrefix).
+				Msg("grpc server stopped serving")
 		},
-		stopFunc: srv.GracefulStop,
-		creds:    clientCreds,
+		stopFunc:    srv.GracefulStop,
+		creds:       clientCreds,
+		certWatcher: certWatcher,
 	}, nil
 }
 
@@ -137,19 +153,22 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 	}, nil, nil
 }
 
-func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, error) {
+func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *certwatcher.CertWatcher, error) {
 	switch {
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
-		log.Warn().Str("prefix", c.flagPrefix).Msg("grpc server serving plaintext")
-		return nil, nil
+		return nil, nil, nil
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		creds, err := credentials.NewServerTLSFromFile(c.TLSCertPath, c.TLSKeyPath)
+		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return []grpc.ServerOption{grpc.Creds(creds)}, nil
+		creds := credentials.NewTLS(&tls.Config{
+			GetCertificate: watcher.GetCertificate,
+			MinVersion:     tls.VersionTLS12,
+		})
+		return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
 	default:
-		return nil, nil
+		return nil, nil, nil
 	}
 }
 
@@ -177,7 +196,7 @@ func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, erro
 
 type RunnableGRPCServer interface {
 	WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer
-	Listen() error
+	Listen(ctx context.Context) func() error
 	DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	NetDialContext(ctx context.Context, s string) (net.Conn, error)
 	Insecure() bool
@@ -194,6 +213,7 @@ type completedGRPCServer struct {
 	dial              func(context.Context, ...grpc.DialOption) (*grpc.ClientConn, error)
 	netDial           func(ctx context.Context, s string) (net.Conn, error)
 	creds             credentials.TransportCredentials
+	certWatcher       *certwatcher.CertWatcher
 }
 
 // WithOpts adds to the options for running the server
@@ -209,8 +229,15 @@ func (c *completedGRPCServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCSe
 }
 
 // Listen runs a configured server
-func (c *completedGRPCServer) Listen() error {
-	return c.listenFunc()
+func (c *completedGRPCServer) Listen(ctx context.Context) func() error {
+	if c.certWatcher != nil {
+		go func() {
+			if err := c.certWatcher.Start(ctx); err != nil {
+				log.Ctx(ctx).Error().Err(err).Msg("error watching tls certs")
+			}
+		}()
+	}
+	return c.listenFunc
 }
 
 // DialContext starts a connection to grpc server
@@ -243,8 +270,10 @@ func (d *disabledGrpcServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCSer
 }
 
 // Listen runs a configured server
-func (d *disabledGrpcServer) Listen() error {
-	return nil
+func (d *disabledGrpcServer) Listen(ctx context.Context) func() error {
+	return func() error {
+		return nil
+	}
 }
 
 // Insecure returns true if the server is configured without TLS enabled
@@ -279,21 +308,42 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 		return &disabledHTTPServer{}, nil
 	}
 	srv := &http.Server{
-		Addr:    c.Address,
-		Handler: handler,
+		Addr:              c.Address,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 	var serveFunc func() error
 	switch {
 	case c.TLSCertPath == "" && c.TLSKeyPath == "":
 		serveFunc = func() error {
-			log.Warn().Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("http server serving plaintext")
+			log.WithLevel(level).
+				Str("addr", srv.Addr).
+				Str("service", c.flagPrefix).
+				Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+				Msg("http server started serving")
 			return srv.ListenAndServe()
 		}
 
 	case c.TLSCertPath != "" && c.TLSKeyPath != "":
+		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
+		if err != nil {
+			return nil, err
+		}
+
+		listener, err := tls.Listen("tcp", srv.Addr, &tls.Config{
+			GetCertificate: watcher.GetCertificate,
+			MinVersion:     tls.VersionTLS12,
+		})
+		if err != nil {
+			return nil, err
+		}
 		serveFunc = func() error {
-			log.WithLevel(level).Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("https server started serving")
-			return srv.ListenAndServeTLS(c.TLSCertPath, c.TLSKeyPath)
+			log.WithLevel(level).
+				Str("addr", srv.Addr).
+				Str("prefix", c.flagPrefix).
+				Bool("insecure", c.TLSCertPath == "" && c.TLSKeyPath == "").
+				Msg("http server started serving")
+			return srv.Serve(listener)
 		}
 	default:
 		return nil, fmt.Errorf("failed to start http server: must provide both --%s-tls-cert-path and --%s-tls-key-path",
@@ -305,15 +355,15 @@ func (c *HTTPServerConfig) Complete(level zerolog.Level, handler http.Handler) (
 	return &completedHTTPServer{
 		srvFunc: func() error {
 			if err := serveFunc(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				return fmt.Errorf("failed while serving https: %w", err)
+				return fmt.Errorf("failed while serving http: %w", err)
 			}
 			return nil
 		},
 		closeFunc: func() {
 			if err := srv.Close(); err != nil {
-				log.Warn().Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Err(err).Msg("error stopping http server")
+				log.Error().Str("addr", srv.Addr).Str("service", c.flagPrefix).Err(err).Msg("error stopping http server")
 			}
-			log.WithLevel(level).Str("addr", srv.Addr).Str("prefix", c.flagPrefix).Msg("http server stopped serving")
+			log.WithLevel(level).Str("addr", srv.Addr).Str("service", c.flagPrefix).Msg("http server stopped serving")
 		},
 		enabled: c.Enabled,
 	}, nil
@@ -355,7 +405,7 @@ func RegisterHTTPServerFlags(flags *pflag.FlagSet, config *HTTPServerConfig, fla
 	flags.StringVar(&config.Address, flagPrefix+"-addr", defaultAddr, "address to listen on to serve "+serviceName)
 	flags.StringVar(&config.TLSCertPath, flagPrefix+"-tls-cert-path", "", "local path to the TLS certificate used to serve "+serviceName)
 	flags.StringVar(&config.TLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
-	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable "+serviceName+" http server")
+	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaultEnabled, "enable http "+serviceName+" server")
 }
 
 type disabledHTTPServer struct{}

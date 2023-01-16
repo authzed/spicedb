@@ -18,6 +18,8 @@ const (
 	colUsersetObjectID  = "userset_object_id"
 	colUsersetRelation  = "userset_relation"
 	colTimestamp        = "timestamp"
+	colCaveatName       = "caveat_name"
+	colCaveatContext    = "caveat_context"
 
 	tableChangelog            = "changelog"
 	colChangeUUID             = "uuid"
@@ -29,6 +31,13 @@ const (
 	colChangeUsersetNamespace = "userset_namespace"
 	colChangeUsersetObjectID  = "userset_object_id"
 	colChangeUsersetRelation  = "userset_relation"
+	colChangeCaveatName       = "caveat_name"
+	colChangeCaveatContext    = "caveat_context"
+
+	tableCaveat         = "caveat"
+	colName             = "name"
+	colCaveatDefinition = "definition"
+	colCaveatTS         = "timestamp"
 
 	tableMetadata = "metadata"
 	colUniqueID   = "unique_id"
@@ -50,6 +59,8 @@ var allRelationshipCols = []string{
 	colUsersetObjectID,
 	colUsersetRelation,
 	colTimestamp,
+	colCaveatName,
+	colCaveatContext,
 }
 
 var allChangelogCols = []string{
@@ -62,6 +73,8 @@ var allChangelogCols = []string{
 	colChangeUsersetNamespace,
 	colChangeUsersetObjectID,
 	colChangeUsersetRelation,
+	colChangeCaveatName,
+	colChangeCaveatContext,
 }
 
 // Both creates and touches are emitted as touched to match other datastores.

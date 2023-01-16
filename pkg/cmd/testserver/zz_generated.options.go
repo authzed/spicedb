@@ -19,7 +19,11 @@ func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.GRPCServer = c.GRPCServer
 		to.ReadOnlyGRPCServer = c.ReadOnlyGRPCServer
+		to.HTTPGateway = c.HTTPGateway
+		to.ReadOnlyHTTPGateway = c.ReadOnlyHTTPGateway
 		to.LoadConfigs = c.LoadConfigs
+		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
+		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 	}
 }
 
@@ -45,6 +49,20 @@ func WithReadOnlyGRPCServer(readOnlyGRPCServer util.GRPCServerConfig) ConfigOpti
 	}
 }
 
+// WithHTTPGateway returns an option that can set HTTPGateway on a Config
+func WithHTTPGateway(hTTPGateway util.HTTPServerConfig) ConfigOption {
+	return func(c *Config) {
+		c.HTTPGateway = hTTPGateway
+	}
+}
+
+// WithReadOnlyHTTPGateway returns an option that can set ReadOnlyHTTPGateway on a Config
+func WithReadOnlyHTTPGateway(readOnlyHTTPGateway util.HTTPServerConfig) ConfigOption {
+	return func(c *Config) {
+		c.ReadOnlyHTTPGateway = readOnlyHTTPGateway
+	}
+}
+
 // WithLoadConfigs returns an option that can append LoadConfigss to Config.LoadConfigs
 func WithLoadConfigs(loadConfigs string) ConfigOption {
 	return func(c *Config) {
@@ -56,5 +74,19 @@ func WithLoadConfigs(loadConfigs string) ConfigOption {
 func SetLoadConfigs(loadConfigs []string) ConfigOption {
 	return func(c *Config) {
 		c.LoadConfigs = loadConfigs
+	}
+}
+
+// WithMaximumUpdatesPerWrite returns an option that can set MaximumUpdatesPerWrite on a Config
+func WithMaximumUpdatesPerWrite(maximumUpdatesPerWrite uint16) ConfigOption {
+	return func(c *Config) {
+		c.MaximumUpdatesPerWrite = maximumUpdatesPerWrite
+	}
+}
+
+// WithMaximumPreconditionCount returns an option that can set MaximumPreconditionCount on a Config
+func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption {
+	return func(c *Config) {
+		c.MaximumPreconditionCount = maximumPreconditionCount
 	}
 }

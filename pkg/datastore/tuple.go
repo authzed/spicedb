@@ -43,19 +43,17 @@ func (sti *sliceRelationshipIterator) Err() error {
 // Close implements TupleIterator
 func (sti *sliceRelationshipIterator) Close() {
 	if sti.closed {
-		panic("tuple iterator double closed")
+		return
 	}
 
 	sti.tuples = nil
 	sti.closed = true
 }
 
-// BuildFinalizerFunction creates a function which can be used as a finalizer to make sure that
+// MustIteratorBeClosed is a function which can be used as a finalizer to make sure that
 // tuples are getting closed before they are garbage collected.
-func BuildFinalizerFunction() func(iter *sliceRelationshipIterator) {
-	return func(iter *sliceRelationshipIterator) {
-		if !iter.closed {
-			panic("Tuple iterator garbage collected before Close() was called")
-		}
+func MustIteratorBeClosed(iter *sliceRelationshipIterator) {
+	if !iter.closed {
+		panic("Tuple iterator garbage collected before Close() was called")
 	}
 }

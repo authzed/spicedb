@@ -1,0 +1,72 @@
+---
+schema: |+
+  definition linux/user {}
+
+  definition linux/list {
+  	relation member: linux/user
+  }
+
+  definition linux/talk {
+  	relation speaker: linux/user
+  	relation positivefeedback: linux/user
+  	relation negativefeedback: linux/user
+  }
+
+  definition linux/event {
+  	relation attendee: linux/user
+  	relation talk: linux/talk
+  	relation relatedevent: linux/event
+  	relation blacklist: linux/list#member
+  	relation invitee: linux/user
+
+  	permission speaker = talk->speaker
+  	permission positivelyratedspeaker = talk->positivefeedback
+  	permission renegadespeaker = relatedevent->positivelyratedspeaker & blacklist->member
+    permission invited = (invitee + relatedevent->speaker) - blacklist->member
+  }
+
+relationships: >-
+  linux/event:kubecon19#attendee@linux/user:well_rated_speaker#...
+
+  linux/event:kubecon19#attendee@linux/user:poorly_rated_speaker#...
+
+  linux/event:kubecon19#attendee@linux/user:previous_attendee#...
+
+  linux/event:kubecon19#talk@linux/talk:k8sintro#...
+
+  linux/talk:k8sintro#speaker@linux/user:well_rated_speaker#...
+
+  linux/talk:k8sintro#positivefeedback@linux/user:well_rated_speaker#...
+
+  linux/talk:k8sintro#speaker@linux/user:poorly_rated_speaker#...
+
+  linux/talk:k8sintro#negativefeedback@linux/user:poorly_rated_speaker#...
+
+  linux/event:kubecon20#relatedevent@linux/event:kubecon19#...
+
+  linux/event:kubecon20#invitee@linux/user:directly_invited#...
+
+  linux/event:kubecon20#invitee@linux/user:villain#...
+
+  linux/event:kubecon20#talk@linux/talk:advancedk8s#...
+
+  linux/talk:advancedk8s#speaker@linux/user:well_rated_speaker#...
+
+  linux/event:kubecon19#blacklist@linux/list:globalblacklist#member
+
+  linux/event:kubecon20#blacklist@linux/list:globalblacklist#member
+
+  linux/list:globalblacklist#member@linux/user:villain#...
+
+  linux/event:kubecon19#talk@linux/talk:blackhat#...
+
+  linux/talk:blackhat#speaker@linux/user:villain#...
+
+  linux/talk:blackhat#positivefeedback@linux/user:villain#...
+
+assertions:
+  assertTrue:
+    - "linux/event:kubecon20#speaker@linux/user:well_rated_speaker#..."
+    - "linux/event:kubecon20#invited@linux/user:well_rated_speaker#..."
+  assertFalse:
+    - "linux/event:kubecon20#invited@linux/user:villain#..."

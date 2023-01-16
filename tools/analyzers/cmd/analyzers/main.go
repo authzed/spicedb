@@ -1,10 +1,18 @@
 package main
 
 import (
+	"github.com/authzed/spicedb/tools/analyzers/closeafterusagecheck"
+	"github.com/authzed/spicedb/tools/analyzers/exprstatementcheck"
 	"github.com/authzed/spicedb/tools/analyzers/nilvaluecheck"
-	"golang.org/x/tools/go/analysis/singlechecker"
+	"github.com/authzed/spicedb/tools/analyzers/paniccheck"
+	"golang.org/x/tools/go/analysis/multichecker"
 )
 
 func main() {
-	singlechecker.Main(nilvaluecheck.Analyzer())
+	multichecker.Main(
+		nilvaluecheck.Analyzer(),
+		exprstatementcheck.Analyzer(),
+		closeafterusagecheck.Analyzer(),
+		paniccheck.Analyzer(),
+	)
 }

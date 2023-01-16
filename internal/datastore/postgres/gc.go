@@ -3,129 +3,139 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
-	"github.com/rs/zerolog/log"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-func (pgd *pgDatastore) runGarbageCollector() error {
-	log.Info().Dur("interval", pgd.gcInterval).Msg("garbage collection worker started for postgres driver")
+var (
+	_ common.GarbageCollector = (*pgDatastore)(nil)
 
-	for {
-		select {
-		case <-pgd.gcCtx.Done():
-			log.Info().Msg("shutting down garbage collection worker for postgres driver")
-			return pgd.gcCtx.Err()
-
-		case <-time.After(pgd.gcInterval):
-			err := pgd.collectGarbage()
-			if err != nil {
-				log.Warn().Err(err).Msg("error when attempting to perform garbage collection")
-			} else {
-				log.Debug().Msg("garbage collection completed for postgres")
-			}
-		}
+	relationTuplePKCols = []string{
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCreatedXid,
+		colDeletedXid,
 	}
+
+	namespacePKCols = []string{colNamespace, colCreatedXid, colDeletedXid}
+
+	transactionPKCols = []string{colXID}
+)
+
+func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
+	// Retrieve the `now` time from the database.
+	nowSQL, nowArgs, err := getNow.ToSql()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var now time.Time
+	err = pgd.dbpool.QueryRow(ctx, nowSQL, nowArgs...).Scan(&now)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// RelationTupleTransaction is not timezone aware -- explicitly use UTC
+	// before using as a query arg.
+	return now.UTC(), nil
 }
 
-func (pgd *pgDatastore) collectGarbage() error {
-	startTime := time.Now()
-	defer func() {
-		gcDurationHistogram.Observe(time.Since(startTime).Seconds())
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), pgd.gcMaxOperationTime)
-	defer cancel()
-
-	// Ensure the database is ready.
-	ready, err := pgd.IsReady(ctx)
-	if err != nil {
-		return err
-	}
-
-	if !ready {
-		log.Ctx(ctx).Warn().Msg("cannot perform postgres garbage collection: postgres driver is not yet ready")
-		return nil
-	}
-
-	now, err := pgd.getNow(ctx)
-	if err != nil {
-		return err
-	}
-
-	before := now.Add(pgd.gcWindowInverted)
-	log.Ctx(ctx).Debug().Time("before", before).Msg("running postgres garbage collection")
-	_, _, err = pgd.collectGarbageBefore(ctx, before)
-	return err
-}
-
-func (pgd *pgDatastore) collectGarbageBefore(ctx context.Context, before time.Time) (int64, int64, error) {
+func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
 	// Find the highest transaction ID before the GC window.
 	sql, args, err := getRevision.Where(sq.Lt{colTimestamp: before}).ToSql()
 	if err != nil {
-		return 0, 0, err
+		return datastore.NoRevision, err
 	}
 
-	value := pgtype.Int8{}
-	err = pgd.dbpool.QueryRow(
-		datastore.SeparateContextWithTracing(ctx), sql, args...,
-	).Scan(&value)
+	var value, xmin xid8
+	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&value, &xmin)
 	if err != nil {
-		return 0, 0, err
+		return datastore.NoRevision, err
 	}
 
 	if value.Status != pgtype.Present {
 		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
-		return 0, 0, nil
+		return datastore.NoRevision, err
 	}
 
-	var highest uint64
-	err = value.AssignTo(&highest)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Msg("retrieved transaction ID for GC")
-
-	return pgd.collectGarbageForTransaction(ctx, highest)
+	return postgresRevision{value, xmin}, nil
 }
 
-func (pgd *pgDatastore) collectGarbageForTransaction(ctx context.Context, highest uint64) (int64, int64, error) {
-	// Delete any relationship rows with deleted_transaction <= the transaction ID.
-	relCount, err := pgd.batchDelete(ctx, tableTuple, sq.LtOrEq{colDeletedTxn: highest})
-	if err != nil {
-		return 0, 0, err
+func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
+	revision := txID.(postgresRevision)
+
+	minTxAlive := revision.tx
+	if revision.xmin.Status == pgtype.Present {
+		minTxAlive = revision.xmin
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("relationshipsDeleted", relCount).Msg("deleted stale relationships")
-	gcRelationshipsClearedGauge.Set(float64(relCount))
-
-	// Delete all transaction rows with ID < the transaction ID. We don't delete the transaction
-	// itself to ensure there is always at least one transaction present.
-	transactionCount, err := pgd.batchDelete(ctx, tableTransaction, sq.Lt{colID: highest})
+	// Delete any relationship rows that were already dead when this transaction started
+	removed.Relationships, err = pgd.batchDelete(
+		ctx,
+		tableTuple,
+		relationTuplePKCols,
+		sq.Lt{colDeletedXid: minTxAlive},
+	)
 	if err != nil {
-		return relCount, 0, err
+		return
 	}
 
-	log.Ctx(ctx).Trace().Uint64("highestTransactionId", highest).Int64("transactionsDeleted", transactionCount).Msg("deleted stale transactions")
-	gcTransactionsClearedGauge.Set(float64(transactionCount))
-	return relCount, transactionCount, nil
+	// Delete all transaction rows with ID < the transaction ID.
+	//
+	// We don't delete the transaction itself to ensure there is always at least
+	// one transaction present.
+	removed.Transactions, err = pgd.batchDelete(
+		ctx,
+		tableTransaction,
+		transactionPKCols,
+		sq.Lt{colXID: revision.tx},
+	)
+	if err != nil {
+		return
+	}
+
+	// Delete any namespace rows with deleted_transaction <= the transaction ID.
+	removed.Namespaces, err = pgd.batchDelete(
+		ctx,
+		tableNamespace,
+		namespacePKCols,
+		sq.Lt{colDeletedXid: minTxAlive},
+	)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
-func (pgd *pgDatastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {
-	sql, args, err := psql.Select("id").From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
+func (pgd *pgDatastore) batchDelete(
+	ctx context.Context,
+	tableName string,
+	pkCols []string,
+	filter sqlFilter,
+) (int64, error) {
+	sql, args, err := psql.Select(pkCols...).From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
 
-	query := fmt.Sprintf(`WITH rows AS (%s)
-		  DELETE FROM %s
-		  WHERE id IN (SELECT id FROM rows);
-	`, sql, tableName)
+	pkColsExpression := strings.Join(pkCols, ", ")
+
+	query := fmt.Sprintf(`WITH rows AS (%[1]s)
+		  DELETE FROM %[2]s
+		  WHERE (%[3]s) IN (SELECT %[3]s FROM rows);
+	`, sql, tableName, pkColsExpression)
 
 	var deletedCount int64
 	for {

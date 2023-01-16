@@ -13,7 +13,8 @@ type Option func(*optionState)
 
 type optionState struct {
 	prometheusSubsystem string
-	cacheConfig         *cache.Config
+	cache               cache.Cache
+	concurrencyLimits   graph.ConcurrencyLimits
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -23,10 +24,17 @@ func PrometheusSubsystem(name string) Option {
 	}
 }
 
-// CacheConfig sets the configuration for the local dispatcher's cache.
-func CacheConfig(config *cache.Config) Option {
+// Cache sets the cache for the remote dispatcher.
+func Cache(c cache.Cache) Option {
 	return func(state *optionState) {
-		state.cacheConfig = config
+		state.cache = c
+	}
+}
+
+// ConcurrencyLimit sets the max number of goroutines per operation
+func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
+	return func(state *optionState) {
+		state.concurrencyLimits = limits
 	}
 }
 
@@ -34,17 +42,18 @@ func CacheConfig(config *cache.Config) Option {
 // combined.NewDispatcher) and returns a cluster dispatcher suitable for use as
 // the dispatcher for the dispatch grpc server.
 func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (dispatch.Dispatcher, error) {
-	clusterDispatch := graph.NewDispatcher(dispatch)
 	var opts optionState
 	for _, fn := range options {
 		fn(&opts)
 	}
 
+	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits)
+
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"
 	}
 
-	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cacheConfig, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingClusterDispatch, err := caching.NewCachingDispatcher(opts.cache, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}

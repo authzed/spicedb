@@ -3,12 +3,15 @@
 [![Container Image](https://img.shields.io/github/v/release/authzed/spicedb?color=%232496ED&label=container&logo=docker "Container Image")](https://hub.docker.com/r/authzed/spicedb/tags)
 [![Docs](https://img.shields.io/badge/docs-authzed.com-%234B4B6C "Authzed Documentation")](https://docs.authzed.com)
 [![Build Status](https://github.com/authzed/spicedb/workflows/Build%20&%20Test/badge.svg "GitHub Actions")](https://github.com/authzed/spicedb/actions)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/6348/badge)](https://bestpractices.coreinfrastructure.org/projects/6348)
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&logo=discord "Discord Server")](https://discord.gg/jTysUaxXzM)
-[![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square "@authzed on Twitter")](https://twitter.com/authzed)
+[![Twitter](https://img.shields.io/twitter/follow/authzed?color=%23179CF0&logo=twitter&style=flat-square&label=@authzed "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is an open source database system for managing security-critical application permissions inspired by Google's [Zanzibar] paper.
+SpiceDB is an open source, Google [Zanzibar]-inspired, database system for creating and managing security-critical application permissions.
 
-Developers create a schema that models their permissions requirements and use a [client library] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
+Developers create a schema that models their permissions requirements and use any of the official or community maintained [client libraries] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
+
+[client libraries]: https://github.com/authzed/awesome-spicedb
 
 Features that distinguish SpiceDB from other systems include:
 
@@ -19,11 +22,6 @@ Features that distinguish SpiceDB from other systems include:
 - Pluggable storage system supporting [memdb], [MySQL], [PostgreSQL], [CockroachDB], and [Cloud Spanner]
 - Deep observability with [Prometheus metrics], structured logging, and [OpenTelemetry tracing]
 
-Have questions? Join our [Discord].
-
-Looking to contribute? See [CONTRIBUTING.md].
-
-[client library]: https://docs.authzed.com/reference/api#client-libraries
 [gRPC]: https://buf.build/authzed/api/docs/main:authzed.api.v1
 [Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [HTTP]: https://app.swaggerhub.com/apis-docs/authzed/authzed/1.0
@@ -41,8 +39,25 @@ Looking to contribute? See [CONTRIBUTING.md].
 [Cloud Spanner]: https://cloud.google.com/spanner
 [Prometheus metrics]: https://prometheus.io
 [OpenTelemetry tracing]: https://opentelemetry.io
+
+Have questions? Join our [Discord].
+
+Looking to contribute? See [CONTRIBUTING.md].
+
+Want to learn more about Zanzibar? Read the [annotated paper] with our commentary.
+
+You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
+There are also [good first issues].
+
 [Discord]: https://authzed.com/discord
 [CONTRIBUTING.md]: https://github.com/authzed/spicedb/blob/main/CONTRIBUTING.md
+[annotated paper]: https://zanzibar.tech
+[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
+[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
+[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
+[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
+[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
+[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
 
 ## Why SpiceDB?
 
@@ -76,11 +91,13 @@ This has strategy has become an industry best-practice and is being used to grea
 
 - Install SpiceDB with [homebrew] on macOS and Linux
 - Run a SpiceDB container using a container engine such as [docker]
-- Deploy a single-node example [Kubernetes deployment]
+- Deploy non-production-ready [examples] using [Kubernetes] and [Docker Compose]
 
 [homebrew]: https://docs.authzed.com/spicedb/installing#brew
 [docker]: https://docs.authzed.com/spicedb/installing#docker
-[Kubernetes deployment]: https://github.com/authzed/spicedb/blob/main/k8s/example.yaml
+[examples]: https://github.com/authzed/examples
+[Docker Compose]: https://github.com/authzed/examples/tree/main/datastores
+[Kubernetes]: https://github.com/authzed/examples/tree/main/kubernetes
 
 ### Developing your own schema
 

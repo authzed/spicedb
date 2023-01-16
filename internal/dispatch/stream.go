@@ -82,7 +82,7 @@ func (s *CollectingDispatchStream[T]) Publish(result T) error {
 type WrappedDispatchStream[T any] struct {
 	Stream    Stream[T]
 	Ctx       context.Context
-	Processor func(result T) (T, error)
+	Processor func(result T) (T, bool, error)
 }
 
 func (s *WrappedDispatchStream[T]) Publish(result T) error {
@@ -90,10 +90,14 @@ func (s *WrappedDispatchStream[T]) Publish(result T) error {
 		return s.Stream.Publish(result)
 	}
 
-	processed, err := s.Processor(result)
+	processed, ok, err := s.Processor(result)
 	if err != nil {
 		return err
 	}
+	if !ok {
+		return nil
+	}
+
 	return s.Stream.Publish(processed)
 }
 
@@ -110,6 +114,40 @@ func StreamWithContext[T any](context context.Context, stream Stream[T]) Stream[
 	}
 }
 
+// HandlingDispatchStream is a dispatch stream that executes a handler for each item published.
+// It uses an internal mutex to ensure it is thread safe.
+type HandlingDispatchStream[T any] struct {
+	ctx       context.Context
+	processor func(result T) error
+	mu        sync.Mutex
+}
+
+// NewHandlingDispatchStream returns a new handling dispatch stream.
+func NewHandlingDispatchStream[T any](ctx context.Context, processor func(result T) error) Stream[T] {
+	return &HandlingDispatchStream[T]{
+		ctx:       ctx,
+		processor: processor,
+		mu:        sync.Mutex{},
+	}
+}
+
+func (s *HandlingDispatchStream[T]) Publish(result T) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.processor == nil {
+		return nil
+	}
+
+	return s.processor(result)
+}
+
+func (s *HandlingDispatchStream[T]) Context() context.Context {
+	return s.ctx
+}
+
 // Ensure the streams implement the interface.
-var _ Stream[any] = &CollectingDispatchStream[any]{}
-var _ Stream[any] = &WrappedDispatchStream[any]{}
+var (
+	_ Stream[any] = &CollectingDispatchStream[any]{}
+	_ Stream[any] = &WrappedDispatchStream[any]{}
+)

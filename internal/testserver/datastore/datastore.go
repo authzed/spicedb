@@ -1,12 +1,19 @@
+//go:build docker
+// +build docker
+
 package datastore
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/migrate"
 )
+
+const dockerBootTimeout = 10 * time.Second
 
 // InitFunc initializes a datastore instance from a uri that has been
 // generated from a TestDatastoreBuilder
@@ -55,7 +62,7 @@ func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName
 	case "cockroachdb":
 		return RunCRDBForTesting(t, bridgeNetworkName)
 	case "postgres":
-		return RunPostgresForTesting(t, bridgeNetworkName)
+		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head)
 	case "mysql":
 		return RunMySQLForTesting(t, bridgeNetworkName)
 	case "spanner":

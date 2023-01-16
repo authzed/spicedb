@@ -4,14 +4,16 @@ import (
 	"context"
 	"testing"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func newReadOnlyMock() (*proxy_test.MockDatastore, *proxy_test.MockReader) {
@@ -32,41 +34,24 @@ func TestRWOperationErrors(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.DeleteNamespace("fake")
+	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.DeleteNamespaces(ctx, "fake")
 	})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(&core.NamespaceDefinition{Name: "user"})
+	rev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "user"})
 	})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-			Operation: v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: &v1.Relationship{
-				Resource: &v1.ObjectReference{
-					ObjectType: "user",
-					ObjectId:   "test",
-				},
-				Relation: "boss",
-				Subject: &v1.SubjectReference{
-					Object: &v1.ObjectReference{
-						ObjectType: "user",
-						ObjectId:   "boss",
-					},
-				},
-			},
-		}})
-	})
+	rev, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tuple.Parse("user:test#boss@user:boss"))
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 }
 
-var expectedRevision = decimal.NewFromInt(123)
+var expectedRevision = revision.NewFromDecimal(decimal.NewFromInt(123))
 
 func TestIsReadyPassthrough(t *testing.T) {
 	require := require.New(t)
@@ -152,7 +137,7 @@ func TestSnapshotReaderPassthrough(t *testing.T) {
 
 	_, rev, err := ds.SnapshotReader(expectedRevision).ReadNamespace(ctx, "fake")
 	require.NoError(err)
-	require.Equal(expectedRevision.IntPart(), rev.IntPart())
+	require.True(expectedRevision.Equal(rev))
 	delegate.AssertExpectations(t)
 	reader.AssertExpectations(t)
 }

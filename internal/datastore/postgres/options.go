@@ -23,8 +23,25 @@ type postgresOptions struct {
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
+	gcEnabled               bool
+
+	migrationPhase string
 
 	logger *tracingLogger
+}
+
+type migrationPhase uint8
+
+const (
+	writeBothReadOld migrationPhase = iota
+	writeBothReadNew
+	complete
+)
+
+var migrationPhases = map[string]migrationPhase{
+	"write-both-read-old": writeBothReadOld,
+	"write-both-read-new": writeBothReadNew,
+	"":                    complete,
 }
 
 const (
@@ -39,6 +56,7 @@ const (
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 10
+	defaultGCEnabled                         = true
 )
 
 // Option provides the facility to configure how clients within the
@@ -56,6 +74,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
+		gcEnabled:                   defaultGCEnabled,
 	}
 
 	for _, option := range options {
@@ -69,6 +88,10 @@ func generateConfig(options []Option) (postgresOptions, error) {
 			computed.revisionQuantization,
 			computed.gcWindow,
 		)
+	}
+
+	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
+		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
 	return computed, nil
@@ -221,6 +244,15 @@ func EnableTracing() Option {
 	}
 }
 
+// GCEnabled indicates whether garbage collection is enabled.
+//
+// GC is enabled by default.
+func GCEnabled(isGCEnabled bool) Option {
+	return func(po *postgresOptions) {
+		po.gcEnabled = isGCEnabled
+	}
+}
+
 // DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
 // run Analyze on the database before returning statistics. This should only be
 // used for debug and testing.
@@ -229,5 +261,15 @@ func EnableTracing() Option {
 func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *postgresOptions) {
 		po.analyzeBeforeStatistics = true
+	}
+}
+
+// MigrationPhase configures the postgres driver to the proper state of a
+// multi-phase migration.
+//
+// Steady-state configuration (e.g. fully migrated) by default
+func MigrationPhase(phase string) Option {
+	return func(po *postgresOptions) {
+		po.migrationPhase = phase
 	}
 }

@@ -7,7 +7,6 @@
   - "internal/services/v0/**/*"
 "area/api v1":
   - "internal/services/v1/**/*"
-  - "internal/services/v1alpha1/**/*"
 "area/cli":
   - "cmd/**/*"
   - "pkg/cmd/**/*"

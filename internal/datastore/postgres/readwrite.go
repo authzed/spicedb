@@ -9,10 +9,9 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/stringz"
-	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -28,12 +27,11 @@ var (
 	writeNamespace = psql.Insert(tableNamespace).Columns(
 		colNamespace,
 		colConfig,
-		colCreatedTxn,
 	)
 
-	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespace = psql.Update(tableNamespace).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
-	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteNamespaceTuples = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 
 	writeTuple = psql.Insert(tableTuple).Columns(
 		colNamespace,
@@ -42,52 +40,60 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
-		colCreatedTxn,
+		colCaveatContextName,
+		colCaveatContext,
 	)
 
-	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
 	*pgReader
-	ctx      context.Context
-	tx       pgx.Tx
-	newTxnID uint64
+	tx     pgx.Tx
+	newXID xid8
 }
 
-func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteTuples")
-	defer span.End()
-
+func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	bulkWrite := writeTuple
 	bulkWriteHasValues := false
-
 	deleteClauses := sq.Or{}
 
 	// Process the actual updates
 	for _, mut := range mutations {
-		rel := mut.Relationship
+		tpl := mut.Tuple
 
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_DELETE {
-			deleteClauses = append(deleteClauses, exactRelationshipClause(rel))
+		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
+			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
 		}
 
-		if mut.Operation == v1.RelationshipUpdate_OPERATION_TOUCH || mut.Operation == v1.RelationshipUpdate_OPERATION_CREATE {
-			bulkWrite = bulkWrite.Values(
-				rel.Resource.ObjectType,
-				rel.Resource.ObjectId,
-				rel.Relation,
-				rel.Subject.Object.ObjectType,
-				rel.Subject.Object.ObjectId,
-				stringz.DefaultEmpty(rel.Subject.OptionalRelation, datastore.Ellipsis),
-				rwt.newTxnID,
-			)
+		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
+			var caveatName string
+			var caveatContext map[string]any
+			if tpl.Caveat != nil {
+				caveatName = tpl.Caveat.CaveatName
+				caveatContext = tpl.Caveat.Context.AsMap()
+			}
+			valuesToWrite := []interface{}{
+				tpl.ResourceAndRelation.Namespace,
+				tpl.ResourceAndRelation.ObjectId,
+				tpl.ResourceAndRelation.Relation,
+				tpl.Subject.Namespace,
+				tpl.Subject.ObjectId,
+				tpl.Subject.Relation,
+				caveatName,
+				caveatContext, // PGX driver serializes map[string]any to JSONB type columns
+			}
+
+			bulkWrite = bulkWrite.Values(valuesToWrite...)
 			bulkWriteHasValues = true
 		}
 	}
 
 	if len(deleteClauses) > 0 {
-		sql, args, err := deleteTuple.Where(deleteClauses).Set(colDeletedTxn, rwt.newTxnID).ToSql()
+		sql, args, err := deleteTuple.
+			Where(deleteClauses).
+			Set(colDeletedXid, rwt.newXID).
+			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
@@ -104,6 +110,12 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+			// If a unique constraint violation is returned, then its likely that the cause
+			// was an existing relationship given as a CREATE.
+			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+				return cerr
+			}
+
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
@@ -111,41 +123,28 @@ func (rwt *pgReadWriteTXN) WriteRelationships(mutations []*v1.RelationshipUpdate
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteRelationships")
-	defer span.End()
-
+func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	// Add clauses for the ResourceFilter
 	query := deleteTuple.Where(sq.Eq{colNamespace: filter.ResourceType})
-	tracerAttributes := []attribute.KeyValue{common.ObjNamespaceNameKey.String(filter.ResourceType)}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
-		tracerAttributes = append(tracerAttributes, common.ObjIDKey.String(filter.OptionalResourceId))
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
-		tracerAttributes = append(tracerAttributes, common.ObjRelationNameKey.String(filter.OptionalRelation))
 	}
 
 	// Add clauses for the SubjectFilter
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		tracerAttributes = append(tracerAttributes, common.SubNamespaceNameKey.String(subjectFilter.SubjectType))
 		if subjectFilter.OptionalSubjectId != "" {
 			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
-			tracerAttributes = append(tracerAttributes, common.SubObjectIDKey.String(subjectFilter.OptionalSubjectId))
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
 			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
-			tracerAttributes = append(tracerAttributes, common.SubRelationNameKey.String(relationFilter.Relation))
 		}
 	}
 
-	span.SetAttributes(tracerAttributes...)
-
-	query = query.Set(colDeletedTxn, rwt.newTxnID)
-
-	sql, args, err := query.ToSql()
+	sql, args, err := query.Set(colDeletedXid, rwt.newXID).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -157,31 +156,26 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(filter *v1.RelationshipFilter) er
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "WriteNamespaces")
-	defer span.End()
-
+func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := writeNamespace
 
-	writtenNamespaceNames := make([]string, 0, len(newConfigs))
 	for _, newNamespace := range newConfigs {
 		serialized, err := proto.Marshal(newNamespace)
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
-		span.AddEvent("Serialized namespace config")
 
 		deletedNamespaceClause = append(deletedNamespaceClause, sq.Eq{colNamespace: newNamespace.Name})
-		writeQuery = writeQuery.Values(newNamespace.Name, serialized, rwt.newTxnID)
-		writtenNamespaceNames = append(writtenNamespaceNames, newNamespace.Name)
+
+		valuesToWrite := []interface{}{newNamespace.Name, serialized}
+
+		writeQuery = writeQuery.Values(valuesToWrite...)
 	}
 
-	span.SetAttributes(common.ObjNamespaceNameKey.StringSlice(writtenNamespaceNames))
-
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.And{sq.Eq{colDeletedTxn: liveDeletedTxnID}, deletedNamespaceClause}).
+		Set(colDeletedXid, rwt.newXID).
+		Where(sq.And{sq.Eq{colDeletedXid: liveDeletedTxnID}, deletedNamespaceClause}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
@@ -197,33 +191,38 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(newConfigs ...*core.NamespaceDefiniti
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
 
-	_, err = rwt.tx.Exec(ctx, sql, args...)
-	if err != nil {
+	if _, err = rwt.tx.Exec(ctx, sql, args...); err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
 	}
-	span.AddEvent("Namespace config written")
 
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
-	ctx, span := tracer.Start(datastore.SeparateContextWithTracing(rwt.ctx), "DeleteNamespace")
-	defer span.End()
+func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	}
 
-	baseQuery := readNamespace.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
-	_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
-	switch {
-	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
-		return err
-	case err == nil:
-		break
-	default:
-		return fmt.Errorf(errUnableToDeleteConfig, err)
+	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	for _, nsName := range nsNames {
+		_, createdAt, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
+		switch {
+		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+			return err
+		case err == nil:
+			break
+		default:
+			return fmt.Errorf(errUnableToDeleteConfig, err)
+		}
+
+		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx})
+		tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
 	}
 
 	delSQL, delArgs, err := deleteNamespace.
-		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt}).
+		Set(colDeletedXid, rwt.newXID).
+		Where(sq.Or(nsClauses)).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -235,8 +234,8 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	}
 
 	deleteTupleSQL, deleteTupleArgs, err := deleteNamespaceTuples.
-		Set(colDeletedTxn, rwt.newTxnID).
-		Where(sq.Eq{colNamespace: nsName}).
+		Set(colDeletedXid, rwt.newXID).
+		Where(sq.Or(tplClauses)).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
@@ -250,14 +249,14 @@ func (rwt *pgReadWriteTXN) DeleteNamespace(nsName string) error {
 	return nil
 }
 
-func exactRelationshipClause(r *v1.Relationship) sq.Eq {
+func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.Resource.ObjectType,
-		colObjectID:         r.Resource.ObjectId,
-		colRelation:         r.Relation,
-		colUsersetNamespace: r.Subject.Object.ObjectType,
-		colUsersetObjectID:  r.Subject.Object.ObjectId,
-		colUsersetRelation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, datastore.Ellipsis),
+		colNamespace:        r.ResourceAndRelation.Namespace,
+		colObjectID:         r.ResourceAndRelation.ObjectId,
+		colRelation:         r.ResourceAndRelation.Relation,
+		colUsersetNamespace: r.Subject.Namespace,
+		colUsersetObjectID:  r.Subject.ObjectId,
+		colUsersetRelation:  r.Subject.Relation,
 	}
 }
 

@@ -1,18 +1,83 @@
 package generator
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
-func TestGenerator(t *testing.T) {
+func TestGenerateCaveat(t *testing.T) {
+	type generatorTest struct {
+		name     string
+		input    *core.CaveatDefinition
+		expected string
+		okay     bool
+	}
+
+	tests := []generatorTest{
+		{
+			"basic",
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{
+					"someParam": caveattypes.IntType,
+				},
+			), "somecaveat", "someParam == 42"),
+			`
+caveat somecaveat(someParam int) {
+	someParam == 42
+}`,
+			true,
+		},
+		{
+			"multiparameter",
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{
+					"someParam":    caveattypes.IntType,
+					"anotherParam": caveattypes.MustMapType(caveattypes.UIntType),
+				},
+			), "somecaveat", "someParam == 42"),
+			`
+caveat somecaveat(anotherParam map<uint>, someParam int) {
+	someParam == 42
+}`,
+			true,
+		},
+		{
+			"long",
+			namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+				map[string]caveattypes.VariableType{
+					"someParam": caveattypes.IntType,
+				},
+			), "somecaveat", "someParam == 42 && someParam == 43 && someParam == 44 && someParam == 45"),
+			`
+caveat somecaveat(someParam int) {
+	someParam == 42 && someParam == 43 && someParam == 44 && someParam == 45
+}`,
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require := require.New(t)
+			source, ok, err := GenerateCaveatSource(test.input)
+			require.NoError(err)
+			require.Equal(strings.TrimSpace(test.expected), source)
+			require.Equal(test.okay, ok)
+		})
+	}
+}
+
+func TestGenerateNamespace(t *testing.T) {
 	type generatorTest struct {
 		name     string
 		input    *core.NamespaceDefinition
@@ -30,7 +95,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"simple relation",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", nil, namespace.AllowedRelation("foos/bars", "hiya")),
+				namespace.MustRelation("somerel", nil, namespace.AllowedRelation("foos/bars", "hiya")),
 			),
 			`definition foos/test {
 	relation somerel: foos/bars#hiya
@@ -40,7 +105,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"simple permission",
 			namespace.Namespace("foos/test",
-				namespace.Relation("someperm", namespace.Union(
+				namespace.MustRelation("someperm", namespace.Union(
 					namespace.ComputedUserset("anotherrel"),
 				)),
 			),
@@ -52,7 +117,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"complex permission",
 			namespace.Namespace("foos/test",
-				namespace.Relation("someperm", namespace.Union(
+				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
 							namespace.ComputedUserset("rela"),
@@ -71,7 +136,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"complex permission with nil",
 			namespace.Namespace("foos/test",
-				namespace.Relation("someperm", namespace.Union(
+				namespace.MustRelation("someperm", namespace.Union(
 					namespace.Rewrite(
 						namespace.Exclusion(
 							namespace.ComputedUserset("rela"),
@@ -91,7 +156,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"legacy relation",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", namespace.Union(
+				namespace.MustRelation("somerel", namespace.Union(
 					&core.SetOperation_Child{
 						ChildType: &core.SetOperation_Child_XThis{},
 					},
@@ -106,7 +171,7 @@ func TestGenerator(t *testing.T) {
 		{
 			"missing type information",
 			namespace.Namespace("foos/test",
-				namespace.Relation("somerel", nil),
+				namespace.MustRelation("somerel", nil),
 			),
 			`definition foos/test {
 	relation somerel: /* missing allowed types */
@@ -119,14 +184,18 @@ func TestGenerator(t *testing.T) {
 			namespace.WithComment("foos/document", `/**
 * Some comment goes here
 */`,
-				namespace.Relation("owner", nil,
+				namespace.MustRelation("owner", nil,
 					namespace.AllowedRelation("foos/user", "..."),
 				),
-				namespace.RelationWithComment("reader", "//foobar", nil,
+				namespace.MustRelationWithComment("reader", "//foobar", nil,
 					namespace.AllowedRelation("foos/user", "..."),
+					namespace.AllowedPublicNamespace("foos/user"),
 					namespace.AllowedRelation("foos/group", "member"),
+					namespace.AllowedRelationWithCaveat("foos/user", "...", namespace.AllowedCaveat("somecaveat")),
+					namespace.AllowedRelationWithCaveat("foos/group", "member", namespace.AllowedCaveat("somecaveat")),
+					namespace.AllowedPublicNamespaceWithCaveat("foos/user", namespace.AllowedCaveat("somecaveat")),
 				),
-				namespace.Relation("read", namespace.Union(
+				namespace.MustRelation("read", namespace.Union(
 					namespace.ComputedUserset("reader"),
 					namespace.ComputedUserset("owner"),
 				)),
@@ -136,7 +205,7 @@ definition foos/document {
 	relation owner: foos/user
 
 	// foobar
-	relation reader: foos/user | foos/group#member
+	relation reader: foos/user | foos/user:* | foos/group#member | foos/user with somecaveat | foos/group#member with somecaveat | foos/user:* with somecaveat
 	permission read = reader + owner
 }`,
 			true,
@@ -146,7 +215,8 @@ definition foos/document {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			source, ok := GenerateSource(test.input)
+			source, ok, err := GenerateSource(test.input)
+			require.NoError(err)
 			require.Equal(test.expected, source)
 			require.Equal(test.okay, ok)
 		})
@@ -236,10 +306,16 @@ definition foos/test {
 		{
 			"full example",
 			`
+/** some cool caveat */
+caveat foos/somecaveat(someParam int, anotherParam bool) {
+						someParam == 42 &&
+				anotherParam
+}
+
 /** the document */
 definition foos/document {
 	/** some super long comment goes here and therefore should be made into a multiline comment */
-	relation reader: foos/user | foos/user:*
+	relation reader: foos/user | foos/user:* | foos/user with foos/somecaveat
 
 	/** multiline
 comment */
@@ -251,12 +327,17 @@ comment */
 	permission minus = rela - relb - relc
 }
 `,
-			`/** the document */
+			`/** some cool caveat */
+caveat foos/somecaveat(anotherParam bool, someParam int) {
+	someParam == 42 && anotherParam
+}
+
+/** the document */
 definition foos/document {
 	/**
 	 * some super long comment goes here and therefore should be made into a multiline comment
 	 */
-	relation reader: foos/user | foos/user:*
+	relation reader: foos/user | foos/user:* | foos/user with foos/somecaveat
 
 	/**
 	 * multiline
@@ -275,13 +356,14 @@ definition foos/document {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			defs, err := compiler.Compile([]compiler.InputSchema{{
+			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source(test.name),
 				SchemaString: test.input,
-			}}, nil)
+			}, nil)
 			require.NoError(err)
 
-			source, _ := GenerateSource(defs[0])
+			source, _, err := GenerateSchema(compiled.OrderedDefinitions)
+			require.NoError(err)
 			require.Equal(test.expected, source)
 		})
 	}

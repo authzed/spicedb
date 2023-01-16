@@ -1,3 +1,6 @@
+//go:build docker
+// +build docker
+
 package datastore
 
 import (
@@ -8,11 +11,11 @@ import (
 	"time"
 
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
+	adminpb "cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instances "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
-	adminpb "google.golang.org/genproto/googleapis/spanner/admin/database/v1"
 	"google.golang.org/genproto/googleapis/spanner/admin/instance/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
@@ -49,7 +52,8 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineF
 	require.NoError(t, os.Setenv("SPANNER_EMULATOR_HOST", spannerEmulatorAddr))
 
 	require.NoError(t, pool.Retry(func() error {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), dockerBootTimeout)
+		defer cancel()
 
 		instancesClient, err := instances.NewInstanceAdminClient(ctx)
 		if err != nil {
@@ -57,6 +61,8 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineF
 		}
 		defer func() { require.NoError(t, instancesClient.Close()) }()
 
+		ctx, cancel = context.WithTimeout(context.Background(), dockerBootTimeout)
+		defer cancel()
 		_, err = instancesClient.CreateInstance(ctx, &instance.CreateInstanceRequest{
 			Parent:     "projects/fake-project-id",
 			InstanceId: "init",

@@ -1,5 +1,5 @@
-//go:build docker
-// +build docker
+//go:build docker && image
+// +build docker,image
 
 package main
 
@@ -23,6 +23,7 @@ import (
 var toSkip = []string{"memory"}
 
 func TestMigrate(t *testing.T) {
+	t.Parallel()
 	bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
 
 	pool, err := dockertest.NewPool("")
@@ -43,6 +44,8 @@ func TestMigrate(t *testing.T) {
 		}
 
 		t.Run(engineKey, func(t *testing.T) {
+			engineKey := engineKey
+			t.Parallel()
 			r := testdatastore.RunDatastoreEngineWithBridge(t, engineKey, bridgeNetworkName)
 			db := r.NewDatabase(t)
 

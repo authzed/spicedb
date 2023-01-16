@@ -268,6 +268,6 @@ func unmarshalShared(data []byte) (SharedDataV2, LookupStatus, error) {
 		}, LookupConverted, nil
 
 	default:
-		panic("Unsupported version")
+		return SharedDataV2{}, LookupError, fmt.Errorf("unsupported share version %s", v.Version)
 	}
 }

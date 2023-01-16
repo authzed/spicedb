@@ -4,18 +4,22 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func init() {
@@ -37,6 +41,11 @@ const (
 	errUnableToDeleteConfig   = "unable to delete namespace config: %w"
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 
+	errUnableToReadCaveat   = "unable to read caveat: %w"
+	errUnableToWriteCaveat  = "unable to write caveat: %w"
+	errUnableToListCaveats  = "unable to list caveats: %w"
+	errUnableToDeleteCaveat = "unable to delete caveat: %w"
+
 	// Spanner requires a much smaller userset batch size than other datastores because of the
 	// limitation on the maximum number of function calls.
 	// https://cloud.google.com/spanner/quotas
@@ -47,10 +56,14 @@ const (
 var (
 	sql    = sq.StatementBuilder.PlaceholderFormat(sq.AtP)
 	tracer = otel.Tracer("spicedb/internal/datastore/spanner")
+
+	alreadyExistsRegex = regexp.MustCompile(`^Table relation_tuple: Row {String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\), String\("([^\"]+)"\)} already exists.$`)
 )
 
 type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
+	revision.DecimalDecoder
+
 	client *spanner.Client
 	config spannerOptions
 	stopGC context.CancelFunc
@@ -66,10 +79,12 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	if len(config.emulatorHost) > 0 {
 		os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost)
 	}
+	if len(os.Getenv("SPANNER_EMULATOR_HOST")) > 0 {
+		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
+	}
 
 	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
 	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
-	log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("spanner emulator")
 
 	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {
@@ -89,19 +104,25 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		client: client,
 		config: config,
 	}
-	ds.RemoteClockRevisions.SetNowFunc(ds.HeadRevision)
+	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	if err := ds.runGC(ctx); err != nil {
-		cancel()
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	if config.gcInterval > 0*time.Minute && config.gcEnabled {
+		ctx, cancel := context.WithCancel(context.Background())
+		if err := ds.runGC(ctx); err != nil {
+			cancel()
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		ds.stopGC = cancel
+	} else {
+		log.Warn().Msg("datastore background garbage collection disabled")
 	}
-	ds.stopGC = cancel
 
 	return ds, nil
 }
 
-func (sd spannerDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
+func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+	revision := revisionRaw.(revision.Decimal)
+
 	txSource := func() readTX {
 		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision)))
 	}
@@ -126,10 +147,13 @@ func (sd spannerDatastore) ReadWriteTx(
 			Executor:         queryExecutor(txSource),
 			UsersetBatchSize: usersetBatchsize,
 		}
-		rwt := spannerReadWriteTXN{spannerReader{querySplitter, txSource}, ctx, spannerRWT}
-		return fn(ctx, rwt)
+		rwt := spannerReadWriteTXN{spannerReader{querySplitter, txSource}, spannerRWT}
+		return fn(rwt)
 	})
 	if err != nil {
+		if cerr := convertToWriteConstraintError(err); cerr != nil {
+			return datastore.NoRevision, cerr
+		}
 		return datastore.NoRevision, err
 	}
 
@@ -156,6 +180,10 @@ func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
+func (sd spannerDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+}
+
 func (sd spannerDatastore) Close() error {
 	sd.stopGC()
 	sd.client.Close()
@@ -173,4 +201,28 @@ func statementFromSQL(sql string, args []interface{}) spanner.Statement {
 		SQL:    sql,
 		Params: params,
 	}
+}
+
+func convertToWriteConstraintError(err error) error {
+	if spanner.ErrCode(err) == codes.AlreadyExists {
+		description := spanner.ErrDesc(err)
+		found := alreadyExistsRegex.FindStringSubmatch(description)
+		if found != nil {
+			return common.NewCreateRelationshipExistsError(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: found[1],
+					ObjectId:  found[2],
+					Relation:  found[3],
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: found[4],
+					ObjectId:  found[5],
+					Relation:  found[6],
+				},
+			})
+		}
+
+		return common.NewCreateRelationshipExistsError(nil)
+	}
+	return nil
 }

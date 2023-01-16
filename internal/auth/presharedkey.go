@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -16,9 +16,9 @@ const (
 
 var errInvalidToken = "invalid token"
 
-// RequirePresharedKey requires that gRPC requests have a Bearer Token value
+// MustRequirePresharedKey requires that gRPC requests have a Bearer Token value
 // equivalent to one of the provided preshared key(s).
-func RequirePresharedKey(presharedKeys []string) grpcauth.AuthFunc {
+func MustRequirePresharedKey(presharedKeys []string) grpcauth.AuthFunc {
 	if len(presharedKeys) == 0 {
 		panic("RequirePresharedKey was given an empty preshared keys slice")
 	}

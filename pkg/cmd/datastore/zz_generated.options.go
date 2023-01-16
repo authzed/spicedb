@@ -29,8 +29,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
+		to.DisableStats = c.DisableStats
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapOverwrite = c.BootstrapOverwrite
+		to.BootstrapTimeout = c.BootstrapTimeout
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
 		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
 		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
@@ -46,6 +48,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
+		to.MigrationPhase = c.MigrationPhase
 	}
 }
 
@@ -141,6 +144,13 @@ func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
 	}
 }
 
+// WithDisableStats returns an option that can set DisableStats on a Config
+func WithDisableStats(disableStats bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableStats = disableStats
+	}
+}
+
 // WithBootstrapFiles returns an option that can append BootstrapFiless to Config.BootstrapFiles
 func WithBootstrapFiles(bootstrapFiles string) ConfigOption {
 	return func(c *Config) {
@@ -159,6 +169,13 @@ func SetBootstrapFiles(bootstrapFiles []string) ConfigOption {
 func WithBootstrapOverwrite(bootstrapOverwrite bool) ConfigOption {
 	return func(c *Config) {
 		c.BootstrapOverwrite = bootstrapOverwrite
+	}
+}
+
+// WithBootstrapTimeout returns an option that can set BootstrapTimeout on a Config
+func WithBootstrapTimeout(bootstrapTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.BootstrapTimeout = bootstrapTimeout
 	}
 }
 
@@ -264,5 +281,12 @@ func WithTablePrefix(tablePrefix string) ConfigOption {
 func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 	return func(c *Config) {
 		c.WatchBufferLength = watchBufferLength
+	}
+}
+
+// WithMigrationPhase returns an option that can set MigrationPhase on a Config
+func WithMigrationPhase(migrationPhase string) ConfigOption {
+	return func(c *Config) {
+		c.MigrationPhase = migrationPhase
 	}
 }

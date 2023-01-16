@@ -1,8 +1,8 @@
 package development
 
 import (
-	"github.com/authzed/spicedb/pkg/commonerrors"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
@@ -11,7 +11,7 @@ import (
 func ParseAssertionsYAML(assertionsYaml string) (*blocks.Assertions, *devinterface.DeveloperError) {
 	assertions, err := validationfile.ParseAssertionsBlock([]byte(assertionsYaml))
 	if err != nil {
-		serr, ok := commonerrors.AsErrorWithSource(err)
+		serr, ok := spiceerrors.AsErrorWithSource(err)
 		if ok {
 			return nil, convertSourceError(devinterface.DeveloperError_ASSERTION, serr)
 		}
@@ -24,7 +24,7 @@ func ParseAssertionsYAML(assertionsYaml string) (*blocks.Assertions, *devinterfa
 func ParseExpectedRelationsYAML(expectedRelationsYaml string) (*blocks.ParsedExpectedRelations, *devinterface.DeveloperError) {
 	block, err := validationfile.ParseExpectedRelationsBlock([]byte(expectedRelationsYaml))
 	if err != nil {
-		serr, ok := commonerrors.AsErrorWithSource(err)
+		serr, ok := spiceerrors.AsErrorWithSource(err)
 		if ok {
 			return nil, convertSourceError(devinterface.DeveloperError_VALIDATION_YAML, serr)
 		}
@@ -45,7 +45,7 @@ func convertError(source devinterface.DeveloperError_Source, err error) *devinte
 	}
 }
 
-func convertSourceError(source devinterface.DeveloperError_Source, err *commonerrors.ErrorWithSource) *devinterface.DeveloperError {
+func convertSourceError(source devinterface.DeveloperError_Source, err *spiceerrors.ErrorWithSource) *devinterface.DeveloperError {
 	return &devinterface.DeveloperError{
 		Message: err.Error(),
 		Kind:    devinterface.DeveloperError_PARSE_ERROR,

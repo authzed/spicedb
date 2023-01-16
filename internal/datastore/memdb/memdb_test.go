@@ -39,12 +39,12 @@ func TestConcurrentWritePanic(t *testing.T) {
 	// Make the namespace very large to increase the likelihood of overlapping
 	relationList := make([]*corev1.Relation, 0, 1000)
 	for i := 0; i < 1000; i++ {
-		relationList = append(relationList, ns.Relation(fmt.Sprintf("reader%d", i), nil))
+		relationList = append(relationList, ns.MustRelation(fmt.Sprintf("reader%d", i), nil))
 	}
 
 	numPanics := uint64(0)
 	require.Eventually(func() bool {
-		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 			g := errgroup.Group{}
 			g.Go(func() (err error) {
 				defer func() {
@@ -54,7 +54,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 					}
 				}()
 
-				return rwt.WriteNamespaces(ns.Namespace(
+				return rwt.WriteNamespaces(ctx, ns.Namespace(
 					"resource",
 					relationList...,
 				))
@@ -68,7 +68,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 					}
 				}()
 
-				return rwt.WriteNamespaces(ns.Namespace("user", relationList...))
+				return rwt.WriteNamespaces(ctx, ns.Namespace("user", relationList...))
 			})
 
 			return g.Wait()

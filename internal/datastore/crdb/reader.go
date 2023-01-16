@@ -7,12 +7,11 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v4"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -32,6 +31,8 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
 	).From(tableTuple)
 
 	schema = common.SchemaInformation{
@@ -41,11 +42,12 @@ var (
 		ColUsersetNamespace: colUsersetNamespace,
 		ColUsersetObjectID:  colUsersetObjectID,
 		ColUsersetRelation:  colUsersetRelation,
+		ColCaveatName:       colCaveatContextName,
 	}
 )
 
 type crdbReader struct {
-	txSource      common.TxFactory
+	txSource      pgxcommon.TxFactory
 	querySplitter common.TupleQuerySplitter
 	keyer         overlapKeyer
 	overlapKeySet keySet
@@ -56,8 +58,6 @@ func (cr *crdbReader) ReadNamespace(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	var config *core.NamespaceDefinition
 	var timestamp time.Time
 	if err := cr.execute(ctx, func(ctx context.Context) error {
@@ -86,8 +86,6 @@ func (cr *crdbReader) ReadNamespace(
 }
 
 func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	ctx = datastore.SeparateContextWithTracing(ctx)
-
 	var nsDefs []*core.NamespaceDefinition
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		tx, txCleanup, err := cr.txSource(ctx)
@@ -112,24 +110,43 @@ func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 	return nsDefs, nil
 }
 
+func (cr *crdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	if len(nsNames) == 0 {
+		return nil, nil
+	}
+
+	var nsDefs []*core.NamespaceDefinition
+	if err := cr.execute(ctx, func(ctx context.Context) error {
+		tx, txCleanup, err := cr.txSource(ctx)
+		if err != nil {
+			return err
+		}
+		defer txCleanup(ctx)
+
+		nsDefs, err = lookupNamespaces(ctx, tx, nsNames)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf(errUnableToListNamespaces, err)
+	}
+
+	for _, nsDef := range nsDefs {
+		cr.addOverlapKey(nsDef.Name)
+	}
+	return nsDefs, nil
+}
+
 func (cr *crdbReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
-		FilterToResourceType(filter.ResourceType)
-
-	if filter.OptionalResourceId != "" {
-		qBuilder = qBuilder.FilterToResourceID(filter.OptionalResourceId)
-	}
-
-	if filter.OptionalRelation != "" {
-		qBuilder = qBuilder.FilterToRelation(filter.OptionalRelation)
-	}
-
-	if filter.OptionalSubjectFilter != nil {
-		qBuilder = qBuilder.FilterToSubjectFilter(filter.OptionalSubjectFilter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := cr.execute(ctx, func(ctx context.Context) error {
@@ -144,11 +161,14 @@ func (cr *crdbReader) QueryRelationships(
 
 func (cr *crdbReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder := common.NewSchemaQueryFilterer(schema, queryTuples).
-		FilterToSubjectFilter(subjectFilter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).
+		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
+	if err != nil {
+		return nil, err
+	}
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 
@@ -188,12 +208,53 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.Namespa
 	}
 
 	loaded := &core.NamespaceDefinition{}
-	err = proto.Unmarshal(config, loaded)
-	if err != nil {
+	if err := loaded.UnmarshalVT(config); err != nil {
 		return nil, time.Time{}, err
 	}
 
 	return loaded, timestamp, nil
+}
+
+func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	clause := sq.Or{}
+	for _, nsName := range nsNames {
+		clause = append(clause, sq.Eq{colNamespace: nsName})
+	}
+
+	query := queryReadNamespace.Where(clause)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var nsDefs []*core.NamespaceDefinition
+	rows, err := tx.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var config []byte
+		var timestamp time.Time
+		if err := rows.Scan(&config, &timestamp); err != nil {
+			return nil, err
+		}
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
+		}
+
+		nsDefs = append(nsDefs, loaded)
+	}
+
+	if rows.Err() != nil {
+		return nil, fmt.Errorf(errUnableToReadConfig, rows.Err())
+	}
+
+	return nsDefs, nil
 }
 
 func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinition, error) {
@@ -218,16 +279,16 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinit
 			return nil, err
 		}
 
-		var loaded core.NamespaceDefinition
-		if err := proto.Unmarshal(config, &loaded); err != nil {
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, &loaded)
+		nsDefs = append(nsDefs, loaded)
 	}
 
 	if rows.Err() != nil {
-		return nil, fmt.Errorf(errUnableToReadConfig, err)
+		return nil, fmt.Errorf(errUnableToReadConfig, rows.Err())
 	}
 
 	return nsDefs, nil

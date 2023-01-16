@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -24,12 +23,12 @@ func TestAliasing(t *testing.T) {
 			"basic aliasing",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
 				)),
@@ -43,16 +42,16 @@ func TestAliasing(t *testing.T) {
 			"multiple aliasing",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
 				)),
-				ns.Relation("another_viewer", ns.Union(
+				ns.MustRelation("another_viewer", ns.Union(
 					ns.ComputedUserset("viewer"),
 				)),
 			),
@@ -66,56 +65,56 @@ func TestAliasing(t *testing.T) {
 			"alias cycle",
 			ns.Namespace(
 				"document",
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("owner", ns.Union(
+				ns.MustRelation("owner", ns.Union(
 					ns.ComputedUserset("edit"),
 				)),
 			),
-			"there exists a cycle in permissions: [edit owner]",
+			"under definition `document`, there exists a cycle in permissions: edit, owner",
 			map[string]string{},
 		},
 		{
 			"alias multi-level cycle",
 			ns.Namespace(
 				"document",
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("owner", ns.Union(
+				ns.MustRelation("owner", ns.Union(
 					ns.ComputedUserset("foo"),
 				)),
-				ns.Relation("foo", ns.Union(
+				ns.MustRelation("foo", ns.Union(
 					ns.ComputedUserset("edit"),
 				)),
 			),
-			"there exists a cycle in permissions: [edit foo owner]",
+			"under definition `document`, there exists a cycle in permissions: edit, foo, owner",
 			map[string]string{},
 		},
 		{
 			"multi-level aliasing",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("cool_viewer", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("cool_viewer", ns.Union(
 					ns.ComputedUserset("viewer"),
 				)),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("admin", ns.Union(
+				ns.MustRelation("admin", ns.Union(
 					ns.ComputedUserset("edit"),
 				)),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
 				)),
-				ns.Relation("reallyadmin", ns.Union(
+				ns.MustRelation("reallyadmin", ns.Union(
 					ns.ComputedUserset("admin"),
 				)),
-				ns.Relation("reallynotadmin", ns.Union(
+				ns.MustRelation("reallynotadmin", ns.Union(
 					ns.ComputedUserset("admin"),
 					ns.ComputedUserset("viewer"),
 				)),
@@ -132,13 +131,13 @@ func TestAliasing(t *testing.T) {
 			"permission-only alias",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("can_view", ns.Union(
+				ns.MustRelation("can_view", ns.Union(
 					ns.ComputedUserset("view"),
 				)),
 			),
@@ -151,20 +150,20 @@ func TestAliasing(t *testing.T) {
 			"non-aliasing",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Intersection(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Intersection(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
 				)),
-				ns.Relation("somethingelse", ns.Exclusion(
+				ns.MustRelation("somethingelse", ns.Exclusion(
 					ns.ComputedUserset("owner"),
 					ns.ComputedUserset("viewer"),
 				)),
-				ns.Relation("witharrow", ns.Union(
+				ns.MustRelation("witharrow", ns.Union(
 					ns.TupleToUserset("owner", "something"),
 				)),
 			),
@@ -175,13 +174,13 @@ func TestAliasing(t *testing.T) {
 			"non-aliasing with nil",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.Nil(),
 				)),
-				ns.Relation("another", ns.Union(
+				ns.MustRelation("another", ns.Union(
 					ns.Nil(),
 				)),
 			),
@@ -197,8 +196,10 @@ func TestAliasing(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
+			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			ctx := context.Background()

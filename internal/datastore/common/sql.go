@@ -8,23 +8,20 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgx/v4"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
-)
-
-const (
-	errUnableToQueryTuples = "unable to query tuples: %w"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var (
+	// CaveatNameKey is a tracing attribute representing a caveat name
+	CaveatNameKey = attribute.Key("authzed.com/spicedb/sql/caveatName")
+
 	// ObjNamespaceNameKey is a tracing attribute representing the resource
 	// object type.
 	ObjNamespaceNameKey = attribute.Key("authzed.com/spicedb/sql/objNamespaceName")
@@ -62,6 +59,7 @@ type SchemaInformation struct {
 	ColUsersetNamespace string
 	ColUsersetObjectID  string
 	ColUsersetRelation  string
+	ColCaveatName       string
 }
 
 // SchemaQueryFilterer wraps a SchemaInformation and SelectBuilder to give an opinionated
@@ -96,12 +94,177 @@ func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFi
 	return sqf
 }
 
+func (sqf SchemaQueryFilterer) MustFilterToResourceIDs(resourceIds []string) SchemaQueryFilterer {
+	updated, err := sqf.FilterToResourceIDs(resourceIds)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
+// FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
+// specified IDs.
+func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
+	// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
+	if len(resourceIds) > datastore.FilterMaximumIDCount {
+		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount)
+	}
+
+	inClause := fmt.Sprintf("%s IN (", sqf.schema.ColObjectID)
+	args := make([]any, 0, len(resourceIds))
+
+	for index, resourceID := range resourceIds {
+		if len(resourceID) == 0 {
+			return sqf, spiceerrors.MustBugf("got empty resource ID")
+		}
+
+		if index > 0 {
+			inClause += ", "
+		}
+
+		inClause += "?"
+
+		args = append(args, resourceID)
+		sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(resourceID))
+	}
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(inClause+")", args...)
+	return sqf, nil
+}
+
 // FilterToRelation returns a new SchemaQueryFilterer that is limited to resources with the
 // specified relation.
 func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColRelation: relation})
 	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjRelationNameKey.String(relation))
 	return sqf
+}
+
+// MustFilterWithRelationshipsFilter returns a new SchemaQueryFilterer that is limited to resources with
+// resources that match the specified filter.
+func (sqf SchemaQueryFilterer) MustFilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) SchemaQueryFilterer {
+	updated, err := sqf.FilterWithRelationshipsFilter(filter)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
+func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) (SchemaQueryFilterer, error) {
+	sqf = sqf.FilterToResourceType(filter.ResourceType)
+
+	if filter.OptionalResourceRelation != "" {
+		sqf = sqf.FilterToRelation(filter.OptionalResourceRelation)
+	}
+
+	if len(filter.OptionalResourceIds) > 0 {
+		usqf, err := sqf.FilterToResourceIDs(filter.OptionalResourceIds)
+		if err != nil {
+			return sqf, err
+		}
+		sqf = usqf
+	}
+
+	if len(filter.OptionalSubjectsSelectors) > 0 {
+		usqf, err := sqf.FilterWithSubjectsSelectors(filter.OptionalSubjectsSelectors...)
+		if err != nil {
+			return sqf, err
+		}
+		sqf = usqf
+	}
+
+	if filter.OptionalCaveatName != "" {
+		sqf = sqf.FilterWithCaveatName(filter.OptionalCaveatName)
+	}
+
+	return sqf, nil
+}
+
+// MustFilterWithSubjectsSelectors returns a new SchemaQueryFilterer that is limited to resources with
+// subjects that match the specified selector(s).
+func (sqf SchemaQueryFilterer) MustFilterWithSubjectsSelectors(selectors ...datastore.SubjectsSelector) SchemaQueryFilterer {
+	usqf, err := sqf.FilterWithSubjectsSelectors(selectors...)
+	if err != nil {
+		panic(err)
+	}
+	return usqf
+}
+
+// FilterWithSubjectsSelectors returns a new SchemaQueryFilterer that is limited to resources with
+// subjects that match the specified selector(s).
+func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastore.SubjectsSelector) (SchemaQueryFilterer, error) {
+	selectorsOrClause := sq.Or{}
+
+	for _, selector := range selectors {
+		selectorClause := sq.And{}
+
+		if len(selector.OptionalSubjectType) > 0 {
+			selectorClause = append(selectorClause, sq.Eq{sqf.schema.ColUsersetNamespace: selector.OptionalSubjectType})
+			sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(selector.OptionalSubjectType))
+		}
+
+		if len(selector.OptionalSubjectIds) > 0 {
+			// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
+			if len(selector.OptionalSubjectIds) > datastore.FilterMaximumIDCount {
+				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount)
+			}
+
+			inClause := fmt.Sprintf("%s IN (", sqf.schema.ColUsersetObjectID)
+			args := make([]any, 0, len(selector.OptionalSubjectIds))
+
+			for index, subjectID := range selector.OptionalSubjectIds {
+				if len(subjectID) == 0 {
+					return sqf, spiceerrors.MustBugf("got empty subject ID")
+				}
+
+				if index > 0 {
+					inClause += ", "
+				}
+
+				inClause += "?"
+
+				args = append(args, subjectID)
+				sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(subjectID))
+			}
+
+			selectorClause = append(selectorClause, sq.Expr(inClause+")", args...))
+		}
+
+		if !selector.RelationFilter.IsEmpty() {
+			if selector.RelationFilter.OnlyNonEllipsisRelations {
+				selectorClause = append(selectorClause, sq.NotEq{sqf.schema.ColUsersetRelation: datastore.Ellipsis})
+			} else {
+				relations := make([]string, 0, 2)
+				if selector.RelationFilter.IncludeEllipsisRelation {
+					relations = append(relations, datastore.Ellipsis)
+				}
+
+				if selector.RelationFilter.NonEllipsisRelation != "" {
+					relations = append(relations, selector.RelationFilter.NonEllipsisRelation)
+				}
+
+				if len(relations) == 1 {
+					relName := relations[0]
+					sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(relName))
+					selectorClause = append(selectorClause, sq.Eq{sqf.schema.ColUsersetRelation: relName})
+				} else {
+					orClause := sq.Or{}
+					for _, relationName := range relations {
+						dsRelationName := stringz.DefaultEmpty(relationName, datastore.Ellipsis)
+						orClause = append(orClause, sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
+						sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
+					}
+
+					selectorClause = append(selectorClause, orClause)
+				}
+			}
+		}
+
+		selectorsOrClause = append(selectorsOrClause, selectorClause)
+	}
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(selectorsOrClause)
+	return sqf, nil
 }
 
 // FilterToSubjectFilter returns a new SchemaQueryFilterer that is limited to resources with
@@ -122,6 +285,12 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 		sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
 	}
 
+	return sqf
+}
+
+func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColCaveatName: caveatName})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, CaveatNameKey.String(caveatName))
 	return sqf
 }
 
@@ -206,7 +375,7 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 	}
 
 	iter := datastore.NewSliceRelationshipIterator(tuples)
-	runtime.SetFinalizer(iter, datastore.BuildFinalizerFunction())
+	runtime.SetFinalizer(iter, datastore.MustIteratorBeClosed)
 	return iter, nil
 }
 
@@ -216,59 +385,3 @@ type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core
 // TxCleanupFunc is a function that should be executed when the caller of
 // TransactionFactory is done with the transaction.
 type TxCleanupFunc func(context.Context)
-
-// TxFactory returns a transaction, cleanup function, and any errors that may have
-// occurred when building the transaction.
-type TxFactory func(context.Context) (pgx.Tx, TxCleanupFunc, error)
-
-// NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory) ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
-		ctx = datastore.SeparateContextWithTracing(ctx)
-
-		span := trace.SpanFromContext(ctx)
-
-		tx, txCleanup, err := txSource(ctx)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-		defer txCleanup(ctx)
-
-		span.AddEvent("DB transaction established")
-
-		rows, err := tx.Query(ctx, sql, args...)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-		defer rows.Close()
-
-		span.AddEvent("Query issued to database")
-
-		var tuples []*core.RelationTuple
-		for rows.Next() {
-			nextTuple := &core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{},
-				Subject:             &core.ObjectAndRelation{},
-			}
-			err := rows.Scan(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-			)
-			if err != nil {
-				return nil, fmt.Errorf(errUnableToQueryTuples, err)
-			}
-
-			tuples = append(tuples, nextTuple)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-
-		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
-		return tuples, nil
-	}
-}

@@ -3,6 +3,16 @@ package impl.v1;
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
 
+import "google/api/expr/v1alpha1/checked.proto";
+
+message DecodedCaveat {
+  // we do kind_oneof in case we decide to have non-CEL expressions
+  oneof kind_oneof {
+    google.api.expr.v1alpha1.CheckedExpr cel = 1;
+  }
+  string name = 2;
+}
+
 message DecodedZookie {
   uint32 version = 1;
   message V1Zookie { uint64 revision = 1; }

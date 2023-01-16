@@ -8,6 +8,7 @@ const (
 	tableTupleDefault       = "relation_tuple"
 	tableMigrationVersion   = "mysql_migration_version"
 	tableMetadataDefault    = "mysql_metadata"
+	tableCaveatDefault      = "caveat"
 )
 
 type tables struct {
@@ -16,6 +17,7 @@ type tables struct {
 	tableTuple            string
 	tableNamespace        string
 	tableMetadata         string
+	tableCaveat           string
 }
 
 func newTables(prefix string) *tables {
@@ -25,6 +27,7 @@ func newTables(prefix string) *tables {
 		tableTuple:            fmt.Sprintf("%s%s", prefix, tableTupleDefault),
 		tableNamespace:        fmt.Sprintf("%s%s", prefix, tableNamespaceDefault),
 		tableMetadata:         fmt.Sprintf("%s%s", prefix, tableMetadataDefault),
+		tableCaveat:           fmt.Sprintf("%s%s", prefix, tableCaveatDefault),
 	}
 }
 
@@ -49,4 +52,8 @@ func (tn *tables) Namespace() string {
 
 func (tn *tables) Metadata() string {
 	return tn.tableMetadata
+}
+
+func (tn *tables) Caveat() string {
+	return tn.tableCaveat
 }

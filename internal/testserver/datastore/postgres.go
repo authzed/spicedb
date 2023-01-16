@@ -1,3 +1,6 @@
+//go:build docker
+// +build docker
+
 package datastore
 
 import (
@@ -11,37 +14,50 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pgmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
 )
 
 type postgresTester struct {
-	conn     *pgx.Conn
-	hostname string
-	port     string
-	creds    string
+	conn            *pgx.Conn
+	hostname        string
+	port            string
+	creds           string
+	targetMigration string
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
-func RunPostgresForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
+func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
+	return RunPostgresForTestingWithCommitTimestamps(t, bridgeNetworkName, targetMigration, true)
+}
+
+func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName string, targetMigration string, withCommitTimestamps bool) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
 	name := fmt.Sprintf("postgres-%s", uuid.New().String())
+	cmd := []string{"-c", "track_commit_timestamp=1"}
+	if !withCommitTimestamps {
+		cmd = []string{}
+	}
+
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "postgres",
-		Tag:          "10.20",
+		Tag:          pgversion.MinimumSupportedPostgresVersion,
 		Env:          []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 		ExposedPorts: []string{"5432/tcp"},
 		NetworkID:    bridgeNetworkName,
+		Cmd:          cmd,
 	})
 	require.NoError(t, err)
 
 	builder := &postgresTester{
-		hostname: "localhost",
-		creds:    "postgres:secret",
+		hostname:        "localhost",
+		creds:           "postgres:secret",
+		targetMigration: targetMigration,
 	}
 	t.Cleanup(func() {
 		require.NoError(t, pool.Purge(resource))
@@ -58,7 +74,9 @@ func RunPostgresForTesting(t testing.TB, bridgeNetworkName string) RunningEngine
 	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
-		builder.conn, err = pgx.Connect(context.Background(), uri)
+		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
+		defer cancelConnect()
+		builder.conn, err = pgx.Connect(ctx, uri)
 		if err != nil {
 			return err
 		}
@@ -90,7 +108,8 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 
 	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(connectStr)
 	require.NoError(t, err)
-	require.NoError(t, pgmigrations.DatabaseMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun))
+	ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
+	require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
 
 	return initFunc("postgres", connectStr)
 }

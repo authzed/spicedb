@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -35,12 +34,12 @@ func TestCanonicalization(t *testing.T) {
 			"basic canonicalization",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("view", ns.Union(
+				ns.MustRelation("view", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
 				)),
@@ -57,12 +56,12 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with aliases",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("other_edit", ns.Union(
+				ns.MustRelation("other_edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
 			),
@@ -78,12 +77,12 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with nested aliases",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("other_edit", ns.Union(
+				ns.MustRelation("other_edit", ns.Union(
 					ns.ComputedUserset("edit"),
 				)),
 			),
@@ -99,13 +98,13 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with same union expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
 					ns.ComputedUserset("owner"),
 					ns.ComputedUserset("viewer"),
 				)),
-				ns.Relation("second", ns.Union(
+				ns.MustRelation("second", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("owner"),
 				)),
@@ -122,16 +121,16 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with same union expressions due to aliasing",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("edit", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("edit", ns.Union(
 					ns.ComputedUserset("owner"),
 				)),
-				ns.Relation("first", ns.Union(
+				ns.MustRelation("first", ns.Union(
 					ns.ComputedUserset("edit"),
 					ns.ComputedUserset("viewer"),
 				)),
-				ns.Relation("second", ns.Union(
+				ns.MustRelation("second", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("edit"),
 				)),
@@ -149,13 +148,13 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with same intersection expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Intersection(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Intersection(
 					ns.ComputedUserset("owner"),
 					ns.ComputedUserset("viewer"),
 				)),
-				ns.Relation("second", ns.Intersection(
+				ns.MustRelation("second", ns.Intersection(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("owner"),
 				)),
@@ -172,13 +171,13 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with different expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Exclusion(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Exclusion(
 					ns.ComputedUserset("owner"),
 					ns.ComputedUserset("viewer"),
 				)),
-				ns.Relation("second", ns.Exclusion(
+				ns.MustRelation("second", ns.Exclusion(
 					ns.ComputedUserset("viewer"),
 					ns.ComputedUserset("owner"),
 				)),
@@ -195,18 +194,18 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with arrow expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
 					ns.TupleToUserset("owner", "something"),
 				)),
-				ns.Relation("second", ns.Union(
+				ns.MustRelation("second", ns.Union(
 					ns.TupleToUserset("owner", "something"),
 				)),
-				ns.Relation("difftuple", ns.Union(
+				ns.MustRelation("difftuple", ns.Union(
 					ns.TupleToUserset("viewer", "something"),
 				)),
-				ns.Relation("diffrel", ns.Union(
+				ns.MustRelation("diffrel", ns.Union(
 					ns.TupleToUserset("owner", "somethingelse"),
 				)),
 			),
@@ -224,10 +223,10 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with same nested union expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("editor", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
 					ns.ComputedUserset("owner"),
 					ns.Rewrite(
 						ns.Union(
@@ -236,7 +235,7 @@ func TestCanonicalization(t *testing.T) {
 						),
 					),
 				)),
-				ns.Relation("second", ns.Union(
+				ns.MustRelation("second", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.Rewrite(
 						ns.Union(
@@ -259,10 +258,10 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with same nested intersection expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("editor", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Intersection(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Intersection(
 					ns.ComputedUserset("owner"),
 					ns.Rewrite(
 						ns.Intersection(
@@ -271,7 +270,7 @@ func TestCanonicalization(t *testing.T) {
 						),
 					),
 				)),
-				ns.Relation("second", ns.Intersection(
+				ns.MustRelation("second", ns.Intersection(
 					ns.ComputedUserset("viewer"),
 					ns.Rewrite(
 						ns.Intersection(
@@ -294,10 +293,10 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with different nested exclusion expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("editor", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Exclusion(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Exclusion(
 					ns.ComputedUserset("owner"),
 					ns.Rewrite(
 						ns.Exclusion(
@@ -306,7 +305,7 @@ func TestCanonicalization(t *testing.T) {
 						),
 					),
 				)),
-				ns.Relation("second", ns.Exclusion(
+				ns.MustRelation("second", ns.Exclusion(
 					ns.ComputedUserset("viewer"),
 					ns.Rewrite(
 						ns.Exclusion(
@@ -329,14 +328,14 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with nil expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("editor", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
 					ns.ComputedUserset("owner"),
 					ns.Nil(),
 				)),
-				ns.Relation("second", ns.Union(
+				ns.MustRelation("second", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.Nil(),
 				)),
@@ -354,14 +353,14 @@ func TestCanonicalization(t *testing.T) {
 			"canonicalization with same expressions with nil expressions",
 			ns.Namespace(
 				"document",
-				ns.Relation("owner", nil),
-				ns.Relation("editor", nil),
-				ns.Relation("viewer", nil),
-				ns.Relation("first", ns.Union(
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("editor", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.Nil(),
 				)),
-				ns.Relation("second", ns.Union(
+				ns.MustRelation("second", ns.Union(
 					ns.ComputedUserset("viewer"),
 					ns.Nil(),
 				)),
@@ -386,8 +385,10 @@ func TestCanonicalization(t *testing.T) {
 
 			ctx := context.Background()
 
-			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForDatastore(tc.toCheck, ds.SnapshotReader(lastRevision))
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
+			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)
@@ -512,13 +513,16 @@ func TestCanonicalizationComparison(t *testing.T) {
 
 			empty := ""
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
-			defs, err := compiler.Compile([]compiler.InputSchema{
-				{Source: input.Source("schema"), SchemaString: schemaText},
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: schemaText,
 			}, &empty)
 			require.NoError(err)
 
-			var lastRevision decimal.Decimal
-			ts, err := BuildNamespaceTypeSystemForDatastore(defs[0], ds.SnapshotReader(lastRevision))
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
+			ts, err := NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)

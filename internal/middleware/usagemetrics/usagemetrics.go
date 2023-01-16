@@ -9,9 +9,9 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -53,8 +53,13 @@ func (r *serverReporter) PostCall(_ error, _ time.Duration) {
 	}
 
 	err := annotateAndReportForMetadata(r.ctx, r.methodName, responseMeta)
+	// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
+	// this prevents logging unnecessary error messages
+	if r.ctx.Err() != nil {
+		return
+	}
 	if err != nil {
-		log.Ctx(r.ctx).Err(err).Msg("could not report metadata")
+		log.Ctx(r.ctx).Warn().Err(err).Msg("usagemetrics: could not report metadata")
 	}
 }
 

@@ -1,9 +1,10 @@
 package namespace
 
 import (
+	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Namespace creates a namespace definition with one or more defined relations.
@@ -21,8 +22,17 @@ func WithComment(name string, comment string, relations ...*core.Relation) *core
 	return nd
 }
 
+// MustRelation creates a relation definition with an optional rewrite definition.
+func MustRelation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
+	r, err := Relation(name, rewrite, allowedDirectRelations...)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
 // Relation creates a relation definition with an optional rewrite definition.
-func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
+func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) (*core.Relation, error) {
 	var typeInfo *core.TypeInformation
 	if len(allowedDirectRelations) > 0 {
 		typeInfo = &core.TypeInformation{
@@ -39,12 +49,12 @@ func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations 
 	switch {
 	case rewrite != nil && len(allowedDirectRelations) == 0:
 		if err := SetRelationKind(rel, iv1.RelationMetadata_PERMISSION); err != nil {
-			panic("failed to set relation kind: " + err.Error())
+			return nil, spiceerrors.MustBugf("failed to set relation kind: %s", err.Error())
 		}
 
 	case rewrite == nil && len(allowedDirectRelations) > 0:
 		if err := SetRelationKind(rel, iv1.RelationMetadata_RELATION); err != nil {
-			panic("failed to set relation kind: " + err.Error())
+			return nil, spiceerrors.MustBugf("failed to set relation kind: %s", err.Error())
 		}
 
 	default:
@@ -53,12 +63,12 @@ func Relation(name string, rewrite *core.UsersetRewrite, allowedDirectRelations 
 		// before the DSL schema and, as such, do not have a defined "kind".
 	}
 
-	return rel
+	return rel, nil
 }
 
-// RelationWithComment creates a relation definition with an optional rewrite definition.
-func RelationWithComment(name string, comment string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
-	rel := Relation(name, rewrite, allowedDirectRelations...)
+// MustRelationWithComment creates a relation definition with an optional rewrite definition.
+func MustRelationWithComment(name string, comment string, rewrite *core.UsersetRewrite, allowedDirectRelations ...*core.AllowedRelation) *core.Relation {
+	rel := MustRelation(name, rewrite, allowedDirectRelations...)
 	rel.Metadata, _ = AddComment(rel.Metadata, comment)
 	return rel
 }
@@ -73,6 +83,17 @@ func AllowedRelation(namespaceName string, relationName string) *core.AllowedRel
 	}
 }
 
+// AllowedRelationWithCaveat creates a relation reference to an allowed relation.
+func AllowedRelationWithCaveat(namespaceName string, relationName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+		RequiredCaveat: withCaveat,
+	}
+}
+
 // AllowedPublicNamespace creates a relation reference to an allowed public namespace.
 func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 	return &core.AllowedRelation{
@@ -80,6 +101,55 @@ func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
 			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
 		},
+	}
+}
+
+// AllowedCaveat creates a caveat reference.
+func AllowedCaveat(name string) *core.AllowedCaveat {
+	return &core.AllowedCaveat{
+		CaveatName: name,
+	}
+}
+
+// CaveatDefinition returns a new caveat definition.
+func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core.CaveatDefinition, error) {
+	compiled, err := caveats.CompileCaveatWithName(env, expr, name)
+	if err != nil {
+		return nil, err
+	}
+	return CompiledCaveatDefinition(env, name, compiled)
+}
+
+// CompiledCaveatDefinition returns a new caveat definition.
+func CompiledCaveatDefinition(env *caveats.Environment, name string, compiled *caveats.CompiledCaveat) (*core.CaveatDefinition, error) {
+	serialized, err := compiled.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	return &core.CaveatDefinition{
+		Name:                 name,
+		SerializedExpression: serialized,
+		ParameterTypes:       env.EncodedParametersTypes(),
+	}, nil
+}
+
+// MustCaveatDefinition returns a new caveat definition.
+func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *core.CaveatDefinition {
+	cd, err := CaveatDefinition(env, name, expr)
+	if err != nil {
+		panic(err)
+	}
+	return cd
+}
+
+// AllowedPublicNamespaceWithCaveat creates a relation reference to an allowed public namespace.
+func AllowedPublicNamespaceWithCaveat(namespaceName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_PublicWildcard_{
+			PublicWildcard: &core.AllowedRelation_PublicWildcard{},
+		},
+		RequiredCaveat: withCaveat,
 	}
 }
 

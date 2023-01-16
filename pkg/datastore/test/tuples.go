@@ -10,10 +10,10 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -24,7 +24,9 @@ import (
 const (
 	testUserNamespace     = "test/user"
 	testResourceNamespace = "test/resource"
+	testGroupNamespace    = "test/group"
 	testReaderRelation    = "reader"
+	testMemberRelation    = "member"
 	ellipsis              = "..."
 )
 
@@ -52,26 +54,15 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
 			var testTuples []*core.RelationTuple
+			for i := 0; i < numTuples; i++ {
+				resourceName := fmt.Sprintf("resource%d", i)
+				userName := fmt.Sprintf("user%d", i)
 
-			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				for i := 0; i < numTuples; i++ {
-					resourceName := fmt.Sprintf("resource%d", i)
-					userName := fmt.Sprintf("user%d", i)
+				newTuple := makeTestTuple(resourceName, userName)
+				testTuples = append(testTuples, newTuple)
+			}
 
-					newTuple := makeTestTuple(resourceName, userName)
-					testTuples = append(testTuples, newTuple)
-
-					err := rwt.WriteRelationships(
-						[]*v1.RelationshipUpdate{{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(newTuple),
-						}},
-					)
-					require.NoError(err)
-				}
-
-				return nil
-			})
+			lastRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples...)
 			require.NoError(err)
 
 			for _, toCheck := range testTuples {
@@ -79,14 +70,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Write a duplicate tuple to make sure the datastore rejects it
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				return rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-			})
+			_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples...)
 			require.Error(err)
 
 			dsReader := ds.SnapshotReader(lastRevision)
@@ -94,51 +78,51 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				tupleSubject := tupleToFind.Subject
 
 				// Check that we can find the tuple a number of ways
-				iter, err := dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
+				iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:        tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds: []string{tupleToFind.ResourceAndRelation.ObjectId},
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: tupleToFind.ResourceAndRelation.Namespace,
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:        tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds: []string{tupleToFind.ResourceAndRelation.ObjectId},
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:     tupleToFind.ResourceAndRelation.Namespace,
-					OptionalRelation: tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:     tupleToFind.ResourceAndRelation.Namespace,
-					OptionalRelation: tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject), options.WithLimit(options.LimitOne))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
-					tuple.UsersetToSubjectFilter(tupleSubject),
+					onrToSubjectsFilter(tupleSubject),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
@@ -149,7 +133,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
-					tuple.UsersetToSubjectFilter(tupleSubject),
+					onrToSubjectsFilter(tupleSubject),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
@@ -160,10 +144,10 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				// Check that we fail to find the tuple with the wrong filters
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   "fake",
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: "fake",
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
@@ -173,47 +157,47 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					ObjectId:  tupleSubject.ObjectId,
 					Relation:  "fake",
 				}
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: tupleToFind.ResourceAndRelation.Namespace,
 				}, options.WithUsersets(incorrectUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(incorrectUserset))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: tupleToFind.ResourceAndRelation.ObjectId,
-					OptionalRelation:   "fake",
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
+					OptionalResourceRelation: "fake",
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: "fake",
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{"fake"},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
-				iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-					ResourceType:       tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceId: "fake",
-					OptionalRelation:   tupleToFind.ResourceAndRelation.Relation,
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:      []string{"fake"},
+					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				}, options.WithUsersets(tupleSubject), options.WithLimit(options.LimitOne))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter)
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
-					tuple.UsersetToSubjectFilter(incorrectUserset),
+					onrToSubjectsFilter(incorrectUserset),
 					options.WithResRelation(&options.ResourceRelation{
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
@@ -224,25 +208,27 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check a query that returns a number of tuples
-			iter, err := dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Filter it down to a single tuple with a userset
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
-				OptionalSubjectFilter: &v1.SubjectFilter{
-					SubjectType:       testUserNamespace,
-					OptionalSubjectId: "user0",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: testUserNamespace,
+						OptionalSubjectIds:  []string{"user0"},
+					},
 				},
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples[0])
 
 			// Check for larger reverse queries.
-			iter, err = dsReader.ReverseQueryRelationships(ctx, &v1.SubjectFilter{
+			iter, err = dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 				SubjectType: testUserNamespace,
 			})
 			require.NoError(err)
@@ -251,7 +237,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			// Check limit.
 			if len(testTuples) > 1 {
 				limit := uint64(len(testTuples) - 1)
-				iter, err := dsReader.ReverseQueryRelationships(ctx, &v1.SubjectFilter{
+				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
 				}, options.WithReverseLimit(&limit))
 				require.NoError(err)
@@ -259,28 +245,28 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check that we can find the group of tuples too
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testTuples[0].ResourceAndRelation.Namespace,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType:     testTuples[0].ResourceAndRelation.Namespace,
-				OptionalRelation: testTuples[0].ResourceAndRelation.Relation,
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+				ResourceType:             testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceRelation: testTuples[0].ResourceAndRelation.Relation,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Try some bad queries
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
-				ResourceType:       testTuples[0].ResourceAndRelation.Namespace,
-				OptionalResourceId: "fakeobectid",
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+				ResourceType:        testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceIds: []string{"fakeobectid"},
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter)
 
-			iter, err = dsReader.QueryRelationships(ctx, &v1.RelationshipFilter{
+			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testTuples[0].ResourceAndRelation.Namespace,
 			}, options.WithUsersets(&core.ObjectAndRelation{
 				Namespace: "test/user",
@@ -291,29 +277,11 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.VerifyIteratorResults(iter)
 
 			// Delete the first tuple
-			deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-				require.NoError(err)
-				return err
-			})
+			deletedAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, testTuples[0])
 			require.NoError(err)
 
 			// Delete it AGAIN (idempotent delete) and make sure there's no error
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-				require.NoError(err)
-				return err
-			})
+			_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, testTuples[0])
 			require.NoError(err)
 
 			// Verify it can still be read at the old revision
@@ -323,7 +291,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.NoTupleExists(ctx, testTuples[0], deletedAt)
 			alreadyDeletedIter, err := ds.SnapshotReader(deletedAt).QueryRelationships(
 				ctx,
-				&v1.RelationshipFilter{
+				datastore.RelationshipsFilter{
 					ResourceType: testTuples[0].ResourceAndRelation.Namespace,
 				},
 			)
@@ -331,22 +299,13 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.VerifyIteratorResults(alreadyDeletedIter, testTuples[1:]...)
 
 			// Write it back
-			returnedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.WriteRelationships(
-					[]*v1.RelationshipUpdate{{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.MustToRelationship(testTuples[0]),
-					}},
-				)
-				require.NoError(err)
-				return err
-			})
+			returnedAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, testTuples[0])
 			require.NoError(err)
 			tRequire.TupleExists(ctx, testTuples[0], returnedAt)
 
 			// Delete with DeleteRelationship
-			deletedAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.DeleteRelationships(&v1.RelationshipFilter{
+			deletedAt, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+				err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType: testResourceNamespace,
 				})
 				require.NoError(err)
@@ -440,21 +399,22 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			// TODO temporarily store tuples in multiple calls to ReadWriteTransaction since no Datastore
+			// handles correctly duplicate tuples
+			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 				for _, tpl := range tt.inputTuples {
-					update := &v1.RelationshipUpdate{
-						Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-						Relationship: tuple.MustToRelationship(tpl),
+					update := tuple.Touch(tpl)
+					err := rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{update})
+					if err != nil {
+						return err
 					}
-					err := rwt.WriteRelationships([]*v1.RelationshipUpdate{update})
-					require.NoError(err)
 				}
 				return nil
 			})
 			require.NoError(err)
 
-			deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.DeleteRelationships(tt.filter)
+			deletedAt, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+				err := rwt.DeleteRelationships(ctx, tt.filter)
 				require.NoError(err)
 				return err
 			})
@@ -494,14 +454,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		require.True(errors.As(err, &revisionErr))
 
 		newTuple := makeTestTuple("one", "one")
-		firstWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.MustToRelationship(newTuple),
-			}})
-			require.NoError(err)
-			return err
-		})
+		firstWrite, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, newTuple)
 		require.NoError(err)
 
 		// Check that we can read at the just written revision
@@ -512,16 +465,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		time.Sleep(testGCDuration * 2)
 
 		// Write another tuple which will allow the first revision to expire
-		nextWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err := rwt.WriteRelationships(
-				[]*v1.RelationshipUpdate{{
-					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: tuple.MustToRelationship(newTuple),
-				}},
-			)
-			require.NoError(err)
-			return err
-		})
+		nextWrite, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, newTuple)
 		require.NoError(err)
 
 		// Check that we can read at the just written revision
@@ -532,12 +476,123 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		err = ds.CheckRevision(ctx, firstWrite)
 		require.True(errors.As(err, &revisionErr))
 		require.Equal(datastore.RevisionStale, revisionErr.Reason())
-
-		// Check that we can't read a revision that's ahead of the latest
-		err = ds.CheckRevision(ctx, nextWrite.Add(decimal.NewFromInt(1_000_000_000)))
-		require.True(errors.As(err, &revisionErr))
-		require.Equal(datastore.RevisionInFuture, revisionErr.Reason())
 	})
+}
+
+// DeleteNotExistantTest tests the deletion of a non-existant relationship.
+func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+		require.NoError(err)
+
+		return nil
+	})
+	require.NoError(err)
+}
+
+// DeleteAlreadyDeletedTest tests the deletion of an already-deleted relationship.
+func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		// Write the relationship.
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+	})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		// Delete the relationship.
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+	})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		// Delete the relationship again.
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
+		})
+	})
+	require.NoError(err)
+}
+
+// WriteDeleteWriteTest tests writing a relationship, deleting it, and then writing it again.
+func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl := makeTestTuple("foo", "tom")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tpl)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	require.NoError(err)
+}
+
+// CreateAlreadyExistingTest tests creating a relationship twice.
+func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := makeTestTuple("foo", "tom")
+	tpl2 := makeTestTuple("foo", "sarah")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1, tpl2)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1)
+	require.ErrorAs(err, &common.CreateRelationshipExistsError{})
+	require.Contains(err.Error(), "could not CREATE")
+}
+
+// TouchAlreadyExistingTest tests touching a relationship twice.
+func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := makeTestTuple("foo", "tom")
+	tpl2 := makeTestTuple("foo", "sarah")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1, tpl2)
+	require.NoError(err)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1)
+	require.NoError(err)
 }
 
 // UsersetsTest tests whether or not the requirements for reading usersets hold
@@ -563,7 +618,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 				ctx := context.Background()
 
 				// Add test tuples on the same resource but with different users.
-				var lastRevision datastore.Revision
+				lastRevision := datastore.NoRevision
 
 				usersets := []*core.ObjectAndRelation{}
 				for i := 0; i < numTuples; i++ {
@@ -574,14 +629,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 					testTuples = append(testTuples, newTuple)
 					usersets = append(usersets, newTuple.Subject)
 
-					writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-						err := rwt.WriteRelationships([]*v1.RelationshipUpdate{{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(newTuple),
-						}})
-						require.NoError(err)
-						return err
-					})
+					writtenAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, newTuple)
 					require.NoError(err)
 					require.True(writtenAt.GreaterThan(lastRevision))
 
@@ -591,7 +639,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 				}
 
 				// Query for the tuples as a single query.
-				iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, &v1.RelationshipFilter{
+				iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: testResourceNamespace,
 				}, options.SetUsersets(usersets))
 				require.NoError(err)
@@ -610,14 +658,14 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		it, err := rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			ResourceType: "document",
 		})
 		require.NoError(err)
 		it.Close()
 
-		it, err = rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
+		it, err = rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			ResourceType: "folder",
 		})
 		require.NoError(err)
@@ -649,8 +697,8 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	startTime := time.Now()
 
 	g.Go(func() error {
-		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			iter, err := rwt.QueryRelationships(ctx, &v1.RelationshipFilter{
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
 			})
 			iter.Close()
@@ -658,12 +706,8 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 
 			// We do NOT assert the error here because serialization problems can manifest as errors
 			// on the individual writes.
-			err = rwt.WriteRelationships([]*v1.RelationshipUpdate{
-				{
-					Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-					Relationship: makeTestRelationship("new_resource", "new_user"),
-				},
-			})
+			rtu := tuple.Touch(makeTestTuple("new_resource", "new_user"))
+			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
 
 			waitToStartCloser.Do(func() {
 				close(waitToStart)
@@ -678,19 +722,23 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 
 	<-waitToStart
 
-	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		defer waitToFinishCloser.Do(func() {
 			close(waitToFinish)
 		})
 
-		return rwt.WriteRelationships([]*v1.RelationshipUpdate{
-			{
-				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-				Relationship: makeTestRelationship("another_resource", "another_user"),
-			},
-		})
+		rtu := tuple.Touch(makeTestTuple("another_resource", "another_user"))
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
 	})
 	require.NoError(err)
 	require.NoError(g.Wait())
 	require.Less(time.Since(startTime), 10*time.Second)
+}
+
+func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {
+	return datastore.SubjectsFilter{
+		SubjectType:        onr.Namespace,
+		OptionalSubjectIds: []string{onr.ObjectId},
+		RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(onr.Relation),
+	}
 }

@@ -7,22 +7,23 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
+	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -35,22 +36,34 @@ const (
 	tableNamespace   = "namespace_config"
 	tableTransaction = "relation_tuple_transaction"
 	tableTuple       = "relation_tuple"
+	tableCaveat      = "caveat"
 
-	colID               = "id"
-	colTimestamp        = "timestamp"
-	colNamespace        = "namespace"
-	colConfig           = "serialized_config"
-	colCreatedTxn       = "created_transaction"
-	colDeletedTxn       = "deleted_transaction"
-	colObjectID         = "object_id"
-	colRelation         = "relation"
-	colUsersetNamespace = "userset_namespace"
-	colUsersetObjectID  = "userset_object_id"
-	colUsersetRelation  = "userset_relation"
+	colXID               = "xid"
+	colTimestamp         = "timestamp"
+	colNamespace         = "namespace"
+	colConfig            = "serialized_config"
+	colCreatedXid        = "created_xid"
+	colDeletedXid        = "deleted_xid"
+	colSnapshot          = "snapshot"
+	colObjectID          = "object_id"
+	colRelation          = "relation"
+	colUsersetNamespace  = "userset_namespace"
+	colUsersetObjectID   = "userset_object_id"
+	colUsersetRelation   = "userset_relation"
+	colCaveatName        = "name"
+	colCaveatDefinition  = "definition"
+	colCaveatContextName = "caveat_name"
+	colCaveatContext     = "caveat_context"
 
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 
-	createTxn = "INSERT INTO relation_tuple_transaction DEFAULT VALUES RETURNING id"
+	// The parameters to this format string are:
+	// 1: the created_xid or deleted_xid column name
+	// 2: the transaction table's snapshot column name
+	// 3: the transaction table name
+	// 4: the transaction table's xid column name
+	// 5: a squirrel library placeholder string, i.e. `?`
+	snapshotAlive = "pg_visible_in_snapshot(%[1]s, (SELECT %[2]s FROM %[3]s WHERE %[4]s = %[5]s)) = %[5]s"
 
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
@@ -61,30 +74,8 @@ const (
 
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
-)
 
-var (
-	gcDurationHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore",
-		Name:      "postgres_gc_duration",
-		Help:      "postgres garbage collection duration distribution in seconds.",
-		Buckets:   []float64{0.01, 0.1, 0.5, 1, 5, 10, 25, 60, 120},
-	})
-
-	gcRelationshipsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore",
-		Name:      "postgres_relationships_cleared",
-		Help:      "number of relationships cleared by postgres garbage collection.",
-	})
-
-	gcTransactionsClearedGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "spicedb",
-		Subsystem: "datastore",
-		Name:      "postgres_transactions_cleared",
-		Help:      "number of transactions cleared by postgres garbage collection.",
-	})
+	livingTupleConstraint = "uq_relation_tuple_living_xid"
 )
 
 func init() {
@@ -94,7 +85,18 @@ func init() {
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	getRevision = psql.Select("MAX(id)").From(tableTransaction)
+	getRevision = psql.
+			Select(colXID, fmt.Sprintf("pg_snapshot_xmin(%s)", colSnapshot)).
+			From(tableTransaction).
+			OrderByClause(fmt.Sprintf("%s DESC", colXID)).
+			Limit(1)
+
+	createTxn = fmt.Sprintf(
+		"INSERT INTO %s DEFAULT VALUES RETURNING %s, pg_snapshot_xmin(%s)",
+		tableTransaction,
+		colXID,
+		colSnapshot,
+	)
 
 	getNow = psql.Select("NOW()")
 
@@ -113,9 +115,27 @@ func NewPostgresDatastore(
 	url string,
 	options ...Option,
 ) (datastore.Datastore, error) {
+	ds, err := newPostgresDatastore(url, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
+}
+
+func newPostgresDatastore(
+	url string,
+	options ...Option,
+) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.migrationPhase != "" {
+		log.Info().
+			Str("phase", config.migrationPhase).
+			Msg("postgres configured to use intermediate migration phase")
 	}
 
 	// config must be initialized by ParseConfig
@@ -124,45 +144,35 @@ func NewPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if config.maxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*config.maxOpenConns)
-	}
-	if config.minOpenConns != nil {
-		pgxConfig.MinConns = int32(*config.minOpenConns)
-	}
-	if config.connMaxIdleTime != nil {
-		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
-	}
-	if config.connMaxLifetime != nil {
-		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
-	}
-	if config.healthCheckPeriod != nil {
-		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
-	}
+	configurePool(config, pgxConfig)
 
-	pgxConfig.ConnConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	initializationContext, cancelInit := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelInit()
 
-	dbpool, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
+	dbpool, err := pgxpool.ConnectConfig(initializationContext, pgxConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
+	// Verify that the server supports commit timestamps
+	var trackTSOn string
+	if err := dbpool.
+		QueryRow(initializationContext, "SHOW track_commit_timestamp;").
+		Scan(&trackTSOn); err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	watchEnabled := trackTSOn == "on"
+	if !watchEnabled {
+		log.Warn().Msg("watch API disabled, postgres must be run with track_commit_timestamp=on")
+	}
+
 	if config.enablePrometheusStats {
-		collector := NewPgxpoolStatsCollector(dbpool, "spicedb")
-		err := prometheus.Register(collector)
-		if err != nil {
+		collector := pgxpoolprometheus.NewCollector(dbpool, map[string]string{"db_name": "spicedb"})
+		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
-		err = prometheus.Register(gcDurationHistogram)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
-		err = prometheus.Register(gcRelationshipsClearedGauge)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
-		err = prometheus.Register(gcTransactionsClearedGauge)
-		if err != nil {
+		if err := common.RegisterGCMetrics(); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	}
@@ -175,15 +185,16 @@ func NewPostgresDatastore(
 	}
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
-		colID,
+		colXID,
 		tableTransaction,
 		colTimestamp,
 		quantizationPeriodNanos,
+		colSnapshot,
 	)
 
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
-		colID,
+		colXID,
 		tableTransaction,
 		colTimestamp,
 		config.gcWindow.Seconds(),
@@ -201,28 +212,65 @@ func NewPostgresDatastore(
 		watchBufferLength:       config.watchBufferLength,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
-		gcWindowInverted:        -1 * config.gcWindow,
+		gcWindow:                config.gcWindow,
 		gcInterval:              config.gcInterval,
-		gcMaxOperationTime:      config.gcMaxOperationTime,
+		gcTimeout:               config.gcMaxOperationTime,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
 		usersetBatchSize:        config.splitAtUsersetCount,
+		watchEnabled:            watchEnabled,
 		gcCtx:                   gcCtx,
 		cancelGc:                cancelGc,
-		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.Serializable, AccessMode: pgx.ReadOnly},
+		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
 
 	// Start a goroutine for garbage collection.
-	if datastore.gcInterval > 0*time.Minute {
+	if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
 		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
-		datastore.gcGroup.Go(datastore.runGarbageCollector)
+		datastore.gcGroup.Go(func() error {
+			return common.StartGarbageCollector(
+				datastore.gcCtx,
+				datastore,
+				datastore.gcInterval,
+				datastore.gcWindow,
+				datastore.gcTimeout,
+			)
+		})
 	} else {
-		log.Warn().Msg("garbage collection disabled in postgres driver")
+		log.Warn().Msg("datastore background garbage collection disabled")
 	}
 
 	return datastore, nil
+}
+
+func configurePool(config postgresOptions, pgxConfig *pgxpool.Config) {
+	if config.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+	}
+
+	if config.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*config.minOpenConns)
+	}
+
+	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
+		log.Warn().Int32("max-connections", pgxConfig.MaxConns).Int32("min-connections", pgxConfig.MinConns).Msg("maximum number of connections configured is less than minimum number of connections; minimum will be used")
+	}
+
+	if config.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	}
+
+	if config.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	}
+
+	if config.healthCheckPeriod != nil {
+		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
+	}
+
+	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
 }
 
 type pgDatastore struct {
@@ -233,20 +281,23 @@ type pgDatastore struct {
 	watchBufferLength       uint16
 	optimizedRevisionQuery  string
 	validTransactionQuery   string
-	gcWindowInverted        time.Duration
+	gcWindow                time.Duration
 	gcInterval              time.Duration
-	gcMaxOperationTime      time.Duration
+	gcTimeout               time.Duration
 	usersetBatchSize        uint16
 	analyzeBeforeStatistics bool
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
+	watchEnabled            bool
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
 }
 
-func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
+	rev := revRaw.(postgresRevision)
+
 	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
 		tx, err := pgd.dbpool.BeginTx(ctx, pgd.readTxOptions)
 		if err != nil {
@@ -263,7 +314,7 @@ func (pgd *pgDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader 
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         common.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
@@ -284,10 +335,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
-		var newTxnID uint64
+		var newXID, newXmin xid8
 		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newTxnID, err = createNewTransaction(ctx, tx)
+			newXID, newXmin, err = createNewTransaction(ctx, tx)
 			if err != nil {
 				return err
 			}
@@ -297,7 +348,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         common.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 
@@ -307,12 +358,11 @@ func (pgd *pgDatastore) ReadWriteTx(
 					querySplitter,
 					currentlyLivingObjects,
 				},
-				ctx,
 				tx,
-				newTxnID,
+				newXID,
 			}
 
-			return fn(ctx, rwt)
+			return fn(rwt)
 		})
 		if err != nil {
 			if errorRetryable(err) {
@@ -320,7 +370,8 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 			return datastore.NoRevision, err
 		}
-		return revisionFromTransaction(newTxnID), nil
+
+		return postgresRevision{newXID, newXmin}, nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }
@@ -350,26 +401,6 @@ func errorRetryable(err error) bool {
 	return pgerr.SQLState() == pgSerializationFailure || pgerr.SQLState() == pgUniqueConstraintViolation
 }
 
-func (pgd *pgDatastore) getNow(ctx context.Context) (time.Time, error) {
-	// Retrieve the `now` time from the database.
-	nowSQL, nowArgs, err := getNow.ToSql()
-	if err != nil {
-		return time.Now(), err
-	}
-
-	var now time.Time
-	err = pgd.dbpool.QueryRow(datastore.SeparateContextWithTracing(ctx), nowSQL, nowArgs...).Scan(&now)
-	if err != nil {
-		return time.Now(), err
-	}
-
-	// RelationTupleTransaction is not timezone aware
-	// Explicitly use UTC before using as a query arg
-	now = now.UTC()
-
-	return now, nil
-}
-
 func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
 	if err != nil {
@@ -390,18 +421,45 @@ func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
 	return version == headMigration, nil
 }
 
-func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
+func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return &datastore.Features{Watch: datastore.Feature{Enabled: pgd.watchEnabled}}, nil
+}
+
+func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer {
+	createdBeforeTXN := sq.Expr(fmt.Sprintf(
+		snapshotAlive,
+		colCreatedXid,
+		colSnapshot,
+		tableTransaction,
+		colXID,
+		sq.Placeholders(1),
+	), revision.tx, true)
+
+	alreadyAlive := sq.Or{
+		createdBeforeTXN,
+		sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), revision.tx),
+	}
+
+	deletedAfterTXN := sq.Expr(fmt.Sprintf(
+		snapshotAlive,
+		colDeletedXid,
+		colSnapshot,
+		tableTransaction,
+		colXID,
+		sq.Placeholders(1),
+	), revision.tx, false)
+	notYetDead := sq.And{
+		deletedAfterTXN,
+		sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), revision.tx),
+	}
+
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
-			Where(sq.Or{
-				sq.Eq{colDeletedTxn: liveDeletedTxnID},
-				sq.Gt{colDeletedTxn: revision},
-			})
+		return original.Where(alreadyAlive).Where(notYetDead)
 	}
 }
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
-	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+	return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 }
 
 var _ datastore.Datastore = &pgDatastore{}

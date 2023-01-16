@@ -3,7 +3,6 @@ package parser
 import (
 	"container/list"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -27,7 +26,7 @@ type parserTest struct {
 }
 
 func (pt *parserTest) input() string {
-	b, err := ioutil.ReadFile(fmt.Sprintf("tests/%s.zed", pt.filename))
+	b, err := os.ReadFile(fmt.Sprintf("tests/%s.zed", pt.filename))
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +35,7 @@ func (pt *parserTest) input() string {
 }
 
 func (pt *parserTest) tree() string {
-	b, err := ioutil.ReadFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename))
+	b, err := os.ReadFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename))
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +44,7 @@ func (pt *parserTest) tree() string {
 }
 
 func (pt *parserTest) writeTree(value string) {
-	err := ioutil.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o600)
+	err := os.WriteFile(fmt.Sprintf("tests/%s.zed.expected", pt.filename), []byte(value), 0o600)
 	if err != nil {
 		panic(err)
 	}
@@ -63,16 +62,15 @@ func (tn *testNode) GetType() dslshape.NodeType {
 	return tn.nodeType
 }
 
-func (tn *testNode) Connect(predicate string, other AstNode) AstNode {
+func (tn *testNode) Connect(predicate string, other AstNode) {
 	if tn.children[predicate] == nil {
 		tn.children[predicate] = list.New()
 	}
 
 	tn.children[predicate].PushBack(other)
-	return tn
 }
 
-func (tn *testNode) Decorate(property string, value string) AstNode {
+func (tn *testNode) MustDecorate(property string, value string) AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
 	}
@@ -81,7 +79,7 @@ func (tn *testNode) Decorate(property string, value string) AstNode {
 	return tn
 }
 
-func (tn *testNode) DecorateWithInt(property string, value int) AstNode {
+func (tn *testNode) MustDecorateWithInt(property string, value int) AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
 	}
@@ -109,6 +107,11 @@ func TestParser(t *testing.T) {
 		{"wildcard test", "wildcard"},
 		{"broken wildcard test", "brokenwildcard"},
 		{"nil test", "nil"},
+		{"caveats type test", "caveatstype"},
+		{"basic caveat test", "basiccaveat"},
+		{"complex caveat test", "complexcaveat"},
+		{"empty caveat test", "emptycaveat"},
+		{"unclosed caveat test", "unclosedcaveat"},
 	}
 
 	for _, test := range parserTests {

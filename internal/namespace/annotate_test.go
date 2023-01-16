@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -19,8 +18,9 @@ func TestAnnotateNamespace(t *testing.T) {
 	require.NoError(err)
 
 	empty := ""
-	defs, err := compiler.Compile([]compiler.InputSchema{
-		{Source: input.Source("schema"), SchemaString: `definition document {
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source: input.Source("schema"),
+		SchemaString: `definition document {
 	relation viewer: document
 	relation editor: document
 
@@ -28,12 +28,14 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission computed = viewer + editor
 	permission other = editor - viewer
 	permission also_aliased = viewer
-}`},
+}`,
 	}, &empty)
 	require.NoError(err)
 
-	var lastRevision decimal.Decimal
-	ts, err := BuildNamespaceTypeSystemForDatastore(defs[0], ds.SnapshotReader(lastRevision))
+	lastRevision, err := ds.HeadRevision(context.Background())
+	require.NoError(err)
+
+	ts, err := NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 	require.NoError(err)
 
 	ctx := context.Background()

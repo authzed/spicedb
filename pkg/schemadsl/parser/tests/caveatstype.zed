@@ -1,0 +1,4 @@
+definition document {
+  relation writer: user | user with somecaveat | team#member with anothercaveat
+  relation viewer: user | user:* with wildcardcaveat | user with someprefix/somecaveat
+}

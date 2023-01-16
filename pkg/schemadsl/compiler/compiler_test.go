@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 var someTenant = "sometenant"
@@ -21,7 +22,7 @@ func TestCompile(t *testing.T) {
 		implicitTenant *string
 		input          string
 		expectedError  string
-		expectedProto  []*core.NamespaceDefinition
+		expectedProto  []SchemaDefinition
 	}
 
 	tests := []compileTest{
@@ -30,14 +31,14 @@ func TestCompile(t *testing.T) {
 			&someTenant,
 			"",
 			"",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"parse error",
 			&someTenant,
 			"foo",
 			"parse error in `parse error`, line 1, column 1: Unexpected token at root level: TokenTypeIdentifier",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"nested parse error",
@@ -46,14 +47,14 @@ func TestCompile(t *testing.T) {
 				relation something: rela | relb + relc	
 			}`,
 			"parse error in `nested parse error`, line 2, column 37: Expected end of statement or definition, found: TokenTypePlus",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"empty def",
 			&someTenant,
 			`definition def {}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/def"),
 			},
 		},
@@ -64,9 +65,9 @@ func TestCompile(t *testing.T) {
 				relation foo: bar;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foo", nil,
+					namespace.MustRelation("foo", nil,
 						namespace.AllowedRelation("sometenant/bar", "..."),
 					),
 				),
@@ -79,9 +80,9 @@ func TestCompile(t *testing.T) {
 				relation foos: bars#mehs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("sometenant/bars", "mehs"),
 					),
 				),
@@ -94,9 +95,9 @@ func TestCompile(t *testing.T) {
 				relation foos: bars:*
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedPublicNamespace("sometenant/bars"),
 					),
 				),
@@ -109,9 +110,9 @@ func TestCompile(t *testing.T) {
 				relation foos: anothertenant/bars#mehs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("anothertenant/bars", "mehs"),
 					),
 				),
@@ -125,14 +126,66 @@ func TestCompile(t *testing.T) {
 				relation hello: there | world;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos", nil,
+					namespace.MustRelation("foos", nil,
 						namespace.AllowedRelation("sometenant/bars", "mehs"),
 					),
-					namespace.Relation("hello", nil,
+					namespace.MustRelation("hello", nil,
 						namespace.AllowedRelation("sometenant/there", "..."),
 						namespace.AllowedRelation("sometenant/world", "..."),
+					),
+				),
+			},
+		},
+		{
+			"relation with required caveat",
+			&someTenant,
+			`definition simple {
+				relation viewer: user with somecaveat
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
+							namespace.AllowedCaveat("somecaveat")),
+					),
+				),
+			},
+		},
+		{
+			"relation with optional caveat",
+			&someTenant,
+			`definition simple {
+				relation viewer: user with somecaveat | user
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
+							namespace.AllowedCaveat("somecaveat")),
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"relation with multiple caveats",
+			&someTenant,
+			`definition simple {
+				relation viewer: user with somecaveat | user | team#member with anothercaveat
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
+							namespace.AllowedCaveat("somecaveat")),
+						namespace.AllowedRelation("sometenant/user", "..."),
+						namespace.AllowedRelationWithCaveat("sometenant/team", "member",
+							namespace.AllowedCaveat("anothercaveat")),
 					),
 				),
 			},
@@ -144,9 +197,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 						),
@@ -161,9 +214,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + bazs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
@@ -179,9 +232,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars & bazs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Intersection(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
@@ -197,9 +250,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars - bazs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Exclusion(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
@@ -215,9 +268,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + bazs + mehs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.Rewrite(
 								namespace.Union(
@@ -238,9 +291,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + bazs - mehs;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Exclusion(
 							namespace.Rewrite(
 								namespace.Union(
@@ -261,9 +314,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars + (bazs - mehs);
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/complex",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 							namespace.Rewrite(
@@ -284,9 +337,9 @@ func TestCompile(t *testing.T) {
 				permission foos = bars->bazs
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/arrowed",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.TupleToUserset("bars", "bazs"),
 						),
@@ -303,7 +356,7 @@ func TestCompile(t *testing.T) {
 				permission foos = somerel->brel->crel
 			}`,
 			"parse error in `multiarrow permission`, line 3, column 23: Nested arrows not yet supported",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 
 		/*
@@ -315,9 +368,9 @@ func TestCompile(t *testing.T) {
 					permission foo = somerel->brel->crel
 				}`,
 				"",
-				[]*core.NamespaceDefinition{
+				[]SchemaDefinition{
 					namespace.Namespace("sometenant/arrowed",
-						namespace.Relation("foo",
+						namespace.MustRelation("foo",
 							namespace.Union(
 								namespace.TupleToUserset("bar", "baz"),
 							),
@@ -334,9 +387,9 @@ func TestCompile(t *testing.T) {
 				permission foos = ((arel->brel) + nil) - drel
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/expressioned",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Exclusion(
 							namespace.Rewrite(
 								namespace.Union(
@@ -360,27 +413,27 @@ func TestCompile(t *testing.T) {
 				permission fourth = bars->bazs
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/multiple",
-					namespace.Relation("first",
+					namespace.MustRelation("first",
 						namespace.Union(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
 						),
 					),
-					namespace.Relation("second",
+					namespace.MustRelation("second",
 						namespace.Exclusion(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
 						),
 					),
-					namespace.Relation("third",
+					namespace.MustRelation("third",
 						namespace.Intersection(
 							namespace.ComputedUserset("bars"),
 							namespace.ComputedUserset("bazs"),
 						),
 					),
-					namespace.Relation("fourth",
+					namespace.MustRelation("fourth",
 						namespace.Union(
 							namespace.TupleToUserset("bars", "bazs"),
 						),
@@ -395,9 +448,9 @@ func TestCompile(t *testing.T) {
 				permission foos = aaaa + nil + bbbb;
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("sometenant/simple",
-					namespace.Relation("foos",
+					namespace.MustRelation("foos",
 						namespace.Union(
 							namespace.Rewrite(
 								namespace.Union(
@@ -416,14 +469,14 @@ func TestCompile(t *testing.T) {
 			nil,
 			`definition foos {}`,
 			"parse error in `no implicit tenant with unspecified tenant`, line 1, column 1: found reference `foos` without prefix",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant",
 			nil,
 			`definition some_tenant/foos {}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("some_tenant/foos"),
 			},
 		},
@@ -434,14 +487,14 @@ func TestCompile(t *testing.T) {
 				relation somerel: bars
 			}`,
 			"parse error in `no implicit tenant with unspecified tenant on type ref`, line 2, column 23: found reference `bars` without prefix",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"invalid definition name",
 			nil,
 			`definition someTenant/fo {}`,
 			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"invalid relation name",
@@ -450,7 +503,7 @@ func TestCompile(t *testing.T) {
 				relation ab: some_tenant/foos
 			}`,
 			"parse error in `invalid relation name`, line 2, column 5: error in relation ab: invalid Relation.Name: value does not match regex pattern \"^[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
-			[]*core.NamespaceDefinition{},
+			[]SchemaDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant on type ref",
@@ -459,9 +512,9 @@ func TestCompile(t *testing.T) {
 				relation somerel: some_tenant/bars
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.Namespace("some_tenant/foos",
-					namespace.Relation(
+					namespace.MustRelation(
 						"somerel",
 						nil,
 						namespace.AllowedRelation("some_tenant/bars", "..."),
@@ -487,14 +540,14 @@ func TestCompile(t *testing.T) {
 				permission first = bars + bazs
 			}`,
 			"",
-			[]*core.NamespaceDefinition{
+			[]SchemaDefinition{
 				namespace.WithComment("sometenant/user", `/**
 * user is a user
 */`),
 				namespace.WithComment("sometenant/single", `/**
 * single is a thing
 */`,
-					namespace.RelationWithComment("first", `/**
+					namespace.MustRelationWithComment("first", `/**
 * some permission
 */`,
 						namespace.Union(
@@ -505,24 +558,211 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"duplicate definition",
+			&someTenant,
+			`definition foo {}
+			definition foo {}`,
+			"parse error in `duplicate definition`, line 2, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
+			[]SchemaDefinition{},
+		},
+		{
+			"duplicate definitions across objects and caveats",
+			&someTenant,
+			`caveat foo(someParam int) {
+				someParam == 42
+			}
+			definition foo {}`,
+			"parse error in `duplicate definitions across objects and caveats`, line 4, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat missing parameters",
+			&someTenant,
+			`caveat foo() {
+				someParam == 42
+			}`,
+			"parse error in `caveat missing parameters`, line 1, column 12: Unexpected token at root level: TokenTypeRightParen",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat missing expression",
+			&someTenant,
+			`caveat foo(someParam int) {
+			}`,
+			"Unexpected token at root level: TokenTypeRightBrace",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat invalid parameter type",
+			&someTenant,
+			`caveat foo(someParam foobar) {
+				someParam == 42
+			}`,
+			"parse error in `caveat invalid parameter type`, line 1, column 12: invalid type for caveat parameter `someParam` on caveat `foo`: unknown type `foobar`",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat invalid parameter type",
+			&someTenant,
+			`caveat foo(someParam map<foobar>) {
+				someParam == 42
+			}`,
+			"unknown type `foobar`",
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat missing parameter",
+			&someTenant,
+			`caveat foo(someParam int) {
+				anotherParam == 42
+			}`,
+			`ERROR: sometenant/foo:2:5: undeclared reference to 'anotherParam'`,
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat missing parameter on a different line",
+			&someTenant,
+			`caveat foo(someParam int) {
+				someParam == 42 &&
+					anotherParam
+			}`,
+			`ERROR: sometenant/foo:3:6: undeclared reference to 'anotherParam'`,
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat invalid expression type",
+			&someTenant,
+			`caveat foo(someParam int) {
+				someParam
+			}`,
+			`caveat expression must result in a boolean value`,
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat invalid expression",
+			&someTenant,
+			`caveat foo(someParam int) {
+				someParam:{}
+			}`,
+			`ERROR: sometenant/foo:2:14: Syntax error: mismatched input ':'`,
+			[]SchemaDefinition{},
+		},
+		{
+			"caveat valid",
+			&someTenant,
+			`caveat foo(someParam int) {
+				someParam == 42
+			}`,
+			``,
+			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"someParam": caveattypes.IntType,
+					},
+				), "sometenant/foo", "someParam == 42"),
+			},
+		},
+		{
+			"long caveat valid",
+			&someTenant,
+			`caveat foo(someParam int, anotherParam string, thirdParam list<int>) {
+				someParam == 42 && someParam != 43 && someParam < 12 &&
+				someParam > 56 && anotherParam == "hi there" && 42 in thirdParam
+			}`,
+			``,
+			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"someParam":    caveattypes.IntType,
+						"anotherParam": caveattypes.StringType,
+						"thirdParam":   caveattypes.MustListType(caveattypes.IntType),
+					},
+				), "sometenant/foo",
+					`someParam == 42 && someParam != 43 && someParam < 12 && someParam > 56 
+					&& anotherParam == "hi there" && 42 in thirdParam`),
+			},
+		},
+		{
+			"caveat IP example",
+			&someTenant,
+			`caveat has_allowed_ip(user_ip ipaddress) {
+				!user_ip.in_cidr('1.2.3.0')
+			}`,
+			``,
+			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"user_ip": caveattypes.IPAddressType,
+					},
+				), "sometenant/has_allowed_ip",
+					`!user_ip.in_cidr('1.2.3.0')`),
+			},
+		},
+		{
+			"caveat subtree example",
+			&someTenant,
+			`caveat something(someMap map<any>, anotherMap map<any>) {
+				someMap.isSubtreeOf(anotherMap)
+			}`,
+			``,
+			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"someMap":    caveattypes.MustMapType(caveattypes.AnyType),
+						"anotherMap": caveattypes.MustMapType(caveattypes.AnyType),
+					},
+				), "sometenant/something",
+					`someMap.isSubtreeOf(anotherMap)`),
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require := require.New(t)
-			defs, err := Compile([]InputSchema{
-				{input.Source(test.name), test.input},
+			compiled, err := Compile(InputSchema{
+				input.Source(test.name), test.input,
 			}, test.implicitTenant)
 
 			if test.expectedError != "" {
 				require.Error(err)
-				require.Equal(test.expectedError, err.Error())
+				require.Contains(err.Error(), test.expectedError)
 			} else {
 				require.Nil(err)
-				require.Equal(len(test.expectedProto), len(defs))
-				for index, def := range defs {
+				require.Equal(len(test.expectedProto), len(compiled.OrderedDefinitions))
+				for index, def := range compiled.OrderedDefinitions {
 					filterSourcePositions(def.ProtoReflect())
-					require.True(proto.Equal(test.expectedProto[index], def))
+					expectedDef := test.expectedProto[index]
+
+					if caveatDef, ok := def.(*core.CaveatDefinition); ok {
+						expectedCaveatDef, ok := expectedDef.(*core.CaveatDefinition)
+						require.True(ok, "definition is not a caveat def")
+						require.Equal(expectedCaveatDef.Name, caveatDef.Name)
+						require.Equal(len(expectedCaveatDef.ParameterTypes), len(caveatDef.ParameterTypes))
+
+						for expectedParamName, expectedParam := range expectedCaveatDef.ParameterTypes {
+							foundParam, ok := caveatDef.ParameterTypes[expectedParamName]
+							require.True(ok, "missing parameter %s", expectedParamName)
+							testutil.RequireProtoEqual(t, expectedParam, foundParam, "mismatch type for parameter %s", expectedParamName)
+						}
+
+						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression)
+						require.NoError(err)
+
+						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression)
+						require.NoError(err)
+
+						expectedExprString, err := expectedDecoded.ExprString()
+						require.NoError(err)
+
+						foundExprString, err := foundDecoded.ExprString()
+						require.NoError(err)
+
+						require.Equal(expectedExprString, foundExprString)
+					} else {
+						testutil.RequireProtoEqual(t, test.expectedProto[index], def, "proto mismatch")
+					}
 				}
 			}
 		})
@@ -537,6 +777,12 @@ func filterSourcePositions(m protoreflect.Message) {
 				for i := 0; i < l.Len(); i++ {
 					filterSourcePositions(l.Get(i).Message())
 				}
+			} else if fd.IsMap() {
+				m := v.Map()
+				m.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
+					filterSourcePositions(v.Message())
+					return true
+				})
 			} else {
 				if string(fd.Message().Name()) == "SourcePosition" {
 					m.Clear(fd)

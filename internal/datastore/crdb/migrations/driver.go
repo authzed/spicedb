@@ -7,9 +7,8 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zerologadapter"
-	"github.com/rs/zerolog/log"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
@@ -35,8 +34,7 @@ func NewCRDBDriver(url string) (*CRDBDriver, error) {
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-
-	connConfig.Logger = zerologadapter.NewLogger(log.Logger)
+	pgxcommon.ConfigurePGXLogger(connConfig)
 
 	db, err := pgx.ConnectConfig(context.Background(), connConfig)
 	if err != nil {
@@ -85,10 +83,6 @@ func (apd *CRDBDriver) WriteVersion(ctx context.Context, tx pgx.Tx, version, rep
 	}
 
 	updatedCount := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("unable to compute number of rows affected: %w", err)
-	}
-
 	if updatedCount != 1 {
 		return fmt.Errorf("writing version update affected %d rows, should be 1", updatedCount)
 	}

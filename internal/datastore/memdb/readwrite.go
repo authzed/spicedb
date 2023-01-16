@@ -1,6 +1,7 @@
 package memdb
 
 import (
+	"context"
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -8,8 +9,10 @@ import (
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type memdbReadWriteTx struct {
@@ -17,8 +20,8 @@ type memdbReadWriteTx struct {
 	newRevision datastore.Revision
 }
 
-func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*v1.RelationshipUpdate) error {
-	rwt.lockOrPanic()
+func (rwt *memdbReadWriteTx) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -26,20 +29,21 @@ func (rwt *memdbReadWriteTx) WriteRelationships(mutations []*v1.RelationshipUpda
 		return err
 	}
 
-	return rwt.write(tx, mutations)
+	return rwt.write(tx, mutations...)
 }
 
 // Caller must already hold the concurrent access lock!
-func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations []*v1.RelationshipUpdate) error {
+func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
 	// Apply the mutations
 	for _, mutation := range mutations {
 		rel := &relationship{
-			mutation.Relationship.Resource.ObjectType,
-			mutation.Relationship.Resource.ObjectId,
-			mutation.Relationship.Relation,
-			mutation.Relationship.Subject.Object.ObjectType,
-			mutation.Relationship.Subject.Object.ObjectId,
-			stringz.DefaultEmpty(mutation.Relationship.Subject.OptionalRelation, datastore.Ellipsis),
+			mutation.Tuple.ResourceAndRelation.Namespace,
+			mutation.Tuple.ResourceAndRelation.ObjectId,
+			mutation.Tuple.ResourceAndRelation.Relation,
+			mutation.Tuple.Subject.Namespace,
+			mutation.Tuple.Subject.ObjectId,
+			mutation.Tuple.Subject.Relation,
+			rwt.toCaveatReference(mutation),
 		}
 
 		found, err := tx.First(
@@ -62,16 +66,20 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations []*v1.RelationshipUp
 		}
 
 		switch mutation.Operation {
-		case v1.RelationshipUpdate_OPERATION_CREATE:
+		case core.RelationTupleUpdate_CREATE:
 			if existing != nil {
-				return fmt.Errorf("duplicate relationship found for create operation")
+				rt, err := existing.RelationTuple()
+				if err != nil {
+					return err
+				}
+				return common.NewCreateRelationshipExistsError(rt)
 			}
 			fallthrough
-		case v1.RelationshipUpdate_OPERATION_TOUCH:
+		case core.RelationTupleUpdate_TOUCH:
 			if err := tx.Insert(tableRelationship, rel); err != nil {
 				return fmt.Errorf("error inserting relationship: %w", err)
 			}
-		case v1.RelationshipUpdate_OPERATION_DELETE:
+		case core.RelationTupleUpdate_DELETE:
 			if existing != nil {
 				if err := tx.Delete(tableRelationship, existing); err != nil {
 					return fmt.Errorf("error deleting relationship: %w", err)
@@ -85,8 +93,19 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations []*v1.RelationshipUp
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) error {
-	rwt.lockOrPanic()
+func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdate) *contextualizedCaveat {
+	var cr *contextualizedCaveat
+	if mutation.Tuple.Caveat != nil {
+		cr = &contextualizedCaveat{
+			caveatName: mutation.Tuple.Caveat.CaveatName,
+			context:    mutation.Tuple.Caveat.Context.AsMap(),
+		}
+	}
+	return cr
+}
+
+func (rwt *memdbReadWriteTx) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -100,26 +119,27 @@ func (rwt *memdbReadWriteTx) DeleteRelationships(filter *v1.RelationshipFilter) 
 // caller must already hold the concurrent access lock
 func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter) error {
 	// Create an iterator to find the relevant tuples
-	bestIter, err := iteratorForFilter(tx, filter)
+	bestIter, err := iteratorForFilter(tx, datastore.RelationshipsFilterFromPublicFilter(filter))
 	if err != nil {
 		return err
 	}
 	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
 
 	// Collect the tuples into a slice of mutations for the changelog
-	var mutations []*v1.RelationshipUpdate
+	var mutations []*core.RelationTupleUpdate
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
-		mutations = append(mutations, &v1.RelationshipUpdate{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: row.(*relationship).Relationship(),
-		})
+		rt, err := row.(*relationship).RelationTuple()
+		if err != nil {
+			return err
+		}
+		mutations = append(mutations, tuple.Delete(rt))
 	}
 
-	return rwt.write(tx, mutations)
+	return rwt.write(tx, mutations...)
 }
 
-func (rwt *memdbReadWriteTx) WriteNamespaces(newConfigs ...*core.NamespaceDefinition) error {
-	rwt.lockOrPanic()
+func (rwt *memdbReadWriteTx) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -144,8 +164,8 @@ func (rwt *memdbReadWriteTx) WriteNamespaces(newConfigs ...*core.NamespaceDefini
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteNamespace(nsName string) error {
-	rwt.lockOrPanic()
+func (rwt *memdbReadWriteTx) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
@@ -153,24 +173,26 @@ func (rwt *memdbReadWriteTx) DeleteNamespace(nsName string) error {
 		return err
 	}
 
-	foundRaw, err := tx.First(tableNamespace, indexID, nsName)
-	if err != nil {
-		return err
-	}
+	for _, nsName := range nsNames {
+		foundRaw, err := tx.First(tableNamespace, indexID, nsName)
+		if err != nil {
+			return err
+		}
 
-	if foundRaw == nil {
-		return fmt.Errorf("unable to find namespace to delete")
-	}
+		if foundRaw == nil {
+			return fmt.Errorf("unable to find namespace to delete")
+		}
 
-	if err := tx.Delete(tableNamespace, foundRaw); err != nil {
-		return err
-	}
+		if err := tx.Delete(tableNamespace, foundRaw); err != nil {
+			return err
+		}
 
-	// Delete the relationships from the namespace
-	if err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
-		ResourceType: nsName,
-	}); err != nil {
-		return fmt.Errorf("unable to delete relationships from deleted namespace: %w", err)
+		// Delete the relationships from the namespace
+		if err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
+			ResourceType: nsName,
+		}); err != nil {
+			return fmt.Errorf("unable to delete relationships from deleted namespace: %w", err)
+		}
 	}
 
 	return nil

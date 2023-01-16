@@ -6,17 +6,15 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/tdigest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/rs/zerolog/log"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/options"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var hedgeableCount = promauto.NewCounter(prometheus.CounterOpts{
@@ -135,7 +133,7 @@ func NewHedgingProxy(
 	initialSlowRequestThreshold time.Duration,
 	maxSampleCount uint64,
 	hedgingQuantile float64,
-) datastore.Datastore {
+) (datastore.Datastore, error) {
 	return newHedgingProxyWithTimeSource(
 		delegate,
 		initialSlowRequestThreshold,
@@ -151,17 +149,17 @@ func newHedgingProxyWithTimeSource(
 	maxSampleCount uint64,
 	hedgingQuantile float64,
 	timeSource clock.Clock,
-) datastore.Datastore {
+) (datastore.Datastore, error) {
 	if initialSlowRequestThreshold < 0 {
-		panic("initial slow request threshold negative")
+		return nil, fmt.Errorf("initial slow request threshold negative")
 	}
 
 	if maxSampleCount < minMaxRequestsThreshold {
-		panic(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
+		return nil, fmt.Errorf(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
-		panic("hedingQuantile must be in the range (0.0-1.0) exclusive")
+		return nil, fmt.Errorf("hedgingQuantile must be in the range (0.0-1.0) exclusive")
 	}
 
 	return hedgingProxy{
@@ -170,7 +168,7 @@ func newHedgingProxyWithTimeSource(
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
 		newHedger(timeSource, initialSlowRequestThreshold, maxSampleCount, hedgingQuantile),
-	}
+	}, nil
 }
 
 func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Revision, err error) {
@@ -238,7 +236,7 @@ func (hp hedgingReader) ReadNamespace(
 
 func (hp hedgingReader) QueryRelationships(
 	ctx context.Context,
-	filter *v1.RelationshipFilter,
+	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	return hp.executeQuery(ctx, func(c context.Context) (datastore.RelationshipIterator, error) {
@@ -248,11 +246,11 @@ func (hp hedgingReader) QueryRelationships(
 
 func (hp hedgingReader) ReverseQueryRelationships(
 	ctx context.Context,
-	subjectFilter *v1.SubjectFilter,
+	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	return hp.executeQuery(ctx, func(c context.Context) (datastore.RelationshipIterator, error) {
-		return hp.Reader.ReverseQueryRelationships(ctx, subjectFilter, opts...)
+		return hp.Reader.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 	})
 }
 

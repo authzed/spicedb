@@ -3,20 +3,17 @@ package graph
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
-
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -28,33 +25,35 @@ func RR(namespaceName string, relationName string) *core.RelationReference {
 	}
 }
 
-func init() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
-
-	// Set this to Trace to dump log statements in tests.
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+func resolvedRes(resourceID string) *v1.ResolvedResource {
+	return &v1.ResolvedResource{
+		ResourceId:     resourceID,
+		Permissionship: v1.ResolvedResource_HAS_PERMISSION,
+	}
 }
 
 func TestSimpleLookup(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
 	testCases := []struct {
 		start                 *core.RelationReference
 		target                *core.ObjectAndRelation
-		resolvedObjects       []*core.ObjectAndRelation
+		expectedResources     []*v1.ResolvedResource
 		expectedDispatchCount int
 		expectedDepthRequired int
 	}{
 		{
 			RR("document", "view"),
 			ONR("user", "unknown", "..."),
-			[]*core.ObjectAndRelation{},
+			[]*v1.ResolvedResource{},
 			1,
 			1,
 		},
 		{
 			RR("document", "view"),
 			ONR("user", "eng_lead", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "masterplan", "view"),
+			[]*v1.ResolvedResource{
+				resolvedRes("masterplan"),
 			},
 			2,
 			2,
@@ -62,8 +61,8 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "owner"),
 			ONR("user", "product_manager", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "masterplan", "owner"),
+			[]*v1.ResolvedResource{
+				resolvedRes("masterplan"),
 			},
 			2,
 			1,
@@ -71,9 +70,9 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "view"),
 			ONR("user", "legal", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "companyplan", "view"),
-				ONR("document", "masterplan", "view"),
+			[]*v1.ResolvedResource{
+				resolvedRes("companyplan"),
+				resolvedRes("masterplan"),
 			},
 			6,
 			4,
@@ -81,8 +80,8 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("document", "view_and_edit"),
 			ONR("user", "multiroleguy", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("document", "specialplan", "view_and_edit"),
+			[]*v1.ResolvedResource{
+				resolvedRes("specialplan"),
 			},
 			7,
 			4,
@@ -90,9 +89,9 @@ func TestSimpleLookup(t *testing.T) {
 		{
 			RR("folder", "view"),
 			ONR("user", "owner", "..."),
-			[]*core.ObjectAndRelation{
-				ONR("folder", "strategy", "view"),
-				ONR("folder", "company", "view"),
+			[]*v1.ResolvedResource{
+				resolvedRes("strategy"),
+				resolvedRes("company"),
 			},
 			8,
 			5,
@@ -108,9 +107,11 @@ func TestSimpleLookup(t *testing.T) {
 		)
 
 		t.Run(name, func(t *testing.T) {
-			require := require.New(t)
+			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
-			ctx, dispatch, revision := newLocalDispatcher(require)
+			require := require.New(t)
+			ctx, dispatch, revision := newLocalDispatcher(t)
+			defer dispatch.Close()
 
 			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
 				ObjectRelation: tc.start,
@@ -119,20 +120,18 @@ func TestSimpleLookup(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Limit:       10,
-				DirectStack: nil,
-				TtuStack:    nil,
+				Limit: 10,
 			})
 
 			require.NoError(err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs, "Found: %v, Expected: %v", lookupResult.ResolvedOnrs, tc.resolvedObjects)
+			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.LessOrEqual(int(lookupResult.Metadata.DispatchCount), tc.expectedDispatchCount, "Found dispatch count greater than expected")
 			require.Equal(0, int(lookupResult.Metadata.CachedDispatchCount))
 			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired), "Depth required mismatch")
 
 			// We have to sleep a while to let the cache converge:
-			// https://github.com/dgraph-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
+			// https://github.com/outcaste-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
 			time.Sleep(10 * time.Millisecond)
 
 			// Run again with the cache available.
@@ -143,13 +142,12 @@ func TestSimpleLookup(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Limit:       10,
-				DirectStack: nil,
-				TtuStack:    nil,
+				Limit: 10,
 			})
+			dispatch.Close()
 
 			require.NoError(err)
-			require.ElementsMatch(tc.resolvedObjects, lookupResult.ResolvedOnrs, "Found: %v, Expected: %v", lookupResult.ResolvedOnrs, tc.resolvedObjects)
+			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
 			require.LessOrEqual(int(lookupResult.Metadata.CachedDispatchCount), tc.expectedDispatchCount)
@@ -166,7 +164,7 @@ func TestMaxDepthLookup(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatch := NewLocalOnlyDispatcher()
+	dispatch := NewLocalOnlyDispatcher(10)
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
@@ -177,20 +175,18 @@ func TestMaxDepthLookup(t *testing.T) {
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
 		},
-		Limit:       10,
-		DirectStack: nil,
-		TtuStack:    nil,
+		Limit: 10,
 	})
 
 	require.Error(err)
 }
 
-type OrderedResolved []*core.ObjectAndRelation
+type OrderedResolved []*v1.ResolvedResource
 
 func (a OrderedResolved) Len() int { return len(a) }
 
 func (a OrderedResolved) Less(i, j int) bool {
-	return strings.Compare(tuple.StringONR(a[i]), tuple.StringONR(a[j])) < 0
+	return strings.Compare(a[i].ResourceId, a[j].ResourceId) < 0
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
