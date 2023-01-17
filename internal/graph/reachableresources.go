@@ -238,7 +238,7 @@ func (crr *ConcurrentReachableResources) scheduleChunkedRedispatch(
 				return err
 			}
 
-			if rsm.len() == chunkSize {
+			if rsm.len() == int(chunkSize) {
 				chunkIndex++
 				toBeHandled = append(toBeHandled, rsm)
 				rsm = newResourcesSubjectMap(resourceType)
@@ -247,7 +247,7 @@ func (crr *ConcurrentReachableResources) scheduleChunkedRedispatch(
 		it.Close()
 
 		if rsm.len() > 0 {
-			if rsm.len() > datastore.FilterMaximumIDCount {
+			if rsm.len() > int(datastore.FilterMaximumIDCount) {
 				return fmt.Errorf("found reachableresources chunk in excess of expected max size")
 			}
 

@@ -1,0 +1,29 @@
+---
+schema: |+
+  definition user {}
+
+  definition folder {
+    relation viewer: user
+    permission view = viewer
+  }
+
+  definition document {
+    relation folder: folder
+  	relation viewer: user
+    permission view = viewer + folder->view
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tom#...
+
+  document:seconddoc#folder@folder:folder1
+
+  document:seconddoc#folder@folder:folder2
+
+  folder:folder1#viewer@user:tom
+
+  folder:folder2#viewer@user:tom
+assertions:
+  assertTrue:
+    - 'document:firstdoc#view@user:tom#...'
+    - 'document:seconddoc#view@user:tom#...'

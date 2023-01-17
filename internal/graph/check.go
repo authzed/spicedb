@@ -81,7 +81,7 @@ type currentRequestContext struct {
 	resultsSetting v1.DispatchCheckRequest_ResultsSetting
 
 	// maxDispatchCount is the maximum number of resource IDs that can be specified in each dispatch.
-	maxDispatchCount uint64
+	maxDispatchCount uint16
 }
 
 // Check performs a check request with the provided request and context
