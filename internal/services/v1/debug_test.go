@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -225,14 +226,14 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 
 			definition folder {
 				relation parent: folder
-				relation viewer: user
-				permission view = viewer + parent->view
+				relation fviewer: user
+				permission fview = fviewer + parent->fview
 			}
 			
 			 definition document {
 				relation folder: folder
 				relation viewer: user
-				permission view = viewer + folder->view
+				permission view = viewer + folder->fview
 			 }
 			`,
 			[]*core.RelationTuple{
@@ -249,7 +250,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				tuple.MustParse("folder:f4#parent@folder:f4p"),
 				tuple.MustParse("folder:f5#parent@folder:f5p"),
 				tuple.MustParse("folder:f6#parent@folder:f6p"),
-				tuple.MustParse("folder:f6p#viewer@user:sarah"),
+				tuple.MustParse("folder:f6p#fviewer@user:sarah"),
 			},
 			[]debugCheckInfo{
 				{
@@ -273,8 +274,8 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						nil,
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
-					2,
-					[]rda{expectDebugFrames("viewer", "view")},
+					1,
+					[]rda{expectDebugFrames("fview")},
 				},
 				{
 					"benny as not viewer",
@@ -287,10 +288,10 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 					2,
 					[]rda{
-						expectDebugFrames("viewer", "view"),
+						expectDebugFrames("viewer"),
 						func(req *require.Assertions, debugInfo *v1.DebugInformation) {
 							// Ensure that all the resource IDs are batched into a single frame.
-							found := findFrame(debugInfo.Check, "folder", "view")
+							found := findFrame(debugInfo.Check, "folder", "fview")
 							req.NotNil(found)
 							req.Equal(6, len(strings.Split(found.Resource.ObjectId, ",")))
 
@@ -454,17 +455,17 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					debugInfo := &v1.DebugInformation{}
 					err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
 					req.NoError(err)
-
-					if debugInfo.Check.GetSubProblems() != nil {
-						req.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), stc.expectedMinimumSubProblemCount)
-					} else {
-						req.Equal(0, stc.expectedMinimumSubProblemCount)
-					}
 					req.NotEmpty(debugInfo.SchemaUsed)
 
 					req.Equal(stc.checkRequest.resource.ObjectType, debugInfo.Check.Resource.ObjectType)
 					req.Equal(stc.checkRequest.resource.ObjectId, debugInfo.Check.Resource.ObjectId)
 					req.Equal(stc.checkRequest.permission, debugInfo.Check.Permission)
+
+					if debugInfo.Check.GetSubProblems() != nil {
+						req.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), stc.expectedMinimumSubProblemCount, "found traces: %s", prototext.Format(debugInfo.Check))
+					} else {
+						req.Equal(0, stc.expectedMinimumSubProblemCount)
+					}
 
 					for _, rda := range stc.runDebugAssertions {
 						rda(req, debugInfo)
