@@ -151,7 +151,7 @@ func (pc *parallelChecker) Start() {
 				}
 
 				collected = append(collected, req)
-				if len(collected) == maxDispatchChunkSize {
+				if len(collected) == int(maxDispatchChunkSize) {
 					break
 				}
 			}

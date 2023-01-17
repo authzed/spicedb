@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"testing"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
@@ -14,11 +15,22 @@ const Ellipsis = "..."
 
 // maxDispatchChunkSize is the maximum size for a dispatch chunk. Must be less than or equal
 // to the maximum ID count for filters in the datastore.
-const maxDispatchChunkSize = datastore.FilterMaximumIDCount
+var maxDispatchChunkSize uint16 = datastore.FilterMaximumIDCount
 
 // progressiveDispatchChunkSizes are chunk sizes growing over time for dispatching. All entries
 // must be less than or equal to the maximum ID count for filters in the datastore.
-var progressiveDispatchChunkSizes = []int{5, 10, 25, 50, maxDispatchChunkSize}
+var progressiveDispatchChunkSizes = []uint16{5, 10, 25, 50, maxDispatchChunkSize}
+
+// SetDispatchChunkSizesForTesting sets the dispatch chunk sizes for testing.
+func SetDispatchChunkSizesForTesting(t *testing.T, sizes []uint16) {
+	originalSizes := progressiveDispatchChunkSizes
+	maxDispatchChunkSize = sizes[len(sizes)-1]
+	progressiveDispatchChunkSizes = sizes
+	t.Cleanup(func() {
+		progressiveDispatchChunkSizes = originalSizes
+		maxDispatchChunkSize = originalSizes[len(sizes)-1]
+	})
+}
 
 // CheckResult is the data that is returned by a single check or sub-check.
 type CheckResult struct {

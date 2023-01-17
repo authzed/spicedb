@@ -19,6 +19,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/developmentmembership"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -44,6 +45,9 @@ const testTimedelta = 1 * time.Second
 // both real-world schemas, as well as the full set of hand-constructed corner
 // cases so that the system can be fully exercised.
 func TestConsistency(t *testing.T) {
+	// Set dispatch sizes for testing.
+	graph.SetDispatchChunkSizesForTesting(t, []uint16{5, 10})
+
 	// List all the defined consistency test files.
 	consistencyTestFiles, err := consistencytestutil.ListTestConfigs()
 	require.NoError(t, err)
