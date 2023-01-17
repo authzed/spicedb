@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/rs/zerolog"
 	"github.com/sercand/kuberesolver/v3"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
@@ -39,6 +40,8 @@ func main() {
 		hashringReplicationFactor,
 		backendsPerKey,
 	))
+
+	log.SetGlobalLogger(zerolog.New(os.Stdout))
 
 	// Create a root command
 	rootCmd := cmd.NewRootCommand("spicedb")
