@@ -6,14 +6,20 @@ import (
 
 // JoinObject joins the namespace and the objectId together into the standard
 // format.
+//
+// This function assumes that the provided values have already been validated.
 func JoinObjectRef(namespace, objectID string) string { return namespace + ":" + objectID }
 
 // StringObjectRef marshals a *v1.ObjectReference into a string.
+//
+// This function assumes that the provided values have already been validated.
 func StringObjectRef(ref *v1.ObjectReference) string {
 	return JoinObjectRef(ref.ObjectType, ref.ObjectId)
 }
 
 // StringSubjectRef marshals a *v1.SubjectReference into a string.
+//
+// This function assumes that the provided values have already been validated.
 func StringSubjectRef(ref *v1.SubjectReference) string {
 	if ref.OptionalRelation == "" {
 		return StringObjectRef(ref.Object)
