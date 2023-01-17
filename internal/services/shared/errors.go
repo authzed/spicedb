@@ -1,6 +1,10 @@
 package shared
 
 import (
+	"errors"
+	"fmt"
+
+	"github.com/rs/zerolog"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,4 +26,42 @@ func mustMakeStatusReadonly() error {
 		panic("error constructing shared error type")
 	}
 	return status.Err()
+}
+
+// NewSchemaWriteDataValidationError creates a new error representing that a schema write cannot be
+// completed due to existing data that would be left unreferenced.
+func NewSchemaWriteDataValidationError(message string, args ...any) ErrSchemaWriteDataValidation {
+	return ErrSchemaWriteDataValidation{
+		error: fmt.Errorf(message, args...),
+	}
+}
+
+// ErrSchemaWriteDataValidation occurs when a schema cannot be applied due to leaving data unreferenced.
+type ErrSchemaWriteDataValidation struct {
+	error
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrSchemaWriteDataValidation) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error)
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrSchemaWriteDataValidation) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR,
+			map[string]string{},
+		),
+	)
+}
+
+func AsValidationError(err error) *ErrSchemaWriteDataValidation {
+	var validationErr ErrSchemaWriteDataValidation
+	if errors.As(err, &validationErr) {
+		return &validationErr
+	}
+	return nil
 }
