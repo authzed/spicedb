@@ -17,13 +17,18 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
-// ReadWriteTransaction.
+// ReadWriteTransaction. Returns the applied changes, the validation error (if any),
+// and the error itself (if any).
 func ApplySchemaChanges(
 	ctx context.Context,
 	rwt datastore.ReadWriteTransaction,
 	validated *shared.ValidatedSchemaChanges,
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
-) (*shared.AppliedSchemaChanges, error) {
-	return shared.ApplySchemaChangesOverExisting(ctx, rwt, validated, existingCaveats, existingObjectDefs)
+) (*shared.AppliedSchemaChanges, *shared.ErrSchemaWriteDataValidation, error) {
+	result, err := shared.ApplySchemaChangesOverExisting(ctx, rwt, validated, existingCaveats, existingObjectDefs)
+	if err != nil {
+		return result, shared.AsValidationError(err), err
+	}
+	return result, nil, nil
 }

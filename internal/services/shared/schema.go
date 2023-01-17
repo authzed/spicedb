@@ -3,9 +3,6 @@ package shared
 import (
 	"context"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/options"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -231,10 +228,10 @@ func sanityCheckCaveatChanges(
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case caveats.RemovedParameter:
-			return status.Errorf(codes.InvalidArgument, "cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+			return NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
 
 		case caveats.ParameterTypeChanged:
-			return status.Errorf(codes.InvalidArgument, "cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+			return NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
 		}
 	}
 
@@ -387,7 +384,7 @@ func errorIfTupleIteratorReturnsTuples(ctx context.Context, qy datastore.Relatio
 			return qy.Err()
 		}
 
-		return status.Errorf(codes.InvalidArgument, message, args...)
+		return NewSchemaWriteDataValidationError(message, args...)
 	}
 	return nil
 }
