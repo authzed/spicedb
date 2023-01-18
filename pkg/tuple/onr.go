@@ -1,18 +1,12 @@
 package tuple
 
 import (
-	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/jzelinskie/stringz"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-)
-
-const (
-	// Format is the serialized form of the tuple
-	formatWithRel            = "%s:%s#%s"
-	formatImplicitSubjectRel = "%s:%s"
 )
 
 // ObjectAndRelation creates an ONR from string pieces.
@@ -70,13 +64,28 @@ func ParseONR(onr string) *core.ObjectAndRelation {
 	}
 }
 
+// JoinRelRef joins the namespace and relation together into the same
+// format as `StringRR()`.
+func JoinRelRef(namespace, relation string) string { return namespace + "#" + relation }
+
+// MustSplitRelRef splits a string produced by `JoinRelRef()` and panics if
+// it fails.
+func MustSplitRelRef(relRef string) (namespace, relation string) {
+	var ok bool
+	namespace, relation, ok = strings.Cut(relRef, "#")
+	if !ok {
+		panic("improperly formatted relation reference")
+	}
+	return
+}
+
 // StringRR converts a RR object to a string.
 func StringRR(rr *core.RelationReference) string {
 	if rr == nil {
 		return ""
 	}
 
-	return fmt.Sprintf("%s#%s", rr.Namespace, rr.Relation)
+	return JoinRelRef(rr.Namespace, rr.Relation)
 }
 
 // StringONR converts an ONR object to a string.
@@ -84,12 +93,10 @@ func StringONR(onr *core.ObjectAndRelation) string {
 	if onr == nil {
 		return ""
 	}
-
 	if onr.Relation == Ellipsis {
-		return fmt.Sprintf(formatImplicitSubjectRel, onr.Namespace, onr.ObjectId)
+		return JoinObjectRef(onr.Namespace, onr.ObjectId)
 	}
-
-	return fmt.Sprintf(formatWithRel, onr.Namespace, onr.ObjectId, onr.Relation)
+	return JoinRelRef(JoinObjectRef(onr.Namespace, onr.ObjectId), onr.Relation)
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.

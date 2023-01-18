@@ -43,9 +43,9 @@ func appendKeysFromNamespaceComponents(keySet keySet, namespace string) {
 
 // prefix returns the first namespace prefix or the default overlap key
 func prefix(s string) string {
-	parts := strings.Split(s, "/")
-	if len(parts) < 2 {
+	prefix, _, ok := strings.Cut(s, "/")
+	if !ok {
 		return defaultOverlapKey
 	}
-	return parts[0]
+	return prefix
 }

@@ -154,28 +154,12 @@ func (ld *localDispatcher) lookupRelation(ctx context.Context, ns *core.Namespac
 	return relation, nil
 }
 
-type stringableOnr struct {
-	*core.ObjectAndRelation
-}
-
-func (onr stringableOnr) String() string {
-	return tuple.StringONR(onr.ObjectAndRelation)
-}
-
-type stringableRelRef struct {
-	*core.RelationReference
-}
-
-func (rr stringableRelRef) String() string {
-	return fmt.Sprintf("%s::%s", rr.Namespace, rr.Relation)
-}
-
 // DispatchCheck implements dispatch.Check interface
 func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
-		attribute.Stringer("resource-type", stringableRelRef{req.ResourceRelation}),
+		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
-		attribute.Stringer("subject", stringableOnr{req.Subject}),
+		attribute.String("subject", tuple.StringONR(req.Subject)),
 	))
 	defer span.End()
 
@@ -253,7 +237,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 // DispatchExpand implements dispatch.Expand interface
 func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
-		attribute.Stringer("start", stringableOnr{req.ResourceAndRelation}),
+		attribute.String("start", tuple.StringONR(req.ResourceAndRelation)),
 	))
 	defer span.End()
 
@@ -287,8 +271,8 @@ func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchL
 	// TODO(jschorr): Since lookup is now calling reachable resources exclusively, we should
 	// probably move it out of the dispatcher and into computed
 	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
-		attribute.Stringer("start", stringableRelRef{req.ObjectRelation}),
-		attribute.Stringer("subject", stringableOnr{req.Subject}),
+		attribute.String("start", tuple.StringRR(req.ObjectRelation)),
+		attribute.String("subject", tuple.StringONR(req.Subject)),
 		attribute.Int64("limit", int64(req.Limit)),
 	))
 	defer span.End()
@@ -318,8 +302,8 @@ func (ld *localDispatcher) DispatchReachableResources(
 	stream dispatch.ReachableResourcesStream,
 ) error {
 	ctx, span := tracer.Start(stream.Context(), "DispatchReachableResources", trace.WithAttributes(
-		attribute.Stringer("resource-type", stringableRelRef{req.ResourceRelation}),
-		attribute.Stringer("subject-type", stringableRelRef{req.SubjectRelation}),
+		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
+		attribute.String("subject-type", tuple.StringRR(req.SubjectRelation)),
 		attribute.StringSlice("subject-ids", req.SubjectIds),
 	))
 	defer span.End()
@@ -348,8 +332,8 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	stream dispatch.LookupSubjectsStream,
 ) error {
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupSubjects", trace.WithAttributes(
-		attribute.Stringer("resource-type", stringableRelRef{req.ResourceRelation}),
-		attribute.Stringer("subject-type", stringableRelRef{req.SubjectRelation}),
+		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
+		attribute.String("subject-type", tuple.StringRR(req.SubjectRelation)),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
 	))
 	defer span.End()

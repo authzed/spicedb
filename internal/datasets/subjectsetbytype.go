@@ -1,11 +1,9 @@
 package datasets
 
 import (
-	"fmt"
-	"strings"
-
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // TODO(jschorr): See if there is a nice way we can combine this withn ONRByTypeSet and the multimap
@@ -35,12 +33,12 @@ func (s *SubjectByTypeSet) AddConcreteSubject(subject *core.ObjectAndRelation) e
 
 // AddSubject adds the specified subject to the set.
 func (s *SubjectByTypeSet) AddSubject(subject *core.ObjectAndRelation, caveat *core.ContextualizedCaveat) error {
-	typeKey := fmt.Sprintf("%s#%s", subject.Namespace, subject.Relation)
-	if _, ok := s.byType[typeKey]; !ok {
-		s.byType[typeKey] = NewSubjectSet()
+	key := tuple.JoinRelRef(subject.Namespace, subject.Relation)
+	if _, ok := s.byType[key]; !ok {
+		s.byType[key] = NewSubjectSet()
 	}
 
-	return s.byType[typeKey].Add(&v1.FoundSubject{
+	return s.byType[key].Add(&v1.FoundSubject{
 		SubjectId:        subject.ObjectId,
 		CaveatExpression: wrapCaveat(caveat),
 	})
@@ -50,10 +48,10 @@ func (s *SubjectByTypeSet) AddSubject(subject *core.ObjectAndRelation, caveat *c
 // with all IDs of objects of that type.
 func (s *SubjectByTypeSet) ForEachType(handler func(rr *core.RelationReference, subjects SubjectSet)) {
 	for key, subjects := range s.byType {
-		parts := strings.Split(key, "#")
+		ns, rel := tuple.MustSplitRelRef(key)
 		handler(&core.RelationReference{
-			Namespace: parts[0],
-			Relation:  parts[1],
+			Namespace: ns,
+			Relation:  rel,
 		}, subjects)
 	}
 }
@@ -63,10 +61,10 @@ func (s *SubjectByTypeSet) ForEachType(handler func(rr *core.RelationReference, 
 func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.RelationReference, error)) (*SubjectByTypeSet, error) {
 	mapped := NewSubjectByTypeSet()
 	for key, subjectset := range s.byType {
-		parts := strings.Split(key, "#")
+		ns, rel := tuple.MustSplitRelRef(key)
 		updatedType, err := mapper(&core.RelationReference{
-			Namespace: parts[0],
-			Relation:  parts[1],
+			Namespace: ns,
+			Relation:  rel,
 		})
 		if err != nil {
 			return nil, err
@@ -74,8 +72,7 @@ func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Re
 		if updatedType == nil {
 			continue
 		}
-		updatedTypeKey := fmt.Sprintf("%s#%s", updatedType.Namespace, updatedType.Relation)
-		mapped.byType[updatedTypeKey] = subjectset
+		mapped.byType[tuple.JoinRelRef(updatedType.Namespace, updatedType.Relation)] = subjectset
 	}
 	return mapped, nil
 }
@@ -92,8 +89,7 @@ func (s *SubjectByTypeSet) Len() int {
 
 // SubjectSetForType returns the subject set associated with the given subject type, if any.
 func (s *SubjectByTypeSet) SubjectSetForType(rr *core.RelationReference) (SubjectSet, bool) {
-	typeKey := fmt.Sprintf("%s#%s", rr.Namespace, rr.Relation)
-	found, ok := s.byType[typeKey]
+	found, ok := s.byType[tuple.JoinRelRef(rr.Namespace, rr.Relation)]
 	return found, ok
 }
 

@@ -175,7 +175,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 	subjectStr = strings.TrimSpace(subjectStr)
 	groups := vsSubjectWithExceptionsOrCaveatRegex.FindStringSubmatch(subjectStr)
 	if len(groups) == 0 {
-		bracketedSubjectString := fmt.Sprintf("[%s]", subjectStr)
+		bracketedSubjectString := "[" + subjectStr + "]"
 		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 	}
 

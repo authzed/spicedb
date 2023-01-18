@@ -16,15 +16,13 @@ const (
 	informationSchemaTablesTable     = "INFORMATION_SCHEMA.TABLES"
 	informationSchemaTableNameColumn = "table_name"
 
-	analyzeTableQuery = "ANALYZE TABLE %s"
-
 	metadataIDColumn       = "id"
 	metadataUniqueIDColumn = "unique_id"
 )
 
 func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	if mds.analyzeBeforeStats {
-		_, err := mds.db.ExecContext(ctx, fmt.Sprintf(analyzeTableQuery, mds.driver.RelationTuple()))
+		_, err := mds.db.ExecContext(ctx, "ANALYZE TABLE "+mds.driver.RelationTuple())
 		if err != nil {
 			return datastore.Stats{}, fmt.Errorf("unable to run ANALYZE TABLE: %w", err)
 		}

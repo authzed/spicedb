@@ -49,7 +49,7 @@ func TestCanonicalization(t *testing.T) {
 				"owner":  "owner",
 				"viewer": "viewer",
 				"edit":   computedKeyPrefix + "596a8660f9a0c085",
-				"view":   computedKeyPrefix + "cb51da20fc9f20f",
+				"view":   computedKeyPrefix + "0cb51da20fc9f20f",
 			},
 		},
 		{

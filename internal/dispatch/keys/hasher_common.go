@@ -12,6 +12,7 @@ import (
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type hashableValue interface {
@@ -27,9 +28,7 @@ type hashableRelationReference struct {
 }
 
 func (hrr hashableRelationReference) AppendToHash(hasher hasherInterface) {
-	hasher.WriteString(hrr.Namespace)
-	hasher.WriteString("#")
-	hasher.WriteString(hrr.Relation)
+	hasher.WriteString(tuple.StringRR(hrr.RelationReference))
 }
 
 type hashableResultSetting v1.DispatchCheckRequest_ResultsSetting
@@ -111,14 +110,13 @@ func (hsv hashableStructValue) AppendToHash(hasher hasherInterface) {
 		hasher.WriteString("null")
 
 	case *structpb.Value_NumberValue:
-		hasher.WriteString(fmt.Sprintf("%f", t.NumberValue))
+		// AFAICT, this is how Sprintf-style formats float64s
+		hasher.WriteString(strconv.FormatFloat(t.NumberValue, 'f', 6, 64))
 
 	case *structpb.Value_StringValue:
 		// NOTE: we escape the string value here to prevent accidental overlap in keys for string
 		// values that may themselves contain backticks.
-		hasher.WriteString("`")
-		hasher.WriteString(url.PathEscape(t.StringValue))
-		hasher.WriteString("`")
+		hasher.WriteString("`" + url.PathEscape(t.StringValue) + "`")
 
 	case *structpb.Value_StructValue:
 		hasher.WriteString("{")

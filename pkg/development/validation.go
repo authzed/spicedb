@@ -72,7 +72,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 func wrapRelationships(onrStrings []string) []string {
 	wrapped := make([]string, 0, len(onrStrings))
 	for _, str := range onrStrings {
-		wrapped = append(wrapped, fmt.Sprintf("<%s>", str))
+		wrapped = append(wrapped, "<"+str+">")
 	}
 
 	// Sort to ensure stability.
@@ -250,7 +250,7 @@ func toExpectedRelationshipsStrings(subs []blocks.SubjectAndCaveat) []string {
 	mapped := make([]string, 0, len(subs))
 	for _, sub := range subs {
 		if sub.IsCaveated {
-			mapped = append(mapped, fmt.Sprintf("%s[...]", tuple.StringONR(sub.Subject)))
+			mapped = append(mapped, tuple.StringONR(sub.Subject)+"[...]")
 		} else {
 			mapped = append(mapped, tuple.StringONR(sub.Subject))
 		}

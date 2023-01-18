@@ -1,9 +1,6 @@
 package tuple
 
 import (
-	"fmt"
-	"strings"
-
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -21,22 +18,22 @@ func NewONRByTypeSet() *ONRByTypeSet {
 
 // Add adds the specified ObjectAndRelation to the set.
 func (s *ONRByTypeSet) Add(onr *core.ObjectAndRelation) {
-	typeKey := fmt.Sprintf("%s#%s", onr.Namespace, onr.Relation)
-	if _, ok := s.byType[typeKey]; !ok {
-		s.byType[typeKey] = []string{}
+	key := JoinRelRef(onr.Namespace, onr.Relation)
+	if _, ok := s.byType[key]; !ok {
+		s.byType[key] = []string{}
 	}
 
-	s.byType[typeKey] = append(s.byType[typeKey], onr.ObjectId)
+	s.byType[key] = append(s.byType[key], onr.ObjectId)
 }
 
 // ForEachType invokes the handler for each type of ObjectAndRelation found in the set, along
 // with all IDs of objects of that type.
 func (s *ONRByTypeSet) ForEachType(handler func(rr *core.RelationReference, objectIds []string)) {
 	for key, objectIds := range s.byType {
-		parts := strings.Split(key, "#")
+		ns, rel := MustSplitRelRef(key)
 		handler(&core.RelationReference{
-			Namespace: parts[0],
-			Relation:  parts[1],
+			Namespace: ns,
+			Relation:  rel,
 		}, objectIds)
 	}
 }
@@ -46,10 +43,10 @@ func (s *ONRByTypeSet) ForEachType(handler func(rr *core.RelationReference, obje
 func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.RelationReference, error)) (*ONRByTypeSet, error) {
 	mapped := NewONRByTypeSet()
 	for key, objectIds := range s.byType {
-		parts := strings.Split(key, "#")
+		ns, rel := MustSplitRelRef(key)
 		updatedType, err := mapper(&core.RelationReference{
-			Namespace: parts[0],
-			Relation:  parts[1],
+			Namespace: ns,
+			Relation:  rel,
 		})
 		if err != nil {
 			return nil, err
@@ -57,8 +54,7 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 		if updatedType == nil {
 			continue
 		}
-		updatedTypeKey := fmt.Sprintf("%s#%s", updatedType.Namespace, updatedType.Relation)
-		mapped.byType[updatedTypeKey] = objectIds
+		mapped.byType[JoinRelRef(updatedType.Namespace, updatedType.Relation)] = objectIds
 	}
 	return mapped, nil
 }

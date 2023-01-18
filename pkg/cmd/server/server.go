@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -167,7 +168,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				return nil, fmt.Errorf("preshared key #%d is empty", index+1)
 			}
 
-			log.Ctx(ctx).Trace().Int(fmt.Sprintf("preshared-key-%d-length", index+1), len(presharedKey)).Msg("preshared key configured")
+			log.Ctx(ctx).Trace().Int("preshared-key-"+strconv.Itoa(index+1)+"-length", len(presharedKey)).Msg("preshared key configured")
 		}
 
 		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedKey)

@@ -104,7 +104,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		prefix = prefix + "-"
 	}
 	flagName := func(flag string) string {
-		return fmt.Sprintf("%s%s", prefix, flag)
+		return prefix + flag
 	}
 	defaults := DefaultDatastoreConfig()
 

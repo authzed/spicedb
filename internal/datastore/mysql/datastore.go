@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -114,7 +115,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if config.lockWaitTimeoutSeconds != nil {
 		log.Info().Uint8("timeout", *config.lockWaitTimeoutSeconds).Msg("overriding innodb_lock_wait_timeout")
 		connector, err = addSessionVariables(connector, map[string]string{
-			"innodb_lock_wait_timeout": fmt.Sprintf("%d", *config.lockWaitTimeoutSeconds),
+			"innodb_lock_wait_timeout": strconv.FormatUint(uint64(*config.lockWaitTimeoutSeconds), 10),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("NewMySQLDatastore: failed to add session variables to connector: %w", err)

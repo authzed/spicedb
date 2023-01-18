@@ -13,6 +13,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestReachabilityGraph(t *testing.T) {
@@ -528,14 +529,14 @@ func verifyEntrypoints(require *require.Assertions, foundEntrypoints []Reachabil
 	expectedEntrypointRelations := make([]string, 0, len(expectedEntrypoints))
 	isDirectMap := map[string]bool{}
 	for _, expected := range expectedEntrypoints {
-		expectedEntrypointRelations = append(expectedEntrypointRelations, relationRefKey(expected.relationRef))
-		isDirectMap[relationRefKey(expected.relationRef)] = expected.isDirect
+		expectedEntrypointRelations = append(expectedEntrypointRelations, tuple.StringRR(expected.relationRef))
+		isDirectMap[tuple.StringRR(expected.relationRef)] = expected.isDirect
 	}
 
 	foundRelations := make([]string, 0, len(foundEntrypoints))
 	for _, entrypoint := range foundEntrypoints {
-		foundRelations = append(foundRelations, relationRefKey(entrypoint.ContainingRelationOrPermission()))
-		if isDirect, ok := isDirectMap[relationRefKey(entrypoint.ContainingRelationOrPermission())]; ok {
+		foundRelations = append(foundRelations, tuple.StringRR(entrypoint.ContainingRelationOrPermission()))
+		if isDirect, ok := isDirectMap[tuple.StringRR(entrypoint.ContainingRelationOrPermission())]; ok {
 			require.Equal(isDirect, entrypoint.IsDirectResult(), "found mismatch for whether a direct result for entrypoint for %s", entrypoint.parentRelation.Relation)
 		}
 	}
@@ -556,8 +557,4 @@ func rr(namespace, relation string) *core.RelationReference {
 
 func rrt(namespace, relation string, isDirect bool) rrtStruct {
 	return rrtStruct{ns.RelationReference(namespace, relation), isDirect}
-}
-
-func relationRefKey(ref *core.RelationReference) string {
-	return relationKey(ref.Namespace, ref.GetRelation())
 }

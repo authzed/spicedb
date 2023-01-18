@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -165,7 +166,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 }
 
 func addSubjectEntrypoint(graph *core.ReachabilityGraph, namespaceName string, relationName string, entrypoint *core.ReachabilityEntrypoint) error {
-	key := relationKey(namespaceName, relationName)
+	key := tuple.JoinRelRef(namespaceName, relationName)
 	if relationName == "" {
 		return spiceerrors.MustBugf("found empty relation name for subject entrypoint")
 	}
@@ -233,8 +234,4 @@ func addSubjectLinks(graph *core.ReachabilityGraph, operationResultState core.Re
 	}
 
 	return nil
-}
-
-func relationKey(namespaceName string, relationName string) string {
-	return fmt.Sprintf("%s#%s", namespaceName, relationName)
 }

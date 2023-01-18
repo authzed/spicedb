@@ -29,7 +29,7 @@ func (vt VariableType) String() string {
 			childTypeStrings = append(childTypeStrings, childType.String())
 		}
 
-		return fmt.Sprintf("%s<%s>", vt.localName, strings.Join(childTypeStrings, ", "))
+		return vt.localName + "<" + strings.Join(childTypeStrings, ", ") + ">"
 	}
 
 	return vt.localName
