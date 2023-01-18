@@ -73,8 +73,9 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 
 		return &devinterface.OperationResult{
 			CheckResult: &devinterface.CheckOperationsResult{
-				Membership:       membership,
-				DebugInformation: cr.DebugInfo,
+				Membership:               membership,
+				DebugInformation:         cr.DispatchDebugInfo,
+				ResolvedDebugInformation: cr.V1DebugInfo,
 				PartialCaveatInfo: &devinterface.PartialCaveatInfo{
 					MissingRequiredContext: cr.MissingCaveatFields,
 				},

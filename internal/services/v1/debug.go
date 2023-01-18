@@ -16,9 +16,9 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// convertCheckDispatchDebugInformation converts dispatch debug information found in the response metadata
+// ConvertCheckDispatchDebugInformation converts dispatch debug information found in the response metadata
 // into DebugInformation returnable to the API.
-func convertCheckDispatchDebugInformation(
+func ConvertCheckDispatchDebugInformation(
 	ctx context.Context,
 	caveatContext map[string]any,
 	metadata *dispatch.ResponseMeta,

@@ -4,7 +4,7 @@ deps:
   - remote: buf.build
     owner: authzed
     repository: api
-    commit: b042a554fa9045f98523b774f69793d6
+    commit: 53f3e981ed3346bab8c050c597f74602
   - remote: buf.build
     owner: envoyproxy
     repository: protoc-gen-validate
