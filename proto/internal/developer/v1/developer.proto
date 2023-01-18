@@ -8,6 +8,7 @@ import "validate/validate.proto";
 import "core/v1/core.proto";
 import "dispatch/v1/dispatch.proto";
 import "google/protobuf/struct.proto";
+import "authzed/api/v1/debug.proto";
 
 // DeveloperRequest is a single request made to the developer platform, containing zero or more
 // operations to run.
@@ -134,6 +135,9 @@ message CheckOperationsResult {
 
   // partial_caveat_info holds information a partial evaluation of a caveat.
   PartialCaveatInfo partial_caveat_info = 4;
+
+  // resolved_debug_information is the V1 API debug information for the check.
+  authzed.api.v1.DebugInformation resolved_debug_information = 5;
 }
 
 // PartialCaveatInfo carries information necessary for the client to take action

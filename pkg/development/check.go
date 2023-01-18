@@ -1,16 +1,20 @@
 package development
 
 import (
+	v1api "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	"github.com/authzed/spicedb/internal/graph/computed"
+	v1 "github.com/authzed/spicedb/internal/services/v1"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // CheckResult is the result of a RunCheck operation.
 type CheckResult struct {
-	Permissionship      v1.ResourceCheckResult_Membership
+	Permissionship      v1dispatch.ResourceCheckResult_Membership
 	MissingCaveatFields []string
-	DebugInfo           *v1.DebugInformation
+	DispatchDebugInfo   *v1dispatch.DebugInformation
+	V1DebugInfo         *v1api.DebugInformation
 }
 
 // RunCheck performs a check against the data in the development context.
@@ -34,8 +38,14 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 		resource.ObjectId,
 	)
 	if err != nil {
-		return CheckResult{v1.ResourceCheckResult_NOT_MEMBER, nil, nil}, err
+		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}
 
-	return CheckResult{cr.Membership, cr.MissingExprFields, meta.DebugInfo}, nil
+	reader := devContext.Datastore.SnapshotReader(devContext.Revision)
+	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveatContext, meta, reader)
+	if err != nil {
+		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
+	}
+
+	return CheckResult{cr.Membership, cr.MissingExprFields, meta.DebugInfo, converted}, nil
 }
