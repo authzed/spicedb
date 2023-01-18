@@ -29,7 +29,7 @@ type ServiceTester interface {
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
 	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error)
-	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision) (map[string]*v1.LookupSubjectsResponse, error)
+	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
 }
 
 func optionalizeRelation(relation string) string {
@@ -186,7 +186,16 @@ func (v1st v1ServiceTester) LookupResources(ctx context.Context, resourceRelatio
 	return found, nil
 }
 
-func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision) (map[string]*v1.LookupSubjectsResponse, error) {
+func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
+	var builtContext *structpb.Struct
+	if caveatContext != nil {
+		built, err := structpb.NewStruct(caveatContext)
+		if err != nil {
+			return nil, err
+		}
+		builtContext = built
+	}
+
 	lookupResp, err := v1st.permClient.LookupSubjects(context.Background(), &v1.LookupSubjectsRequest{
 		Resource: &v1.ObjectReference{
 			ObjectType: resource.Namespace,
@@ -200,6 +209,7 @@ func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.O
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
+		Context: builtContext,
 	})
 	if err != nil {
 		return nil, err

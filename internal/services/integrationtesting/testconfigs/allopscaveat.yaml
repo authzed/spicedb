@@ -1,0 +1,68 @@
+---
+schema: |+
+  definition user {}
+
+  caveat some_caveat(somecondition int) {
+    somecondition == 42
+  }
+
+  caveat another_caveat(anothercondition string) {
+    anothercondition == 'hello world'
+  }
+
+  caveat third_caveat(thirdcondition bool) {
+    thirdcondition
+  }
+
+  definition document {
+    relation reader: user | user with some_caveat
+    relation writer: user | user with another_caveat
+    relation banned: user | user with third_caveat
+
+    permission has_permission = (reader & writer) - banned
+  }
+
+relationships: >-
+  document:firstdoc#reader@user:always
+
+  document:firstdoc#writer@user:always
+
+  document:firstdoc#reader@user:notbanned[some_caveat:{"somecondition":42}]
+
+  document:firstdoc#writer@user:notbanned[another_caveat:{"anothercondition":"hello world"}]
+
+  document:firstdoc#reader@user:possiblybanned
+
+  document:firstdoc#writer@user:possiblybanned
+
+  document:firstdoc#banned@user:possiblybanned[third_caveat]
+
+  document:firstdoc#reader@user:definitelybanned
+
+  document:firstdoc#writer@user:definitelybanned
+
+  document:firstdoc#banned@user:definitelybanned[third_caveat:{"thirdcondition":true}]
+
+  document:firstdoc#reader@user:caveatedreader[some_caveat]
+
+  document:firstdoc#writer@user:caveatedreader
+
+  document:firstdoc#reader@user:caveatedwriter
+
+  document:firstdoc#writer@user:caveatedwriter[another_caveat]
+assertions:
+  assertTrue:
+    - "document:firstdoc#has_permission@user:always"
+    - "document:firstdoc#has_permission@user:notbanned"
+    - 'document:firstdoc#has_permission@user:possiblybanned with {"thirdcondition":false}'
+    - 'document:firstdoc#has_permission@user:caveatedreader with {"somecondition": 42}'
+    - 'document:firstdoc#has_permission@user:caveatedwriter with {"anothercondition": "hello world"}'
+  assertCaveated:
+    - "document:firstdoc#has_permission@user:possiblybanned"
+    - "document:firstdoc#has_permission@user:caveatedreader"
+    - "document:firstdoc#has_permission@user:caveatedwriter"
+  assertFalse:
+    - "document:firstdoc#has_permission@user:definitelybanned"
+    - 'document:firstdoc#has_permission@user:possiblybanned with {"thirdcondition":true}'
+    - 'document:firstdoc#has_permission@user:caveatedreader with {"somecondition": 41}'
+    - 'document:firstdoc#has_permission@user:caveatedwriter with {"anothercondition": "hi there"}'

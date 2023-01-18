@@ -392,7 +392,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 			for _, subjectType := range vctx.accessibilitySet.SubjectTypes() {
 				t.Run(fmt.Sprintf("%s#%s", subjectType.Namespace, subjectType.Relation),
 					func(t *testing.T) {
-						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision)
+						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, nil)
 						require.NoError(t, err)
 
 						// Ensure the subjects found include those defined as expected. Since the
@@ -433,7 +433,18 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 									// the result and that the subject is not excluded.
 									accessibility, _, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, assertionRel.Subject)
 									if !ok || accessibility == consistencytestutil.AccessibleViaWildcardOnly {
-										resolvedSubject, ok := resolvedSubjects[tuple.PublicWildcard]
+										resolvedSubjectsToCheck := resolvedSubjects
+
+										// If the assertion has caveat context, rerun LookupSubjects with the context to ensure the returned subject
+										// matches the context given.
+										if len(assertion.CaveatContext) > 0 {
+											resolvedSubjectsWithContext, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, assertion.CaveatContext)
+											require.NoError(t, err)
+
+											resolvedSubjectsToCheck = resolvedSubjectsWithContext
+										}
+
+										resolvedSubject, ok := resolvedSubjectsToCheck[tuple.PublicWildcard]
 										require.True(t, ok, "expected wildcard in lookupsubjects response for assertion `%s`", assertion.RelationshipWithContextString)
 
 										if entry.requiresPermission {
@@ -583,6 +594,9 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								// Otherwise, it *could* be caveated or not exist, depending on the context given.
 								if len(assertion.CaveatContext) == 0 {
 									require.NotContains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+								} else if accessibility == consistencytestutil.NotAccessible {
+									found, ok := resolvedResources[rel.ResourceAndRelation.ObjectId]
+									require.True(t, !ok || found.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION) // LookupResources can be caveated, since we didn't rerun LookupResources with the context
 								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
 									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResources[rel.ResourceAndRelation.ObjectId].Permissionship)
 								}
