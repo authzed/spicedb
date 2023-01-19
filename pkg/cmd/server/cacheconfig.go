@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/jzelinskie/stringz"
@@ -31,6 +32,14 @@ type CacheConfig struct {
 	NumCounters int64
 	Metrics     bool
 	Enabled     bool
+	defaultTTL  time.Duration
+}
+
+// WithQuantization configures a cache such that all entries are given a TTL
+// that will expire safely outside of the quantization window.
+func (cc *CacheConfig) WithQuantization(window time.Duration) *CacheConfig {
+	cc.defaultTTL = window * 2
+	return cc
 }
 
 // Complete translates the CLI cache config into a cache config.
@@ -56,6 +65,7 @@ func (cc *CacheConfig) Complete() (cache.Cache, error) {
 	return cache.NewCache(&cache.Config{
 		MaxCost:     int64(maxCost),
 		NumCounters: cc.NumCounters,
+		DefaultTTL:  cc.defaultTTL,
 		Metrics:     cc.Metrics,
 	})
 }
