@@ -62,8 +62,7 @@ func (e *Environment) EncodedParametersTypes() map[string]*core.CaveatTypeRefere
 func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 	opts := make([]cel.EnvOption, 0, len(e.variables)+len(types.CustomTypes)+2)
 
-	// Add the custom type adapter and functions.
-	opts = append(opts, cel.CustomTypeAdapter(&types.CustomTypeAdapter{}))
+	// Add the custom types and functions.
 	for _, customTypeOpts := range types.CustomTypes {
 		opts = append(opts, customTypeOpts...)
 	}
