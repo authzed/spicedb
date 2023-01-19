@@ -620,7 +620,7 @@ func union[T any](
 		select {
 		case result := <-resultChan:
 			log.Ctx(ctx).Trace().Object("anyResult", result.Resp).Send()
-			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.GetMetadata())
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
@@ -672,7 +672,7 @@ func all[T any](
 	for i := 0; i < len(children); i++ {
 		select {
 		case result := <-resultChan:
-			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.GetMetadata())
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
@@ -745,7 +745,7 @@ func difference[T any](
 	// Wait for the base set to return.
 	select {
 	case base := <-baseChan:
-		responseMetadata = combineResponseMetadata(responseMetadata, base.Resp.Metadata)
+		responseMetadata = combineResponseMetadata(responseMetadata, base.Resp.GetMetadata())
 
 		if base.Err != nil {
 			return checkResultError(base.Err, responseMetadata)
@@ -764,7 +764,7 @@ func difference[T any](
 	for i := 1; i < len(children); i++ {
 		select {
 		case sub := <-othersChan:
-			responseMetadata = combineResponseMetadata(responseMetadata, sub.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(responseMetadata, sub.Resp.GetMetadata())
 
 			if sub.Err != nil {
 				return checkResultError(sub.Err, responseMetadata)

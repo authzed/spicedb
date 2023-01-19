@@ -13,6 +13,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/balancer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/singleflight"
 )
 
 type clusterClient interface {
@@ -37,6 +38,9 @@ type clusterDispatcher struct {
 	clusterClient clusterClient
 	conn          *grpc.ClientConn
 	keyHandler    keys.Handler
+	checkGroup    singleflight.Group[*v1.DispatchCheckResponse, string]
+	expandGroup   singleflight.Group[*v1.DispatchExpandResponse, string]
+	lookupGroup   singleflight.Group[*v1.DispatchLookupResponse, string]
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -50,7 +54,9 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 	}
 
 	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
-	resp, err := cr.clusterClient.DispatchCheck(ctx, req)
+	resp, _, err := cr.checkGroup.Do(ctx, string(requestKey), func(ctx context.Context) (*v1.DispatchCheckResponse, error) {
+		return cr.clusterClient.DispatchCheck(ctx, req)
+	})
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -69,7 +75,10 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 	}
 
 	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
-	resp, err := cr.clusterClient.DispatchExpand(ctx, req)
+
+	resp, _, err := cr.expandGroup.Do(ctx, string(requestKey), func(ctx context.Context) (*v1.DispatchExpandResponse, error) {
+		return cr.clusterClient.DispatchExpand(ctx, req)
+	})
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -88,7 +97,10 @@ func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.Dispatc
 	}
 
 	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
-	resp, err := cr.clusterClient.DispatchLookup(ctx, req)
+
+	resp, _, err := cr.lookupGroup.Do(ctx, string(requestKey), func(ctx context.Context) (*v1.DispatchLookupResponse, error) {
+		return cr.clusterClient.DispatchLookup(ctx, req)
+	})
 	if err != nil {
 		return &v1.DispatchLookupResponse{Metadata: requestFailureMetadata}, err
 	}
@@ -190,10 +202,7 @@ func (cr *clusterDispatcher) IsReady() bool {
 // Always verify that we implement the interface
 var _ dispatch.Dispatcher = &clusterDispatcher{}
 
-var emptyMetadata = &v1.ResponseMeta{
-	DispatchCount: 0,
-}
-
-var requestFailureMetadata = &v1.ResponseMeta{
-	DispatchCount: 1,
-}
+var (
+	emptyMetadata          = &v1.ResponseMeta{DispatchCount: 0}
+	requestFailureMetadata = &v1.ResponseMeta{DispatchCount: 1}
+)
