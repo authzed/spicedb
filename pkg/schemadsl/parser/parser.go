@@ -144,6 +144,7 @@ func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
 consumer:
 	for {
 		currentToken := p.currentToken
+
 		switch currentToken.Kind {
 		case lexer.TokenTypeLeftBrace:
 			braceDepth++
@@ -154,6 +155,9 @@ consumer:
 			}
 
 			braceDepth--
+
+		case lexer.TokenTypeError:
+			break consumer
 
 		case lexer.TokenTypeEOF:
 			break consumer
