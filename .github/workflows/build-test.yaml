@@ -220,6 +220,8 @@ jobs:
       - name: "Install Go Tools"
         run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"
+        with:
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
       - uses: "bufbuild/buf-breaking-action@v1.1.1"
         if: "github.event_name == 'pull_request'"
         env:
