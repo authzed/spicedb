@@ -72,6 +72,11 @@ func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC
 	opts = append(opts, cel.DefaultUTCTimeZone(true))
 
+	// EnableMacroCallTracking: enables tracking of call macros so when we call AstToString we get
+	// back out the expected expressions.
+	// See: https://github.com/google/cel-go/issues/474
+	opts = append(opts, cel.EnableMacroCallTracking())
+
 	for name, varType := range e.variables {
 		opts = append(opts, cel.Variable(name, varType.CelType()))
 	}

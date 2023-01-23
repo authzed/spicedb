@@ -214,13 +214,14 @@ func TestDeserializeEmpty(t *testing.T) {
 }
 
 func TestSerialization(t *testing.T) {
-	exprs := []string{"a == 1", "a + b == 2", "b - a == 4"}
+	exprs := []string{"a == 1", "a + b == 2", "b - a == 4", "l.all(i, i > 42)"}
 
 	for _, expr := range exprs {
 		t.Run(expr, func(t *testing.T) {
 			env := MustEnvForVariables(map[string]types.VariableType{
 				"a": types.IntType,
 				"b": types.IntType,
+				"l": types.MustListType(types.IntType),
 			})
 			compiled, err := compileCaveat(env, expr)
 			require.NoError(t, err)

@@ -1,0 +1,29 @@
+---
+schema: |+
+  definition user {}
+
+  caveat some_caveat(somelist list<int>) {
+    somelist.all(i, i >= 42)
+  }
+
+  definition document {
+    relation viewer: user with some_caveat
+    permission view = viewer
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tom[some_caveat:{"somelist": [42, 43]}]
+
+  document:firstdoc#viewer@user:sarah[some_caveat]
+
+  document:firstdoc#viewer@user:fred[some_caveat:{"somelist": [42, 41]}]
+assertions:
+  assertTrue:
+    - 'document:firstdoc#view@user:tom'
+    - 'document:firstdoc#view@user:sarah with {"somelist":[]}'
+    - 'document:firstdoc#view@user:sarah with {"somelist":[56]}'
+  assertCaveated:
+    - 'document:firstdoc#view@user:sarah'
+  assertFalse:
+    - 'document:firstdoc#view@user:fred'
+    - 'document:firstdoc#view@user:sarah with {"somelist":[12]}'
