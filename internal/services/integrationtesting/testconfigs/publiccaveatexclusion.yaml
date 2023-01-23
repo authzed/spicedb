@@ -1,0 +1,32 @@
+---
+schema: |+
+  definition user {}
+
+  caveat some_caveat(somecondition int) {
+    somecondition == 42
+  }
+
+  definition document {
+  	relation viewer: user
+    relation banned: user:* with some_caveat | user
+    permission view = viewer - banned
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tom
+
+  document:firstdoc#viewer@user:fred
+
+  document:firstdoc#banned@user:*[some_caveat]
+
+  document:firstdoc#banned@user:tom
+
+assertions:
+  assertTrue:
+    - 'document:firstdoc#view@user:fred with {"somecondition": 41}'
+  assertCaveated:
+    - "document:firstdoc#view@user:fred"
+  assertFalse:
+    - "document:firstdoc#view@user:tom"
+    - 'document:firstdoc#view@user:fred with {"somecondition": 42}'
+    - 'document:firstdoc#view@user:tom with {"somecondition": 41}'
