@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -116,11 +117,16 @@ func runExpression(
 			caveats.SkipUnknownParameters,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("type error for parameters for caveat `%s`: %w", caveat.Name, err)
+			return nil, NewCaveatParameterTypeError(expr, err)
 		}
 
 		result, err := caveats.EvaluateCaveat(compiled, typedParameters)
 		if err != nil {
+			var evalErr caveats.EvaluationErr
+			if errors.As(err, &evalErr) {
+				return nil, NewCaveatEvaluationErr(expr, evalErr)
+			}
+
 			return nil, err
 		}
 

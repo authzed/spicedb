@@ -135,7 +135,7 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 			}, nil
 		}
 
-		return nil, err
+		return nil, EvaluationErr{err}
 	}
 
 	return &CaveatResult{
