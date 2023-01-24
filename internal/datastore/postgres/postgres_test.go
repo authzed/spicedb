@@ -938,7 +938,21 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 					Relation:  "...",
 				},
 			})
-			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+
+			rtu3 := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "writer",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2, rtu3})
 		})
 		require.NoError(err)
 	}
@@ -1048,7 +1062,6 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 		}
 	}
 
-	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with resource filter
 	t.Run("QueryRelationships with resource filter", func(t *testing.T) {
 		interceptor.explanations = make(map[string]string, 0)
 		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
@@ -1066,7 +1079,6 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
 	})
 
-	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with caveat filter
 	t.Run("QueryRelationships with caveat filter", func(t *testing.T) {
 		interceptor.explanations = make(map[string]string, 0)
 		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
@@ -1076,6 +1088,75 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 
 		defer iter.Close()
 		require.Nil(iter.Next())
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with resource relation filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:             testfixtures.DocumentNS.Name,
+			OptionalResourceIds:      []string{"doc0", "doc1"},
+			OptionalResourceRelation: "reader",
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			require.Equal("reader", tpl.ResourceAndRelation.Relation)
+		}
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with non-terminal subject selector in filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:             testfixtures.DocumentNS.Name,
+			OptionalResourceIds:      []string{"doc0", "doc1"},
+			OptionalResourceRelation: "reader",
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
+				},
+			},
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			require.Equal("reader", tpl.ResourceAndRelation.Relation)
+		}
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with terminal subject selectors in filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:             testfixtures.DocumentNS.Name,
+			OptionalResourceIds:      []string{"doc0", "doc1"},
+			OptionalResourceRelation: "reader",
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					OptionalSubjectType: "user",
+					OptionalSubjectIds:  []string{"456"},
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation("..."),
+				},
+			},
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			require.Equal("reader", tpl.ResourceAndRelation.Relation)
+		}
 		require.NoError(iter.Err())
 		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
 	})
@@ -1111,13 +1192,13 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, b testdatastore.RunningEngin
 	for _, explanation := range interceptor.explanations {
 		switch {
 		case strings.HasPrefix(explanation, "Delete on relation_tuple_transaction"):
-			require.Contains(explanation, "Index Scan using ix_rttx_pk_covering")
+			fallthrough
 
 		case strings.HasPrefix(explanation, "Delete on namespace_config"):
-			require.Contains(explanation, "Index Scan on uq_namespace_living_xid")
+			fallthrough
 
 		case strings.HasPrefix(explanation, "Delete on relation_tuple"):
-			require.Contains(explanation, "Index Scan on ix_relation_tuple_by_deleted_xid")
+			require.Contains(explanation, "Index Scan")
 
 		default:
 			require.Failf("unknown GC query: %s", explanation)

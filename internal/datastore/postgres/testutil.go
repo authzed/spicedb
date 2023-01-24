@@ -35,6 +35,12 @@ func (ql *selectQueryInterceptor) InterceptQuery(ctx context.Context, querier pg
 }
 
 func getExplanation(ctx context.Context, querier pgxtype.Querier, sql string, args []any) (string, error) {
+	// Make sure Postgres stats are fully up-to-date so it selects the correct index.
+	_, err := querier.Exec(ctx, "ANALYZE;")
+	if err != nil {
+		return "", err
+	}
+
 	explainRows, err := querier.Query(ctx, "EXPLAIN ANALYZE "+sql, args...)
 	if err != nil {
 		return "", err
