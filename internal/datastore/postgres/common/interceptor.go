@@ -125,7 +125,7 @@ func (t txInterceptor) Conn() *pgx.Conn {
 	return t.delegate.Conn()
 }
 
-func NewInterceptorPooler(pooler ConnPooler, interceptor QueryInterceptor) ConnPooler {
+func MustNewInterceptorPooler(pooler ConnPooler, interceptor QueryInterceptor) ConnPooler {
 	if pooler == nil {
 		panic("unexpected nil ConnPooler")
 	}

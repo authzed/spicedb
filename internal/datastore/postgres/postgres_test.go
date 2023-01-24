@@ -8,12 +8,9 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgconn"
-
-	"github.com/jackc/pgtype/pgxtype"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
@@ -21,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -127,6 +125,10 @@ func TestPostgresDatastore(t *testing.T) {
 
 			t.Run("QueriesServedFromCoveringIndex", func(t *testing.T) {
 				QueriesServedFromCoveringIndexTest(t, b)
+			})
+
+			t.Run("GCQueriesServedByExpectedIndexes", func(t *testing.T) {
+				GCQueriesServedByExpectedIndexes(t, b)
 			})
 
 			if config.migrationPhase == "" {
@@ -880,45 +882,8 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	})
 }
 
-type queryInterceptor struct {
-	explanations map[string]string
-}
-
-func (ql *queryInterceptor) InterceptExec(ctx context.Context, delegate pgxtype.Querier, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
-	// TODO also intercept queries here
-	return delegate.Exec(ctx, sql, arguments...)
-}
-
-func (ql *queryInterceptor) InterceptQueryRow(ctx context.Context, delegate pgxtype.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
-	// TODO also intercept queries here
-	return delegate.QueryRow(ctx, sql, optionsAndArgs...)
-}
-
-func (ql *queryInterceptor) InterceptQuery(ctx context.Context, querier pgxtype.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
-	explainRows, err := querier.Query(ctx, "EXPLAIN ANALYZE "+sql, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	explanation := ""
-	for explainRows.Next() {
-		explanation += string(explainRows.RawValues()[0]) + "\n"
-	}
-	explainRows.Close()
-	if err := explainRows.Err(); err != nil {
-		return nil, err
-	}
-
-	ql.explanations[sql] = explanation
-
-	// continue with the delegate
-	return querier.Query(ctx, sql, args...)
-}
-
-func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.QueryInterceptor) datastore.Datastore {
 	require := require.New(t)
-
-	interceptor := &queryInterceptor{explanations: make(map[string]string, 0)}
 
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := newPostgresDatastore(uri,
@@ -930,9 +895,11 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 		require.NoError(err)
 		return ds
 	})
-	defer ds.Close()
+	t.Cleanup(func() {
+		ds.Close()
+	})
 
-	ds, revision := testfixtures.StandardDatastoreWithData(ds, require)
+	ds, _ = testfixtures.StandardDatastoreWithData(ds, require)
 
 	// Write namespaces and a few thousand relationships.
 	ctx := context.Background()
@@ -940,12 +907,12 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 			err := rwt.WriteNamespaces(ctx, namespace.Namespace(
 				fmt.Sprintf("resource%d", i),
-				namespace.Relation("reader", nil)))
+				namespace.MustRelation("reader", nil)))
 			if err != nil {
 				return err
 			}
 
-			// Write some tuples.
+			// Write some relationships.
 			rtu := tuple.Touch(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{
 					Namespace: testfixtures.DocumentNS.Name,
@@ -976,6 +943,83 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 		require.NoError(err)
 	}
 
+	// Delete some relationships.
+	for i := 990; i < 1000; i++ {
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			rtu := tuple.Delete(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: testfixtures.DocumentNS.Name,
+					ObjectId:  fmt.Sprintf("doc%d", i),
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu2 := tuple.Delete(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+		})
+		require.NoError(err)
+	}
+
+	// Write some more relationships.
+	for i := 1000; i < 1100; i++ {
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			// Write some relationships.
+			rtu := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: testfixtures.DocumentNS.Name,
+					ObjectId:  fmt.Sprintf("doc%d", i),
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu2 := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+		})
+		require.NoError(err)
+	}
+
+	return ds
+}
+
+func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	require := require.New(t)
+	interceptor := &selectQueryInterceptor{explanations: make(map[string]string, 0)}
+	ds := datastoreWithInterceptorAndTestData(t, interceptor)
+
+	// Get the head revision.
+	ctx := context.Background()
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
@@ -983,23 +1027,24 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 	expr, err := regexp.Compile("using ([0-9A-Za-z-_]+)")
 	require.NoError(err)
 
-	validateFunc := func(expectedIndexes ...string) {
+	validateIndexesUsed := func(expectedIndexes ...string) {
 		require.NotEmpty(interceptor.explanations, "expected queries to be executed")
+
 		// Ensure that Index Only scans were used.
-		for stmt, explaination := range interceptor.explanations {
-			require.NotContains(explaination, "Index Scan", "statement did not have covering index:\n`%s`", stmt)
-			require.NotContains(explaination, "Heap Scan", "statement did not have covering index:\n`%s`", stmt)
-			require.Contains(explaination, "Index Only Scan", "statement did not have covering index:\n`%s`", stmt)
+		for stmt, explanation := range interceptor.explanations {
+			require.NotContains(explanation, "Index Scan", "statement did not have covering index:\n`%s`", stmt)
+			require.NotContains(explanation, "Heap Scan", "statement did not have covering index:\n`%s`", stmt)
+			require.Contains(explanation, "Index Only Scan", "statement did not have covering index:\n`%s`", stmt)
 
 			// parse explain output to identify indexes used, and make sure it is what's expected in the test
-			found := expr.FindAllStringSubmatch(explaination, -1)
+			found := expr.FindAllStringSubmatch(explanation, -1)
 			indexesFound := make([]string, 0, len(found))
 			for _, group := range found {
 				indexesFound = append(indexesFound, group[1])
 			}
 			indexSet := util.NewSet(indexesFound...)
 			indexSet.RemoveAll(util.NewSet(expectedIndexes...))
-			require.True(indexSet.IsEmpty(), "unexpected index %s\nused in statement %s\nexplain: %s", indexSet.AsSlice(), stmt, explaination)
+			require.True(indexSet.IsEmpty(), "unexpected index %s\nused in statement %s\nexplain: %s", indexSet.AsSlice(), stmt, explanation)
 		}
 	}
 
@@ -1018,7 +1063,7 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
 		}
 		require.NoError(iter.Err())
-		validateFunc("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
 	})
 
 	// demonstrate index "ix_relation_tuple_living_covering" is covering index for rel queries with caveat filter
@@ -1032,6 +1077,50 @@ func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEng
 		defer iter.Close()
 		require.Nil(iter.Next())
 		require.NoError(iter.Err())
-		validateFunc("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
 	})
+}
+
+func GCQueriesServedByExpectedIndexes(t *testing.T, b testdatastore.RunningEngineForTest) {
+	require := require.New(t)
+	interceptor := &withQueryInterceptor{explanations: make(map[string]string, 0)}
+	ds := datastoreWithInterceptorAndTestData(t, interceptor)
+
+	// Get the head revision.
+	ctx := context.Background()
+	revision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	for {
+		wds, ok := ds.(datastore.UnwrappableDatastore)
+		if !ok {
+			break
+		}
+		ds = wds.Unwrap()
+	}
+
+	casted, ok := ds.(common.GarbageCollector)
+	require.True(ok)
+
+	_, err = casted.DeleteBeforeTx(context.Background(), revision)
+	require.NoError(err)
+
+	require.NotEmpty(interceptor.explanations, "expected queries to be executed")
+
+	// Ensure we have indexes representing each query in the GC workflow.
+	for _, explanation := range interceptor.explanations {
+		switch {
+		case strings.HasPrefix(explanation, "Delete on relation_tuple_transaction"):
+			require.Contains(explanation, "Index Scan using ix_rttx_pk_covering")
+
+		case strings.HasPrefix(explanation, "Delete on namespace_config"):
+			require.Contains(explanation, "Index Scan on uq_namespace_living_xid")
+
+		case strings.HasPrefix(explanation, "Delete on relation_tuple"):
+			require.Contains(explanation, "Index Scan on ix_relation_tuple_by_deleted_xid")
+
+		default:
+			require.Failf("unknown GC query: %s", explanation)
+		}
+	}
 }
