@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
@@ -246,7 +247,7 @@ func rewriteError(ctx context.Context, err error) error {
 }
 
 type uinteger interface {
-	uint32 | uint16
+	uint32 | uint16 | time.Duration
 }
 
 func defaultIfZero[T uinteger](value T, defaultValue T) T {
