@@ -48,6 +48,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
+		to.DispatchUpstreamTimeout = c.DispatchUpstreamTimeout
 		to.Dispatcher = c.Dispatcher
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
@@ -241,6 +242,13 @@ func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigO
 func WithDispatchClusterMetricsPrefix(dispatchClusterMetricsPrefix string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchClusterMetricsPrefix = dispatchClusterMetricsPrefix
+	}
+}
+
+// WithDispatchUpstreamTimeout returns an option that can set DispatchUpstreamTimeout on a Config
+func WithDispatchUpstreamTimeout(dispatchUpstreamTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamTimeout = dispatchUpstreamTimeout
 	}
 }
 

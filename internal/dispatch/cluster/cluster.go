@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"time"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -12,9 +14,10 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	prometheusSubsystem string
-	cache               cache.Cache
-	concurrencyLimits   graph.ConcurrencyLimits
+	prometheusSubsystem   string
+	cache                 cache.Cache
+	concurrencyLimits     graph.ConcurrencyLimits
+	remoteDispatchTimeout time.Duration
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -35,6 +38,14 @@ func Cache(c cache.Cache) Option {
 func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
 	return func(state *optionState) {
 		state.concurrencyLimits = limits
+	}
+}
+
+// RemoteDispatchTimeout sets the maximum timeout for a remote dispatch.
+// Defaults to 60s (as defined in the remote dispatcher).
+func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
+	return func(state *optionState) {
+		state.remoteDispatchTimeout = remoteDispatchTimeout
 	}
 }
 
