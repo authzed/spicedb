@@ -4,6 +4,8 @@
 package cache
 
 import (
+	"time"
+
 	"github.com/outcaste-io/ristretto"
 	"github.com/outcaste-io/ristretto/z"
 	"github.com/rs/zerolog"
@@ -29,12 +31,20 @@ func NewCache(config *Config) (Cache, error) {
 	if err != nil {
 		return nil, err
 	}
-	return wrapped{config, cache}, nil
+	return wrapped{config, config.DefaultTTL, cache}, nil
 }
 
 type wrapped struct {
-	config *Config
+	config     *Config
+	defaultTTL time.Duration
 	*ristretto.Cache
+}
+
+func (w wrapped) Set(key, entry any, cost int64) bool {
+	if w.defaultTTL <= 0 {
+		return w.Cache.Set(key, entry, cost)
+	}
+	return w.Cache.SetWithTTL(key, entry, cost, w.defaultTTL)
 }
 
 var _ Cache = (*wrapped)(nil)
