@@ -3,6 +3,11 @@ package dispatch
 import (
 	"context"
 	"errors"
+	"time"
+
+	"github.com/authzed/spicedb/internal/middleware/streamtimeout"
+
+	"github.com/authzed/spicedb/internal/middleware"
 
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"google.golang.org/grpc/codes"
@@ -14,6 +19,8 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
+
+const streamAPITimeout = 45 * time.Second
 
 type dispatchServer struct {
 	dispatchv1.UnimplementedDispatchServiceServer
@@ -27,8 +34,11 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchSer
 	return &dispatchServer{
 		localDispatch: localDispatch,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary:  grpcvalidate.UnaryServerInterceptor(true),
-			Stream: grpcvalidate.StreamServerInterceptor(true),
+			Unary: grpcvalidate.UnaryServerInterceptor(true),
+			Stream: middleware.ChainStreamServer(
+				grpcvalidate.StreamServerInterceptor(true),
+				streamtimeout.MustStreamServerInterceptor(streamAPITimeout),
+			),
 		},
 	}
 }
