@@ -15,26 +15,26 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// CaveatEvaluationErr is an error in evaluation of a caveat expression.
-type CaveatEvaluationErr struct {
+// EvaluationErr is an error in evaluation of a caveat expression.
+type EvaluationErr struct {
 	error
 	caveatExpr *core.CaveatExpression
 	evalErr    caveats.EvaluationErr
 }
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
-func (err CaveatEvaluationErr) MarshalZerologObject(e *zerolog.Event) {
+func (err EvaluationErr) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error).Str("caveat_name", err.caveatExpr.GetCaveat().CaveatName).Interface("context", err.caveatExpr.GetCaveat().Context)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (err CaveatEvaluationErr) DetailsMetadata() map[string]string {
+func (err EvaluationErr) DetailsMetadata() map[string]string {
 	return spiceerrors.CombineMetadata(err.evalErr, map[string]string{
 		"caveat_name": err.caveatExpr.GetCaveat().CaveatName,
 	})
 }
 
-func (err CaveatEvaluationErr) GRPCStatus() *status.Status {
+func (err EvaluationErr) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
@@ -45,21 +45,21 @@ func (err CaveatEvaluationErr) GRPCStatus() *status.Status {
 	)
 }
 
-func NewCaveatEvaluationErr(caveatExpr *core.CaveatExpression, err caveats.EvaluationErr) CaveatEvaluationErr {
-	return CaveatEvaluationErr{
+func NewEvaluationErr(caveatExpr *core.CaveatExpression, err caveats.EvaluationErr) EvaluationErr {
+	return EvaluationErr{
 		fmt.Errorf("evaluation error for caveat %s: %w", caveatExpr.GetCaveat().CaveatName, err), caveatExpr, err,
 	}
 }
 
-// CaveatParameterTypeError is a type error in constructing a parameter from a value.
-type CaveatParameterTypeError struct {
+// ParameterTypeError is a type error in constructing a parameter from a value.
+type ParameterTypeError struct {
 	error
 	caveatExpr      *core.CaveatExpression
 	conversionError *caveats.ParameterConversionErr
 }
 
 // MarshalZerologObject implements zerolog.LogObjectMarshaler
-func (err CaveatParameterTypeError) MarshalZerologObject(e *zerolog.Event) {
+func (err ParameterTypeError) MarshalZerologObject(e *zerolog.Event) {
 	evt := e.Err(err.error).
 		Str("caveat_name", err.caveatExpr.GetCaveat().CaveatName).
 		Interface("context", err.caveatExpr.GetCaveat().Context)
@@ -70,7 +70,7 @@ func (err CaveatParameterTypeError) MarshalZerologObject(e *zerolog.Event) {
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (err CaveatParameterTypeError) DetailsMetadata() map[string]string {
+func (err ParameterTypeError) DetailsMetadata() map[string]string {
 	if err.conversionError != nil {
 		return spiceerrors.CombineMetadata(err.conversionError, map[string]string{
 			"caveat_name": err.caveatExpr.GetCaveat().CaveatName,
@@ -82,7 +82,7 @@ func (err CaveatParameterTypeError) DetailsMetadata() map[string]string {
 	}
 }
 
-func (err CaveatParameterTypeError) GRPCStatus() *status.Status {
+func (err ParameterTypeError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
@@ -93,13 +93,13 @@ func (err CaveatParameterTypeError) GRPCStatus() *status.Status {
 	)
 }
 
-func NewCaveatParameterTypeError(caveatExpr *core.CaveatExpression, err error) CaveatParameterTypeError {
+func NewParameterTypeError(caveatExpr *core.CaveatExpression, err error) ParameterTypeError {
 	conversionError := &caveats.ParameterConversionErr{}
 	if !errors.As(err, conversionError) {
 		conversionError = nil
 	}
 
-	return CaveatParameterTypeError{
+	return ParameterTypeError{
 		fmt.Errorf("type error for parameters for caveat `%s`: %w", caveatExpr.GetCaveat().CaveatName, err),
 		caveatExpr,
 		conversionError,

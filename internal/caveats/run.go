@@ -117,14 +117,14 @@ func runExpression(
 			caveats.SkipUnknownParameters,
 		)
 		if err != nil {
-			return nil, NewCaveatParameterTypeError(expr, err)
+			return nil, NewParameterTypeError(expr, err)
 		}
 
 		result, err := caveats.EvaluateCaveat(compiled, typedParameters)
 		if err != nil {
 			var evalErr caveats.EvaluationErr
 			if errors.As(err, &evalErr) {
-				return nil, NewCaveatEvaluationErr(expr, evalErr)
+				return nil, NewEvaluationErr(expr, evalErr)
 			}
 
 			return nil, err
