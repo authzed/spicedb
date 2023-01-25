@@ -2,6 +2,7 @@ package caveats_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -200,4 +201,63 @@ func TestRunCaveatExpressions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunCaveatWithMissingMap(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+				caveat some_caveat(themap map<any>) {
+					themap.first == 42
+				}
+				`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+
+	result, err := caveats.RunCaveatExpression(
+		context.Background(),
+		caveatexpr("some_caveat"),
+		map[string]any{},
+		reader,
+		caveats.RunCaveatExpressionNoDebugging,
+	)
+	req.NoError(err)
+	req.True(result.IsPartial())
+	req.False(result.Value())
+}
+
+func TestRunCaveatWithEmptyMap(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+				caveat some_caveat(themap map<any>) {
+					themap.first == 42
+				}
+				`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+
+	_, err = caveats.RunCaveatExpression(
+		context.Background(),
+		caveatexpr("some_caveat"),
+		map[string]any{
+			"themap": map[string]any{},
+		},
+		reader,
+		caveats.RunCaveatExpressionNoDebugging,
+	)
+	req.Error(err)
+	req.True(errors.As(err, &caveats.EvaluationErr{}))
 }

@@ -7,6 +7,21 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// EvaluationErr is an error in evaluation of a caveat expression.
+type EvaluationErr struct {
+	error
+}
+
+// MarshalZerologObject implements zerolog.LogObjectMarshaler
+func (err EvaluationErr) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error)
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err EvaluationErr) DetailsMetadata() map[string]string {
+	return map[string]string{}
+}
+
 // ParameterConversionErr is an error in type conversion of a supplied parameter.
 type ParameterConversionErr struct {
 	error
@@ -23,6 +38,11 @@ func (err ParameterConversionErr) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"parameter_name": err.parameterName,
 	}
+}
+
+// ParameterName is the name of the parameter.
+func (err ParameterConversionErr) ParameterName() string {
+	return err.parameterName
 }
 
 // CompilationErrors is a wrapping error for containing compilation errors for a Caveat.

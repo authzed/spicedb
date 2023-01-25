@@ -865,6 +865,97 @@ func TestCheckWithCaveats(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 }
 
+func TestCheckWithCaveatErrors(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(
+		req,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		func(ds datastore.Datastore, assertions *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(
+				ds,
+				`definition user {}
+
+				 caveat somecaveat(somemap map<any>) {
+					  somemap.first == 42 && somemap.second < 56
+				 }
+				
+				 definition document {
+					relation viewer: user with somecaveat
+					permission view = viewer
+				 }
+				`,
+				[]*core.RelationTuple{tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]")},
+				assertions,
+			)
+		})
+
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+
+	tcs := []struct {
+		name          string
+		context       map[string]any
+		expectedError string
+		expectedCode  codes.Code
+	}{
+		{
+			"nil map in context",
+			map[string]any{
+				"somemap": nil,
+			},
+			"type error for parameters for caveat `somecaveat`: could not convert context parameter `somemap`: for map<any>: map requires a map, found: <nil>",
+			codes.InvalidArgument,
+		},
+		{
+			"empty map in context",
+			map[string]any{
+				"somemap": map[string]any{},
+			},
+			"evaluation error for caveat somecaveat: no such key: first",
+			codes.InvalidArgument,
+		},
+		{
+			"wrong value in map",
+			map[string]any{
+				"somemap": map[string]any{
+					"first":  42,
+					"second": "hello",
+				},
+			},
+			"evaluation error for caveat somecaveat: no such overload",
+			codes.InvalidArgument,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			request := &v1.CheckPermissionRequest{
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_AtLeastAsFresh{
+						AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+					},
+				},
+				Resource:   obj("document", "firstdoc"),
+				Permission: "view",
+				Subject:    sub("user", "tom", ""),
+			}
+
+			var err error
+			request.Context, err = structpb.NewStruct(tc.context)
+			req.NoError(err)
+
+			_, err = client.CheckPermission(ctx, request)
+			req.Error(err)
+			req.Contains(err.Error(), tc.expectedError)
+			grpcutil.RequireStatus(t, tc.expectedCode, err)
+		})
+	}
+}
+
 func TestLookupResourcesWithCaveats(t *testing.T) {
 	req := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
