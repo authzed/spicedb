@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -17,10 +16,9 @@ import (
 // parallelChecker is a helper for initiating checks over a large set of resources of a specific
 // type, for a specific subject, and putting the results concurrently into a set.
 type parallelChecker struct {
-	c        dispatch.Check
-	g        *errgroup.Group
-	checkCtx context.Context
-	cancel   func()
+	c      dispatch.Check
+	t      *TaskRunner
+	cancel func()
 
 	toCheck         chan string
 	enqueuedToCheck *util.Set[string]
@@ -39,14 +37,13 @@ type parallelChecker struct {
 
 // newParallelChecker creates a new parallel checker, for a given subject.
 func newParallelChecker(ctx context.Context, cancel func(), c dispatch.Check, req ValidatedLookupRequest, maxConcurrent uint16) *parallelChecker {
-	g, checkCtx := errgroup.WithContext(ctx)
+	t := NewTaskRunner(ctx, maxConcurrent+1) // +1 for the work scheduling goroutine
 	toCheck := make(chan string, maxConcurrent)
 	return &parallelChecker{
-		checkCtx: checkCtx,
-		cancel:   cancel,
+		cancel: cancel,
 
 		c: c,
-		g: g,
+		t: t,
 
 		toCheck:         toCheck,
 		enqueuedToCheck: util.NewSet[string](),
@@ -135,10 +132,10 @@ func (pc *parallelChecker) Start() {
 		DepthRemaining: pc.lookupRequest.Metadata.DepthRemaining,
 	}
 
-	pc.g.Go(func() error {
+	pc.t.Schedule(func(ctx context.Context) error {
 		sem := semaphore.NewWeighted(int64(pc.maxConcurrent))
 		for {
-			if err := sem.Acquire(pc.checkCtx, 1); err != nil {
+			if err := sem.Acquire(ctx, 1); err != nil {
 				return err
 			}
 
@@ -161,10 +158,18 @@ func (pc *parallelChecker) Start() {
 				break
 			}
 
-			pc.g.Go(func() error {
+			pc.t.Schedule(func(ctx context.Context) error {
 				defer sem.Release(1)
 
-				results, resultsMeta, err := computed.ComputeBulkCheck(pc.checkCtx, pc.c,
+				// If the context has been closed, nothing more to do.
+				select {
+				case <-ctx.Done():
+					return nil
+
+				default:
+				}
+
+				results, resultsMeta, err := computed.ComputeBulkCheck(ctx, pc.c,
 					computed.CheckParameters{
 						ResourceType:  pc.lookupRequest.ObjectRelation,
 						Subject:       pc.lookupRequest.Subject,
@@ -200,7 +205,7 @@ func (pc *parallelChecker) Start() {
 				return nil
 			})
 		}
-		if err := sem.Acquire(pc.checkCtx, int64(pc.maxConcurrent)); err != nil {
+		if err := sem.Acquire(ctx, int64(pc.maxConcurrent)); err != nil {
 			return err
 		}
 		return nil
@@ -212,7 +217,7 @@ func (pc *parallelChecker) Start() {
 // error occurred. Once called, no new items can be added via QueueToCheck.
 func (pc *parallelChecker) Wait() ([]*v1.ResolvedResource, error) {
 	close(pc.toCheck)
-	if err := pc.g.Wait(); err != nil {
+	if err := pc.t.Wait(); err != nil {
 		return nil, err
 	}
 
