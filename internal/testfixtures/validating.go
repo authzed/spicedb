@@ -46,10 +46,10 @@ type validatingSnapshotReader struct {
 	delegate datastore.Reader
 }
 
-func (vsr validatingSnapshotReader) ListNamespaces(
+func (vsr validatingSnapshotReader) ListAllNamespaces(
 	ctx context.Context,
 ) ([]*core.NamespaceDefinition, error) {
-	read, err := vsr.delegate.ListNamespaces(ctx)
+	read, err := vsr.delegate.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -64,11 +64,11 @@ func (vsr validatingSnapshotReader) ListNamespaces(
 	return read, err
 }
 
-func (vsr validatingSnapshotReader) LookupNamespaces(
+func (vsr validatingSnapshotReader) LookupNamespacesWithNames(
 	ctx context.Context,
 	nsNames []string,
 ) ([]*core.NamespaceDefinition, error) {
-	read, err := vsr.delegate.LookupNamespaces(ctx, nsNames)
+	read, err := vsr.delegate.LookupNamespacesWithNames(ctx, nsNames)
 	if err != nil {
 		return read, err
 	}

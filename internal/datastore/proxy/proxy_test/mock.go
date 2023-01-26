@@ -137,12 +137,12 @@ func (dm *MockReader) ReverseQueryRelationships(
 	return results, args.Error(1)
 }
 
-func (dm *MockReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (dm *MockReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	args := dm.Called()
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
-func (dm *MockReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (dm *MockReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	args := dm.Called()
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
@@ -215,12 +215,12 @@ func (dm *MockReadWriteTransaction) ReverseQueryRelationships(
 	return results, args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (dm *MockReadWriteTransaction) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	args := dm.Called()
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	args := dm.Called()
 	return args.Get(0).([]*core.NamespaceDefinition), args.Error(1)
 }

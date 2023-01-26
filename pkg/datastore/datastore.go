@@ -218,11 +218,11 @@ type Reader interface {
 	// last written. It returns an instance of ErrNamespaceNotFound if not found.
 	ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
 
-	// ListNamespaces lists all namespaces defined.
-	ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)
+	// ListAllNamespaces lists all namespaces defined.
+	ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)
 
-	// LookupNamespaces finds all namespaces with the matching names.
-	LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error)
+	// LookupNamespacesWithNames finds all namespaces with the matching names.
+	LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error)
 }
 
 type ReadWriteTransaction interface {

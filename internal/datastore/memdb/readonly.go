@@ -165,7 +165,7 @@ func (r *memdbReader) ReadNamespaceByName(ctx context.Context, nsName string) (n
 }
 
 // ListNamespaces lists all namespaces defined.
-func (r *memdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}
@@ -199,7 +199,7 @@ func (r *memdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 	return nsDefs, nil
 }
 
-func (r *memdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (r *memdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}

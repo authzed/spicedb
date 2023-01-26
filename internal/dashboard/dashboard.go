@@ -140,7 +140,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 				return
 			}
 
-			nsDefs, err := ds.SnapshotReader(headRevision).ListNamespaces(r.Context())
+			nsDefs, err := ds.SnapshotReader(headRevision).ListAllNamespaces(r.Context())
 			if err != nil {
 				log.Ctx(r.Context()).Error().AnErr("datastoreError", err).Msg("Got error when trying to load namespaces")
 				fmt.Fprintf(w, "Internal Error")

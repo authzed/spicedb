@@ -152,20 +152,20 @@ func (r *observableReader) ListCaveats(ctx context.Context, caveatNamesForFilter
 	return r.delegate.ListCaveats(ctx, caveatNamesForFiltering...)
 }
 
-func (r *observableReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	ctx, closer := observe(ctx, "ListNamespaces")
+func (r *observableReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+	ctx, closer := observe(ctx, "ListAllNamespaces")
 	defer closer()
 
-	return r.delegate.ListNamespaces(ctx)
+	return r.delegate.ListAllNamespaces(ctx)
 }
 
-func (r *observableReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
-	ctx, closer := observe(ctx, "LookupNamespaces", trace.WithAttributes(
+func (r *observableReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	ctx, closer := observe(ctx, "LookupNamespacesWithNames", trace.WithAttributes(
 		attribute.StringSlice("names", nsNames),
 	))
 	defer closer()
 
-	return r.delegate.LookupNamespaces(ctx, nsNames)
+	return r.delegate.LookupNamespacesWithNames(ctx, nsNames)
 }
 
 func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {

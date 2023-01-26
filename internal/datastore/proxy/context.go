@@ -95,12 +95,12 @@ func (r *ctxReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...
 	return r.delegate.ListCaveats(SeparateContextWithTracing(ctx), caveatNamesForFiltering...)
 }
 
-func (r *ctxReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	return r.delegate.ListNamespaces(SeparateContextWithTracing(ctx))
+func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+	return r.delegate.ListAllNamespaces(SeparateContextWithTracing(ctx))
 }
 
-func (r *ctxReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
-	return r.delegate.LookupNamespaces(SeparateContextWithTracing(ctx), nsNames)
+func (r *ctxReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+	return r.delegate.LookupNamespacesWithNames(SeparateContextWithTracing(ctx), nsNames)
 }
 
 func (r *ctxReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {

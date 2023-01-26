@@ -34,7 +34,7 @@ func ConvertCheckDispatchDebugInformation(
 		return nil, err
 	}
 
-	namespaces, err := reader.ListNamespaces(ctx)
+	namespaces, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}

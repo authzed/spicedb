@@ -62,7 +62,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(startRevision.GreaterThan(datastore.NoRevision))
 
-	nsDefs, err := ds.SnapshotReader(startRevision).ListNamespaces(ctx)
+	nsDefs, err := ds.SnapshotReader(startRevision).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(0, len(nsDefs))
 
@@ -72,7 +72,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(writtenRev.GreaterThan(startRevision))
 
-	nsDefs, err = ds.SnapshotReader(writtenRev).ListNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(1, len(nsDefs))
 	require.Equal(testUserNS.Name, nsDefs[0].Name)
@@ -83,14 +83,14 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(secondWritten.GreaterThan(writtenRev))
 
-	nsDefs, err = ds.SnapshotReader(secondWritten).ListNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(secondWritten).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(2, len(nsDefs))
 
 	_, _, err = ds.SnapshotReader(writtenRev).ReadNamespaceByName(ctx, testNamespace.Name)
 	require.Error(err)
 
-	nsDefs, err = ds.SnapshotReader(writtenRev).ListNamespaces(ctx)
+	nsDefs, err = ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(1, len(nsDefs))
 
@@ -119,23 +119,23 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.True(createdRev.GreaterThan(startRevision))
 	require.Empty(cmp.Diff(testUserNS, checkOld, protocmp.Transform()))
 
-	checkOldList, err := ds.SnapshotReader(writtenRev).ListNamespaces(ctx)
+	checkOldList, err := ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(1, len(checkOldList))
 	require.Equal(testUserNS.Name, checkOldList[0].Name)
 	require.Empty(cmp.Diff(testUserNS, checkOldList[0], protocmp.Transform()))
 
-	checkLookup, err := ds.SnapshotReader(secondWritten).LookupNamespaces(ctx, []string{testNamespace.Name})
+	checkLookup, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{testNamespace.Name})
 	require.NoError(err)
 	require.Equal(1, len(checkLookup))
 	require.Equal(testNamespace.Name, checkLookup[0].Name)
 	require.Empty(cmp.Diff(testNamespace, checkLookup[0], protocmp.Transform()))
 
-	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LookupNamespaces(ctx, []string{testNamespace.Name, testUserNS.Name})
+	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{testNamespace.Name, testUserNS.Name})
 	require.NoError(err)
 	require.Equal(2, len(checkLookupMultiple))
 
-	emptyLookup, err := ds.SnapshotReader(secondWritten).LookupNamespaces(ctx, []string{"anothername"})
+	emptyLookup, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{"anothername"})
 	require.NoError(err)
 	require.Equal(0, len(emptyLookup))
 }
@@ -174,7 +174,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.True(nsCreatedRev.LessThan(deletedRev))
 	require.NoError(err)
 
-	allNamespaces, err := ds.SnapshotReader(deletedRev).ListNamespaces(ctx)
+	allNamespaces, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	for _, ns := range allNamespaces {
 		require.NotEqual(testfixtures.DocumentNS.Name, ns.Name, "deleted namespace '%s' should not be in namespace list", ns.Name)
@@ -199,7 +199,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 	ctx := context.Background()
 
-	namespaces, err := ds.SnapshotReader(revision).ListNamespaces(ctx)
+	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 
 	nsNames := make([]string, 0, len(namespaces))
@@ -212,7 +212,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(t, err)
 
-	namespacesAfterDel, err := ds.SnapshotReader(deletedRev).ListNamespaces(ctx)
+	namespacesAfterDel, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespacesAfterDel, 0)
 }

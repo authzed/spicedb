@@ -135,7 +135,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	return loaded, revision.NewFromDecimal(version), nil
 }
 
-func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
@@ -153,7 +153,7 @@ func (mr *mysqlReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDef
 	return nsDefs, err
 }
 
-func (mr *mysqlReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}

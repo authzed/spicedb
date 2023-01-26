@@ -149,7 +149,7 @@ func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) 
 	return ns, revisionFromTimestamp(updated), nil
 }
 
-func (sr spannerReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	iter := sr.txSource().Read(
 		ctx,
 		tableNamespace,
@@ -165,7 +165,7 @@ func (sr spannerReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDe
 	return allNamespaces, nil
 }
 
-func (sr spannerReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}

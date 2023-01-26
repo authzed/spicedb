@@ -127,7 +127,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.T
 	return defs[0].nsDef, defs[0].revision, nil
 }
 
-func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinit
 	return stripRevisions(nsDefsWithRevisions), err
 }
 
-func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}

@@ -52,7 +52,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(readRevision)
 
-	nsDefs, err := ds.ListNamespaces(ctx)
+	nsDefs, err := ds.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}

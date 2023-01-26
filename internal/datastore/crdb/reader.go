@@ -85,7 +85,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 	return config, revisionFromTimestamp(timestamp), nil
 }
 
-func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
 	var nsDefs []*core.NamespaceDefinition
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		tx, txCleanup, err := cr.txSource(ctx)
@@ -110,7 +110,7 @@ func (cr *crdbReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefi
 	return nsDefs, nil
 }
 
-func (cr *crdbReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}

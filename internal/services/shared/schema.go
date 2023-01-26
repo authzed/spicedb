@@ -88,7 +88,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 		return nil, err
 	}
 
-	existingObjectDefs, err := rwt.ListNamespaces(ctx)
+	existingObjectDefs, err := rwt.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
