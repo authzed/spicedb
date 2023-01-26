@@ -14,7 +14,7 @@ import (
 
 var (
 	writeCaveat  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
-	listCaveat   = psql.Select(colCaveatDefinition).From(tableCaveat).OrderBy(colCaveatName)
+	listCaveat   = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat).OrderBy(colCaveatName)
 	readCaveat   = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat)
 	deleteCaveat = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
@@ -58,18 +58,18 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	return &def, rev, nil
 }
 
-func (r *pgReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (r *pgReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
 	return r.lookupCaveats(ctx, caveatNames)
 }
 
-func (r *pgReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (r *pgReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return r.lookupCaveats(ctx, nil)
 }
 
-func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	caveatsWithNames := listCaveat
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
@@ -93,10 +93,11 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]*
 	}
 
 	defer rows.Close()
-	var caveats []*core.CaveatDefinition
+	var caveats []datastore.RevisionedCaveat
 	for rows.Next() {
+		var version xid8
 		var defBytes []byte
-		err = rows.Scan(&defBytes)
+		err = rows.Scan(&defBytes, &version)
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
@@ -105,7 +106,9 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]*
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
-		caveats = append(caveats, &c)
+
+		revision := postgresRevision{version, noXmin}
+		caveats = append(caveats, datastore.RevisionedCaveat{Definition: &c, LastWrittenRevision: revision})
 	}
 	if rows.Err() != nil {
 		return nil, fmt.Errorf(errListCaveats, rows.Err())

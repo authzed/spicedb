@@ -75,7 +75,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	nsDefs, err = ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(1, len(nsDefs))
-	require.Equal(testUserNS.Name, nsDefs[0].Name)
+	require.Equal(testUserNS.Name, nsDefs[0].Definition.Name)
 
 	secondWritten, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
@@ -122,14 +122,14 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	checkOldList, err := ds.SnapshotReader(writtenRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(1, len(checkOldList))
-	require.Equal(testUserNS.Name, checkOldList[0].Name)
-	require.Empty(cmp.Diff(testUserNS, checkOldList[0], protocmp.Transform()))
+	require.Equal(testUserNS.Name, checkOldList[0].Definition.Name)
+	require.Empty(cmp.Diff(testUserNS, checkOldList[0].Definition, protocmp.Transform()))
 
 	checkLookup, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{testNamespace.Name})
 	require.NoError(err)
 	require.Equal(1, len(checkLookup))
-	require.Equal(testNamespace.Name, checkLookup[0].Name)
-	require.Empty(cmp.Diff(testNamespace, checkLookup[0], protocmp.Transform()))
+	require.Equal(testNamespace.Name, checkLookup[0].Definition.Name)
+	require.Empty(cmp.Diff(testNamespace, checkLookup[0].Definition, protocmp.Transform()))
 
 	checkLookupMultiple, err := ds.SnapshotReader(secondWritten).LookupNamespacesWithNames(ctx, []string{testNamespace.Name, testUserNS.Name})
 	require.NoError(err)
@@ -177,7 +177,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	allNamespaces, err := ds.SnapshotReader(deletedRev).ListAllNamespaces(ctx)
 	require.NoError(err)
 	for _, ns := range allNamespaces {
-		require.NotEqual(testfixtures.DocumentNS.Name, ns.Name, "deleted namespace '%s' should not be in namespace list", ns.Name)
+		require.NotEqual(testfixtures.DocumentNS.Name, ns.Definition.Name, "deleted namespace '%s' should not be in namespace list", ns.Definition.Name)
 	}
 
 	deletedRevision, err := ds.HeadRevision(ctx)
@@ -204,7 +204,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 
 	nsNames := make([]string, 0, len(namespaces))
 	for _, ns := range namespaces {
-		nsNames = append(nsNames, ns.Name)
+		nsNames = append(nsNames, ns.Definition.Name)
 	}
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {

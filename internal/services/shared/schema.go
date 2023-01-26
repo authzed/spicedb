@@ -93,7 +93,7 @@ func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction,
 		return nil, err
 	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, validated, existingCaveats, existingObjectDefs)
+	return ApplySchemaChangesOverExisting(ctx, rwt, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against

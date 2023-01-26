@@ -165,7 +165,7 @@ func (r *memdbReader) ReadNamespaceByName(ctx context.Context, nsName string) (n
 }
 
 // ListNamespaces lists all namespaces defined.
-func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}
@@ -178,7 +178,7 @@ func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceD
 		return nil, err
 	}
 
-	var nsDefs []*core.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 
 	it, err := tx.LowerBound(tableNamespace, indexID)
 	if err != nil {
@@ -193,13 +193,16 @@ func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceD
 			return nil, err
 		}
 
-		nsDefs = append(nsDefs, loaded)
+		nsDefs = append(nsDefs, datastore.RevisionedNamespace{
+			Definition:          loaded,
+			LastWrittenRevision: found.updated,
+		})
 	}
 
 	return nsDefs, nil
 }
 
-func (r *memdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (r *memdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}
@@ -226,7 +229,7 @@ func (r *memdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []s
 		nsNameMap[nsName] = struct{}{}
 	}
 
-	nsDefs := make([]*core.NamespaceDefinition, 0, len(nsNames))
+	nsDefs := make([]datastore.RevisionedNamespace, 0, len(nsNames))
 
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		found := foundRaw.(*namespace)
@@ -237,7 +240,10 @@ func (r *memdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []s
 		}
 
 		if _, ok := nsNameMap[loaded.Name]; ok {
-			nsDefs = append(nsDefs, loaded)
+			nsDefs = append(nsDefs, datastore.RevisionedNamespace{
+				Definition:          loaded,
+				LastWrittenRevision: found.updated,
+			})
 		}
 	}
 

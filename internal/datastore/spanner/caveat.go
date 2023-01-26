@@ -35,18 +35,18 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 	return loaded, revisionFromTimestamp(updated), nil
 }
 
-func (sr spannerReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (sr spannerReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return sr.listCaveats(ctx, nil)
 }
 
-func (sr spannerReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (sr spannerReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
 	return sr.listCaveats(ctx, caveatNames)
 }
 
-func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	keyset := spanner.AllKeys()
 	if len(caveatNames) > 0 {
 		keys := make([]spanner.Key, 0, len(caveatNames))
@@ -59,13 +59,14 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 		ctx,
 		tableCaveat,
 		keyset,
-		[]string{colCaveatDefinition},
+		[]string{colCaveatDefinition, colCaveatTS},
 	)
 
-	var caveats []*core.CaveatDefinition
+	var caveats []datastore.RevisionedCaveat
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
-		if err := row.Columns(&serialized); err != nil {
+		var updated time.Time
+		if err := row.Columns(&serialized, &updated); err != nil {
 			return err
 		}
 
@@ -73,7 +74,10 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 		if err := loaded.UnmarshalVT(serialized); err != nil {
 			return err
 		}
-		caveats = append(caveats, loaded)
+		caveats = append(caveats, datastore.RevisionedCaveat{
+			Definition:          loaded,
+			LastWrittenRevision: revisionFromTimestamp(updated),
+		})
 
 		return nil
 	}); err != nil {

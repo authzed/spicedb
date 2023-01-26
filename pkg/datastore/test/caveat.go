@@ -86,9 +86,9 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	req.Len(cvs, 2)
 
-	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
+	foundDiff = cmp.Diff(coreCaveat, cvs[0].Definition, protocmp.Transform())
 	req.Empty(foundDiff)
-	foundDiff = cmp.Diff(anotherCoreCaveat, cvs[1], protocmp.Transform())
+	foundDiff = cmp.Diff(anotherCoreCaveat, cvs[1].Definition, protocmp.Transform())
 	req.Empty(foundDiff)
 
 	// Caveats can be found by names
@@ -96,7 +96,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	req.Len(cvs, 1)
 
-	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
+	foundDiff = cmp.Diff(coreCaveat, cvs[0].Definition, protocmp.Transform())
 	req.Empty(foundDiff)
 
 	// Non-existing names returns no caveat

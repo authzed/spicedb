@@ -10,7 +10,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -39,7 +38,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	}
 
 	var uniqueID string
-	var nsDefs []*corev1.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 	var relCount uint64
 	if err := cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&uniqueID); err != nil {

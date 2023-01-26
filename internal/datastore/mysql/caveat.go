@@ -52,18 +52,18 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 	return &def, revision.NewFromDecimal(rev), nil
 }
 
-func (mr *mysqlReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (mr *mysqlReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	if len(caveatNames) == 0 {
 		return nil, nil
 	}
 	return mr.lookupCaveats(ctx, caveatNames)
 }
 
-func (mr *mysqlReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (mr *mysqlReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return mr.lookupCaveats(ctx, nil)
 }
 
-func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	caveatsWithNames := mr.ListCaveatsQuery
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colName: caveatNames})
@@ -87,10 +87,12 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	var caveats []*core.CaveatDefinition
+	var caveats []datastore.RevisionedCaveat
 	for rows.Next() {
 		var defBytes []byte
-		err = rows.Scan(&defBytes)
+		var version decimal.Decimal
+
+		err = rows.Scan(&defBytes, &version)
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
@@ -99,7 +101,10 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
-		caveats = append(caveats, &c)
+		caveats = append(caveats, datastore.RevisionedCaveat{
+			Definition:          &c,
+			LastWrittenRevision: revision.NewFromDecimal(version),
+		})
 	}
 	if rows.Err() != nil {
 		return nil, fmt.Errorf(errListCaveats, rows.Err())

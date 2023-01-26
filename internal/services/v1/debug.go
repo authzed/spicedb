@@ -41,10 +41,10 @@ func ConvertCheckDispatchDebugInformation(
 
 	defs := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
 	for _, caveat := range caveats {
-		defs = append(defs, caveat)
+		defs = append(defs, caveat.Definition)
 	}
 	for _, ns := range namespaces {
-		defs = append(defs, ns)
+		defs = append(defs, ns.Definition)
 	}
 
 	schema, _, err := generator.GenerateSchema(defs)

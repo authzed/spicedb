@@ -85,8 +85,8 @@ func (cr *crdbReader) ReadNamespaceByName(
 	return config, revisionFromTimestamp(timestamp), nil
 }
 
-func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	var nsDefs []*core.NamespaceDefinition
+func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	var nsDefs []datastore.RevisionedNamespace
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		tx, txCleanup, err := cr.txSource(ctx)
 		if err != nil {
@@ -105,17 +105,17 @@ func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceD
 	}
 
 	for _, nsDef := range nsDefs {
-		cr.addOverlapKey(nsDef.Name)
+		cr.addOverlapKey(nsDef.Definition.Name)
 	}
 	return nsDefs, nil
 }
 
-func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
 
-	var nsDefs []*core.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 	if err := cr.execute(ctx, func(ctx context.Context) error {
 		tx, txCleanup, err := cr.txSource(ctx)
 		if err != nil {
@@ -134,7 +134,7 @@ func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []s
 	}
 
 	for _, nsDef := range nsDefs {
-		cr.addOverlapKey(nsDef.Name)
+		cr.addOverlapKey(nsDef.Definition.Name)
 	}
 	return nsDefs, nil
 }
@@ -215,7 +215,7 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.Namespa
 	return loaded, timestamp, nil
 }
 
-func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{colNamespace: nsName})
@@ -228,7 +228,7 @@ func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]*core
 		return nil, err
 	}
 
-	var nsDefs []*core.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -247,7 +247,10 @@ func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]*core
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, loaded)
+		nsDefs = append(nsDefs, datastore.RevisionedNamespace{
+			Definition:          loaded,
+			LastWrittenRevision: revisionFromTimestamp(timestamp),
+		})
 	}
 
 	if rows.Err() != nil {
@@ -257,7 +260,7 @@ func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]*core
 	return nsDefs, nil
 }
 
-func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinition, error) {
+func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]datastore.RevisionedNamespace, error) {
 	query := queryReadNamespace
 
 	sql, args, err := query.ToSql()
@@ -265,7 +268,7 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinit
 		return nil, err
 	}
 
-	var nsDefs []*core.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 	rows, err := tx.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -284,7 +287,10 @@ func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]*core.NamespaceDefinit
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, loaded)
+		nsDefs = append(nsDefs, datastore.RevisionedNamespace{
+			Definition:          loaded,
+			LastWrittenRevision: revisionFromTimestamp(timestamp),
+		})
 	}
 
 	if rows.Err() != nil {

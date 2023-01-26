@@ -37,7 +37,7 @@ func ValidateRelationshipUpdates(
 
 		referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveats))
 		for _, caveatDef := range foundCaveats {
-			referencedCaveatMap[caveatDef.Name] = caveatDef
+			referencedCaveatMap[caveatDef.Definition.Name] = caveatDef.Definition
 		}
 	}
 

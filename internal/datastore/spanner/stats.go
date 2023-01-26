@@ -35,7 +35,7 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 		ctx,
 		tableNamespace,
 		spanner.AllKeys(),
-		[]string{colNamespaceConfig},
+		[]string{colNamespaceConfig, colNamespaceTS},
 	)
 
 	allNamespaces, err := readAllNamespaces(iter)

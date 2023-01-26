@@ -135,7 +135,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	return loaded, revision.NewFromDecimal(version), nil
 }
 
-func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
@@ -153,7 +153,7 @@ func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]*core.Namespace
 	return nsDefs, err
 }
 
-func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -180,14 +180,14 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 	return nsDefs, err
 }
 
-func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBuilder) ([]*core.NamespaceDefinition, error) {
+func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
 
-	var nsDefs []*core.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 
 	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -207,7 +207,10 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		nsDefs = append(nsDefs, loaded)
+		nsDefs = append(nsDefs, datastore.RevisionedNamespace{
+			Definition:          loaded,
+			LastWrittenRevision: revision.NewFromDecimal(version),
+		})
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()

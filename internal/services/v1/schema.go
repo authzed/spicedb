@@ -68,11 +68,11 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 
 	schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(nsDefs)+len(caveatDefs))
 	for _, caveatDef := range caveatDefs {
-		schemaDefinitions = append(schemaDefinitions, caveatDef)
+		schemaDefinitions = append(schemaDefinitions, caveatDef.Definition)
 	}
 
 	for _, nsDef := range nsDefs {
-		schemaDefinitions = append(schemaDefinitions, nsDef)
+		schemaDefinitions = append(schemaDefinitions, nsDef.Definition)
 	}
 
 	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)

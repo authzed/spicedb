@@ -91,19 +91,19 @@ func (r *ctxReader) ReadCaveatByName(ctx context.Context, name string) (*core.Ca
 	return r.delegate.ReadCaveatByName(SeparateContextWithTracing(ctx), name)
 }
 
-func (r *ctxReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+func (r *ctxReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
 	return r.delegate.ListAllCaveats(SeparateContextWithTracing(ctx))
 }
 
-func (r *ctxReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+func (r *ctxReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	return r.delegate.LookupCaveatsWithNames(SeparateContextWithTracing(ctx), caveatNames)
 }
 
-func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	return r.delegate.ListAllNamespaces(SeparateContextWithTracing(ctx))
 }
 
-func (r *ctxReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (r *ctxReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	return r.delegate.LookupNamespacesWithNames(SeparateContextWithTracing(ctx), nsNames)
 }
 

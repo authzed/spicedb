@@ -196,6 +196,23 @@ func (sf SubjectsFilter) AsSelector() SubjectsSelector {
 	}
 }
 
+// SchemaDefinition represents a namespace or caveat definition under a schema.
+type SchemaDefinition interface {
+	GetName() string
+}
+
+// RevisionedDefinition holds a schema definition and its last updated revision.
+type RevisionedDefinition[T SchemaDefinition] struct {
+	// Definition is the namespace or caveat definition.
+	Definition T
+
+	// LastWrittenRevision is the revision at which the namespace or caveat was last updated.
+	LastWrittenRevision Revision
+}
+
+// RevisionedNamespace is a revisioned version of a namespace definition.
+type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
+
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	CaveatReader
@@ -219,10 +236,10 @@ type Reader interface {
 	ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
 
 	// ListAllNamespaces lists all namespaces defined.
-	ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)
+	ListAllNamespaces(ctx context.Context) ([]RevisionedNamespace, error)
 
 	// LookupNamespacesWithNames finds all namespaces with the matching names.
-	LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error)
+	LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]RevisionedNamespace, error)
 }
 
 type ReadWriteTransaction interface {
