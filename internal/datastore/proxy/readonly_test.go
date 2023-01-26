@@ -133,9 +133,9 @@ func TestSnapshotReaderPassthrough(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	reader.On("ReadNamespace", "fake").Return(nil, expectedRevision, nil).Times(1)
+	reader.On("ReadNamespaceByName", "fake").Return(nil, expectedRevision, nil).Times(1)
 
-	_, rev, err := ds.SnapshotReader(expectedRevision).ReadNamespace(ctx, "fake")
+	_, rev, err := ds.SnapshotReader(expectedRevision).ReadNamespaceByName(ctx, "fake")
 	require.NoError(err)
 	require.True(expectedRevision.Equal(rev))
 	delegate.AssertExpectations(t)

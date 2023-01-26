@@ -44,7 +44,7 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(startRevision.GreaterThan(datastore.NoRevision))
 
-	_, _, err = ds.SnapshotReader(startRevision).ReadNamespace(ctx, "unknown")
+	_, _, err = ds.SnapshotReader(startRevision).ReadNamespaceByName(ctx, "unknown")
 	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
 }
 
@@ -87,14 +87,14 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.Equal(2, len(nsDefs))
 
-	_, _, err = ds.SnapshotReader(writtenRev).ReadNamespace(ctx, testNamespace.Name)
+	_, _, err = ds.SnapshotReader(writtenRev).ReadNamespaceByName(ctx, testNamespace.Name)
 	require.Error(err)
 
 	nsDefs, err = ds.SnapshotReader(writtenRev).ListNamespaces(ctx)
 	require.NoError(err)
 	require.Equal(1, len(nsDefs))
 
-	found, createdRev, err := ds.SnapshotReader(secondWritten).ReadNamespace(ctx, testNamespace.Name)
+	found, createdRev, err := ds.SnapshotReader(secondWritten).ReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(secondWritten))
 	require.True(createdRev.GreaterThan(startRevision))
@@ -106,14 +106,14 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, testNamespace.Name)
+	checkUpdated, createdRev, err := ds.SnapshotReader(updatedRevision).ReadNamespaceByName(ctx, testNamespace.Name)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(updatedRevision))
 	require.True(createdRev.GreaterThan(startRevision))
 	foundUpdated := cmp.Diff(updatedNamespace, checkUpdated, protocmp.Transform())
 	require.Empty(foundUpdated)
 
-	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).ReadNamespace(ctx, testUserNamespace)
+	checkOld, createdRev, err := ds.SnapshotReader(writtenRev).ReadNamespaceByName(ctx, testUserNamespace)
 	require.NoError(err)
 	require.False(createdRev.GreaterThan(writtenRev))
 	require.True(createdRev.GreaterThan(startRevision))
@@ -166,10 +166,10 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespace(ctx, testfixtures.DocumentNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
 	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
 
-	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespace(ctx, testfixtures.FolderNS.Name)
+	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NotNil(found)
 	require.True(nsCreatedRev.LessThan(deletedRev))
 	require.NoError(err)
@@ -233,7 +233,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.True(deletedRev.GreaterThan(revision))
 
-	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespace(ctx, testfixtures.UserNS.Name)
+	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.UserNS.Name)
 	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
 }
 
@@ -283,7 +283,7 @@ definition document {
 
 	// Read the namespace definition back from the datastore and compare.
 	nsConfig := compiled.ObjectDefinitions[0]
-	readNsDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespace(ctx, nsConfig.Name)
+	readNsDef, _, err := ds.SnapshotReader(updatedRevision).ReadNamespaceByName(ctx, nsConfig.Name)
 	require.NoError(err)
 	testutil.RequireProtoEqual(t, nsConfig, readNsDef, "found changed namespace definition")
 

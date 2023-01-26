@@ -83,7 +83,7 @@ type MockReader struct {
 	mock.Mock
 }
 
-func (dm *MockReader) ReadNamespace(
+func (dm *MockReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -161,7 +161,7 @@ type MockReadWriteTransaction struct {
 	mock.Mock
 }
 
-func (dm *MockReadWriteTransaction) ReadNamespace(
+func (dm *MockReadWriteTransaction) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {

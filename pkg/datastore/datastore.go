@@ -214,9 +214,9 @@ type Reader interface {
 		options ...options.ReverseQueryOptionsOption,
 	) (RelationshipIterator, error)
 
-	// ReadNamespace reads a namespace definition and the revision at which it was created or
+	// ReadNamespaceByName reads a namespace definition and the revision at which it was created or
 	// last written. It returns an instance of ErrNamespaceNotFound if not found.
-	ReadNamespace(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
+	ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten Revision, err error)
 
 	// ListNamespaces lists all namespaces defined.
 	ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error)

@@ -103,8 +103,8 @@ func (r *ctxReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*
 	return r.delegate.LookupNamespaces(SeparateContextWithTracing(ctx), nsNames)
 }
 
-func (r *ctxReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return r.delegate.ReadNamespace(SeparateContextWithTracing(ctx), nsName)
+func (r *ctxReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return r.delegate.ReadNamespaceByName(SeparateContextWithTracing(ctx), nsName)
 }
 
 func (r *ctxReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

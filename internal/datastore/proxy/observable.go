@@ -168,13 +168,13 @@ func (r *observableReader) LookupNamespaces(ctx context.Context, nsNames []strin
 	return r.delegate.LookupNamespaces(ctx, nsNames)
 }
 
-func (r *observableReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx, closer := observe(ctx, "ReadNamespace", trace.WithAttributes(
+func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	ctx, closer := observe(ctx, "ReadNamespaceByName", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
 	defer closer()
 
-	return r.delegate.ReadNamespace(ctx, nsName)
+	return r.delegate.ReadNamespaceByName(ctx, nsName)
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

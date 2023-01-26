@@ -132,7 +132,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
 // which it was created or last written, if found.
-func (r *memdbReader) ReadNamespace(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (r *memdbReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if r.initErr != nil {
 		return nil, datastore.NoRevision, r.initErr
 	}

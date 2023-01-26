@@ -97,11 +97,11 @@ func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	return vsr.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
-func (vsr validatingSnapshotReader) ReadNamespace(
+func (vsr validatingSnapshotReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	read, createdAt, err := vsr.delegate.ReadNamespace(ctx, nsName)
+	read, createdAt, err := vsr.delegate.ReadNamespaceByName(ctx, nsName)
 	if err != nil {
 		return read, createdAt, err
 	}

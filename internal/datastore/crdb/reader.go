@@ -54,7 +54,7 @@ type crdbReader struct {
 	execute       executeTxRetryFunc
 }
 
-func (cr *crdbReader) ReadNamespace(
+func (cr *crdbReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {

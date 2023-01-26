@@ -80,7 +80,7 @@ type nsCachingReader struct {
 	p   *nsCachingProxy
 }
 
-func (r *nsCachingReader) ReadNamespace(
+func (r *nsCachingReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -94,7 +94,7 @@ func (r *nsCachingReader) ReadNamespace(
 		loadedRaw, err, _ = r.p.readNsGroup.Do(nsRevisionKey, func() (any, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted namespace read
-			loaded, updatedRev, err := r.Reader.ReadNamespace(SeparateContextWithTracing(ctx), nsName)
+			loaded, updatedRev, err := r.Reader.ReadNamespaceByName(SeparateContextWithTracing(ctx), nsName)
 			if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) {
 				// Propagate this error to the caller
 				return nil, err
@@ -129,7 +129,7 @@ type rwtCacheEntry struct {
 	notFound error
 }
 
-func (rwt *nsCachingRWT) ReadNamespace(
+func (rwt *nsCachingRWT) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
@@ -139,7 +139,7 @@ func (rwt *nsCachingRWT) ReadNamespace(
 	if ok {
 		entry = untypedEntry.(rwtCacheEntry)
 	} else {
-		loaded, updatedRev, err := rwt.ReadWriteTransaction.ReadNamespace(ctx, nsName)
+		loaded, updatedRev, err := rwt.ReadWriteTransaction.ReadNamespaceByName(ctx, nsName)
 		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			// Propagate this error to the caller
 			return nil, datastore.NoRevision, err

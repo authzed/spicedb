@@ -88,7 +88,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	)
 }
 
-func (mr *mysqlReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {

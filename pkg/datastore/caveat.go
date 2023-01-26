@@ -8,7 +8,8 @@ import (
 
 // CaveatReader offers read operations for caveats
 type CaveatReader interface {
-	// ReadCaveatByName returns a caveat with the provided name
+	// ReadCaveatByName returns a caveat with the provided name.
+	// It returns an instance of ErrCaveatNotFound if not found.
 	ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, Revision, error)
 
 	// ListCaveats returns all caveats stored in the system. If caveatNames are provided
