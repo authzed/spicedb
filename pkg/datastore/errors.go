@@ -6,10 +6,21 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// ErrNotFound is a shared interface for not found errors.
+type ErrNotFound interface {
+	IsNotFoundError() bool
+}
+
 // ErrNamespaceNotFound occurs when a namespace was not found.
 type ErrNamespaceNotFound struct {
 	error
 	namespaceName string
+}
+
+var _ ErrNotFound = ErrNamespaceNotFound{}
+
+func (err ErrNamespaceNotFound) IsNotFoundError() bool {
+	return true
 }
 
 // NotFoundNamespaceName is the name of the namespace not found.
@@ -145,6 +156,12 @@ func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) erro
 type ErrCaveatNameNotFound struct {
 	error
 	name string
+}
+
+var _ ErrNotFound = ErrCaveatNameNotFound{}
+
+func (err ErrCaveatNameNotFound) IsNotFoundError() bool {
+	return true
 }
 
 // CaveatName returns the name of the caveat that couldn't be found
