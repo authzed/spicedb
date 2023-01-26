@@ -115,9 +115,15 @@ func ApplySchemaChangesOverExisting(
 	}
 
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
+	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.CaveatDefinitions))
 	for _, caveatDef := range validated.compiled.CaveatDefinitions {
-		if err := sanityCheckCaveatChanges(ctx, rwt, caveatDef, existingCaveatDefMap); err != nil {
+		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatDef, existingCaveatDefMap)
+		if err != nil {
 			return nil, err
+		}
+
+		if len(diff.Deltas()) > 0 {
+			caveatDefsWithChanges = append(caveatDefsWithChanges, caveatDef)
 		}
 	}
 
@@ -150,6 +156,7 @@ func ApplySchemaChangesOverExisting(
 		Int("objectDefinitions", len(validated.compiled.ObjectDefinitions)).
 		Int("caveatDefinitions", len(validated.compiled.CaveatDefinitions)).
 		Int("objectDefsWithChanges", len(objectDefsWithChanges)).
+		Int("caveatDefsWithChanges", len(caveatDefsWithChanges)).
 		Msg("validated namespace definitions")
 
 	// Ensure that deleting namespaces will not result in any relationships left without associated
@@ -163,10 +170,9 @@ func ApplySchemaChangesOverExisting(
 		}
 	}
 
-	// Write the new caveats.
-	// TODO(jschorr): Only write updated caveats once the diff has been changed to support expressions.
-	if len(validated.compiled.CaveatDefinitions) > 0 {
-		if err := rwt.WriteCaveats(ctx, validated.compiled.CaveatDefinitions); err != nil {
+	// Write the new/changes caveats.
+	if len(caveatDefsWithChanges) > 0 {
+		if err := rwt.WriteCaveats(ctx, caveatDefsWithChanges); err != nil {
 			return nil, err
 		}
 	}
@@ -217,25 +223,25 @@ func sanityCheckCaveatChanges(
 	rwt datastore.ReadWriteTransaction,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
-) error {
+) (*caveats.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	existing := existingDefs[caveatDef.Name]
 	diff, err := caveats.DiffCaveats(existing, caveatDef)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case caveats.RemovedParameter:
-			return NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+			return diff, NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
 
 		case caveats.ParameterTypeChanged:
-			return NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
+			return diff, NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
 		}
 	}
 
-	return nil
+	return diff, nil
 }
 
 // ensureNoRelationshipsExist ensures that no relationships exist within the namespace with the given name.

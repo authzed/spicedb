@@ -149,6 +149,46 @@ func TestCaveatDiff(t *testing.T) {
 				{Type: AddedParameter, ParameterName: "anotherparam"},
 			},
 		},
+		{
+			"changed expression",
+			ns.MustCaveatDefinition(
+				caveats.MustEnvForVariables(map[string]types.VariableType{
+					"someparam": types.IntType,
+				}),
+				"somecaveat",
+				"true",
+			),
+			ns.MustCaveatDefinition(
+				caveats.MustEnvForVariables(map[string]types.VariableType{
+					"someparam": types.IntType,
+				}),
+				"somecaveat",
+				"false",
+			),
+			[]Delta{
+				{Type: CaveatExpressionMayHaveChanged},
+			},
+		},
+		{
+			"another changed expression",
+			ns.MustCaveatDefinition(
+				caveats.MustEnvForVariables(map[string]types.VariableType{
+					"someparam": types.IntType,
+				}),
+				"somecaveat",
+				"someparam == 1",
+			),
+			ns.MustCaveatDefinition(
+				caveats.MustEnvForVariables(map[string]types.VariableType{
+					"someparam": types.IntType,
+				}),
+				"somecaveat",
+				"someparam <= 1",
+			),
+			[]Delta{
+				{Type: CaveatExpressionMayHaveChanged},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

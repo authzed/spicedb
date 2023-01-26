@@ -1,6 +1,8 @@
 package caveats
 
 import (
+	"bytes"
+
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
@@ -26,6 +28,11 @@ const (
 
 	// ParameterTypeChanged indicates that the type of the parameter was changed.
 	ParameterTypeChanged DeltaType = "parameter-type-changed"
+
+	// CaveatExpressionMayHaveChanged indicates that the expression of the caveat *may* have changed.
+	// This uses a direct byte comparison which can return that a change occurred, even when it has
+	// not.
+	CaveatExpressionMayHaveChanged DeltaType = "expression-may-have-changed"
 )
 
 // Diff holds the diff between two caveats.
@@ -128,6 +135,12 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 				CurrentType:   updatedParamType,
 			})
 		}
+	}
+
+	if !bytes.Equal(existing.SerializedExpression, updated.SerializedExpression) {
+		deltas = append(deltas, Delta{
+			Type: CaveatExpressionMayHaveChanged,
+		})
 	}
 
 	return &Diff{
