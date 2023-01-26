@@ -9,7 +9,8 @@ import (
 // See https://www.postgresql.org/docs/current/indexes-index-only-scans.html
 const createRelationTupleDeletedCoveringIndex = `CREATE INDEX CONCURRENTLY 
 	IF NOT EXISTS ix_relation_tuple_by_deleted_xid
-	ON relation_tuple (deleted_xid);`
+	ON relation_tuple (deleted_xid)
+	WHERE (deleted_xid::text::bigint < 9223372036854775807);`
 
 func init() {
 	if err := DatabaseMigrations.Register("add-gc-covering-index", "add-caveat-covering-index",
