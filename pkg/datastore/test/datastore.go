@@ -33,6 +33,7 @@ func (f DatastoreTesterFunc) New(revisionQuantization, gcWindow time.Duration, w
 // AllExceptWatch runs all generic datastore tests on a DatastoreTester, except
 // those invoking the watch API.
 func AllExceptWatch(t *testing.T, tester DatastoreTester) {
+	t.Run("TestNamespaceNotFound", func(t *testing.T) { NamespaceNotFoundTest(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
 	t.Run("TestNamespaceMultiDelete", func(t *testing.T) { NamespaceMultiDeleteTest(t, tester) })
@@ -56,6 +57,7 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
 
+	t.Run("TestCaveatNotFound", func(t *testing.T) { CaveatNotFoundTest(t, tester) })
 	t.Run("TestWriteReadDeleteCaveat", func(t *testing.T) { WriteReadDeleteCaveatTest(t, tester) })
 	t.Run("TestWriteCaveatedRelationship", func(t *testing.T) { WriteCaveatedRelationshipTest(t, tester) })
 	t.Run("TestCaveatedRelationshipFilter", func(t *testing.T) { CaveatedRelationshipFilterTest(t, tester) })

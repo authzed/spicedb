@@ -30,6 +30,24 @@ var (
 	)
 )
 
+// NamespaceNotFoundTest tests to ensure that an unknown namespace returns the expected
+// error.
+func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := context.Background()
+
+	startRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	require.True(startRevision.GreaterThan(datastore.NoRevision))
+
+	_, _, err = ds.SnapshotReader(startRevision).ReadNamespace(ctx, "unknown")
+	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
+}
+
 // NamespaceWriteTest tests whether or not the requirements for writing
 // namespaces hold for a particular datastore.
 func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {

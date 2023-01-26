@@ -22,6 +22,24 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+// CaveatNotFound tests to ensure that an unknown caveat returns the expected
+// error.
+func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := context.Background()
+
+	startRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	require.True(startRevision.GreaterThan(datastore.NoRevision))
+
+	_, _, err = ds.SnapshotReader(startRevision).ReadCaveatByName(ctx, "unknown")
+	require.True(errors.As(err, &datastore.ErrCaveatNameNotFound{}))
+}
+
 func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
