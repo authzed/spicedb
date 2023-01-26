@@ -62,7 +62,18 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	return loaded, revisionFromTimestamp(timestamp), nil
 }
 
-func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+func (cr *crdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	if len(caveatNames) == 0 {
+		return nil, nil
+	}
+	return cr.lookupCaveats(ctx, caveatNames)
+}
+
+func (cr *crdbReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+	return cr.lookupCaveats(ctx, nil)
+}
+
+func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
 	caveatsWithNames := listCaveat
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})

@@ -58,7 +58,18 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	return &def, rev, nil
 }
 
-func (r *pgReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+func (r *pgReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	if len(caveatNames) == 0 {
+		return nil, nil
+	}
+	return r.lookupCaveats(ctx, caveatNames)
+}
+
+func (r *pgReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+	return r.lookupCaveats(ctx, nil)
+}
+
+func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
 	caveatsWithNames := listCaveat
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})

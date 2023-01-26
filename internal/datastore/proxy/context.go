@@ -91,8 +91,12 @@ func (r *ctxReader) ReadCaveatByName(ctx context.Context, name string) (*core.Ca
 	return r.delegate.ReadCaveatByName(SeparateContextWithTracing(ctx), name)
 }
 
-func (r *ctxReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error) {
-	return r.delegate.ListCaveats(SeparateContextWithTracing(ctx), caveatNamesForFiltering...)
+func (r *ctxReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+	return r.delegate.ListAllCaveats(SeparateContextWithTracing(ctx))
+}
+
+func (r *ctxReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	return r.delegate.LookupCaveatsWithNames(SeparateContextWithTracing(ctx), caveatNames)
 }
 
 func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {

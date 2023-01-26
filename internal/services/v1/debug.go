@@ -29,7 +29,7 @@ func ConvertCheckDispatchDebugInformation(
 		return nil, nil
 	}
 
-	caveats, err := reader.ListCaveats(ctx)
+	caveats, err := reader.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}

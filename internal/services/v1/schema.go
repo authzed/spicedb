@@ -57,7 +57,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 		return nil, rewriteError(ctx, err)
 	}
 
-	caveatDefs, err := ds.ListCaveats(ctx)
+	caveatDefs, err := ds.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}

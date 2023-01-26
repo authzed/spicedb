@@ -137,8 +137,24 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 	return read, createdAt, err
 }
 
-func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	read, err := vsr.delegate.ListCaveats(ctx, caveatNames...)
+func (vsr validatingSnapshotReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	read, err := vsr.delegate.LookupCaveatsWithNames(ctx, caveatNames)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, caveatDef := range read {
+		err := caveatDef.Validate()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return read, err
+}
+
+func (vsr validatingSnapshotReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+	read, err := vsr.delegate.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -143,13 +143,20 @@ func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*
 	return r.delegate.ReadCaveatByName(ctx, name)
 }
 
-func (r *observableReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error) {
-	ctx, closer := observe(ctx, "ListCaveats", trace.WithAttributes(
-		attribute.StringSlice("names", caveatNamesForFiltering),
+func (r *observableReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	ctx, closer := observe(ctx, "LookupCaveatsWithNames", trace.WithAttributes(
+		attribute.StringSlice("names", caveatNames),
 	))
 	defer closer()
 
-	return r.delegate.ListCaveats(ctx, caveatNamesForFiltering...)
+	return r.delegate.LookupCaveatsWithNames(ctx, caveatNames)
+}
+
+func (r *observableReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+	ctx, closer := observe(ctx, "ListAllCaveats")
+	defer closer()
+
+	return r.delegate.ListAllCaveats(ctx)
 }
 
 func (r *observableReader) ListAllNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {

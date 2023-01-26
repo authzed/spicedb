@@ -83,7 +83,7 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	existingCaveats, err := rwt.ListCaveats(ctx)
+	existingCaveats, err := rwt.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}

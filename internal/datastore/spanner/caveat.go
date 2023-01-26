@@ -35,7 +35,18 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 	return loaded, revisionFromTimestamp(updated), nil
 }
 
-func (sr spannerReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+func (sr spannerReader) ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error) {
+	return sr.listCaveats(ctx, nil)
+}
+
+func (sr spannerReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	if len(caveatNames) == 0 {
+		return nil, nil
+	}
+	return sr.listCaveats(ctx, caveatNames)
+}
+
+func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
 	keyset := spanner.AllKeys()
 	if len(caveatNames) > 0 {
 		keys := make([]spanner.Key, 0, len(caveatNames))

@@ -12,9 +12,11 @@ type CaveatReader interface {
 	// It returns an instance of ErrCaveatNotFound if not found.
 	ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, Revision, error)
 
-	// ListCaveats returns all caveats stored in the system. If caveatNames are provided
-	// the result will be filtered to the provided caveat names
-	ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error)
+	// ListAllCaveats returns all caveats stored in the system.
+	ListAllCaveats(ctx context.Context) ([]*core.CaveatDefinition, error)
+
+	// LookupCaveatsWithNames finds all caveats with the matching names.
+	LookupCaveatsWithNames(ctx context.Context, names []string) ([]*core.CaveatDefinition, error)
 }
 
 // CaveatStorer offers both read and write operations for Caveats

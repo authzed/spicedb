@@ -30,7 +30,7 @@ func ValidateRelationshipUpdates(
 	}
 
 	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveats, err := rwt.ListCaveats(ctx, referencedCaveatNamesWithContext.AsSlice()...)
+		foundCaveats, err := rwt.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
 		if err != nil {
 			return err
 		}

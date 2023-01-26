@@ -82,7 +82,7 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Equal("bytes", cv.ParameterTypes["bar"].ChildTypes[0].TypeName)
 
 	// All caveats can be listed
-	cvs, err := cr.ListCaveats(ctx)
+	cvs, err := cr.ListAllCaveats(ctx)
 	req.NoError(err)
 	req.Len(cvs, 2)
 
@@ -91,8 +91,8 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	foundDiff = cmp.Diff(anotherCoreCaveat, cvs[1], protocmp.Transform())
 	req.Empty(foundDiff)
 
-	// All caveats can be filtered by names
-	cvs, err = cr.ListCaveats(ctx, coreCaveat.Name)
+	// Caveats can be found by names
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{coreCaveat.Name})
 	req.NoError(err)
 	req.Len(cvs, 1)
 
@@ -100,9 +100,19 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Empty(foundDiff)
 
 	// Non-existing names returns no caveat
-	cvs, err = cr.ListCaveats(ctx, "doesnotexist")
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{"doesnotexist"})
 	req.NoError(err)
 	req.Empty(cvs)
+
+	// Empty lookup returns no values.
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{})
+	req.NoError(err)
+	req.Len(cvs, 0)
+
+	// nil lookup returns no values.
+	cvs, err = cr.LookupCaveatsWithNames(ctx, nil)
+	req.NoError(err)
+	req.Len(cvs, 0)
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {

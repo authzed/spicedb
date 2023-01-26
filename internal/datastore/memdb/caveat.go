@@ -60,7 +60,7 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	return unwrapped, rev, nil
 }
 
-func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+func (r *memdbReader) ListAllCaveats(_ context.Context) ([]*core.CaveatDefinition, error) {
 	r.mustLock()
 	defer r.Unlock()
 
@@ -75,12 +75,8 @@ func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*
 		return nil, err
 	}
 
-	setOfCaveats := util.NewSet(caveatNames...)
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		rawCaveat := foundRaw.(*caveat)
-		if !setOfCaveats.IsEmpty() && !setOfCaveats.Has(rawCaveat.name) {
-			continue
-		}
 		definition, err := rawCaveat.Unwrap()
 		if err != nil {
 			return nil, err
@@ -89,6 +85,24 @@ func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*
 	}
 
 	return caveats, nil
+}
+
+func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]*core.CaveatDefinition, error) {
+	allCaveats, err := r.ListAllCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	allowedCaveatNames := util.NewSet[string]()
+	allowedCaveatNames.Extend(caveatNames)
+
+	toReturn := make([]*core.CaveatDefinition, 0, len(caveatNames))
+	for _, caveat := range allCaveats {
+		if allowedCaveatNames.Has(caveat.Name) {
+			toReturn = append(toReturn, caveat)
+		}
+	}
+	return toReturn, nil
 }
 
 func (rwt *memdbReadWriteTx) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
