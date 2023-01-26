@@ -143,23 +143,29 @@ func (dm *MockReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 }
 
 func (dm *MockReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	args := dm.Called()
+	args := dm.Called(nsNames)
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
 func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called(name)
+
+	var def *core.CaveatDefinition
+	if args.Get(0) != nil {
+		def = args.Get(0).(*core.CaveatDefinition)
+	}
+
+	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
 func (dm *MockReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called(caveatNames)
+	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
 func (dm *MockReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called()
+	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
 type MockReadWriteTransaction struct {
@@ -226,7 +232,7 @@ func (dm *MockReadWriteTransaction) ListAllNamespaces(ctx context.Context) ([]da
 }
 
 func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	args := dm.Called()
+	args := dm.Called(nsNames)
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
@@ -256,28 +262,33 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsName
 }
 
 func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called(name)
+
+	var def *core.CaveatDefinition
+	if args.Get(0) != nil {
+		def = args.Get(0).(*core.CaveatDefinition)
+	}
+
+	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
 func (dm *MockReadWriteTransaction) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called(caveatNames)
+	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called()
+	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
-	// TODO implement me
-	panic("implement me")
+	args := dm.Called(caveats)
+	return args.Error(0)
 }
 
 func (dm *MockReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
-	// TODO implement me
-	panic("implement me")
+	panic("not used")
 }
 
 var (
