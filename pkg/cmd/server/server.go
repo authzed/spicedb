@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"k8s.io/utils/env"
 	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/authzed/grpcutil"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
@@ -368,6 +371,20 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize metrics reporter: %w", err)
 		}
+	}
+
+	err = profiler.Start(
+		profiler.WithService(env.GetString("DD_SERVICE", "spicedb")),
+		profiler.WithProfileTypes(
+			profiler.CPUProfile,
+			profiler.HeapProfile,
+			profiler.BlockProfile,
+			profiler.MutexProfile,
+			profiler.GoroutineProfile,
+		),
+	)
+	if err != nil {
+		log.Ctx(ctx).Warn().Err(err).Msg("unable to initialize datadog profiler")
 	}
 
 	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(registry))

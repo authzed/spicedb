@@ -1,2 +1,4 @@
 dist/
 *.wasm
+vendor
+.idea
