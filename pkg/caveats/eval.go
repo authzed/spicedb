@@ -84,7 +84,6 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 	env := caveat.celEnv
 	celopts := make([]cel.ProgramOption, 0, 3)
 
-	// TODO(jschorr): Turn off if we know we have all the context values necessary?
 	// Option: enables partial evaluation and state tracking for partial evaluation.
 	celopts = append(celopts, cel.EvalOptions(cel.OptTrackState))
 	celopts = append(celopts, cel.EvalOptions(cel.OptPartialEval))
@@ -110,8 +109,11 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 		// *  `val`, `details`, `nil` - Successful evaluation of a non-error result.
 		// *  `val`, `details`, `err` - Successful evaluation to an error result.
 		// *  `nil`, `details`, `err` - Unsuccessful evaluation.
-		// TODO(jschorr): Change to a better way to detect partial eval if/when CEL adds properly
-		// wrapped errors.
+		//
+		// NOTE: This is done in this hacky way right now because CEL does not have
+		// well-typed errors. We should change to a better way to detect partial
+		// eval if/when CEL adds properly wrapped errors.
+		// See: https://github.com/google/cel-go/issues/25
 		if val != nil && strings.Contains(err.Error(), "no such attribute") {
 			found := noSuchAttributeErrMessage.FindStringSubmatch(err.Error())
 			if found != nil {
