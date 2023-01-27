@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"golang.org/x/exp/maps"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -52,6 +53,9 @@ type ExpressionResult interface {
 	// ContextValues returns the context values used when computing this result.
 	ContextValues() map[string]any
 
+	// ContextStruct returns the context values as a structpb Struct.
+	ContextStruct() (*structpb.Struct, error)
+
 	// ExpressionString returns the human-readable expression for the caveat expression.
 	ExpressionString() (string, error)
 }
@@ -76,6 +80,10 @@ func (sr syntheticResult) MissingVarNames() ([]string, error) {
 
 func (sr syntheticResult) ContextValues() map[string]any {
 	return sr.contextValues
+}
+
+func (sr syntheticResult) ContextStruct() (*structpb.Struct, error) {
+	return caveats.ConvertContextToStruct(sr.contextValues)
 }
 
 func (sr syntheticResult) ExpressionString() (string, error) {

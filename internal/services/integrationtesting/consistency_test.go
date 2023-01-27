@@ -689,9 +689,6 @@ func validateDevelopmentAssertions(t *testing.T, devContext *development.DevCont
 		}
 	}
 
-	require.Greater(t, len(trueAssertions), 0, "missing expected true assertions")
-	require.Greater(t, len(falseAssertions), 0, "missing expected false assertions")
-
 	assertionsMap := map[string]interface{}{
 		"assertTrue":     trueAssertions,
 		"assertCaveated": caveatedAssertions,

@@ -261,6 +261,38 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			noMissingVars,
 		},
+		{
+			"timestamp comparison",
+			MustEnvForVariables(map[string]types.VariableType{
+				"a": types.TimestampType,
+				"b": types.TimestampType,
+			}),
+			"a < b",
+			map[string]any{
+				"a": time.Date(2000, 10, 10, 10, 10, 10, 10, wetTz),
+				"b": time.Date(2000, 10, 10, 10, 10, 10, 10, wetTz),
+			},
+			"",
+			false,
+			"",
+			noMissingVars,
+		},
+		{
+			"timestamp comparison 2",
+			MustEnvForVariables(map[string]types.VariableType{
+				"a": types.TimestampType,
+				"b": types.TimestampType,
+			}),
+			"a <= b",
+			map[string]any{
+				"a": time.Date(2000, 10, 10, 10, 10, 10, 10, wetTz),
+				"b": time.Date(2000, 10, 10, 10, 10, 10, 10, wetTz),
+			},
+			"",
+			true,
+			"",
+			noMissingVars,
+		},
 	}
 
 	for _, tc := range tcs {

@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
@@ -56,6 +58,12 @@ func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 // ContextValues returns the context values used when computing this result.
 func (cr CaveatResult) ContextValues() map[string]any {
 	return cr.contextValues
+}
+
+// ContextStruct returns the context values used when computing this result as
+// a structpb.
+func (cr CaveatResult) ContextStruct() (*structpb.Struct, error) {
+	return ConvertContextToStruct(cr.contextValues)
 }
 
 // ExpressionString returns the human-readable expression string for the evaluated expression.

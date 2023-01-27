@@ -9,18 +9,18 @@ schema: |+
   }
 
   definition namespace {
-  	relation parent: namespace | organization
-  	relation admin: user
-  	relation creator: user
+    relation parent: namespace | organization
+    relation admin: user
+    relation creator: user
 
     permission can_admin = admin + parent->can_admin
     permission create = can_admin + parent->create
   }
 
   definition organization {
-  	relation admin: user | team#member
-  	relation creator: user | team#member
-  	relation direct_member: user
+    relation admin: user | team#member
+    relation creator: user | team#member
+    relation direct_member: user
 
     permission can_admin = admin
     permission create = creator + can_admin
@@ -28,10 +28,10 @@ schema: |+
   }
 
   definition repo {
-  	relation parent: namespace
-  	relation admin: user
-  	relation writers: user
-  	relation readers: user | anonymoususer:* with is_not_geo_banned
+    relation parent: namespace
+    relation admin: user
+    relation writers: user
+    relation readers: user | anonymoususer:* with is_not_geo_banned
 
     permission can_admin = admin + parent->can_admin
     permission write = writers + can_admin
@@ -39,8 +39,8 @@ schema: |+
   }
 
   definition team {
-  	relation parent_org: organization
-  	relation direct_member: user
+    relation parent_org: organization
+    relation direct_member: user
 
     permission member = direct_member
   }
