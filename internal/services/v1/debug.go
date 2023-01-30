@@ -2,11 +2,11 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -110,9 +110,9 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 			}
 		}
 
-		contextStruct, err := structpb.NewStruct(computedResult.ContextValues())
+		contextStruct, err := computedResult.ContextStruct()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not serialize context: %w. please report this error", err)
 		}
 
 		exprString, err := computedResult.ExpressionString()

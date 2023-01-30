@@ -1,0 +1,33 @@
+---
+schema: |+
+  definition user {}
+
+  caveat is_not_expired(current_time timestamp, expiration timestamp) {
+    current_time < expiration
+  }
+
+  definition document {
+    relation viewer: user with is_not_expired
+    permission view = viewer
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tracy[is_not_expired:{"expiration":"2024-12-01T00:00:00Z","current_time":"2023-01-01T00:00:00Z"}]
+
+  document:firstdoc#viewer@user:tom[is_not_expired:{"expiration":"2023-12-01T00:00:00Z"}]
+
+  document:firstdoc#viewer@user:fred[is_not_expired:{"expiration":"2022-12-01T00:00:00Z"}]
+
+  document:firstdoc#viewer@user:sarah[is_not_expired:{"expiration":"2023-12-01T00:02:00Z"}]
+assertions:
+  assertTrue:
+    - 'document:firstdoc#view@user:tracy'
+    - 'document:firstdoc#view@user:tom with {"current_time":"2022-01-01T00:00:00Z"}'
+    - 'document:firstdoc#view@user:sarah with {"current_time":"2023-01-01T00:00:00Z"}'
+  assertCaveated:
+    - 'document:firstdoc#view@user:tom'
+    - 'document:firstdoc#view@user:fred'
+    - 'document:firstdoc#view@user:sarah'
+  assertFalse:
+    - 'document:firstdoc#view@user:tom with {"current_time":"2023-12-01T00:01:00Z"}'
+    - 'document:firstdoc#view@user:fred with {"current_time":"2023-01-01T00:00:00Z"}'

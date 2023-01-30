@@ -1,86 +1,101 @@
 ---
 schema: |+
-  definition quay/user {}
+  definition user {}
 
-  definition quay/namespace {
-  	relation parent: quay/namespace | quay/organization
-  	relation admin: quay/user
-  	relation creator: quay/user
+  definition anonymoususer {}
+
+  caveat is_not_geo_banned(user_ip ipaddress, cidr string) {
+    !user_ip.in_cidr(cidr)
+  }
+
+  definition namespace {
+    relation parent: namespace | organization
+    relation admin: user
+    relation creator: user
 
     permission can_admin = admin + parent->can_admin
     permission create = can_admin + parent->create
   }
 
-  definition quay/organization {
-  	relation admin: quay/user | quay/team#member
-  	relation creator: quay/user | quay/team#member
-  	relation direct_member: quay/user
+  definition organization {
+    relation admin: user | team#member
+    relation creator: user | team#member
+    relation direct_member: user
 
     permission can_admin = admin
     permission create = creator + can_admin
     permission member = direct_member + create
   }
 
-  definition quay/repo {
-  	relation parent: quay/namespace
-  	relation admin: quay/user
-  	relation writers: quay/user
-  	relation readers: quay/user
+  definition repo {
+    relation parent: namespace
+    relation admin: user
+    relation writers: user
+    relation readers: user | anonymoususer:* with is_not_geo_banned
 
     permission can_admin = admin + parent->can_admin
     permission write = writers + can_admin
     permission view = readers + write
   }
 
-  definition quay/team {
-  	relation parent_org: quay/organization
-  	relation direct_member: quay/user
+  definition team {
+    relation parent_org: organization
+    relation direct_member: user
 
     permission member = direct_member
   }
 
 relationships: >-
-  quay/organization:megacorp#admin@quay/user:cto#...
+  organization:megacorp#admin@user:cto
 
-  quay/team:owners#direct_member@quay/user:cto#...
+  team:owners#direct_member@user:cto
 
-  quay/team:owners#direct_member@quay/user:ceo#...
+  team:owners#direct_member@user:ceo
 
-  quay/team:owners#parent_org@quay/organization:megacorp#...
+  team:owners#parent_org@organization:megacorp
 
-  quay/organization:megacorp#admin@quay/team:owners#member
+  organization:megacorp#admin@team:owners#member
 
-  quay/team:creator#direct_member@quay/user:eng_director#...
+  team:creator#direct_member@user:eng_director
 
-  quay/team:creator#parent_org@quay/organization:megacorp#...
+  team:creator#parent_org@organization:megacorp
 
-  quay/organization:megacorp#creator@quay/team:creator#member
+  organization:megacorp#creator@team:creator#member
 
-  quay/namespace:buynlarge#parent@quay/organization:megacorp#...
+  namespace:buynlarge#parent@organization:megacorp
 
-  quay/namespace:buynlarge#admin@quay/user:eng_manager#...
+  namespace:buynlarge#admin@user:eng_manager
 
-  quay/repo:buynlarge/orgrepo#parent@quay/namespace:buynlarge#...
+  repo:buynlarge/orgrepo#parent@namespace:buynlarge
 
-  quay/repo:buynlarge/orgrepo#admin@quay/user:eng_manager#...
+  repo:buynlarge/orgrepo#admin@user:eng_manager
 
-  quay/repo:buynlarge/orgrepo#writers@quay/user:engineer#...
+  repo:buynlarge/orgrepo#writers@user:engineer
 
-  quay/repo:buynlarge/orgrepo#readers@quay/user:test_engineer#...
+  repo:buynlarge/orgrepo#readers@user:test_engineer
 
-  quay/namespace:purnkleen#parent@quay/organization:megacorp#...
+  namespace:purnkleen#parent@organization:megacorp
 
-  quay/namespace:purnkleen#admin@quay/user:eng_director#...
+  namespace:purnkleen#admin@user:eng_director
 
-  quay/organization:villainorg#admin@quay/user:villain#...
+  organization:villainorg#admin@user:villain
+
+  repo:buynlarge/orgrepo#readers@anonymoususer:*[is_not_geo_banned:{"cidr":"1.0.0.0/8"}]
 
 assertions:
   assertTrue:
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:test_engineer#..."
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:engineer#..."
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:eng_manager#..."
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:ceo#..."
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:cto#..."
+    - 'repo:buynlarge/orgrepo#view@user:test_engineer'
+    - 'repo:buynlarge/orgrepo#view@user:engineer'
+    - 'repo:buynlarge/orgrepo#view@user:eng_manager'
+    - 'repo:buynlarge/orgrepo#view@user:ceo'
+    - 'repo:buynlarge/orgrepo#view@user:cto'
+    - 'repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb with {"user_ip": "2.3.4.5"}'
+    - 'repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc with {"user_ip": "10.11.12.13"}'
+  assertCaveated:
+    - 'repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb'
+    - 'repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc'
   assertFalse:
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:villain#..."
-    - "quay/repo:buynlarge/orgrepo#view@quay/user:eng_director#..."
+    - 'repo:buynlarge/orgrepo#view@user:villain'
+    - 'repo:buynlarge/orgrepo#view@user:eng_director'
+    - 'repo:buynlarge/orgrepo#view@anonymoususer:dskfjbdkfjb with {"user_ip": "1.2.3.4"}'
+    - 'repo:buynlarge/orgrepo#view@anonymoususer:avbcocdhdsc with {"user_ip": "1.10.20.30"}'
