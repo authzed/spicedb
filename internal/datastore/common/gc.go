@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -150,6 +151,7 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		startTime = time.Now()
 		collected DeletionCounts
 		watermark datastore.Revision
+		now       = time.Time{}
 	)
 
 	defer func() {
@@ -159,6 +161,7 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		log.Ctx(ctx).Debug().
 			Stringer("highestTxID", watermark).
 			Dur("duration", collectionDuration).
+			Time("nowTime", now).
 			Interface("collected", collected).
 			Msg("datastore garbage collection completed")
 
@@ -167,16 +170,20 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		gcNamespacesCounter.Add(float64(collected.Namespaces))
 	}()
 
-	now, err := gc.Now(ctx)
+	now, err = gc.Now(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("error retrieving now: %w", err)
 	}
 
 	watermark, err = gc.TxIDBefore(ctx, now.Add(-1*window))
 	if err != nil {
-		return err
+		return fmt.Errorf("error retrieving watermark: %w", err)
 	}
 
 	collected, err = gc.DeleteBeforeTx(ctx, watermark)
-	return err
+	if err != nil {
+		return fmt.Errorf("error deleting in gc: %w", err)
+	}
+
+	return nil
 }
