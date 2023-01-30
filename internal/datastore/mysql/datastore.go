@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -107,6 +108,16 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+
+	parsedURI, err := url.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("NewMySQLDatastore: could not parse connection URI `%s`: %w", uri, err)
+	}
+
+	if parsedURI.Query().Get("parseTime") != "true" {
+		return nil, fmt.Errorf("NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter. See https://spicedb.dev/d/parse-time-mysql for more details. Found: `%s`", uri)
+	}
+
 	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
 	if err != nil {
 		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
