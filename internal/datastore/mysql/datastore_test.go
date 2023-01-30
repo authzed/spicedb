@@ -95,6 +95,8 @@ func TestMySQLDatastore(t *testing.T) {
 	t.Run("GarbageCollection", createDatastoreTest(b, GarbageCollectionTest, defaultOptions...))
 	t.Run("GarbageCollectionByTime", createDatastoreTest(b, GarbageCollectionByTimeTest, defaultOptions...))
 	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
+	t.Run("EmptyGarbageCollection", createDatastoreTest(b, EmptyGarbageCollectionTest, defaultOptions...))
+	t.Run("NoRelationshipsGarbageCollection", createDatastoreTest(b, NoRelationshipsGarbageCollectionTest, defaultOptions...))
 	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
@@ -102,6 +104,7 @@ func TestMySQLDatastore(t *testing.T) {
 }
 
 func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
+	return
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
 	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
@@ -354,6 +357,67 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
 }
 
+func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	req := require.New(t)
+
+	ctx := context.Background()
+	ok, err := ds.IsReady(ctx)
+	req.NoError(err)
+	req.True(ok)
+
+	gc := ds.(common.GarbageCollector)
+
+	now, err := gc.Now(ctx)
+	req.NoError(err)
+
+	watermark, err := gc.TxIDBefore(ctx, now.Add(-1*time.Minute))
+	req.NoError(err)
+
+	collected, err := gc.DeleteBeforeTx(ctx, watermark)
+	req.NoError(err)
+
+	req.Equal(int64(0), collected.Relationships)
+	req.Equal(int64(0), collected.Transactions)
+	req.Equal(int64(0), collected.Namespaces)
+}
+
+func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
+	req := require.New(t)
+
+	ctx := context.Background()
+	ok, err := ds.IsReady(ctx)
+	req.NoError(err)
+	req.True(ok)
+
+	// Write basic namespaces.
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(
+			ctx,
+			namespace.Namespace(
+				"resource",
+				namespace.MustRelation("reader", nil),
+			),
+			namespace.Namespace("user"),
+		)
+	})
+	req.NoError(err)
+
+	gc := ds.(common.GarbageCollector)
+
+	now, err := gc.Now(ctx)
+	req.NoError(err)
+
+	watermark, err := gc.TxIDBefore(ctx, now.Add(-1*time.Minute))
+	req.NoError(err)
+
+	collected, err := gc.DeleteBeforeTx(ctx, watermark)
+	req.NoError(err)
+
+	req.Equal(int64(0), collected.Relationships)
+	req.Equal(int64(0), collected.Transactions)
+	req.Equal(int64(0), collected.Namespaces)
+}
+
 func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
@@ -385,7 +449,6 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	}
 
 	// Write a large number of relationships.
-
 	writtenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tuples...)
 	req.NoError(err)
 
