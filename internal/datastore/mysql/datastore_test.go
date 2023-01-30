@@ -104,7 +104,6 @@ func TestMySQLDatastore(t *testing.T) {
 }
 
 func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
-	return
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
 	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
