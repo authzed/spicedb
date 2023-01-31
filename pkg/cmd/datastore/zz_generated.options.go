@@ -31,6 +31,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 		to.DisableStats = c.DisableStats
 		to.BootstrapFiles = c.BootstrapFiles
+		to.BootstrapFileContents = c.BootstrapFileContents
 		to.BootstrapOverwrite = c.BootstrapOverwrite
 		to.BootstrapTimeout = c.BootstrapTimeout
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
@@ -162,6 +163,20 @@ func WithBootstrapFiles(bootstrapFiles string) ConfigOption {
 func SetBootstrapFiles(bootstrapFiles []string) ConfigOption {
 	return func(c *Config) {
 		c.BootstrapFiles = bootstrapFiles
+	}
+}
+
+// WithBootstrapFileContents returns an option that can append BootstrapFileContentss to Config.BootstrapFileContents
+func WithBootstrapFileContents(key string, value []byte) ConfigOption {
+	return func(c *Config) {
+		c.BootstrapFileContents[key] = value
+	}
+}
+
+// SetBootstrapFileContents returns an option that can set BootstrapFileContents on a Config
+func SetBootstrapFileContents(bootstrapFileContents map[string][]byte) ConfigOption {
+	return func(c *Config) {
+		c.BootstrapFileContents = bootstrapFileContents
 	}
 }
 
