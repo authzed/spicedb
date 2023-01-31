@@ -303,9 +303,9 @@ func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *postgresOptions) { po.analyzeBeforeStatistics = true }
 }
 
-// WithQueryInterceptor adds a query logger for use in tests.
+// WithQueryInterceptor adds an interceptor to all underlying postgres queries
 //
-// Not specified by default.
+// By default, no query interceptor is used.
 func WithQueryInterceptor(interceptor common.QueryInterceptor) Option {
 	return func(po *postgresOptions) {
 		po.queryInterceptor = interceptor
