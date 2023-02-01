@@ -57,9 +57,10 @@ type Config struct {
 	DisableStats           bool
 
 	// Bootstrap
-	BootstrapFiles     []string
-	BootstrapOverwrite bool
-	BootstrapTimeout   time.Duration
+	BootstrapFiles        []string
+	BootstrapFileContents map[string][]byte
+	BootstrapOverwrite    bool
+	BootstrapTimeout      time.Duration
 
 	// Hedging
 	RequestHedgingEnabled          bool
@@ -213,7 +214,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		return nil, err
 	}
 
-	if len(opts.BootstrapFiles) > 0 {
+	if len(opts.BootstrapFiles) > 0 || len(opts.BootstrapFileContents) > 0 {
 		ctx, cancel := context.WithTimeout(ctx, opts.BootstrapTimeout)
 		defer cancel()
 
@@ -228,9 +229,19 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		}
 		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
 			log.Ctx(ctx).Info().Msg("initializing datastore from bootstrap files")
-			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+
+			if len(opts.BootstrapFiles) > 0 {
+				_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+				}
+			}
+
+			if len(opts.BootstrapFileContents) > 0 {
+				_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.BootstrapFileContents)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
+				}
 			}
 		} else {
 			return nil, errors.New("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
