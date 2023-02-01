@@ -38,7 +38,7 @@ require (
 	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgio v1.0.0
-	github.com/jackc/pgtype v1.12.0
+	github.com/jackc/pgtype v1.13.0
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jzelinskie/cobrautil/v2 v2.0.0-20221215210038-3f120e7f595f
