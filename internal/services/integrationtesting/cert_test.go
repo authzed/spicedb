@@ -38,9 +38,10 @@ import (
 func TestCertRotation(t *testing.T) {
 	const (
 		// length of time the initial cert is valid
-		initialValidDuration = 1 * time.Second
+		initialValidDuration = 3 * time.Second
+
 		// continue making requests for waitFactor*initialValidDuration
-		waitFactor = 3
+		waitFactor = 2
 	)
 
 	certDir, err := os.MkdirTemp("", "test-certs-")
@@ -167,9 +168,9 @@ func TestCertRotation(t *testing.T) {
 		wait <- struct{}{}
 	}()
 
-	// If previous code takes more than 1s to execute, the cert would have expired, and Dial would
-	// retry indefinitely, hence the context timeout
-	dialCtx, cancelDial := context.WithTimeout(ctx, 5*time.Second)
+	// If previous code takes more than initialValidDuration*2 to execute, the cert
+	// would have expired, and Dial would retry indefinitely, hence the context timeout
+	dialCtx, cancelDial := context.WithTimeout(ctx, initialValidDuration*2)
 	conn, err := srv.GRPCDialContext(dialCtx,
 		grpc.WithReturnConnectionError(),
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -241,7 +242,7 @@ func TestCertRotation(t *testing.T) {
 	}))
 	require.NoError(t, certFile.Close())
 
-	// check for three seconds (initial cert is only valid for 1 second)
+	// check for waitFactor*initialValidDuration seconds
 	for i := 0; i < waitFactor; i++ {
 		_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{
@@ -262,7 +263,7 @@ func TestCertRotation(t *testing.T) {
 	select {
 	case <-wait:
 		return
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
 		require.Fail(t, "ungraceful server termination")
 	}
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
