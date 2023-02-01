@@ -27,10 +27,11 @@ func TestLoadDatastoreFromFileContents(t *testing.T) {
 
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-	namespaces, err := ds.SnapshotReader(revision).ListNamespaces(ctx)
+
+	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 1)
-	require.Equal(t, "user", namespaces[0].Name)
+	require.Equal(t, "user", namespaces[0].Definition.Name)
 }
 
 func TestLoadDatastoreFromFile(t *testing.T) {
@@ -47,10 +48,11 @@ func TestLoadDatastoreFromFile(t *testing.T) {
 
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-	namespaces, err := ds.SnapshotReader(revision).ListNamespaces(ctx)
+
+	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 1)
-	require.Equal(t, "user", namespaces[0].Name)
+	require.Equal(t, "user", namespaces[0].Definition.Name)
 }
 
 func TestLoadDatastoreFromFileAndContents(t *testing.T) {
@@ -68,10 +70,11 @@ func TestLoadDatastoreFromFileAndContents(t *testing.T) {
 
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
-	namespaces, err := ds.SnapshotReader(revision).ListNamespaces(ctx)
+
+	namespaces, err := ds.SnapshotReader(revision).ListAllNamespaces(ctx)
 	require.NoError(t, err)
 	require.Len(t, namespaces, 2)
-	namespaceNames := []string{namespaces[0].Name, namespaces[1].Name}
+	namespaceNames := []string{namespaces[0].Definition.Name, namespaces[1].Definition.Name}
 	require.Contains(t, namespaceNames, "user")
 	require.Contains(t, namespaceNames, "repository")
 }
