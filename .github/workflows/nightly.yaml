@@ -4,6 +4,11 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
+permissions:
+  contents: "write"
+  packages: "write"
+env:
+  GO_VERSION: "~1.19.4"
 jobs:
   goreleaser:
     runs-on: "ubuntu-latest"
