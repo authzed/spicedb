@@ -338,6 +338,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, err
 	}
 	closeables.AddCloser(gatewayCloser)
+	closeables.AddWithoutError(gatewayServer.Close)
 
 	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
 		c.GRPCServer.Address,
