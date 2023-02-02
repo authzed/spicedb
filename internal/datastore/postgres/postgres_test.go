@@ -131,6 +131,25 @@ func TestPostgresDatastore(t *testing.T) {
 	}
 }
 
+func TestPostgresDatastoreWithoutCommitTimestamps(t *testing.T) {
+	b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false)
+
+	// NOTE: watch API requires the commit timestamps, so we skip those tests here.
+	test.AllExceptWatch(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := newPostgresDatastore(uri,
+				RevisionQuantization(revisionQuantization),
+				GCWindow(gcWindow),
+				WatchBufferLength(watchBufferLength),
+				DebugAnalyzeBeforeStatistics(),
+			)
+			require.NoError(t, err)
+			return ds
+		})
+		return ds, nil
+	}))
+}
+
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
