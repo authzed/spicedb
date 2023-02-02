@@ -4,6 +4,8 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
+env:
+  GO_VERSION: "~1.19.4"
 jobs:
   goreleaser:
     runs-on: "ubuntu-latest"
