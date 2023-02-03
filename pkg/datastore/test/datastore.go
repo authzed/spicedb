@@ -30,8 +30,9 @@ func (f DatastoreTesterFunc) New(revisionQuantization, gcWindow time.Duration, w
 	return f(revisionQuantization, gcWindow, watchBufferLength)
 }
 
-// All runs all generic datastore tests on a DatastoreTester.
-func All(t *testing.T, tester DatastoreTester) {
+// AllExceptWatch runs all generic datastore tests on a DatastoreTester, except
+// those invoking the watch API.
+func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
 	t.Run("TestNamespaceMultiDelete", func(t *testing.T) { NamespaceMultiDeleteTest(t, tester) })
@@ -53,15 +54,20 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
 
-	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
-	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
-
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
 
 	t.Run("TestWriteReadDeleteCaveat", func(t *testing.T) { WriteReadDeleteCaveatTest(t, tester) })
 	t.Run("TestWriteCaveatedRelationship", func(t *testing.T) { WriteCaveatedRelationshipTest(t, tester) })
 	t.Run("TestCaveatedRelationshipFilter", func(t *testing.T) { CaveatedRelationshipFilterTest(t, tester) })
 	t.Run("TestCaveatSnapshotReads", func(t *testing.T) { CaveatSnapshotReadsTest(t, tester) })
+}
+
+// All runs all generic datastore tests on a DatastoreTester.
+func All(t *testing.T, tester DatastoreTester) {
+	AllExceptWatch(t, tester)
+
+	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
+	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
 	t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
 }
 
