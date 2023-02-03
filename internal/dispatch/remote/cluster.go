@@ -163,9 +163,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 			result, err := client.Recv()
 			if errors.Is(err, io.EOF) {
 				return nil
-			}
-
-			if err != nil {
+			} else if err != nil {
 				return err
 			}
 
@@ -210,9 +208,7 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 			result, err := client.Recv()
 			if errors.Is(err, io.EOF) {
 				return nil
-			}
-
-			if err != nil {
+			} else if err != nil {
 				return err
 			}
 

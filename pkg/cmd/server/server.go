@@ -73,9 +73,9 @@ type Config struct {
 	DispatchConcurrencyLimits      graph.ConcurrencyLimits
 	DispatchUpstreamAddr           string
 	DispatchUpstreamCAPath         string
+	DispatchUpstreamTimeout        time.Duration
 	DispatchClientMetricsPrefix    string
 	DispatchClusterMetricsPrefix   string
-	DispatchUpstreamTimeout        time.Duration
 	Dispatcher                     dispatch.Dispatcher
 
 	DispatchCacheConfig        CacheConfig

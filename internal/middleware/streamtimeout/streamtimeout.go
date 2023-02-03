@@ -14,16 +14,16 @@ func MustStreamServerInterceptor(timeout time.Duration) grpc.StreamServerInterce
 		panic("timeout must be >= 0 for streaming timeout interceptor")
 	}
 
-	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := stream.Context()
 		withCancel, cancelFn := context.WithCancel(ctx)
 		timer := time.AfterFunc(timeout, cancelFn)
-		wrapper := &recvWrapper{stream, withCancel, cancelFn, timer, timeout}
+		wrapper := &sendWrapper{stream, withCancel, cancelFn, timer, timeout}
 		return handler(srv, wrapper)
 	}
 }
 
-type recvWrapper struct {
+type sendWrapper struct {
 	grpc.ServerStream
 
 	ctx      context.Context
@@ -32,12 +32,12 @@ type recvWrapper struct {
 	timeout  time.Duration
 }
 
-func (s *recvWrapper) Context() context.Context {
+func (s *sendWrapper) Context() context.Context {
 	return s.ctx
 }
 
-func (s *recvWrapper) RecvMsg(m interface{}) error {
-	err := s.ServerStream.RecvMsg(m)
+func (s *sendWrapper) SendMsg(m any) error {
+	err := s.ServerStream.SendMsg(m)
 	if err != nil {
 		s.timer.Stop()
 	} else {

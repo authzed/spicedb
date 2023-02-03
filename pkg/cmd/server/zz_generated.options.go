@@ -46,9 +46,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchConcurrencyLimits = c.DispatchConcurrencyLimits
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
+		to.DispatchUpstreamTimeout = c.DispatchUpstreamTimeout
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
-		to.DispatchUpstreamTimeout = c.DispatchUpstreamTimeout
 		to.Dispatcher = c.Dispatcher
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
@@ -231,6 +231,13 @@ func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	}
 }
 
+// WithDispatchUpstreamTimeout returns an option that can set DispatchUpstreamTimeout on a Config
+func WithDispatchUpstreamTimeout(dispatchUpstreamTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamTimeout = dispatchUpstreamTimeout
+	}
+}
+
 // WithDispatchClientMetricsPrefix returns an option that can set DispatchClientMetricsPrefix on a Config
 func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigOption {
 	return func(c *Config) {
@@ -242,13 +249,6 @@ func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigO
 func WithDispatchClusterMetricsPrefix(dispatchClusterMetricsPrefix string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchClusterMetricsPrefix = dispatchClusterMetricsPrefix
-	}
-}
-
-// WithDispatchUpstreamTimeout returns an option that can set DispatchUpstreamTimeout on a Config
-func WithDispatchUpstreamTimeout(dispatchUpstreamTimeout time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.DispatchUpstreamTimeout = dispatchUpstreamTimeout
 	}
 }
 
