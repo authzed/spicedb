@@ -46,16 +46,16 @@ type validatingSnapshotReader struct {
 	delegate datastore.Reader
 }
 
-func (vsr validatingSnapshotReader) ListNamespaces(
+func (vsr validatingSnapshotReader) ListAllNamespaces(
 	ctx context.Context,
-) ([]*core.NamespaceDefinition, error) {
-	read, err := vsr.delegate.ListNamespaces(ctx)
+) ([]datastore.RevisionedNamespace, error) {
+	read, err := vsr.delegate.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, nsDef := range read {
-		err := nsDef.Validate()
+	for _, ns := range read {
+		err := ns.Definition.Validate()
 		if err != nil {
 			return nil, err
 		}
@@ -64,17 +64,17 @@ func (vsr validatingSnapshotReader) ListNamespaces(
 	return read, err
 }
 
-func (vsr validatingSnapshotReader) LookupNamespaces(
+func (vsr validatingSnapshotReader) LookupNamespacesWithNames(
 	ctx context.Context,
 	nsNames []string,
-) ([]*core.NamespaceDefinition, error) {
-	read, err := vsr.delegate.LookupNamespaces(ctx, nsNames)
+) ([]datastore.RevisionedNamespace, error) {
+	read, err := vsr.delegate.LookupNamespacesWithNames(ctx, nsNames)
 	if err != nil {
 		return read, err
 	}
 
-	for _, nsDef := range read {
-		err := nsDef.Validate()
+	for _, ns := range read {
+		err := ns.Definition.Validate()
 		if err != nil {
 			return nil, err
 		}
@@ -97,11 +97,11 @@ func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	return vsr.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
-func (vsr validatingSnapshotReader) ReadNamespace(
+func (vsr validatingSnapshotReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	read, createdAt, err := vsr.delegate.ReadNamespace(ctx, nsName)
+	read, createdAt, err := vsr.delegate.ReadNamespaceByName(ctx, nsName)
 	if err != nil {
 		return read, createdAt, err
 	}
@@ -137,14 +137,30 @@ func (vsr validatingSnapshotReader) ReadCaveatByName(ctx context.Context, name s
 	return read, createdAt, err
 }
 
-func (vsr validatingSnapshotReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
-	read, err := vsr.delegate.ListCaveats(ctx, caveatNames...)
+func (vsr validatingSnapshotReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	read, err := vsr.delegate.LookupCaveatsWithNames(ctx, caveatNames)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, caveatDef := range read {
-		err := caveatDef.Validate()
+	for _, caveat := range read {
+		err := caveat.Definition.Validate()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return read, err
+}
+
+func (vsr validatingSnapshotReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	read, err := vsr.delegate.ListAllCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, caveat := range read {
+		err := caveat.Definition.Validate()
 		if err != nil {
 			return nil, err
 		}

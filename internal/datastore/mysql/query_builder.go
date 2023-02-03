@@ -65,7 +65,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 }
 
 func listCaveats(tableCaveat string) sq.SelectBuilder {
-	return sb.Select(colCaveatDefinition).From(tableCaveat).OrderBy(colName)
+	return sb.Select(colCaveatDefinition, colCreatedTxn).From(tableCaveat).OrderBy(colName)
 }
 
 func deleteCaveat(tableCaveat string) sq.UpdateBuilder {

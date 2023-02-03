@@ -91,7 +91,7 @@ func (r *pgReader) ReverseQueryRelationships(
 	)
 }
 
-func (r *pgReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
@@ -124,10 +124,10 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.T
 		return nil, postgresRevision{}, datastore.NewNamespaceNotFoundErr(namespace)
 	}
 
-	return defs[0].nsDef, defs[0].revision, nil
+	return defs[0].Definition, defs[0].LastWrittenRevision.(postgresRevision), nil
 }
 
-func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	tx, txCleanup, err := r.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -139,10 +139,10 @@ func (r *pgReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinit
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
-	return stripRevisions(nsDefsWithRevisions), err
+	return nsDefsWithRevisions, err
 }
 
-func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -165,27 +165,14 @@ func (r *pgReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*c
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 
-	return stripRevisions(nsDefsWithRevisions), err
-}
-
-func stripRevisions(defsWithRevisions []nsAndVersion) []*core.NamespaceDefinition {
-	nsDefs := make([]*core.NamespaceDefinition, 0, len(defsWithRevisions))
-	for _, defWithRevision := range defsWithRevisions {
-		nsDefs = append(nsDefs, defWithRevision.nsDef)
-	}
-	return nsDefs
-}
-
-type nsAndVersion struct {
-	nsDef    *core.NamespaceDefinition
-	revision postgresRevision
+	return nsDefsWithRevisions, err
 }
 
 func loadAllNamespaces(
 	ctx context.Context,
 	tx pgx.Tx,
 	filterer queryFilterer,
-) ([]nsAndVersion, error) {
+) ([]datastore.RevisionedNamespace, error) {
 	sql, args, err := filterer(readNamespace).ToSql()
 	if err != nil {
 		return nil, err
@@ -197,7 +184,7 @@ func loadAllNamespaces(
 	}
 	defer rows.Close()
 
-	var nsDefs []nsAndVersion
+	var nsDefs []datastore.RevisionedNamespace
 	for rows.Next() {
 		var config []byte
 		var version xid8
@@ -213,7 +200,7 @@ func loadAllNamespaces(
 
 		revision := postgresRevision{version, noXmin}
 
-		nsDefs = append(nsDefs, nsAndVersion{loaded, revision})
+		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
 	}
 	if rows.Err() != nil {
 		return nil, rows.Err()

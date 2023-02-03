@@ -22,7 +22,7 @@ var (
 	)
 	writeCaveat  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition).Suffix(upsertCaveatSuffix)
 	readCaveat   = psql.Select(colCaveatDefinition, colTimestamp).From(tableCaveat)
-	listCaveat   = psql.Select(colCaveatName, colCaveatDefinition).From(tableCaveat).OrderBy(colCaveatName)
+	listCaveat   = psql.Select(colCaveatName, colCaveatDefinition, colTimestamp).From(tableCaveat).OrderBy(colCaveatName)
 	deleteCaveat = psql.Delete(tableCaveat)
 )
 
@@ -62,7 +62,23 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	return loaded, revisionFromTimestamp(timestamp), nil
 }
 
-func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+func (cr *crdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	if len(caveatNames) == 0 {
+		return nil, nil
+	}
+	return cr.lookupCaveats(ctx, caveatNames)
+}
+
+func (cr *crdbReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return cr.lookupCaveats(ctx, nil)
+}
+
+type bytesAndTimestamp struct {
+	bytes     []byte
+	timestamp time.Time
+}
+
+func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	caveatsWithNames := listCaveat
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
@@ -72,7 +88,8 @@ func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([
 	if err != nil {
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
-	var allDefinitionBytes [][]byte
+	var allDefinitionBytes []bytesAndTimestamp
+
 	err = cr.executeWithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, sql, args...)
 		if err != nil {
@@ -83,11 +100,12 @@ func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([
 		for rows.Next() {
 			var defBytes []byte
 			var name string
-			err = rows.Scan(&name, &defBytes)
+			var timestamp time.Time
+			err = rows.Scan(&name, &defBytes, &timestamp)
 			if err != nil {
 				return err
 			}
-			allDefinitionBytes = append(allDefinitionBytes, defBytes)
+			allDefinitionBytes = append(allDefinitionBytes, bytesAndTimestamp{bytes: defBytes, timestamp: timestamp})
 			cr.addOverlapKey(name)
 		}
 		return nil
@@ -96,13 +114,16 @@ func (cr *crdbReader) ListCaveats(ctx context.Context, caveatNames ...string) ([
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
 
-	caveats := make([]*core.CaveatDefinition, 0, len(allDefinitionBytes))
-	for _, defBytes := range allDefinitionBytes {
+	caveats := make([]datastore.RevisionedCaveat, 0, len(allDefinitionBytes))
+	for _, bat := range allDefinitionBytes {
 		loaded := &core.CaveatDefinition{}
-		if err := loaded.UnmarshalVT(defBytes); err != nil {
+		if err := loaded.UnmarshalVT(bat.bytes); err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
-		caveats = append(caveats, loaded)
+		caveats = append(caveats, datastore.RevisionedCaveat{
+			Definition:          loaded,
+			LastWrittenRevision: revisionFromTimestamp(bat.timestamp),
+		})
 	}
 
 	return caveats, nil

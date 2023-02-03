@@ -60,7 +60,7 @@ func (r *memdbReader) readUnwrappedCaveatByName(tx *memdb.Txn, name string) (*co
 	return unwrapped, rev, nil
 }
 
-func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*core.CaveatDefinition, error) {
+func (r *memdbReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	r.mustLock()
 	defer r.Unlock()
 
@@ -69,26 +69,43 @@ func (r *memdbReader) ListCaveats(_ context.Context, caveatNames ...string) ([]*
 		return nil, err
 	}
 
-	var caveats []*core.CaveatDefinition
+	var caveats []datastore.RevisionedCaveat
 	it, err := tx.LowerBound(tableCaveats, indexID)
 	if err != nil {
 		return nil, err
 	}
 
-	setOfCaveats := util.NewSet(caveatNames...)
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		rawCaveat := foundRaw.(*caveat)
-		if !setOfCaveats.IsEmpty() && !setOfCaveats.Has(rawCaveat.name) {
-			continue
-		}
 		definition, err := rawCaveat.Unwrap()
 		if err != nil {
 			return nil, err
 		}
-		caveats = append(caveats, definition)
+		caveats = append(caveats, datastore.RevisionedCaveat{
+			Definition:          definition,
+			LastWrittenRevision: rawCaveat.revision,
+		})
 	}
 
 	return caveats, nil
+}
+
+func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	allCaveats, err := r.ListAllCaveats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	allowedCaveatNames := util.NewSet[string]()
+	allowedCaveatNames.Extend(caveatNames)
+
+	toReturn := make([]datastore.RevisionedCaveat, 0, len(caveatNames))
+	for _, caveat := range allCaveats {
+		if allowedCaveatNames.Has(caveat.Definition.Name) {
+			toReturn = append(toReturn, caveat)
+		}
+	}
+	return toReturn, nil
 }
 
 func (rwt *memdbReadWriteTx) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {

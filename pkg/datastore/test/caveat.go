@@ -22,6 +22,24 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+// CaveatNotFound tests to ensure that an unknown caveat returns the expected
+// error.
+func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := context.Background()
+
+	startRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	require.True(startRevision.GreaterThan(datastore.NoRevision))
+
+	_, _, err = ds.SnapshotReader(startRevision).ReadCaveatByName(ctx, "unknown")
+	require.True(errors.As(err, &datastore.ErrCaveatNameNotFound{}))
+}
+
 func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req := require.New(t)
 	ds, err := tester.New(0*time.Second, veryLargeGCWindow, 1)
@@ -64,27 +82,37 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.Equal("bytes", cv.ParameterTypes["bar"].ChildTypes[0].TypeName)
 
 	// All caveats can be listed
-	cvs, err := cr.ListCaveats(ctx)
+	cvs, err := cr.ListAllCaveats(ctx)
 	req.NoError(err)
 	req.Len(cvs, 2)
 
-	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
+	foundDiff = cmp.Diff(coreCaveat, cvs[0].Definition, protocmp.Transform())
 	req.Empty(foundDiff)
-	foundDiff = cmp.Diff(anotherCoreCaveat, cvs[1], protocmp.Transform())
+	foundDiff = cmp.Diff(anotherCoreCaveat, cvs[1].Definition, protocmp.Transform())
 	req.Empty(foundDiff)
 
-	// All caveats can be filtered by names
-	cvs, err = cr.ListCaveats(ctx, coreCaveat.Name)
+	// Caveats can be found by names
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{coreCaveat.Name})
 	req.NoError(err)
 	req.Len(cvs, 1)
 
-	foundDiff = cmp.Diff(coreCaveat, cvs[0], protocmp.Transform())
+	foundDiff = cmp.Diff(coreCaveat, cvs[0].Definition, protocmp.Transform())
 	req.Empty(foundDiff)
 
 	// Non-existing names returns no caveat
-	cvs, err = cr.ListCaveats(ctx, "doesnotexist")
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{"doesnotexist"})
 	req.NoError(err)
 	req.Empty(cvs)
+
+	// Empty lookup returns no values.
+	cvs, err = cr.LookupCaveatsWithNames(ctx, []string{})
+	req.NoError(err)
+	req.Len(cvs, 0)
+
+	// nil lookup returns no values.
+	cvs, err = cr.LookupCaveatsWithNames(ctx, nil)
+	req.NoError(err)
+	req.Len(cvs, 0)
 
 	// Delete Caveat
 	rev, err = ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {

@@ -30,14 +30,14 @@ func ValidateRelationshipUpdates(
 	}
 
 	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveats, err := rwt.ListCaveats(ctx, referencedCaveatNamesWithContext.AsSlice()...)
+		foundCaveats, err := rwt.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
 		if err != nil {
 			return err
 		}
 
 		referencedCaveatMap = make(map[string]*core.CaveatDefinition, len(foundCaveats))
 		for _, caveatDef := range foundCaveats {
-			referencedCaveatMap[caveatDef.Name] = caveatDef
+			referencedCaveatMap[caveatDef.Definition.Name] = caveatDef.Definition
 		}
 	}
 

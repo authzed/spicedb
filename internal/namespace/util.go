@@ -21,7 +21,7 @@ func ReadNamespaceAndRelation(
 	relation string,
 	ds datastore.Reader,
 ) (*core.NamespaceDefinition, *core.Relation, error) {
-	config, _, err := ds.ReadNamespace(ctx, namespace)
+	config, _, err := ds.ReadNamespaceByName(ctx, namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -48,7 +48,7 @@ func CheckNamespaceAndRelation(
 	allowEllipsis bool,
 	ds datastore.Reader,
 ) error {
-	config, _, err := ds.ReadNamespace(ctx, namespace)
+	config, _, err := ds.ReadNamespaceByName(ctx, namespace)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func ReadNamespaceAndTypes(
 	nsName string,
 	ds datastore.Reader,
 ) (*core.NamespaceDefinition, *TypeSystem, error) {
-	nsDef, _, err := ds.ReadNamespace(ctx, nsName)
+	nsDef, _, err := ds.ReadNamespaceByName(ctx, nsName)
 	if err != nil {
 		return nil, nil, err
 	}

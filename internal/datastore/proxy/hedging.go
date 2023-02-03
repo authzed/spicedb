@@ -214,13 +214,13 @@ type hedgingReader struct {
 	p hedgingProxy
 }
 
-func (hp hedgingReader) ReadNamespace(
+func (hp hedgingReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (ns *core.NamespaceDefinition, createdAt datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {
-		delegatedNs, delegatedRev, delegatedErr := hp.Reader.ReadNamespace(ctx, nsName)
+		delegatedNs, delegatedRev, delegatedErr := hp.Reader.ReadNamespaceByName(ctx, nsName)
 		once.Do(func() {
 			ns = delegatedNs
 			createdAt = delegatedRev

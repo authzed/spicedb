@@ -120,7 +120,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 	}
 }
 
-func (sr spannerReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	nsKey := spanner.Key{nsName}
 	row, err := sr.txSource().ReadRow(
 		ctx,
@@ -149,12 +149,12 @@ func (sr spannerReader) ReadNamespace(ctx context.Context, nsName string) (*core
 	return ns, revisionFromTimestamp(updated), nil
 }
 
-func (sr spannerReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
+func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
 	iter := sr.txSource().Read(
 		ctx,
 		tableNamespace,
 		spanner.AllKeys(),
-		[]string{colNamespaceConfig},
+		[]string{colNamespaceConfig, colNamespaceTS},
 	)
 
 	allNamespaces, err := readAllNamespaces(iter)
@@ -165,7 +165,7 @@ func (sr spannerReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDe
 	return allNamespaces, nil
 }
 
-func (sr spannerReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
+func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
@@ -179,7 +179,7 @@ func (sr spannerReader) LookupNamespaces(ctx context.Context, nsNames []string) 
 		ctx,
 		tableNamespace,
 		spanner.KeySetFromKeys(keys...),
-		[]string{colNamespaceConfig},
+		[]string{colNamespaceConfig, colNamespaceTS},
 	)
 
 	foundNamespaces, err := readAllNamespaces(iter)
@@ -190,11 +190,12 @@ func (sr spannerReader) LookupNamespaces(ctx context.Context, nsNames []string) 
 	return foundNamespaces, nil
 }
 
-func readAllNamespaces(iter *spanner.RowIterator) ([]*core.NamespaceDefinition, error) {
-	var allNamespaces []*core.NamespaceDefinition
+func readAllNamespaces(iter *spanner.RowIterator) ([]datastore.RevisionedNamespace, error) {
+	var allNamespaces []datastore.RevisionedNamespace
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
-		if err := row.Columns(&serialized); err != nil {
+		var updated time.Time
+		if err := row.Columns(&serialized, &updated); err != nil {
 			return err
 		}
 
@@ -203,7 +204,10 @@ func readAllNamespaces(iter *spanner.RowIterator) ([]*core.NamespaceDefinition, 
 			return err
 		}
 
-		allNamespaces = append(allNamespaces, ns)
+		allNamespaces = append(allNamespaces, datastore.RevisionedNamespace{
+			Definition:          ns,
+			LastWrittenRevision: revisionFromTimestamp(updated),
+		})
 
 		return nil
 	}); err != nil {

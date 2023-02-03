@@ -20,7 +20,7 @@ import (
 
 const retryCount = 5
 
-func TestEstimatedNamespaceDefinitionSize(t *testing.T) {
+func TestEstimatedDefinitionSizes(t *testing.T) {
 	// Load all consistency and benchmark YAMLs to get a set of sample namespace
 	// definitions for testing.
 	_, filename, _, _ := runtime.Caller(0)
@@ -50,7 +50,7 @@ func TestEstimatedNamespaceDefinitionSize(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
-				t.Run(nsDef.Name, func(t *testing.T) {
+				t.Run("namespace "+nsDef.Name, func(t *testing.T) {
 					serialized, _ := nsDef.MarshalVT()
 					sizevt := nsDef.SizeVT()
 					estimated := estimatedNamespaceDefinitionSize(sizevt)
@@ -66,6 +66,39 @@ func TestEstimatedNamespaceDefinitionSize(t *testing.T) {
 						runtime.ReadMemStats(&m1)
 
 						var def core.NamespaceDefinition
+						require.NoError(t, def.UnmarshalVT(serialized))
+
+						runtime.ReadMemStats(&m2)
+						used := m2.TotalAlloc - m1.TotalAlloc
+
+						// Ensure the memory used is less than the SizeVT * the multiplier.
+						if used <= uint64(estimated) {
+							succeeded = true
+							break
+						}
+					}
+
+					require.True(t, succeeded, "found size %d, for with SizeVT: %d", used, sizevt)
+				})
+			}
+
+			for _, caveatDef := range fullyResolved.CaveatDefinitions {
+				t.Run("caveat "+caveatDef.Name, func(t *testing.T) {
+					serialized, _ := caveatDef.MarshalVT()
+					sizevt := caveatDef.SizeVT()
+					estimated := estimatedCaveatDefinitionSize(sizevt)
+
+					succeeded := false
+					var used uint64
+					for i := 0; i < retryCount; i++ {
+						runtime.GC()
+						debug.FreeOSMemory()
+
+						// Calculate the memory used for deserializing the caveat definition.
+						var m1, m2 runtime.MemStats
+						runtime.ReadMemStats(&m1)
+
+						var def core.CaveatDefinition
 						require.NoError(t, def.UnmarshalVT(serialized))
 
 						runtime.ReadMemStats(&m2)

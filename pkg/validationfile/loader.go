@@ -25,6 +25,10 @@ type PopulatedValidationFile struct {
 	// direct or compiled from schema form.
 	NamespaceDefinitions []*core.NamespaceDefinition
 
+	// CaveatDefinitions are the caveats defined in the validation file, in either
+	// direct or compiled from schema form.
+	CaveatDefinitions []*core.CaveatDefinition
+
 	// Tuples are the relation tuples defined in the validation file, either directly
 	// or in the relationships block.
 	Tuples []*core.RelationTuple
@@ -158,5 +162,5 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return nil, nil, err
 	}
 
-	return &PopulatedValidationFile{schema, objectDefs, tuples, files}, revision, err
+	return &PopulatedValidationFile{schema, objectDefs, caveatDefs, tuples, files}, revision, err
 }

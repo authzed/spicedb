@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -44,7 +43,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 	}
 
 	var uniqueID string
-	var nsDefs []*corev1.NamespaceDefinition
+	var nsDefs []datastore.RevisionedNamespace
 	var relCount int64
 	if err := pgd.dbpool.BeginTxFunc(ctx, pgd.readTxOptions, func(tx pgx.Tx) error {
 		if pgd.analyzeBeforeStatistics {
@@ -62,7 +61,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 			return fmt.Errorf("unable to load namespaces: %w", err)
 		}
 
-		nsDefs = stripRevisions(nsDefsWithRevisions)
+		nsDefs = nsDefsWithRevisions
 
 		if err := tx.QueryRow(ctx, rowCountSQL, rowCountArgs...).Scan(&relCount); err != nil {
 			return fmt.Errorf("unable to read relationship count: %w", err)

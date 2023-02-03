@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
-
-	"github.com/authzed/spicedb/pkg/datastore"
-
 	"github.com/Masterminds/squirrel"
+
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const (

@@ -91,20 +91,24 @@ func (r *ctxReader) ReadCaveatByName(ctx context.Context, name string) (*core.Ca
 	return r.delegate.ReadCaveatByName(SeparateContextWithTracing(ctx), name)
 }
 
-func (r *ctxReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error) {
-	return r.delegate.ListCaveats(SeparateContextWithTracing(ctx), caveatNamesForFiltering...)
+func (r *ctxReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.ListAllCaveats(SeparateContextWithTracing(ctx))
 }
 
-func (r *ctxReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	return r.delegate.ListNamespaces(SeparateContextWithTracing(ctx))
+func (r *ctxReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	return r.delegate.LookupCaveatsWithNames(SeparateContextWithTracing(ctx), caveatNames)
 }
 
-func (r *ctxReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
-	return r.delegate.LookupNamespaces(SeparateContextWithTracing(ctx), nsNames)
+func (r *ctxReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	return r.delegate.ListAllNamespaces(SeparateContextWithTracing(ctx))
 }
 
-func (r *ctxReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return r.delegate.ReadNamespace(SeparateContextWithTracing(ctx), nsName)
+func (r *ctxReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+	return r.delegate.LookupNamespacesWithNames(SeparateContextWithTracing(ctx), nsNames)
+}
+
+func (r *ctxReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	return r.delegate.ReadNamespaceByName(SeparateContextWithTracing(ctx), nsName)
 }
 
 func (r *ctxReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

@@ -52,12 +52,12 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 	readRevision, _ := consistency.MustRevisionFromContext(ctx)
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(readRevision)
 
-	nsDefs, err := ds.ListNamespaces(ctx)
+	nsDefs, err := ds.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
 
-	caveatDefs, err := ds.ListCaveats(ctx)
+	caveatDefs, err := ds.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -68,11 +68,11 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest
 
 	schemaDefinitions := make([]compiler.SchemaDefinition, 0, len(nsDefs)+len(caveatDefs))
 	for _, caveatDef := range caveatDefs {
-		schemaDefinitions = append(schemaDefinitions, caveatDef)
+		schemaDefinitions = append(schemaDefinitions, caveatDef.Definition)
 	}
 
 	for _, nsDef := range nsDefs {
-		schemaDefinitions = append(schemaDefinitions, nsDef)
+		schemaDefinitions = append(schemaDefinitions, nsDef.Definition)
 	}
 
 	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)

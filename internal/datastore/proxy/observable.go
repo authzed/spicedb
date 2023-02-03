@@ -143,38 +143,45 @@ func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*
 	return r.delegate.ReadCaveatByName(ctx, name)
 }
 
-func (r *observableReader) ListCaveats(ctx context.Context, caveatNamesForFiltering ...string) ([]*core.CaveatDefinition, error) {
-	ctx, closer := observe(ctx, "ListCaveats", trace.WithAttributes(
-		attribute.StringSlice("names", caveatNamesForFiltering),
+func (r *observableReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	ctx, closer := observe(ctx, "LookupCaveatsWithNames", trace.WithAttributes(
+		attribute.StringSlice("names", caveatNames),
 	))
 	defer closer()
 
-	return r.delegate.ListCaveats(ctx, caveatNamesForFiltering...)
+	return r.delegate.LookupCaveatsWithNames(ctx, caveatNames)
 }
 
-func (r *observableReader) ListNamespaces(ctx context.Context) ([]*core.NamespaceDefinition, error) {
-	ctx, closer := observe(ctx, "ListNamespaces")
+func (r *observableReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	ctx, closer := observe(ctx, "ListAllCaveats")
 	defer closer()
 
-	return r.delegate.ListNamespaces(ctx)
+	return r.delegate.ListAllCaveats(ctx)
 }
 
-func (r *observableReader) LookupNamespaces(ctx context.Context, nsNames []string) ([]*core.NamespaceDefinition, error) {
-	ctx, closer := observe(ctx, "LookupNamespaces", trace.WithAttributes(
+func (r *observableReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	ctx, closer := observe(ctx, "ListAllNamespaces")
+	defer closer()
+
+	return r.delegate.ListAllNamespaces(ctx)
+}
+
+func (r *observableReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+	ctx, closer := observe(ctx, "LookupNamespacesWithNames", trace.WithAttributes(
 		attribute.StringSlice("names", nsNames),
 	))
 	defer closer()
 
-	return r.delegate.LookupNamespaces(ctx, nsNames)
+	return r.delegate.LookupNamespacesWithNames(ctx, nsNames)
 }
 
-func (r *observableReader) ReadNamespace(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	ctx, closer := observe(ctx, "ReadNamespace", trace.WithAttributes(
+func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
+	ctx, closer := observe(ctx, "ReadNamespaceByName", trace.WithAttributes(
 		attribute.String("name", nsName),
 	))
 	defer closer()
 
-	return r.delegate.ReadNamespace(ctx, nsName)
+	return r.delegate.ReadNamespaceByName(ctx, nsName)
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {

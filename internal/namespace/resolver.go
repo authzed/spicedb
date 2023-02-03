@@ -69,7 +69,7 @@ func (r *resolver) LookupNamespace(ctx context.Context, name string) (*core.Name
 		return nil, asTypeError(NewNamespaceNotFoundErr(name))
 	}
 
-	ns, _, err := r.ds.ReadNamespace(ctx, name)
+	ns, _, err := r.ds.ReadNamespaceByName(ctx, name)
 	return ns, err
 }
 

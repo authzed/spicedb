@@ -83,17 +83,17 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datastore.ReadWriteTransaction, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
-	existingCaveats, err := rwt.ListCaveats(ctx)
+	existingCaveats, err := rwt.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	existingObjectDefs, err := rwt.ListNamespaces(ctx)
+	existingObjectDefs, err := rwt.ListAllNamespaces(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, validated, existingCaveats, existingObjectDefs)
+	return ApplySchemaChangesOverExisting(ctx, rwt, validated, datastore.DefinitionsOf(existingCaveats), datastore.DefinitionsOf(existingObjectDefs))
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
