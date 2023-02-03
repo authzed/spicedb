@@ -46,6 +46,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchConcurrencyLimits = c.DispatchConcurrencyLimits
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
+		to.DispatchUpstreamTimeout = c.DispatchUpstreamTimeout
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
 		to.Dispatcher = c.Dispatcher
@@ -227,6 +228,13 @@ func WithDispatchUpstreamAddr(dispatchUpstreamAddr string) ConfigOption {
 func WithDispatchUpstreamCAPath(dispatchUpstreamCAPath string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchUpstreamCAPath = dispatchUpstreamCAPath
+	}
+}
+
+// WithDispatchUpstreamTimeout returns an option that can set DispatchUpstreamTimeout on a Config
+func WithDispatchUpstreamTimeout(dispatchUpstreamTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.DispatchUpstreamTimeout = dispatchUpstreamTimeout
 	}
 }
 

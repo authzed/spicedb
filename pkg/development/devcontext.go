@@ -7,6 +7,7 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	humanize "github.com/dustin/go-humanize"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -31,7 +32,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const defaultConnBufferSize = 1024 * 1204
+const defaultConnBufferSize = humanize.MiByte
 
 // DevContext holds the various helper types for running the developer calls.
 type DevContext struct {

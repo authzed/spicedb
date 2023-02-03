@@ -73,6 +73,7 @@ type Config struct {
 	DispatchConcurrencyLimits      graph.ConcurrencyLimits
 	DispatchUpstreamAddr           string
 	DispatchUpstreamCAPath         string
+	DispatchUpstreamTimeout        time.Duration
 	DispatchClientMetricsPrefix    string
 	DispatchClusterMetricsPrefix   string
 	Dispatcher                     dispatch.Dispatcher
@@ -255,6 +256,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			dispatcher,
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
 			clusterdispatch.Cache(cdcc),
+			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)

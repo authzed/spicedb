@@ -245,12 +245,9 @@ func rewriteError(ctx context.Context, err error) error {
 	}
 }
 
-type uinteger interface {
-	uint32 | uint16
-}
-
-func defaultIfZero[T uinteger](value T, defaultValue T) T {
-	if value == 0 {
+func defaultIfZero[T comparable](value T, defaultValue T) T {
+	var zero T
+	if value == zero {
 		return defaultValue
 	}
 	return value
