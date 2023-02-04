@@ -39,12 +39,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
-      - name: "go mod download" # prevent CI cache poisoning by getting all deps
-        run: "go mod download"
       - uses: "authzed/actions/go-build@main"
 
   image-build:
@@ -58,10 +55,9 @@ jobs:
           tags: "authzed/spicedb:ci"
           buildx: false
           qemu: false
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           working_directory: "cmd/spicedb"
@@ -72,10 +68,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,skipintegrationtests"
@@ -86,10 +81,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
@@ -105,10 +99,9 @@ jobs:
         datastore: ["crdb", "mysql", "postgres", "spanner"]
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - uses: "authzed/actions/go-test@main"
         with:
           tags: "ci,docker"
@@ -124,23 +117,22 @@ jobs:
         datastore: ["cockroachdb", "mysql", "postgres", "spanner"]
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - name: "Run Datastore Consistency Tests"
         working-directory: "internal/services/integrationtesting"
         run: "go test --failfast -count=1 -timeout '10m' --tags='ci,docker,datastoreconsistency' ./... -run TestConsistencyPerDatastore/${{ matrix.datastore }}"
 
   e2e:
     name: "E2E"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-latest-8-cores"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
+          go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
       - name: "Cache Binaries"
         id: "cache-binaries"
@@ -186,10 +178,10 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
+          go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
       - uses: "authzed/actions/go-test@main"
         with:
@@ -199,10 +191,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "false" # do not cache to prevent cache poisoning
       - name: "Install wasmbrowsertest"
         run: "go install github.com/agnivade/wasmbrowsertest@latest"
       - name: "Run WASM Tests"
@@ -213,10 +204,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "false" # do not cache to prevent cache poisoning
       - name: "Install Go Tools"
         run: "./hack/install-tools.sh"
       - uses: "authzed/actions/buf-generate@main"

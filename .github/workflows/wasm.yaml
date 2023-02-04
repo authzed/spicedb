@@ -15,10 +15,9 @@ jobs:
       - uses: "actions/checkout@v3"
         with:
           ref: "${{ env.GITHUB_SHA }}"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - run: |
           echo "Building WASM..."
           GOOS=js GOARCH=wasm go build  -o dist/development.wasm ./pkg/development/wasm/...

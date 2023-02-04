@@ -15,10 +15,9 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "actions/setup-go@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-          cache: "true"
       - uses: "authzed/actions/gofumpt@main"
       - uses: "authzed/actions/gofumpt@main"
         with:
