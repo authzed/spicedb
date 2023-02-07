@@ -4,69 +4,42 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgtype"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	maxInt = ^uint64(0) >> 1
-)
+// import (
+// 	"fmt"
+// 	"testing"
 
-type comparisonResult uint8
+// 	"github.com/jackc/pgtype"
+// 	"github.com/stretchr/testify/require"
+// )
 
 const (
-	equal comparisonResult = iota
-	lt
-	gt
-	concurrent
+	maxInt = int64(^uint64(0) >> 1)
 )
 
 func TestRevisionOrdering(t *testing.T) {
 	testCases := []struct {
-		lhsTx        uint64
-		lhsXmin      int64
-		rhsTx        uint64
-		rhsXmin      int64
+		lhsSnapshot  pgSnapshot
+		rhsSnapshot  pgSnapshot
 		relationship comparisonResult
 	}{
-		{0, 0, 0, 0, equal},
-		{8, -1, 8, 5, equal},
-		{8, 8, 8, -1, equal},
-		{8, -1, 8, -1, equal},
-		{5, 5, 5, 5, equal},
-		{0, 0, 5, 5, lt},
-		{0, 0, 5, -1, lt},
-		{0, -1, 5, 5, lt},
-		{0, -1, 5, -1, lt},
-		{5, 5, 0, 0, gt},
-		{5, -1, 0, 0, gt},
-		{5, 5, 0, -1, gt},
-		{5, -1, 0, -1, gt},
-		{5, 5, 6, 5, concurrent},
-		{5, -1, 6, 5, concurrent},
-		{6, 5, 5, 5, concurrent},
-		{6, 5, 5, -1, concurrent},
-		{5, 0, 0, 0, concurrent},
-		{5, 0, 0, -1, concurrent},
-		{6, 5, 8, 7, lt},
-		{6, 5, 8, -1, lt},
-		{6, -1, 8, 7, lt},
-		{6, -1, 8, -1, lt},
-		{8, 7, 7, 6, concurrent},
-		{8, 7, 7, -1, concurrent},
-		{7, 6, 8, 7, concurrent},
-		{7, -1, 8, 7, concurrent},
-		{maxInt, 6, 6, 6, concurrent},
-		{maxInt, int64(maxInt), maxInt - 1, int64(maxInt - 1), gt},
-		{maxInt, int64(maxInt - 1), maxInt - 1, int64(maxInt - 1), concurrent},
+		{snap(0, 0), snap(0, 0), equal},
+		{snap(0, 5, 1), snap(0, 5, 1), equal},
+		{snap(0, 0), snap(1, 1), lt},
+		{snap(1, 1), snap(0, 0), gt},
+		{snap(1, 3, 1), snap(2, 3, 2), concurrent},
+		{snap(1, 2, 1), snap(2, 2), lt},
+		{snap(2, 2), snap(1, 2, 1), gt},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("%d.%d:%d.%d", tc.lhsTx, tc.lhsXmin, tc.rhsTx, tc.rhsXmin), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s:%s", tc.lhsSnapshot, tc.rhsSnapshot), func(t *testing.T) {
 			require := require.New(t)
 
-			lhs := testRevision(tc.lhsTx, tc.lhsXmin)
-			rhs := testRevision(tc.rhsTx, tc.rhsXmin)
+			lhs := postgresRevision{tc.lhsSnapshot}
+			rhs := postgresRevision{tc.rhsSnapshot}
 
 			require.Equal(tc.relationship == equal, lhs.Equal(rhs))
 			require.Equal(tc.relationship == equal, rhs.Equal(lhs))
@@ -80,24 +53,31 @@ func TestRevisionOrdering(t *testing.T) {
 }
 
 func TestRevisionSerDe(t *testing.T) {
+	maxSizeList := make([]uint64, 20)
+	for i := range maxSizeList {
+		maxSizeList[i] = uint64(maxInt - int64(len(maxSizeList)) + int64(i))
+	}
+
 	testCases := []struct {
-		tx          uint64
-		xmin        int64
+		snapshot    pgSnapshot
 		expectedStr string
 	}{
-		{0, -1, "0"},
-		{0, 0, "0.0"},
-		{500, -1, "500"},
-		{500, 499, "500.499"},
-		{500, 499, "500.499"},
-		{maxInt, -1, "9223372036854775807"},
-		{maxInt, int64(maxInt - 1), "9223372036854775807.9223372036854775806"},
+		{snap(0, 0), ""},
+		{snap(0, 5, 1), "EAUaAQE="},
+		{snap(1, 1), "CAE="},
+		{snap(1, 3, 1), "CAEQAhoBAA=="},
+		{snap(1, 2, 1), "CAEQARoBAA=="},
+		{snap(2, 2), "CAI="},
+		{snap(123, 123), "CHs="},
+		{snap(100, 150, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110), "CGQQMhoKAQIDBAUGBwgJCg=="},
+		{snap(maxSizeList[0], maxSizeList[len(maxSizeList)-1], maxSizeList...), "COv/////////fxATGhQAAQIDBAUGBwgJCgsMDQ4PEBESEw=="},
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("%d.%d", tc.tx, tc.xmin), func(t *testing.T) {
+		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
-			rev := testRevision(tc.tx, tc.xmin)
+
+			rev := postgresRevision{tc.snapshot}
 			serialized := rev.String()
 			require.Equal(tc.expectedStr, serialized)
 
@@ -106,34 +86,4 @@ func TestRevisionSerDe(t *testing.T) {
 			require.Equal(rev, parsed)
 		})
 	}
-}
-
-func TestRevisionDeserializationErrors(t *testing.T) {
-	testCases := []string{
-		"1:0",
-		"-1.0",
-		"-1",
-		"0.-1",
-		"abc",
-		"0.1.2",
-		"",
-		"92233720368547758079223372036854775807922337203685477580792233720368547758079233720368547",
-		"0.abc",
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc, func(t *testing.T) {
-			_, err := parseRevision(tc)
-			require.Error(t, err)
-		})
-	}
-}
-
-func testRevision(tx uint64, xmin int64) postgresRevision {
-	revXmin := noXmin
-	if xmin >= 0 {
-		revXmin = xid8{Uint: uint64(xmin), Status: pgtype.Present}
-	}
-
-	return postgresRevision{xid8{tx, pgtype.Present}, revXmin}
 }

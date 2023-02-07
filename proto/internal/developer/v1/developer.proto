@@ -3,7 +3,6 @@ package developer.v1;
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
 
-import "google/protobuf/any.proto";
 import "validate/validate.proto";
 import "core/v1/core.proto";
 import "dispatch/v1/dispatch.proto";

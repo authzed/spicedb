@@ -206,7 +206,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	for _, nsName := range nsNames {
-		_, createdAt, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
+		_, _, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
 		switch {
 		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 			return err
@@ -216,7 +216,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 
-		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colCreatedXid: createdAt.tx})
+		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName})
 		tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
 	}
 

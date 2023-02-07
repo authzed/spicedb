@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -45,7 +46,10 @@ var (
 		ColCaveatName:       colCaveatContextName,
 	}
 
-	readNamespace = psql.Select(colConfig, colCreatedXid).From(tableNamespace)
+	readNamespace = psql.
+			Select(colConfig, colCreatedXid, colSnapshot).
+			From(tableNamespace).
+			Join(fmt.Sprintf("%s ON %s = %s", tableTransaction, colCreatedXid, colXID))
 )
 
 const (
@@ -188,8 +192,9 @@ func loadAllNamespaces(
 	for rows.Next() {
 		var config []byte
 		var version xid8
+		var snapshot pgSnapshot
 
-		if err := rows.Scan(&config, &version); err != nil {
+		if err := rows.Scan(&config, &version, &snapshot); err != nil {
 			return nil, err
 		}
 
@@ -198,7 +203,11 @@ func loadAllNamespaces(
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		revision := postgresRevision{version, noXmin}
+		if version.Status != pgtype.Present {
+			return nil, fmt.Errorf(errUnableToReadConfig, errInvalidNilTransaction)
+		}
+
+		revision := postgresRevision{snapshot.markComplete(version.Uint)}
 
 		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
 	}

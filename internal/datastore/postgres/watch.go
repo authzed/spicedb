@@ -19,17 +19,19 @@ const (
 	watchSleep = 100 * time.Millisecond
 )
 
+type revisionWithXid struct {
+	postgresRevision
+	tx xid8
+}
+
 var (
 	// This query must cast an xid8 to xid, which is a safe operation as long as the
 	// xid8 is one of the last ~2 billion transaction IDs generated. We should be garbage
 	// collecting these transactions long before we get to that point.
 	newRevisionsQuery = fmt.Sprintf(`
-	SELECT %[1]s, pg_snapshot_xmin(%[2]s) FROM %[3]s
-	WHERE pg_xact_commit_timestamp(%[1]s::xid) >= (
-		SELECT pg_xact_commit_timestamp(%[1]s::xid) FROM relation_tuple_transaction WHERE %[1]s = $1
-	) AND pg_visible_in_snapshot(xid, pg_current_snapshot()) AND %[1]s <> $1
-	ORDER BY pg_xact_commit_timestamp(%[1]s::xid), xid;
-`, colXID, colSnapshot, tableTransaction)
+	SELECT %[1]s, %[2]s FROM %[3]s
+	WHERE not pg_visible_in_snapshot(%[1]s, $1)
+	ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, tableTransaction)
 
 	queryChanged = psql.Select(
 		colNamespace,
@@ -98,7 +100,7 @@ func (pgd *pgDatastore) Watch(
 						return
 					}
 
-					currentTxn = changeToWrite.Revision.(postgresRevision)
+					currentTxn = changeToWrite.Revision.(revisionWithXid).postgresRevision
 				}
 			} else {
 				sleep := time.NewTimer(watchSleep)
@@ -120,22 +122,26 @@ func (pgd *pgDatastore) Watch(
 func (pgd *pgDatastore) getNewRevisions(
 	ctx context.Context,
 	afterTX postgresRevision,
-) ([]postgresRevision, error) {
-	var ids []postgresRevision
+) ([]revisionWithXid, error) {
+	var ids []revisionWithXid
 	if err := pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.tx)
+		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
 		}
 		defer rows.Close()
 
 		for rows.Next() {
-			var nextXID, nextXmin xid8
-			if err := rows.Scan(&nextXID, &nextXmin); err != nil {
+			var nextXID xid8
+			var nextSnapshot pgSnapshot
+			if err := rows.Scan(&nextXID, &nextSnapshot); err != nil {
 				return fmt.Errorf("unable to decode new revision: %w", err)
 			}
 
-			ids = append(ids, postgresRevision{nextXID, nextXmin})
+			ids = append(ids, revisionWithXid{
+				postgresRevision{nextSnapshot.markComplete(nextXID.Uint)},
+				nextXID,
+			})
 		}
 		if rows.Err() != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
@@ -148,10 +154,11 @@ func (pgd *pgDatastore) getNewRevisions(
 	return ids, nil
 }
 
-func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision) ([]datastore.RevisionChanges, error) {
+func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWithXid) ([]datastore.RevisionChanges, error) {
 	min := revisions[0].tx.Uint
 	max := revisions[0].tx.Uint
 	filter := make(map[uint64]int, len(revisions))
+	txidToRevision := make(map[uint64]revisionWithXid, len(revisions))
 
 	for i, rev := range revisions {
 		if rev.tx.Uint < min {
@@ -161,6 +168,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 			max = rev.tx.Uint
 		}
 		filter[rev.tx.Uint] = i
+		txidToRevision[rev.tx.Uint] = rev
 	}
 
 	sql, args, err := queryChanged.Where(sq.Or{
@@ -219,10 +227,10 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 		}
 
 		if _, found := filter[createdXID.Uint]; found {
-			tracked.AddChange(ctx, postgresRevision{createdXID, noXmin}, nextTuple, core.RelationTupleUpdate_TOUCH)
+			tracked.AddChange(ctx, txidToRevision[createdXID.Uint], nextTuple, core.RelationTupleUpdate_TOUCH)
 		}
 		if _, found := filter[deletedXID.Uint]; found {
-			tracked.AddChange(ctx, postgresRevision{deletedXID, noXmin}, nextTuple, core.RelationTupleUpdate_DELETE)
+			tracked.AddChange(ctx, txidToRevision[deletedXID.Uint], nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if changes.Err() != nil {

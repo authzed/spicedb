@@ -1,0 +1,10 @@
+syntax = "proto3";
+package impl.v1;
+
+option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
+
+message PostgresRevision {
+    uint64 xmin = 1;
+    int64 relative_xmax = 2;
+    repeated int64 relative_xips = 3;
+}

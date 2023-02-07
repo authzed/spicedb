@@ -168,7 +168,7 @@ message DispatchLookupSubjectsResponse {
 
 message ResolverMeta {
   string at_revision = 1 [ (validate.rules).string = {
-    pattern : "^[0-9]+(\\.[0-9]+)?$",
+    max_bytes: 1024,
   } ];
   uint32 depth_remaining = 2 [ (validate.rules).uint32.gt = 0 ];
 }

@@ -61,6 +61,17 @@ func (txid xid8) Value() (driver.Value, error) {
 	return (pguint64)(txid).Value()
 }
 
+func (txid xid8) String() string {
+	switch txid.Status {
+	case pgtype.Null:
+		return "nil"
+	case pgtype.Present:
+		return strconv.FormatUint(txid.Uint, 10)
+	default:
+		return "undefined"
+	}
+}
+
 func (pui *pguint64) Set(src interface{}) error {
 	switch value := src.(type) {
 	case int64:
