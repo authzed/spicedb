@@ -40,18 +40,12 @@ type Dispatcher struct {
 	reachableResourcesFromCacheCounter prometheus.Counter
 	lookupSubjectsTotalCounter         prometheus.Counter
 	lookupSubjectsFromCacheCounter     prometheus.Counter
-
-	cacheHits        prometheus.CounterFunc
-	cacheMisses      prometheus.CounterFunc
-	costAddedBytes   prometheus.CounterFunc
-	costEvictedBytes prometheus.CounterFunc
 }
 
 func DispatchTestCache(t testing.TB) cache.Cache {
 	cache, err := cache.NewCache(&cache.Config{
 		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
-		Metrics:     true,
 	})
 	require.Nil(t, err)
 	return cache
@@ -108,37 +102,6 @@ func NewCachingDispatcher(cacheInst cache.Cache, prometheusSubsystem string, key
 		Name:      "lookup_subjects_from_cache_total",
 	})
 
-	cacheHitsTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "cache_hits_total",
-	}, func() float64 {
-		return float64(cacheInst.GetMetrics().Hits())
-	})
-	cacheMissesTotal := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "cache_misses_total",
-	}, func() float64 {
-		return float64(cacheInst.GetMetrics().Misses())
-	})
-
-	costAddedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "cost_added_bytes",
-	}, func() float64 {
-		return float64(cacheInst.GetMetrics().CostAdded())
-	})
-
-	costEvictedBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
-		Namespace: prometheusNamespace,
-		Subsystem: prometheusSubsystem,
-		Name:      "cost_evicted_bytes",
-	}, func() float64 {
-		return float64(cacheInst.GetMetrics().CostEvicted())
-	})
-
 	if prometheusSubsystem != "" {
 		err := prometheus.Register(checkTotalCounter)
 		if err != nil {
@@ -172,24 +135,6 @@ func NewCachingDispatcher(cacheInst cache.Cache, prometheusSubsystem string, key
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-
-		// Export some ristretto metrics
-		err = prometheus.Register(cacheHitsTotal)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(cacheMissesTotal)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(costAddedBytes)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
-		err = prometheus.Register(costEvictedBytes)
-		if err != nil {
-			return nil, fmt.Errorf(errCachingInitialization, err)
-		}
 	}
 
 	if keyHandler == nil {
@@ -208,10 +153,6 @@ func NewCachingDispatcher(cacheInst cache.Cache, prometheusSubsystem string, key
 		reachableResourcesFromCacheCounter: reachableResourcesFromCacheCounter,
 		lookupSubjectsTotalCounter:         lookupSubjectsTotalCounter,
 		lookupSubjectsFromCacheCounter:     lookupSubjectsFromCacheCounter,
-		cacheHits:                          cacheHitsTotal,
-		cacheMisses:                        cacheMissesTotal,
-		costAddedBytes:                     costAddedBytes,
-		costEvictedBytes:                   costEvictedBytes,
 	}, nil
 }
 
@@ -467,10 +408,6 @@ func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.reachableResourcesFromCacheCounter)
 	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
 	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
-	prometheus.Unregister(cd.cacheHits)
-	prometheus.Unregister(cd.cacheMisses)
-	prometheus.Unregister(cd.costAddedBytes)
-	prometheus.Unregister(cd.costEvictedBytes)
 	if cache := cd.c; cache != nil {
 		cache.Close()
 	}
