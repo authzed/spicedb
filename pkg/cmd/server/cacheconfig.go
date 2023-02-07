@@ -28,6 +28,7 @@ func init() {
 
 // CacheConfig defines the configuration various SpiceDB caches.
 type CacheConfig struct {
+	Name        string
 	MaxCost     string
 	NumCounters int64
 	Metrics     bool
@@ -62,11 +63,18 @@ func (cc *CacheConfig) Complete() (cache.Cache, error) {
 		return nil, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
 	}
 
+	if cc.Metrics {
+		return cache.NewCacheWithMetrics(cc.Name, &cache.Config{
+			MaxCost:     int64(maxCost),
+			NumCounters: cc.NumCounters,
+			DefaultTTL:  cc.defaultTTL,
+		})
+	}
+
 	return cache.NewCache(&cache.Config{
 		MaxCost:     int64(maxCost),
 		NumCounters: cc.NumCounters,
 		DefaultTTL:  cc.defaultTTL,
-		Metrics:     cc.Metrics,
 	})
 }
 
@@ -87,6 +95,7 @@ func parsePercent(str string, freeMem uint64) (uint64, error) {
 // RegisterCacheFlags registers flags used to configure SpiceDB's various
 // caches.
 func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix string, config, defaults *CacheConfig) {
+	config.Name = defaults.Name
 	flagPrefix = stringz.DefaultEmpty(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound cache size in bytes or percent of available memory")
 	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of TinyLFU samples to track")

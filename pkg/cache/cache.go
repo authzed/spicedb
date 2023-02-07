@@ -36,20 +36,13 @@ type Config struct {
 	// DefaultTTL configures a default deadline on the lifetime of any keys set
 	// to the cache.
 	DefaultTTL time.Duration
-
-	// Metrics determines whether cache statistics are kept during the cache's
-	// lifetime. There *is* some overhead to keeping statistics, so you should
-	// only set this flag to true when testing or throughput performance isn't a
-	// major factor.
-	Metrics bool
 }
 
 func (c *Config) MarshalZerologObject(e *zerolog.Event) {
 	e.
 		Str("maxCost", humanize.IBytes(uint64(c.MaxCost))).
 		Int64("numCounters", c.NumCounters).
-		Dur("defaultTTL", c.DefaultTTL).
-		Bool("metrics", c.Metrics)
+		Dur("defaultTTL", c.DefaultTTL)
 }
 
 // Cache defines an interface for a generic cache.
@@ -88,9 +81,7 @@ type Metrics interface {
 }
 
 // NoopCache returns a cache that does nothing.
-func NoopCache() Cache {
-	return &noopCache{}
-}
+func NoopCache() Cache { return &noopCache{} }
 
 type noopCache struct{}
 
