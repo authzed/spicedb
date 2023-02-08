@@ -411,7 +411,7 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 
 	dispatch := NewLocalOnlyDispatcher(concurrencyLimit)
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
 
@@ -433,7 +433,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*co
 
 	dispatch := NewLocalOnlyDispatcher(10)
 
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), "", &keys.CanonicalKeyHandler{})
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
 	require.NoError(t, err)
 

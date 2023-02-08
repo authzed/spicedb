@@ -84,7 +84,7 @@ func CreateDispatcherForTesting(t *testing.T, withCaching bool) dispatch.Dispatc
 	require := require.New(t)
 	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit)
 	if withCaching {
-		cachingDispatcher, err := caching.NewCachingDispatcher(nil, "", &keys.CanonicalKeyHandler{})
+		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, "", &keys.CanonicalKeyHandler{})
 		require.NoError(err)
 
 		localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10))

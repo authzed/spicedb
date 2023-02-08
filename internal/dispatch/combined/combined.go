@@ -24,6 +24,7 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
+	metricsEnabled        bool
 	prometheusSubsystem   string
 	upstreamAddr          string
 	upstreamCAPath        string
@@ -32,6 +33,13 @@ type optionState struct {
 	cache                 cache.Cache
 	concurrencyLimits     graph.ConcurrencyLimits
 	remoteDispatchTimeout time.Duration
+}
+
+// MetricsEnabled enables issuing prometheus metrics
+func MetricsEnabled(enabled bool) Option {
+	return func(state *optionState) {
+		state.metricsEnabled = enabled
+	}
 }
 
 // PrometheusSubsystem sets the subsystem name for the prometheus metrics
@@ -107,7 +115,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		opts.prometheusSubsystem = "dispatch_client"
 	}
 
-	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
+	cachingRedispatch, err := caching.NewCachingDispatcher(opts.cache, opts.metricsEnabled, opts.prometheusSubsystem, &keys.CanonicalKeyHandler{})
 	if err != nil {
 		return nil, err
 	}
