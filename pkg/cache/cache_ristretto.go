@@ -39,7 +39,7 @@ func NewCacheWithMetrics(name string, config *Config) (Cache, error) {
 		return nil, err
 	}
 
-	cache := wrapped{config, config.DefaultTTL, rcache}
+	cache := wrapped{name, config, config.DefaultTTL, rcache}
 	mustRegisterCache(name, cache)
 	return cache, nil
 }
@@ -47,10 +47,11 @@ func NewCacheWithMetrics(name string, config *Config) (Cache, error) {
 // NewCache creates a new ristretto cache from the given config.
 func NewCache(config *Config) (Cache, error) {
 	rcache, err := ristretto.NewCache(ristrettoConfig(config))
-	return wrapped{config, config.DefaultTTL, rcache}, err
+	return wrapped{"", config, config.DefaultTTL, rcache}, err
 }
 
 type wrapped struct {
+	name       string
 	config     *Config
 	defaultTTL time.Duration
 	*ristretto.Cache
@@ -67,3 +68,8 @@ var _ Cache = (*wrapped)(nil)
 
 func (w wrapped) GetMetrics() Metrics                   { return w.Cache.Metrics }
 func (w wrapped) MarshalZerologObject(e *zerolog.Event) { e.EmbedObject(w.config) }
+
+func (w wrapped) Close() {
+	w.Cache.Close()
+	unregisterCache(w.name)
+}

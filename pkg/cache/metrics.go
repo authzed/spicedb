@@ -54,6 +54,10 @@ func mustRegisterCache(name string, c Cache) {
 	}
 }
 
+func unregisterCache(name string) {
+	caches.Delete(name)
+}
+
 var (
 	defaultCollector collector
 
