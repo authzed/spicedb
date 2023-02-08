@@ -151,7 +151,7 @@ nightly:
 release:
   draft: true
   prerelease: "auto"
-  mode: replace
+  mode: "replace"
   footer: |
     ## Docker Images
     This release is available at `authzed/spicedb:v{{ .Version }}`, `quay.io/authzed/spicedb:v{{ .Version }}`, `ghcr.io/authzed/spicedb:v{{ .Version }}`
