@@ -53,7 +53,7 @@ func DispatchTestCache(t testing.TB) cache.Cache {
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
 // dispatch requests and caches the responses when possible and desirable.
-func NewCachingDispatcher(cacheInst cache.Cache, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
+func NewCachingDispatcher(cacheInst cache.Cache, metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
 	if cacheInst == nil {
 		cacheInst = cache.NoopCache()
 	}
@@ -102,7 +102,7 @@ func NewCachingDispatcher(cacheInst cache.Cache, prometheusSubsystem string, key
 		Name:      "lookup_subjects_from_cache_total",
 	})
 
-	if prometheusSubsystem != "" {
+	if metricsEnabled && prometheusSubsystem != "" {
 		err := prometheus.Register(checkTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)

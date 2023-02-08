@@ -74,7 +74,9 @@ type Config struct {
 	DispatchUpstreamAddr           string
 	DispatchUpstreamCAPath         string
 	DispatchUpstreamTimeout        time.Duration
+	DispatchClientMetricsEnabled   bool
 	DispatchClientMetricsPrefix    string
+	DispatchClusterMetricsEnabled  bool
 	DispatchClusterMetricsPrefix   string
 	Dispatcher                     dispatch.Dispatcher
 
@@ -225,6 +227,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
 			),
+			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
@@ -254,6 +257,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 		cachingClusterDispatch, err = clusterdispatch.NewClusterDispatcher(
 			dispatcher,
+			clusterdispatch.MetricsEnabled(c.DispatchClusterMetricsEnabled),
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
 			clusterdispatch.Cache(cdcc),
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
