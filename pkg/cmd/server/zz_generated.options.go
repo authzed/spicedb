@@ -47,7 +47,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchUpstreamAddr = c.DispatchUpstreamAddr
 		to.DispatchUpstreamCAPath = c.DispatchUpstreamCAPath
 		to.DispatchUpstreamTimeout = c.DispatchUpstreamTimeout
+		to.DispatchClientMetricsEnabled = c.DispatchClientMetricsEnabled
 		to.DispatchClientMetricsPrefix = c.DispatchClientMetricsPrefix
+		to.DispatchClusterMetricsEnabled = c.DispatchClusterMetricsEnabled
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
 		to.Dispatcher = c.Dispatcher
 		to.DispatchCacheConfig = c.DispatchCacheConfig
@@ -238,10 +240,24 @@ func WithDispatchUpstreamTimeout(dispatchUpstreamTimeout time.Duration) ConfigOp
 	}
 }
 
+// WithDispatchClientMetricsEnabled returns an option that can set DispatchClientMetricsEnabled on a Config
+func WithDispatchClientMetricsEnabled(dispatchClientMetricsEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.DispatchClientMetricsEnabled = dispatchClientMetricsEnabled
+	}
+}
+
 // WithDispatchClientMetricsPrefix returns an option that can set DispatchClientMetricsPrefix on a Config
 func WithDispatchClientMetricsPrefix(dispatchClientMetricsPrefix string) ConfigOption {
 	return func(c *Config) {
 		c.DispatchClientMetricsPrefix = dispatchClientMetricsPrefix
+	}
+}
+
+// WithDispatchClusterMetricsEnabled returns an option that can set DispatchClusterMetricsEnabled on a Config
+func WithDispatchClusterMetricsEnabled(dispatchClusterMetricsEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.DispatchClusterMetricsEnabled = dispatchClusterMetricsEnabled
 	}
 }
 
