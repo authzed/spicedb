@@ -183,13 +183,15 @@ func (pr postgresRevision) LessThan(rhsRaw datastore.Revision) bool {
 }
 
 func (pr postgresRevision) String() string {
-	encoded, err := pr.MarshalBinary()
-	if err != nil {
-		// TODO: something better
-		panic("impossible proto encode error")
-	}
+	return base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
+}
 
-	return base64.StdEncoding.EncodeToString(encoded)
+func (pr postgresRevision) mustMarshalBinary() []byte {
+	serialized, err := pr.MarshalBinary()
+	if err != nil {
+		panic(fmt.Sprintf("unexpected error marshaling proto: %s", err))
+	}
+	return serialized
 }
 
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {
