@@ -314,12 +314,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaximumAPIDepth:       c.DispatchMaxDepth,
 	}
 
-	caveatsOption := services.CaveatsDisabled
-	if c.ExperimentalCaveatsEnabled {
-		log.Ctx(ctx).Warn().Msg("experimental caveats support enabled")
-		caveatsOption = services.CaveatsEnabled
-	}
-
 	healthManager := health.NewHealthManager(dispatcher, ds)
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
@@ -329,7 +323,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				dispatcher,
 				v1SchemaServiceOption,
 				watchServiceOption,
-				caveatsOption,
 				permSysConfig,
 			)
 		},

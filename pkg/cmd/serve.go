@@ -125,8 +125,6 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	cmd.Flags().StringVar(&config.TelemetryEndpoint, "telemetry-endpoint", telemetry.DefaultEndpoint, "endpoint to which telemetry is reported, empty string to disable")
 	cmd.Flags().StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
 	cmd.Flags().DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
-
-	cmd.Flags().BoolVar(&config.ExperimentalCaveatsEnabled, "experiment-enable-caveats", false, "if true, experimental support for caveats is enabled; note that these are not fully implemented and may break")
 	return nil
 }
 

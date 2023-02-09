@@ -133,8 +133,8 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		MaxUpdatesPerWrite:    50,
 		MaxPreconditionsCount: 50,
 		MaximumAPIDepth:       50,
-	}, true)
-	ss := v1svc.NewSchemaServer(false, true)
+	})
+	ss := v1svc.NewSchemaServer(false)
 
 	v1.RegisterPermissionsServiceServer(s, ps)
 	v1.RegisterSchemaServiceServer(s, ss)

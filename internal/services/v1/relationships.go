@@ -50,7 +50,6 @@ type PermissionsServerConfig struct {
 func NewPermissionsServer(
 	dispatch dispatch.Dispatcher,
 	config PermissionsServerConfig,
-	caveatsEnabled bool,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
 		MaxPreconditionsCount: defaultIfZero(config.MaxPreconditionsCount, 1000),
@@ -60,9 +59,8 @@ func NewPermissionsServer(
 	}
 
 	return &permissionServer{
-		dispatch:       dispatch,
-		config:         configWithDefaults,
-		caveatsEnabled: caveatsEnabled,
+		dispatch: dispatch,
+		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
 				grpcvalidate.UnaryServerInterceptor(true),
@@ -83,9 +81,8 @@ type permissionServer struct {
 	v1.UnimplementedPermissionsServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	dispatch       dispatch.Dispatcher
-	config         PermissionsServerConfig
-	caveatsEnabled bool
+	dispatch dispatch.Dispatcher
+	config   PermissionsServerConfig
 }
 
 func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
@@ -175,12 +172,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 				ctx,
 				NewDuplicateRelationshipErr(update),
 			)
-		}
-
-		if !ps.caveatsEnabled {
-			if update.Relationship.OptionalCaveat != nil && update.Relationship.OptionalCaveat.CaveatName != "" {
-				return nil, status.Errorf(codes.InvalidArgument, "caveats are currently not supported")
-			}
 		}
 	}
 
