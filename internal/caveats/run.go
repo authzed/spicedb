@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
@@ -98,13 +99,67 @@ func runExpression(
 	reader datastore.CaveatReader,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
-	if expr.GetCaveat() != nil {
-		caveat, _, err := reader.ReadCaveatByName(ctx, expr.GetCaveat().CaveatName)
-		if err != nil {
-			return nil, err
-		}
+	// Collect all referenced caveat definitions in the expression.
+	caveatNames := util.NewSet[string]()
+	collectCaveatNames(expr, caveatNames)
 
-		compiled, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
+	if caveatNames.IsEmpty() {
+		return nil, fmt.Errorf("received empty caveat expression")
+	}
+
+	// Bulk lookup all of the referenced caveat definitions.
+	caveatDefs, err := reader.LookupCaveatsWithNames(ctx, caveatNames.AsSlice())
+	if err != nil {
+		return nil, err
+	}
+
+	lc := loadedCaveats{
+		caveatDefs:          map[string]*core.CaveatDefinition{},
+		deserializedCaveats: map[string]*caveats.CompiledCaveat{},
+	}
+
+	for _, cd := range caveatDefs {
+		lc.caveatDefs[cd.Definition.GetName()] = cd.Definition
+	}
+
+	return runExpressionWithCaveats(ctx, env, expr, context, lc, debugOption)
+}
+
+type loadedCaveats struct {
+	caveatDefs          map[string]*core.CaveatDefinition
+	deserializedCaveats map[string]*caveats.CompiledCaveat
+}
+
+func (lc loadedCaveats) Get(caveatDefName string) (*core.CaveatDefinition, *caveats.CompiledCaveat, error) {
+	caveat, ok := lc.caveatDefs[caveatDefName]
+	if !ok {
+		return nil, nil, datastore.NewCaveatNameNotFoundErr(caveatDefName)
+	}
+
+	deserialized, ok := lc.deserializedCaveats[caveatDefName]
+	if ok {
+		return caveat, deserialized, nil
+	}
+
+	deserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
+	if err != nil {
+		return caveat, nil, err
+	}
+
+	lc.deserializedCaveats[caveatDefName] = deserialized
+	return caveat, deserialized, nil
+}
+
+func runExpressionWithCaveats(
+	ctx context.Context,
+	env *caveats.Environment,
+	expr *core.CaveatExpression,
+	context map[string]any,
+	loadedCaveats loadedCaveats,
+	debugOption RunCaveatExpressionDebugOption,
+) (ExpressionResult, error) {
+	if expr.GetCaveat() != nil {
+		caveat, compiled, err := loadedCaveats.Get(expr.GetCaveat().CaveatName)
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +222,7 @@ func runExpression(
 	}
 
 	for _, child := range cop.Children {
-		childResult, err := runExpression(ctx, env, child, context, reader, debugOption)
+		childResult, err := runExpressionWithCaveats(ctx, env, child, context, loadedCaveats, debugOption)
 		if err != nil {
 			return nil, err
 		}
@@ -260,4 +315,16 @@ func combineMaps(first map[string]any, second map[string]any) map[string]any {
 	cloned := maps.Clone(first)
 	maps.Copy(cloned, second)
 	return cloned
+}
+
+func collectCaveatNames(expr *core.CaveatExpression, caveatNames *util.Set[string]) {
+	if expr.GetCaveat() != nil {
+		caveatNames.Add(expr.GetCaveat().CaveatName)
+		return
+	}
+
+	cop := expr.GetOperation()
+	for _, child := range cop.Children {
+		collectCaveatNames(child, caveatNames)
+	}
 }
