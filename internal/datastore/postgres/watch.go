@@ -30,8 +30,9 @@ var (
 	// collecting these transactions long before we get to that point.
 	newRevisionsQuery = fmt.Sprintf(`
 	SELECT %[1]s, %[2]s FROM %[3]s
-	WHERE not pg_visible_in_snapshot(%[1]s, $1)
-	ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, tableTransaction)
+	WHERE %[1]s >= pg_snapshot_xmax($1) OR (
+		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
+	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, tableTransaction)
 
 	queryChanged = psql.Select(
 		colNamespace,
