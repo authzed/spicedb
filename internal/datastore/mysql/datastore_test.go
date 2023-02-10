@@ -81,8 +81,8 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 	}
 }
 
-func TestMySQLDatastoreWithoutParseTime(t *testing.T) {
-	_, err := NewMySQLDatastore("foo@bar.com/whatever")
+func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
+	_, err := NewMySQLDatastore("root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
 }
 
