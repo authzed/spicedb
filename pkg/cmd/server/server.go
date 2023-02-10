@@ -84,11 +84,10 @@ type Config struct {
 	ClusterDispatchCacheConfig CacheConfig
 
 	// API Behavior
-	DisableV1SchemaAPI         bool
-	V1SchemaAdditiveOnly       bool
-	MaximumUpdatesPerWrite     uint16
-	MaximumPreconditionCount   uint16
-	ExperimentalCaveatsEnabled bool
+	DisableV1SchemaAPI       bool
+	V1SchemaAdditiveOnly     bool
+	MaximumUpdatesPerWrite   uint16
+	MaximumPreconditionCount uint16
 
 	// Additional Services
 	DashboardAPI util.HTTPServerConfig

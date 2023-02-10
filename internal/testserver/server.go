@@ -70,7 +70,6 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-		server.WithExperimentalCaveatsEnabled(true),
 		server.SetMiddlewareModification([]server.MiddlewareModification{
 			{
 				Operation: server.OperationReplaceAllUnsafe,
