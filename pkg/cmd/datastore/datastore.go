@@ -158,7 +158,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 func DefaultDatastoreConfig() *Config {
 	return &Config{
 		Engine:                         MemoryEngine,
-		GCWindow:                       24 * time.Hour,
+		GCWindow:                       1 * time.Hour,
 		LegacyFuzzing:                  -1,
 		RevisionQuantization:           5 * time.Second,
 		MaxLifetime:                    30 * time.Minute,

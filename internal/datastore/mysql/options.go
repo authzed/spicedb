@@ -113,7 +113,7 @@ func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
 // GCWindow is the maximum age of a passed revision that will be considered
 // valid.
 //
-// This value defaults to 24 hours.
+// This value defaults to 1 hour.
 func GCWindow(window time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.gcWindow = window
