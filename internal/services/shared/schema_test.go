@@ -26,6 +26,10 @@ func TestApplySchemaChanges(t *testing.T) {
 			relation viewer: user
 			permission view = viewer
 		}
+
+		caveat hasFortyTwo(value int) {
+          value == 42
+        }
 	`, nil, require)
 
 	// Update the schema and ensure it works.
@@ -36,6 +40,10 @@ func TestApplySchemaChanges(t *testing.T) {
 			definition user {}
 
 			definition organization {}
+
+			caveat catchTwentyTwo(value int) {
+			  value == 22
+			}
 		`,
 	}, &emptyDefaultPrefix)
 	require.NoError(err)
@@ -49,6 +57,8 @@ func TestApplySchemaChanges(t *testing.T) {
 
 		require.Equal(applied.NewObjectDefNames, []string{"organization"})
 		require.Equal(applied.RemovedObjectDefNames, []string{"document"})
+		require.Equal(applied.NewCaveatDefNames, []string{"catchTwentyTwo"})
+		require.Equal(applied.RemovedCaveatDefNames, []string{"hasFortyTwo"})
 		return nil
 	})
 	require.NoError(err)

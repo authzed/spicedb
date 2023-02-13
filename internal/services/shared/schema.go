@@ -78,6 +78,12 @@ type AppliedSchemaChanges struct {
 
 	// RemovedObjectDefNames contains the names of the removed object definitions.
 	RemovedObjectDefNames []string
+
+	// NewCaveatDefNames contains the names of the newly added caveat definitions.
+	NewCaveatDefNames []string
+
+	// RemovedCaveatDefNames contains the names of the removed caveat definitions.
+	RemovedCaveatDefNames []string
 }
 
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
@@ -213,6 +219,8 @@ func ApplySchemaChangesOverExisting(
 		TotalOperationCount:   uint32(len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len()),
 		NewObjectDefNames:     validated.newObjectDefNames.Subtract(existingObjectDefNames).AsSlice(),
 		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
+		NewCaveatDefNames:     validated.newCaveatDefNames.Subtract(existingCaveatDefNames).AsSlice(),
+		RemovedCaveatDefNames: removedCaveatDefNames.AsSlice(),
 	}, nil
 }
 
