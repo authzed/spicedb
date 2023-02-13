@@ -18,6 +18,8 @@ type pgSnapshot struct {
 	status pgtype.Status
 }
 
+// DecodeText decodes the official postgres textual encoding for snapshots, described here:
+// https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT-PARTS
 func (s *pgSnapshot) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 	s.status = pgtype.Undefined
 	asText := string(src)
@@ -46,6 +48,8 @@ func (s *pgSnapshot) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 				return fmt.Errorf("unable to parse xip: %s", xipStr)
 			}
 		}
+
+		// Do a defensive sort in case the server is feeling out of sorts.
 		slices.Sort(s.xipList)
 	} else {
 		s.xipList = nil
@@ -56,7 +60,7 @@ func (s *pgSnapshot) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 	return nil
 }
 
-// EncodeText should append the text format of self to buf. If self is the
+// EncodeText should append the text format of s to buf. If s.Status is the
 // SQL value NULL then append nothing and return (nil, nil). The caller of
 // EncodeText is responsible for writing the correct NULL value or the
 // length of the data written.
@@ -68,6 +72,8 @@ func (s pgSnapshot) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) 
 	return append(buf, []byte(s.String())...), nil
 }
 
+// String uses the official postgres encoding for snapshots, which is described here:
+// https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT-PARTS
 func (s pgSnapshot) String() string {
 	xipStrs := make([]string, len(s.xipList))
 	for i, xip := range s.xipList {
@@ -105,6 +111,13 @@ const (
 	concurrent
 )
 
+// compare will return whether we can definitely assert that one snapshot was
+// definitively created after, before, at the same time, or was executed
+// concurrent with another transaction. We assess this based on whether a
+// transaction has more, less, or conflicting information about the resolution
+// of in-progress transactions. E.g. if one snapshot only sees txids 1 and 3 as
+// visible but another transaction sees 1-3 as visible, that transaction is
+// greater.
 func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 	if s.status != pgtype.Present || rhs.status != pgtype.Present {
 		return uncomparable
@@ -138,6 +151,9 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 	}
 }
 
+// markComplete will create a new snapshot where the specified transaction will be marked as
+// complete and visible. For example, if txid was present in the xip list of this snapshot
+// it will be removed and the xmin and xmax will be adjusted accordingly.
 func (s pgSnapshot) markComplete(txid uint64) pgSnapshot {
 	if txid < s.xmin || s.status != pgtype.Present {
 		// Nothing to do
@@ -177,6 +193,9 @@ func (s pgSnapshot) markComplete(txid uint64) pgSnapshot {
 	return newSnapshot
 }
 
+// markInProgress will create a new snapshot where the specified transaction will be marked as
+// in-progress and therefore invisible. For example, if the specified xmin falls between two
+// values in the xip list, it will be inserted in order.
 func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	if txid >= s.xmax {
 		// Nothing to do
@@ -223,6 +242,8 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	return newSnapshot
 }
 
+// visible will return whether the specified txid has a disposition (i.e. committed or rolled back)
+// in the specified snapshot, and is therefore visible to transactions using this snapshot.
 func (s pgSnapshot) visible(txid uint64) bool {
 	switch {
 	case txid < s.xmin:

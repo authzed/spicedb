@@ -20,6 +20,13 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// PostgresRevision is a compact binary encoding of a postgres snapshot as
+// described in the offial documentation here:
+// https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT-PARTS
+//
+// We use relative offsets for xmax and the xips to reduce the number of bytes
+// required for binary encoding using the protobuf varint datatype:
+// https://protobuf.dev/programming-guides/encoding/#varints
 type PostgresRevision struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

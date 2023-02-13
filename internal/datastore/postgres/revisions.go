@@ -114,6 +114,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 	return nil
 }
 
+// RevisionFromString reverses the encoding process performed by MarshalBinary and String.
 func (pgd *pgDatastore) RevisionFromString(revisionStr string) (datastore.Revision, error) {
 	return parseRevision(revisionStr)
 }
@@ -192,6 +193,9 @@ func (pr postgresRevision) mustMarshalBinary() []byte {
 	return serialized
 }
 
+// MarshalBinary creates a version of the snapshot that uses relative encoding
+// for xmax and xip list values to save bytes when encoded as varint protos.
+// For example, snapshot 1001:1004:1001,1003 becomes 1000:3:0,2.
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 	xminInt := int64(pr.snapshot.xmin)
 	relativeXips := make([]int64, len(pr.snapshot.xipList))

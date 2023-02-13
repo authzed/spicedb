@@ -3,6 +3,15 @@ package impl.v1;
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
 
+/**
+ * PostgresRevision is a compact binary encoding of a postgres snapshot as
+ * described in the offial documentation here:
+ * https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT-PARTS
+ *
+ * We use relative offsets for xmax and the xips to reduce the number of bytes
+ * required for binary encoding using the protobuf varint datatype:
+ * https://protobuf.dev/programming-guides/encoding/#varints
+ */
 message PostgresRevision {
     uint64 xmin = 1;
     int64 relative_xmax = 2;
