@@ -9,7 +9,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 )
 
@@ -63,8 +62,8 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 
-	if txID.Status != pgtype.Present {
-		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, errInvalidNilTransaction)
+	if err := txID.MustBePresent(); err != nil {
+		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 
 	rev := postgresRevision{snapshot.markComplete(txID.Uint)}
@@ -122,8 +121,8 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
 
-		if version.Status != pgtype.Present {
-			return nil, fmt.Errorf(errListCaveats, errInvalidNilTransaction)
+		if err := version.MustBePresent(); err != nil {
+			return nil, fmt.Errorf(errListCaveats, err)
 		}
 
 		revision := postgresRevision{snapshot.markComplete(version.Uint)}

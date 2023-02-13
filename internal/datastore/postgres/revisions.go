@@ -60,8 +60,6 @@ const (
 	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
 )
 
-var errInvalidNilTransaction = errors.New("invalid nil transaction id")
-
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
 	var revision xid8
 	var snapshot pgSnapshot

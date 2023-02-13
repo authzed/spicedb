@@ -10,7 +10,6 @@ import (
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
@@ -372,8 +371,8 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return datastore.NoRevision, err
 		}
 
-		if newXID.Status != pgtype.Present {
-			return datastore.NoRevision, errInvalidNilTransaction
+		if err := newXID.MustBePresent(); err != nil {
+			return datastore.NoRevision, err
 		}
 
 		return postgresRevision{newSnapshot.markComplete(newXID.Uint)}, nil

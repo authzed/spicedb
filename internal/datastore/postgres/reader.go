@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -203,8 +202,8 @@ func loadAllNamespaces(
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		if version.Status != pgtype.Present {
-			return nil, fmt.Errorf(errUnableToReadConfig, errInvalidNilTransaction)
+		if err := version.MustBePresent(); err != nil {
+			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
 		revision := postgresRevision{snapshot.markComplete(version.Uint)}
