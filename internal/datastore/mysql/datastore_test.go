@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -84,6 +85,11 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 	_, err := NewMySQLDatastore("root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
+}
+
+func TestInlineSqlArgs(t *testing.T) {
+	query := inlineSqlArgs("select * from foo where id = ?", []interface{}{"a"})
+	assert.Equal(t, "select * from foo where id = 'a'", query)
 }
 
 func TestMySQLDatastore(t *testing.T) {

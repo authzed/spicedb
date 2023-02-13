@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -369,7 +370,8 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 		}
 		defer common.LogOnError(ctx, rows.Close)
 
-		span.AddEvent("Query issued to database")
+		// TODO(will) sql logging hack
+		span.AddEvent("sql: " + inlineSqlArgs(sqlQuery, args))
 
 		var tuples []*core.RelationTuple
 		for rows.Next() {
@@ -407,6 +409,20 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 		return tuples, nil
 	}
+}
+
+func inlineSqlArgs(sqlQuery string, args []interface{}) string {
+	for _, arg := range args {
+		var formattedArg string
+		switch arg.(type) {
+		case string:
+			formattedArg = fmt.Sprintf("'%v'", arg)
+		default:
+			formattedArg = fmt.Sprint(arg)
+		}
+		sqlQuery = strings.Replace(sqlQuery, "?", formattedArg, 1)
+	}
+	return sqlQuery
 }
 
 // Datastore is a MySQL-based implementation of the datastore.Datastore interface
