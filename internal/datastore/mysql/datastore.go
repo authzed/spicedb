@@ -370,7 +370,6 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 		}
 		defer common.LogOnError(ctx, rows.Close)
 
-		// TODO(will) sql logging hack
 		span.AddEvent("sql: " + inlineSqlArgs(sqlQuery, args))
 
 		var tuples []*core.RelationTuple

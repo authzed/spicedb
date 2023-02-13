@@ -120,6 +120,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	var config []byte
 	var version decimal.Decimal
 	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
+	span.AddEvent("sql: " + inlineSqlArgs(query, args))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
@@ -181,6 +182,8 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 }
 
 func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
+	ctx, span := tracer.Start(ctx, "loadAllNamespaces")
+	defer span.End()
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
@@ -190,6 +193,7 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 	var nsDefs []datastore.RevisionedNamespace
 
 	rows, err := tx.QueryContext(ctx, query, args...)
+	span.AddEvent("sql: " + inlineSqlArgs(query, args))
 	if err != nil {
 		return nil, err
 	}

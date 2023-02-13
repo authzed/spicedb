@@ -23,6 +23,8 @@ const (
 )
 
 func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "readCaveatByName")
+	defer span.End()
 	filteredReadCaveat := mr.filterer(mr.ReadCaveatQuery)
 	sqlStatement, args, err := filteredReadCaveat.Where(sq.Eq{colName: name}).ToSql()
 	if err != nil {
@@ -38,6 +40,7 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 	var serializedDef []byte
 	var rev decimal.Decimal
 	err = tx.QueryRowContext(ctx, sqlStatement, args...).Scan(&serializedDef, &rev)
+	span.AddEvent("sql: " + inlineSqlArgs(sqlStatement, args))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
@@ -64,6 +67,8 @@ func (mr *mysqlReader) ListAllCaveats(ctx context.Context) ([]datastore.Revision
 }
 
 func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+	ctx, span := tracer.Start(ctx, "lookupCaveats")
+	defer span.End()
 	caveatsWithNames := mr.ListCaveatsQuery
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colName: caveatNames})
@@ -82,6 +87,7 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 	defer common.LogOnError(ctx, txCleanup)
 
 	rows, err := tx.QueryContext(ctx, listSQL, listArgs...)
+	span.AddEvent("sql: " + inlineSqlArgs(listSQL, listArgs))
 	if err != nil {
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
