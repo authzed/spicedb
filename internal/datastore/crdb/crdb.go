@@ -112,14 +112,14 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 	clusterTTLNanos, err := readClusterTTLNanos(initCtx, pool)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, fmt.Errorf("unable to read cluster gc window: %w", err)
 	}
 
 	gcWindowNanos := config.gcWindow.Nanoseconds()
 	if clusterTTLNanos < gcWindowNanos {
 		return nil, fmt.Errorf(
 			errUnableToInstantiate,
-			fmt.Errorf("cluster gc window is less than requested gc window %d < %d",
+			fmt.Errorf("configured cluster gc window is %d, less than configured SpiceDB gc window %d - see https://spicedb.dev/d/crdb-gc-window-warning",
 				clusterTTLNanos,
 				gcWindowNanos,
 			),
