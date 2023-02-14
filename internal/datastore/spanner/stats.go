@@ -43,8 +43,7 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 		return datastore.Stats{}, fmt.Errorf("unable to read namespaces: %w", err)
 	}
 
-	var estimate int64
-
+	var estimate spanner.NullInt64
 	countRows := sd.client.Single().Query(ctx, spanner.Statement{SQL: queryRelationshipEstimate})
 	countRow, err := countRows.Next()
 	if err != nil && spanner.ErrCode(err) != codes.NotFound {
@@ -58,7 +57,7 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	return datastore.Stats{
 		UniqueID:                   uniqueID,
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(allNamespaces),
-		EstimatedRelationshipCount: uint64(estimate),
+		EstimatedRelationshipCount: uint64(estimate.Int64),
 	}, nil
 }
 
