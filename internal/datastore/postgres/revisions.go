@@ -41,21 +41,22 @@ const (
 	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
 	FROM selected;`
 
-	// queryValidTransaction will return a single row with two values, one boolean
-	// for whether the specified snapshot is newer than the garbage collection
-	// window, and one boolean for whether the snapshot represents a transaction
-	// that will occur in the future.
+	// queryValidTransaction will return a single row with three values:
+	//   1) the transaction ID of the minimum valid (i.e. within the GC window) transaction
+	//   2) the snapshot associated with the minimum valid transaction
+	//   3) the current snapshot that would be used if a new transaction were created now
 	//
+	// The input values for the format string are:
 	//   %[1] Name of xid column
 	//   %[2] Relationship tuple transaction table
 	//   %[3] Name of timestamp column
 	//   %[4] Inverse of GC window (in seconds)
 	//   %[5] Name of the snapshot column
 	queryValidTransaction = `
-	WITH min AS (
+	WITH minvalid AS (
 		SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds' ORDER BY %[3]s ASC LIMIT 1
 	)
-	SELECT min.%[1]s, min.%[5]s, pg_current_snapshot() FROM min;`
+	SELECT minvalid.%[1]s, minvalid.%[5]s, pg_current_snapshot() FROM minvalid;`
 
 	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
 )

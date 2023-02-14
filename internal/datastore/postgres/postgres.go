@@ -59,9 +59,9 @@ const (
 
 	// The parameters to this format string are:
 	// 1: the created_xid or deleted_xid column name
-	// 2: a squirrel library placeholder string, i.e. `?`
-	// 3: a squirrel library placeholder string, i.e. `?`
-	snapshotAlive = "pg_visible_in_snapshot(%[1]s, %[2]s) = %[3]s"
+	//
+	// The placeholders are the snapshot and the expected boolean value respectively.
+	snapshotAlive = "pg_visible_in_snapshot(%[1]s, ?) = ?"
 
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
@@ -433,15 +433,11 @@ func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer
 	createdBeforeTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
 		colCreatedXid,
-		sq.Placeholders(1),
-		sq.Placeholders(1),
 	), revision.snapshot, true)
 
 	deletedAfterTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
 		colDeletedXid,
-		sq.Placeholders(1),
-		sq.Placeholders(1),
 	), revision.snapshot, false)
 
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
