@@ -125,7 +125,7 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 
 	var rhsHasMoreInfo bool
 	for _, txid := range append(s.xipList, s.xmax) {
-		if rhs.visible(txid) {
+		if rhs.txVisible(txid) {
 			rhsHasMoreInfo = true
 			break
 		}
@@ -133,7 +133,7 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 
 	var lhsHasMoreInfo bool
 	for _, txid := range append(rhs.xipList, rhs.xmax) {
-		if s.visible(txid) {
+		if s.txVisible(txid) {
 			lhsHasMoreInfo = true
 			break
 		}
@@ -242,9 +242,9 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	return newSnapshot
 }
 
-// visible will return whether the specified txid has a disposition (i.e. committed or rolled back)
-// in the specified snapshot, and is therefore visible to transactions using this snapshot.
-func (s pgSnapshot) visible(txid uint64) bool {
+// txVisible will return whether the specified txid has a disposition (i.e. committed or rolled back)
+// in the specified snapshot, and is therefore txVisible to transactions using this snapshot.
+func (s pgSnapshot) txVisible(txid uint64) bool {
 	switch {
 	case txid < s.xmin:
 		return true
