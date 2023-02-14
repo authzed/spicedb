@@ -7,14 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// import (
-// 	"fmt"
-// 	"testing"
-
-// 	"github.com/jackc/pgtype"
-// 	"github.com/stretchr/testify/require"
-// )
-
 const (
 	maxInt = int64(^uint64(0) >> 1)
 )
