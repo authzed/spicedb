@@ -117,13 +117,11 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 	gcWindowNanos := config.gcWindow.Nanoseconds()
 	if clusterTTLNanos < gcWindowNanos {
-		return nil, fmt.Errorf(
-			errUnableToInstantiate,
-			fmt.Errorf("configured cluster gc window is %d, less than configured SpiceDB gc window %d - see https://spicedb.dev/d/crdb-gc-window-warning",
-				clusterTTLNanos,
-				gcWindowNanos,
-			),
-		)
+		log.Warn().
+			Int64("cockroach_cluster_gc_window_nanos", clusterTTLNanos).
+			Int64("spicedb_gc_window_nanos", gcWindowNanos).
+			Msg("configured CockroachDB cluster gc window is less than configured SpiceDB gc window, falling back to CRDB value - see https://spicedb.dev/d/crdb-gc-window-warning")
+		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
 	}
 
 	var keyer overlapKeyer
