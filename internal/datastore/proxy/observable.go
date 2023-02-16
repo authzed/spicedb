@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"context"
-
+	"fmt"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -185,13 +185,32 @@ func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName strin
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	ctx, closer := observe(ctx, "QueryRelationships")
+	ctx, closer := observe(ctx, fmt.Sprintf("QueryRelationships %v", fmtFilter(filter)))
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)
 	if err != nil {
 		return iterator, err
 	}
 	return &observableRelationshipIterator{closer, iterator, 0}, nil
+}
+
+func fmtFilter(filter datastore.RelationshipsFilter) string {
+	s := filter.ResourceType
+	if len(filter.OptionalResourceIds) > 0 {
+		s = fmt.Sprintf("%v:%v", s, filter.OptionalResourceIds)
+	}
+	s = fmt.Sprintf("%v#%v", s, filter.OptionalResourceRelation)
+	if len(filter.OptionalSubjectsSelectors) > 0 {
+		s += "@"
+		for _, selector := range filter.OptionalSubjectsSelectors {
+			relationFilter := selector.RelationFilter.NonEllipsisRelation
+			if selector.RelationFilter.IncludeEllipsisRelation {
+				relationFilter = "..."
+			}
+			s += fmt.Sprintf("%v:%v#%v", selector.OptionalSubjectType, selector.OptionalSubjectIds, relationFilter)
+		}
+	}
+	return s
 }
 
 type observableRelationshipIterator struct {

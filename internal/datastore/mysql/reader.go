@@ -109,7 +109,7 @@ func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (
 
 func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	ctx, span := tracer.Start(ctx, "loadNamespace")
+	ctx, span := tracer.Start(ctx, fmt.Sprintf("loadNamespace %v", namespace))
 	defer span.End()
 
 	query, args, err := baseQuery.Where(sq.Eq{colNamespace: namespace}).ToSql()
