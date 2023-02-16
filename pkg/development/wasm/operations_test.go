@@ -280,6 +280,48 @@ func TestCheckOperation(t *testing.T) {
 				IsConditional: true,
 			},
 		},
+		{
+			"invalid relationship subject type",
+			`definition user {}
+			
+			definition resource {
+				relation viewer: user
+				 permission view = viewer
+			}`,
+			[]*core.RelationTuple{tuple.MustParse("resource:someobj#viewer@resource:foo")},
+			tuple.MustParse("resource:someobj#view@user:foo"),
+			nil,
+			&devinterface.DeveloperError{
+				Message: "subjects of type `resource` are not allowed on relation `resource#viewer`",
+				Kind:    devinterface.DeveloperError_INVALID_SUBJECT_TYPE,
+				Source:  devinterface.DeveloperError_RELATIONSHIP,
+				Context: "resource:someobj#viewer@resource:foo",
+			},
+			nil,
+		},
+		{
+			"invalid relationship with caveated subject type",
+			`definition user {}
+			
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation viewer: user with somecaveat
+				 permission view = viewer
+			}`,
+			[]*core.RelationTuple{tuple.MustParse("resource:someobj#viewer@user:foo")},
+			tuple.MustParse("resource:someobj#view@user:foo"),
+			nil,
+			&devinterface.DeveloperError{
+				Message: "subjects of type `user` are not allowed on relation `resource#viewer`",
+				Kind:    devinterface.DeveloperError_INVALID_SUBJECT_TYPE,
+				Source:  devinterface.DeveloperError_RELATIONSHIP,
+				Context: "resource:someobj#viewer@user:foo",
+			},
+			nil,
+		},
 	}
 
 	for _, tc := range tests {
