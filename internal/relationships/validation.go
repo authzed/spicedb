@@ -16,7 +16,7 @@ import (
 // they can be applied against the datastore.
 func ValidateRelationshipUpdates(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	reader datastore.Reader,
 	updates []*core.RelationTupleUpdate,
 ) error {
 	// Load caveats, if any.
@@ -30,7 +30,7 @@ func ValidateRelationshipUpdates(
 	}
 
 	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveats, err := rwt.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
+		foundCaveats, err := reader.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func ValidateRelationshipUpdates(
 			update.Tuple.ResourceAndRelation.Namespace,
 			update.Tuple.ResourceAndRelation.Relation,
 			false,
-			rwt,
+			reader,
 		); err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func ValidateRelationshipUpdates(
 			update.Tuple.Subject.Namespace,
 			update.Tuple.Subject.Relation,
 			true,
-			rwt,
+			reader,
 		); err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func ValidateRelationshipUpdates(
 		_, ts, err := namespace.ReadNamespaceAndTypes(
 			ctx,
 			update.Tuple.ResourceAndRelation.Namespace,
-			rwt,
+			reader,
 		)
 		if err != nil {
 			return err

@@ -139,6 +139,7 @@ func TestBackendBalance(t *testing.T) {
 	testCases := []int{1, 2, 3, 5, 10, 100}
 
 	for _, numMembers := range testCases {
+		numMembers := numMembers
 		t.Run(strconv.Itoa(numMembers), func(t *testing.T) {
 			t.Parallel()
 			require := require.New(t)

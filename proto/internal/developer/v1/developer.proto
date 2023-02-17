@@ -86,6 +86,7 @@ message DeveloperError {
     UNKNOWN_RELATION = 7;
     MAXIMUM_RECURSION = 8;
     ASSERTION_FAILED = 9;
+    INVALID_SUBJECT_TYPE = 10;
   }
 
   string message = 1;
