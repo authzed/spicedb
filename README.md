@@ -63,7 +63,7 @@ There are also [good first issues].
 
 ### Verifiable Correctness
 
-The data used to calculate permissions have the most critical correctness requirements in the entirety a software system.
+The data used to calculate permissions have the most critical correctness requirements in the entirety of a software system.
 Despite that, developers continue to build their own ad-hoc solutions coupled to the internal code of each new project.
 By developing a SpiceDB schema, you can iterate far more quickly and exhaustively test designs before altering any application code.
 This becomes especially important as you introduce backwards-compatible changes to the schema and want to ensure that the system remains secure.
@@ -76,7 +76,7 @@ This ReBAC design is capable of efficiently supporting all popular access contro
 Modern solutions to developing permission systems all have a similar goal: to decouple _policy_ from the application.
 Using a dedicated database like SpiceDB not only accomplishes this, but takes this idea a step further by also decoupling the data that policies operate on.
 SpiceDB is designed to share a single unified view of permissions across as many applications as your organization has.
-This has strategy has become an industry best-practice and is being used to great success at companies large ([Google], GitHub, [Airbnb]) and small ([Carta], [Authzed]).
+This strategy has become an industry best-practice and is being used to great success at companies large ([Google], GitHub, [Airbnb]) and small ([Carta], [Authzed]).
 
 [RBAC]: https://docs.authzed.com/concepts/authz#what-is-rbac
 [ABAC]: https://docs.authzed.com/concepts/authz#what-is-abac
