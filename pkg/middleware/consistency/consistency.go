@@ -7,22 +7,10 @@ import (
 
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-// RevisionFromContext reads the selected revision out of a context.Context and returns nil if it
-// does not exist.
-func RevisionFromContext(ctx context.Context) datastore.Revision {
+// RevisionFromContext reads the selected revision out of a context.Context, computes a zedtoken
+// from it, and returns an internal error if it has not been set on the context.
+func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken, error) {
 	return consistency.RevisionFromContext(ctx)
-}
-
-// MustRevisionFromContext reads the selected revision out of a context.Context, computes a zedtoken
-// from it, and panics if it has not been set on the context.
-func MustRevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken) {
-	rev := consistency.RevisionFromContext(ctx)
-	if rev == nil {
-		panic("consistency middleware did not inject revision")
-	}
-
-	return rev, zedtoken.MustNewFromRevision(rev)
 }
