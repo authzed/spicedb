@@ -16,21 +16,43 @@ import (
 // they can be applied against the datastore.
 func ValidateRelationshipUpdates(
 	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	reader datastore.Reader,
 	updates []*core.RelationTupleUpdate,
 ) error {
-	// Load caveats, if any.
-	var referencedCaveatMap map[string]*core.CaveatDefinition
+	referencedNamespaceNames := util.NewSet[string]()
 	referencedCaveatNamesWithContext := util.NewSet[string]()
-
 	for _, update := range updates {
+		referencedNamespaceNames.Add(update.Tuple.ResourceAndRelation.Namespace)
+		referencedNamespaceNames.Add(update.Tuple.Subject.Namespace)
 		if hasNonEmptyCaveatContext(update) {
 			referencedCaveatNamesWithContext.Add(update.Tuple.Caveat.CaveatName)
 		}
 	}
 
+	var referencedNamespaceMap map[string]*namespace.TypeSystem
+	var referencedCaveatMap map[string]*core.CaveatDefinition
+
+	// Load namespaces.
+	if !referencedNamespaceNames.IsEmpty() {
+		foundNamespaces, err := reader.LookupNamespacesWithNames(ctx, referencedNamespaceNames.AsSlice())
+		if err != nil {
+			return err
+		}
+
+		referencedNamespaceMap = make(map[string]*namespace.TypeSystem, len(foundNamespaces))
+		for _, nsDef := range foundNamespaces {
+			nts, err := namespace.NewNamespaceTypeSystem(nsDef.Definition, namespace.ResolverForDatastoreReader(reader))
+			if err != nil {
+				return err
+			}
+
+			referencedNamespaceMap[nsDef.Definition.Name] = nts
+		}
+	}
+
+	// Load caveats, if any.
 	if !referencedCaveatNamesWithContext.IsEmpty() {
-		foundCaveats, err := rwt.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
+		foundCaveats, err := reader.LookupCaveatsWithNames(ctx, referencedCaveatNamesWithContext.AsSlice())
 		if err != nil {
 			return err
 		}
@@ -41,8 +63,7 @@ func ValidateRelationshipUpdates(
 		}
 	}
 
-	// TODO(jschorr): look into loading the type system once per type, rather than once per relationship
-	// Check each update.
+	// Validate each update's types.
 	for _, update := range updates {
 		// Validate the IDs of the resource and subject.
 		if err := tuple.ValidateResourceID(update.Tuple.ResourceAndRelation.ObjectId); err != nil {
@@ -53,39 +74,30 @@ func ValidateRelationshipUpdates(
 			return err
 		}
 
-		// Ensure the namespace and relation for the resource and subject exist.
-		if err := namespace.CheckNamespaceAndRelation(
-			ctx,
-			update.Tuple.ResourceAndRelation.Namespace,
-			update.Tuple.ResourceAndRelation.Relation,
-			false,
-			rwt,
-		); err != nil {
-			return err
+		// Validate the namespace and relation for the resource.
+		resourceTS, ok := referencedNamespaceMap[update.Tuple.ResourceAndRelation.Namespace]
+		if !ok {
+			return namespace.NewNamespaceNotFoundErr(update.Tuple.ResourceAndRelation.Namespace)
 		}
 
-		if err := namespace.CheckNamespaceAndRelation(
-			ctx,
-			update.Tuple.Subject.Namespace,
-			update.Tuple.Subject.Relation,
-			true,
-			rwt,
-		); err != nil {
-			return err
+		if !resourceTS.HasRelation(update.Tuple.ResourceAndRelation.Relation) {
+			return namespace.NewRelationNotFoundErr(update.Tuple.ResourceAndRelation.Namespace, update.Tuple.ResourceAndRelation.Relation)
 		}
 
-		// Build the type system for the object type.
-		_, ts, err := namespace.ReadNamespaceAndTypes(
-			ctx,
-			update.Tuple.ResourceAndRelation.Namespace,
-			rwt,
-		)
-		if err != nil {
-			return err
+		// Validate the namespace and relation for the subject.
+		subjectTS, ok := referencedNamespaceMap[update.Tuple.Subject.Namespace]
+		if !ok {
+			return namespace.NewNamespaceNotFoundErr(update.Tuple.Subject.Namespace)
+		}
+
+		if update.Tuple.Subject.Relation != tuple.Ellipsis {
+			if !subjectTS.HasRelation(update.Tuple.Subject.Relation) {
+				return namespace.NewRelationNotFoundErr(update.Tuple.Subject.Namespace, update.Tuple.Subject.Relation)
+			}
 		}
 
 		// Validate that the relationship is not writing to a permission.
-		if ts.IsPermission(update.Tuple.ResourceAndRelation.Relation) {
+		if resourceTS.IsPermission(update.Tuple.ResourceAndRelation.Relation) {
 			return NewCannotWriteToPermissionError(update)
 		}
 
@@ -106,7 +118,7 @@ func ValidateRelationshipUpdates(
 				caveat)
 		}
 
-		isAllowed, err := ts.HasAllowedRelation(
+		isAllowed, err := resourceTS.HasAllowedRelation(
 			update.Tuple.ResourceAndRelation.Relation,
 			relationToCheck,
 		)
@@ -119,8 +131,6 @@ func ValidateRelationshipUpdates(
 		}
 
 		// Validate caveat and its context, if applicable.
-		// TODO(jschorr): once caveats are supported on all datastores, we should elide this check if the
-		// provided context is empty, as the allowed relation check above will ensure the caveat exists.
 		if hasNonEmptyCaveatContext(update) {
 			caveat, ok := referencedCaveatMap[update.Tuple.Caveat.CaveatName]
 			if !ok {
