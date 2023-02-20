@@ -10,7 +10,6 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
-	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
@@ -46,15 +45,21 @@ type schemaServer struct {
 }
 
 func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
-	readRevision, _ := consistency.MustRevisionFromContext(ctx)
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(readRevision)
-
-	nsDefs, err := ds.ListAllNamespaces(ctx)
+	// Schema is always read from the head revision.
+	ds := datastoremw.MustFromContext(ctx)
+	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
 
-	caveatDefs, err := ds.ListAllCaveats(ctx)
+	reader := ds.SnapshotReader(headRevision)
+
+	nsDefs, err := reader.ListAllNamespaces(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
+	caveatDefs, err := reader.ListAllCaveats(ctx)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
