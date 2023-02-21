@@ -42,6 +42,13 @@ var (
 		Name:      "gc_namespaces_total",
 		Help:      "The number of stale namespaces deleted by the datastore garbage collection.",
 	})
+
+	gcFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore",
+		Name:      "gc_failure_total",
+		Help:      "The number of failed runs of the datastore garbage collection.",
+	})
 )
 
 // RegisterGCMetrics registers garbage collection metrics to the default
@@ -52,6 +59,7 @@ func RegisterGCMetrics() error {
 		gcRelationshipsCounter,
 		gcTransactionsCounter,
 		gcNamespacesCounter,
+		gcFailureCounter,
 	} {
 		if err := prometheus.Register(metric); err != nil {
 			return err
@@ -110,6 +118,7 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 		case <-time.After(nextInterval):
 			err := RunGarbageCollection(gc, window, timeout)
 			if err != nil {
+				gcFailureCounter.Inc()
 				nextInterval = backoffInterval.NextBackOff()
 				log.Ctx(ctx).Warn().Err(err).
 					Dur("next-attempt-in", nextInterval).
@@ -119,7 +128,7 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 			backoffInterval.Reset()
 			log.Ctx(ctx).Debug().
 				Dur("next-run-in", interval).
-				Msg("datastore garbage collection completed successfully")
+				Msg("datastore garbage collection scheduled for next run")
 		}
 	}
 }
@@ -147,43 +156,33 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		return nil
 	}
 
-	var (
-		startTime = time.Now()
-		collected DeletionCounts
-		watermark datastore.Revision
-		now       = time.Time{}
-	)
-
-	defer func() {
-		collectionDuration := time.Since(startTime)
-		gcDurationHistogram.Observe(collectionDuration.Seconds())
-
-		log.Ctx(ctx).Debug().
-			Stringer("highestTxID", watermark).
-			Dur("duration", collectionDuration).
-			Time("nowTime", now).
-			Interface("collected", collected).
-			Msg("datastore garbage collection completed")
-
-		gcRelationshipsCounter.Add(float64(collected.Relationships))
-		gcTransactionsCounter.Add(float64(collected.Transactions))
-		gcNamespacesCounter.Add(float64(collected.Namespaces))
-	}()
-
-	now, err = gc.Now(ctx)
+	startTime := time.Now()
+	now, err := gc.Now(ctx)
 	if err != nil {
 		return fmt.Errorf("error retrieving now: %w", err)
 	}
 
-	watermark, err = gc.TxIDBefore(ctx, now.Add(-1*window))
+	watermark, err := gc.TxIDBefore(ctx, now.Add(-1*window))
 	if err != nil {
 		return fmt.Errorf("error retrieving watermark: %w", err)
 	}
 
-	collected, err = gc.DeleteBeforeTx(ctx, watermark)
+	collected, err := gc.DeleteBeforeTx(ctx, watermark)
 	if err != nil {
 		return fmt.Errorf("error deleting in gc: %w", err)
 	}
 
+	collectionDuration := time.Since(startTime)
+	log.Ctx(ctx).Debug().
+		Stringer("highestTxID", watermark).
+		Dur("duration", collectionDuration).
+		Time("nowTime", now).
+		Interface("collected", collected).
+		Msg("datastore garbage collection completed successfully")
+
+	gcDurationHistogram.Observe(collectionDuration.Seconds())
+	gcRelationshipsCounter.Add(float64(collected.Relationships))
+	gcTransactionsCounter.Add(float64(collected.Transactions))
+	gcNamespacesCounter.Add(float64(collected.Namespaces))
 	return nil
 }
