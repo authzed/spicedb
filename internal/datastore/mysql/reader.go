@@ -120,7 +120,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	var config []byte
 	var version decimal.Decimal
 	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
-	span.AddEvent("sql: " + inlineSqlArgs(query, args))
+	span.AddEvent("sql: " + common.InlineSqlArgs(query, args))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
@@ -193,7 +193,7 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 	var nsDefs []datastore.RevisionedNamespace
 
 	rows, err := tx.QueryContext(ctx, query, args...)
-	span.AddEvent("sql: " + inlineSqlArgs(query, args))
+	span.AddEvent("sql: " + common.InlineSqlArgs(query, args))
 	if err != nil {
 		return nil, err
 	}

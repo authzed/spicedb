@@ -43,7 +43,7 @@ func queryTuples(ctx context.Context, sqlStatement string, args []any, span trac
 	}
 	defer rows.Close()
 
-	span.AddEvent("Query issued to database")
+	span.AddEvent("sql: " + common.InlineSqlArgs(sqlStatement, args))
 
 	var tuples []*corev1.RelationTuple
 	for rows.Next() {

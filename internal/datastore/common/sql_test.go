@@ -375,3 +375,8 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		})
 	}
 }
+
+func TestInlineSqlArgs(t *testing.T) {
+	query := InlineSqlArgs("select * from foo where id = ?", []interface{}{"a"})
+	require.Equal(t, "select * from foo where id = 'a'", query)
+}

@@ -28,7 +28,7 @@ func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 
 	var now time.Time
 	err = mds.db.QueryRowContext(ctx, nowSQL, nowArgs...).Scan(&now)
-	span.AddEvent("sql: " + inlineSqlArgs(nowSQL, nowArgs))
+	span.AddEvent("sql: " + common.InlineSqlArgs(nowSQL, nowArgs))
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -51,7 +51,7 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 
 	var value sql.NullInt64
 	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&value)
-	span.AddEvent("sql: " + inlineSqlArgs(query, args))
+	span.AddEvent("sql: " + common.InlineSqlArgs(query, args))
 	if err != nil {
 		return datastore.NoRevision, err
 	}

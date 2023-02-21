@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"math/big"
 	"time"
 
@@ -121,7 +122,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 
 	var revision *uint64
 	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&revision)
-	span.AddEvent("sql: " + inlineSqlArgs(query, args))
+	span.AddEvent("sql: " + common.InlineSqlArgs(query, args))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, nil
