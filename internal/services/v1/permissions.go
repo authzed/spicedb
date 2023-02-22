@@ -34,7 +34,11 @@ import (
 const maxCaveatContextBytes = 4096
 
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
-	atRevision, checkedAt := consistency.MustRevisionFromContext(ctx)
+	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := getCaveatContext(ctx, req.Context)
@@ -138,10 +142,14 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 }
 
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
-	atRevision, expandedAt := consistency.MustRevisionFromContext(ctx)
+	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, rewriteError(ctx, err)
+	}
+
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	err := namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
+	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -318,7 +326,11 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
-	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return rewriteError(ctx, err)
+	}
+
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	// Perform our preflight checks in parallel
@@ -393,7 +405,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
 	ctx := resp.Context()
-	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return rewriteError(ctx, err)
+	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 

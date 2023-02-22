@@ -111,7 +111,11 @@ func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
 	ctx := resp.Context()
-	atRevision, revisionReadAt := consistency.MustRevisionFromContext(ctx)
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return rewriteError(ctx, err)
+	}
+
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, ds); err != nil {

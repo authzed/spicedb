@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/authzed/spicedb/internal/services/shared"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -15,6 +13,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -39,25 +38,18 @@ func ContextWithHandle(ctx context.Context) context.Context {
 	return context.WithValue(ctx, revisionKey, &revisionHandle{})
 }
 
-// RevisionFromContext reads the selected revision out of a context.Context and returns nil if it
-// does not exist.
-func RevisionFromContext(ctx context.Context) datastore.Revision {
+// RevisionFromContext reads the selected revision out of a context.Context, computes a zedtoken
+// from it, and returns an error if it has not been set on the context.
+func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken, error) {
 	if c := ctx.Value(revisionKey); c != nil {
 		handle := c.(*revisionHandle)
-		return handle.revision
-	}
-	return nil
-}
-
-// MustRevisionFromContext reads the selected revision out of a context.Context, computes a zedtoken
-// from it, and panics if it has not been set on the context.
-func MustRevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken) {
-	rev := RevisionFromContext(ctx)
-	if rev == nil {
-		panic("consistency middleware did not inject revision")
+		rev := handle.revision
+		if rev != nil {
+			return rev, zedtoken.MustNewFromRevision(rev), nil
+		}
 	}
 
-	return rev, zedtoken.MustNewFromRevision(rev)
+	return nil, nil, fmt.Errorf("consistency middleware did not inject revision")
 }
 
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
@@ -67,23 +59,8 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 	case hasConsistency:
 		return addRevisionToContextFromConsistency(ctx, req, ds)
 	default:
-		return addHeadRevision(ctx, ds)
-	}
-}
-
-// addHeadRevision sets the value of the revision in the context to the current head revision in the datastore
-func addHeadRevision(ctx context.Context, ds datastore.Datastore) error {
-	handle := ctx.Value(revisionKey)
-	if handle == nil {
 		return nil
 	}
-
-	revision, err := ds.HeadRevision(ctx)
-	if err != nil {
-		return rewriteDatastoreError(ctx, err)
-	}
-	handle.(*revisionHandle).revision = revision
-	return nil
 }
 
 // addRevisionToContextFromConsistency adds a revision to the given context, based on the consistency block found
