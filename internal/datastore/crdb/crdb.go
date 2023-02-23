@@ -74,23 +74,30 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(url)
+	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+	writePoolConfig := readPoolConfig.Copy()
 
-	configurePool(config, poolConfig)
+	config.readPoolOpts.configurePgx(readPoolConfig)
+	config.writePoolOpts.configurePgx(writePoolConfig)
 
 	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.ConnectConfig(initCtx, poolConfig)
+	readPool, err := pgxpool.ConnectConfig(initCtx, readPoolConfig)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	writePool, err := pgxpool.ConnectConfig(initCtx, writePoolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
 	var version crdbVersion
-	if err := queryServerVersion(initCtx, pool, &version); err != nil {
+	if err := queryServerVersion(initCtx, readPool, &version); err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
@@ -101,8 +108,16 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 
 	if config.enablePrometheusStats {
-		collector := pgxpoolprometheus.NewCollector(pool, map[string]string{"db_name": "spicedb"})
-		if err := prometheus.Register(collector); err != nil {
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "read",
+		})); err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "write",
+		})); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 		if err := common.RegisterGCMetrics(); err != nil {
@@ -110,7 +125,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		}
 	}
 
-	clusterTTLNanos, err := readClusterTTLNanos(initCtx, pool)
+	clusterTTLNanos, err := readClusterTTLNanos(initCtx, readPool)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read cluster gc window: %w", err)
 	}
@@ -154,7 +169,8 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		),
 		revision.DecimalDecoder{},
 		url,
-		pool,
+		readPool,
+		writePool,
 		config.watchBufferLength,
 		keyer,
 		config.splitAtUsersetCount,
@@ -178,29 +194,29 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
-func configurePool(config crdbOptions, pgxConfig *pgxpool.Config) {
-	if config.maxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*config.maxOpenConns)
+func (opts pgxPoolOptions) configurePgx(pgxConfig *pgxpool.Config) {
+	if opts.maxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*opts.maxOpenConns)
 	}
 
-	if config.minOpenConns != nil {
-		pgxConfig.MinConns = int32(*config.minOpenConns)
+	if opts.minOpenConns != nil {
+		pgxConfig.MinConns = int32(*opts.minOpenConns)
 	}
 
 	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
 		log.Warn().Int32("max-connections", pgxConfig.MaxConns).Int32("min-connections", pgxConfig.MinConns).Msg("maximum number of connections configured is less than minimum number of connections; minimum will be used")
 	}
 
-	if config.connMaxIdleTime != nil {
-		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
+	if opts.connMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *opts.connMaxIdleTime
 	}
 
-	if config.connMaxLifetime != nil {
-		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
+	if opts.connMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *opts.connMaxLifetime
 	}
 
-	if config.connHealthCheckInterval != nil {
-		pgxConfig.HealthCheckPeriod = *config.connHealthCheckInterval
+	if opts.connHealthCheckInterval != nil {
+		pgxConfig.HealthCheckPeriod = *opts.connHealthCheckInterval
 	}
 
 	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
@@ -210,20 +226,20 @@ type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
 	revision.DecimalDecoder
 
-	dburl             string
-	pool              *pgxpool.Pool
-	watchBufferLength uint16
-	writeOverlapKeyer overlapKeyer
-	usersetBatchSize  uint16
-	execute           executeTxRetryFunc
-	disableStats      bool
+	dburl               string
+	readPool, writePool *pgxpool.Pool
+	watchBufferLength   uint16
+	writeOverlapKeyer   overlapKeyer
+	usersetBatchSize    uint16
+	execute             executeTxRetryFunc
+	disableStats        bool
 
 	beginChangefeedQuery string
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
-		tx, err := cds.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+		tx, err := cds.readPool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -263,7 +279,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var commitTimestamp revision.Decimal
 	if err := cds.execute(ctx, func(ctx context.Context) error {
-		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return cds.writePool.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
 				return tx, noCleanup, nil
 			}
@@ -342,7 +358,8 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 }
 
 func (cds *crdbDatastore) Close() error {
-	cds.pool.Close()
+	cds.readPool.Close()
+	cds.writePool.Close()
 	return nil
 }
 
@@ -353,7 +370,7 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
 	var hlcNow revision.Decimal
 	err := cds.execute(ctx, func(ctx context.Context) error {
-		return cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		return cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 			var fnErr error
 			hlcNow, fnErr = readCRDBNow(ctx, tx)
 			if fnErr != nil {
@@ -380,7 +397,7 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	time.AfterFunc(1*time.Second, cancel)
-	_, err = cds.pool.Exec(streamCtx, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head))
+	_, err = cds.readPool.Exec(streamCtx, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head))
 	if err != nil && errors.Is(err, context.Canceled) {
 		features.Watch.Enabled = true
 		features.Watch.Reason = ""

@@ -40,7 +40,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	var uniqueID string
 	var nsDefs []datastore.RevisionedNamespace
 	var relCount uint64
-	if err := cds.pool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+	if err := cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&uniqueID); err != nil {
 			return fmt.Errorf("unable to query unique ID: %w", err)
 		}
