@@ -41,7 +41,7 @@ func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 	}
 
 	var now time.Time
-	err = pgd.dbpool.QueryRow(ctx, nowSQL, nowArgs...).Scan(&now)
+	err = pgd.readPool.QueryRow(ctx, nowSQL, nowArgs...).Scan(&now)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -60,7 +60,7 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 
 	var value xid8
 	var snapshot pgSnapshot
-	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&value, &snapshot)
+	err = pgd.readPool.QueryRow(ctx, sql, args...).Scan(&value, &snapshot)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -137,7 +137,7 @@ func (pgd *pgDatastore) batchDelete(
 
 	var deletedCount int64
 	for {
-		cr, err := pgd.dbpool.Exec(ctx, query, args...)
+		cr, err := pgd.writePool.Exec(ctx, query, args...)
 		if err != nil {
 			return deletedCount, err
 		}

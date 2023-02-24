@@ -78,10 +78,13 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-	writePoolConfig := readPoolConfig.Copy()
+	config.readPoolOpts.ConfigurePgx(readPoolConfig)
 
-	config.readPoolOpts.configurePgx(readPoolConfig)
-	config.writePoolOpts.configurePgx(writePoolConfig)
+	writePoolConfig, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
 	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -192,34 +195,6 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, err
 	}
 	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
-}
-
-func (opts pgxPoolOptions) configurePgx(pgxConfig *pgxpool.Config) {
-	if opts.maxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*opts.maxOpenConns)
-	}
-
-	if opts.minOpenConns != nil {
-		pgxConfig.MinConns = int32(*opts.minOpenConns)
-	}
-
-	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
-		log.Warn().Int32("max-connections", pgxConfig.MaxConns).Int32("min-connections", pgxConfig.MinConns).Msg("maximum number of connections configured is less than minimum number of connections; minimum will be used")
-	}
-
-	if opts.connMaxIdleTime != nil {
-		pgxConfig.MaxConnIdleTime = *opts.connMaxIdleTime
-	}
-
-	if opts.connMaxLifetime != nil {
-		pgxConfig.MaxConnLifetime = *opts.connMaxLifetime
-	}
-
-	if opts.connHealthCheckInterval != nil {
-		pgxConfig.HealthCheckPeriod = *opts.connHealthCheckInterval
-	}
-
-	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
 }
 
 type crdbDatastore struct {

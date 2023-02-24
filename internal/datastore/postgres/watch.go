@@ -120,12 +120,9 @@ func (pgd *pgDatastore) Watch(
 	return updates, errs
 }
 
-func (pgd *pgDatastore) getNewRevisions(
-	ctx context.Context,
-	afterTX postgresRevision,
-) ([]revisionWithXid, error) {
+func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]revisionWithXid, error) {
 	var ids []revisionWithXid
-	if err := pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+	if err := pgd.readPool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
@@ -186,7 +183,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 		return nil, fmt.Errorf("unable to prepare changes SQL: %w", err)
 	}
 
-	changes, err := pgd.dbpool.Query(ctx, sql, args...)
+	changes, err := pgd.readPool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
 	}

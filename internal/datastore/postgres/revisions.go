@@ -67,7 +67,7 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 	var revision xid8
 	var snapshot pgSnapshot
 	var validForNanos time.Duration
-	if err := pgd.dbpool.QueryRow(ctx, pgd.optimizedRevisionQuery).
+	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
 		Scan(&revision, &snapshot, &validForNanos); err != nil {
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
@@ -84,7 +84,7 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 	defer span.End()
 
 	var snapshot pgSnapshot
-	if err := pgd.dbpool.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
+	if err := pgd.readPool.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return datastore.NoRevision, nil
 		}
@@ -102,7 +102,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 
 	var minXid xid8
 	var minSnapshot, currentSnapshot pgSnapshot
-	if err := pgd.dbpool.QueryRow(ctx, pgd.validTransactionQuery).
+	if err := pgd.readPool.QueryRow(ctx, pgd.validTransactionQuery).
 		Scan(&minXid, &minSnapshot, &currentSnapshot); err != nil {
 		return fmt.Errorf(errCheckRevision, err)
 	}

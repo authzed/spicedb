@@ -3,14 +3,13 @@ package postgres
 import (
 	"fmt"
 	"time"
+
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
 type postgresOptions struct {
-	connMaxIdleTime             *time.Duration
-	connMaxLifetime             *time.Duration
-	healthCheckPeriod           *time.Duration
-	maxOpenConns                *int
-	minOpenConns                *int
+	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
+
 	maxRevisionStalenessPercent float64
 
 	watchBufferLength    uint16
@@ -107,52 +106,112 @@ func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 	}
 }
 
-// ConnMaxIdleTime is the duration after which an idle connection will be
-// automatically closed by the health check.
+// ReadConnHealthCheckInterval is the frequency at which both idle and max
+// lifetime connections are checked, and also the frequency at which the
+// minimum number of connections is checked.
+//
+// This happens asynchronously.
+//
+// This is not the only approach to evaluate these counts; "connection idle/max
+// lifetime" is also checked when connections are released to the pool.
+//
+// There is no guarantee connections won't last longer than their specified
+// idle/max lifetime. It's largely dependent on the health-check goroutine
+// being able to pull them from the connection pool.
+//
+// The health-check may not be able to clean up those connections if they are
+// held by the application very frequently.
+//
+// This value defaults to 30s.
+func ReadConnHealthCheckInterval(interval time.Duration) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.ConnHealthCheckInterval = &interval }
+}
+
+// WriteConnHealthCheckInterval is the frequency at which both idle and max
+// lifetime connections are checked, and also the frequency at which the
+// minimum number of connections is checked.
+//
+// This happens asynchronously.
+//
+// This is not the only approach to evaluate these counts; "connection idle/max
+// lifetime" is also checked when connections are released to the pool.
+//
+// There is no guarantee connections won't last longer than their specified
+// idle/max lifetime. It's largely dependent on the health-check goroutine
+// being able to pull them from the connection pool.
+//
+// The health-check may not be able to clean up those connections if they are
+// held by the application very frequently.
+//
+// This value defaults to 30s.
+func WriteConnHealthCheckInterval(interval time.Duration) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.ConnHealthCheckInterval = &interval }
+}
+
+// ReadConnMaxIdleTime is the duration after which an idle read connection will
+// be automatically closed by the health check.
 //
 // This value defaults to having no maximum.
-func ConnMaxIdleTime(idle time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.connMaxIdleTime = &idle
-	}
+func ReadConnMaxIdleTime(idle time.Duration) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.ConnMaxIdleTime = &idle }
 }
 
-// ConnMaxLifetime is the duration since creation after which a connection will
-// be automatically closed.
+// WriteConnMaxIdleTime is the duration after which an idle write connection
+// will be automatically closed by the health check.
 //
 // This value defaults to having no maximum.
-func ConnMaxLifetime(lifetime time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.connMaxLifetime = &lifetime
-	}
+func WriteConnMaxIdleTime(idle time.Duration) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.ConnMaxIdleTime = &idle }
 }
 
-// HealthCheckPeriod is the interval by which idle Postgres client connections
-// are health checked in order to keep them alive in a connection pool.
-func HealthCheckPeriod(period time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.healthCheckPeriod = &period
-	}
-}
-
-// MaxOpenConns is the maximum size of the connection pool.
+// ReadConnMaxLifetime is the duration since creation after which a read
+// connection will be automatically closed.
 //
 // This value defaults to having no maximum.
-func MaxOpenConns(conns int) Option {
-	return func(po *postgresOptions) {
-		po.maxOpenConns = &conns
-	}
+func ReadConnMaxLifetime(lifetime time.Duration) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.ConnMaxLifetime = &lifetime }
 }
 
-// MinOpenConns is the minimum size of the connection pool.
+// WriteConnMaxLifetime is the duration since creation after which a write
+// connection will be automatically closed.
+//
+// This value defaults to having no maximum.
+func WriteConnMaxLifetime(lifetime time.Duration) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.ConnMaxLifetime = &lifetime }
+}
+
+// MinOpenReadConns is the minimum size of the connection pool used for reads.
+//
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
 // This value defaults to zero.
-func MinOpenConns(conns int) Option {
-	return func(po *postgresOptions) {
-		po.minOpenConns = &conns
-	}
+func MinOpenReadConns(conns int) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.MinOpenConns = &conns }
+}
+
+// MinOpenWriteConns is the minimum size of the connection pool used for writes.
+//
+// The health check will increase the number of connections to this amount if
+// it had dropped below.
+//
+// This value defaults to zero.
+func MinOpenWriteConns(conns int) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.MinOpenConns = &conns }
+}
+
+// MaxOpenReadConns is the maximum size of the connection pool used for reads.
+//
+// This value defaults to having no maximum.
+func MaxOpenReadConns(conns int) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.MaxOpenConns = &conns }
+}
+
+// MaxOpenWriteConns is the maximum size of the connection pool used for writes.
+//
+// This value defaults to having no maximum.
+func MaxOpenWriteConns(conns int) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.MaxOpenConns = &conns }
 }
 
 // WatchBufferLength is the number of entries that can be stored in the watch

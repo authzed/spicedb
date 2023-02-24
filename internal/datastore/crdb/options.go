@@ -3,18 +3,12 @@ package crdb
 import (
 	"fmt"
 	"time"
+
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
-type pgxPoolOptions struct {
-	connMaxIdleTime         *time.Duration
-	connMaxLifetime         *time.Duration
-	connHealthCheckInterval *time.Duration
-	minOpenConns            *int
-	maxOpenConns            *int
-}
-
 type crdbOptions struct {
-	readPoolOpts, writePoolOpts pgxPoolOptions
+	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 
 	watchBufferLength           uint16
 	revisionQuantization        time.Duration
@@ -113,7 +107,7 @@ func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
 //
 // This value defaults to 30s.
 func ReadConnHealthCheckInterval(interval time.Duration) Option {
-	return func(po *crdbOptions) { po.readPoolOpts.connHealthCheckInterval = &interval }
+	return func(po *crdbOptions) { po.readPoolOpts.ConnHealthCheckInterval = &interval }
 }
 
 // WriteConnHealthCheckInterval is the frequency at which both idle and max
@@ -134,7 +128,7 @@ func ReadConnHealthCheckInterval(interval time.Duration) Option {
 //
 // This value defaults to 30s.
 func WriteConnHealthCheckInterval(interval time.Duration) Option {
-	return func(po *crdbOptions) { po.writePoolOpts.connHealthCheckInterval = &interval }
+	return func(po *crdbOptions) { po.writePoolOpts.ConnHealthCheckInterval = &interval }
 }
 
 // ReadConnMaxIdleTime is the duration after which an idle read connection will
@@ -142,7 +136,7 @@ func WriteConnHealthCheckInterval(interval time.Duration) Option {
 //
 // This value defaults to having no maximum.
 func ReadConnMaxIdleTime(idle time.Duration) Option {
-	return func(po *crdbOptions) { po.readPoolOpts.connMaxIdleTime = &idle }
+	return func(po *crdbOptions) { po.readPoolOpts.ConnMaxIdleTime = &idle }
 }
 
 // WriteConnMaxIdleTime is the duration after which an idle write connection
@@ -150,7 +144,7 @@ func ReadConnMaxIdleTime(idle time.Duration) Option {
 //
 // This value defaults to having no maximum.
 func WriteConnMaxIdleTime(idle time.Duration) Option {
-	return func(po *crdbOptions) { po.writePoolOpts.connMaxIdleTime = &idle }
+	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxIdleTime = &idle }
 }
 
 // ReadConnMaxLifetime is the duration since creation after which a read
@@ -158,7 +152,7 @@ func WriteConnMaxIdleTime(idle time.Duration) Option {
 //
 // This value defaults to having no maximum.
 func ReadConnMaxLifetime(lifetime time.Duration) Option {
-	return func(po *crdbOptions) { po.readPoolOpts.connMaxLifetime = &lifetime }
+	return func(po *crdbOptions) { po.readPoolOpts.ConnMaxLifetime = &lifetime }
 }
 
 // WriteConnMaxLifetime is the duration since creation after which a write
@@ -166,7 +160,7 @@ func ReadConnMaxLifetime(lifetime time.Duration) Option {
 //
 // This value defaults to having no maximum.
 func WriteConnMaxLifetime(lifetime time.Duration) Option {
-	return func(po *crdbOptions) { po.writePoolOpts.connMaxLifetime = &lifetime }
+	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxLifetime = &lifetime }
 }
 
 // MinOpenReadConns is the minimum size of the connection pool used for reads.
@@ -176,7 +170,7 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 //
 // This value defaults to zero.
 func MinOpenReadConns(conns int) Option {
-	return func(po *crdbOptions) { po.readPoolOpts.minOpenConns = &conns }
+	return func(po *crdbOptions) { po.readPoolOpts.MinOpenConns = &conns }
 }
 
 // MinOpenWriteConns is the minimum size of the connection pool used for writes.
@@ -186,21 +180,21 @@ func MinOpenReadConns(conns int) Option {
 //
 // This value defaults to zero.
 func MinOpenWriteConns(conns int) Option {
-	return func(po *crdbOptions) { po.writePoolOpts.minOpenConns = &conns }
+	return func(po *crdbOptions) { po.writePoolOpts.MinOpenConns = &conns }
 }
 
 // MaxOpenReadConns is the maximum size of the connection pool used for reads.
 //
 // This value defaults to having no maximum.
 func MaxOpenReadConns(conns int) Option {
-	return func(po *crdbOptions) { po.readPoolOpts.maxOpenConns = &conns }
+	return func(po *crdbOptions) { po.readPoolOpts.MaxOpenConns = &conns }
 }
 
 // MaxOpenWriteConns is the maximum size of the connection pool used for writes.
 //
 // This value defaults to having no maximum.
 func MaxOpenWriteConns(conns int) Option {
-	return func(po *crdbOptions) { po.writePoolOpts.maxOpenConns = &conns }
+	return func(po *crdbOptions) { po.writePoolOpts.MaxOpenConns = &conns }
 }
 
 // WatchBufferLength is the number of entries that can be stored in the watch
