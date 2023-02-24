@@ -102,7 +102,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 	requestedRevision := throughRevision
 	starting, err := driver.Version(ctx)
 	if err != nil {
-		return fmt.Errorf("unable to compute target revision: %w", err)
+		return fmt.Errorf("unable to get current revision: %w", err)
 	}
 
 	if strings.ToLower(throughRevision) == Head {
