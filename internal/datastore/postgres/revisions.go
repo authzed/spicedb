@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgtype"
@@ -120,7 +122,20 @@ func (pgd *pgDatastore) RevisionFromString(revisionStr string) (datastore.Revisi
 	return parseRevision(revisionStr)
 }
 
-func parseRevision(revisionStr string) (datastore.Revision, error) {
+func parseRevision(revisionStr string) (rev datastore.Revision, err error) {
+	rev, err = parseRevisionProto(revisionStr)
+	if err != nil {
+		decimalRev, decimalErr := parseRevisionDecimal(revisionStr)
+		if decimalErr != nil {
+			// If decimal ALSO had an error than it was likely just a mangled original input
+			return
+		}
+		return decimalRev, nil
+	}
+	return
+}
+
+func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 	protoBytes, err := base64.StdEncoding.DecodeString(revisionStr)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
@@ -149,6 +164,54 @@ func parseRevision(revisionStr string) (datastore.Revision, error) {
 			status:  pgtype.Present,
 		},
 	}, nil
+}
+
+// parseRevisionDecimal parses a deprecated decimal.Decimal encoding of the revision
+// with an optional xmin component, in the format of revision.xmin, e.g. 100.99.
+// Because we're encoding to a snapshot, we want the revision to be considered visible,
+// so we set the xmax and xmin for 1 past the encoded revision for the simple cases.
+func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
+	components := strings.Split(revisionStr, ".")
+	numComponents := len(components)
+	if numComponents != 1 && numComponents != 2 {
+		return datastore.NoRevision, fmt.Errorf(
+			errRevisionFormat,
+			fmt.Errorf("wrong number of components %d != 1 or 2", len(components)),
+		)
+	}
+
+	xid, err := strconv.ParseUint(components[0], 10, 64)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
+	}
+
+	xmax := xid + 1
+	xmin := xid + 1
+
+	if numComponents == 2 {
+		xminCandidate, err := strconv.ParseUint(components[1], 10, 64)
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
+		}
+		if xminCandidate < xid {
+			xmin = xminCandidate
+		}
+	}
+
+	var xipList []uint64
+	if xmax > xmin {
+		xipList = make([]uint64, 0, xmax-xmin)
+		for i := xmin; i < xid; i++ {
+			xipList = append(xipList, i)
+		}
+	}
+
+	return postgresRevision{pgSnapshot{
+		xmin:    xmin,
+		xmax:    xmax,
+		xipList: xipList,
+		status:  pgtype.Present,
+	}}, nil
 }
 
 func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, newSnapshot pgSnapshot, err error) {
