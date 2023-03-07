@@ -382,6 +382,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
+		spanner.DisableStats(opts.DisableStats),
 	)
 }
 
