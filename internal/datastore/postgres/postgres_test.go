@@ -126,6 +126,15 @@ func TestPostgresDatastore(t *testing.T) {
 					WatchBufferLength(1),
 					MigrationPhase(config.migrationPhase),
 				))
+
+				t.Run("ConcurrentRevisionHead", createDatastoreTest(
+					b,
+					ConcurrentRevisionHeadTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(1),
+					MigrationPhase(config.migrationPhase),
+				))
 			}
 		})
 	}
@@ -210,7 +219,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Equal(int64(1), removed.Transactions) // firstWrite
-	require.Zero(removed.Namespaces)
+	require.Equal(int64(2), removed.Namespaces)   // resource, user
 
 	// Write a relationship.
 	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
@@ -223,7 +232,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.Zero(removed.Relationships)
 	require.Equal(int64(1), removed.Transactions) // updateTwoNamespaces
-	require.Equal(int64(2), removed.Namespaces)   // resource, user
+	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
 	removed, err = pds.DeleteBeforeTx(ctx, wroteOneRelationship)
@@ -243,8 +252,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC, which won't clean anything because we're dropping the write transaction only
 	removed, err = pds.DeleteBeforeTx(ctx, relOverwrittenAt)
 	require.NoError(err)
-	require.Zero(removed.Relationships)
-	require.Equal(int64(1), removed.Transactions) // wroteOneRelationship
+	require.Equal(int64(1), removed.Relationships) // wroteOneRelationship
+	require.Equal(int64(1), removed.Transactions)  // wroteOneRelationship
 	require.Zero(removed.Namespaces)
 
 	// Run GC again and ensure there are no changes.
@@ -306,8 +315,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Run GC to clean up the last write
 	removed, err = pds.DeleteBeforeTx(ctx, lastRev)
 	require.NoError(err)
-	require.Equal(int64(1), removed.Relationships) // old2
-	require.Equal(int64(1), removed.Transactions)  // write3
+	require.Zero(removed.Relationships)           // write3
+	require.Equal(int64(1), removed.Transactions) // write3
 	require.Zero(removed.Namespaces)
 }
 
@@ -533,13 +542,13 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			[]time.Duration{2 * time.Second},
-			1, 0,
+			0, 1,
 		},
 		{
 			"QuantizedLower",
-			1 * time.Second,
-			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
-			2, 1,
+			2 * time.Second,
+			[]time.Duration{-4 * time.Second, -1 * time.Nanosecond, 0},
+			1, 2,
 		},
 		{
 			"QuantizationDisabled",
@@ -573,7 +582,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			})
 			defer ds.Close()
 
-			// set a random time zone to ensure the queries are unaffect by tz
+			// set a random time zone to ensure the queries are unaffected by tz
 			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
 			require.NoError(err)
 
@@ -603,23 +612,124 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				colSnapshot,
 			)
 
-			var revision, xmin xid8
+			var revision xid8
+			var snapshot pgSnapshot
 			var validFor time.Duration
-			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &xmin, &validFor)
+			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &snapshot, &validFor)
 			require.NoError(err)
 
-			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE %[1]s %[3]s $1;"
-			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "<")
-			numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, ">")
+			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
+			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
+			numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
 
 			var numLower, numHigher uint64
-			require.NoError(conn.QueryRow(ctx, numLowerQuery, revision).Scan(&numLower))
-			require.NoError(conn.QueryRow(ctx, numHigherQuery, revision).Scan(&numHigher))
+			require.NoError(conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)
+			require.NoError(conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
 
-			require.Equal(tc.numLower, numLower)
+			// Subtract one from numLower because of the artificially injected first transaction row
+			require.Equal(tc.numLower, numLower-1)
 			require.Equal(tc.numHigher, numHigher)
 		})
 	}
+}
+
+// ConcurrentRevisionHeadTest uses goroutines and channels to intentionally set up a pair of
+// revisions that are concurrently applied and then ensures a call to HeadRevision reflects
+// the changes found in *both* revisions.
+func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	ok, err := ds.IsReady(ctx)
+	require.NoError(err)
+	require.True(ok)
+
+	// Write basic namespaces.
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+			"resource",
+			namespace.MustRelation("reader", nil),
+		), namespace.Namespace("user"))
+	})
+	require.NoError(err)
+
+	g := errgroup.Group{}
+
+	waitToStart := make(chan struct{})
+	waitToFinish := make(chan struct{})
+
+	var commitLastRev, commitFirstRev datastore.Revision
+	g.Go(func() error {
+		var err error
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			rtu := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: "resource",
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+			require.NoError(err)
+
+			close(waitToStart)
+			<-waitToFinish
+
+			return err
+		})
+		require.NoError(err)
+		return nil
+	})
+
+	<-waitToStart
+
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		rtu := tuple.Touch(&core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "resource",
+				ObjectId:  "789",
+				Relation:  "reader",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "user",
+				ObjectId:  "456",
+				Relation:  "...",
+			},
+		})
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+	})
+	close(waitToFinish)
+
+	require.NoError(err)
+	require.NoError(g.Wait())
+
+	// Ensure the revisions do not compare.
+	require.False(commitFirstRev.GreaterThan(commitLastRev))
+	require.False(commitFirstRev.Equal(commitLastRev))
+
+	// Ensure a call to HeadRevision now reflects both sets of data applied.
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType: "resource",
+	})
+	require.NoError(err)
+	defer it.Close()
+
+	found := []*core.RelationTuple{}
+	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+		require.NoError(it.Err())
+		found = append(found, tpl)
+	}
+
+	require.Equal(2, len(found), "missing relationships in %v", found)
 }
 
 // RevisionInversionTest uses goroutines and channels to intentionally set up a pair of

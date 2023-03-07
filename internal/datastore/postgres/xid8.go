@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgio"
 	"github.com/jackc/pgtype"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type pguint64 struct {
@@ -59,6 +61,24 @@ func (txid *xid8) Scan(src interface{}) error {
 
 func (txid xid8) Value() (driver.Value, error) {
 	return (pguint64)(txid).Value()
+}
+
+func (txid xid8) String() string {
+	switch txid.Status {
+	case pgtype.Null:
+		return "nil"
+	case pgtype.Present:
+		return strconv.FormatUint(txid.Uint, 10)
+	default:
+		return "undefined"
+	}
+}
+
+func (txid xid8) MustBePresent() error {
+	if txid.Status != pgtype.Present {
+		return spiceerrors.MustBugf("unexpected nil or uninitialized xid8 with status: %d", txid.Status)
+	}
+	return nil
 }
 
 func (pui *pguint64) Set(src interface{}) error {

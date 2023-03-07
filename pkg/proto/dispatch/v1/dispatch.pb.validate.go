@@ -2657,10 +2657,10 @@ func (m *ResolverMeta) validate(all bool) error {
 
 	var errors []error
 
-	if !_ResolverMeta_AtRevision_Pattern.MatchString(m.GetAtRevision()) {
+	if len(m.GetAtRevision()) > 1024 {
 		err := ResolverMetaValidationError{
 			field:  "AtRevision",
-			reason: "value does not match regex pattern \"^[0-9]+(\\\\.[0-9]+)?$\"",
+			reason: "value length must be at most 1024 bytes",
 		}
 		if !all {
 			return err
@@ -2755,8 +2755,6 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ResolverMetaValidationError{}
-
-var _ResolverMeta_AtRevision_Pattern = regexp.MustCompile("^[0-9]+(\\.[0-9]+)?$")
 
 // Validate checks the field values on ResponseMeta with the rules defined in
 // the proto definition for this message. If any rules are violated, the first

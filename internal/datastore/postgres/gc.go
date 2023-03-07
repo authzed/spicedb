@@ -58,8 +58,9 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	var value, xmin xid8
-	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&value, &xmin)
+	var value xid8
+	var snapshot pgSnapshot
+	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&value, &snapshot)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -69,16 +70,13 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	return postgresRevision{value, xmin}, nil
+	return postgresRevision{snapshot.markComplete(value.Uint)}, nil
 }
 
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
 	revision := txID.(postgresRevision)
 
-	minTxAlive := revision.tx
-	if revision.xmin.Status == pgtype.Present {
-		minTxAlive = revision.xmin
-	}
+	minTxAlive := xid8{revision.snapshot.xmin, pgtype.Present}
 
 	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgd.batchDelete(
@@ -99,7 +97,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		ctx,
 		tableTransaction,
 		transactionPKCols,
-		sq.Lt{colXID: revision.tx},
+		sq.Lt{colXID: minTxAlive},
 	)
 	if err != nil {
 		return

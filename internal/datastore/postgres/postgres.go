@@ -59,11 +59,9 @@ const (
 
 	// The parameters to this format string are:
 	// 1: the created_xid or deleted_xid column name
-	// 2: the transaction table's snapshot column name
-	// 3: the transaction table name
-	// 4: the transaction table's xid column name
-	// 5: a squirrel library placeholder string, i.e. `?`
-	snapshotAlive = "pg_visible_in_snapshot(%[1]s, (SELECT %[2]s FROM %[3]s WHERE %[4]s = %[5]s)) = %[5]s"
+	//
+	// The placeholders are the snapshot and the expected boolean value respectively.
+	snapshotAlive = "pg_visible_in_snapshot(%[1]s, ?) = ?"
 
 	// This is the largest positive integer possible in postgresql
 	liveDeletedTxnID = uint64(9223372036854775807)
@@ -86,13 +84,13 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	getRevision = psql.
-			Select(colXID, fmt.Sprintf("pg_snapshot_xmin(%s)", colSnapshot)).
+			Select(colXID, colSnapshot).
 			From(tableTransaction).
 			OrderByClause(fmt.Sprintf("%s DESC", colXID)).
 			Limit(1)
 
 	createTxn = fmt.Sprintf(
-		"INSERT INTO %s DEFAULT VALUES RETURNING %s, pg_snapshot_xmin(%s)",
+		"INSERT INTO %s DEFAULT VALUES RETURNING %s, %s",
 		tableTransaction,
 		colXID,
 		colSnapshot,
@@ -198,6 +196,7 @@ func newPostgresDatastore(
 		tableTransaction,
 		colTimestamp,
 		config.gcWindow.Seconds(),
+		colSnapshot,
 	)
 
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
@@ -335,10 +334,11 @@ func (pgd *pgDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
-		var newXID, newXmin xid8
+		var newXID xid8
+		var newSnapshot pgSnapshot
 		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newXID, newXmin, err = createNewTransaction(ctx, tx)
+			newXID, newSnapshot, err = createNewTransaction(ctx, tx)
 			if err != nil {
 				return err
 			}
@@ -371,7 +371,11 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return datastore.NoRevision, err
 		}
 
-		return postgresRevision{newXID, newXmin}, nil
+		if err := newXID.MustBePresent(); err != nil {
+			return datastore.NoRevision, err
+		}
+
+		return postgresRevision{newSnapshot.markComplete(newXID.Uint)}, nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }
@@ -429,32 +433,15 @@ func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer
 	createdBeforeTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
 		colCreatedXid,
-		colSnapshot,
-		tableTransaction,
-		colXID,
-		sq.Placeholders(1),
-	), revision.tx, true)
-
-	alreadyAlive := sq.Or{
-		createdBeforeTXN,
-		sq.Expr(colCreatedXid+" = "+sq.Placeholders(1), revision.tx),
-	}
+	), revision.snapshot, true)
 
 	deletedAfterTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
 		colDeletedXid,
-		colSnapshot,
-		tableTransaction,
-		colXID,
-		sq.Placeholders(1),
-	), revision.tx, false)
-	notYetDead := sq.And{
-		deletedAfterTXN,
-		sq.Expr(colDeletedXid+" <> "+sq.Placeholders(1), revision.tx),
-	}
+	), revision.snapshot, false)
 
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(alreadyAlive).Where(notYetDead)
+		return original.Where(createdBeforeTXN).Where(deletedAfterTXN)
 	}
 }
 

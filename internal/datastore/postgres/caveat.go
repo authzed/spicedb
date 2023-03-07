@@ -13,9 +13,16 @@ import (
 )
 
 var (
-	writeCaveat  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
-	listCaveat   = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat).OrderBy(colCaveatName)
-	readCaveat   = psql.Select(colCaveatDefinition, colCreatedXid).From(tableCaveat)
+	writeCaveat = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
+	listCaveat  = psql.
+			Select(colCaveatDefinition, colCreatedXid, colSnapshot).
+			From(tableCaveat).
+			Join(fmt.Sprintf("%s ON %s = %s", tableTransaction, colCreatedXid, colXID)).
+			OrderBy(colCaveatName)
+	readCaveat = psql.
+			Select(colCaveatDefinition, colCreatedXid, colSnapshot).
+			From(tableCaveat).
+			Join(fmt.Sprintf("%s ON %s = %s", tableTransaction, colCreatedXid, colXID))
 	deleteCaveat = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
@@ -40,8 +47,9 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	defer txCleanup(ctx)
 
 	var txID xid8
+	var snapshot pgSnapshot
 	var serializedDef []byte
-	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &txID)
+	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &txID, &snapshot)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
@@ -53,7 +61,12 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
-	rev := postgresRevision{txID, noXmin}
+
+	if err := txID.MustBePresent(); err != nil {
+		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
+	}
+
+	rev := postgresRevision{snapshot.markComplete(txID.Uint)}
 
 	return &def, rev, nil
 }
@@ -96,8 +109,9 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 	var caveats []datastore.RevisionedCaveat
 	for rows.Next() {
 		var version xid8
+		var snapshot pgSnapshot
 		var defBytes []byte
-		err = rows.Scan(&defBytes, &version)
+		err = rows.Scan(&defBytes, &version, &snapshot)
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
@@ -107,7 +121,11 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
 
-		revision := postgresRevision{version, noXmin}
+		if err := version.MustBePresent(); err != nil {
+			return nil, fmt.Errorf(errListCaveats, err)
+		}
+
+		revision := postgresRevision{snapshot.markComplete(version.Uint)}
 		caveats = append(caveats, datastore.RevisionedCaveat{Definition: &c, LastWrittenRevision: revision})
 	}
 	if rows.Err() != nil {
