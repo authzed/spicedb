@@ -24,6 +24,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.LoadConfigs = c.LoadConfigs
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
+		to.MaxCaveatContextSize = c.MaxCaveatContextSize
 	}
 }
 
@@ -88,5 +89,12 @@ func WithMaximumUpdatesPerWrite(maximumUpdatesPerWrite uint16) ConfigOption {
 func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption {
 	return func(c *Config) {
 		c.MaximumPreconditionCount = maximumPreconditionCount
+	}
+}
+
+// WithMaxCaveatContextSize returns an option that can set MaxCaveatContextSize on a Config
+func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
+	return func(c *Config) {
+		c.MaxCaveatContextSize = maxCaveatContextSize
 	}
 }

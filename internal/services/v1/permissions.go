@@ -31,8 +31,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const maxCaveatContextBytes = 4096
-
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
@@ -41,7 +39,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	caveatContext, err := getCaveatContext(ctx, req.Context)
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
 		return nil, rewriteError(ctx, err)
 	}
@@ -412,7 +410,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	caveatContext, err := getCaveatContext(ctx, req.Context)
+	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
 		return rewriteError(ctx, err)
 	}
@@ -570,16 +568,16 @@ func denormalizeSubjectRelation(relation string) string {
 	return relation
 }
 
-func getCaveatContext(ctx context.Context, caveatCtx *structpb.Struct) (map[string]any, error) {
+func GetCaveatContext(ctx context.Context, caveatCtx *structpb.Struct, maxCaveatContextSize int) (map[string]any, error) {
 	var caveatContext map[string]any
 	if caveatCtx != nil {
-		if size := proto.Size(caveatCtx); size > maxCaveatContextBytes {
+		if size := proto.Size(caveatCtx); maxCaveatContextSize > 0 && size > maxCaveatContextSize {
 			return nil, rewriteError(
 				ctx,
 				status.Errorf(
 					codes.InvalidArgument,
 					"request caveat context should have less than %d bytes but had %d",
-					maxCaveatContextBytes,
+					maxCaveatContextSize,
 					size,
 				),
 			)

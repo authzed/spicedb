@@ -33,6 +33,7 @@ type Config struct {
 	LoadConfigs              []string
 	MaximumUpdatesPerWrite   uint16
 	MaximumPreconditionCount uint16
+	MaxCaveatContextSize     int
 }
 
 type RunnableTestServer interface {
@@ -65,6 +66,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				MaxPreconditionsCount: c.MaximumPreconditionCount,
 				MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
 				MaximumAPIDepth:       maxDepth,
+				MaxCaveatContextSize:  c.MaxCaveatContextSize,
 			},
 		)
 	}

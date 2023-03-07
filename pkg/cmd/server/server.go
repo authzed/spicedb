@@ -88,6 +88,7 @@ type Config struct {
 	V1SchemaAdditiveOnly     bool
 	MaximumUpdatesPerWrite   uint16
 	MaximumPreconditionCount uint16
+	MaxCaveatContextSize     int
 
 	// Additional Services
 	DashboardAPI util.HTTPServerConfig
@@ -311,6 +312,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaxPreconditionsCount: c.MaximumPreconditionCount,
 		MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
 		MaximumAPIDepth:       c.DispatchMaxDepth,
+		MaxCaveatContextSize:  c.MaxCaveatContextSize,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

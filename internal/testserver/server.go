@@ -58,6 +58,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
+		server.WithMaxCaveatContextSize(4096),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 			Enabled: true,
