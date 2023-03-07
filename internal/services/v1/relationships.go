@@ -44,6 +44,9 @@ type PermissionsServerConfig struct {
 	// StreamingAPITimeout is the timeout for streaming APIs when no response has been
 	// recently received.
 	StreamingAPITimeout time.Duration
+
+	// MaxCaveatContextSize defines the maximum length of the request caveat context in bytes
+	MaxCaveatContextSize int
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -56,6 +59,7 @@ func NewPermissionsServer(
 		MaxUpdatesPerWrite:    defaultIfZero(config.MaxUpdatesPerWrite, 1000),
 		MaximumAPIDepth:       defaultIfZero(config.MaximumAPIDepth, 50),
 		StreamingAPITimeout:   defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:  config.MaxCaveatContextSize,
 	}
 
 	return &permissionServer{

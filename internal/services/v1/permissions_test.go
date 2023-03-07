@@ -1370,3 +1370,19 @@ func randString(length int) string {
 	}
 	return string(b)
 }
+
+func TestGetCaveatContext(t *testing.T) {
+	strct, err := structpb.NewStruct(map[string]any{"foo": "bar"})
+	require.NoError(t, err)
+
+	_, err = v1svc.GetCaveatContext(context.Background(), strct, 1)
+	require.ErrorContains(t, err, "request caveat context should have less than 1 bytes")
+
+	caveatMap, err := v1svc.GetCaveatContext(context.Background(), strct, 0)
+	require.NoError(t, err)
+	require.Contains(t, caveatMap, "foo")
+
+	caveatMap, err = v1svc.GetCaveatContext(context.Background(), strct, -1)
+	require.NoError(t, err)
+	require.Contains(t, caveatMap, "foo")
+}
