@@ -17,7 +17,7 @@ Features that distinguish SpiceDB from other systems include:
 - A flexible consistency model configurable [per-request] that includes resistance to the [New Enemy Problem]
 - An expressive [schema language] with tools for [rapid prototyping], [integration testing], and [validating designs] in CI/CD pipelines
 - Pluggable storage system supporting [in-memory], [PostgreSQL], [Cloud Spanner], [CockroachDB], and [MySQL]
-- Deep observability with [Prometheus metrics], [pprof] profiles, structured logging, and [OpenTelemetry tracing]
+- Deep observability with [Prometheus] metrics, [pprof] profiles, structured logging, and [OpenTelemetry] tracing
 
 [Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
 [client libraries]: https://github.com/authzed/awesome-spicedb#clients
@@ -41,9 +41,9 @@ Features that distinguish SpiceDB from other systems include:
 [CockroachDB]: https://github.com/cockroachdb/cockroach
 [MySQL]: https://www.mysql.com
 
-[Prometheus metrics]: https://prometheus.io
+[Prometheus]: https://prometheus.io
 [pprof]: https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/
-[OpenTelemetry tracing]: https://opentelemetry.io
+[OpenTelemetry]: https://opentelemetry.io
 
 Have questions? Ask in our [Discord].
 
@@ -104,15 +104,29 @@ sudo dnf install spicedb
 
 Container images are available for AMD64 and ARM64 architectures on the following registries:
 
-- authzed/spicedb
-- ghcr.io/authzed/spicedb
-- quay.io/authzed/spicedb
+- [authzed/spicedb](https://hub.docker.com/r/authzed/spicedb)
+- [ghcr.io/authzed/spicedb](https://github.com/authzed/spicedb/pkgs/container/spicedb)
+- [quay.io/authzed/spicedb](https://quay.io/authzed/spicedb)
 
 [Docker] users can run the latest SpiceDB container with the following:
 
 ```command
 docker run --rm -p 50051:50051 authzed/spicedb serve --grpc-preshared-key "somerandomkeyhere"
 ```
+
+SpiceDB containers use [Chainguard Images] to ship the bare minimum userspace which is a huge boon to security, but can complicate debugging.
+If you want to execute a user session into a running SpiceDB container and install packages, you can use one of our debug images.
+
+Appending `-debug` to any tag will provide you an image that has a userspace with debug tooling:
+
+```command
+docker run --rm -ti --entrypoint sh authzed/spicedb:latest-debug
+```
+
+Containers are also available for each git commit to the `main` branch under `${REGISTRY}/authzed/spicedb-git:${COMMIT}`.
+
+[Docker]: https://docs.docker.com/get-docker/
+[Chainguard Images]: https://github.com/chainguard-images/images
   
 ### Deploying to Kubernetes
 
@@ -125,7 +139,6 @@ If you're only experimenting, feel free to try out one of our community-maintain
 kubectl apply -f https://raw.githubusercontent.com/authzed/examples/main/kubernetes/example.yaml
 ```
 
-[docker]: https://docs.authzed.com/spicedb/installing#docker
 [examples]: https://github.com/authzed/examples
 [Docker Compose]: https://github.com/authzed/examples/tree/main/datastores
 [SpiceDB Operator]: https://github.com/authzed/spicedb-operator
@@ -139,7 +152,7 @@ If you don't want to start with the examples loadable from the Playground, you c
 
 To get a quick idea of schema development, you can watch the creators of SpiceDB writing a schema for GitHub:
 
-<a href="https://www.youtube.com/watch?v=x3-B9-ICj0w"><img width="40%" alt="A screenshot of the Schema Playground" src="https://user-images.githubusercontent.com/343539/223293592-d583a452-9c1e-4637-8a79-fce173016a49.png"></a>
+[![Modeling GitHub YouTube Video Thumbnail](https://user-images.githubusercontent.com/343539/223837989-ead99ff9-ef35-4cf3-864d-d8d86ecdf9ce.png)](https://www.youtube.com/watch?v=x3-B9-ICj0w)
 
 [Playground]: https://play.authzed.com
 [developing a schema]: https://docs.authzed.com/guides/schema
@@ -152,7 +165,7 @@ The [Playground] also has a tab for experimenting with zed all from within your 
 
 When it's time to write code, we recommend using one of the [existing client libraries] whether it's official or community-maintained.
 
-Because every millisecond counts, we recommend using libraries that gRPC API for production workloads.
+Because every millisecond counts, we recommend using libraries that leverage the gRPC API for production workloads.
 
 To get an understanding of integrating an application with SpiceDB, you can follow the [Protecting Your First App] guide or review API documentation on the [Buf Registry] or [Postman].
 
