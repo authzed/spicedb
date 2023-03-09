@@ -51,7 +51,7 @@ func DefaultReadConnPool() *ConnPoolConfig {
 		MaxLifetime:         30 * time.Minute,
 		MaxIdleTime:         30 * time.Minute,
 		MaxOpenConns:        20,
-		MinOpenConns:        10,
+		MinOpenConns:        20,
 		HealthCheckInterval: 30 * time.Second,
 	}
 }

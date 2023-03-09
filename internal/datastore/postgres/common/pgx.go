@@ -124,7 +124,8 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
 	}
 
 	if opts.MinOpenConns != nil {
-		pgxConfig.MinConns = int32(*opts.MinOpenConns)
+		// Default to keeping the pool maxed out at all times.
+		pgxConfig.MinConns = pgxConfig.MaxConns
 	}
 
 	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {

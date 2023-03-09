@@ -183,7 +183,7 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
-// This value defaults to zero.
+// This value defaults to the maximum open connections.
 func ReadConnsMinOpen(conns int) Option {
 	return func(po *postgresOptions) { po.readPoolOpts.MinOpenConns = &conns }
 }
@@ -193,7 +193,7 @@ func ReadConnsMinOpen(conns int) Option {
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
-// This value defaults to zero.
+// This value defaults to the maximum open connections.
 func WriteConnsMinOpen(conns int) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.MinOpenConns = &conns }
 }
