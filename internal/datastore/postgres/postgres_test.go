@@ -330,7 +330,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 
 	// Setting db default time zone to before UTC
 	pgd := ds.(*pgDatastore)
-	_, err = pgd.dbpool.Exec(ctx, "SET TIME ZONE 'America/New_York';")
+	_, err = pgd.writePool.Exec(ctx, "SET TIME ZONE 'America/New_York';")
 	require.NoError(err)
 
 	// Get timestamp in UTC as reference
@@ -338,7 +338,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Transaction timestamp should not be stored in system time zone
-	tx, err := pgd.dbpool.Begin(ctx)
+	tx, err := pgd.writePool.Begin(ctx)
 	require.NoError(err)
 
 	txXID, _, err := createNewTransaction(ctx, tx)
@@ -350,7 +350,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	var ts time.Time
 	sql, args, err := psql.Select("timestamp").From(tableTransaction).Where(sq.Eq{"xid": txXID}).ToSql()
 	require.NoError(err)
-	err = pgd.dbpool.QueryRow(ctx, sql, args...).Scan(&ts)
+	err = pgd.readPool.QueryRow(ctx, sql, args...).Scan(&ts)
 	require.NoError(err)
 
 	// Transaction timestamp will be before the reference time if it was stored

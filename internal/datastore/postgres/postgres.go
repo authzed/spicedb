@@ -137,24 +137,34 @@ func newPostgresDatastore(
 	}
 
 	// config must be initialized by ParseConfig
-	pgxConfig, err := pgxpool.ParseConfig(url)
+	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+	config.readPoolOpts.ConfigurePgx(readPoolConfig)
 
-	configurePool(config, pgxConfig)
+	writePoolConfig, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
 	initializationContext, cancelInit := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelInit()
 
-	dbpool, err := pgxpool.ConnectConfig(initializationContext, pgxConfig)
+	readPool, err := pgxpool.ConnectConfig(initializationContext, readPoolConfig)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	writePool, err := pgxpool.ConnectConfig(initializationContext, writePoolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
 	// Verify that the server supports commit timestamps
 	var trackTSOn string
-	if err := dbpool.
+	if err := readPool.
 		QueryRow(initializationContext, "SHOW track_commit_timestamp;").
 		Scan(&trackTSOn); err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -166,8 +176,16 @@ func newPostgresDatastore(
 	}
 
 	if config.enablePrometheusStats {
-		collector := pgxpoolprometheus.NewCollector(dbpool, map[string]string{"db_name": "spicedb"})
-		if err := prometheus.Register(collector); err != nil {
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "read",
+		})); err != nil {
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "write",
+		})); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 		if err := common.RegisterGCMetrics(); err != nil {
@@ -207,7 +225,8 @@ func newPostgresDatastore(
 			maxRevisionStaleness,
 		),
 		dburl:                   url,
-		dbpool:                  dbpool,
+		readPool:                readPool,
+		writePool:               writePool,
 		watchBufferLength:       config.watchBufferLength,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
@@ -244,39 +263,11 @@ func newPostgresDatastore(
 	return datastore, nil
 }
 
-func configurePool(config postgresOptions, pgxConfig *pgxpool.Config) {
-	if config.maxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*config.maxOpenConns)
-	}
-
-	if config.minOpenConns != nil {
-		pgxConfig.MinConns = int32(*config.minOpenConns)
-	}
-
-	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
-		log.Warn().Int32("max-connections", pgxConfig.MaxConns).Int32("min-connections", pgxConfig.MinConns).Msg("maximum number of connections configured is less than minimum number of connections; minimum will be used")
-	}
-
-	if config.connMaxIdleTime != nil {
-		pgxConfig.MaxConnIdleTime = *config.connMaxIdleTime
-	}
-
-	if config.connMaxLifetime != nil {
-		pgxConfig.MaxConnLifetime = *config.connMaxLifetime
-	}
-
-	if config.healthCheckPeriod != nil {
-		pgxConfig.HealthCheckPeriod = *config.healthCheckPeriod
-	}
-
-	pgxcommon.ConfigurePGXLogger(pgxConfig.ConnConfig)
-}
-
 type pgDatastore struct {
 	*revisions.CachedOptimizedRevisions
 
 	dburl                   string
-	dbpool                  *pgxpool.Pool
+	readPool, writePool     *pgxpool.Pool
 	watchBufferLength       uint16
 	optimizedRevisionQuery  string
 	validTransactionQuery   string
@@ -298,7 +289,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	rev := revRaw.(postgresRevision)
 
 	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
-		tx, err := pgd.dbpool.BeginTx(ctx, pgd.readTxOptions)
+		tx, err := pgd.readPool.BeginTx(ctx, pgd.readTxOptions)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -336,7 +327,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newXID xid8
 		var newSnapshot pgSnapshot
-		err = pgd.dbpool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
+		err = pgd.writePool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
 			newXID, newSnapshot, err = createNewTransaction(ctx, tx)
 			if err != nil {
@@ -388,7 +379,8 @@ func (pgd *pgDatastore) Close() error {
 		log.Warn().Err(err).Msg("completed shutdown of postgres datastore")
 	}
 
-	pgd.dbpool.Close()
+	pgd.readPool.Close()
+	pgd.writePool.Close()
 	return nil
 }
 

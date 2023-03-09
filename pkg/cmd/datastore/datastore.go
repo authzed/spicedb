@@ -38,6 +38,55 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 	MySQLEngine:     newMySQLDatastore,
 }
 
+type ConnPoolConfig struct {
+	MaxIdleTime         time.Duration
+	MaxLifetime         time.Duration
+	MaxOpenConns        int
+	MinOpenConns        int
+	HealthCheckInterval time.Duration
+}
+
+func DefaultReadConnPool() *ConnPoolConfig {
+	return &ConnPoolConfig{
+		MaxLifetime:         30 * time.Minute,
+		MaxIdleTime:         30 * time.Minute,
+		MaxOpenConns:        20,
+		MinOpenConns:        20,
+		HealthCheckInterval: 30 * time.Second,
+	}
+}
+
+func DefaultWriteConnPool() *ConnPoolConfig {
+	cfg := DefaultReadConnPool()
+	cfg.MaxOpenConns = cfg.MaxOpenConns / 2
+	cfg.MinOpenConns = cfg.MinOpenConns / 2
+	return cfg
+}
+
+func RegisterConnPoolFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, defaults, opts *ConnPoolConfig) {
+	if prefix != "" {
+		prefix = prefix + "-"
+	}
+	flagName := func(flag string) string {
+		return prefix + flag
+	}
+
+	flagSet.IntVar(&opts.MaxOpenConns, flagName("max-open"), defaults.MaxOpenConns, "number of concurrent connections open in a remote datastore's connection pool")
+	flagSet.IntVar(&opts.MinOpenConns, flagName("min-open"), defaults.MinOpenConns, "number of minimum concurrent connections open in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.MaxLifetime, flagName("max-lifetime"), defaults.MaxLifetime, "maximum amount of time a connection can live in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.MaxIdleTime, flagName("max-idletime"), defaults.MaxIdleTime, "maximum amount of time a connection can idle in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.HealthCheckInterval, flagName("healthcheck-interval"), defaults.HealthCheckInterval, "amount of time between connection health checks in a remote datastore's connection pool")
+}
+
+func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
+	const warning = "connection pooling has been split into read and write pools"
+	_ = flagSet.MarkDeprecated("datastore-conn-max-open", warning)
+	_ = flagSet.MarkDeprecated("datastore-conn-min-open", warning)
+	_ = flagSet.MarkDeprecated("datastore-conn-max-lifetime", warning)
+	_ = flagSet.MarkDeprecated("datastore-conn-max-idletime", warning)
+	_ = flagSet.MarkDeprecated("datastore-conn-healthcheck-interval", warning)
+}
+
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	Engine               string
@@ -47,10 +96,8 @@ type Config struct {
 	RevisionQuantization time.Duration
 
 	// Options
-	MaxIdleTime            time.Duration
-	MaxLifetime            time.Duration
-	MaxOpenConns           int
-	MinOpenConns           int
+	ReadConnPool           ConnPoolConfig
+	WriteConnPool          ConnPoolConfig
 	SplitQueryCount        uint16
 	ReadOnly               bool
 	EnableDatastoreMetrics bool
@@ -75,7 +122,6 @@ type Config struct {
 	OverlapStrategy   string
 
 	// Postgres
-	HealthCheckPeriod  time.Duration
 	GCInterval         time.Duration
 	GCMaxOperationTime time.Duration
 
@@ -111,11 +157,13 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
-	flagSet.IntVar(&opts.MaxOpenConns, flagName("datastore-conn-max-open"), defaults.MaxOpenConns, "number of concurrent connections open in a remote datastore's connection pool")
-	flagSet.IntVar(&opts.MinOpenConns, flagName("datastore-conn-min-open"), defaults.MinOpenConns, "number of minimum concurrent connections open in a remote datastore's connection pool")
-	flagSet.DurationVar(&opts.MaxLifetime, flagName("datastore-conn-max-lifetime"), defaults.MaxLifetime, "maximum amount of time a connection can live in a remote datastore's connection pool")
-	flagSet.DurationVar(&opts.MaxIdleTime, flagName("datastore-conn-max-idletime"), defaults.MaxIdleTime, "maximum amount of time a connection can idle in a remote datastore's connection pool")
-	flagSet.DurationVar(&opts.HealthCheckPeriod, flagName("datastore-conn-healthcheck-interval"), defaults.HealthCheckPeriod, "time between a remote datastore's connection pool health checks")
+
+	var legacyConnPool ConnPoolConfig
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultReadConnPool(), &legacyConnPool)
+	deprecateUnifiedConnFlags(flagSet)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-read", &legacyConnPool, &opts.ReadConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
+
 	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), defaults.GCWindow, "amount of time before revisions are garbage collected")
 	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
 	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), defaults.GCMaxOperationTime, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
@@ -161,16 +209,13 @@ func DefaultDatastoreConfig() *Config {
 		GCWindow:                       24 * time.Hour,
 		LegacyFuzzing:                  -1,
 		RevisionQuantization:           5 * time.Second,
-		MaxLifetime:                    30 * time.Minute,
-		MaxIdleTime:                    30 * time.Minute,
-		MaxOpenConns:                   20,
-		MinOpenConns:                   10,
+		ReadConnPool:                   *DefaultReadConnPool(),
+		WriteConnPool:                  *DefaultWriteConnPool(),
 		SplitQueryCount:                1024,
 		ReadOnly:                       false,
 		MaxRetries:                     10,
 		OverlapKey:                     "key",
 		OverlapStrategy:                "static",
-		HealthCheckPeriod:              30 * time.Second,
 		GCInterval:                     3 * time.Minute,
 		GCMaxOperationTime:             1 * time.Minute,
 		WatchBufferLength:              1024,
@@ -279,11 +324,16 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
 		crdb.RevisionQuantization(opts.RevisionQuantization),
-		crdb.ConnMaxIdleTime(opts.MaxIdleTime),
-		crdb.ConnMaxLifetime(opts.MaxLifetime),
-		crdb.ConnHealthCheckInterval(opts.HealthCheckPeriod),
-		crdb.MaxOpenConns(opts.MaxOpenConns),
-		crdb.MinOpenConns(opts.MinOpenConns),
+		crdb.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
+		crdb.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
+		crdb.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
+		crdb.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
+		crdb.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
+		crdb.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
+		crdb.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
+		crdb.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
+		crdb.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
+		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
 		crdb.MaxRetries(uint8(opts.MaxRetries)),
@@ -300,12 +350,17 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
-		postgres.ConnMaxIdleTime(opts.MaxIdleTime),
-		postgres.ConnMaxLifetime(opts.MaxLifetime),
-		postgres.MaxOpenConns(opts.MaxOpenConns),
-		postgres.MinOpenConns(opts.MinOpenConns),
+		postgres.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
+		postgres.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
+		postgres.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
+		postgres.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
+		postgres.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
+		postgres.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
+		postgres.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
+		postgres.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
+		postgres.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
+		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		postgres.SplitAtUsersetCount(opts.SplitQueryCount),
-		postgres.HealthCheckPeriod(opts.HealthCheckPeriod),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.EnableTracing(),
@@ -337,9 +392,9 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCEnabled(!opts.ReadOnly),
 		mysql.GCMaxOperationTime(opts.GCMaxOperationTime),
-		mysql.ConnMaxIdleTime(opts.MaxIdleTime),
-		mysql.ConnMaxLifetime(opts.MaxLifetime),
-		mysql.MaxOpenConns(opts.MaxOpenConns),
+		mysql.MaxOpenConns(opts.ReadConnPool.MaxOpenConns),
+		mysql.ConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
+		mysql.ConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),

@@ -5,20 +5,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/logging"
+	log "github.com/authzed/spicedb/internal/logging"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	errUnableToQueryTuples = "unable to query tuples: %w"
-)
+const errUnableToQueryTuples = "unable to query tuples: %w"
 
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
 func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
@@ -100,10 +100,49 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			logger.Log(ctx, level, msg, data)
 		}
 	}
-	l := zerologadapter.NewLogger(logging.Logger)
+	l := zerologadapter.NewLogger(log.Logger)
 	connConfig.Logger = levelMappingFn(l)
 }
 
 // TxFactory returns a transaction, cleanup function, and any errors that may have
 // occurred when building the transaction.
 type TxFactory func(context.Context) (pgx.Tx, common.TxCleanupFunc, error)
+
+// PoolOptions is the set of configuration used for a pgx connection pool.
+type PoolOptions struct {
+	ConnMaxIdleTime         *time.Duration
+	ConnMaxLifetime         *time.Duration
+	ConnHealthCheckInterval *time.Duration
+	MinOpenConns            *int
+	MaxOpenConns            *int
+}
+
+// ConfigurePgx applies PoolOptions to a pgx connection pool confiugration.
+func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
+	if opts.MaxOpenConns != nil {
+		pgxConfig.MaxConns = int32(*opts.MaxOpenConns)
+	}
+
+	if opts.MinOpenConns != nil {
+		// Default to keeping the pool maxed out at all times.
+		pgxConfig.MinConns = pgxConfig.MaxConns
+	}
+
+	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
+		log.Warn().Int32("max-connections", pgxConfig.MaxConns).Int32("min-connections", pgxConfig.MinConns).Msg("maximum number of connections configured is less than minimum number of connections; minimum will be used")
+	}
+
+	if opts.ConnMaxIdleTime != nil {
+		pgxConfig.MaxConnIdleTime = *opts.ConnMaxIdleTime
+	}
+
+	if opts.ConnMaxLifetime != nil {
+		pgxConfig.MaxConnLifetime = *opts.ConnMaxLifetime
+	}
+
+	if opts.ConnHealthCheckInterval != nil {
+		pgxConfig.HealthCheckPeriod = *opts.ConnHealthCheckInterval
+	}
+
+	ConfigurePGXLogger(pgxConfig.ConnConfig)
+}

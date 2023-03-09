@@ -22,10 +22,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCWindow = c.GCWindow
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
-		to.MaxIdleTime = c.MaxIdleTime
-		to.MaxLifetime = c.MaxLifetime
-		to.MaxOpenConns = c.MaxOpenConns
-		to.MinOpenConns = c.MinOpenConns
+		to.ReadConnPool = c.ReadConnPool
+		to.WriteConnPool = c.WriteConnPool
 		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
@@ -42,7 +40,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxRetries = c.MaxRetries
 		to.OverlapKey = c.OverlapKey
 		to.OverlapStrategy = c.OverlapStrategy
-		to.HealthCheckPeriod = c.HealthCheckPeriod
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
@@ -96,31 +93,17 @@ func WithRevisionQuantization(revisionQuantization time.Duration) ConfigOption {
 	}
 }
 
-// WithMaxIdleTime returns an option that can set MaxIdleTime on a Config
-func WithMaxIdleTime(maxIdleTime time.Duration) ConfigOption {
+// WithReadConnPool returns an option that can set ReadConnPool on a Config
+func WithReadConnPool(readConnPool ConnPoolConfig) ConfigOption {
 	return func(c *Config) {
-		c.MaxIdleTime = maxIdleTime
+		c.ReadConnPool = readConnPool
 	}
 }
 
-// WithMaxLifetime returns an option that can set MaxLifetime on a Config
-func WithMaxLifetime(maxLifetime time.Duration) ConfigOption {
+// WithWriteConnPool returns an option that can set WriteConnPool on a Config
+func WithWriteConnPool(writeConnPool ConnPoolConfig) ConfigOption {
 	return func(c *Config) {
-		c.MaxLifetime = maxLifetime
-	}
-}
-
-// WithMaxOpenConns returns an option that can set MaxOpenConns on a Config
-func WithMaxOpenConns(maxOpenConns int) ConfigOption {
-	return func(c *Config) {
-		c.MaxOpenConns = maxOpenConns
-	}
-}
-
-// WithMinOpenConns returns an option that can set MinOpenConns on a Config
-func WithMinOpenConns(minOpenConns int) ConfigOption {
-	return func(c *Config) {
-		c.MinOpenConns = minOpenConns
+		c.WriteConnPool = writeConnPool
 	}
 }
 
@@ -247,13 +230,6 @@ func WithOverlapKey(overlapKey string) ConfigOption {
 func WithOverlapStrategy(overlapStrategy string) ConfigOption {
 	return func(c *Config) {
 		c.OverlapStrategy = overlapStrategy
-	}
-}
-
-// WithHealthCheckPeriod returns an option that can set HealthCheckPeriod on a Config
-func WithHealthCheckPeriod(healthCheckPeriod time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.HealthCheckPeriod = healthCheckPeriod
 	}
 }
 
