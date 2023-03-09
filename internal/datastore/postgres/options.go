@@ -101,9 +101,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 //
 // This defaults to 1024.
 func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
-	return func(po *postgresOptions) {
-		po.splitAtUsersetCount = splitAtUsersetCount
-	}
+	return func(po *postgresOptions) { po.splitAtUsersetCount = splitAtUsersetCount }
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max
@@ -180,37 +178,37 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.ConnMaxLifetime = &lifetime }
 }
 
-// MinOpenReadConns is the minimum size of the connection pool used for reads.
+// ReadConnsMinOpen is the minimum size of the connection pool used for reads.
 //
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
 // This value defaults to zero.
-func MinOpenReadConns(conns int) Option {
+func ReadConnsMinOpen(conns int) Option {
 	return func(po *postgresOptions) { po.readPoolOpts.MinOpenConns = &conns }
 }
 
-// MinOpenWriteConns is the minimum size of the connection pool used for writes.
+// WriteConnsMinOpen is the minimum size of the connection pool used for writes.
 //
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
 // This value defaults to zero.
-func MinOpenWriteConns(conns int) Option {
+func WriteConnsMinOpen(conns int) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.MinOpenConns = &conns }
 }
 
-// MaxOpenReadConns is the maximum size of the connection pool used for reads.
+// ReadConnsMaxOpen is the maximum size of the connection pool used for reads.
 //
 // This value defaults to having no maximum.
-func MaxOpenReadConns(conns int) Option {
+func ReadConnsMaxOpen(conns int) Option {
 	return func(po *postgresOptions) { po.readPoolOpts.MaxOpenConns = &conns }
 }
 
-// MaxOpenWriteConns is the maximum size of the connection pool used for writes.
+// WriteConnsMaxOpen is the maximum size of the connection pool used for writes.
 //
 // This value defaults to having no maximum.
-func MaxOpenWriteConns(conns int) Option {
+func WriteConnsMaxOpen(conns int) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.MaxOpenConns = &conns }
 }
 
@@ -219,9 +217,7 @@ func MaxOpenWriteConns(conns int) Option {
 //
 // This value defaults to 128.
 func WatchBufferLength(watchBufferLength uint16) Option {
-	return func(po *postgresOptions) {
-		po.watchBufferLength = watchBufferLength
-	}
+	return func(po *postgresOptions) { po.watchBufferLength = watchBufferLength }
 }
 
 // RevisionQuantization is the time bucket size to which advertised
@@ -229,9 +225,7 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 //
 // This value defaults to 5 seconds.
 func RevisionQuantization(quantization time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.revisionQuantization = quantization
-	}
+	return func(po *postgresOptions) { po.revisionQuantization = quantization }
 }
 
 // MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of
@@ -240,9 +234,7 @@ func RevisionQuantization(quantization time.Duration) Option {
 //
 // This value defaults to 0.1 (10%).
 func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
-	return func(po *postgresOptions) {
-		po.maxRevisionStalenessPercent = stalenessPercent
-	}
+	return func(po *postgresOptions) { po.maxRevisionStalenessPercent = stalenessPercent }
 }
 
 // GCWindow is the maximum age of a passed revision that will be considered
@@ -250,18 +242,14 @@ func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
 //
 // This value defaults to 24 hours.
 func GCWindow(window time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.gcWindow = window
-	}
+	return func(po *postgresOptions) { po.gcWindow = window }
 }
 
 // GCInterval is the the interval at which garbage collection will occur.
 //
 // This value defaults to 3 minutes.
 func GCInterval(interval time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.gcInterval = interval
-	}
+	return func(po *postgresOptions) { po.gcInterval = interval }
 }
 
 // GCMaxOperationTime is the maximum operation time of a garbage collection
@@ -269,18 +257,14 @@ func GCInterval(interval time.Duration) Option {
 //
 // This value defaults to 1 minute.
 func GCMaxOperationTime(time time.Duration) Option {
-	return func(po *postgresOptions) {
-		po.gcMaxOperationTime = time
-	}
+	return func(po *postgresOptions) { po.gcMaxOperationTime = time }
 }
 
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
 // Default: 10
 func MaxRetries(maxRetries uint8) Option {
-	return func(po *postgresOptions) {
-		po.maxRetries = maxRetries
-	}
+	return func(po *postgresOptions) { po.maxRetries = maxRetries }
 }
 
 // WithEnablePrometheusStats marks whether Prometheus metrics provided by the Postgres
@@ -288,9 +272,7 @@ func MaxRetries(maxRetries uint8) Option {
 //
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
-	return func(po *postgresOptions) {
-		po.enablePrometheusStats = enablePrometheusStats
-	}
+	return func(po *postgresOptions) { po.enablePrometheusStats = enablePrometheusStats }
 }
 
 // EnableTracing enables trace-level logging for the Postgres clients being
@@ -298,18 +280,14 @@ func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 //
 // Tracing is disabled by default.
 func EnableTracing() Option {
-	return func(po *postgresOptions) {
-		po.logger = &tracingLogger{}
-	}
+	return func(po *postgresOptions) { po.logger = &tracingLogger{} }
 }
 
 // GCEnabled indicates whether garbage collection is enabled.
 //
 // GC is enabled by default.
 func GCEnabled(isGCEnabled bool) Option {
-	return func(po *postgresOptions) {
-		po.gcEnabled = isGCEnabled
-	}
+	return func(po *postgresOptions) { po.gcEnabled = isGCEnabled }
 }
 
 // DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
@@ -318,9 +296,7 @@ func GCEnabled(isGCEnabled bool) Option {
 //
 // Disabled by default.
 func DebugAnalyzeBeforeStatistics() Option {
-	return func(po *postgresOptions) {
-		po.analyzeBeforeStatistics = true
-	}
+	return func(po *postgresOptions) { po.analyzeBeforeStatistics = true }
 }
 
 // MigrationPhase configures the postgres driver to the proper state of a
@@ -328,7 +304,5 @@ func DebugAnalyzeBeforeStatistics() Option {
 //
 // Steady-state configuration (e.g. fully migrated) by default
 func MigrationPhase(phase string) Option {
-	return func(po *postgresOptions) {
-		po.migrationPhase = phase
-	}
+	return func(po *postgresOptions) { po.migrationPhase = phase }
 }

@@ -163,37 +163,37 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxLifetime = &lifetime }
 }
 
-// MinOpenReadConns is the minimum size of the connection pool used for reads.
+// ReadConnsMinOpen is the minimum size of the connection pool used for reads.
 //
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
 // This value defaults to zero.
-func MinOpenReadConns(conns int) Option {
+func ReadConnsMinOpen(conns int) Option {
 	return func(po *crdbOptions) { po.readPoolOpts.MinOpenConns = &conns }
 }
 
-// MinOpenWriteConns is the minimum size of the connection pool used for writes.
+// WriteConnsMinOpen is the minimum size of the connection pool used for writes.
 //
 // The health check will increase the number of connections to this amount if
 // it had dropped below.
 //
 // This value defaults to zero.
-func MinOpenWriteConns(conns int) Option {
+func WriteConnsMinOpen(conns int) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.MinOpenConns = &conns }
 }
 
-// MaxOpenReadConns is the maximum size of the connection pool used for reads.
+// ReadConnsMaxOpen is the maximum size of the connection pool used for reads.
 //
 // This value defaults to having no maximum.
-func MaxOpenReadConns(conns int) Option {
+func ReadConnsMaxOpen(conns int) Option {
 	return func(po *crdbOptions) { po.readPoolOpts.MaxOpenConns = &conns }
 }
 
-// MaxOpenWriteConns is the maximum size of the connection pool used for writes.
+// WriteConnsMaxOpen is the maximum size of the connection pool used for writes.
 //
 // This value defaults to having no maximum.
-func MaxOpenWriteConns(conns int) Option {
+func WriteConnsMaxOpen(conns int) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.MaxOpenConns = &conns }
 }
 
