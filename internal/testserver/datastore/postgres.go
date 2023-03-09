@@ -38,9 +38,10 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 	require.NoError(t, err)
 
 	name := fmt.Sprintf("postgres-%s", uuid.New().String())
-	cmd := []string{"-c", "track_commit_timestamp=1"}
-	if !withCommitTimestamps {
-		cmd = []string{}
+
+	cmd := []string{"-N", "500"} // Max Connections
+	if withCommitTimestamps {
+		cmd = append(cmd, "-c", "track_commit_timestamp=1")
 	}
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
