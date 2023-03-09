@@ -46,7 +46,7 @@ type ConnPoolConfig struct {
 	HealthCheckInterval time.Duration
 }
 
-func DefaultConnPoolConfig() *ConnPoolConfig {
+func DefaultReadConnPool() *ConnPoolConfig {
 	return &ConnPoolConfig{
 		MaxLifetime:         30 * time.Minute,
 		MaxIdleTime:         30 * time.Minute,
@@ -54,6 +54,13 @@ func DefaultConnPoolConfig() *ConnPoolConfig {
 		MinOpenConns:        10,
 		HealthCheckInterval: 30 * time.Second,
 	}
+}
+
+func DefaultWriteConnPool() *ConnPoolConfig {
+	cfg := DefaultReadConnPool()
+	cfg.MaxOpenConns = cfg.MaxOpenConns / 2
+	cfg.MinOpenConns = cfg.MinOpenConns / 2
+	return cfg
 }
 
 func RegisterConnPoolFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, defaults, opts *ConnPoolConfig) {
@@ -152,10 +159,10 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 
 	var legacyConnPool ConnPoolConfig
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultConnPoolConfig(), &legacyConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultReadConnPool(), &legacyConnPool)
 	deprecateUnifiedConnFlags(flagSet)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-read", &legacyConnPool, &opts.ReadConnPool)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-write", DefaultConnPoolConfig(), &opts.WriteConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
 
 	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), defaults.GCWindow, "amount of time before revisions are garbage collected")
 	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
@@ -202,8 +209,8 @@ func DefaultDatastoreConfig() *Config {
 		GCWindow:                       24 * time.Hour,
 		LegacyFuzzing:                  -1,
 		RevisionQuantization:           5 * time.Second,
-		ReadConnPool:                   *DefaultConnPoolConfig(),
-		WriteConnPool:                  *DefaultConnPoolConfig(),
+		ReadConnPool:                   *DefaultReadConnPool(),
+		WriteConnPool:                  *DefaultWriteConnPool(),
 		SplitQueryCount:                1024,
 		ReadOnly:                       false,
 		MaxRetries:                     10,
