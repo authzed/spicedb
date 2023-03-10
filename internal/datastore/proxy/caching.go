@@ -43,9 +43,9 @@ func DatastoreProxyTestCache(t testing.TB) cache.Cache {
 	return cache
 }
 
-// NewCachingDatastoreProxy creates a new datastore proxy which caches definitions that
+// NewNamespaceCachingDatastoreProxy creates a new datastore proxy which caches namespace definitions that
 // are loaded at specific datastore revisions.
-func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache) datastore.Datastore {
+func NewNamespaceCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache) datastore.Datastore {
 	if c == nil {
 		c = cache.NoopCache()
 	}

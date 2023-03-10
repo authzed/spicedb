@@ -189,13 +189,17 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithError(ds.Close)
 
-	nscc, err := c.NamespaceCacheConfig.Complete()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+	if c.NamespaceCacheConfig.Enabled {
+		nscc, err := c.NamespaceCacheConfig.Complete()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create namespace cache: %w", err)
+		}
+		log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
+		ds = proxy.NewNamespaceCachingDatastoreProxy(ds, nscc)
+	} else {
+		log.Ctx(ctx).Info().Msg("disabled namespace cache")
 	}
-	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
-	ds = proxy.NewCachingDatastoreProxy(ds, nscc)
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	closeables.AddWithError(ds.Close)
 
