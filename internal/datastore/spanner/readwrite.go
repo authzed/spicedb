@@ -18,7 +18,8 @@ import (
 
 type spannerReadWriteTXN struct {
 	spannerReader
-	spannerRWT *spanner.ReadWriteTransaction
+	spannerRWT   *spanner.ReadWriteTransaction
+	disableStats bool
 }
 
 func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
@@ -56,15 +57,17 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 		}
 	}
 
-	if err := updateCounter(ctx, rwt.spannerRWT, rowCountChange); err != nil {
-		return fmt.Errorf(errUnableToWriteRelationships, err)
+	if !rwt.disableStats {
+		if err := updateCounter(ctx, rwt.spannerRWT, rowCountChange); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
 	}
 
 	return nil
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	err := deleteWithFilter(ctx, rwt.spannerRWT, filter)
+	err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.disableStats)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -82,7 +85,7 @@ func (snd selectAndDelete) Where(pred interface{}, args ...interface{}) selectAn
 	return snd
 }
 
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter) error {
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) error {
 	queries := selectAndDelete{queryTuples, sql.Delete(tableRelationship)}
 
 	// Add clauses for the ResourceFilter
@@ -166,8 +169,10 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		return err
 	}
 
-	if err := updateCounter(ctx, rwt, -1*numDeleted); err != nil {
-		return err
+	if !disableStats {
+		if err := updateCounter(ctx, rwt, -1*numDeleted); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -242,7 +247,7 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 	for _, nsName := range nsNames {
 		if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{
 			ResourceType: nsName,
-		}); err != nil {
+		}, rwt.disableStats); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 

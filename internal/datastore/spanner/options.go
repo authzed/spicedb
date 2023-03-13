@@ -15,6 +15,7 @@ type spannerOptions struct {
 	gcEnabled                   bool
 	credentialsFilePath         string
 	emulatorHost                string
+	disableStats                bool
 }
 
 const (
@@ -27,6 +28,7 @@ const (
 	defaultGCWindow                    = 60 * time.Minute
 	defaultGCInterval                  = 3 * time.Minute
 	defaultGCEnabled                   = true
+	defaultDisableStats                = false
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -42,6 +44,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
+		disableStats:                defaultDisableStats,
 	}
 
 	for _, option := range options {
@@ -141,5 +144,12 @@ func EmulatorHost(uri string) Option {
 func GCEnabled(isGCEnabled bool) Option {
 	return func(so *spannerOptions) {
 		so.gcEnabled = isGCEnabled
+	}
+}
+
+// DisableStats disables recording counts to the stats table
+func DisableStats(disable bool) Option {
+	return func(po *spannerOptions) {
+		po.disableStats = disable
 	}
 }
