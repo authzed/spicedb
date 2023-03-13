@@ -39,7 +39,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0, veryLargeGCWindow, 1)
+			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 			defer ds.Close()
 
@@ -391,7 +391,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			require := require.New(t)
 			ctx := context.Background()
 
-			ds, err := tester.New(0, veryLargeGCWindow, 1)
+			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 			defer ds.Close()
 
@@ -439,7 +439,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 
 		require := require.New(t)
 
-		ds, err := tester.New(0, testGCDuration, 1)
+		ds, err := tester.New(0, veryLargeGCInterval, testGCDuration, 1)
 		require.NoError(err)
 		defer ds.Close()
 
@@ -483,7 +483,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -504,7 +504,7 @@ func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -539,7 +539,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -560,7 +560,7 @@ func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -580,7 +580,7 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -605,7 +605,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 			t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 				require := require.New(t)
 
-				ds, err := tester.New(0, veryLargeGCWindow, 1)
+				ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 				require.NoError(err)
 				defer ds.Close()
 
@@ -652,7 +652,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -681,7 +681,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)

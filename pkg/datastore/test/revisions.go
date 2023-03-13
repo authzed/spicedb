@@ -29,7 +29,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 		t.Run(fmt.Sprintf("quantization%s", tc.quantizationRange), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(tc.quantizationRange, veryLargeGCWindow, 1)
+			ds, err := tester.New(tc.quantizationRange, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
 			ctx := context.Background()
@@ -72,7 +72,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -87,4 +87,44 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 		DepthRemaining: 50,
 	}
 	require.NoError(meta.Validate())
+}
+
+// RevisionGCTest makes sure revision GC takes place, revisions out-side of the GC window
+// are invalid, and revisions inside the GC window are valid.
+func RevisionGCTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, 10*time.Millisecond, 300*time.Millisecond, 1)
+	require.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	previousRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, testNamespace)
+	})
+	require.NoError(err)
+	require.NoError(ds.CheckRevision(ctx, previousRev), "expected latest write revision to be within GC window")
+
+	head, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
+
+	// wait to make sure GC kicks in
+	time.Sleep(400 * time.Millisecond)
+
+	// check freshly fetched head revision is valid after GC window elapsed
+	head, err = ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
+	require.NoError(err, "expected previously written schema to exist at head")
+	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
+
+	newerRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, testNamespace)
+	})
+	require.NoError(err)
+	require.NoError(ds.CheckRevision(ctx, newerRev), "expected newer head revision to be within GC Window")
+	require.Error(ds.CheckRevision(ctx, previousRev), "expected revision head-1 to be outside GC Window")
 }

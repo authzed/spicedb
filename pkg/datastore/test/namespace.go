@@ -35,7 +35,7 @@ var (
 func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := context.Background()
@@ -53,7 +53,7 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := context.Background()
@@ -145,7 +145,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -193,7 +193,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 }
 
 func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -221,7 +221,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	rawDS, err := tester.New(0, veryLargeGCWindow, 1)
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -267,7 +267,7 @@ definition document {
 	require.Equal(2, len(compiled.OrderedDefinitions))
 
 	// Write the namespace definition to the datastore.
-	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	ctx := context.Background()

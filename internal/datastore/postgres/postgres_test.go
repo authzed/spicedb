@@ -38,11 +38,12 @@ func TestPostgresDatastore(t *testing.T) {
 			t.Parallel()
 			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration)
 
-			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 					ds, err := newPostgresDatastore(uri,
 						RevisionQuantization(revisionQuantization),
 						GCWindow(gcWindow),
+						GCInterval(gcInterval),
 						WatchBufferLength(watchBufferLength),
 						DebugAnalyzeBeforeStatistics(),
 						MigrationPhase(config.migrationPhase),
@@ -55,11 +56,12 @@ func TestPostgresDatastore(t *testing.T) {
 
 			t.Run("WithSplit", func(t *testing.T) {
 				// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
-				test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+				test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 					ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 						ds, err := newPostgresDatastore(uri,
 							RevisionQuantization(revisionQuantization),
 							GCWindow(gcWindow),
+							GCInterval(gcInterval),
 							WatchBufferLength(watchBufferLength),
 							DebugAnalyzeBeforeStatistics(),
 							SplitAtUsersetCount(1), // 1 userset
@@ -144,11 +146,12 @@ func TestPostgresDatastoreWithoutCommitTimestamps(t *testing.T) {
 	b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false)
 
 	// NOTE: watch API requires the commit timestamps, so we skip those tests here.
-	test.AllExceptWatch(t, test.DatastoreTesterFunc(func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	test.AllExceptWatch(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := newPostgresDatastore(uri,
 				RevisionQuantization(revisionQuantization),
 				GCWindow(gcWindow),
+				GCInterval(gcInterval),
 				WatchBufferLength(watchBufferLength),
 				DebugAnalyzeBeforeStatistics(),
 			)
