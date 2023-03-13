@@ -42,7 +42,6 @@ func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gc
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(gcInterval),
-			GCInterval(0*time.Second),
 			TablePrefix(dst.prefix),
 			DebugAnalyzeBeforeStatistics(),
 			OverrideLockWaitTimeout(1),
