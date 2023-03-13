@@ -41,16 +41,11 @@ func (mdb *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	mdb.RLock()
 	defer mdb.RUnlock()
 
-	head, err := mdb.headRevisionNoLock()
-	if err != nil {
-		return nil, err
-	}
-
-	return revision.NewFromDecimal(head), nil
+	return revision.NewFromDecimal(mdb.headRevisionNoLock()), nil
 }
 
-func (mdb *memdbDatastore) headRevisionNoLock() (decimal.Decimal, error) {
-	return mdb.revisions[len(mdb.revisions)-1].revision, nil
+func (mdb *memdbDatastore) headRevisionNoLock() decimal.Decimal {
+	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
 func (mdb *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
@@ -74,8 +69,7 @@ func (mdb *memdbDatastore) checkRevisionLocalCallerMustLock(revisionRaw revision
 
 	// Ensure the revision has not fallen outside of the GC window. If it has, it is considered
 	// invalid.
-	oldest := revision.NewFromDecimal(now.Add(mdb.negativeGCWindow))
-	if revisionRaw.LessThan(oldest) {
+	if mdb.revisionOutsideGCWindow(now, revisionRaw) {
 		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.RevisionStale)
 	}
 
@@ -84,11 +78,7 @@ func (mdb *memdbDatastore) checkRevisionLocalCallerMustLock(revisionRaw revision
 	if revisionRaw.GreaterThan(now) {
 		// If the revision is in the "future", then check to ensure that it is <= of HEAD to handle
 		// the microsecond granularity on macos (see comment above in newRevisionID)
-		headRevision, err := mdb.headRevisionNoLock()
-		if err != nil {
-			return err
-		}
-
+		headRevision := mdb.headRevisionNoLock()
 		if revisionRaw.LessThanOrEqual(headRevision) {
 			return nil
 		}
@@ -97,4 +87,13 @@ func (mdb *memdbDatastore) checkRevisionLocalCallerMustLock(revisionRaw revision
 	}
 
 	return nil
+}
+
+func (mdb *memdbDatastore) revisionOutsideGCWindow(now revision.Decimal, revisionRaw revision.Decimal) bool {
+	// make an exception for head revision - it will be acceptable even if outside GC Window
+	if revisionRaw.Equals(mdb.headRevisionNoLock()) {
+		return false
+	}
+	oldest := revision.NewFromDecimal(now.Add(mdb.negativeGCWindow))
+	return revisionRaw.LessThan(oldest)
 }
