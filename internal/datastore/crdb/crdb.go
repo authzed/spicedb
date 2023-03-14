@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -179,6 +182,8 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		config.splitAtUsersetCount,
 		executeWithMaxRetries(config.maxRetries),
 		config.disableStats,
+		time.NewTicker(time.Second / time.Duration(config.writeQPS)),
+		sync.Map{},
 		changefeedQuery,
 	}
 
@@ -194,6 +199,7 @@ func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	if err != nil {
 		return nil, err
 	}
+	go ds.(*crdbDatastore).processWrites()
 	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
@@ -208,8 +214,76 @@ type crdbDatastore struct {
 	usersetBatchSize    uint16
 	execute             executeTxRetryFunc
 	disableStats        bool
+	writeTicker         *time.Ticker
+	writeQueue          sync.Map
 
 	beginChangefeedQuery string
+}
+
+type writeReturn struct {
+	rev datastore.Revision
+	err error
+}
+
+type writeQueueEntry struct {
+	f    datastore.TxUserFunc
+	ctx  context.Context
+	done chan<- writeReturn
+}
+
+func (cds *crdbDatastore) processWrites() {
+	// TODO: this loop should be cancellable; tied to program lifetime
+	for {
+		t := <-cds.writeTicker.C
+		// TODO: use something like uuid but faster, only need program-local uniqueness
+		// TODO: this goroutine should be cancelable
+		// TODO: should this use a semaphore with 1/<qps> workers?
+		// TODO: metrics
+		go func() {
+			entries := make(map[uuid.UUID]*writeQueueEntry, 0)
+			cds.writeQueue.Range(func(key, value any) bool {
+				entries[key.(uuid.UUID)] = value.(*writeQueueEntry)
+				cds.writeQueue.Delete(key)
+				return true
+			})
+			if len(entries) == 0 {
+				return
+			}
+			ctx := context.Background()
+			resps := make(map[uuid.UUID]*writeReturn, len(entries))
+			rev, err := cds.doReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {
+				crwt := tx.(*crdbReadWriteTXN)
+				for uid, entry := range entries {
+					resps[uid] = &writeReturn{}
+					// TODO: cancel sub-transaction on entry.ctx cancel
+					if _, err := crwt.tx.Exec(ctx, fmt.Sprintf("SAVEPOINT uid%s;", strings.ReplaceAll(uid.String(), "-", ""))); err != nil {
+						return err
+					}
+					if err := entry.f(tx); err != nil {
+						resps[uid].err = err
+						if _, err := crwt.tx.Exec(ctx, fmt.Sprintf("ROLLBACK TO SAVEPOINT uid%s;", strings.ReplaceAll(uid.String(), "-", ""))); err != nil {
+							return err
+						}
+						continue
+					}
+					if _, err := crwt.tx.Exec(ctx, fmt.Sprintf("RELEASE SAVEPOINT uid%s;", strings.ReplaceAll(uid.String(), "-", ""))); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			for uid, resp := range resps {
+				if err != nil {
+					resp.err = errors.Join(resp.err, fmt.Errorf("batch tx error: %w", err))
+					resp.rev = datastore.NoRevision
+				}
+				resp.rev = rev
+				entries[uid].done <- *resp
+			}
+
+			fmt.Printf("processed %d writes at %v\n", len(entries), t)
+		}()
+	}
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -249,6 +323,21 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 func noCleanup(context.Context) {}
 
 func (cds *crdbDatastore) ReadWriteTx(
+	ctx context.Context,
+	f datastore.TxUserFunc,
+) (datastore.Revision, error) {
+	done := make(chan writeReturn, 1)
+	uid := uuid.New()
+	cds.writeQueue.Store(uid, &writeQueueEntry{
+		f:    f,
+		ctx:  ctx,
+		done: done,
+	})
+	out := <-done
+	return out.rev, out.err
+}
+
+func (cds *crdbDatastore) doReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
 ) (datastore.Revision, error) {
@@ -335,6 +424,7 @@ func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
 func (cds *crdbDatastore) Close() error {
 	cds.readPool.Close()
 	cds.writePool.Close()
+	cds.writeTicker.Stop()
 	return nil
 }
 

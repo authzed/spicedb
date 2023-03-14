@@ -42,6 +42,7 @@ func TestCRDBDatastore(t *testing.T) {
 				RevisionQuantization(revisionQuantization),
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
+				WriteQPS(500),
 			)
 			require.NoError(t, err)
 			return ds

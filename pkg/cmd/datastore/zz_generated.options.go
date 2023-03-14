@@ -40,6 +40,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxRetries = c.MaxRetries
 		to.OverlapKey = c.OverlapKey
 		to.OverlapStrategy = c.OverlapStrategy
+		to.WriteQPS = c.WriteQPS
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
@@ -230,6 +231,13 @@ func WithOverlapKey(overlapKey string) ConfigOption {
 func WithOverlapStrategy(overlapStrategy string) ConfigOption {
 	return func(c *Config) {
 		c.OverlapStrategy = overlapStrategy
+	}
+}
+
+// WithWriteQPS returns an option that can set WriteQPS on a Config
+func WithWriteQPS(writeQPS int) ConfigOption {
+	return func(c *Config) {
+		c.WriteQPS = writeQPS
 	}
 }
 

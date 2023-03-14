@@ -20,6 +20,7 @@ type crdbOptions struct {
 	overlapStrategy             string
 	overlapKey                  string
 	disableStats                bool
+	writeQPS                    int
 
 	enablePrometheusStats bool
 }
@@ -40,6 +41,7 @@ const (
 	defaultMaxRetries      = 5
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
+	defaultWriteQPS        = 5
 
 	defaultEnablePrometheusStats = false
 )
@@ -61,6 +63,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		overlapStrategy:             defaultOverlapStrategy,
 		disableStats:                false,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		writeQPS:                    defaultWriteQPS,
 	}
 
 	for _, option := range options {
@@ -254,6 +257,12 @@ func OverlapStrategy(strategy string) Option {
 // Default: 'key'
 func OverlapKey(key string) Option {
 	return func(po *crdbOptions) { po.overlapKey = key }
+}
+
+// WriteQPS is rate at which writes should be sent to CRDB.
+// Default: 5
+func WriteQPS(qps int) Option {
+	return func(po *crdbOptions) { po.writeQPS = qps }
 }
 
 // DisableStats disables recording counts to the stats table

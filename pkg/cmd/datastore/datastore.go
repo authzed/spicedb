@@ -120,6 +120,7 @@ type Config struct {
 	MaxRetries        int
 	OverlapKey        string
 	OverlapStrategy   string
+	WriteQPS          int
 
 	// Postgres
 	GCInterval         time.Duration
@@ -183,6 +184,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
+	flagSet.IntVar(&opts.WriteQPS, flagName("datastore-write-qps"), defaults.WriteQPS, "number of times per second that writes should be batched to the datastore (cockroach driver only)")
 	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
@@ -233,6 +235,7 @@ func DefaultDatastoreConfig() *Config {
 		TablePrefix:                    "",
 		MigrationPhase:                 "",
 		FollowerReadDelay:              4_800 * time.Millisecond,
+		WriteQPS:                       5,
 	}
 }
 
@@ -342,6 +345,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.WatchBufferLength(opts.WatchBufferLength),
 		crdb.DisableStats(opts.DisableStats),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		crdb.WriteQPS(opts.WriteQPS),
 	)
 }
 
