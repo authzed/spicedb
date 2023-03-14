@@ -70,7 +70,7 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	return postgresRevision{snapshot.markComplete(value.Uint)}, nil
+	return postgresRevision{snapshot}, nil
 }
 
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {

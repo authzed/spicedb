@@ -113,14 +113,29 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// wait to make sure GC kicks in
 	time.Sleep(400 * time.Millisecond)
 
+	// FIXME currently the various datastores behave differently when a revision was requested and GC Window elapses.
+	// this is due to the fact MySQL and PostgreSQL implement revisions as a snapshot, while CRDB, Spanner and MemDB
+	// implement it as a timestamp.
+	//
+	// previous head revision is not valid if outside GC Window
+	// require.Error(ds.CheckRevision(ctx, head), "expected head revision to be valid if out of GC window")
+	//
+	// latest state of the system is invalid if head revision is out of GC window
+	//_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
+	// require.Error(err, "expected previously written schema to exist at out-of-GC window head")
+
 	// check freshly fetched head revision is valid after GC window elapsed
 	head, err = ds.HeadRevision(ctx)
 	require.NoError(err)
 
+	// state of the system is also consistent at a recent call to head
 	_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
 	require.NoError(err, "expected previously written schema to exist at head")
+
+	// and that recent call to head revision is also valid, even after a GC window cycle without writes elapsed
 	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
 
+	// write happens, we get a new head revision
 	newerRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
 	})

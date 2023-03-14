@@ -56,7 +56,14 @@ const (
 	//   %[5] Name of the snapshot column
 	queryValidTransaction = `
 	WITH minvalid AS (
-		SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s >= NOW() - INTERVAL '%[4]f seconds' ORDER BY %[3]s ASC LIMIT 1
+		SELECT %[1]s, %[5]s
+        FROM %[2]s
+        WHERE 
+            %[3]s >= NOW() - INTERVAL '%[4]f seconds'
+          OR
+             %[3]s = (SELECT MAX(%[3]s) FROM %[2]s)
+        ORDER BY %[3]s ASC
+        LIMIT 1
 	)
 	SELECT minvalid.%[1]s, minvalid.%[5]s, pg_current_snapshot() FROM minvalid;`
 
