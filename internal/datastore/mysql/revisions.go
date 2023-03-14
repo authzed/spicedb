@@ -42,17 +42,23 @@ const (
 	// for whether the specified transaction ID is newer than the garbage collection
 	// window, and one boolean for whether the transaction ID represents a transaction
 	// that will occur in the future.
+	// It treats the current head transaction as always valid even if it falls
+	// outside the GC window.
 	//
 	//   %[1] Name of id column
 	//   %[2] Relationship tuple transaction table
 	//   %[3] Name of timestamp column
 	//   %[4] Inverse of GC window (in seconds)
 	queryValidTransaction = `
-		SELECT ? >= (
+		SELECT ? >= COALESCE((
 			SELECT MIN(%[1]s)
 			FROM   %[2]s
 			WHERE  %[3]s >= TIMESTAMPADD(SECOND, %.6[4]f, UTC_TIMESTAMP(6))
-		) as fresh, ? > (
+		),( 
+		    SELECT MAX(%[1]s)
+		    FROM %[2]s
+		    LIMIT 1
+		)) as fresh, ? > (
 			SELECT MAX(%[1]s)
 			FROM   %[2]s
 		) as unknown;`

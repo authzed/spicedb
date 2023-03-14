@@ -15,19 +15,22 @@ import (
 
 // veryLargeGCWindow is a very large time duration, which when passed to a constructor should
 // effectively disable garbage collection.
-const veryLargeGCWindow = 90000 * time.Second
+const (
+	veryLargeGCWindow   = 90000 * time.Second
+	veryLargeGCInterval = 90000 * time.Second
+)
 
 // DatastoreTester provides a generic datastore suite a means of initializing
 // a particular datastore.
 type DatastoreTester interface {
 	// New creates a new datastore instance for a single test.
-	New(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+	New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 }
 
-type DatastoreTesterFunc func(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
+type DatastoreTesterFunc func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error)
 
-func (f DatastoreTesterFunc) New(revisionQuantization, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	return f(revisionQuantization, gcWindow, watchBufferLength)
+func (f DatastoreTesterFunc) New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+	return f(revisionQuantization, gcInterval, gcWindow, watchBufferLength)
 }
 
 // AllExceptWatch runs all generic datastore tests on a DatastoreTester, except
@@ -54,6 +57,7 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
+	t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
 
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
 

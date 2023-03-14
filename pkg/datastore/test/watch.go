@@ -47,7 +47,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 
-			ds, err := tester.New(0, veryLargeGCWindow, 16)
+			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
 			require.NoError(err)
 
 			setupDatastore(ds, require)
@@ -171,7 +171,7 @@ func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
 func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
-	ds, err := tester.New(0, veryLargeGCWindow, 1)
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(err)
 
 	startWatchRevision := setupDatastore(ds, require)
