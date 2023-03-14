@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -46,9 +47,8 @@ var (
 	}
 
 	readNamespace = psql.
-			Select(colConfig, colCreatedXid, colSnapshot).
-			From(tableNamespace).
-			Join(fmt.Sprintf("%s ON %s = %s", tableTransaction, colCreatedXid, colXID))
+			Select(colConfig, colCreatedXid).
+			From(tableNamespace)
 )
 
 const (
@@ -191,9 +191,8 @@ func loadAllNamespaces(
 	for rows.Next() {
 		var config []byte
 		var version xid8
-		var snapshot pgSnapshot
 
-		if err := rows.Scan(&config, &version, &snapshot); err != nil {
+		if err := rows.Scan(&config, &version); err != nil {
 			return nil, err
 		}
 
@@ -206,7 +205,7 @@ func loadAllNamespaces(
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		revision := postgresRevision{snapshot.markComplete(version.Uint)}
+		revision := revisionForVersion(version)
 
 		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
 	}
@@ -215,6 +214,15 @@ func loadAllNamespaces(
 	}
 
 	return nsDefs, nil
+}
+
+// revisionForVersion synthesizes a snapshot where the specified version is always visible.
+func revisionForVersion(version xid8) postgresRevision {
+	return postgresRevision{pgSnapshot{
+		xmin:   version.Uint + 1,
+		xmax:   version.Uint + 1,
+		status: pgtype.Present,
+	}}
 }
 
 var _ datastore.Reader = &pgReader{}

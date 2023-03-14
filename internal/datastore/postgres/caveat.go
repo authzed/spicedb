@@ -15,14 +15,12 @@ import (
 var (
 	writeCaveat = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition)
 	listCaveat  = psql.
-			Select(colCaveatDefinition, colCreatedXid, colSnapshot).
+			Select(colCaveatDefinition, colCreatedXid).
 			From(tableCaveat).
-			Join(fmt.Sprintf("%s ON %s = %s", tableTransaction, colCreatedXid, colXID)).
 			OrderBy(colCaveatName)
 	readCaveat = psql.
-			Select(colCaveatDefinition, colCreatedXid, colSnapshot).
-			From(tableCaveat).
-			Join(fmt.Sprintf("%s ON %s = %s", tableTransaction, colCreatedXid, colXID))
+			Select(colCaveatDefinition, colCreatedXid).
+			From(tableCaveat)
 	deleteCaveat = psql.Update(tableCaveat).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
@@ -47,9 +45,8 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	defer txCleanup(ctx)
 
 	var txID xid8
-	var snapshot pgSnapshot
 	var serializedDef []byte
-	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &txID, &snapshot)
+	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &txID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
@@ -66,7 +63,7 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 
-	rev := postgresRevision{snapshot.markComplete(txID.Uint)}
+	rev := revisionForVersion(txID)
 
 	return &def, rev, nil
 }
@@ -109,9 +106,8 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 	var caveats []datastore.RevisionedCaveat
 	for rows.Next() {
 		var version xid8
-		var snapshot pgSnapshot
 		var defBytes []byte
-		err = rows.Scan(&defBytes, &version, &snapshot)
+		err = rows.Scan(&defBytes, &version)
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
@@ -125,7 +121,7 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
 
-		revision := postgresRevision{snapshot.markComplete(version.Uint)}
+		revision := revisionForVersion(version)
 		caveats = append(caveats, datastore.RevisionedCaveat{Definition: &c, LastWrittenRevision: revision})
 	}
 	if rows.Err() != nil {
