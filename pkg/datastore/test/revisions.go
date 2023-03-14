@@ -136,10 +136,14 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
 
 	// write happens, we get a new head revision
-	newerRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteNamespaces(ctx, testNamespace)
-	})
+	newerRev, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, makeTestTuple("first", "owner"))
 	require.NoError(err)
 	require.NoError(ds.CheckRevision(ctx, newerRev), "expected newer head revision to be within GC Window")
 	require.Error(ds.CheckRevision(ctx, previousRev), "expected revision head-1 to be outside GC Window")
+
+	// wait to make sure GC kicks in
+	time.Sleep(400 * time.Millisecond)
+
+	_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
+	require.NoError(err, "expected previously written schema to exist at head")
 }
