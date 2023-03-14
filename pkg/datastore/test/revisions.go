@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -100,10 +101,22 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	testCaveat := createCoreCaveat(t)
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		if err := rwt.WriteNamespaces(ctx, ns.Namespace("foo/createdtxgc")); err != nil {
+			return err
+		}
+		return rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
+			testCaveat,
+		})
+	})
+	require.NoError(err)
+
 	previousRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)
+
 	require.NoError(ds.CheckRevision(ctx, previousRev), "expected latest write revision to be within GC window")
 
 	head, err := ds.HeadRevision(ctx)
@@ -127,6 +140,14 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	// check freshly fetched head revision is valid after GC window elapsed
 	head, err = ds.HeadRevision(ctx)
 	require.NoError(err)
+
+	// check that we can read a caveat whose revision has been garbage collectged
+	_, _, err = ds.SnapshotReader(head).ReadCaveatByName(ctx, testCaveat.Name)
+	require.NoError(err, "expected previously written caveat should exist at head")
+
+	// check that we can read the namespace which had its revision garbage collected
+	_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/createdtxgc")
+	require.NoError(err, "expected previously written namespace should exist at head")
 
 	// state of the system is also consistent at a recent call to head
 	_, _, err = ds.SnapshotReader(head).ReadNamespaceByName(ctx, "foo/bar")
