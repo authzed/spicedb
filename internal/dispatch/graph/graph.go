@@ -77,14 +77,18 @@ func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
 	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit))
 }
 
-// NewLocalOnlyDispatcherWithLimits creates a dispatcher thatg consults with the graph to formulate a response
+// NewLocalOnlyDispatcherWithLimits creates a dispatcher that consults with the graph to formulate a response
 // and has the defined concurrency limits per dispatch type.
 func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
 	d := &localDispatcher{}
 
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
 
-	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
+	if concurrencyLimits.Check == 1 {
+		d.checker = graph.NewSerialChecker(d)
+	} else {
+		d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
+	}
 	d.expander = graph.NewConcurrentExpander(d)
 	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimits.LookupResources)
 	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimits.ReachableResources)
@@ -98,7 +102,12 @@ func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispa
 func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
 
-	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
+	var checker checker
+	if concurrencyLimits.Check == 1 {
+		checker = graph.NewSerialChecker(redispatcher)
+	} else {
+		checker = graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
+	}
 	expander := graph.NewConcurrentExpander(redispatcher)
 	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimits.LookupResources)
 	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimits.ReachableResources)
@@ -113,8 +122,12 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 	}
 }
 
+type checker interface {
+	Check(ctx context.Context, req graph.ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error)
+}
+
 type localDispatcher struct {
-	checker                   *graph.ConcurrentChecker
+	checker                   checker
 	expander                  *graph.ConcurrentExpander
 	lookupHandler             *graph.ConcurrentLookup
 	reachableResourcesHandler *graph.ConcurrentReachableResources

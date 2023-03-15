@@ -209,7 +209,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	require.NoError(err)
 	require.True(revision.GreaterThan(datastore.NoRevision))
 
-	dis := NewLocalOnlyDispatcher(10)
+	dis := NewLocalOnlyDispatcher(1)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -649,7 +649,7 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(1)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)

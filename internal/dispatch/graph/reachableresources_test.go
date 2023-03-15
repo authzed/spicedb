@@ -259,7 +259,7 @@ func BenchmarkReachableResources(b *testing.B) {
 
 		ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-		dispatcher := NewLocalOnlyDispatcher(10)
+		dispatcher := NewLocalOnlyDispatcher(1)
 
 		ctx := datastoremw.ContextWithHandle(context.Background())
 		require.NoError(datastoremw.SetInContext(ctx, ds))
@@ -568,7 +568,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(1)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
@@ -689,7 +689,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 		testRels,
 		require.New(t),
 	)
-	dispatcher := NewLocalOnlyDispatcher(2)
+	dispatcher := NewLocalOnlyDispatcher(1)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))

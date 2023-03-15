@@ -171,7 +171,7 @@ func TestMaxDepth(t *testing.T) {
 	require.NoError(err)
 	require.True(revision.GreaterThan(datastore.NoRevision))
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(1)
 
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("folder", "view"),
@@ -429,7 +429,7 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 }
 
 func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, datastore.Revision) {
-	return newLocalDispatcherWithConcurrencyLimit(t, 10)
+	return newLocalDispatcherWithConcurrencyLimit(t, 1)
 }
 
 func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*core.RelationTuple) (context.Context, dispatch.Dispatcher, datastore.Revision) {
@@ -438,7 +438,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*co
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(1)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)

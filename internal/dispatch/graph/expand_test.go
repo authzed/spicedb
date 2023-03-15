@@ -293,7 +293,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.True(revision.GreaterThan(datastore.NoRevision))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(1)
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		ResourceAndRelation: ONR("folder", "oops", "view"),
