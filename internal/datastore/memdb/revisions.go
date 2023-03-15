@@ -45,7 +45,7 @@ func (mdb *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 }
 
 func (mdb *memdbDatastore) headRevisionNoLock() decimal.Decimal {
-	return revisionFromTimestamp(time.Now().UTC()).Decimal
+	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
 func (mdb *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
