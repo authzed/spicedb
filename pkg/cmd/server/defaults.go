@@ -139,14 +139,14 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 			StreamingMiddleware: otelgrpc.StreamServerInterceptor(),
 		},
 		{
-			Name:                DefaultMiddlewareGRPCAuth,
-			UnaryMiddleware:     grpcauth.UnaryServerInterceptor(authFunc),
-			StreamingMiddleware: grpcauth.StreamServerInterceptor(authFunc),
-		},
-		{
 			Name:                DefaultMiddlewareGRPCProm,
 			UnaryMiddleware:     grpcprom.UnaryServerInterceptor,
 			StreamingMiddleware: grpcprom.StreamServerInterceptor,
+		},
+		{
+			Name:                DefaultMiddlewareGRPCAuth,
+			UnaryMiddleware:     grpcauth.UnaryServerInterceptor(authFunc),
+			StreamingMiddleware: grpcauth.StreamServerInterceptor(authFunc),
 		},
 		{
 			Name:                DefaultInternalMiddlewareDispatch,
@@ -189,8 +189,8 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.UnaryServerInterceptor(),
-			grpcauth.UnaryServerInterceptor(authFunc),
 			grpcprom.UnaryServerInterceptor,
+			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
@@ -198,8 +198,8 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.StreamServerInterceptor(),
-			grpcauth.StreamServerInterceptor(authFunc),
 			grpcprom.StreamServerInterceptor,
+			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
 		}
