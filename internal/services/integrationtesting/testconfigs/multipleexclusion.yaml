@@ -1,0 +1,43 @@
+---
+schema: >-
+  definition user {}
+
+  definition resource {
+    relation first: user
+    relation second: user
+    relation third: user
+    permission exclusion1 = first - second - third
+    permission exclusion2 = (first - second) - third
+    permission exclusion3 = first - (second - third)
+  }
+relationships: |
+  // tom is just found for first
+  resource:r0#first@user:tom
+
+  // tom is always excluded
+  resource:r1#first@user:tom
+  resource:r1#second@user:tom
+  resource:r1#third@user:tom
+
+  // tom is excluded via second but not third
+  resource:r2#first@user:tom
+  resource:r2#second@user:tom
+
+  // tom is excluded via third but not second
+  resource:r3#first@user:tom
+  resource:r3#third@user:tom
+assertions:
+  assertTrue:
+    - "resource:r0#exclusion1@user:tom"
+    - "resource:r0#exclusion2@user:tom"
+    - "resource:r0#exclusion3@user:tom"
+    - "resource:r1#exclusion3@user:tom"
+    - "resource:r3#exclusion3@user:tom"
+  assertFalse:
+    - "resource:r1#exclusion1@user:tom"
+    - "resource:r1#exclusion2@user:tom"
+    - "resource:r2#exclusion1@user:tom"
+    - "resource:r2#exclusion2@user:tom"
+    - "resource:r2#exclusion3@user:tom"
+    - "resource:r3#exclusion1@user:tom"
+    - "resource:r3#exclusion2@user:tom"
