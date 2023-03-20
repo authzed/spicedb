@@ -15,19 +15,15 @@ import (
 var queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)
 
 func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	idRows := sd.client.Single().Read(
+	var uniqueID string
+	if err := sd.client.Single().Read(
 		context.Background(),
 		tableMetadata,
 		spanner.AllKeys(),
 		[]string{colUniqueID},
-	)
-	idRow, err := idRows.Next()
-	if err != nil {
-		return datastore.Stats{}, fmt.Errorf("unable to read metadata table: %w", err)
-	}
-
-	var uniqueID string
-	if err := idRow.Columns(&uniqueID); err != nil {
+	).Do(func(r *spanner.Row) error {
+		return r.Columns(&uniqueID)
+	}); err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to read unique ID: %w", err)
 	}
 
@@ -44,14 +40,10 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	}
 
 	var estimate spanner.NullInt64
-	countRows := sd.client.Single().Query(ctx, spanner.Statement{SQL: queryRelationshipEstimate})
-	countRow, err := countRows.Next()
-	if err != nil && spanner.ErrCode(err) != codes.NotFound {
+	if err := sd.client.Single().Query(ctx, spanner.Statement{SQL: queryRelationshipEstimate}).Do(func(r *spanner.Row) error {
+		return r.Columns(&estimate)
+	}); err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to read row counts: %w", err)
-	} else if err == nil {
-		if err := countRow.Columns(&estimate); err != nil {
-			return datastore.Stats{}, fmt.Errorf("unable to decode row count: %w", err)
-		}
 	}
 
 	return datastore.Stats{
