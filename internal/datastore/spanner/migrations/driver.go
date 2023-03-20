@@ -58,23 +58,19 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*Span
 }
 
 func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
-	rows := smd.client.Single().Read(
+	var schemaRevision string
+	if err := smd.client.Single().Read(
 		ctx,
 		tableSchemaVersion,
 		spanner.AllKeys(),
 		[]string{colVersionNum},
-	)
-	row, err := rows.Next()
-	if err != nil {
+	).Do(func(r *spanner.Row) error {
+		return r.Columns(&schemaRevision)
+	}); err != nil {
 		if spanner.ErrCode(err) == codes.NotFound {
 			// There is no schema table, empty database
 			return "", nil
 		}
-		return "", err
-	}
-
-	var schemaRevision string
-	if err := row.Columns(&schemaRevision); err != nil {
 		return "", err
 	}
 
