@@ -2,9 +2,7 @@ package main
 
 import (
 	"errors"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/rs/zerolog"
@@ -28,9 +26,6 @@ const (
 var errParsing = errors.New("parsing error")
 
 func main() {
-	// Set up a seed for randomness
-	rand.Seed(time.Now().UnixNano())
-
 	// Enable Kubernetes gRPC resolver
 	kuberesolver.RegisterInCluster()
 

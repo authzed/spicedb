@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"cloud.google.com/go/spanner"
 	"google.golang.org/grpc/codes"
@@ -12,7 +13,11 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-var queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)
+var (
+	queryRelationshipEstimate = fmt.Sprintf("SELECT SUM(%s) FROM %s", colCount, tableCounters)
+
+	rng = rand.NewSource(time.Now().UnixNano())
+)
 
 func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	var uniqueID string
@@ -57,7 +62,7 @@ func updateCounter(ctx context.Context, rwt *spanner.ReadWriteTransaction, chang
 	newValue := change
 
 	counterID := make([]byte, 2)
-	_, err := rand.Read(counterID)
+	_, err := rand.New(rng).Read(counterID)
 	if err != nil {
 		return fmt.Errorf("unable to select random counter: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/shopspring/decimal"
@@ -29,6 +30,8 @@ var (
 		colID,
 		colCount,
 	).Suffix(fmt.Sprintf("ON CONFLICT (%[1]s) DO UPDATE SET %[2]s = %[3]s.%[2]s + EXCLUDED.%[2]s RETURNING cluster_logical_timestamp()", colID, colCount, tableCounters))
+
+	rng = rand.NewSource(time.Now().UnixNano())
 )
 
 func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
@@ -68,7 +71,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 
 func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (revision.Decimal, error) {
 	counterID := make([]byte, 2)
-	_, err := rand.Read(counterID)
+	_, err := rand.New(rng).Read(counterID)
 	if err != nil {
 		return revision.NoRevision, fmt.Errorf("unable to select random counter: %w", err)
 	}
