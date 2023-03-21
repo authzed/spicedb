@@ -123,21 +123,8 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 		return uncomparable
 	}
 
-	var rhsHasMoreInfo bool
-	for _, txid := range append(s.xipList, s.xmax) {
-		if rhs.txVisible(txid) {
-			rhsHasMoreInfo = true
-			break
-		}
-	}
-
-	var lhsHasMoreInfo bool
-	for _, txid := range append(rhs.xipList, rhs.xmax) {
-		if s.txVisible(txid) {
-			lhsHasMoreInfo = true
-			break
-		}
-	}
+	rhsHasMoreInfo := rhs.anyTXVisible(s.xmax, s.xipList)
+	lhsHasMoreInfo := s.anyTXVisible(rhs.xmax, rhs.xipList)
 
 	switch {
 	case rhsHasMoreInfo && lhsHasMoreInfo:
@@ -151,6 +138,19 @@ func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 	}
 }
 
+func (s pgSnapshot) anyTXVisible(first uint64, others []uint64) bool {
+	if s.txVisible(first) {
+		return true
+	}
+	for _, txid := range others {
+		if s.txVisible(txid) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // markComplete will create a new snapshot where the specified transaction will be marked as
 // complete and visible. For example, if txid was present in the xip list of this snapshot
 // it will be removed and the xmin and xmax will be adjusted accordingly.
@@ -160,10 +160,13 @@ func (s pgSnapshot) markComplete(txid uint64) pgSnapshot {
 		return s
 	}
 
+	xipListCopy := make([]uint64, len(s.xipList))
+	copy(xipListCopy, s.xipList)
+
 	newSnapshot := pgSnapshot{
 		s.xmin,
 		s.xmax,
-		s.xipList,
+		xipListCopy,
 		pgtype.Present,
 	}
 
@@ -202,10 +205,13 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 		return s
 	}
 
+	xipListCopy := make([]uint64, len(s.xipList))
+	copy(xipListCopy, s.xipList)
+
 	newSnapshot := pgSnapshot{
 		s.xmin,
 		s.xmax,
-		s.xipList,
+		xipListCopy,
 		pgtype.Present,
 	}
 
