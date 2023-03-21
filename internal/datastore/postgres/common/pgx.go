@@ -9,7 +9,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/jackc/pgx/v4"

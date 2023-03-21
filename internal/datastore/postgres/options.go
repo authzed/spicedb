@@ -5,7 +5,6 @@ import (
 	"time"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
-	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 type postgresOptions struct {
@@ -29,7 +28,7 @@ type postgresOptions struct {
 
 	logger *tracingLogger
 
-	queryInterceptor common.QueryInterceptor
+	queryInterceptor pgxcommon.QueryInterceptor
 }
 
 type migrationPhase uint8
@@ -306,7 +305,7 @@ func DebugAnalyzeBeforeStatistics() Option {
 // WithQueryInterceptor adds an interceptor to all underlying postgres queries
 //
 // By default, no query interceptor is used.
-func WithQueryInterceptor(interceptor common.QueryInterceptor) Option {
+func WithQueryInterceptor(interceptor pgxcommon.QueryInterceptor) Option {
 	return func(po *postgresOptions) {
 		po.queryInterceptor = interceptor
 	}
