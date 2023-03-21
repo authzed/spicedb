@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -24,6 +27,7 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 func TestPostgresDatastore(t *testing.T) {
@@ -117,6 +121,14 @@ func TestPostgresDatastore(t *testing.T) {
 
 			t.Run("WatchNotEnabled", func(t *testing.T) {
 				WatchNotEnabledTest(t, b)
+			})
+
+			t.Run("QueriesServedFromCoveringIndex", func(t *testing.T) {
+				QueriesServedFromCoveringIndexTest(t, b)
+			})
+
+			t.Run("GCQueriesServedByExpectedIndexes", func(t *testing.T) {
+				GCQueriesServedByExpectedIndexes(t, b)
 			})
 
 			if config.migrationPhase == "" {
@@ -868,4 +880,328 @@ func BenchmarkPostgresQuery(b *testing.B) {
 			require.NoError(iter.Err())
 		}
 	})
+}
+
+func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.QueryInterceptor) datastore.Datastore {
+	require := require.New(t)
+
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+		ds, err := newPostgresDatastore(uri,
+			RevisionQuantization(0),
+			GCWindow(time.Millisecond*1),
+			WatchBufferLength(1),
+			WithQueryInterceptor(interceptor),
+		)
+		require.NoError(err)
+		return ds
+	})
+	t.Cleanup(func() {
+		ds.Close()
+	})
+
+	ds, _ = testfixtures.StandardDatastoreWithData(ds, require)
+
+	// Write namespaces and a few thousand relationships.
+	ctx := context.Background()
+	for i := 0; i < 1000; i++ {
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			err := rwt.WriteNamespaces(ctx, namespace.Namespace(
+				fmt.Sprintf("resource%d", i),
+				namespace.MustRelation("reader", nil)))
+			if err != nil {
+				return err
+			}
+
+			// Write some relationships.
+			rtu := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: testfixtures.DocumentNS.Name,
+					ObjectId:  fmt.Sprintf("doc%d", i),
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu2 := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu3 := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "writer",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2, rtu3})
+		})
+		require.NoError(err)
+	}
+
+	// Delete some relationships.
+	for i := 990; i < 1000; i++ {
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			rtu := tuple.Delete(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: testfixtures.DocumentNS.Name,
+					ObjectId:  fmt.Sprintf("doc%d", i),
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu2 := tuple.Delete(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+		})
+		require.NoError(err)
+	}
+
+	// Write some more relationships.
+	for i := 1000; i < 1100; i++ {
+		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			// Write some relationships.
+			rtu := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: testfixtures.DocumentNS.Name,
+					ObjectId:  fmt.Sprintf("doc%d", i),
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+
+			rtu2 := tuple.Touch(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: fmt.Sprintf("resource%d", i),
+					ObjectId:  "123",
+					Relation:  "reader",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "456",
+					Relation:  "...",
+				},
+			})
+			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+		})
+		require.NoError(err)
+	}
+
+	return ds
+}
+
+func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	require := require.New(t)
+	interceptor := &selectQueryInterceptor{explanations: make(map[string]string, 0)}
+	ds := datastoreWithInterceptorAndTestData(t, interceptor)
+
+	// Get the head revision.
+	ctx := context.Background()
+	revision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// regular expression to identify indexes used
+	expr, err := regexp.Compile("using ([0-9A-Za-z-_]+)")
+	require.NoError(err)
+
+	validateIndexesUsed := func(expectedIndexes ...string) {
+		require.NotEmpty(interceptor.explanations, "expected queries to be executed")
+
+		// Ensure that Index Only scans were used.
+		for stmt, explanation := range interceptor.explanations {
+			require.NotContains(explanation, "Index Scan", "statement did not have covering index:\n`%s`", stmt)
+			require.NotContains(explanation, "Heap Scan", "statement did not have covering index:\n`%s`", stmt)
+			require.Contains(explanation, "Index Only Scan", "statement did not have covering index:\n`%s`", stmt)
+
+			// parse explain output to identify indexes used, and make sure it is what's expected in the test
+			found := expr.FindAllStringSubmatch(explanation, -1)
+			indexesFound := make([]string, 0, len(found))
+			for _, group := range found {
+				indexesFound = append(indexesFound, group[1])
+			}
+			indexSet := util.NewSet(indexesFound...)
+			indexSet.RemoveAll(util.NewSet(expectedIndexes...))
+			require.True(indexSet.IsEmpty(), "unexpected index %s\nused in statement %s\nexplain: %s", indexSet.AsSlice(), stmt, explanation)
+		}
+	}
+
+	t.Run("QueryRelationships with resource filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:        testfixtures.DocumentNS.Name,
+			OptionalResourceIds: []string{"doc0", "doc1"},
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+		}
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with caveat filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			OptionalCaveatName: "rando",
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+		require.Nil(iter.Next())
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with resource relation filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:             testfixtures.DocumentNS.Name,
+			OptionalResourceIds:      []string{"doc0", "doc1"},
+			OptionalResourceRelation: "reader",
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			require.Equal("reader", tpl.ResourceAndRelation.Relation)
+		}
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with non-terminal subject selector in filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:             testfixtures.DocumentNS.Name,
+			OptionalResourceIds:      []string{"doc0", "doc1"},
+			OptionalResourceRelation: "reader",
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
+				},
+			},
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			require.Equal("reader", tpl.ResourceAndRelation.Relation)
+		}
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+
+	t.Run("QueryRelationships with terminal subject selectors in filter", func(t *testing.T) {
+		interceptor.explanations = make(map[string]string, 0)
+		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+			ResourceType:             testfixtures.DocumentNS.Name,
+			OptionalResourceIds:      []string{"doc0", "doc1"},
+			OptionalResourceRelation: "reader",
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					OptionalSubjectType: "user",
+					OptionalSubjectIds:  []string{"456"},
+					RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation("..."),
+				},
+			},
+		})
+		require.NoError(err)
+
+		defer iter.Close()
+
+		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			require.Equal("reader", tpl.ResourceAndRelation.Relation)
+		}
+		require.NoError(iter.Err())
+		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
+	})
+}
+
+func GCQueriesServedByExpectedIndexes(t *testing.T, b testdatastore.RunningEngineForTest) {
+	require := require.New(t)
+	interceptor := &withQueryInterceptor{explanations: make(map[string]string, 0)}
+	ds := datastoreWithInterceptorAndTestData(t, interceptor)
+
+	// Get the head revision.
+	ctx := context.Background()
+	revision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	for {
+		wds, ok := ds.(datastore.UnwrappableDatastore)
+		if !ok {
+			break
+		}
+		ds = wds.Unwrap()
+	}
+
+	casted, ok := ds.(common.GarbageCollector)
+	require.True(ok)
+
+	_, err = casted.DeleteBeforeTx(context.Background(), revision)
+	require.NoError(err)
+
+	require.NotEmpty(interceptor.explanations, "expected queries to be executed")
+
+	// Ensure we have indexes representing each query in the GC workflow.
+	for _, explanation := range interceptor.explanations {
+		switch {
+		case strings.HasPrefix(explanation, "Delete on relation_tuple_transaction"):
+			fallthrough
+
+		case strings.HasPrefix(explanation, "Delete on namespace_config"):
+			fallthrough
+
+		case strings.HasPrefix(explanation, "Delete on relation_tuple"):
+			require.Contains(explanation, "Index Scan")
+
+		default:
+			require.Failf("unknown GC query: %s", explanation)
+		}
+	}
 }

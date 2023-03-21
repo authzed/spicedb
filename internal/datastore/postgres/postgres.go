@@ -225,8 +225,8 @@ func newPostgresDatastore(
 			maxRevisionStaleness,
 		),
 		dburl:                   url,
-		readPool:                readPool,
-		writePool:               writePool,
+		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
+		writePool:               pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor),
 		watchBufferLength:       config.watchBufferLength,
 		optimizedRevisionQuery:  revisionQuery,
 		validTransactionQuery:   validTransactionQuery,
@@ -267,7 +267,7 @@ type pgDatastore struct {
 	*revisions.CachedOptimizedRevisions
 
 	dburl                   string
-	readPool, writePool     *pgxpool.Pool
+	readPool, writePool     pgxcommon.ConnPooler
 	watchBufferLength       uint16
 	optimizedRevisionQuery  string
 	validTransactionQuery   string

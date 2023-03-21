@@ -42,6 +42,10 @@ func (vd validatingDatastore) ReadWriteTx(
 	})
 }
 
+func (vd validatingDatastore) Unwrap() datastore.Datastore {
+	return vd.Datastore
+}
+
 type validatingSnapshotReader struct {
 	delegate datastore.Reader
 }
