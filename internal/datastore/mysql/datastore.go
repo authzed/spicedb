@@ -445,7 +445,7 @@ func (mds *Datastore) Close() error {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	mds.cancelGc()
 	if mds.gcGroup != nil {
-		if err := mds.gcGroup.Wait(); err != nil {
+		if err := mds.gcGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error().Err(err).Msg("error waiting for garbage collector to shutdown")
 		}
 	}
@@ -523,61 +523,54 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 	if isSeeded {
 		return nil
 	}
-	tx, err := mds.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer common.LogOnError(ctx, tx.Rollback)
 
-	// idempotent INSERT IGNORE transaction id=1. safe to be executed concurrently.
-	result, err := tx.ExecContext(ctx, mds.createBaseTxn)
-	if err != nil {
-		return fmt.Errorf("seedDatabase: %w", err)
-	}
+	// this seeds the transaction table with the first transaction, in a way that is idempotent
+	return migrations.BeginTxFunc(ctx, mds.db, nil, func(tx *sql.Tx) error {
+		// idempotent INSERT IGNORE transaction id=1. safe to be executed concurrently.
+		result, err := tx.ExecContext(ctx, mds.createBaseTxn)
+		if err != nil {
+			return fmt.Errorf("seedDatabase: %w", err)
+		}
 
-	lastInsertID, err := result.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("seedDatabase: failed to get last inserted id: %w", err)
-	}
+		lastInsertID, err := result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("seedDatabase: failed to get last inserted id: %w", err)
+		}
 
-	if lastInsertID != noLastInsertID {
-		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
-		// was already seeded by another processes (i.e. race condition).
-		log.Ctx(ctx).Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
-	}
+		if lastInsertID != noLastInsertID {
+			// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
+			// was already seeded by another processes (i.e. race condition).
+			log.Ctx(ctx).Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore headRevision")
+		}
 
-	uuidSQL, uuidArgs, err := sb.
-		Insert(mds.driver.Metadata()).
-		Options("IGNORE").
-		Columns(metadataIDColumn, metadataUniqueIDColumn).
-		Values(0, uuid.NewString()).
-		ToSql()
-	if err != nil {
-		return fmt.Errorf("seedDatabase: failed to prepare SQL: %w", err)
-	}
+		uuidSQL, uuidArgs, err := sb.
+			Insert(mds.driver.Metadata()).
+			Options("IGNORE").
+			Columns(metadataIDColumn, metadataUniqueIDColumn).
+			Values(0, uuid.NewString()).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf("seedDatabase: failed to prepare SQL: %w", err)
+		}
 
-	insertUniqueResult, err := tx.ExecContext(ctx, uuidSQL, uuidArgs...)
-	if err != nil {
-		return fmt.Errorf("seedDatabase: failed to insert unique ID: %w", err)
-	}
+		insertUniqueResult, err := tx.ExecContext(ctx, uuidSQL, uuidArgs...)
+		if err != nil {
+			return fmt.Errorf("seedDatabase: failed to insert unique ID: %w", err)
+		}
 
-	lastInsertID, err = insertUniqueResult.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("seedDatabase: failed to get last inserted unique id: %w", err)
-	}
+		lastInsertID, err = insertUniqueResult.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("seedDatabase: failed to get last inserted unique id: %w", err)
+		}
 
-	if lastInsertID != noLastInsertID {
-		// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
-		// was already seeded by another processes (i.e. race condition).
-		log.Ctx(ctx).Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore unique ID")
-	}
+		if lastInsertID != noLastInsertID {
+			// If there was no error and `lastInsertID` is 0, the insert was ignored. This indicates the transaction
+			// was already seeded by another processes (i.e. race condition).
+			log.Ctx(ctx).Info().Int64("headRevision", lastInsertID).Msg("seeded base datastore unique ID")
+		}
 
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor

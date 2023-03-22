@@ -74,7 +74,7 @@ func columnNameToRevision(columnName string) (string, bool) {
 func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 	query, args, err := sb.Select("*").From(driver.migrationVersion()).ToSql()
 	if err != nil {
-		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
+		return "", fmt.Errorf("unable to generate query for revision: %w", err)
 	}
 
 	rows, err := driver.db.QueryContext(ctx, query, args...)
@@ -83,15 +83,15 @@ func (driver *MySQLDriver) Version(ctx context.Context) (string, error) {
 		if errors.As(err, &mysqlError) && mysqlError.Number == mysqlMissingTableErrorNumber {
 			return "", nil
 		}
-		return "", fmt.Errorf("unable to load driver migration revision: %w", err)
+		return "", fmt.Errorf("unable to query revision: %w", err)
 	}
 	defer common.LogOnError(ctx, rows.Close)
 	if rows.Err() != nil {
-		return "", fmt.Errorf("unable to load driver migration revision: %w", rows.Err())
+		return "", fmt.Errorf("unable to load revision row: %w", rows.Err())
 	}
 	cols, err := rows.Columns()
 	if err != nil {
-		return "", fmt.Errorf("failed to get columns: %w", err)
+		return "", fmt.Errorf("failed to get columns from revision row: %w", err)
 	}
 
 	for _, col := range cols {
@@ -125,17 +125,12 @@ func BeginTxFunc(ctx context.Context, db *sql.DB, txOptions *sql.TxOptions, f fu
 	if err != nil {
 		return err
 	}
-	defer common.LogOnError(ctx, tx.Rollback)
 
 	if err := f(tx); err != nil {
-		return err
+		return errors.Join(err, tx.Rollback())
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 // WriteVersion overwrites the _meta_version_ column name which encodes the version
