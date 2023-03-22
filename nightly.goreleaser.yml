@@ -35,7 +35,7 @@ dockers:
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
-      - "--build-arg=BASE=distroless.dev/busybox"
+      - "--build-arg=BASE=cgr.dev/chainguard/busybox"
   # ARM64
   - image_templates:
       - &arm_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
@@ -58,7 +58,7 @@ dockers:
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/arm64"
-      - "--build-arg=BASE=distroless.dev/busybox"
+      - "--build-arg=BASE=cgr.dev/chainguard/busybox"
 docker_manifests:
   # Quay
   - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
