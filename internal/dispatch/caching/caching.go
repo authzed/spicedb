@@ -415,8 +415,22 @@ func (cd *Dispatcher) Close() error {
 	return nil
 }
 
-func (cd *Dispatcher) IsReady() bool {
-	return cd.c != nil && cd.d.IsReady()
+func (cd *Dispatcher) ReadyState() dispatch.ReadyState {
+	if cd.c == nil {
+		return dispatch.ReadyState{
+			IsReady: false,
+			Message: "caching dispatcher is missing cache",
+		}
+	}
+
+	if cd.d == nil {
+		return dispatch.ReadyState{
+			IsReady: false,
+			Message: "caching dispatcher is missing delegate dispatcher",
+		}
+	}
+
+	return cd.d.ReadyState()
 }
 
 // Always verify that we implement the interfaces

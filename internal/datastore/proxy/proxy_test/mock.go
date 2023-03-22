@@ -59,9 +59,9 @@ func (dm *MockDatastore) Watch(ctx context.Context, afterRevision datastore.Revi
 	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)
 }
 
-func (dm *MockDatastore) IsReady(ctx context.Context) (bool, error) {
+func (dm *MockDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	args := dm.Called()
-	return args.Bool(0), args.Error(1)
+	return args.Get(0).(datastore.ReadyState), args.Error(1)
 }
 
 func (dm *MockDatastore) Features(ctx context.Context) (*datastore.Features, error) {

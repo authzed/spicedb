@@ -452,7 +452,7 @@ func (mds *Datastore) Close() error {
 	return mds.db.Close()
 }
 
-// IsReady returns whether the datastore is ready to accept data. Datastores that require
+// ReadyState returns whether the datastore is ready to accept data. Datastores that require
 // database schema creation will return false until the migrations have been run to create
 // the necessary tables.
 //
@@ -460,33 +460,42 @@ func (mds *Datastore) Close() error {
 //   - checking if the current migration version is compatible is implemented with IsHeadCompatible
 //   - Database seeding is handled here, so that we can decouple schema migration from data migration
 //     and support skeema-based migrations.
-func (mds *Datastore) IsReady(ctx context.Context) (bool, error) {
+func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	if err := mds.db.PingContext(ctx); err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 
 	currentMigrationRevision, err := mds.driver.Version(ctx)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 
 	compatible, err := migrations.Manager.IsHeadCompatible(currentMigrationRevision)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 	if !compatible {
-		return false, nil
+		return datastore.ReadyState{
+			Message: "datastore is not at a currently compatible revision",
+			IsReady: false,
+		}, nil
 	}
 
 	isSeeded, err := mds.isSeeded(ctx)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 	if !isSeeded {
-		return false, nil
+		return datastore.ReadyState{
+			Message: "datastore is not properly seeded",
+			IsReady: false,
+		}, nil
 	}
 
-	return true, nil
+	return datastore.ReadyState{
+		Message: "",
+		IsReady: true,
+	}, nil
 }
 
 func (mds *Datastore) Features(ctx context.Context) (*datastore.Features, error) {

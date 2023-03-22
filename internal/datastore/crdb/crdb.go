@@ -312,24 +312,35 @@ func (cds *crdbDatastore) ReadWriteTx(
 	return commitTimestamp, nil
 }
 
-func (cds *crdbDatastore) IsReady(ctx context.Context) (bool, error) {
+func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	headMigration, err := migrations.CRDBMigrations.HeadRevision()
 	if err != nil {
-		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
+		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
 	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 	defer currentRevision.Close(ctx)
 
 	version, err := currentRevision.Version(ctx)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 
-	return version == headMigration, nil
+	if version == headMigration {
+		return datastore.ReadyState{IsReady: true}, nil
+	}
+
+	return datastore.ReadyState{
+		Message: fmt.Sprintf(
+			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
+			version,
+			headMigration,
+		),
+		IsReady: false,
+	}, nil
 }
 
 func (cds *crdbDatastore) Close() error {

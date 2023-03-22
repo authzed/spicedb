@@ -262,6 +262,15 @@ type ReadWriteTransaction interface {
 // TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.
 type TxUserFunc func(ReadWriteTransaction) error
 
+// ReadyState represents the ready state of the datastore.
+type ReadyState struct {
+	// Message is a human-readable status message for the current state.
+	Message string
+
+	// IsReady indicates whether the datastore is ready.
+	IsReady bool
+}
+
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
@@ -293,10 +302,10 @@ type Datastore interface {
 	// All events following afterRevision will be sent to the caller.
 	Watch(ctx context.Context, afterRevision Revision) (<-chan *RevisionChanges, <-chan error)
 
-	// IsReady returns whether the datastore is ready to accept data. Datastores that require
-	// database schema creation will return false until the migrations have been run to create
-	// the necessary tables.
-	IsReady(ctx context.Context) (bool, error)
+	// ReadyState returns a state indicating whether the datastore is ready to accept data.
+	// Datastores that require database schema creation will return not-ready until the migrations
+	// have been run to create the necessary tables.
+	ReadyState(ctx context.Context) (ReadyState, error)
 
 	// Features returns an object representing what features this
 	// datastore can support.

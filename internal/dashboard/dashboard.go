@@ -118,7 +118,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 			return
 		}
 
-		isReady, err := ds.IsReady(r.Context())
+		state, err := ds.ReadyState(r.Context())
 		if err != nil {
 			log.Ctx(r.Context()).Error().AnErr("templateError", err).Msg("Got error when checking database")
 			fmt.Fprintf(w, "Internal Error")
@@ -127,7 +127,7 @@ func NewHandler(grpcAddr string, grpcTLSEnabled bool, datastoreEngine string, ds
 
 		schema := ""
 		hasSampleSchema := false
-
+		isReady := state.IsReady
 		if isReady {
 			var objectDefs []string
 			userFound := false

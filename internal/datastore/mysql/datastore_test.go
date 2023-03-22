@@ -49,7 +49,7 @@ func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gc
 		require.NoError(dst.t, err)
 		return ds
 	})
-	_, err := ds.IsReady(context.Background())
+	_, err := ds.ReadyState(context.Background())
 	require.NoError(dst.t, err)
 	return ds, nil
 }
@@ -123,16 +123,16 @@ func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
 	req.NoError(err)
 	req.True(isSeeded, "expected datastore to be seeded after initialization")
 
-	ready, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ready)
+	req.True(r.IsReady)
 }
 
 func PrometheusCollectorTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	// cause some use of the SQL connection pool to generate metrics
-	_, err := ds.IsReady(context.Background())
+	_, err := ds.ReadyState(context.Background())
 	req.NoError(err)
 
 	metrics, err := prometheus.DefaultGatherer.Gather()
@@ -154,9 +154,9 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ok)
+	req.True(r.IsReady)
 
 	// Write basic namespaces.
 	writtenAt, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
@@ -292,9 +292,9 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ok)
+	req.True(r.IsReady)
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
@@ -365,9 +365,9 @@ func EmptyGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ok)
+	req.True(r.IsReady)
 
 	gc := ds.(common.GarbageCollector)
 
@@ -389,9 +389,9 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 	req := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ok)
+	req.True(r.IsReady)
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
@@ -426,9 +426,9 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ok)
+	req.True(r.IsReady)
 
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
@@ -612,9 +612,9 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	_, err := db.ExecContext(ctx, "SET GLOBAL time_zone = 'America/New_York';")
 	req.NoError(err)
 
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	req.NoError(err)
-	req.True(ok)
+	req.True(r.IsReady)
 
 	// Get timestamp in UTC as reference
 	startTimeUTC, err := ds.(*Datastore).Now(ctx)

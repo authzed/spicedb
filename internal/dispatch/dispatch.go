@@ -14,6 +14,15 @@ import (
 // ErrMaxDepth is returned from CheckDepth when the max depth is exceeded.
 var ErrMaxDepth = errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency")
 
+// ReadyState represents the ready state of the dispatcher.
+type ReadyState struct {
+	// Message is a human-readable status message for the current state.
+	Message string
+
+	// IsReady indicates whether the datastore is ready.
+	IsReady bool
+}
+
 // Dispatcher interface describes a method for passing subchecks off to additional machines.
 type Dispatcher interface {
 	Check
@@ -25,8 +34,8 @@ type Dispatcher interface {
 	// Close closes the dispatcher.
 	Close() error
 
-	// IsReady returns true when dispatcher is able to respond to requests
-	IsReady() bool
+	// ReadyState returns true when dispatcher is able to respond to requests
+	ReadyState() ReadyState
 }
 
 // Check interface describes just the methods required to dispatch check requests.

@@ -397,24 +397,35 @@ func errorRetryable(err error) bool {
 	return pgerr.SQLState() == pgSerializationFailure || pgerr.SQLState() == pgUniqueConstraintViolation
 }
 
-func (pgd *pgDatastore) IsReady(ctx context.Context) (bool, error) {
+func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
 	if err != nil {
-		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
+		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
 	currentRevision, err := migrations.NewAlembicPostgresDriver(pgd.dburl)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 	defer currentRevision.Close(ctx)
 
 	version, err := currentRevision.Version(ctx)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 
-	return version == headMigration, nil
+	if version == headMigration {
+		return datastore.ReadyState{IsReady: true}, nil
+	}
+
+	return datastore.ReadyState{
+		Message: fmt.Sprintf(
+			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
+			version,
+			headMigration,
+		),
+		IsReady: false,
+	}, nil
 }
 
 func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, error) {

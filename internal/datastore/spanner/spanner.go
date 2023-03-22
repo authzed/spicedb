@@ -165,24 +165,35 @@ func (sd spannerDatastore) ReadWriteTx(
 	return revisionFromTimestamp(ts), nil
 }
 
-func (sd spannerDatastore) IsReady(ctx context.Context) (bool, error) {
+func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	headMigration, err := migrations.SpannerMigrations.HeadRevision()
 	if err != nil {
-		return false, fmt.Errorf("invalid head migration found for postgres: %w", err)
+		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for spanner: %w", err)
 	}
 
 	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath, sd.config.emulatorHost)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 	defer currentRevision.Close(ctx)
 
 	version, err := currentRevision.Version(ctx)
 	if err != nil {
-		return false, err
+		return datastore.ReadyState{}, err
 	}
 
-	return version == headMigration, nil
+	if version == headMigration {
+		return datastore.ReadyState{IsReady: true}, nil
+	}
+
+	return datastore.ReadyState{
+		Message: fmt.Sprintf(
+			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
+			version,
+			headMigration,
+		),
+		IsReady: false,
+	}, nil
 }
 
 func (sd spannerDatastore) Features(ctx context.Context) (*datastore.Features, error) {

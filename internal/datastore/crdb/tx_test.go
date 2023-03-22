@@ -130,9 +130,9 @@ func TestTxReset(t *testing.T) {
 			defer ds.Close()
 
 			ctx := context.Background()
-			ok, err := ds.IsReady(ctx)
+			r, err := ds.ReadyState(ctx)
 			require.NoError(err)
-			require.True(ok)
+			require.True(r.IsReady)
 
 			// WriteNamespace utilizes execute so we'll use it
 			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
