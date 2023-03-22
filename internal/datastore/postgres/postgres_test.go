@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +26,6 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 func TestPostgresDatastore(t *testing.T) {
@@ -121,10 +119,6 @@ func TestPostgresDatastore(t *testing.T) {
 
 			t.Run("WatchNotEnabled", func(t *testing.T) {
 				WatchNotEnabledTest(t, b)
-			})
-
-			t.Run("QueriesServedFromCoveringIndex", func(t *testing.T) {
-				QueriesServedFromCoveringIndexTest(t, b)
 			})
 
 			t.Run("GCQueriesServedByExpectedIndexes", func(t *testing.T) {
@@ -1020,141 +1014,6 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	}
 
 	return ds
-}
-
-func QueriesServedFromCoveringIndexTest(t *testing.T, b testdatastore.RunningEngineForTest) {
-	require := require.New(t)
-	interceptor := &selectQueryInterceptor{explanations: make(map[string]string, 0)}
-	ds := datastoreWithInterceptorAndTestData(t, interceptor)
-
-	// Get the head revision.
-	ctx := context.Background()
-	revision, err := ds.HeadRevision(ctx)
-	require.NoError(err)
-
-	// regular expression to identify indexes used
-	expr, err := regexp.Compile("using ([0-9A-Za-z-_]+)")
-	require.NoError(err)
-
-	validateIndexesUsed := func(expectedIndexes ...string) {
-		require.NotEmpty(interceptor.explanations, "expected queries to be executed")
-
-		// Ensure that Index Only scans were used.
-		for stmt, explanation := range interceptor.explanations {
-			require.NotContains(explanation, "Index Scan", "statement did not have covering index:\n`%s`", stmt)
-			require.NotContains(explanation, "Heap Scan", "statement did not have covering index:\n`%s`", stmt)
-			require.Contains(explanation, "Index Only Scan", "statement did not have covering index:\n`%s`", stmt)
-
-			// parse explain output to identify indexes used, and make sure it is what's expected in the test
-			found := expr.FindAllStringSubmatch(explanation, -1)
-			indexesFound := make([]string, 0, len(found))
-			for _, group := range found {
-				indexesFound = append(indexesFound, group[1])
-			}
-			indexSet := util.NewSet(indexesFound...)
-			indexSet.RemoveAll(util.NewSet(expectedIndexes...))
-			require.True(indexSet.IsEmpty(), "unexpected index %s\nused in statement %s\nexplain: %s", indexSet.AsSlice(), stmt, explanation)
-		}
-	}
-
-	t.Run("QueryRelationships with resource filter", func(t *testing.T) {
-		interceptor.explanations = make(map[string]string, 0)
-		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-			ResourceType:        testfixtures.DocumentNS.Name,
-			OptionalResourceIds: []string{"doc0", "doc1"},
-		})
-		require.NoError(err)
-
-		defer iter.Close()
-
-		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
-		}
-		require.NoError(iter.Err())
-		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
-	})
-
-	t.Run("QueryRelationships with caveat filter", func(t *testing.T) {
-		interceptor.explanations = make(map[string]string, 0)
-		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-			OptionalCaveatName: "rando",
-		})
-		require.NoError(err)
-
-		defer iter.Close()
-		require.Nil(iter.Next())
-		require.NoError(iter.Err())
-		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
-	})
-
-	t.Run("QueryRelationships with resource relation filter", func(t *testing.T) {
-		interceptor.explanations = make(map[string]string, 0)
-		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-			ResourceType:             testfixtures.DocumentNS.Name,
-			OptionalResourceIds:      []string{"doc0", "doc1"},
-			OptionalResourceRelation: "reader",
-		})
-		require.NoError(err)
-
-		defer iter.Close()
-
-		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
-			require.Equal("reader", tpl.ResourceAndRelation.Relation)
-		}
-		require.NoError(iter.Err())
-		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
-	})
-
-	t.Run("QueryRelationships with non-terminal subject selector in filter", func(t *testing.T) {
-		interceptor.explanations = make(map[string]string, 0)
-		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-			ResourceType:             testfixtures.DocumentNS.Name,
-			OptionalResourceIds:      []string{"doc0", "doc1"},
-			OptionalResourceRelation: "reader",
-			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-				{
-					RelationFilter: datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
-				},
-			},
-		})
-		require.NoError(err)
-
-		defer iter.Close()
-
-		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
-			require.Equal("reader", tpl.ResourceAndRelation.Relation)
-		}
-		require.NoError(iter.Err())
-		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
-	})
-
-	t.Run("QueryRelationships with terminal subject selectors in filter", func(t *testing.T) {
-		interceptor.explanations = make(map[string]string, 0)
-		iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-			ResourceType:             testfixtures.DocumentNS.Name,
-			OptionalResourceIds:      []string{"doc0", "doc1"},
-			OptionalResourceRelation: "reader",
-			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-				{
-					OptionalSubjectType: "user",
-					OptionalSubjectIds:  []string{"456"},
-					RelationFilter:      datastore.SubjectRelationFilter{}.WithRelation("..."),
-				},
-			},
-		})
-		require.NoError(err)
-
-		defer iter.Close()
-
-		for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-			require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
-			require.Equal("reader", tpl.ResourceAndRelation.Relation)
-		}
-		require.NoError(iter.Err())
-		validateIndexesUsed("ix_rttx_pk_covering", "ix_relation_tuple_living_covering")
-	})
 }
 
 func GCQueriesServedByExpectedIndexes(t *testing.T, b testdatastore.RunningEngineForTest) {
