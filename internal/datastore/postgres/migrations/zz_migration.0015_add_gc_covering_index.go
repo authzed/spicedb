@@ -13,7 +13,7 @@ const createRelationTupleDeletedCoveringIndex = `CREATE INDEX CONCURRENTLY
 	WHERE (deleted_xid::text::bigint < 9223372036854775807);`
 
 func init() {
-	if err := DatabaseMigrations.Register("add-gc-covering-index", "add-caveat-covering-index",
+	if err := DatabaseMigrations.Register("add-gc-covering-index", "drop-bigserial-ids",
 		func(ctx context.Context, conn *pgx.Conn) error {
 			if _, err := conn.Exec(ctx, createRelationTupleDeletedCoveringIndex); err != nil {
 				return err
