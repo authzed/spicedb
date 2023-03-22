@@ -254,7 +254,7 @@ definition document {
 	permission view = viewer + edit + parent->view
 	permission other = viewer - edit
 	permission intersect = viewer & edit
-	permission with_nil = ((viewer - edit) & parent->view) & nil
+	permission with_nil = (viewer - edit) & parent->view & nil
 }`
 
 	// Compile namespace to write to the datastore.

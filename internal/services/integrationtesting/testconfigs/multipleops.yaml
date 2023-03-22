@@ -1,0 +1,58 @@
+---
+schema: >-
+  definition user {}
+
+  definition resource {
+    relation first: user
+    relation second: user
+    relation third: user
+    relation banned: user
+    relation must_be_here: user
+    relation also_must_be_here: user
+    permission computed = (first + second + (third - banned)) & must_be_here & also_must_be_here
+    permission computed2 = must_be_here & also_must_be_here & ((third - banned) + first + second)
+    permission computed3 = (must_be_here & also_must_be_here) & ((third - banned) + first + second)
+  }
+relationships: |
+  // tom is present via `first`
+  resource:r0#first@user:tom
+  resource:r0#must_be_here@user:tom
+  resource:r0#also_must_be_here@user:tom
+
+  // sarah is present via `first` but is missing from `must_be_here`
+  resource:r0#first@user:sarah
+  resource:r0#also_must_be_here@user:sarah
+
+  // amy is present via `third` and not banned.
+  resource:r0#third@user:amy
+  resource:r0#must_be_here@user:amy
+  resource:r0#also_must_be_here@user:amy
+
+  // fred is present via `third` but is banned.
+  resource:r0#third@user:fred
+  resource:r0#must_be_here@user:fred
+  resource:r0#banned@user:fred
+  resource:r0#also_must_be_here@user:fred
+
+  // jane is present via `second`
+  resource:r0#second@user:jane
+  resource:r0#must_be_here@user:jane
+  resource:r0#also_must_be_here@user:jane
+assertions:
+  assertTrue:
+    - "resource:r0#computed@user:tom"
+    - "resource:r0#computed@user:amy"
+    - "resource:r0#computed@user:jane"
+    - "resource:r0#computed2@user:tom"
+    - "resource:r0#computed2@user:amy"
+    - "resource:r0#computed2@user:jane"
+    - "resource:r0#computed3@user:tom"
+    - "resource:r0#computed3@user:amy"
+    - "resource:r0#computed3@user:jane"
+  assertFalse:
+    - "resource:r0#computed@user:sarah"
+    - "resource:r0#computed@user:fred"
+    - "resource:r0#computed2@user:sarah"
+    - "resource:r0#computed2@user:fred"
+    - "resource:r0#computed3@user:sarah"
+    - "resource:r0#computed3@user:fred"

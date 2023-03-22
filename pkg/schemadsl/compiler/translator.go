@@ -403,23 +403,54 @@ func translateExpression(tctx translationContext, expressionNode *dslNode) (*cor
 	return translated, nil
 }
 
+func collapseOps(op *core.SetOperation_Child, handler func(rewrite *core.UsersetRewrite) *core.SetOperation) []*core.SetOperation_Child {
+	if op.GetUsersetRewrite() == nil {
+		return []*core.SetOperation_Child{op}
+	}
+
+	usersetRewrite := op.GetUsersetRewrite()
+	operation := handler(usersetRewrite)
+	if operation == nil {
+		return []*core.SetOperation_Child{op}
+	}
+
+	collapsed := make([]*core.SetOperation_Child, 0, len(operation.Child))
+	for _, child := range operation.Child {
+		collapsed = append(collapsed, collapseOps(child, handler)...)
+	}
+	return collapsed
+}
+
 func translateExpressionDirect(tctx translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
+	// For union and intersection, we collapse a tree of binary operations into a flat list containing child
+	// operations of the *same* type.
+	translate := func(
+		builder func(firstChild *core.SetOperation_Child, rest ...*core.SetOperation_Child) *core.UsersetRewrite,
+		lookup func(rewrite *core.UsersetRewrite) *core.SetOperation,
+	) (*core.UsersetRewrite, error) {
+		leftOperation, rightOperation, err := translateBinary(tctx, expressionNode)
+		if err != nil {
+			return nil, err
+		}
+		leftOps := collapseOps(leftOperation, lookup)
+		rightOps := collapseOps(rightOperation, lookup)
+		ops := append(leftOps, rightOps...)
+		return builder(ops[0], ops[1:]...), nil
+	}
+
 	switch expressionNode.GetType() {
 	case dslshape.NodeTypeUnionExpression:
-		leftOperation, rightOperation, err := translateBinary(tctx, expressionNode)
-		if err != nil {
-			return nil, err
-		}
-		return namespace.Union(leftOperation, rightOperation), nil
+		return translate(namespace.Union, func(rewrite *core.UsersetRewrite) *core.SetOperation {
+			return rewrite.GetUnion()
+		})
 
 	case dslshape.NodeTypeIntersectExpression:
-		leftOperation, rightOperation, err := translateBinary(tctx, expressionNode)
-		if err != nil {
-			return nil, err
-		}
-		return namespace.Intersection(leftOperation, rightOperation), nil
+		return translate(namespace.Intersection, func(rewrite *core.UsersetRewrite) *core.SetOperation {
+			return rewrite.GetIntersection()
+		})
 
 	case dslshape.NodeTypeExclusionExpression:
+		// Order matters for exclusions, so do not perform the optimization.
 		leftOperation, rightOperation, err := translateBinary(tctx, expressionNode)
 		if err != nil {
 			return nil, err

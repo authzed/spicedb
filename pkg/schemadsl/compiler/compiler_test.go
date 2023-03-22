@@ -272,12 +272,8 @@ func TestCompile(t *testing.T) {
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
-							namespace.Rewrite(
-								namespace.Union(
-									namespace.ComputedUserset("bars"),
-									namespace.ComputedUserset("bazs"),
-								),
-							),
+							namespace.ComputedUserset("bars"),
+							namespace.ComputedUserset("bazs"),
 							namespace.ComputedUserset("mehs"),
 						),
 					),
@@ -452,12 +448,8 @@ func TestCompile(t *testing.T) {
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("foos",
 						namespace.Union(
-							namespace.Rewrite(
-								namespace.Union(
-									namespace.ComputedUserset("aaaa"),
-									namespace.Nil(),
-								),
-							),
+							namespace.ComputedUserset("aaaa"),
+							namespace.Nil(),
 							namespace.ComputedUserset("bbbb"),
 						),
 					),
@@ -714,6 +706,176 @@ func TestCompile(t *testing.T) {
 					},
 				), "sometenant/something",
 					`someMap.isSubtreeOf(anotherMap)`),
+			},
+		},
+		{
+			"union permission with multiple branches",
+			&someTenant,
+			`definition simple {
+				permission foos = first + second + third + fourth
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.ComputedUserset("third"),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"union permission with multiple branches, some not union",
+			&someTenant,
+			`definition simple {
+				permission foos = first + second + (foo - bar) + fourth
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.Rewrite(
+								namespace.Exclusion(
+									namespace.ComputedUserset("foo"),
+									namespace.ComputedUserset("bar"),
+								),
+							),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"intersection permission with multiple branches",
+			&someTenant,
+			`definition simple {
+				permission foos = first & second & third & fourth
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Intersection(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.ComputedUserset("third"),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"exclusion permission with multiple branches",
+			&someTenant,
+			`definition simple {
+				permission foos = first - second - third - fourth
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Exclusion(
+							namespace.Rewrite(
+								namespace.Exclusion(
+									namespace.Rewrite(
+										namespace.Exclusion(
+											namespace.ComputedUserset("first"),
+											namespace.ComputedUserset("second"),
+										),
+									),
+									namespace.ComputedUserset("third"),
+								),
+							),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"multiple levels of compressed nesting",
+			&someTenant,
+			`definition simple {
+				permission foos = (first + second) + (third + fourth)
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.ComputedUserset("third"),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"multiple levels",
+			&someTenant,
+			`definition simple {
+				permission foos = (first + second) + (middle & thing) + (third + fourth)
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.Rewrite(
+								namespace.Intersection(
+									namespace.ComputedUserset("middle"),
+									namespace.ComputedUserset("thing"),
+								),
+							),
+							namespace.ComputedUserset("third"),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"multiple reduction",
+			&someTenant,
+			`definition simple {
+				permission foos = first + second + (fourth & (sixth - seventh) & fifth) + third
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.Rewrite(
+								namespace.Intersection(
+									namespace.ComputedUserset("fourth"),
+									namespace.Rewrite(
+										namespace.Exclusion(
+											namespace.ComputedUserset("sixth"),
+											namespace.ComputedUserset("seventh"),
+										),
+									),
+									namespace.ComputedUserset("fifth"),
+								),
+							),
+							namespace.ComputedUserset("third"),
+						),
+					),
+				),
 			},
 		},
 	}
