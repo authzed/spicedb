@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -224,11 +225,14 @@ func (cr *clusterDispatcher) Close() error {
 	return nil
 }
 
-// IsReady returns whether the underlying dispatch connection is available
-func (cr *clusterDispatcher) IsReady() bool {
+// ReadyState returns whether the underlying dispatch connection is available
+func (cr *clusterDispatcher) ReadyState() dispatch.ReadyState {
 	state := cr.conn.GetState()
 	log.Trace().Interface("connection-state", state).Msg("checked if cluster dispatcher is ready")
-	return state == connectivity.Ready || state == connectivity.Idle
+	return dispatch.ReadyState{
+		IsReady: state == connectivity.Ready || state == connectivity.Idle,
+		Message: fmt.Sprintf("found expected state when trying to connect to cluster: %v", state),
+	}
 }
 
 // Always verify that we implement the interface

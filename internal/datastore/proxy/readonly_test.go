@@ -53,18 +53,18 @@ func TestRWOperationErrors(t *testing.T) {
 
 var expectedRevision = revision.NewFromDecimal(decimal.NewFromInt(123))
 
-func TestIsReadyPassthrough(t *testing.T) {
+func TestReadyStatePassthrough(t *testing.T) {
 	require := require.New(t)
 
 	delegate, _ := newReadOnlyMock()
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	delegate.On("IsReady").Return(true, nil).Times(1)
+	delegate.On("ReadyState").Return(datastore.ReadyState{IsReady: true}, nil).Times(1)
 
-	resp, err := ds.IsReady(ctx)
+	resp, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(resp)
+	require.True(resp.IsReady)
 	delegate.AssertExpectations(t)
 }
 

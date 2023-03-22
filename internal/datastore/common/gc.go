@@ -72,7 +72,7 @@ func RegisterGCMetrics() error {
 // GarbageCollector represents any datastore that supports external garbage
 // collection.
 type GarbageCollector interface {
-	IsReady(context.Context) (bool, error)
+	ReadyState(context.Context) (datastore.ReadyState, error)
 	Now(context.Context) (time.Time, error)
 	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
 	DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (DeletionCounts, error)
@@ -146,13 +146,13 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	defer cancel()
 
 	// Before attempting anything, check if the datastore is ready.
-	ready, err := gc.IsReady(ctx)
+	ready, err := gc.ReadyState(ctx)
 	if err != nil {
 		return err
 	}
-	if !ready {
+	if !ready.IsReady {
 		log.Ctx(ctx).Warn().
-			Msg("datastore wasn't ready when attempting garbage collection")
+			Msgf("datastore wasn't ready when attempting garbage collection: %s", ready.Message)
 		return nil
 	}
 

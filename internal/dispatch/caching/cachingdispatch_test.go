@@ -174,8 +174,8 @@ func (ddm delegateDispatchMock) Close() error {
 	return nil
 }
 
-func (ddm delegateDispatchMock) IsReady() bool {
-	return true
+func (ddm delegateDispatchMock) ReadyState() dispatch.ReadyState {
+	return dispatch.ReadyState{IsReady: true}
 }
 
 var _ dispatch.Dispatcher = &delegateDispatchMock{}

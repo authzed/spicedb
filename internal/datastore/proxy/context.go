@@ -70,8 +70,8 @@ func (p *ctxProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	return p.delegate.Statistics(SeparateContextWithTracing(ctx))
 }
 
-func (p *ctxProxy) IsReady(ctx context.Context) (bool, error) {
-	return p.delegate.IsReady(SeparateContextWithTracing(ctx))
+func (p *ctxProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	return p.delegate.ReadyState(SeparateContextWithTracing(ctx))
 }
 
 func (p *ctxProxy) Close() error { return p.delegate.Close() }

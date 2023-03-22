@@ -123,11 +123,11 @@ func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, erro
 	return p.delegate.Statistics(ctx)
 }
 
-func (p *observableProxy) IsReady(ctx context.Context) (bool, error) {
-	ctx, closer := observe(ctx, "IsReady")
+func (p *observableProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	ctx, closer := observe(ctx, "ReadyState")
 	defer closer()
 
-	return p.delegate.IsReady(ctx)
+	return p.delegate.ReadyState(ctx)
 }
 
 func (p *observableProxy) Close() error { return p.delegate.Close() }

@@ -76,9 +76,9 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 			defer ds.Close()
 
 			ctx := context.Background()
-			ok, err := ds.IsReady(ctx)
+			r, err := ds.ReadyState(ctx)
 			require.NoError(err)
-			require.True(ok)
+			require.True(r.IsReady)
 
 			// Revisions should be at least the follower read delay amount in the past
 			for start := time.Now(); time.Since(start) < 50*time.Millisecond; {

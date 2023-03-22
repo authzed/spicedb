@@ -193,10 +193,9 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(ok)
-
+	require.True(r.IsReady)
 	firstWrite, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Write basic namespaces.
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
@@ -339,9 +338,9 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(ok)
+	require.True(r.IsReady)
 
 	// Setting db default time zone to before UTC
 	pgd := ds.(*pgDatastore)
@@ -377,10 +376,9 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(ok)
-
+	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
@@ -453,10 +451,9 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(ok)
-
+	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
@@ -655,10 +652,9 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(ok)
-
+	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
@@ -753,10 +749,9 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require := require.New(t)
 
 	ctx := context.Background()
-	ok, err := ds.IsReady(ctx)
+	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
-	require.True(ok)
-
+	require.True(r.IsReady)
 	// Write basic namespaces.
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(

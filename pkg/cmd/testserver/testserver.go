@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 const maxDepth = 50
@@ -44,8 +45,8 @@ type RunnableTestServer interface {
 
 type datastoreReady struct{}
 
-func (dr datastoreReady) IsReady(ctx context.Context) (bool, error) {
-	return true, nil
+func (dr datastoreReady) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+	return datastore.ReadyState{IsReady: true}, nil
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {

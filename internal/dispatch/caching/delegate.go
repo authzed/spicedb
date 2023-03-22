@@ -12,8 +12,8 @@ const errMessage = "fake delegate should never be called, call SetDelegate on th
 
 type fakeDelegate struct{}
 
-func (fd fakeDelegate) IsReady() bool {
-	return false
+func (fd fakeDelegate) ReadyState() dispatch.ReadyState {
+	return dispatch.ReadyState{}
 }
 
 func (fd fakeDelegate) Close() error {

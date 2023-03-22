@@ -86,7 +86,7 @@ func TestDispatchTimeout(t *testing.T) {
 				KeyHandler:             &keys.DirectKeyHandler{},
 				DispatchOverallTimeout: tc.timeout,
 			})
-			require.True(t, dispatcher.IsReady())
+			require.True(t, dispatcher.ReadyState().IsReady)
 
 			// Invoke a dispatched "check" and ensure it times out, as the fake dispatch will wait
 			// longer than the configured timeout.

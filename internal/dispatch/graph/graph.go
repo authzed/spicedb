@@ -360,8 +360,8 @@ func (ld *localDispatcher) Close() error {
 	return nil
 }
 
-func (ld *localDispatcher) IsReady() bool {
-	return true
+func (ld *localDispatcher) ReadyState() dispatch.ReadyState {
+	return dispatch.ReadyState{IsReady: true}
 }
 
 func rewriteError(original error) error {

@@ -243,11 +243,14 @@ func (mdb *memdbDatastore) ReadWriteTx(
 	return datastore.NoRevision, errors.New("serialization max retries exceeded")
 }
 
-func (mdb *memdbDatastore) IsReady(ctx context.Context) (bool, error) {
+func (mdb *memdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
-	return len(mdb.revisions) > 0, nil
+	return datastore.ReadyState{
+		Message: "missing expected initial revision",
+		IsReady: len(mdb.revisions) > 0,
+	}, nil
 }
 
 func (mdb *memdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
