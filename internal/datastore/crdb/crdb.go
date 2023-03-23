@@ -276,16 +276,14 @@ func (cds *crdbDatastore) ReadWriteTx(
 				0,
 			}
 
-			if err := f(rwt); err != nil {
-				return err
-			}
-
-			// Touching the transaction key happens last so that the "write intent" for
-			// the transaction as a whole lands in a range for the affected tuples.
 			for k := range rwt.overlapKeySet {
 				if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
 					return fmt.Errorf("error writing overlapping keys: %w", err)
 				}
+			}
+
+			if err := f(rwt); err != nil {
+				return err
 			}
 
 			if cds.disableStats {
