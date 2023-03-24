@@ -8,6 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -20,7 +21,21 @@ func TestServerGracefulTermination(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
-	c := ConfigWithOptions(&Config{}, WithPresharedKey("psk"), WithDatastore(ds))
+	c := ConfigWithOptions(
+		&Config{},
+		WithPresharedKey("psk"),
+		WithDatastore(ds),
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+		WithNamespaceCacheConfig(CacheConfig{Enabled: true}),
+		WithDispatchCacheConfig(CacheConfig{Enabled: true}),
+		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
+		WithHTTPGateway(util.HTTPServerConfig{Enabled: true}),
+		WithDashboardAPI(util.HTTPServerConfig{Enabled: true}),
+		WithMetricsAPI(util.HTTPServerConfig{Enabled: true}),
+	)
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
