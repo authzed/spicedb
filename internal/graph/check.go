@@ -488,15 +488,19 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 		return checkResultsForMembership(membershipSet, emptyMetadata)
 	}
 
-	// Check if the target relation exists. If not, return nothing.
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
-	err := namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, ds)
-	if err != nil {
-		if errors.As(err, &namespace.ErrRelationNotFound{}) {
-			return noMembers()
-		}
+	// Check if the target relation exists. If not, return nothing. This is only necessary
+	// for TTU-based computed usersets, as directly computed ones reference relations within
+	// the same namespace as the caller, and thus must be fully typed checked.
+	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
+		ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+		err := namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, ds)
+		if err != nil {
+			if errors.As(err, &namespace.ErrRelationNotFound{}) {
+				return noMembers()
+			}
 
-		return checkResultError(err, emptyMetadata)
+			return checkResultError(err, emptyMetadata)
+		}
 	}
 
 	result := cc.dispatch(ctx, crc, ValidatedCheckRequest{
