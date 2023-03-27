@@ -239,11 +239,11 @@ func attemptFnsForProbeFns(vulnerableMax int, vulnerableProbe, protectedProbe pr
 		var attempts int
 		for protected {
 			protected, attempts = protectedProbe(count)
-			// if the number of attempts doesn't match the count, that means
-			// the test has requests a reset for some reason.
-			if attempts < count {
-				continue
-			}
+			// // if the number of attempts doesn't match the count, that means
+			// // the test has requests a reset for some reason.
+			// if attempts < count {
+			// 	continue
+			// }
 			require.True(t, protected, "protection is enabled, but newenemy detected")
 			require.Equal(t, count, attempts)
 			t.Logf("spicedb is protected after %d attempts", count)
@@ -294,6 +294,9 @@ func iterationsForHighConfidence(samples []int) (iterations int) {
 	iterations = int(math.Ceil(3*stddev*samplestddev + mean))
 	if *maxIterations != 0 && *maxIterations < iterations {
 		iterations = *maxIterations
+	}
+	if iterations < 50 {
+		iterations = 50
 	}
 	return
 }

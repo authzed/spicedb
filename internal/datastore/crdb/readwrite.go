@@ -77,9 +77,8 @@ var (
 	queryDeleteTuples = psql.Delete(tableTuple)
 
 	queryTouchTransaction = fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES ($1::text) ON CONFLICT (%s) DO UPDATE SET %s = now()",
+		"UPSERT INTO %s (%s, %s) VALUES ($1::text, now());",
 		tableTransactions,
-		colTransactionKey,
 		colTransactionKey,
 		colTimestamp,
 	)
