@@ -18,7 +18,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const errUnableToQueryTuples = "unable to query tuples: %w"
+const (
+	errUnableToQueryTuples = "unable to query tuples: %w"
+
+	// maxConnLifetimeJitterRatio is the ratio applied to a connection's max
+	// lifetime in order to produce the jitter window.
+	maxConnLifetimeJitterRatio = 0.20
+)
 
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
 func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
@@ -138,6 +144,7 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
 
 	if opts.ConnMaxLifetime != nil {
 		pgxConfig.MaxConnLifetime = *opts.ConnMaxLifetime
+		pgxConfig.MaxConnLifetimeJitter = time.Duration(float64(*opts.ConnMaxLifetime) * maxConnLifetimeJitterRatio)
 	}
 
 	if opts.ConnHealthCheckInterval != nil {
