@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 	"github.com/shopspring/decimal"
 
@@ -52,7 +53,9 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 			return fmt.Errorf("unable to read relationship count: %w", err)
 		}
 
-		nsDefs, err = loadAllNamespaces(ctx, tx)
+		nsDefs, err = loadAllNamespaces(ctx, tx, func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
+			return sb.From(fromStr)
+		})
 		if err != nil {
 			return fmt.Errorf("unable to read namespaces: %w", err)
 		}

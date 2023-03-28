@@ -213,37 +213,20 @@ type crdbDatastore struct {
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
-		tx, err := cds.readPool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		cleanup := func(ctx context.Context) {
-			if err := tx.Rollback(ctx); err != nil {
-				log.Ctx(ctx).Err(err).Msg("error rolling back transaction")
-			}
-		}
-
-		setTxTime := "SET TRANSACTION AS OF SYSTEM TIME " + rev.String()
-		if _, err := tx.Exec(ctx, setTxTime); err != nil {
-			if err := tx.Rollback(ctx); err != nil {
-				log.Ctx(ctx).Warn().Err(err).Msg(
-					"error rolling back transaction after failing to set transaction time",
-				)
-			}
-			return nil, nil, err
-		}
-
-		return tx, cleanup, nil
+	useImplicitTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
+		return cds.readPool, func(context.Context) {}, nil
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(useImplicitTxFunc),
 		UsersetBatchSize: cds.usersetBatchSize,
 	}
 
-	return &crdbReader{createTxFunc, querySplitter, noOverlapKeyer, nil, cds.execute}
+	fromBuilder := func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
+		return query.From(fromStr + " AS OF SYSTEM TIME " + rev.String())
+	}
+
+	return &crdbReader{useImplicitTxFunc, querySplitter, noOverlapKeyer, nil, cds.execute, fromBuilder}
 }
 
 func noCleanup(context.Context) {}
@@ -255,7 +238,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 	var commitTimestamp revision.Decimal
 	if err := cds.execute(ctx, func(ctx context.Context) error {
 		return cds.writePool.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+			longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
 				return tx, noCleanup, nil
 			}
 
@@ -271,6 +254,9 @@ func (cds *crdbDatastore) ReadWriteTx(
 					cds.writeOverlapKeyer,
 					make(keySet),
 					executeOnce,
+					func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
+						return query.From(fromStr)
+					},
 				},
 				tx,
 				0,

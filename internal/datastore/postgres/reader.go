@@ -7,7 +7,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -112,7 +111,7 @@ func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*cor
 	}
 }
 
-func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgx.Tx, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
+func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBReader, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -173,7 +172,7 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 
 func loadAllNamespaces(
 	ctx context.Context,
-	tx pgx.Tx,
+	tx pgxcommon.DBReader,
 	filterer queryFilterer,
 ) ([]datastore.RevisionedNamespace, error) {
 	sql, args, err := filterer(readNamespace).ToSql()

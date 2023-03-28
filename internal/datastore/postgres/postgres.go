@@ -288,7 +288,7 @@ type pgDatastore struct {
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
 	rev := revRaw.(postgresRevision)
 
-	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+	createTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
 		tx, err := pgd.readPool.BeginTx(ctx, pgd.readTxOptions)
 		if err != nil {
 			return nil, nil, err
@@ -334,7 +334,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				return err
 			}
 
-			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+			longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
 				return tx, noCleanup, nil
 			}
 
