@@ -3,57 +3,63 @@ package common
 import (
 	"context"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype/pgxtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// Querier holds common methods for connections and pools, equivalent to
+// Querier (which is deprecated for pgx v5)
+type Querier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, optionsAndArgs ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, optionsAndArgs ...any) pgx.Row
+}
 
 // ConnPooler is an interface to pgx.Pool methods used by postgres-based datastores
 type ConnPooler interface {
-	pgxtype.Querier
+	Querier
 	Begin(ctx context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
-	BeginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f func(pgx.Tx) error) error
 	Close()
 }
 
-// QueryInterceptor exposes a mechanism to intercept all methods exposed in pgxtype.Querier
+// QueryInterceptor exposes a mechanism to intercept all methods exposed in Querier
 // This can be used as a sort of middleware layer for pgx queries
 type QueryInterceptor interface {
-	// InterceptExec is the method to intercept pgxtype.Querier.Exec. The implementation is responsible to invoke the
+	// InterceptExec is the method to intercept Querier.Exec. The implementation is responsible to invoke the
 	// delegate with the provided arguments
-	InterceptExec(ctx context.Context, delegate pgxtype.Querier, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+	InterceptExec(ctx context.Context, delegate Querier, sql string, arguments ...any) (pgconn.CommandTag, error)
 
-	// InterceptQuery is the method to intercept pgxtype.Querier.Query. The implementation is responsible to invoke the
+	// InterceptQuery is the method to intercept Querier.Query. The implementation is responsible to invoke the
 	// delegate with the provided arguments
-	InterceptQuery(ctx context.Context, delegate pgxtype.Querier, sql string, args ...interface{}) (pgx.Rows, error)
+	InterceptQuery(ctx context.Context, delegate Querier, sql string, args ...any) (pgx.Rows, error)
 
-	// InterceptQueryRow is the method to intercept pgxtype.Querier.QueryRow. The implementation is responsible to invoke the
+	// InterceptQueryRow is the method to intercept Querier.QueryRow. The implementation is responsible to invoke the
 	// delegate with the provided arguments
-	InterceptQueryRow(ctx context.Context, delegate pgxtype.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row
+	InterceptQueryRow(ctx context.Context, delegate Querier, sql string, optionsAndArgs ...any) pgx.Row
 }
 
 type querierInterceptor struct {
-	delegate    pgxtype.Querier
+	delegate    Querier
 	interceptor QueryInterceptor
 }
 
-func newQuerierInterceptor(delegate pgxtype.Querier, interceptor QueryInterceptor) pgxtype.Querier {
+func newQuerierInterceptor(delegate Querier, interceptor QueryInterceptor) Querier {
 	if interceptor == nil {
 		return delegate
 	}
 	return querierInterceptor{delegate: delegate, interceptor: interceptor}
 }
 
-func (q querierInterceptor) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+func (q querierInterceptor) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
 	return q.interceptor.InterceptExec(ctx, q.delegate, sql, arguments...)
 }
 
-func (q querierInterceptor) Query(ctx context.Context, sql string, arguments ...interface{}) (pgx.Rows, error) {
+func (q querierInterceptor) Query(ctx context.Context, sql string, arguments ...any) (pgx.Rows, error) {
 	return q.interceptor.InterceptQuery(ctx, q.delegate, sql, arguments...)
 }
 
-func (q querierInterceptor) QueryRow(ctx context.Context, sql string, arguments ...interface{}) pgx.Row {
+func (q querierInterceptor) QueryRow(ctx context.Context, sql string, arguments ...any) pgx.Row {
 	return q.interceptor.InterceptQueryRow(ctx, q.delegate, sql, arguments...)
 }
 
@@ -78,7 +84,7 @@ func (t txInterceptor) Begin(ctx context.Context) (pgx.Tx, error) {
 }
 
 func (t txInterceptor) BeginFunc(ctx context.Context, f func(pgx.Tx) error) (err error) {
-	return t.delegate.BeginFunc(ctx, f)
+	return pgx.BeginFunc(ctx, t.delegate, f)
 }
 
 func (t txInterceptor) Commit(ctx context.Context) error {
@@ -105,20 +111,16 @@ func (t txInterceptor) Prepare(ctx context.Context, name, sql string) (*pgconn.S
 	return t.delegate.Prepare(ctx, name, sql)
 }
 
-func (t txInterceptor) Exec(ctx context.Context, sql string, args ...interface{}) (commandTag pgconn.CommandTag, err error) {
+func (t txInterceptor) Exec(ctx context.Context, sql string, args ...any) (commandTag pgconn.CommandTag, err error) {
 	return t.interceptor.InterceptExec(ctx, t.delegate, sql, args...)
 }
 
-func (t txInterceptor) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+func (t txInterceptor) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	return t.interceptor.InterceptQuery(ctx, t.delegate, sql, args...)
 }
 
-func (t txInterceptor) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+func (t txInterceptor) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
 	return t.interceptor.InterceptQueryRow(ctx, t.delegate, sql, args...)
-}
-
-func (t txInterceptor) QueryFunc(ctx context.Context, sql string, args []interface{}, scans []interface{}, f func(pgx.QueryFuncRow) error) (pgconn.CommandTag, error) {
-	return t.delegate.QueryFunc(ctx, sql, args, scans, f)
 }
 
 func (t txInterceptor) Conn() *pgx.Conn {
@@ -141,19 +143,19 @@ func MustNewInterceptorPooler(pooler ConnPooler, interceptor QueryInterceptor) C
 
 type InterceptorPooler struct {
 	delegate            ConnPooler
-	interceptingQuerier pgxtype.Querier
+	interceptingQuerier Querier
 	txInterceptor       interceptTxFunc
 }
 
-func (i InterceptorPooler) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+func (i InterceptorPooler) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
 	return i.interceptingQuerier.Exec(ctx, sql, arguments...)
 }
 
-func (i InterceptorPooler) Query(ctx context.Context, sql string, optionsAndArgs ...interface{}) (pgx.Rows, error) {
+func (i InterceptorPooler) Query(ctx context.Context, sql string, optionsAndArgs ...any) (pgx.Rows, error) {
 	return i.interceptingQuerier.Query(ctx, sql, optionsAndArgs...)
 }
 
-func (i InterceptorPooler) QueryRow(ctx context.Context, sql string, optionsAndArgs ...interface{}) pgx.Row {
+func (i InterceptorPooler) QueryRow(ctx context.Context, sql string, optionsAndArgs ...any) pgx.Row {
 	return i.interceptingQuerier.QueryRow(ctx, sql, optionsAndArgs...)
 }
 
@@ -171,12 +173,6 @@ func (i InterceptorPooler) BeginTx(ctx context.Context, txOptions pgx.TxOptions)
 		return nil, err
 	}
 	return i.txInterceptor(tx), nil
-}
-
-func (i InterceptorPooler) BeginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f func(pgx.Tx) error) error {
-	return i.delegate.BeginTxFunc(ctx, txOptions, func(tx pgx.Tx) error {
-		return f(i.txInterceptor(tx))
-	})
 }
 
 func (i InterceptorPooler) Close() {

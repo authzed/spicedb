@@ -7,10 +7,8 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -65,18 +63,13 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 		return datastore.NoRevision, err
 	}
 
-	if value.Status != pgtype.Present {
-		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
-		return datastore.NoRevision, err
-	}
-
 	return postgresRevision{snapshot}, nil
 }
 
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
 	revision := txID.(postgresRevision)
 
-	minTxAlive := xid8{revision.snapshot.xmin, pgtype.Present}
+	minTxAlive := newXid8(revision.snapshot.xmin)
 
 	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgd.batchDelete(

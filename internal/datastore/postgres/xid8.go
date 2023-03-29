@@ -1,144 +1,199 @@
-// Adapted from https://github.com/jackc/pgtype/blob/f59f1408937ef0bed249f2bfbafb77222bb48f65/xid.go
-
 package postgres
 
 import (
 	"database/sql/driver"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/jackc/pgio"
-	"github.com/jackc/pgtype"
-
-	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type pguint64 struct {
-	Uint   uint64
-	Status pgtype.Status
+// Adapted from https://github.com/jackc/pgx/blob/ca022267dbbfe7a8ba7070557352a5cd08f6cb37/pgtype/uint32.go
+type Uint64Scanner interface {
+	ScanUint64(v xid8) error
 }
 
-var errUndefined = errors.New("cannot encode status undefined")
-
-// xid8 represents the xid8 postgres type, which is a 64-bit transaction ID that is *NOT*
-// subject to transaction wraparound limitations.
-// https://www.postgresql.org/docs/current/datatype-oid.html
-type xid8 pguint64
-
-func (txid *xid8) Set(src interface{}) error {
-	return (*pguint64)(txid).Set(src)
+type Uint64Valuer interface {
+	Uint64Value() (xid8, error)
 }
 
-func (txid xid8) Get() interface{} {
-	return (pguint64)(txid).Get()
+// xid8 is the core type that is used to XID.
+type xid8 struct {
+	Uint64 uint64
+	Valid  bool
 }
 
-func (txid *xid8) AssignTo(dst interface{}) error {
-	return (*pguint64)(txid).AssignTo(dst)
-}
-
-func (txid *xid8) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
-	return (*pguint64)(txid).DecodeText(ci, src)
-}
-
-func (txid *xid8) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
-	return (*pguint64)(txid).DecodeBinary(ci, src)
-}
-
-func (txid xid8) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
-	return (pguint64)(txid).EncodeText(ci, buf)
-}
-
-func (txid xid8) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
-	return (pguint64)(txid).EncodeBinary(ci, buf)
-}
-
-func (txid *xid8) Scan(src interface{}) error {
-	return (*pguint64)(txid).Scan(src)
-}
-
-func (txid xid8) Value() (driver.Value, error) {
-	return (pguint64)(txid).Value()
-}
-
-func (txid xid8) String() string {
-	switch txid.Status {
-	case pgtype.Null:
-		return "nil"
-	case pgtype.Present:
-		return strconv.FormatUint(txid.Uint, 10)
-	default:
-		return "undefined"
+func newXid8(u uint64) xid8 {
+	return xid8{
+		Uint64: u,
+		Valid:  true,
 	}
 }
 
-func (txid xid8) MustBePresent() error {
-	if txid.Status != pgtype.Present {
-		return spiceerrors.MustBugf("unexpected nil or uninitialized xid8 with status: %d", txid.Status)
-	}
+func (n *xid8) ScanUint64(v xid8) error {
+	*n = v
 	return nil
 }
 
-func (pui *pguint64) Set(src interface{}) error {
-	switch value := src.(type) {
-	case int64:
-		if value < 0 {
-			return fmt.Errorf("%d is less than minimum value for pguint64", value)
-		}
-		*pui = pguint64{Uint: uint64(value), Status: pgtype.Present}
-	case int32:
-		if value < 0 {
-			return fmt.Errorf("%d is less than minimum value for pguint64", value)
-		}
-		*pui = pguint64{Uint: uint64(value), Status: pgtype.Present}
-	case uint32:
-		*pui = pguint64{Uint: uint64(value), Status: pgtype.Present}
-	case uint64:
-		*pui = pguint64{Uint: value, Status: pgtype.Present}
-	default:
-		return fmt.Errorf("cannot convert %v to pguint64", value)
-	}
-
-	return nil
+func (n xid8) Uint64Value() (xid8, error) {
+	return n, nil
 }
 
-func (pui pguint64) Get() interface{} {
-	switch pui.Status {
-	case pgtype.Present:
-		return pui.Uint
-	case pgtype.Null:
-		return nil
-	default:
-		return pui.Status
-	}
+type Uint64Codec struct{}
+
+func (Uint64Codec) FormatSupported(format int16) bool {
+	return format == pgtype.TextFormatCode || format == pgtype.BinaryFormatCode
 }
 
-func (pui *pguint64) AssignTo(dst interface{}) error {
-	switch v := dst.(type) {
-	case *uint64:
-		if pui.Status == pgtype.Present {
-			*v = pui.Uint
-		} else {
-			return fmt.Errorf("cannot assign %v into %T", pui, dst)
+func (Uint64Codec) PreferredFormat() int16 {
+	return pgtype.BinaryFormatCode
+}
+
+func (Uint64Codec) PlanEncode(m *pgtype.Map, oid uint32, format int16, value any) pgtype.EncodePlan {
+	switch format {
+	case pgtype.BinaryFormatCode:
+		switch value.(type) {
+		case uint64:
+			return encodePlanUint64CodecBinaryUint64{}
+		case Uint64Valuer:
+			return encodePlanUint64CodecBinaryUint64Valuer{}
 		}
-	case **uint64:
-		if pui.Status == pgtype.Present {
-			n := pui.Uint
-			*v = &n
-		} else {
-			*v = nil
+	case pgtype.TextFormatCode:
+		switch value.(type) {
+		case uint64:
+			return encodePlanUint64CodecTextUint64{}
 		}
 	}
 
 	return nil
 }
 
-func (pui *pguint64) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
+type encodePlanUint64CodecBinaryUint64 struct{}
+
+func (encodePlanUint64CodecBinaryUint64) Encode(value any, buf []byte) (newBuf []byte, err error) {
+	v := value.(uint64)
+	return pgio.AppendUint64(buf, v), nil
+}
+
+type encodePlanUint64CodecBinaryUint64Valuer struct{}
+
+func (encodePlanUint64CodecBinaryUint64Valuer) Encode(value any, buf []byte) (newBuf []byte, err error) {
+	v, err := value.(Uint64Valuer).Uint64Value()
+	if err != nil {
+		return nil, err
+	}
+
+	if !v.Valid {
+		return nil, nil
+	}
+
+	return pgio.AppendUint64(buf, v.Uint64), nil
+}
+
+type encodePlanUint64CodecTextUint64 struct{}
+
+func (encodePlanUint64CodecTextUint64) Encode(value any, buf []byte) (newBuf []byte, err error) {
+	v := value.(uint64)
+	return append(buf, strconv.FormatUint(v, 10)...), nil
+}
+
+func (Uint64Codec) PlanScan(m *pgtype.Map, oid uint32, format int16, target any) pgtype.ScanPlan {
+	switch format {
+	case pgtype.BinaryFormatCode:
+		switch target.(type) {
+		case *uint64:
+			return scanPlanBinaryUint64ToUint64{}
+		case Uint64Scanner:
+			return scanPlanBinaryUint64ToUint64Scanner{}
+		}
+	case pgtype.TextFormatCode:
+		switch target.(type) {
+		case *uint64:
+			return scanPlanTextAnyToUint64{}
+		case Uint64Scanner:
+			return scanPlanTextAnyToUint64Scanner{}
+		}
+	}
+
+	return nil
+}
+
+func (c Uint64Codec) DecodeDatabaseSQLValue(m *pgtype.Map, oid uint32, format int16, src []byte) (driver.Value, error) {
 	if src == nil {
-		*pui = pguint64{Status: pgtype.Null}
-		return nil
+		return nil, nil
+	}
+
+	var n uint64
+	err := codecScan(c, m, oid, format, src, &n)
+	if err != nil {
+		return nil, err
+	}
+	return int64(n), nil
+}
+
+func (c Uint64Codec) DecodeValue(m *pgtype.Map, oid uint32, format int16, src []byte) (any, error) {
+	if src == nil {
+		return nil, nil
+	}
+
+	var n uint64
+	err := codecScan(c, m, oid, format, src, &n)
+	if err != nil {
+		return nil, err
+	}
+	return n, nil
+}
+
+type scanPlanBinaryUint64ToUint64 struct{}
+
+func (scanPlanBinaryUint64ToUint64) Scan(src []byte, dst any) error {
+	if src == nil {
+		return fmt.Errorf("cannot scan NULL into %T", dst)
+	}
+
+	if len(src) != 8 {
+		return fmt.Errorf("invalid length for uint64: %v", len(src))
+	}
+
+	p := (dst).(*uint64)
+	*p = binary.BigEndian.Uint64(src)
+
+	return nil
+}
+
+type scanPlanBinaryUint64ToUint64Scanner struct{}
+
+func (scanPlanBinaryUint64ToUint64Scanner) Scan(src []byte, dst any) error {
+	s, ok := (dst).(Uint64Scanner)
+	if !ok {
+		return pgtype.ErrScanTargetTypeChanged
+	}
+
+	if src == nil {
+		return s.ScanUint64(xid8{})
+	}
+
+	if len(src) != 8 {
+		return fmt.Errorf("invalid length for uint64: %v", len(src))
+	}
+
+	n := binary.BigEndian.Uint64(src)
+
+	return s.ScanUint64(xid8{Uint64: n, Valid: true})
+}
+
+type scanPlanTextAnyToUint64Scanner struct{}
+
+func (scanPlanTextAnyToUint64Scanner) Scan(src []byte, dst any) error {
+	s, ok := (dst).(Uint64Scanner)
+	if !ok {
+		return pgtype.ErrScanTargetTypeChanged
+	}
+
+	if src == nil {
+		return s.ScanUint64(xid8{})
 	}
 
 	n, err := strconv.ParseUint(string(src), 10, 64)
@@ -146,82 +201,34 @@ func (pui *pguint64) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 		return err
 	}
 
-	*pui = pguint64{Uint: n, Status: pgtype.Present}
-	return nil
+	return s.ScanUint64(xid8{Uint64: n, Valid: true})
 }
 
-func (pui *pguint64) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func codecScan(codec pgtype.Codec, m *pgtype.Map, oid uint32, format int16, src []byte, dst any) error {
+	scanPlan := codec.PlanScan(m, oid, format, dst)
+	if scanPlan == nil {
+		return fmt.Errorf("PlanScan did not find a plan")
+	}
+	return scanPlan.Scan(src, dst)
+}
+
+type scanPlanTextAnyToUint64 struct{}
+
+func (scanPlanTextAnyToUint64) Scan(src []byte, dst any) error {
 	if src == nil {
-		*pui = pguint64{Status: pgtype.Null}
-		return nil
+		return fmt.Errorf("cannot scan NULL into %T", dst)
 	}
 
-	if len(src) != 8 {
-		return fmt.Errorf("invalid length: %v", len(src))
+	p, ok := (dst).(*uint64)
+	if !ok {
+		return pgtype.ErrScanTargetTypeChanged
 	}
 
-	n := binary.BigEndian.Uint64(src)
+	n, err := strconv.ParseUint(string(src), 10, 32)
+	if err != nil {
+		return err
+	}
 
-	*pui = pguint64{Uint: n, Status: pgtype.Present}
+	*p = n
 	return nil
-}
-
-func (pui pguint64) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
-	switch pui.Status {
-	case pgtype.Null:
-		return nil, nil
-	case pgtype.Undefined:
-		return nil, errUndefined
-	}
-
-	return append(buf, strconv.FormatUint(pui.Uint, 10)...), nil
-}
-
-func (pui pguint64) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
-	switch pui.Status {
-	case pgtype.Null:
-		return nil, nil
-	case pgtype.Undefined:
-		return nil, errUndefined
-	}
-
-	return pgio.AppendUint64(buf, pui.Uint), nil
-}
-
-func (pui *pguint64) Scan(src interface{}) error {
-	if src == nil {
-		*pui = pguint64{Status: pgtype.Null}
-		return nil
-	}
-
-	switch src := src.(type) {
-	case uint32:
-		*pui = pguint64{Uint: uint64(src), Status: pgtype.Present}
-		return nil
-	case int64:
-		*pui = pguint64{Uint: uint64(src), Status: pgtype.Present}
-		return nil
-	case uint64:
-		*pui = pguint64{Uint: src, Status: pgtype.Present}
-		return nil
-	case string:
-		return pui.DecodeText(nil, []byte(src))
-	case []byte:
-		srcCopy := make([]byte, len(src))
-		copy(srcCopy, src)
-		return pui.DecodeText(nil, srcCopy)
-	}
-
-	return fmt.Errorf("cannot scan %T", src)
-}
-
-func (pui pguint64) Value() (driver.Value, error) {
-	switch pui.Status {
-	case pgtype.Present:
-		return int64(pui.Uint), nil
-	case pgtype.Null:
-		return nil, nil
-	default:
-		return nil, errUndefined
-	}
 }

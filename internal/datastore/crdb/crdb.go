@@ -10,8 +10,8 @@ import (
 
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
@@ -89,12 +89,12 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	readPool, err := pgxpool.ConnectConfig(initCtx, readPoolConfig)
+	readPool, err := pgxpool.NewWithConfig(initCtx, readPoolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	writePool, err := pgxpool.ConnectConfig(initCtx, writePoolConfig)
+	writePool, err := pgxpool.NewWithConfig(initCtx, writePoolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -237,7 +237,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 ) (datastore.Revision, error) {
 	var commitTimestamp revision.Decimal
 	if err := cds.execute(ctx, func(ctx context.Context) error {
-		return cds.writePool.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return pgx.BeginFunc(ctx, cds.writePool, func(tx pgx.Tx) error {
 			longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
 				return tx, noCleanup, nil
 			}
@@ -342,7 +342,7 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
 	var hlcNow revision.Decimal
 	err := cds.execute(ctx, func(ctx context.Context) error {
-		return cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		return pgx.BeginTxFunc(ctx, cds.readPool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 			var fnErr error
 			hlcNow, fnErr = readCRDBNow(ctx, tx)
 			if fnErr != nil {

@@ -9,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -79,9 +78,7 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
 
-	if revision.Status == pgtype.Present {
-		snapshot = snapshot.markComplete(revision.Uint)
-	}
+	snapshot = snapshot.markComplete(revision.Uint64)
 
 	return postgresRevision{snapshot}, validForNanos, nil
 }
@@ -117,7 +114,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 	if revisionRaw.GreaterThan(postgresRevision{currentSnapshot}) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
-	if minSnapshot.markComplete(minXid.Uint).GreaterThan(revision.snapshot) {
+	if minSnapshot.markComplete(minXid.Uint64).GreaterThan(revision.snapshot) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.RevisionStale)
 	}
 
@@ -168,7 +165,6 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 			xmin:    decoded.Xmin,
 			xmax:    uint64(xminInt + decoded.RelativeXmax),
 			xipList: xips,
-			status:  pgtype.Present,
 		},
 	}, nil
 }
@@ -217,7 +213,6 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 		xmin:    xmin,
 		xmax:    xmax,
 		xipList: xipList,
-		status:  pgtype.Present,
 	}}, nil
 }
 
@@ -286,5 +281,5 @@ func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 var _ datastore.Revision = postgresRevision{}
 
 func revisionKeyFunc(rev revisionWithXid) uint64 {
-	return rev.tx.Uint
+	return rev.tx.Uint64
 }

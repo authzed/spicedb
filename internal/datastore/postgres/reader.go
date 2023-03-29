@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/options"
@@ -200,10 +199,6 @@ func loadAllNamespaces(
 			return nil, fmt.Errorf(errUnableToReadConfig, err)
 		}
 
-		if err := version.MustBePresent(); err != nil {
-			return nil, fmt.Errorf(errUnableToReadConfig, err)
-		}
-
 		revision := revisionForVersion(version)
 
 		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
@@ -218,9 +213,8 @@ func loadAllNamespaces(
 // revisionForVersion synthesizes a snapshot where the specified version is always visible.
 func revisionForVersion(version xid8) postgresRevision {
 	return postgresRevision{pgSnapshot{
-		xmin:   version.Uint + 1,
-		xmax:   version.Uint + 1,
-		status: pgtype.Present,
+		xmin: version.Uint64 + 1,
+		xmax: version.Uint64 + 1,
 	}}
 }
 

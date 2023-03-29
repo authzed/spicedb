@@ -7,7 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -122,7 +122,7 @@ func (pgd *pgDatastore) Watch(
 
 func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]revisionWithXid, error) {
 	var ids []revisionWithXid
-	if err := pgd.readPool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
@@ -137,7 +137,7 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 			}
 
 			ids = append(ids, revisionWithXid{
-				postgresRevision{nextSnapshot.markComplete(nextXID.Uint)},
+				postgresRevision{nextSnapshot.markComplete(nextXID.Uint64)},
 				nextXID,
 			})
 		}
@@ -153,20 +153,20 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 }
 
 func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWithXid) ([]datastore.RevisionChanges, error) {
-	min := revisions[0].tx.Uint
-	max := revisions[0].tx.Uint
+	min := revisions[0].tx.Uint64
+	max := revisions[0].tx.Uint64
 	filter := make(map[uint64]int, len(revisions))
 	txidToRevision := make(map[uint64]revisionWithXid, len(revisions))
 
 	for i, rev := range revisions {
-		if rev.tx.Uint < min {
-			min = rev.tx.Uint
+		if rev.tx.Uint64 < min {
+			min = rev.tx.Uint64
 		}
-		if rev.tx.Uint > max {
-			max = rev.tx.Uint
+		if rev.tx.Uint64 > max {
+			max = rev.tx.Uint64
 		}
-		filter[rev.tx.Uint] = i
-		txidToRevision[rev.tx.Uint] = rev
+		filter[rev.tx.Uint64] = i
+		txidToRevision[rev.tx.Uint64] = rev
 	}
 
 	sql, args, err := queryChanged.Where(sq.Or{
@@ -224,11 +224,11 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 			}
 		}
 
-		if _, found := filter[createdXID.Uint]; found {
-			tracked.AddChange(ctx, txidToRevision[createdXID.Uint], nextTuple, core.RelationTupleUpdate_TOUCH)
+		if _, found := filter[createdXID.Uint64]; found {
+			tracked.AddChange(ctx, txidToRevision[createdXID.Uint64], nextTuple, core.RelationTupleUpdate_TOUCH)
 		}
-		if _, found := filter[deletedXID.Uint]; found {
-			tracked.AddChange(ctx, txidToRevision[deletedXID.Uint], nextTuple, core.RelationTupleUpdate_DELETE)
+		if _, found := filter[deletedXID.Uint64]; found {
+			tracked.AddChange(ctx, txidToRevision[deletedXID.Uint64], nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if changes.Err() != nil {

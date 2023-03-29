@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +29,7 @@ func TestSnapshotDecodeEncode(t *testing.T) {
 			require := require.New(t)
 
 			var decoded pgSnapshot
-			err := decoded.DecodeText(nil, []byte(tc.snapshot))
+			err := decoded.ScanText(pgtype.Text{String: tc.snapshot, Valid: true})
 			if tc.expectError {
 				require.Error(err)
 				return
@@ -37,9 +37,9 @@ func TestSnapshotDecodeEncode(t *testing.T) {
 			require.NoError(err)
 			require.Equal(tc.expected, decoded)
 
-			reEncoded, err := decoded.EncodeText(nil, nil)
+			reEncoded, err := decoded.TextValue()
 			require.NoError(err)
-			require.Equal(tc.snapshot, string(reEncoded))
+			require.Equal(tc.snapshot, reEncoded.String)
 		})
 	}
 }
@@ -91,7 +91,7 @@ func TestMarkInProgress(t *testing.T) {
 
 func snap(xmin, xmax uint64, xips ...uint64) pgSnapshot {
 	return pgSnapshot{
-		xmin, xmax, xips, pgtype.Present,
+		xmin, xmax, xips,
 	}
 }
 
