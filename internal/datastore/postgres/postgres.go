@@ -289,18 +289,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	rev := revRaw.(postgresRevision)
 
 	createTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-		tx, err := pgd.readPool.BeginTx(ctx, pgd.readTxOptions)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		cleanup := func(ctx context.Context) {
-			if err := tx.Rollback(ctx); err != nil {
-				log.Ctx(ctx).Err(err).Msg("error running transaction cleanup function")
-			}
-		}
-
-		return tx, cleanup, nil
+		return pgd.readPool, func(ctx context.Context) {}, nil
 	}
 
 	querySplitter := common.TupleQuerySplitter{
