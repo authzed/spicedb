@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	queryReadNamespace = psql.Select(colConfig, colTimestamp).From(tableNamespace)
+	queryReadNamespace = psql.Select(colConfig, colTimestamp)
 
 	queryTuples = psql.Select(
 		colNamespace,
@@ -33,7 +33,7 @@ var (
 		colUsersetRelation,
 		colCaveatContextName,
 		colCaveatContext,
-	).From(tableTuple)
+	)
 
 	schema = common.SchemaInformation{
 		ColNamespace:        colNamespace,
@@ -52,6 +52,7 @@ type crdbReader struct {
 	keyer         overlapKeyer
 	overlapKeySet keySet
 	execute       executeTxRetryFunc
+	fromBuilder   func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
 }
 
 func (cr *crdbReader) ReadNamespaceByName(
@@ -67,7 +68,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 		}
 		defer txCleanup(ctx)
 
-		config, timestamp, err = loadNamespace(ctx, tx, nsName)
+		config, timestamp, err = cr.loadNamespace(ctx, tx, nsName)
 		if err != nil {
 			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 				return err
@@ -94,7 +95,7 @@ func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 		}
 		defer txCleanup(ctx)
 
-		nsDefs, err = loadAllNamespaces(ctx, tx)
+		nsDefs, err = loadAllNamespaces(ctx, tx, cr.fromBuilder)
 		if err != nil {
 			return err
 		}
@@ -123,7 +124,7 @@ func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []s
 		}
 		defer txCleanup(ctx)
 
-		nsDefs, err = lookupNamespaces(ctx, tx, nsNames)
+		nsDefs, err = cr.lookupNamespaces(ctx, tx, nsNames)
 		if err != nil {
 			return err
 		}
@@ -144,7 +145,8 @@ func (cr *crdbReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
+	query := cr.fromBuilder(queryTuples, tableTuple)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, query).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +166,8 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).
+	query := cr.fromBuilder(queryTuples, tableTuple)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, query).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -190,8 +193,8 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	return
 }
 
-func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.NamespaceDefinition, time.Time, error) {
-	query := queryReadNamespace.Where(sq.Eq{colNamespace: nsName})
+func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBReader, nsName string) (*core.NamespaceDefinition, time.Time, error) {
+	query := cr.fromBuilder(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
 
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -215,13 +218,13 @@ func loadNamespace(ctx context.Context, tx pgx.Tx, nsName string) (*core.Namespa
 	return loaded, timestamp, nil
 }
 
-func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBReader, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	query := queryReadNamespace.Where(clause)
+	query := cr.fromBuilder(queryReadNamespace, tableNamespace).Where(clause)
 
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -260,8 +263,8 @@ func lookupNamespaces(ctx context.Context, tx pgx.Tx, nsNames []string) ([]datas
 	return nsDefs, nil
 }
 
-func loadAllNamespaces(ctx context.Context, tx pgx.Tx) ([]datastore.RevisionedNamespace, error) {
-	query := queryReadNamespace
+func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBReader, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
+	query := fromBuilder(queryReadNamespace, tableNamespace)
 
 	sql, args, err := query.ToSql()
 	if err != nil {

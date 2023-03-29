@@ -288,19 +288,8 @@ type pgDatastore struct {
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
 	rev := revRaw.(postgresRevision)
 
-	createTxFunc := func(ctx context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
-		tx, err := pgd.readPool.BeginTx(ctx, pgd.readTxOptions)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		cleanup := func(ctx context.Context) {
-			if err := tx.Rollback(ctx); err != nil {
-				log.Ctx(ctx).Err(err).Msg("error running transaction cleanup function")
-			}
-		}
-
-		return tx, cleanup, nil
+	createTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
+		return pgd.readPool, func(ctx context.Context) {}, nil
 	}
 
 	querySplitter := common.TupleQuerySplitter{
@@ -334,7 +323,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				return err
 			}
 
-			longLivedTx := func(context.Context) (pgx.Tx, common.TxCleanupFunc, error) {
+			longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
 				return tx, noCleanup, nil
 			}
 

@@ -11,6 +11,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zerologadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -35,7 +36,7 @@ func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 }
 
 // queryTuples queries tuples for the given query and transaction.
-func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx pgx.Tx) ([]*corev1.RelationTuple, error) {
+func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBReader) ([]*corev1.RelationTuple, error) {
 	span.AddEvent("DB transaction established")
 	rows, err := tx.Query(ctx, sqlStatement, args...)
 	if err != nil {
@@ -104,9 +105,16 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 	connConfig.Logger = levelMappingFn(l)
 }
 
+// DBReader copies enough of the common interface between pgxpool and tx to be useful
+type DBReader interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error)
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
+
 // TxFactory returns a transaction, cleanup function, and any errors that may have
 // occurred when building the transaction.
-type TxFactory func(context.Context) (pgx.Tx, common.TxCleanupFunc, error)
+type TxFactory func(context.Context) (DBReader, common.TxCleanupFunc, error)
 
 // PoolOptions is the set of configuration used for a pgx connection pool.
 type PoolOptions struct {

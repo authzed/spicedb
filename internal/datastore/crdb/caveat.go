@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v4"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -21,7 +22,7 @@ var (
 		colCaveatDefinition,
 	)
 	writeCaveat  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition).Suffix(upsertCaveatSuffix)
-	readCaveat   = psql.Select(colCaveatDefinition, colTimestamp).From(tableCaveat)
+	readCaveat   = psql.Select(colCaveatDefinition, colTimestamp)
 	listCaveat   = psql.Select(colCaveatName, colCaveatDefinition, colTimestamp).From(tableCaveat).OrderBy(colCaveatName)
 	deleteCaveat = psql.Delete(tableCaveat)
 )
@@ -34,7 +35,7 @@ const (
 )
 
 func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	query := readCaveat.Where(sq.Eq{colCaveatName: name})
+	query := cr.fromBuilder(readCaveat, tableCaveat).Where(sq.Eq{colCaveatName: name})
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, name, err)
@@ -42,7 +43,7 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 
 	var definitionBytes []byte
 	var timestamp time.Time
-	err = cr.executeWithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err = cr.executeWithTx(ctx, func(ctx context.Context, tx pgxcommon.DBReader) error {
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&definitionBytes, &timestamp); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				err = datastore.NewCaveatNameNotFoundErr(name)
@@ -79,7 +80,7 @@ type bytesAndTimestamp struct {
 }
 
 func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	caveatsWithNames := listCaveat
+	caveatsWithNames := cr.fromBuilder(listCaveat, tableCaveat)
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
 	}
@@ -90,7 +91,7 @@ func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) (
 	}
 	var allDefinitionBytes []bytesAndTimestamp
 
-	err = cr.executeWithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	err = cr.executeWithTx(ctx, func(ctx context.Context, tx pgxcommon.DBReader) error {
 		rows, err := tx.Query(ctx, sql, args...)
 		if err != nil {
 			return err
@@ -154,7 +155,7 @@ func (rwt *crdbReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.C
 	for _, val := range writtenCaveatNames {
 		rwt.addOverlapKey(val)
 	}
-	return rwt.executeWithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	return rwt.executeWithTx(ctx, func(ctx context.Context, tx pgxcommon.DBReader) error {
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
 			return fmt.Errorf(errWriteCaveat, err)
 		}
@@ -171,7 +172,7 @@ func (rwt *crdbReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) 
 	for _, val := range names {
 		rwt.addOverlapKey(val)
 	}
-	return rwt.executeWithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+	return rwt.executeWithTx(ctx, func(ctx context.Context, tx pgxcommon.DBReader) error {
 		if _, err := tx.Exec(ctx, sql, args...); err != nil {
 			return fmt.Errorf(errDeleteCaveats, err)
 		}
@@ -179,7 +180,7 @@ func (rwt *crdbReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) 
 	})
 }
 
-func (cr *crdbReader) executeWithTx(ctx context.Context, f func(ctx context.Context, tx pgx.Tx) error) error {
+func (cr *crdbReader) executeWithTx(ctx context.Context, f func(ctx context.Context, tx pgxcommon.DBReader) error) error {
 	return cr.execute(ctx, func(ctx context.Context) error {
 		tx, txCleanup, err := cr.txSource(ctx)
 		if err != nil {
