@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/authzed/grpcutil"
+	"github.com/cespare/xxhash/v2"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/go-multierror"
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	grpcbalancer "google.golang.org/grpc/balancer"
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/dashboard"
@@ -43,11 +45,12 @@ import (
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
-	GRPCServer             util.GRPCServerConfig
-	GRPCAuthFunc           grpc_auth.AuthFunc
-	PresharedKey           []string
-	ShutdownGracePeriod    time.Duration
-	DisableVersionResponse bool
+	GRPCServer                        util.GRPCServerConfig
+	GRPCAuthFunc                      grpc_auth.AuthFunc
+	DispatchHashringReplicationFactor uint16
+	PresharedKey                      []string
+	ShutdownGracePeriod               time.Duration
+	DisableVersionResponse            bool
 
 	// GRPC Gateway config
 	HTTPGateway                    util.HTTPServerConfig
@@ -108,6 +111,10 @@ type Config struct {
 	TelemetryInterval        time.Duration
 }
 
+const defaultBackendsPerKey = 1
+
+var balancerRegistryMutex = sync.Mutex{}
+
 type closeableStack struct {
 	closers []func() error
 }
@@ -159,6 +166,19 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			log.Ctx(ctx).Err(closeableErr).Msg("failed to clean up resources on Config.Complete")
 		}
 	}()
+
+	balancerRegistryMutex.Lock()
+	dispatchBalancerName := balancer.NameForReplicationFactor(c.DispatchHashringReplicationFactor)
+	if grpcbalancer.Get(dispatchBalancerName) == nil {
+		// Enable consistent hashring gRPC load balancer with a specific replication factor
+		grpcbalancer.Register(balancer.NewConsistentHashringBuilder(
+			xxhash.Sum64,
+			c.DispatchHashringReplicationFactor,
+			defaultBackendsPerKey,
+		))
+		log.Ctx(ctx).Debug().Uint16("replication-factor", c.DispatchHashringReplicationFactor).Msg("registered new grpc hashring balancer")
+	}
+	balancerRegistryMutex.Unlock()
 
 	if len(c.PresharedKey) < 1 && c.GRPCAuthFunc == nil {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
@@ -217,7 +237,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
 		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
-		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).Msg("configured dispatch concurrency limits")
+		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).
+			Uint16("hashring-replication-factor", c.DispatchHashringReplicationFactor).
+			Msg("configured dispatch concurrency limits")
 
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
@@ -225,7 +247,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
+				grpc.WithDefaultServiceConfig(balancer.ServiceConfigForBalancerName(dispatchBalancerName)),
 			),
 			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),

@@ -166,7 +166,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.GrpcDialOpts(
-				grpc.WithDefaultServiceConfig(hashbalancer.BalancerServiceConfig),
+				grpc.WithDefaultServiceConfig(hashbalancer.ServiceConfigForBalancerName(hashbalancer.NameForReplicationFactor(100))),
 				grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 					// it's possible grpc tries to dial before we have set the
 					// buffconn dialers, we have to return a "TempError" so that

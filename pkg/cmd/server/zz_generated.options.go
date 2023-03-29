@@ -28,6 +28,7 @@ func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.GRPCServer = c.GRPCServer
 		to.GRPCAuthFunc = c.GRPCAuthFunc
+		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.PresharedKey = c.PresharedKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
 		to.DisableVersionResponse = c.DisableVersionResponse
@@ -90,6 +91,13 @@ func WithGRPCServer(gRPCServer util.GRPCServerConfig) ConfigOption {
 func WithGRPCAuthFunc(gRPCAuthFunc auth.AuthFunc) ConfigOption {
 	return func(c *Config) {
 		c.GRPCAuthFunc = gRPCAuthFunc
+	}
+}
+
+// WithDispatchHashringReplicationFactor returns an option that can set DispatchHashringReplicationFactor on a Config
+func WithDispatchHashringReplicationFactor(dispatchHashringReplicationFactor uint16) ConfigOption {
+	return func(c *Config) {
+		c.DispatchHashringReplicationFactor = dispatchHashringReplicationFactor
 	}
 }
 
