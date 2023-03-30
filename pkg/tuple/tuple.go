@@ -297,6 +297,30 @@ func ToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 	}
 }
 
+func NewRelationship() *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{},
+		},
+		OptionalCaveat: &v1.ContextualizedCaveat{},
+	}
+}
+
+func ToRelationshipMutating(tpl *core.RelationTuple, target *v1.Relationship) {
+	target.Resource.ObjectType = tpl.ResourceAndRelation.Namespace
+	target.Resource.ObjectId = tpl.ResourceAndRelation.ObjectId
+	target.Relation = tpl.ResourceAndRelation.Relation
+	target.Subject.Object.ObjectType = tpl.Subject.Namespace
+	target.Subject.Object.ObjectId = tpl.Subject.ObjectId
+	target.Subject.OptionalRelation = stringz.Default(tpl.Subject.Relation, "", Ellipsis)
+
+	if tpl.Caveat != nil {
+		target.OptionalCaveat.CaveatName = tpl.Caveat.CaveatName
+		target.OptionalCaveat.Context = tpl.Caveat.Context
+	}
+}
+
 // MustToFilter converts a RelationTuple into a RelationshipFilter. Will panic if
 // the RelationTuple does not validate.
 func MustToFilter(tpl *core.RelationTuple) *v1.RelationshipFilter {

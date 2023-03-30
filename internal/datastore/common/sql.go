@@ -381,6 +381,9 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
 type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error)
 
+// ExecuteFunc
+type ExecuteFunc func(ctx context.Context, sql string, args []any) error
+
 // TxCleanupFunc is a function that should be executed when the caller of
 // TransactionFactory is done with the transaction.
 type TxCleanupFunc func(context.Context)
