@@ -17,7 +17,7 @@ import (
 type pgReader struct {
 	txSource      pgxcommon.TxFactory
 	querySplitter common.TupleQuerySplitter
-	tupleCursorer common.TupleQueryCursorer
+	tupleCursorer common.PaginatedTupleQuery
 	filterer      queryFilterer
 }
 
@@ -60,15 +60,16 @@ func (r *pgReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).FilterWithRelationshipsFilter(filter)
+	schemaFilterer := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples))
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	if queryOpts.Pagination {
+		return r.tupleCursorer.IteratorFor(ctx, schemaFilterer, filter)
+	}
+
+	qBuilder, err := schemaFilterer.FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-	if queryOpts.Streaming {
-		return r.tupleCursorer.IteratorFor(ctx, qBuilder)
-	}
-
 	return r.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
 }
 

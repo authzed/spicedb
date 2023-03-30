@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"runtime"
 
@@ -90,6 +91,20 @@ func (sqf SchemaQueryFilterer) FilterToResourceType(resourceType string) SchemaQ
 func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColObjectID: objectID})
 	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(objectID))
+	return sqf
+}
+
+func (sqf SchemaQueryFilterer) TupleOrder() SchemaQueryFilterer {
+	sqf.queryBuilder = sqf.queryBuilder.OrderBy(sqf.schema.ColNamespace, sqf.schema.ColObjectID,
+		sqf.schema.ColRelation, sqf.schema.ColUsersetNamespace, sqf.schema.ColUsersetObjectID, sqf.schema.ColUsersetRelation)
+	return sqf
+}
+
+func (sqf SchemaQueryFilterer) CursorFromTuple(cursor *core.RelationTuple) SchemaQueryFilterer {
+	idColumn := fmt.Sprintf("(%s, %s, %s, %s, %s, %s)", sqf.schema.ColNamespace, sqf.schema.ColObjectID,
+		sqf.schema.ColRelation, sqf.schema.ColUsersetNamespace, sqf.schema.ColUsersetObjectID, sqf.schema.ColUsersetRelation)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Expr(idColumn+" > (?, ?, ?, ?, ?, ?)", cursor.ResourceAndRelation.Namespace, cursor.ResourceAndRelation.ObjectId,
+		cursor.ResourceAndRelation.Relation, cursor.Subject.Namespace, cursor.Subject.ObjectId, cursor.Subject.Relation))
 	return sqf
 }
 
@@ -380,9 +395,6 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
 type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error)
-
-// ExecuteFunc
-type ExecuteFunc func(ctx context.Context, sql string, args []any) error
 
 // TxCleanupFunc is a function that should be executed when the caller of
 // TransactionFactory is done with the transaction.

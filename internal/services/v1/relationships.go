@@ -136,7 +136,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	tupleIterator, err := ds.QueryRelationships(ctx,
 		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
-		options.WithStreaming(true))
+		options.WithPagination(true))
 	if err != nil {
 		return rewriteError(ctx, err)
 	}
@@ -148,20 +148,30 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		ReadAt: revisionReadAt,
 	}
 	targetRel := tuple.NewRelationship()
+
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
 		if err := tupleIterator.Err(); err != nil {
+			if ctxStatus := status.FromContextError(err); ctxStatus != nil {
+				return ctxStatus.Err()
+			}
 			return status.Errorf(codes.Internal, "error when reading tuples: %s", err)
 		}
 
 		tuple.ToRelationshipMutating(tpl, targetRel)
 		response.Relationship = targetRel
 		if err := resp.Send(response); err != nil {
+			if ctxStatus := status.FromContextError(err); ctxStatus != nil {
+				return ctxStatus.Err()
+			}
 			return status.Errorf(codes.Internal, "error when streaming tuples: %s", err)
 		}
 	}
 
 	logging.Ctx(ctx).Debug().Msg("finished streaming relationships")
 	if err := tupleIterator.Err(); err != nil {
+		if ctxStatus := status.FromContextError(err); ctxStatus != nil {
+			return ctxStatus.Err()
+		}
 		return status.Errorf(codes.Internal, "error after completing streaming tuples: %s", err)
 	}
 

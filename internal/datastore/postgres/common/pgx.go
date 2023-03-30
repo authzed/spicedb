@@ -36,20 +36,6 @@ func NewPGXQueryExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 	}
 }
 
-// NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory) common.ExecuteFunc {
-	return func(ctx context.Context, sql string, args []any) error {
-		tx, txCleanup, err := txSource(ctx)
-		if err != nil {
-			return fmt.Errorf("unable to exec SQL: %w", err)
-		}
-		defer txCleanup(ctx)
-
-		_, err = tx.Exec(ctx, sql, args...)
-		return err
-	}
-}
-
 // queryTuples queries tuples for the given query and transaction.
 func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBReader) ([]*corev1.RelationTuple, error) {
 	span.AddEvent("DB transaction established")

@@ -68,7 +68,8 @@ const (
 
 	tracingDriverName = "postgres-tracing"
 
-	batchDeleteSize = 1000
+	defaultPageFetchSize = 1000
+	batchDeleteSize      = 1000
 
 	pgSerializationFailure      = "40001"
 	pgUniqueConstraintViolation = "23505"
@@ -305,16 +306,15 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
-	tupleCursorer := common.TupleQueryCursorer{
-		QueryExecutor: pgxcommon.NewPGXQueryExecutor(createTxFunc),
-		Executor:      pgxcommon.NewPGXExecutor(createTxFunc),
-		FetchSize:     1000,
+	paginatedTupleQuery := common.PaginatedTupleQuery{
+		Executor:  pgxcommon.NewPGXQueryExecutor(createTxFunc),
+		FetchSize: defaultPageFetchSize,
 	}
 
 	return &pgReader{
 		createTxFunc,
 		querySplitter,
-		tupleCursorer,
+		paginatedTupleQuery,
 		buildLivingObjectFilterForRevision(rev),
 	}
 }
@@ -347,11 +347,16 @@ func (pgd *pgDatastore) ReadWriteTx(
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 
+			paginatedTupleQuery := common.PaginatedTupleQuery{
+				Executor:  pgxcommon.NewPGXQueryExecutor(longLivedTx),
+				FetchSize: defaultPageFetchSize,
+			}
+
 			rwt := &pgReadWriteTXN{
 				&pgReader{
 					longLivedTx,
 					querySplitter,
-					common.TupleQueryCursorer{},
+					paginatedTupleQuery,
 					currentlyLivingObjects,
 				},
 				tx,

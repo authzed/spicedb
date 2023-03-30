@@ -8,9 +8,9 @@ import (
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
-	Limit     *uint64
-	Streaming bool
-	Usersets  []*core.ObjectAndRelation
+	Limit      *uint64
+	Pagination bool
+	Usersets   []*core.ObjectAndRelation
 }
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.
