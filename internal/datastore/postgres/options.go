@@ -181,6 +181,22 @@ func WriteConnMaxLifetime(lifetime time.Duration) Option {
 	return func(po *postgresOptions) { po.writePoolOpts.ConnMaxLifetime = &lifetime }
 }
 
+// ReadConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
+// to close the connection.
+//
+// This value defaults to 20% of the max lifetime.
+func ReadConnMaxLifetimeJitter(jitter time.Duration) Option {
+	return func(po *postgresOptions) { po.readPoolOpts.ConnMaxLifetimeJitter = &jitter }
+}
+
+// WriteConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
+// to close the connection.
+//
+// This value defaults to 20% of the max lifetime.
+func WriteConnMaxLifetimeJitter(jitter time.Duration) Option {
+	return func(po *postgresOptions) { po.writePoolOpts.ConnMaxLifetimeJitter = &jitter }
+}
+
 // ReadConnsMinOpen is the minimum size of the connection pool used for reads.
 //
 // The health check will increase the number of connections to this amount if

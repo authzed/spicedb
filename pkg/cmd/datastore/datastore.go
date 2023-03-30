@@ -41,6 +41,7 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 type ConnPoolConfig struct {
 	MaxIdleTime         time.Duration
 	MaxLifetime         time.Duration
+	MaxLifetimeJitter   time.Duration
 	MaxOpenConns        int
 	MinOpenConns        int
 	HealthCheckInterval time.Duration
@@ -74,6 +75,7 @@ func RegisterConnPoolFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, defa
 	flagSet.IntVar(&opts.MaxOpenConns, flagName("max-open"), defaults.MaxOpenConns, "number of concurrent connections open in a remote datastore's connection pool")
 	flagSet.IntVar(&opts.MinOpenConns, flagName("min-open"), defaults.MinOpenConns, "number of minimum concurrent connections open in a remote datastore's connection pool")
 	flagSet.DurationVar(&opts.MaxLifetime, flagName("max-lifetime"), defaults.MaxLifetime, "maximum amount of time a connection can live in a remote datastore's connection pool")
+	flagSet.DurationVar(&opts.MaxLifetimeJitter, flagName("max-lifetime-jitter"), defaults.MaxLifetimeJitter, "waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime)")
 	flagSet.DurationVar(&opts.MaxIdleTime, flagName("max-idletime"), defaults.MaxIdleTime, "maximum amount of time a connection can idle in a remote datastore's connection pool")
 	flagSet.DurationVar(&opts.HealthCheckInterval, flagName("healthcheck-interval"), defaults.HealthCheckInterval, "amount of time between connection health checks in a remote datastore's connection pool")
 }
@@ -328,11 +330,13 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		crdb.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
 		crdb.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
+		crdb.ReadConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		crdb.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
 		crdb.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		crdb.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
 		crdb.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
 		crdb.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
+		crdb.WriteConnMaxLifetimeJitter(opts.WriteConnPool.MaxLifetimeJitter),
 		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
@@ -354,11 +358,13 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		postgres.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
 		postgres.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
+		postgres.ReadConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		postgres.ReadConnHealthCheckInterval(opts.ReadConnPool.HealthCheckInterval),
 		postgres.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		postgres.WriteConnsMinOpen(opts.WriteConnPool.MinOpenConns),
 		postgres.WriteConnMaxIdleTime(opts.WriteConnPool.MaxIdleTime),
 		postgres.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
+		postgres.WriteConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		postgres.SplitAtUsersetCount(opts.SplitQueryCount),
 		postgres.GCInterval(opts.GCInterval),
