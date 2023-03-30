@@ -17,7 +17,6 @@ linters:
   enable:
     - 'bidichk'
     - 'bodyclose'
-    - 'deadcode'
     - 'errcheck'
     - 'errname'
     - 'errorlint'
@@ -36,13 +35,11 @@ linters:
     - 'revive'
     - 'rowserrcheck'
     - 'staticcheck'
-    - 'structcheck'
     - 'stylecheck'
     - 'tenv'
     - 'typecheck'
     - 'unconvert'
     - 'unused'
-    - 'varcheck'
     - 'wastedassign'
     - 'whitespace'
 issues:

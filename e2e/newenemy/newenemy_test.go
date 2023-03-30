@@ -16,16 +16,17 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 
 	"github.com/authzed/spicedb/e2e"
 	"github.com/authzed/spicedb/e2e/cockroach"
 	"github.com/authzed/spicedb/e2e/generator"
 	"github.com/authzed/spicedb/e2e/spice"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
-	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 type NamespaceNames struct {
@@ -608,8 +609,8 @@ func leaderFromRangeRow(row pgx.Row) int {
 		rangeID            int
 		leaseHolder        int
 		leaseHoldeLocality sql.NullString
-		replicas           pgtype.Int8Array
-		replicaLocalities  pgtype.TextArray
+		replicas           []pgtype.Int8
+		replicaLocalities  []pgtype.Text
 	)
 
 	if err := row.Scan(&startKey, &endKey, &rangeID, &leaseHolder, &leaseHoldeLocality, &replicas, &replicaLocalities); err != nil {

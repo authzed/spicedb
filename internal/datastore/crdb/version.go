@@ -7,14 +7,14 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 )
 
 const (
-	queryVersionJSON = "SELECT crdb_internal.active_version()"
-	queryVersion     = "SELECT version()"
+	queryVersionJSON = "SELECT crdb_internal.active_version()::jsonb;"
+	queryVersion     = "SELECT version();"
 
 	errFunctionDoesNotExist = "42883"
 )
@@ -22,7 +22,7 @@ const (
 var versionRegex = regexp.MustCompile(`v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?`)
 
 func queryServerVersion(ctx context.Context, db rowQuerier, version *crdbVersion) error {
-	if err := db.QueryRow(ctx, queryVersionJSON).Scan(&version); err != nil {
+	if err := db.QueryRow(ctx, queryVersionJSON).Scan(version); err != nil {
 		var pgerr *pgconn.PgError
 		if !errors.As(err, &pgerr) || pgerr.Code != errFunctionDoesNotExist {
 			return err
@@ -64,10 +64,10 @@ func parseVersionStringInto(versionStr string, version *crdbVersion) error {
 }
 
 type crdbVersion struct {
-	Internal int
-	Major    int
-	Minor    int
-	Patch    int
+	Internal int `json:"internal"`
+	Major    int `json:"major"`
+	Minor    int `json:"minor"`
+	Patch    int `json:"patch"`
 }
 
 func (v crdbVersion) MarshalZerologObject(e *zerolog.Event) {

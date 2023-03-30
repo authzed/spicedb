@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -42,6 +44,17 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
+	// get non-pooled connection for watch
+	// "applications should explicitly create dedicated connections to consume
+	// changefeed data, instead of using a connection pool as most client
+	// drivers do by default."
+	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
+	conn, err := pgx.Connect(ctx, cds.dburl)
+	if err != nil {
+		errs <- err
+		return updates, errs
+	}
+
 	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, afterRevision)
 
 	go func() {
@@ -50,7 +63,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 
 		pendingChanges := make(map[string]*datastore.RevisionChanges)
 
-		changes, err := cds.readPool.Query(ctx, interpolated)
+		changes, err := conn.Query(ctx, interpolated)
 		if err != nil {
 			if errors.Is(ctx.Err(), context.Canceled) {
 				errs <- datastore.NewWatchCanceledErr()
@@ -172,8 +185,14 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			}
 			pending.Changes = append(pending.Changes, oneChange)
 		}
+
 		if changes.Err() != nil {
 			if errors.Is(ctx.Err(), context.Canceled) {
+				closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer closeCancel()
+				if err := conn.Close(closeCtx); err != nil {
+					errs <- err
+				}
 				errs <- datastore.NewWatchCanceledErr()
 			} else {
 				errs <- changes.Err()

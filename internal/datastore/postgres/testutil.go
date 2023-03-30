@@ -7,24 +7,25 @@ import (
 	"context"
 	"strings"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype/pgxtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
 type selectQueryInterceptor struct {
 	explanations map[string]string
 }
 
-func (ql *selectQueryInterceptor) InterceptExec(ctx context.Context, querier pgxtype.Querier, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (ql *selectQueryInterceptor) InterceptExec(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 	return querier.Exec(ctx, sql, args...)
 }
 
-func (ql *selectQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxtype.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
+func (ql *selectQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxcommon.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
 	return querier.QueryRow(ctx, sql, optionsAndArgs...)
 }
 
-func (ql *selectQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxtype.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
+func (ql *selectQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
 	explanation, err := getExplanation(ctx, querier, sql, args)
 	if err != nil {
 		return nil, err
@@ -34,7 +35,7 @@ func (ql *selectQueryInterceptor) InterceptQuery(ctx context.Context, querier pg
 	return querier.Query(ctx, sql, args...)
 }
 
-func getExplanation(ctx context.Context, querier pgxtype.Querier, sql string, args []any) (string, error) {
+func getExplanation(ctx context.Context, querier pgxcommon.Querier, sql string, args []any) (string, error) {
 	// Make sure Postgres stats are fully up-to-date so it selects the correct index.
 	_, err := querier.Exec(ctx, "ANALYZE;")
 	if err != nil {
@@ -61,17 +62,17 @@ type withQueryInterceptor struct {
 	explanations map[string]string
 }
 
-func (ql *withQueryInterceptor) InterceptExec(ctx context.Context, querier pgxtype.Querier, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (ql *withQueryInterceptor) InterceptExec(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 	if strings.HasPrefix(sql, "WITH") {
 		// Note, we disable seqscan here to ensure we get an index scan for testing.
 		_, err := querier.Exec(ctx, "set enable_seqscan = off;")
 		if err != nil {
-			return nil, err
+			return pgconn.CommandTag{}, err
 		}
 
 		explanation, err := getExplanation(ctx, querier, sql, args)
 		if err != nil {
-			return nil, err
+			return pgconn.CommandTag{}, err
 		}
 
 		ql.explanations[sql] = explanation
@@ -80,10 +81,10 @@ func (ql *withQueryInterceptor) InterceptExec(ctx context.Context, querier pgxty
 	return querier.Exec(ctx, sql, args...)
 }
 
-func (ql *withQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxtype.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
+func (ql *withQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxcommon.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
 	return querier.QueryRow(ctx, sql, optionsAndArgs...)
 }
 
-func (ql *withQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxtype.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
+func (ql *withQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
 	return querier.Query(ctx, sql, args...)
 }

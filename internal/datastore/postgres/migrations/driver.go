@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 
 	"github.com/authzed/spicedb/pkg/migrate"
@@ -43,7 +43,7 @@ func (apd *AlembicPostgresDriver) Conn() *pgx.Conn {
 }
 
 func (apd *AlembicPostgresDriver) RunTx(ctx context.Context, f migrate.TxMigrationFunc[pgx.Tx]) error {
-	return apd.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+	return pgx.BeginFunc(ctx, apd.db, func(tx pgx.Tx) error {
 		return f(ctx, tx)
 	})
 }

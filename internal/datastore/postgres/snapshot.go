@@ -1,5 +1,3 @@
-// Adapted from https://github.com/jackc/pgtype/blob/f59f1408937ef0bed249f2bfbafb77222bb48f65/xid.go
-
 package postgres
 
 import (
@@ -7,25 +5,67 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/exp/slices"
 )
+
+// RegisterTypes registers pgSnapshot and xid8 with a pgtype.ConnInfo.
+func RegisterTypes(m *pgtype.Map) {
+	m.RegisterType(&pgtype.Type{
+		Name:  "snapshot",
+		OID:   5038,
+		Codec: SnapshotCodec{},
+	})
+	m.RegisterType(&pgtype.Type{
+		Name:  "xid",
+		OID:   5069,
+		Codec: Uint64Codec{},
+	})
+	m.RegisterDefaultPgType(pgSnapshot{}, "snapshot")
+	m.RegisterDefaultPgType(xid8{}, "xid")
+}
+
+type SnapshotCodec struct {
+	pgtype.TextCodec
+}
+
+func (SnapshotCodec) DecodeValue(tm *pgtype.Map, oid uint32, format int16, src []byte) (interface{}, error) {
+	if src == nil {
+		return nil, nil
+	}
+
+	var target pgSnapshot
+	scanPlan := tm.PlanScan(oid, format, &target)
+	if scanPlan == nil {
+		return nil, fmt.Errorf("PlanScan did not find a plan")
+	}
+
+	err := scanPlan.Scan(src, &target)
+	if err != nil {
+		return nil, err
+	}
+
+	return target, nil
+}
 
 type pgSnapshot struct {
 	xmin, xmax uint64
 	xipList    []uint64 // Must always be sorted
-
-	status pgtype.Status
 }
 
-// DecodeText decodes the official postgres textual encoding for snapshots, described here:
-// https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT-PARTS
-func (s *pgSnapshot) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
-	s.status = pgtype.Undefined
-	asText := string(src)
-	components := strings.SplitN(asText, ":", 3)
+var (
+	_ pgtype.TextScanner = &pgSnapshot{}
+	_ pgtype.TextValuer  = &pgSnapshot{}
+)
+
+func (s *pgSnapshot) ScanText(v pgtype.Text) error {
+	if !v.Valid {
+		return fmt.Errorf("cannot scan NULL into pgSnapshot")
+	}
+
+	components := strings.SplitN(v.String, ":", 3)
 	if len(components) != 3 {
-		return fmt.Errorf("wrong number of snapshot components: %s", asText)
+		return fmt.Errorf("wrong number of snapshot components: %s", v.String)
 	}
 
 	var err error
@@ -55,21 +95,11 @@ func (s *pgSnapshot) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
 		s.xipList = nil
 	}
 
-	// Parsed successfully
-	s.status = pgtype.Present
 	return nil
 }
 
-// EncodeText should append the text format of s to buf. If s.Status is the
-// SQL value NULL then append nothing and return (nil, nil). The caller of
-// EncodeText is responsible for writing the correct NULL value or the
-// length of the data written.
-func (s pgSnapshot) EncodeText(ci *pgtype.ConnInfo, buf []byte) ([]byte, error) {
-	if s.status == pgtype.Null {
-		return nil, nil
-	}
-
-	return append(buf, []byte(s.String())...), nil
+func (s pgSnapshot) TextValue() (pgtype.Text, error) {
+	return pgtype.Text{String: s.String(), Valid: true}, nil
 }
 
 // String uses the official postgres encoding for snapshots, which is described here:
@@ -104,7 +134,7 @@ func (s pgSnapshot) LessThan(rhs pgSnapshot) bool {
 type comparisonResult uint8
 
 const (
-	uncomparable comparisonResult = iota
+	_ comparisonResult = iota
 	equal
 	lt
 	gt
@@ -119,10 +149,6 @@ const (
 // visible but another transaction sees 1-3 as visible, that transaction is
 // greater.
 func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
-	if s.status != pgtype.Present || rhs.status != pgtype.Present {
-		return uncomparable
-	}
-
 	rhsHasMoreInfo := rhs.anyTXVisible(s.xmax, s.xipList)
 	lhsHasMoreInfo := s.anyTXVisible(rhs.xmax, rhs.xipList)
 
@@ -155,7 +181,7 @@ func (s pgSnapshot) anyTXVisible(first uint64, others []uint64) bool {
 // complete and visible. For example, if txid was present in the xip list of this snapshot
 // it will be removed and the xmin and xmax will be adjusted accordingly.
 func (s pgSnapshot) markComplete(txid uint64) pgSnapshot {
-	if txid < s.xmin || s.status != pgtype.Present {
+	if txid < s.xmin {
 		// Nothing to do
 		return s
 	}
@@ -167,7 +193,6 @@ func (s pgSnapshot) markComplete(txid uint64) pgSnapshot {
 		s.xmin,
 		s.xmax,
 		xipListCopy,
-		pgtype.Present,
 	}
 
 	// Adjust the xmax and running tx if necessary
@@ -212,7 +237,6 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 		s.xmin,
 		s.xmax,
 		xipListCopy,
-		pgtype.Present,
 	}
 
 	// Adjust the xmax and running tx if necessary

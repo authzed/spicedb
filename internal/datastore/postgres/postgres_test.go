@@ -12,7 +12,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -574,6 +574,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				var err error
 				conn, err = pgx.Connect(ctx, uri)
+				RegisterTypes(conn.TypeMap())
 				require.NoError(err)
 
 				ds, err := newPostgresDatastore(

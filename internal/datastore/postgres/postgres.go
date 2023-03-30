@@ -9,10 +9,10 @@ import (
 
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
@@ -142,22 +142,30 @@ func newPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	readPoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		RegisterTypes(conn.TypeMap())
+		return nil
+	}
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		RegisterTypes(conn.TypeMap())
+		return nil
+	}
 
 	initializationContext, cancelInit := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelInit()
 
-	readPool, err := pgxpool.ConnectConfig(initializationContext, readPoolConfig)
+	readPool, err := pgxpool.NewWithConfig(initializationContext, readPoolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	writePool, err := pgxpool.ConnectConfig(initializationContext, writePoolConfig)
+	writePool, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -316,7 +324,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newXID xid8
 		var newSnapshot pgSnapshot
-		err = pgd.writePool.BeginTxFunc(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
+		err = pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
 			newXID, newSnapshot, err = createNewTransaction(ctx, tx)
 			if err != nil {
@@ -351,11 +359,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return datastore.NoRevision, err
 		}
 
-		if err := newXID.MustBePresent(); err != nil {
-			return datastore.NoRevision, err
-		}
-
-		return postgresRevision{newSnapshot.markComplete(newXID.Uint)}, nil
+		return postgresRevision{newSnapshot.markComplete(newXID.Uint64)}, nil
 	}
 	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
 }

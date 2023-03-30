@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx/v4"
 )
 
 var (
@@ -56,10 +57,6 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 	def := core.CaveatDefinition{}
 	err = def.UnmarshalVT(serializedDef)
 	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
-	}
-
-	if err := txID.MustBePresent(); err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 
@@ -114,10 +111,6 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 		c := core.CaveatDefinition{}
 		err = c.UnmarshalVT(defBytes)
 		if err != nil {
-			return nil, fmt.Errorf(errListCaveats, err)
-		}
-
-		if err := version.MustBePresent(); err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
 

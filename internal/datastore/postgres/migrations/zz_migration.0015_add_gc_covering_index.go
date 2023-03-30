@@ -3,7 +3,7 @@ package migrations
 import (
 	"context"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 )
 
 // See https://www.postgresql.org/docs/current/indexes-index-only-scans.html

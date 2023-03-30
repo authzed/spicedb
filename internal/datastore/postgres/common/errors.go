@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	dscommon "github.com/authzed/spicedb/internal/datastore/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
