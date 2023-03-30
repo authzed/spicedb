@@ -21,8 +21,8 @@ import (
 
 const errUnableToQueryTuples = "unable to query tuples: %w"
 
-// NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
+// NewPGXQueryExecutor creates an executor that uses the pgx library to make the specified queries.
+func NewPGXQueryExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
 		span := trace.SpanFromContext(ctx)
 
@@ -32,6 +32,20 @@ func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
 		}
 		defer txCleanup(ctx)
 		return queryTuples(ctx, sql, args, span, tx)
+	}
+}
+
+// NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
+func NewPGXExecutor(txSource TxFactory) common.ExecuteFunc {
+	return func(ctx context.Context, sql string, args []any) error {
+		tx, txCleanup, err := txSource(ctx)
+		if err != nil {
+			return fmt.Errorf("unable to exec SQL: %w", err)
+		}
+		defer txCleanup(ctx)
+
+		_, err = tx.Exec(ctx, sql, args...)
+		return err
 	}
 }
 

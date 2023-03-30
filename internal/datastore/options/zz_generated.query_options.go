@@ -18,6 +18,7 @@ func NewQueryOptionsWithOptions(opts ...QueryOptionsOption) *QueryOptions {
 func (q *QueryOptions) ToOption() QueryOptionsOption {
 	return func(to *QueryOptions) {
 		to.Limit = q.Limit
+		to.Streaming = q.Streaming
 		to.Usersets = q.Usersets
 	}
 }
@@ -34,6 +35,13 @@ func QueryOptionsWithOptions(q *QueryOptions, opts ...QueryOptionsOption) *Query
 func WithLimit(limit *uint64) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.Limit = limit
+	}
+}
+
+// WithStreaming returns an option that can set Streaming on a QueryOptions
+func WithStreaming(streaming bool) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.Streaming = streaming
 	}
 }
 

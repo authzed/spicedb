@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/options"
+
+	"github.com/authzed/spicedb/internal/logging"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
@@ -130,26 +134,37 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	tupleIterator, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter))
+	tupleIterator, err := ds.QueryRelationships(ctx,
+		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
+		options.WithStreaming(true))
 	if err != nil {
 		return rewriteError(ctx, err)
 	}
 	defer tupleIterator.Close()
 
+	logging.Ctx(ctx).Debug().Msg("starting streaming relationships")
+
+	response := &v1.ReadRelationshipsResponse{
+		ReadAt: revisionReadAt,
+	}
+	targetRel := tuple.NewRelationship()
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
-		if tupleIterator.Err() != nil {
-			return status.Errorf(codes.Internal, "error when reading tuples: %s", tupleIterator.Err())
+		if err := tupleIterator.Err(); err != nil {
+			return status.Errorf(codes.Internal, "error when reading tuples: %s", err)
 		}
 
-		err := resp.Send(&v1.ReadRelationshipsResponse{
-			ReadAt:       revisionReadAt,
-			Relationship: tuple.ToRelationship(tpl),
-		})
-		if err != nil {
-			return err
+		tuple.ToRelationshipMutating(tpl, targetRel)
+		response.Relationship = targetRel
+		if err := resp.Send(response); err != nil {
+			return status.Errorf(codes.Internal, "error when streaming tuples: %s", err)
 		}
 	}
-	tupleIterator.Close()
+
+	logging.Ctx(ctx).Debug().Msg("finished streaming relationships")
+	if err := tupleIterator.Err(); err != nil {
+		return status.Errorf(codes.Internal, "error after completing streaming tuples: %s", err)
+	}
+
 	return nil
 }
 

@@ -18,6 +18,7 @@ import (
 type pgReader struct {
 	txSource      pgxcommon.TxFactory
 	querySplitter common.TupleQuerySplitter
+	tupleCursorer common.TupleQueryCursorer
 	filterer      queryFilterer
 }
 
@@ -63,6 +64,10 @@ func (r *pgReader) QueryRelationships(
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
+	}
+	queryOpts := options.NewQueryOptionsWithOptions(opts...)
+	if queryOpts.Streaming {
+		return r.tupleCursorer.IteratorFor(ctx, qBuilder)
 	}
 
 	return r.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)

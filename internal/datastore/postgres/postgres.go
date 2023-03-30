@@ -293,13 +293,20 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	}
 
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXQueryExecutor(createTxFunc),
 		UsersetBatchSize: pgd.usersetBatchSize,
+	}
+
+	tupleCursorer := common.TupleQueryCursorer{
+		QueryExecutor: pgxcommon.NewPGXQueryExecutor(createTxFunc),
+		Executor:      pgxcommon.NewPGXExecutor(createTxFunc),
+		FetchSize:     1000,
 	}
 
 	return &pgReader{
 		createTxFunc,
 		querySplitter,
+		tupleCursorer,
 		buildLivingObjectFilterForRevision(rev),
 	}
 }
@@ -328,7 +335,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXQueryExecutor(longLivedTx),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 
@@ -336,6 +343,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				&pgReader{
 					longLivedTx,
 					querySplitter,
+					common.TupleQueryCursorer{},
 					currentlyLivingObjects,
 				},
 				tx,
