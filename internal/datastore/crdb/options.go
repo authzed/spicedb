@@ -155,12 +155,28 @@ func ReadConnMaxLifetime(lifetime time.Duration) Option {
 	return func(po *crdbOptions) { po.readPoolOpts.ConnMaxLifetime = &lifetime }
 }
 
+// ReadConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
+// to close the connection.
+//
+// This value defaults to 20% of the max lifetime.
+func ReadConnMaxLifetimeJitter(jitter time.Duration) Option {
+	return func(po *crdbOptions) { po.readPoolOpts.ConnMaxLifetimeJitter = &jitter }
+}
+
 // WriteConnMaxLifetime is the duration since creation after which a write
 // connection will be automatically closed.
 //
 // This value defaults to having no maximum.
 func WriteConnMaxLifetime(lifetime time.Duration) Option {
 	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxLifetime = &lifetime }
+}
+
+// WriteConnMaxLifetimeJitter is an interval to wait up to after the max lifetime
+// to close the connection.
+//
+// This value defaults to 20% of the max lifetime.
+func WriteConnMaxLifetimeJitter(jitter time.Duration) Option {
+	return func(po *crdbOptions) { po.writePoolOpts.ConnMaxLifetimeJitter = &jitter }
 }
 
 // ReadConnsMinOpen is the minimum size of the connection pool used for reads.

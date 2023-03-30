@@ -121,6 +121,7 @@ type TxFactory func(context.Context) (DBReader, common.TxCleanupFunc, error)
 type PoolOptions struct {
 	ConnMaxIdleTime         *time.Duration
 	ConnMaxLifetime         *time.Duration
+	ConnMaxLifetimeJitter   *time.Duration
 	ConnHealthCheckInterval *time.Duration
 	MinOpenConns            *int
 	MaxOpenConns            *int
@@ -151,6 +152,12 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
 
 	if opts.ConnHealthCheckInterval != nil {
 		pgxConfig.HealthCheckPeriod = *opts.ConnHealthCheckInterval
+	}
+
+	if opts.ConnMaxLifetimeJitter != nil {
+		pgxConfig.MaxConnLifetimeJitter = *opts.ConnMaxLifetimeJitter
+	} else if opts.ConnMaxLifetime != nil {
+		pgxConfig.MaxConnLifetimeJitter = time.Duration(0.2 * float64(*opts.ConnMaxLifetime))
 	}
 
 	ConfigurePGXLogger(pgxConfig.ConnConfig)
