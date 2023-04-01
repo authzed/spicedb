@@ -23,7 +23,7 @@ require (
 	github.com/go-logr/zerologr v1.2.2
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/protobuf v1.5.2
+	github.com/golang/protobuf v1.5.3
 	github.com/golang/snappy v0.0.4
 	github.com/google/cel-go v0.12.5
 	github.com/google/go-cmp v0.5.9
