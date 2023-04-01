@@ -17,7 +17,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/ecordell/optgen v0.0.6
 	github.com/emirpasic/gods v1.18.1
-	github.com/envoyproxy/protoc-gen-validate v0.9.1
+	github.com/envoyproxy/protoc-gen-validate v0.10.1
 	github.com/fatih/color v1.13.0
 	github.com/go-co-op/gocron v1.17.1
 	github.com/go-logr/zerologr v1.2.2
@@ -69,12 +69,12 @@ require (
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127
 	golang.org/x/mod v0.9.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/tools v0.6.0
+	golang.org/x/tools v0.7.0
 	google.golang.org/api v0.103.0
 	google.golang.org/genproto v0.0.0-20221202195650-67e5cbc046fd
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.30.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	mvdan.cc/gofumpt v0.4.0
@@ -129,7 +129,7 @@ require (
 	github.com/klauspost/compress v1.15.10 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/lyft/protoc-gen-star v0.6.1 // indirect
+	github.com/lyft/protoc-gen-star/v2 v2.0.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
