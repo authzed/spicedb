@@ -44,6 +44,7 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestStableNamespaceReadWrite", func(t *testing.T) { StableNamespaceReadWriteTest(t, tester) })
 
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
+	t.Run("TestObjectIDs", func(t *testing.T) { ObjectIDsTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
 	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
 	t.Run("TestDeleteNonExistant", func(t *testing.T) { DeleteNotExistantTest(t, tester) })
