@@ -67,8 +67,8 @@ message ObjectAndRelation {
 
   /** object_id is the unique ID for the object within the namespace */
   string object_id = 2 [ (validate.rules).string = {
-    pattern : "^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$",
-    max_bytes : 128,
+    pattern : "^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$",
+    max_bytes : 1024,
   } ];
 
   /** relation is the name of the referenced relation or permission under the namespace */

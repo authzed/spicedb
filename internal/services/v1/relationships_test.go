@@ -37,15 +37,17 @@ func TestReadRelationships(t *testing.T) {
 			&v1.RelationshipFilter{ResourceType: tf.DocumentNS.Name},
 			codes.OK,
 			map[string]struct{}{
-				"document:companyplan#parent@folder:company":                 {},
-				"document:masterplan#parent@folder:strategy":                 {},
-				"document:masterplan#owner@user:product_manager":             {},
-				"document:masterplan#viewer@user:eng_lead":                   {},
-				"document:masterplan#parent@folder:plans":                    {},
-				"document:healthplan#parent@folder:plans":                    {},
-				"document:specialplan#editor@user:multiroleguy":              {},
-				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
-				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+				"document:companyplan#parent@folder:company":                                                                        {},
+				"document:masterplan#parent@folder:strategy":                                                                        {},
+				"document:masterplan#owner@user:product_manager":                                                                    {},
+				"document:masterplan#viewer@user:eng_lead":                                                                          {},
+				"document:masterplan#parent@folder:plans":                                                                           {},
+				"document:healthplan#parent@folder:plans":                                                                           {},
+				"document:specialplan#editor@user:multiroleguy":                                                                     {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
+				"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
+				"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
 			},
 		},
 		{
@@ -261,17 +263,21 @@ func TestWriteRelationships(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	toWrite := tuple.MustParse("document:totallynew#parent@folder:plans")
+	toWrite := []*core.RelationTuple{
+		tuple.MustParse("document:totallynew#parent@folder:plans"),
+		tuple.MustParse("document:--base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:--base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK=="),
+		tuple.MustParse("document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryincrediblysuuperlong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryincrediblysuuperlong"),
+	}
 
 	// Write with a failing precondition
 	resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.MustToRelationship(toWrite),
+			Relationship: tuple.MustToRelationship(toWrite[0]),
 		}},
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.MustToFilter(toWrite),
+			Filter:    tuple.MustToFilter(toWrite[0]),
 		}},
 	})
 	require.Nil(resp)
@@ -290,11 +296,15 @@ func TestWriteRelationships(t *testing.T) {
 	require.NotNil(existing)
 
 	// Write with a succeeding precondition
-	resp, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{{
+	toWriteUpdates := make([]*v1.RelationshipUpdate, 0, len(toWrite))
+	for _, tpl := range toWrite {
+		toWriteUpdates = append(toWriteUpdates, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.MustToRelationship(toWrite),
-		}},
+			Relationship: tuple.MustToRelationship(tpl),
+		})
+	}
+	resp, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: toWriteUpdates,
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
 			Filter:    tuple.MustToFilter(existing),
@@ -304,43 +314,46 @@ func TestWriteRelationships(t *testing.T) {
 	require.NotNil(resp.WrittenAt)
 	require.NotZero(resp.WrittenAt.Token)
 
-	findWritten := &v1.RelationshipFilter{
-		ResourceType:       "document",
-		OptionalResourceId: "totallynew",
+	// Ensure the written relationships exist
+	for _, tpl := range toWrite {
+		findWritten := &v1.RelationshipFilter{
+			ResourceType:       tpl.ResourceAndRelation.Namespace,
+			OptionalResourceId: tpl.ResourceAndRelation.ObjectId,
+		}
+
+		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			RelationshipFilter: findWritten,
+		})
+		require.NoError(err)
+		rel, err := stream.Recv()
+		require.NoError(err)
+		relStr, err := tuple.StringRelationship(rel.Relationship)
+		require.NoError(err)
+		require.Equal(tuple.MustString(tpl), relStr)
+
+		_, err = stream.Recv()
+		require.ErrorIs(err, io.EOF)
+
+		// Delete the written relationship
+		deleted, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+			Updates: []*v1.RelationshipUpdate{{
+				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+				Relationship: tuple.MustToRelationship(tpl),
+			}},
+		})
+		require.NoError(err)
+
+		// Ensure the relationship was deleted
+		stream, err = client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: deleted.WrittenAt},
+			},
+			RelationshipFilter: findWritten,
+		})
+		require.NoError(err)
+		_, err = stream.Recv()
+		require.ErrorIs(err, io.EOF)
 	}
-
-	// Ensure the written relationship is exists
-	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
-		RelationshipFilter: findWritten,
-	})
-	require.NoError(err)
-
-	rel, err := stream.Recv()
-	require.NoError(err)
-	require.Equal(tuple.MustString(toWrite), tuple.MustRelString(rel.Relationship))
-
-	_, err = stream.Recv()
-	require.ErrorIs(err, io.EOF)
-
-	// Delete the written relationship
-	deleted, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: tuple.MustToRelationship(toWrite),
-		}},
-	})
-	require.NoError(err)
-
-	// Ensure the relationship was deleted
-	stream, err = client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_AtLeastAsFresh{AtLeastAsFresh: deleted.WrittenAt},
-		},
-		RelationshipFilter: findWritten,
-	})
-	require.NoError(err)
-	_, err = stream.Recv()
-	require.ErrorIs(err, io.EOF)
 }
 
 func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
@@ -730,15 +743,17 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			deleted: map[string]struct{}{
-				"document:companyplan#parent@folder:company":                 {},
-				"document:masterplan#parent@folder:strategy":                 {},
-				"document:masterplan#owner@user:product_manager":             {},
-				"document:masterplan#viewer@user:eng_lead":                   {},
-				"document:masterplan#parent@folder:plans":                    {},
-				"document:healthplan#parent@folder:plans":                    {},
-				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
-				"document:specialplan#editor@user:multiroleguy":              {},
-				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+				"document:companyplan#parent@folder:company":                                                                        {},
+				"document:masterplan#parent@folder:strategy":                                                                        {},
+				"document:masterplan#owner@user:product_manager":                                                                    {},
+				"document:masterplan#viewer@user:eng_lead":                                                                          {},
+				"document:masterplan#parent@folder:plans":                                                                           {},
+				"document:healthplan#parent@folder:plans":                                                                           {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
+				"document:specialplan#editor@user:multiroleguy":                                                                     {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
+				"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
+				"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
 			},
 		},
 		{
