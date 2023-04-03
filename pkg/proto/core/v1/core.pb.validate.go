@@ -842,10 +842,10 @@ func (m *ObjectAndRelation) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if len(m.GetObjectId()) > 128 {
+	if len(m.GetObjectId()) > 1024 {
 		err := ObjectAndRelationValidationError{
 			field:  "ObjectId",
-			reason: "value length must be at most 128 bytes",
+			reason: "value length must be at most 1024 bytes",
 		}
 		if !all {
 			return err
@@ -856,7 +856,7 @@ func (m *ObjectAndRelation) validate(all bool) error {
 	if !_ObjectAndRelation_ObjectId_Pattern.MatchString(m.GetObjectId()) {
 		err := ObjectAndRelationValidationError{
 			field:  "ObjectId",
-			reason: "value does not match regex pattern \"^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\\\*)$\"",
+			reason: "value does not match regex pattern \"^(([a-zA-Z0-9/_|\\\\-=+]{1,})|\\\\*)$\"",
 		}
 		if !all {
 			return err
@@ -968,7 +968,7 @@ var _ interface {
 
 var _ObjectAndRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
-var _ObjectAndRelation_ObjectId_Pattern = regexp.MustCompile("^(([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*)$")
+var _ObjectAndRelation_ObjectId_Pattern = regexp.MustCompile("^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$")
 
 var _ObjectAndRelation_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$")
 
