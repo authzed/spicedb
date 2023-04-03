@@ -317,6 +317,59 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
+	testCases := []string{
+		"simple",
+		"google|123123123123",
+		"--=base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==",
+		"veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong",
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc, func(t *testing.T) {
+			ctx := context.Background()
+			require := require.New(t)
+
+			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			require.NoError(err)
+			defer ds.Close()
+
+			tpl := makeTestTuple(tc, tc)
+			require.NoError(tpl.Validate())
+
+			// Write the test tuple
+			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+				return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+					{
+						Operation: core.RelationTupleUpdate_CREATE,
+						Tuple:     tpl,
+					},
+				})
+			})
+			require.NoError(err)
+
+			// Read it back
+			rev, err := ds.HeadRevision(ctx)
+			require.NoError(err)
+			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+				ResourceType:        testResourceNamespace,
+				OptionalResourceIds: []string{tc},
+			})
+			require.NoError(err)
+			defer iter.Close()
+
+			first := iter.Next()
+			require.NotNil(first)
+			require.Equal(tc, first.ResourceAndRelation.ObjectId)
+			require.Equal(tc, first.Subject.ObjectId)
+
+			shouldBeNil := iter.Next()
+			require.Nil(shouldBeNil)
+			require.NoError(iter.Err())
+		})
+	}
+}
+
 // DeleteRelationshipsTest tests whether or not the requirements for deleting
 // relationships hold for a particular datastore.
 func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
@@ -631,7 +684,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 
 					writtenAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, newTuple)
 					require.NoError(err)
-					require.True(writtenAt.GreaterThan(lastRevision))
+					require.True(writtenAt.GreaterThan(lastRevision), "%s must be greater than %s, but isn't", writtenAt, lastRevision)
 
 					tRequire.TupleExists(ctx, newTuple, writtenAt)
 
