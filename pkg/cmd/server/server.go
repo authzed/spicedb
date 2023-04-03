@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/authzed/grpcutil"
+	"github.com/cespare/xxhash/v2"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/go-multierror"
@@ -40,6 +41,17 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+const (
+	hashringReplicationFactor = 100
+	backendsPerKey            = 1
+)
+
+var ConsistentHashringPicker = balancer.NewConsistentHashringPickerBuilder(
+	xxhash.Sum64,
+	hashringReplicationFactor,
+	backendsPerKey,
+)
+
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
@@ -67,18 +79,19 @@ type Config struct {
 	SchemaPrefixesRequired bool
 
 	// Dispatch options
-	DispatchServer                 util.GRPCServerConfig
-	DispatchMaxDepth               uint32
-	GlobalDispatchConcurrencyLimit uint16
-	DispatchConcurrencyLimits      graph.ConcurrencyLimits
-	DispatchUpstreamAddr           string
-	DispatchUpstreamCAPath         string
-	DispatchUpstreamTimeout        time.Duration
-	DispatchClientMetricsEnabled   bool
-	DispatchClientMetricsPrefix    string
-	DispatchClusterMetricsEnabled  bool
-	DispatchClusterMetricsPrefix   string
-	Dispatcher                     dispatch.Dispatcher
+	DispatchServer                    util.GRPCServerConfig
+	DispatchMaxDepth                  uint32
+	GlobalDispatchConcurrencyLimit    uint16
+	DispatchConcurrencyLimits         graph.ConcurrencyLimits
+	DispatchUpstreamAddr              string
+	DispatchUpstreamCAPath            string
+	DispatchUpstreamTimeout           time.Duration
+	DispatchClientMetricsEnabled      bool
+	DispatchClientMetricsPrefix       string
+	DispatchClusterMetricsEnabled     bool
+	DispatchClusterMetricsPrefix      string
+	Dispatcher                        dispatch.Dispatcher
+	DispatchHashringReplicationFactor uint16
 
 	DispatchCacheConfig        CacheConfig
 	ClusterDispatchCacheConfig CacheConfig
@@ -237,6 +250,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		}
 	}
 	closeables.AddWithError(dispatcher.Close)
+
+	// Set this value to take effect the next time the replicas are updated
+	// Applies to ALL running servers.
+	ConsistentHashringPicker.ReplicationFactor(c.DispatchHashringReplicationFactor)
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {

@@ -59,7 +59,9 @@ var testResolverBuilder = &SafeManualResolverBuilder{}
 
 func init() {
 	// register hashring balancer
-	balancer.Register(hashbalancer.NewConsistentHashringBuilder(xxhash.Sum64, 20, 1))
+	balancer.Register(hashbalancer.NewConsistentHashringBuilder(
+		hashbalancer.NewConsistentHashringPickerBuilder(xxhash.Sum64, 1500, 1)),
+	)
 
 	// Register a manual resolver.Builder  that we can feed addresses for tests
 	// Registration is not thread safe, so we register a single resolver.Builder
@@ -124,7 +126,7 @@ type SafeManualResolver struct {
 
 // ResolveNow implements the resolver.Resolver interface
 // It sends the static list of addresses to the underlying resolver.ClientConn
-func (r *SafeManualResolver) ResolveNow(options resolver.ResolveNowOptions) {
+func (r *SafeManualResolver) ResolveNow(_ resolver.ResolveNowOptions) {
 	if r.cc == nil {
 		return
 	}
@@ -139,11 +141,11 @@ func (r *SafeManualResolver) Close() {}
 // TestClusterWithDispatch creates a cluster with `size` nodes
 // The cluster has a real dispatch stack that uses bufconn grpc connections
 func TestClusterWithDispatch(t testing.TB, size uint, ds datastore.Datastore) ([]*grpc.ClientConn, func()) {
-	return TestClusterWithDispatchAndCacheConfig(t, size, ds, true)
+	return TestClusterWithDispatchAndCacheConfig(t, size, ds)
 }
 
 // TestClusterWithDispatchAndCacheConfig creates a cluster with `size` nodes and with cache toggled.
-func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore.Datastore, cacheEnabled bool) ([]*grpc.ClientConn, func()) {
+func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore.Datastore) ([]*grpc.ClientConn, func()) {
 	// each cluster gets a unique prefix since grpc resolution is process-global
 	prefix := getPrefix(t)
 

@@ -30,15 +30,31 @@ const (
 var logger = grpclog.Component("consistenthashring")
 
 // NewConsistentHashringBuilder creates a new balancer.Builder that
-// will create a consistent hashring balancer with the given config.
+// will create a consistent hashring balancer with the picker builder.
 // Before making a connection, register it with grpc with:
 // `balancer.Register(consistent.NewConsistentHashringBuilder(hasher, factor, spread))`
-func NewConsistentHashringBuilder(hasher consistent.HasherFunc, replicationFactor uint16, spread uint8) balancer.Builder {
+func NewConsistentHashringBuilder(pickerBuilder base.PickerBuilder) balancer.Builder {
 	return base.NewBalancerBuilder(
 		BalancerName,
-		&consistentHashringPickerBuilder{hasher: hasher, replicationFactor: replicationFactor, spread: spread},
+		pickerBuilder,
 		base.Config{HealthCheck: true},
 	)
+}
+
+// NewConsistentHashringPickerBuilder creates a new picker builder
+// that will create consistent hashrings according to the supplied
+// config. If the ReplicationFactor is changed, that new parameter
+// will be used when the next picker is created.
+func NewConsistentHashringPickerBuilder(
+	hasher consistent.HasherFunc,
+	initialReplicationFactor uint16,
+	spread uint8,
+) *ConsistentHashringPickerBuilder {
+	return &ConsistentHashringPickerBuilder{
+		hasher:            hasher,
+		replicationFactor: initialReplicationFactor,
+		spread:            spread,
+	}
 }
 
 type subConnMember struct {
@@ -54,19 +70,32 @@ func (s subConnMember) Key() string {
 
 var _ consistent.Member = &subConnMember{}
 
-type consistentHashringPickerBuilder struct {
+// ConsistentHashringPickerBuilder is an implementation of base.PickerBuilder and
+// is used to build pickers based on updates to the node architecture.
+type ConsistentHashringPickerBuilder struct {
+	sync.Mutex
+
 	hasher            consistent.HasherFunc
 	replicationFactor uint16
 	spread            uint8
 }
 
-func (b *consistentHashringPickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
+func (b *ConsistentHashringPickerBuilder) ReplicationFactor(rf uint16) {
+	b.Lock()
+	defer b.Unlock()
+	b.replicationFactor = rf
+}
+
+func (b *ConsistentHashringPickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
 	logger.Infof("consistentHashringPicker: Build called with info: %v", info)
 	if len(info.ReadySCs) == 0 {
 		return base.NewErrPicker(balancer.ErrNoSubConnAvailable)
 	}
 
+	b.Lock()
 	hashring := consistent.MustNewHashring(b.hasher, b.replicationFactor)
+	b.Unlock()
+
 	for sc, scInfo := range info.ReadySCs {
 		if err := hashring.Add(subConnMember{
 			SubConn: sc,
@@ -106,3 +135,5 @@ func (p *consistentHashringPicker) Pick(info balancer.PickInfo) (balancer.PickRe
 		SubConn: chosen.SubConn,
 	}, nil
 }
+
+var _ base.PickerBuilder = &ConsistentHashringPickerBuilder{}

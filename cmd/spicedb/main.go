@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/rs/zerolog"
 	"github.com/sercand/kuberesolver/v3"
 	"github.com/spf13/cobra"
@@ -18,11 +17,6 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 )
 
-const (
-	hashringReplicationFactor = 20
-	backendsPerKey            = 1
-)
-
 var errParsing = errors.New("parsing error")
 
 func main() {
@@ -30,11 +24,7 @@ func main() {
 	kuberesolver.RegisterInCluster()
 
 	// Enable consistent hashring gRPC load balancer
-	balancer.Register(consistentbalancer.NewConsistentHashringBuilder(
-		xxhash.Sum64,
-		hashringReplicationFactor,
-		backendsPerKey,
-	))
+	balancer.Register(consistentbalancer.NewConsistentHashringBuilder(cmdutil.ConsistentHashringPicker))
 
 	log.SetGlobalLogger(zerolog.New(os.Stdout))
 

@@ -190,7 +190,7 @@ func BenchmarkServices(b *testing.B) {
 					})
 					brequire.NoError(err)
 
-					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds, false /* no cache */)
+					conn, cleanup := testserver.TestClusterWithDispatchAndCacheConfig(b, 1, ds)
 					b.Cleanup(cleanup)
 
 					dsCtx := datastoremw.ContextWithHandle(context.Background())

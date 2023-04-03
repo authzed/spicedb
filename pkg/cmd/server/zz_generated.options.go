@@ -52,6 +52,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchClusterMetricsEnabled = c.DispatchClusterMetricsEnabled
 		to.DispatchClusterMetricsPrefix = c.DispatchClusterMetricsPrefix
 		to.Dispatcher = c.Dispatcher
+		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
@@ -272,6 +273,13 @@ func WithDispatchClusterMetricsPrefix(dispatchClusterMetricsPrefix string) Confi
 func WithDispatcher(dispatcher dispatch.Dispatcher) ConfigOption {
 	return func(c *Config) {
 		c.Dispatcher = dispatcher
+	}
+}
+
+// WithDispatchHashringReplicationFactor returns an option that can set DispatchHashringReplicationFactor on a Config
+func WithDispatchHashringReplicationFactor(dispatchHashringReplicationFactor uint16) ConfigOption {
+	return func(c *Config) {
+		c.DispatchHashringReplicationFactor = dispatchHashringReplicationFactor
 	}
 }
 
