@@ -117,7 +117,7 @@ func (v1st v1ServiceTester) Write(ctx context.Context, relationship *core.Relati
 	return err
 }
 
-func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error) {
+func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error) {
 	readResp, err := v1st.permClient.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: namespaceName,
@@ -149,7 +149,7 @@ func (v1st v1ServiceTester) Read(ctx context.Context, namespaceName string, atRe
 	return tuples, nil
 }
 
-func (v1st v1ServiceTester) LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error) {
+func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error) {
 	lookupResp, err := v1st.permClient.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 		ResourceObjectType: resourceRelation.Namespace,
 		Permission:         resourceRelation.Relation,
@@ -186,7 +186,7 @@ func (v1st v1ServiceTester) LookupResources(ctx context.Context, resourceRelatio
 	return found, nil
 }
 
-func (v1st v1ServiceTester) LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
+func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
 	var builtContext *structpb.Struct
 	if caveatContext != nil {
 		built, err := structpb.NewStruct(caveatContext)
