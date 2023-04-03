@@ -1,7 +1,6 @@
 package balancer
 
 import (
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -16,12 +15,12 @@ import (
 type ctxKey string
 
 const (
-	// name is the name of consistent-hashring balancer.
-	name = "consistent-hashring"
+	// BalancerName is the name of consistent-hashring balancer.
+	BalancerName = "consistent-hashring"
 
-	// serviceConfig is a service config that sets the default balancer
+	// BalancerServiceConfig is a service config that sets the default balancer
 	// to the consistent-hashring balancer
-	serviceConfig = `{"loadBalancingPolicy":"%s"}`
+	BalancerServiceConfig = `{"loadBalancingPolicy":"consistent-hashring"}`
 
 	// CtxKey is the key for the grpc request's context.Context which points to
 	// the key to hash for the request. The value it points to must be []byte
@@ -36,21 +35,10 @@ var logger = grpclog.Component("consistenthashring")
 // `balancer.Register(consistent.NewConsistentHashringBuilder(hasher, factor, spread))`
 func NewConsistentHashringBuilder(hasher consistent.HasherFunc, replicationFactor uint16, spread uint8) balancer.Builder {
 	return base.NewBalancerBuilder(
-		NameForReplicationFactor(replicationFactor),
+		BalancerName,
 		&consistentHashringPickerBuilder{hasher: hasher, replicationFactor: replicationFactor, spread: spread},
 		base.Config{HealthCheck: true},
 	)
-}
-
-// NameForReplicationFactor returns the name of the balancer for a given replication factor
-func NameForReplicationFactor(replicationFactor uint16) string {
-	return fmt.Sprintf(name+"-rf-%d", replicationFactor)
-}
-
-// ServiceConfigForBalancerName provides the gRPC service configuration string for
-// a hashring balancer with a specific replication factor by its name
-func ServiceConfigForBalancerName(balancerName string) string {
-	return fmt.Sprintf(serviceConfig, balancerName)
 }
 
 type subConnMember struct {
