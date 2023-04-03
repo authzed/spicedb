@@ -363,8 +363,8 @@ github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnr
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
-github.com/jzelinskie/cobrautil/v2 v2.0.0-20221215210038-3f120e7f595f h1:Roeu56yDjhb2yFC6/KupOm7V3qSf5YP7/JDOUeWOJXw=
-github.com/jzelinskie/cobrautil/v2 v2.0.0-20221215210038-3f120e7f595f/go.mod h1:iqQf0oijpU31L1tuvD9+dKxkhdAv9IaKlnzVattaDwo=
+github.com/jzelinskie/cobrautil/v2 v2.0.0-20230403163312-3593f31d8fe1 h1:uC0lH8fWcp6E7JHmiR0F0YY0AiJhOy2HZbHM6rVSDQU=
+github.com/jzelinskie/cobrautil/v2 v2.0.0-20230403163312-3593f31d8fe1/go.mod h1:iqQf0oijpU31L1tuvD9+dKxkhdAv9IaKlnzVattaDwo=
 github.com/jzelinskie/stringz v0.0.1 h1:IahR+y8ct2nyj7B6i8UtFsGFj4ex1SX27iKFYsAheLk=
 github.com/jzelinskie/stringz v0.0.1/go.mod h1:hHYbgxJuNLRw91CmpuFsYEOyQqpDVFg8pvEh23vy4P0=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
