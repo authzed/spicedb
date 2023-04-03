@@ -8,12 +8,10 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	grpcbalancer "google.golang.org/grpc/balancer"
 )
 
 func TestServerGracefulTermination(t *testing.T) {
@@ -48,28 +46,6 @@ func TestServerGracefulTermination(t *testing.T) {
 	}()
 	cancel()
 	<-ch
-}
-
-func TestBalancerRegistration(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
-	require.NoError(t, err)
-
-	c := ConfigWithOptions(
-		&Config{},
-		WithPresharedKey("psk"),
-		WithDatastore(ds),
-		WithDispatchHashringReplicationFactor(1000),
-	)
-	srv, err := c.Complete(ctx)
-	require.NoError(t, err)
-	require.NoError(t, srv.(*completedServerConfig).closeFunc())
-
-	require.NotNil(t, grpcbalancer.Get(balancer.NameForReplicationFactor(1000)))
-	require.Nil(t, grpcbalancer.Get(balancer.NameForReplicationFactor(100)))
 }
 
 func TestServerGracefulTerminationOnError(t *testing.T) {
