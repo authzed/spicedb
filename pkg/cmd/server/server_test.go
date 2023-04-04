@@ -59,7 +59,11 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
-	c := ConfigWithOptions(&Config{}, WithPresharedKey("psk"), WithDatastore(ds))
+	c := ConfigWithOptions(&Config{
+		GRPCServer: util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+		},
+	}, WithPresharedKey("psk"), WithDatastore(ds))
 	cancel()
 	_, err = c.Complete(ctx)
 	require.ErrorIs(t, err, context.Canceled)
