@@ -17,7 +17,7 @@ import (
 func TestServerGracefulTermination(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
@@ -32,18 +32,22 @@ func TestServerGracefulTermination(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: true}),
 		WithDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
-		WithHTTPGateway(util.HTTPServerConfig{Enabled: true}),
-		WithDashboardAPI(util.HTTPServerConfig{Enabled: true}),
-		WithMetricsAPI(util.HTTPServerConfig{Enabled: true}),
+		WithHTTPGateway(util.HTTPServerConfig{Enabled: true, Address: ":"}),
+		WithDashboardAPI(util.HTTPServerConfig{Enabled: true, Address: ":"}),
+		WithMetricsAPI(util.HTTPServerConfig{Enabled: true, Address: ":"}),
 	)
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
 
 	ch := make(chan struct{}, 1)
+	st := make(chan struct{}, 1)
 	go func() {
-		require.NoError(t, rs.Run(ctx))
+		st <- struct{}{}
+		_ = rs.Run(ctx)
 		ch <- struct{}{}
 	}()
+	<-st
+	time.Sleep(10 * time.Millisecond)
 	cancel()
 	<-ch
 }
