@@ -4,6 +4,7 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -34,6 +35,10 @@ var histogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 // NewHandler creates an REST gateway HTTP CloserHandler with the provided upstream
 // configuration.
 func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (*CloserHandler, error) {
+	if upstreamAddr == "" {
+		return nil, fmt.Errorf("upstreamAddr must not be empty")
+	}
+
 	opts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),

@@ -435,6 +435,12 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 		log.Ctx(ctx).Info().Str("cert-path", c.HTTPGatewayUpstreamTLSCertPath).Msg("Overriding REST gateway upstream TLS")
 	}
 
+	// If the requested network is a buffered one, then disable the HTTPGateway.
+	if c.GRPCServer.Network == util.BufferedNetwork {
+		c.HTTPGateway.Enabled = false
+		c.HTTPGatewayUpstreamAddr = "invalidaddr:1234" // We need an address-like value here for gRPC
+	}
+
 	var gatewayHandler http.Handler
 	closeableGatewayHandler, err := gateway.NewHandler(ctx, c.HTTPGatewayUpstreamAddr, c.HTTPGatewayUpstreamTLSCertPath)
 	if err != nil {
