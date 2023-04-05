@@ -13,11 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
-	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/mysql"
 	"github.com/authzed/spicedb/internal/datastore/postgres"
+	"github.com/authzed/spicedb/internal/datastore/spanner"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/internal/testserver/datastore/config"
+	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -32,23 +34,36 @@ const (
 	watchBufferLength    = 1000
 )
 
-func BenchmarkDatastoreDriver(b *testing.B) {
-	drivers := []struct {
-		name     string
-		initFunc func(*testing.B) datastore.Datastore
-	}{
-		// Spanner is excluded because performance testing a simulator doesn't make sense
-		{"postgres", initPostgres},
-		{"crdb-overlap-static", buildCRDBInit("static")},
-		{"crdb-overlap-insecure", buildCRDBInit("insecure")},
-		{"mysql", initMySQL},
-		{"memdb", initMemdb},
-	}
+var drivers = []struct {
+	name        string
+	suffix      string
+	extraConfig []dsconfig.ConfigOption
+}{
+	{"memory", "", nil},
+	{postgres.Engine, "", nil},
+	{crdb.Engine, "-overlap-static", []dsconfig.ConfigOption{dsconfig.WithOverlapStrategy("static")}},
+	{crdb.Engine, "-overlap-insecure", []dsconfig.ConfigOption{dsconfig.WithOverlapStrategy("insecure")}},
+	{mysql.Engine, "", nil},
+}
 
+var skipped = []string{
+	spanner.Engine, // Not useful to benchmark a simulator
+}
+
+func BenchmarkDatastoreDriver(b *testing.B) {
 	for _, driver := range drivers {
-		b.Run(driver.name, func(b *testing.B) {
+		b.Run(driver.name+driver.suffix, func(b *testing.B) {
+			engine := testdatastore.RunDatastoreEngine(b, driver.name)
+			ds := engine.NewDatastore(b, config.DatastoreConfigInitFunc(
+				b,
+				append(driver.extraConfig,
+					dsconfig.WithRevisionQuantization(revisionQuantization),
+					dsconfig.WithGCWindow(gcWindow),
+					dsconfig.WithGCInterval(gcInterval),
+					dsconfig.WithWatchBufferLength(watchBufferLength))...,
+			))
+
 			ctx := context.Background()
-			ds := driver.initFunc(b)
 
 			// Write the standard schema
 			ds, _ = testfixtures.StandardDatastoreWithSchema(ds, require.New(b))
@@ -101,61 +116,20 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 	}
 }
 
-func initPostgres(b *testing.B) datastore.Datastore {
-	builder := testdatastore.RunPostgresForTesting(b, "", "head")
-	ds := builder.NewDatastore(b, func(engine, uri string) datastore.Datastore {
-		ds, err := postgres.NewPostgresDatastore(uri,
-			postgres.RevisionQuantization(revisionQuantization),
-			postgres.GCWindow(gcWindow),
-			postgres.GCInterval(gcInterval),
-			postgres.WatchBufferLength(watchBufferLength),
-		)
-		require.NoError(b, err)
-		return ds
-	})
-	return ds
-}
-
-func buildCRDBInit(overlapStrategy string) func(*testing.B) datastore.Datastore {
-	return func(b *testing.B) datastore.Datastore {
-		builder := testdatastore.RunCRDBForTesting(b, "")
-		ds := builder.NewDatastore(b, func(engine, uri string) datastore.Datastore {
-			ds, err := crdb.NewCRDBDatastore(
-				uri,
-				crdb.RevisionQuantization(revisionQuantization),
-				crdb.GCWindow(gcWindow),
-				crdb.WatchBufferLength(watchBufferLength),
-
-				crdb.OverlapStrategy(overlapStrategy),
-			)
-			require.NoError(b, err)
-			return ds
-		})
-		return ds
+func TestAllDriversBenchmarkedOrSkipped(t *testing.T) {
+	notBenchmarked := make(map[string]struct{}, len(datastore.Engines))
+	for _, name := range datastore.Engines {
+		notBenchmarked[name] = struct{}{}
 	}
-}
 
-func initMySQL(b *testing.B) datastore.Datastore {
-	builder := testdatastore.RunMySQLForTesting(b, "")
-	ds := builder.NewDatastore(b, func(engine, uri string) datastore.Datastore {
-		ds, err := mysql.NewMySQLDatastore(uri,
-			mysql.RevisionQuantization(revisionQuantization),
-			mysql.GCWindow(gcWindow),
-			mysql.GCInterval(gcInterval),
-			mysql.WatchBufferLength(watchBufferLength),
+	for _, driver := range drivers {
+		delete(notBenchmarked, driver.name)
+	}
+	for _, skippedEngine := range skipped {
+		delete(notBenchmarked, skippedEngine)
+	}
 
-			mysql.OverrideLockWaitTimeout(1),
-		)
-		require.NoError(b, err)
-		return ds
-	})
-	return ds
-}
-
-func initMemdb(b *testing.B) datastore.Datastore {
-	ds, err := memdb.NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
-	require.NoError(b, err)
-	return ds
+	require.Empty(t, notBenchmarked)
 }
 
 func buildTupleTest(ctx context.Context, ds datastore.Datastore, op core.RelationTupleUpdate_Operation) func(b *testing.B) {
