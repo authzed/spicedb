@@ -102,7 +102,8 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			logger.Log(ctx, level, msg, data)
 		}
 	}
-	l := zerologadapter.NewLogger(log.Logger)
+
+	l := zerologadapter.NewLogger(log.Logger, zerologadapter.WithSubDictionary("pgx"))
 	connConfig.Tracer = &tracelog.TraceLog{Logger: levelMappingFn(l), LogLevel: tracelog.LogLevelInfo}
 }
 
