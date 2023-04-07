@@ -225,7 +225,7 @@ func TestCheckPermissions(t *testing.T) {
 		{
 			obj("document", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK=="),
 			"view",
-			sub("user", "unknowngal", ""),
+			sub("user", "unkn-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==owngal", ""),
 			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 			codes.OK,
 		},

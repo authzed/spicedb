@@ -75,7 +75,7 @@ func TestInvalidRelationship(t *testing.T) {
 		},
 	})
 	require.NotNil(t, response.GetInternalError())
-	require.Equal(t, "invalid resource id; must be alphanumeric and between 1 and 127 characters", response.GetInternalError())
+	require.Equal(t, `invalid resource id; must match ([a-zA-Z0-9/_|\-=+]{1,})`, response.GetInternalError())
 }
 
 func run(t *testing.T, request *devinterface.DeveloperRequest) *devinterface.DeveloperResponse {
