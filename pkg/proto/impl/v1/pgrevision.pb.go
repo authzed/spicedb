@@ -20,7 +20,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// *
 // PostgresRevision is a compact binary encoding of a postgres snapshot as
 // described in the offial documentation here:
 // https://www.postgresql.org/docs/current/functions-info.html#FUNCTIONS-PG-SNAPSHOT-PARTS

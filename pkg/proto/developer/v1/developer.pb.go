@@ -741,7 +741,7 @@ type CheckOperationParameters struct {
 
 	Resource *v1.ObjectAndRelation `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
 	Subject  *v1.ObjectAndRelation `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`
-	// * caveat_context consists of any named values that are defined at write time for the caveat expression *
+	// caveat_context consists of any named values that are defined at write time for the caveat expression *
 	CaveatContext *structpb.Struct `protobuf:"bytes,3,opt,name=caveat_context,json=caveatContext,proto3" json:"caveat_context,omitempty"`
 }
 
