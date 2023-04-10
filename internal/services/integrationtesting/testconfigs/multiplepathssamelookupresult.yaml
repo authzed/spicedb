@@ -1,0 +1,28 @@
+---
+schema: |2+
+    definition user {}
+    definition folder {
+      relation parent: folder
+      relation hidden: folder
+
+      relation owner: user
+
+      permission can_read_hidden = owner + parent->can_read_hidden
+      permission can_read = owner + parent->can_read_hidden
+    }
+    definition resource {
+      relation parent: folder
+      relation hidden: folder
+
+      permission can_read_hidden = hidden->can_read_hidden
+      permission can_read = parent->can_read + can_read_hidden
+    }
+
+relationships: |-
+  folder:test#owner@user:tom
+  folder:normal#parent@folder:test
+  resource:normal-1#parent@folder:normal
+  resource:hidden-1#hidden@folder:normal
+  resource:hidden-2#parent@folder:hidden
+assertions: null
+validation: null

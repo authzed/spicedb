@@ -531,6 +531,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			ONR("user", "tom", "..."),
 			[]reachableResource{
 				{"document:foo#view", true},
+				{"document:foo#view", true},
 			},
 		},
 		{

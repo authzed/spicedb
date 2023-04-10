@@ -38,10 +38,10 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, rsm.len())
 
-	filtered := rsm.filterForDispatch(&syncONRSet{})
-	require.False(t, filtered.isEmpty())
+	locked := rsm.asReadOnly()
+	require.False(t, locked.isEmpty())
 
-	directAsResources := filtered.asReachableResources(true)
+	directAsResources := locked.asReachableResources(true)
 	testutil.RequireProtoSlicesEqual(t, []*v1.ReachableResource{
 		{
 			ResourceId:    "first",
@@ -65,7 +65,7 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 		},
 	}, directAsResources, sortByResource, "different resources")
 
-	notDirectAsResources := filtered.asReachableResources(false)
+	notDirectAsResources := locked.asReachableResources(false)
 	testutil.RequireProtoSlicesEqual(t, []*v1.ReachableResource{
 		{
 			ResourceId:    "first",
@@ -201,8 +201,8 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 						expected = append(expected, cloned)
 					}
 
-					filtered := rsm.filterForDispatch(&syncONRSet{})
-					resources := filtered.asReachableResources(isDirectEntrypoint)
+					locked := rsm.asReadOnly()
+					resources := locked.asReachableResources(isDirectEntrypoint)
 					testutil.RequireProtoSlicesEqual(t, expected, resources, sortByResource, "different resources")
 				})
 			}
@@ -418,8 +418,8 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 						expected = append(expected, cloned)
 					}
 
-					filtered := rsm.filterForDispatch(&syncONRSet{})
-					resources, err := filtered.mapFoundResources(tc.foundResources, isDirectEntrypoint)
+					locked := rsm.asReadOnly()
+					resources, err := locked.mapFoundResources(tc.foundResources, isDirectEntrypoint)
 					require.NoError(t, err)
 
 					for _, r := range resources {

@@ -67,20 +67,9 @@ func (rsm resourcesSubjectMap) addSubjectIDAsFoundResourceID(subjectID string) {
 	rsm.resourcesAndSubjects.Add(subjectID, subjectInfo{subjectID, false})
 }
 
-// filterForDispatch filters out any resources already found in the dispatched set, returning a
-// dispatchableResourcesSubjectMap for dispatching for the remaining resources (if any).
-func (rsm resourcesSubjectMap) filterForDispatch(dispatched *syncONRSet) dispatchableResourcesSubjectMap {
-	for _, resourceID := range rsm.resourcesAndSubjects.Keys() {
-		if !dispatched.Add(&core.ObjectAndRelation{
-			Namespace: rsm.resourceType.Namespace,
-			ObjectId:  resourceID,
-			Relation:  rsm.resourceType.Relation,
-		}) {
-			rsm.resourcesAndSubjects.RemoveKey(resourceID)
-			continue
-		}
-	}
-
+// asReadOnly returns a read-only dispatchableResourcesSubjectMap for dispatching for the
+// resources in this map (if any).
+func (rsm resourcesSubjectMap) asReadOnly() dispatchableResourcesSubjectMap {
 	return dispatchableResourcesSubjectMap{rsm.resourceType, rsm.resourcesAndSubjects.AsReadOnly()}
 }
 
@@ -102,6 +91,24 @@ func (rsm dispatchableResourcesSubjectMap) isEmpty() bool {
 
 func (rsm dispatchableResourcesSubjectMap) resourceIDs() []string {
 	return rsm.resourcesAndSubjects.Keys()
+}
+
+// filterSubjectIDsToDispatch returns the set of subject IDs that have not yet been
+// dispatched, by adding them to the dispatched set.
+func (rsm dispatchableResourcesSubjectMap) filterSubjectIDsToDispatch(dispatched *syncONRSet, dispatchSubjectType *core.RelationReference) []string {
+	resourceIDs := rsm.resourceIDs()
+	filtered := make([]string, 0, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		if dispatched.Add(&core.ObjectAndRelation{
+			Namespace: dispatchSubjectType.Namespace,
+			ObjectId:  resourceID,
+			Relation:  dispatchSubjectType.Relation,
+		}) {
+			filtered = append(filtered, resourceID)
+		}
+	}
+
+	return filtered
 }
 
 // asReachableResources converts the resources found in the map into a slice of ReachableResource

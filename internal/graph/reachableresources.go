@@ -103,7 +103,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 			}
 
 			rsm := subjectIDsToResourcesMap(rewrittenSubjectRelation, req.SubjectIds)
-			drsm := rsm.filterForDispatch(dispatched)
+			drsm := rsm.asReadOnly()
 
 			err := crr.redispatchOrReport(
 				ctx,
@@ -114,6 +114,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 				entrypoint,
 				stream,
 				req,
+				dispatched,
 			)
 			if err != nil {
 				return err
@@ -188,9 +189,9 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
 		},
 	}
 
-	crr.scheduleChunkedRedispatch(t, reader, subjectsFilter, relationReference, dispatched,
+	crr.scheduleChunkedRedispatch(t, reader, subjectsFilter, relationReference,
 		func(ctx context.Context, drsm dispatchableResourcesSubjectMap) error {
-			return crr.redispatchOrReport(ctx, t, relationReference, drsm, rg, entrypoint, stream, req)
+			return crr.redispatchOrReport(ctx, t, relationReference, drsm, rg, entrypoint, stream, req, dispatched)
 		})
 	return nil
 }
@@ -207,7 +208,6 @@ func (crr *ConcurrentReachableResources) scheduleChunkedRedispatch(
 	reader datastore.Reader,
 	subjectsFilter datastore.SubjectsFilter,
 	resourceType *core.RelationReference,
-	dispatched *syncONRSet,
 	handler func(ctx context.Context, resources dispatchableResourcesSubjectMap) error,
 ) {
 	t.Schedule(func(ctx context.Context) error {
@@ -255,7 +255,7 @@ func (crr *ConcurrentReachableResources) scheduleChunkedRedispatch(
 		}
 
 		for _, rsmToHandle := range toBeHandled {
-			err := handler(ctx, rsmToHandle.filterForDispatch(dispatched))
+			err := handler(ctx, rsmToHandle.asReadOnly())
 			if err != nil {
 				return err
 			}
@@ -322,9 +322,9 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 		Relation:  tuplesetRelation,
 	}
 
-	crr.scheduleChunkedRedispatch(t, reader, subjectsFilter, tuplesetRelationReference, dispatched,
+	crr.scheduleChunkedRedispatch(t, reader, subjectsFilter, tuplesetRelationReference,
 		func(ctx context.Context, drsm dispatchableResourcesSubjectMap) error {
-			return crr.redispatchOrReport(ctx, t, containingRelation, drsm, rg, entrypoint, stream, req)
+			return crr.redispatchOrReport(ctx, t, containingRelation, drsm, rg, entrypoint, stream, req, dispatched)
 		})
 	return nil
 }
@@ -341,6 +341,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 	entrypoint namespace.ReachabilityEntrypoint,
 	parentStream dispatch.ReachableResourcesStream,
 	parentRequest ValidatedReachableResourcesRequest,
+	dispatched *syncONRSet,
 ) error {
 	if foundResources.isEmpty() {
 		// Nothing more to do.
@@ -396,12 +397,21 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 			},
 		}
 
+		// The new subject type for dispatching was the found type of the *resource*.
+		newSubjectType := foundResourceType
+
+		// To avoid duplicate work, remove any subjects already dispatched.
+		filteredSubjectIDs := foundResources.filterSubjectIDsToDispatch(dispatched, newSubjectType)
+		if len(filteredSubjectIDs) == 0 {
+			return nil
+		}
+
 		// Dispatch the found resources as the subjects for the next call, to continue the
 		// resolution.
 		return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 			ResourceRelation: parentRequest.ResourceRelation,
-			SubjectRelation:  foundResourceType,
-			SubjectIds:       foundResources.resourceIDs(),
+			SubjectRelation:  newSubjectType,
+			SubjectIds:       filteredSubjectIDs,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     parentRequest.Revision.String(),
 				DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
