@@ -53,6 +53,8 @@ func TestConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, filePath := range consistencyTestFiles {
+		filePath := filePath
+
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			for _, dispatcherKind := range []string{"local", "caching"} {
 				dispatcherKind := dispatcherKind

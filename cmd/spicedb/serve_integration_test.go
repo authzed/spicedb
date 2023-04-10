@@ -41,6 +41,7 @@ func TestServe(t *testing.T) {
 		"secondkey":  true,
 		"anotherkey": false,
 	} {
+		key := key
 		t.Run(key, func(t *testing.T) {
 			require := require.New(t)
 
