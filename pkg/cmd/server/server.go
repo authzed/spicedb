@@ -92,6 +92,7 @@ type Config struct {
 	DispatchClusterMetricsPrefix      string
 	Dispatcher                        dispatch.Dispatcher
 	DispatchHashringReplicationFactor uint16
+	DispatchHashringSpread            uint8
 
 	DispatchCacheConfig        CacheConfig
 	ClusterDispatchCacheConfig CacheConfig
@@ -230,7 +231,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
 		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
-		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).Msg("configured dispatch concurrency limits")
+		// Set this value to take effect the next time the replicas are updated
+		// Applies to ALL running servers.
+		ConsistentHashringPicker.ReplicationFactor(c.DispatchHashringReplicationFactor)
+		ConsistentHashringPicker.Spread(c.DispatchHashringSpread)
 
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
@@ -248,12 +252,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
+		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).EmbedObject(ConsistentHashringPicker).Msg("configured dispatcher")
 	}
 	closeables.AddWithError(dispatcher.Close)
-
-	// Set this value to take effect the next time the replicas are updated
-	// Applies to ALL running servers.
-	ConsistentHashringPicker.ReplicationFactor(c.DispatchHashringReplicationFactor)
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {

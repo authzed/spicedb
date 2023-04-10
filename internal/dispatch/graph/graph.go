@@ -40,10 +40,10 @@ func (cl ConcurrencyLimits) WithOverallDefaultLimit(overallDefaultLimit uint16) 
 }
 
 func (cl ConcurrencyLimits) MarshalZerologObject(e *zerolog.Event) {
-	e.Uint16("check-permission", cl.Check)
-	e.Uint16("lookup-resources", cl.LookupResources)
-	e.Uint16("lookup-subjects", cl.LookupSubjects)
-	e.Uint16("reachable-resources", cl.ReachableResources)
+	e.Uint16("concurrency-limit-check-permission", cl.Check)
+	e.Uint16("concurrency-limit-lookup-resources", cl.LookupResources)
+	e.Uint16("concurrency-limit-lookup-subjects", cl.LookupSubjects)
+	e.Uint16("concurrency-limit-reachable-resources", cl.ReachableResources)
 }
 
 func limitsOrDefaults(limits ConcurrencyLimits, overallDefaultLimit uint16) ConcurrencyLimits {
