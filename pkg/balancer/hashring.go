@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
 	"google.golang.org/grpc/grpclog"
@@ -80,10 +81,21 @@ type ConsistentHashringPickerBuilder struct {
 	spread            uint8
 }
 
+func (b *ConsistentHashringPickerBuilder) MarshalZerologObject(e *zerolog.Event) {
+	e.Uint16("consistent-hashring-replication-factor", b.replicationFactor)
+	e.Uint8("consistent-hashring-spread", b.spread)
+}
+
 func (b *ConsistentHashringPickerBuilder) ReplicationFactor(rf uint16) {
 	b.Lock()
 	defer b.Unlock()
 	b.replicationFactor = rf
+}
+
+func (b *ConsistentHashringPickerBuilder) Spread(spread uint8) {
+	b.Lock()
+	defer b.Unlock()
+	b.spread = spread
 }
 
 func (b *ConsistentHashringPickerBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
