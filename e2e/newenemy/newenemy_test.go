@@ -205,6 +205,7 @@ func TestNoNewEnemy(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			vulnerableFn, protectedFn := attemptFnsForProbeFns(tt.vulnerableMax, tt.vulnerableProbe, tt.protectedProbe)
 			statTest(t, tt.sampleSize, vulnerableFn, protectedFn)
