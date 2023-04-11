@@ -411,6 +411,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 			conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
@@ -425,6 +426,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
 
 			for _, stc := range tc.toTest {
+				stc := stc
 				t.Run(stc.name, func(t *testing.T) {
 					req := require.New(t)
 

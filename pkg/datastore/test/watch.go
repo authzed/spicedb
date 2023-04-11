@@ -44,6 +44,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
 			require := require.New(t)
 

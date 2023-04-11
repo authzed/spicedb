@@ -42,6 +42,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 	require.NotEqual(t, 0, len(consistencyTestFiles))
 
 	for _, filePath := range consistencyTestFiles {
+		filePath := filePath
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, memdb.DisableGC)
 			require.NoError(t, err)
@@ -50,6 +51,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
+				nsDef := nsDef
 				t.Run("namespace "+nsDef.Name, func(t *testing.T) {
 					serialized, _ := nsDef.MarshalVT()
 					sizevt := nsDef.SizeVT()
@@ -83,6 +85,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 			}
 
 			for _, caveatDef := range fullyResolved.CaveatDefinitions {
+				caveatDef := caveatDef
 				t.Run("caveat "+caveatDef.Name, func(t *testing.T) {
 					serialized, _ := caveatDef.MarshalVT()
 					sizevt := caveatDef.SizeVT()

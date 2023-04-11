@@ -36,6 +36,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 	testCases := []int{1, 2, 4, 32, 256}
 
 	for _, numTuples := range testCases {
+		numTuples := numTuples
 		t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 			require := require.New(t)
 
@@ -387,6 +388,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	}
 
 	for _, tt := range table {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 			ctx := context.Background()
@@ -602,6 +604,7 @@ func UsersetsTest(t *testing.T, tester DatastoreTester) {
 
 	t.Run("multiple usersets tuple query", func(t *testing.T) {
 		for _, numTuples := range testCases {
+			numTuples := numTuples
 			t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
 				require := require.New(t)
 

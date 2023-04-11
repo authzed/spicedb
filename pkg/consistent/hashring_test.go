@@ -35,6 +35,7 @@ func TestHashring(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(strconv.Itoa(int(tc.replicationFactor)), func(t *testing.T) {
 			require := require.New(t)
 

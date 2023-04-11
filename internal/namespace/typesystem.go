@@ -329,6 +329,8 @@ func (nts *TypeSystem) AsValidated() *ValidatedNamespaceTypeSystem {
 // Validate runs validation on the type system for the namespace to ensure it is consistent.
 func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSystem, error) {
 	for _, relation := range nts.relationMap {
+		relation := relation
+
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
 		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) interface{} {

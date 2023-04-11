@@ -106,6 +106,7 @@ func TestSimpleLookup(t *testing.T) {
 			tuple.StringONR(tc.target),
 		)
 
+		tc := tc
 		t.Run(name, func(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 

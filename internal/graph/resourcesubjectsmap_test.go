@@ -179,8 +179,10 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			for _, isDirectEntrypoint := range []bool{true, false} {
+				isDirectEntrypoint := isDirectEntrypoint
 				t.Run(fmt.Sprintf("%v", isDirectEntrypoint), func(t *testing.T) {
 					rsm := newResourcesSubjectMap(&core.RelationReference{
 						Namespace: "document",
@@ -395,8 +397,10 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			for _, isDirectEntrypoint := range []bool{true, false} {
+				isDirectEntrypoint := isDirectEntrypoint
 				t.Run(fmt.Sprintf("%v", isDirectEntrypoint), func(t *testing.T) {
 					rsm := newResourcesSubjectMap(&core.RelationReference{
 						Namespace: "group",

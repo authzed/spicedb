@@ -135,6 +135,7 @@ func (h *Hashring) Remove(member Member) error {
 
 	indexesToRemove := make([]int, 0, h.replicationFactor)
 	for _, vnode := range foundNode.virtualNodes {
+		vnode := vnode
 		vnodeIndex := sort.Search(len(h.virtualNodes), func(i int) bool {
 			return !h.virtualNodes[i].less(vnode)
 		})

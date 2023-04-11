@@ -70,6 +70,7 @@ assertions: ay
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			url := downloadPath + test.ref
 			require.HTTPStatusCode(handler, test.method, url, nil, test.expectedCode)

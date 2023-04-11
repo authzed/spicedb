@@ -134,6 +134,7 @@ func TestDatastoreRequestHedging(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.methodName, func(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/authzed/spicedb/internal/datastore/proxy.autoAdvance.func1"), goleak.IgnoreCurrent())
 			mockTime := clock.NewMock()

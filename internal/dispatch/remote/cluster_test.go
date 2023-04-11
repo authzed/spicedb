@@ -50,6 +50,7 @@ func TestDispatchTimeout(t *testing.T) {
 			20 * time.Millisecond,
 		},
 	} {
+		tc := tc
 		t.Run(fmt.Sprintf("%v", tc.timeout > tc.sleepTime), func(t *testing.T) {
 			// Configure a fake dispatcher service and an associated buffconn-based
 			// connection to it.
