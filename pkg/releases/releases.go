@@ -13,6 +13,11 @@ const (
 	githubRepository = "spicedb"
 )
 
+// GetSourceRepository returns the source repository path for SpiceDB.
+func GetSourceRepository() string {
+	return fmt.Sprintf("github.com/%s/%s", githubNamespace, githubRepository)
+}
+
 // Release represents a release of SpiceDB.
 type Release struct {
 	// Version is the version of the release.

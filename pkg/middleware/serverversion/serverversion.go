@@ -13,17 +13,23 @@ import (
 	"github.com/authzed/spicedb/pkg/releases"
 )
 
-type handleServerVersion struct {
-	isEnabled bool
+// HandleServerVersion defines a middleware for returning the version of the server
+// when requested via the RequestServerVersion header.
+type HandleServerVersion struct {
+	// IsEnabled is whether the middleware is enabled.
+	IsEnabled bool
+
+	// GetVersion is the function used to retrieve the service version.
+	GetVersion func() (string, error)
 }
 
-func (r *handleServerVersion) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
-	if r.isEnabled {
+func (r *HandleServerVersion) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
+	if r.IsEnabled {
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			if _, isRequestingVersion := md[string(requestmeta.RequestServerVersion)]; isRequestingVersion {
-				version, err := releases.CurrentVersion()
+				version, err := r.GetVersion()
 				if err != nil {
-					log.Ctx(ctx).Err(err).Msg("could not load current software version")
+					log.Ctx(ctx).Err(err).Msg("could not load current service version")
 					return interceptors.NoopReporter{}, ctx
 				}
 
@@ -47,10 +53,10 @@ func (r *handleServerVersion) ServerReporter(ctx context.Context, _ interceptors
 
 // UnaryServerInterceptor returns a new interceptor which handles server version requests.
 func UnaryServerInterceptor(isEnabled bool) grpc.UnaryServerInterceptor {
-	return interceptors.UnaryServerInterceptor(&handleServerVersion{isEnabled})
+	return interceptors.UnaryServerInterceptor(&HandleServerVersion{isEnabled, releases.CurrentVersion})
 }
 
 // StreamServerInterceptor returns a new interceptor which handles server version requests.
 func StreamServerInterceptor(isEnabled bool) grpc.StreamServerInterceptor {
-	return interceptors.StreamServerInterceptor(&handleServerVersion{isEnabled})
+	return interceptors.StreamServerInterceptor(&HandleServerVersion{isEnabled, releases.CurrentVersion})
 }
