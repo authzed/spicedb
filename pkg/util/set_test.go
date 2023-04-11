@@ -141,6 +141,7 @@ func TestSetIntersectionDifference(t *testing.T) {
 	}
 
 	for index, tc := range tcs {
+		tc := tc
 		t.Run(fmt.Sprintf("%d", index), func(t *testing.T) {
 			firstSet := NewSet[int]()
 			firstSet.Extend(tc.first)

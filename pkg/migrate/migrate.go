@@ -139,6 +139,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 				}
 			}
 
+			migrationToRun := migrationToRun
 			if err := driver.RunTx(ctx, func(ctx context.Context, tx T) error {
 				if migrationToRun.upTx != nil {
 					if err := migrationToRun.upTx(ctx, tx); err != nil {

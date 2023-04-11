@@ -144,6 +144,7 @@ var testers = []testerDef{
 
 func TestSnapshotCaching(t *testing.T) {
 	for _, tester := range testers {
+		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 
@@ -201,6 +202,7 @@ func TestSnapshotCaching(t *testing.T) {
 
 func TestRWTCaching(t *testing.T) {
 	for _, tester := range testers {
+		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 			rwtMock := &proxy_test.MockReadWriteTransaction{}
@@ -237,6 +239,7 @@ func TestRWTCaching(t *testing.T) {
 
 func TestRWTCacheWithWrites(t *testing.T) {
 	for _, tester := range testers {
+		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 			rwtMock := &proxy_test.MockReadWriteTransaction{}
@@ -285,6 +288,7 @@ func TestRWTCacheWithWrites(t *testing.T) {
 
 func TestSingleFlight(t *testing.T) {
 	for _, tester := range testers {
+		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 
@@ -358,6 +362,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
@@ -418,6 +423,7 @@ func (r *reader) ReadCaveatByName(ctx context.Context, name string) (*core.Cavea
 
 func TestSingleFlightCancelled(t *testing.T) {
 	for _, tester := range testers {
+		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 			ctx1, cancel1 := context.WithCancel(context.Background())
@@ -454,6 +460,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 
 func TestMixedCaching(t *testing.T) {
 	for _, tester := range testers {
+		tester := tester
 		t.Run(tester.name, func(t *testing.T) {
 			dsMock := &proxy_test.MockDatastore{}
 

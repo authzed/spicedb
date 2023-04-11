@@ -749,8 +749,10 @@ func TestSchemaAndRelationshipsOperations(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			for _, testerName := range []string{"v1"} {
+				testerName := testerName
 				t.Run(testerName, func(t *testing.T) {
 					conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
 					t.Cleanup(cleanup)

@@ -28,6 +28,7 @@ func TestPresharedKeys(t *testing.T) {
 	}
 
 	for _, testcase := range testcases {
+		testcase := testcase
 		t.Run(testcase.name, func(t *testing.T) {
 			f := MustRequirePresharedKey(testcase.presharedkeys)
 			ctx := context.Background()

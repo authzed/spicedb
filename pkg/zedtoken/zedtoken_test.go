@@ -28,6 +28,7 @@ var encodeRevisionTests = []datastore.Revision{
 
 func TestZedTokenEncode(t *testing.T) {
 	for _, rev := range encodeRevisionTests {
+		rev := rev
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
 			encoded, err := NewFromRevision(rev)
@@ -116,6 +117,7 @@ var decodeTests = []struct {
 
 func TestDecode(t *testing.T) {
 	for _, testCase := range decodeTests {
+		testCase := testCase
 		testName := fmt.Sprintf("%s(%s)=>%s", testCase.format, testCase.token, testCase.expectedRevision)
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)

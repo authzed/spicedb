@@ -25,6 +25,7 @@ func TestSnapshotDecodeEncode(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.snapshot, func(t *testing.T) {
 			require := require.New(t)
 
@@ -58,6 +59,7 @@ func TestMarkComplete(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%s+%d=>%s", tc.snapshot, tc.toMark, tc.expected), func(t *testing.T) {
 			require := require.New(t)
 			completed := tc.snapshot.markComplete(tc.toMark)
@@ -81,6 +83,7 @@ func TestMarkInProgress(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%s-%d=>%s", tc.snapshot, tc.toMark, tc.expected), func(t *testing.T) {
 			require := require.New(t)
 			withInProgress := tc.snapshot.markInProgress(tc.toMark)

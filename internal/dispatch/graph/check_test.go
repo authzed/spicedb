@@ -120,6 +120,9 @@ func TestSimpleCheck(t *testing.T) {
 					expected.isMember,
 				)
 
+				tc := tc
+				userset := userset
+				expected := expected
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
@@ -254,6 +257,9 @@ func TestCheckMetadata(t *testing.T) {
 					expected.isMember,
 				)
 
+				tc := tc
+				userset := userset
+				expected := expected
 				t.Run(name, func(t *testing.T) {
 					require := require.New(t)
 
@@ -369,6 +375,7 @@ func TestCheckDebugging(t *testing.T) {
 			tc.subject.Relation,
 		)
 
+		tc := tc
 		t.Run(name, func(t *testing.T) {
 			require := require.New(t)
 

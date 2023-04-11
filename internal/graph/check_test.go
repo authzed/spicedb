@@ -23,6 +23,7 @@ func TestAsyncDispatch(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%d/%d", tc.numRequests, tc.concurrencyLimit), func(t *testing.T) {
 			require := require.New(t)
 

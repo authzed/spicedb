@@ -192,6 +192,7 @@ func TestCaveatDiff(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			diff, err := DiffCaveats(tc.existing, tc.updated)

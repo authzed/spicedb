@@ -45,6 +45,7 @@ document:second#viewer@user:1`,
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			pr := ParsedRelationships{}
 			err := yamlv3.Unmarshal([]byte(tt.contents), &pr)

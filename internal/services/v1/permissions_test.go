@@ -226,10 +226,13 @@ func TestCheckPermissions(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, debug := range []bool{false, true} {
+				debug := debug
 				t.Run(fmt.Sprintf("debug%v", debug), func(t *testing.T) {
 					for _, tc := range testCases {
+						tc := tc
 						t.Run(fmt.Sprintf(
 							"%s:%s#%s@%s:%s#%s",
 							tc.resource.ObjectType,
@@ -456,8 +459,10 @@ func TestLookupResources(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -527,8 +532,10 @@ func TestExpand(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(fmt.Sprintf("%s:%s#%s", tc.startObjectType, tc.startObjectID, tc.startPermission), func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -658,6 +665,7 @@ func TestTranslateExpansionTree(t *testing.T) {
 	}
 
 	for _, tt := range table {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			out := v1svc.TranslateRelationshipTree(v1svc.TranslateExpansionTree(tt.input))
 			require.Equal(t, tt.input, out)
@@ -758,8 +766,10 @@ func TestLookupSubjects(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(fmt.Sprintf("%s:%s#%s for %s#%s", tc.resource.ObjectType, tc.resource.ObjectId, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -932,6 +942,7 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			request := &v1.CheckPermissionRequest{
 				Consistency: &v1.Consistency{

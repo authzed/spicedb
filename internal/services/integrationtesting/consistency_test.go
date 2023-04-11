@@ -162,6 +162,7 @@ func testForEachRelationship(
 	t.Helper()
 
 	for _, relationship := range vctx.clusterAndData.Populated.Tuples {
+		relationship := relationship
 		t.Run(fmt.Sprintf("%s_%s", prefix, tuple.MustString(relationship)),
 			func(t *testing.T) {
 				handler(t, relationship)
@@ -184,8 +185,11 @@ func testForEachResource(
 			continue
 		}
 
+		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
+			relation := relation
 			for _, resource := range resources {
+				resource := resource
 				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectId, relation.Name),
 					func(t *testing.T) {
 						handler(t, &core.ObjectAndRelation{
@@ -207,7 +211,9 @@ func testForEachResourceType(
 	handler func(t *testing.T, resourceType *core.RelationReference),
 ) {
 	for _, resourceType := range vctx.clusterAndData.Populated.NamespaceDefinitions {
+		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
+			relation := relation
 			t.Run(fmt.Sprintf("%s_%s_%s", prefix, resourceType.Name, relation.Name),
 				func(t *testing.T) {
 					handler(t, &core.RelationReference{
@@ -343,6 +349,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 	testForEachResourceType(t, vctx, "validate_lookup_resources",
 		func(t *testing.T, resourceRelation *core.RelationReference) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
+				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					// Perform a lookup call and ensure it returns the at least the same set of object IDs.
 					resolvedResources, err := vctx.serviceTester.LookupResources(context.Background(), resourceRelation, subject, vctx.revision)
@@ -392,6 +399,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_lookup_subjects",
 		func(t *testing.T, resource *core.ObjectAndRelation) {
 			for _, subjectType := range vctx.accessibilitySet.SubjectTypes() {
+				subjectType := subjectType
 				t.Run(fmt.Sprintf("%s#%s", subjectType.Namespace, subjectType.Relation),
 					func(t *testing.T) {
 						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, nil)
@@ -572,8 +580,10 @@ func runAssertions(t *testing.T, vctx validationContext) {
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			} {
+				entry := entry
 				t.Run(entry.name, func(t *testing.T) {
 					for _, assertion := range entry.assertions {
+						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
 							rel := tuple.MustFromRelationship(assertion.Relationship)
 							permissionship, err := vctx.serviceTester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, vctx.revision, assertion.CaveatContext)
@@ -653,6 +663,7 @@ func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext,
 	testForEachResource(t, vctx, "validate_check_watch",
 		func(t *testing.T, resource *core.ObjectAndRelation) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
+				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
 					cr, err := development.RunCheck(devContext, resource, subject, nil)
 					require.NoError(t, err, "Got unexpected error from development check")

@@ -200,8 +200,10 @@ func TestReadRelationships(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -612,8 +614,10 @@ func TestInvalidWriteRelationship(t *testing.T) {
 	}
 
 	for _, delta := range testTimedeltas {
+		delta := delta
 		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 			for _, tc := range testCases {
+				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
 					require := require.New(t)
 					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
@@ -934,7 +938,9 @@ func TestDeleteRelationships(t *testing.T) {
 		},
 	}
 	for _, delta := range testTimedeltas {
+		delta := delta
 		for _, tc := range testCases {
+			tc := tc
 			t.Run(fmt.Sprintf("fuzz%d/%s", delta/time.Millisecond, tc.name), func(t *testing.T) {
 				require := require.New(t)
 				conn, cleanup, ds, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)

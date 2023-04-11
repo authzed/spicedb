@@ -112,6 +112,7 @@ func TestPopulateFromFiles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
 			ds, err := memdb.NewMemdbDatastore(0, 0, 0)

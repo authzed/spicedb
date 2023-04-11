@@ -301,6 +301,7 @@ var testCases = []struct {
 
 func TestSerialize(t *testing.T) {
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("tuple/"+tc.input, func(t *testing.T) {
 			if tc.tupleFormat == nil {
 				return
@@ -316,6 +317,7 @@ func TestSerialize(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
 			if tc.relFormat == nil {
 				return
@@ -333,12 +335,14 @@ func TestSerialize(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("tuple/"+tc.input, func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.tupleFormat, Parse(tc.input), "found difference in parsed tuple")
 		})
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("relationship/"+tc.input, func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.relFormat, ParseRel(tc.input), "found difference in parsed relationship")
 		})
@@ -347,6 +351,7 @@ func TestParse(t *testing.T) {
 
 func TestConvert(t *testing.T) {
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			require := require.New(t)
 
@@ -371,6 +376,7 @@ func TestConvert(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	for _, tc := range testCases {
+		tc := tc
 		t.Run("validate/"+tc.input, func(t *testing.T) {
 			parsed := ParseRel(tc.input)
 			if parsed != nil {

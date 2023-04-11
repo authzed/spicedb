@@ -141,6 +141,7 @@ func TestSimpleReachableResources(t *testing.T) {
 			tuple.StringONR(tc.target),
 		)
 
+		tc := tc
 		t.Run(name, func(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
@@ -263,6 +264,7 @@ func BenchmarkReachableResources(b *testing.B) {
 		ctx := datastoremw.ContextWithHandle(context.Background())
 		require.NoError(datastoremw.SetInContext(ctx, ds))
 
+		tc := tc
 		b.Run(name, func(t *testing.B) {
 			for n := 0; n < b.N; n++ {
 				stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
@@ -562,6 +564,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 

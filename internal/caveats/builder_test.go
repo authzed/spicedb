@@ -37,6 +37,7 @@ func TestShortcircuitedOr(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(fmt.Sprintf("%v-%v", tc.first, tc.second), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, ShortcircuitedOr(tc.first, tc.second), "mismatch")
 		})
@@ -84,6 +85,7 @@ func TestOr(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(fmt.Sprintf("%v-%v", tc.first, tc.second), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, Or(tc.first, tc.second), "mismatch")
 		})
@@ -131,6 +133,7 @@ func TestAnd(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(fmt.Sprintf("%v-%v", tc.first, tc.second), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, And(tc.first, tc.second), "mismatch")
 		})
@@ -160,6 +163,7 @@ func TestInvert(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(fmt.Sprintf("%v", tc.first), func(t *testing.T) {
 			testutil.RequireProtoEqual(t, tc.expected, Invert(tc.first), "mismatch")
 		})
