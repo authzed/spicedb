@@ -26,11 +26,11 @@ import (
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
-	"github.com/authzed/spicedb/internal/middleware/serverversion"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/pkg/datastore"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"github.com/authzed/spicedb/pkg/middleware/serverversion"
 	"github.com/authzed/spicedb/pkg/releases"
 )
 
@@ -101,18 +101,18 @@ var defaultGRPCLogOptions = []grpclog.Option{
 }
 
 const (
-	DefaultMiddlewareRequestID = "requestid"
-	DefaultMiddlewareLog       = "log"
-	DefaultMiddlewareGRPCLog   = "grpclog"
-	DefaultMiddlewareOTelGRPC  = "otelgrpc"
-	DefaultMiddlewareGRPCAuth  = "grpcauth"
-	DefaultMiddlewareGRPCProm  = "grpcprom"
+	DefaultMiddlewareRequestID     = "requestid"
+	DefaultMiddlewareLog           = "log"
+	DefaultMiddlewareGRPCLog       = "grpclog"
+	DefaultMiddlewareOTelGRPC      = "otelgrpc"
+	DefaultMiddlewareGRPCAuth      = "grpcauth"
+	DefaultMiddlewareGRPCProm      = "grpcprom"
+	DefaultMiddlewareServerVersion = "serverversion"
 
 	DefaultInternalMiddlewareDispatch       = "dispatch"
 	DefaultInternalMiddlewareDatastore      = "datastore"
 	DefaultInternalMiddlewareConsistency    = "consistency"
 	DefaultInternalMiddlewareServerSpecific = "servicespecific"
-	DefaultInternalMiddlewareServerVersion  = "serverversion"
 )
 
 // DefaultMiddleware generates the default middleware chain used for the public SpiceDB gRPC API
@@ -149,6 +149,11 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 			StreamingMiddleware: grpcauth.StreamServerInterceptor(authFunc),
 		},
 		{
+			Name:                DefaultMiddlewareServerVersion,
+			UnaryMiddleware:     serverversion.UnaryServerInterceptor(enableVersionResponse),
+			StreamingMiddleware: serverversion.StreamServerInterceptor(enableVersionResponse),
+		},
+		{
 			Name:                DefaultInternalMiddlewareDispatch,
 			Internal:            true,
 			UnaryMiddleware:     dispatchmw.UnaryServerInterceptor(dispatcher),
@@ -171,12 +176,6 @@ func DefaultMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enable
 			Internal:            true,
 			UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
 			StreamingMiddleware: servicespecific.StreamServerInterceptor,
-		},
-		{
-			Name:                DefaultInternalMiddlewareServerVersion,
-			Internal:            true,
-			UnaryMiddleware:     serverversion.UnaryServerInterceptor(enableVersionResponse),
-			StreamingMiddleware: serverversion.StreamServerInterceptor(enableVersionResponse),
 		},
 	}...)
 	return &chain, err
