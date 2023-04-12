@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/prometheus/client_golang/prometheus"
@@ -61,10 +64,14 @@ func executeWithResets(ctx context.Context, fn innerFunc, maxRetries uint8) (err
 	for retries = 0; retries <= maxRetries; retries++ {
 		err = fn(ctx)
 		if resettable(ctx, err) {
-			log.Ctx(ctx).Warn().Err(err).Msg("retrying resetteable database error")
+			after := retry.BackoffExponentialWithJitter(100*time.Millisecond, 0.5)(uint(retries))
+			log.Ctx(ctx).Warn().Err(err).Dur("after", after).Msg("retrying resetteable database error")
+			time.Sleep(after)
 			continue
 		}
-
+		if retries > 0 && err == nil {
+			log.Ctx(ctx).Info().Uint8("retries", retries).Msg("resettable database error succeeded after retry")
+		}
 		// This can be nil or an un-resettable error.
 		return err
 	}
