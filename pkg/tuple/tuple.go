@@ -24,8 +24,8 @@ const (
 
 const (
 	namespaceNameExpr = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
-	resourceIDExpr    = "[a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127}"
-	subjectIDExpr     = "([a-zA-Z0-9_][a-zA-Z0-9/_|-]{0,127})|\\*"
+	resourceIDExpr    = "([a-zA-Z0-9/_|\\-=+]{1,})"
+	subjectIDExpr     = "([a-zA-Z0-9/_|\\-=+]{1,})|\\*"
 	relationExpr      = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
 	caveatNameExpr    = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
 )
@@ -65,7 +65,10 @@ var parserRegex = regexp.MustCompile(
 // ValidateResourceID ensures that the given resource ID is valid. Returns an error if not.
 func ValidateResourceID(objectID string) error {
 	if !resourceIDRegex.MatchString(objectID) {
-		return fmt.Errorf("invalid resource id; must be alphanumeric and between 1 and 127 characters")
+		return fmt.Errorf("invalid resource id; must match %s", resourceIDExpr)
+	}
+	if len(objectID) > 1024 {
+		return fmt.Errorf("invalid resource id; must be <= 1024 characters")
 	}
 
 	return nil
@@ -75,6 +78,9 @@ func ValidateResourceID(objectID string) error {
 func ValidateSubjectID(subjectID string) error {
 	if !subjectIDRegex.MatchString(subjectID) {
 		return fmt.Errorf("invalid subject id; must be alphanumeric and between 1 and 127 characters or a star for public")
+	}
+	if len(subjectID) > 1024 {
+		return fmt.Errorf("invalid resource id; must be <= 1024 characters")
 	}
 
 	return nil
@@ -201,15 +207,25 @@ func Parse(tpl string) *core.RelationTuple {
 		}
 	}
 
+	resourceID := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")]
+	if err := ValidateResourceID(resourceID); err != nil {
+		return nil
+	}
+
+	subjectID := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")]
+	if err := ValidateSubjectID(subjectID); err != nil {
+		return nil
+	}
+
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
-			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")],
+			ObjectId:  resourceID,
 			Relation:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceRel")],
 		},
 		Subject: &core.ObjectAndRelation{
 			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectType")],
-			ObjectId:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")],
+			ObjectId:  subjectID,
 			Relation:  subjectRelation,
 		},
 		Caveat: optionalCaveat,

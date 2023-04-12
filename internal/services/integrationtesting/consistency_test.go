@@ -320,8 +320,8 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 }
 
 func requireSameSets(t *testing.T, expected []string, found []string) {
-	expectedSet := util.NewSet[string](expected...)
-	foundSet := util.NewSet[string](found...)
+	expectedSet := util.NewSet(expected...)
+	foundSet := util.NewSet(found...)
 
 	orderedExpected := expectedSet.AsSlice()
 	orderedFound := foundSet.AsSlice()
@@ -337,7 +337,7 @@ func requireSubsetOf(t *testing.T, found []string, expected []string) {
 		return
 	}
 
-	foundSet := util.NewSet[string](found...)
+	foundSet := util.NewSet(found...)
 	for _, expectedObjectID := range expected {
 		require.True(t, foundSet.Has(expectedObjectID), "missing expected object ID %s", expectedObjectID)
 	}

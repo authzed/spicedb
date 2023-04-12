@@ -152,7 +152,6 @@ func TestCheckPermissions(t *testing.T) {
 			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 			codes.OK,
 		},
-
 		{
 			obj("document", "masterplan"),
 			"view_and_edit",
@@ -222,6 +221,13 @@ func TestCheckPermissions(t *testing.T) {
 			sub("user", "foo", ""),
 			v1.CheckPermissionResponse_PERMISSIONSHIP_UNSPECIFIED,
 			codes.FailedPrecondition,
+		},
+		{
+			obj("document", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK=="),
+			"view",
+			sub("user", "unkn-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==owngal", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.OK,
 		},
 	}
 

@@ -66,6 +66,8 @@ func crel(resType, resID, relation, subType, subID, subRel, caveatName string, c
 	}
 }
 
+var superLongID = strings.Repeat("f", 1024)
+
 var testCases = []struct {
 	input          string
 	expectedOutput string
@@ -296,6 +298,39 @@ var testCases = []struct {
 		expectedOutput: "",
 		tupleFormat:    nil,
 		relFormat:      nil,
+	},
+	{
+		input:          "testns:" + superLongID + "#testrel@user:testusr",
+		expectedOutput: "testns:" + superLongID + "#testrel@user:testusr",
+		tupleFormat: makeTuple(
+			ObjectAndRelation("testns", superLongID, "testrel"),
+			ObjectAndRelation("user", "testusr", "..."),
+		),
+		relFormat: rel("testns", superLongID, "testrel", "user", "testusr", ""),
+	},
+	{
+		input:          "testns:foo#testrel@user:" + superLongID,
+		expectedOutput: "testns:foo#testrel@user:" + superLongID,
+		tupleFormat: makeTuple(
+			ObjectAndRelation("testns", "foo", "testrel"),
+			ObjectAndRelation("user", superLongID, "..."),
+		),
+		relFormat: rel("testns", "foo", "testrel", "user", superLongID, ""),
+	},
+	{
+		input:          "testns:foo#testrel@user:" + superLongID + "more",
+		expectedOutput: "",
+		tupleFormat:    nil,
+		relFormat:      nil,
+	},
+	{
+		input:          "testns:-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#testrel@user:-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==",
+		expectedOutput: "testns:-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#testrel@user:-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==",
+		tupleFormat: makeTuple(
+			ObjectAndRelation("testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel"),
+			ObjectAndRelation("user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "..."),
+		),
+		relFormat: rel("testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel", "user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", ""),
 	},
 }
 

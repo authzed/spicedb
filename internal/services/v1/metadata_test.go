@@ -29,7 +29,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 	ctx := context.Background()
 
 	// PermissionsService
-	checkServiceMethods[v1.PermissionsServiceClient](
+	checkServiceMethods(
 		t,
 		v1.NewPermissionsServiceClient(conn),
 		map[string]func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD{
@@ -160,7 +160,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 	)
 
 	// SchemaService
-	checkServiceMethods[v1.SchemaServiceClient](
+	checkServiceMethods(
 		t,
 		v1.NewSchemaServiceClient(conn),
 		map[string]func(t *testing.T, client v1.SchemaServiceClient) metadata.MD{
