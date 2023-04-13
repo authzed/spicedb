@@ -44,6 +44,15 @@ func (mdb *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 	return revision.NewFromDecimal(mdb.headRevisionNoLock()), nil
 }
 
+func (mdb *memdbDatastore) SquashRevisionsForTesting() {
+	mdb.revisions = []snapshot{
+		{
+			revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
+			db:       mdb.db,
+		},
+	}
+}
+
 func (mdb *memdbDatastore) headRevisionNoLock() decimal.Decimal {
 	return mdb.revisions[len(mdb.revisions)-1].revision
 }

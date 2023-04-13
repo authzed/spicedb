@@ -1,0 +1,8 @@
+---
+schema: |
+  definition user {}
+
+  definition access {
+      relation assigned: user
+  }
+relationships: "access:blue#assigned@user:alice"

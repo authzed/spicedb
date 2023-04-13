@@ -45,6 +45,7 @@ func TestTestServer(t *testing.T) {
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
 		"",
+		false,
 	)
 	require.NoError(err)
 	defer tester.cleanup()
@@ -157,7 +158,7 @@ type spicedbHandle struct {
 	cleanup          func()
 }
 
-func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string) (*spicedbHandle, error) {
+func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		return nil, fmt.Errorf("Could not connect to docker: %w", err)
@@ -192,6 +193,15 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string)
 		}
 
 		client := v1.NewSchemaServiceClient(conn)
+
+		if withExistingSchema {
+			_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+			if err != nil {
+				s, ok := status.FromError(err)
+				require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
+			}
+			return err == nil
+		}
 
 		// Write a basic schema.
 		_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
