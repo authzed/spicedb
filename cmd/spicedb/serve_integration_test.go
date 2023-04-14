@@ -31,6 +31,7 @@ func TestServe(t *testing.T) {
 			ExposedPorts: []string{"50051/tcp"},
 		},
 		"firstkey",
+		false,
 	)
 	requireParent.NoError(err)
 	defer tester.cleanup()

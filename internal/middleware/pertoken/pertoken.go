@@ -38,6 +38,10 @@ func NewMiddleware(configFilePaths []string) *MiddlewareForTesting {
 	}
 }
 
+type squashable interface {
+	SquashRevisionsForTesting()
+}
+
 func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datastore.Datastore, error) {
 	tokenStr, _ := grpcauth.AuthFromMD(ctx, "bearer")
 	tokenDatastore, ok := m.datastoreByToken.Load(tokenStr)
@@ -56,8 +60,10 @@ func (m *MiddlewareForTesting) getOrCreateDatastore(ctx context.Context) (datast
 		return nil, fmt.Errorf("failed to load config files: %w", err)
 	}
 
-	m.datastoreByToken.Store(tokenStr, ds)
+	// Squash the revisions so that the caller sees all the populated data.
+	ds.(squashable).SquashRevisionsForTesting()
 
+	m.datastoreByToken.Store(tokenStr, ds)
 	return ds, nil
 }
 
