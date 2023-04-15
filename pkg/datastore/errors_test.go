@@ -7,7 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/logging"
 )
 
-func TestError(t *testing.T) {
+func TestError(_ *testing.T) {
 	logging.Info().Err(ErrNamespaceNotFound{
 		error:         fmt.Errorf("test"),
 		namespaceName: "test/test",

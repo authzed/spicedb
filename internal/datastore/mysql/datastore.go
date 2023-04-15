@@ -312,11 +312,7 @@ func (mds *Datastore) ReadWriteTx(
 				newTxnID,
 			}
 
-			if err := fn(rwt); err != nil {
-				return err
-			}
-
-			return nil
+			return fn(rwt)
 		}); err != nil {
 			if isErrorRetryable(err) {
 				continue
@@ -498,7 +494,7 @@ func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, err
 	}, nil
 }
 
-func (mds *Datastore) Features(ctx context.Context) (*datastore.Features, error) {
+func (mds *Datastore) Features(_ context.Context) (*datastore.Features, error) {
 	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
 }
 

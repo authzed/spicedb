@@ -138,7 +138,7 @@ func (ld *localDispatcher) parseRevision(ctx context.Context, s string) (datasto
 	return ds.RevisionFromString(s)
 }
 
-func (ld *localDispatcher) lookupRelation(ctx context.Context, ns *core.NamespaceDefinition, relationName string) (*core.Relation, error) {
+func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceDefinition, relationName string) (*core.Relation, error) {
 	var relation *core.Relation
 	for _, candidate := range ns.Relation {
 		if candidate.Name == relationName {

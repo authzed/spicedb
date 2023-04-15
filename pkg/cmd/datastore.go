@@ -14,10 +14,10 @@ import (
 	dspkg "github.com/authzed/spicedb/pkg/datastore"
 )
 
-func RegisterDatastoreRootFlags(cmd *cobra.Command) {
+func RegisterDatastoreRootFlags(_ *cobra.Command) {
 }
 
-func NewDatastoreCommand(programName string) (*cobra.Command, error) {
+func NewDatastoreCommand(_ string) (*cobra.Command, error) {
 	datastoreCmd := &cobra.Command{
 		Use:   "datastore",
 		Short: "datastore operations",

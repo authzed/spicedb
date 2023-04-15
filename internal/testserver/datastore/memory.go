@@ -12,15 +12,15 @@ import (
 type memoryTest struct{}
 
 // RunMemoryForTesting returns a RunningEngineForTest for the in-memory driver.
-func RunMemoryForTesting(t testing.TB) RunningEngineForTest {
+func RunMemoryForTesting(_ testing.TB) RunningEngineForTest {
 	return &memoryTest{}
 }
 
-func (b *memoryTest) NewDatabase(t testing.TB) string {
+func (b *memoryTest) NewDatabase(_ testing.TB) string {
 	// Does nothing.
 	return ""
 }
 
-func (b *memoryTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
+func (b *memoryTest) NewDatastore(_ testing.TB, initFunc InitFunc) datastore.Datastore {
 	return initFunc("memory", "")
 }

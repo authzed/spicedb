@@ -217,8 +217,10 @@ func perturb(require *require.Assertions, ring *Hashring, spread uint8,
 
 	switch perturbation {
 	case add:
-		affectedMember = member(rand.Int())
-		for err := ring.Add(affectedMember); err != nil; affectedMember = member(rand.Int()) {
+		err := errors.New("intentionally blank")
+		for err != nil {
+			affectedMember = member(rand.Int())
+			err = ring.Add(affectedMember)
 		}
 	case remove:
 		i := rand.Intn(len(ring.Members()))

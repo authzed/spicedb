@@ -146,12 +146,7 @@ func (m *Manager[D, C, T]) Run(ctx context.Context, driver D, throughRevision st
 						return err
 					}
 				}
-
-				if err := driver.WriteVersion(ctx, tx, migrationToRun.version, migrationToRun.replaces); err != nil {
-					return err
-				}
-
-				return nil
+				return driver.WriteVersion(ctx, tx, migrationToRun.version, migrationToRun.replaces)
 			}); err != nil {
 				return fmt.Errorf("error executing migration `%s`: %w", migrationToRun.version, err)
 			}

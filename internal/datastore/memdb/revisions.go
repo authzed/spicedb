@@ -37,7 +37,7 @@ func (mdb *memdbDatastore) newRevisionID() revision.Decimal {
 	return revision.NewFromDecimal(created)
 }
 
-func (mdb *memdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
@@ -57,12 +57,12 @@ func (mdb *memdbDatastore) headRevisionNoLock() decimal.Decimal {
 	return mdb.revisions[len(mdb.revisions)-1].revision
 }
 
-func (mdb *memdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
 	now := revisionFromTimestamp(time.Now().UTC())
 	return revision.NewFromDecimal(now.Sub(now.Mod(mdb.quantizationPeriod))), nil
 }
 
-func (mdb *memdbDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
+func (mdb *memdbDatastore) CheckRevision(_ context.Context, revisionRaw datastore.Revision) error {
 	mdb.RLock()
 	defer mdb.RUnlock()
 

@@ -51,7 +51,7 @@ func (Uint64Codec) PreferredFormat() int16 {
 	return pgtype.BinaryFormatCode
 }
 
-func (Uint64Codec) PlanEncode(m *pgtype.Map, oid uint32, format int16, value any) pgtype.EncodePlan {
+func (Uint64Codec) PlanEncode(_ *pgtype.Map, _ uint32, format int16, value any) pgtype.EncodePlan {
 	switch format {
 	case pgtype.BinaryFormatCode:
 		switch value.(type) {
@@ -99,7 +99,7 @@ func (encodePlanUint64CodecTextUint64) Encode(value any, buf []byte) (newBuf []b
 	return append(buf, strconv.FormatUint(v, 10)...), nil
 }
 
-func (Uint64Codec) PlanScan(m *pgtype.Map, oid uint32, format int16, target any) pgtype.ScanPlan {
+func (Uint64Codec) PlanScan(_ *pgtype.Map, _ uint32, format int16, target any) pgtype.ScanPlan {
 	switch format {
 	case pgtype.BinaryFormatCode:
 		switch target.(type) {

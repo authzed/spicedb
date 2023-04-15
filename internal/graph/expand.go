@@ -253,7 +253,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	})
 }
 
-func (ce *ConcurrentExpander) expandTupleToUserset(ctx context.Context, req ValidatedExpandRequest, ttu *core.TupleToUserset) ReduceableExpandFunc {
+func (ce *ConcurrentExpander) expandTupleToUserset(_ context.Context, req ValidatedExpandRequest, ttu *core.TupleToUserset) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
@@ -394,7 +394,7 @@ func expandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
 
 var errAlwaysFailExpand = errors.New("always fail")
 
-func alwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
+func alwaysFailExpand(_ context.Context, resultChan chan<- ExpandResult) {
 	resultChan <- expandResultError(errAlwaysFailExpand, emptyMetadata)
 }
 

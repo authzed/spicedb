@@ -50,7 +50,7 @@ func (pt *parserTest) writeTree(value string) {
 	}
 }
 
-func createAstNode(source input.Source, kind dslshape.NodeType) AstNode {
+func createAstNode(_ input.Source, kind dslshape.NodeType) AstNode {
 	return &testNode{
 		nodeType:   kind,
 		properties: make(map[string]interface{}),

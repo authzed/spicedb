@@ -101,7 +101,7 @@ func (r *definitionCachingReader) ReadNamespaceByName(
 	ctx context.Context,
 	name string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return readAndCache[*core.NamespaceDefinition](ctx, r, namespaceCacheKeyPrefix, name,
+	return readAndCache(ctx, r, namespaceCacheKeyPrefix, name,
 		func(ctx context.Context, name string) (*core.NamespaceDefinition, datastore.Revision, error) {
 			return r.Reader.ReadNamespaceByName(ctx, name)
 		},
@@ -112,7 +112,7 @@ func (r *definitionCachingReader) LookupNamespacesWithNames(
 	ctx context.Context,
 	nsNames []string,
 ) ([]datastore.RevisionedNamespace, error) {
-	return listAndCache[*core.NamespaceDefinition](ctx, r, namespaceCacheKeyPrefix, nsNames,
+	return listAndCache(ctx, r, namespaceCacheKeyPrefix, nsNames,
 		func(ctx context.Context, names []string) ([]datastore.RevisionedNamespace, error) {
 			return r.Reader.LookupNamespacesWithNames(ctx, names)
 		},
@@ -123,7 +123,7 @@ func (r *definitionCachingReader) ReadCaveatByName(
 	ctx context.Context,
 	name string,
 ) (*core.CaveatDefinition, datastore.Revision, error) {
-	return readAndCache[*core.CaveatDefinition](ctx, r, caveatCacheKeyPrefix, name,
+	return readAndCache(ctx, r, caveatCacheKeyPrefix, name,
 		func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 			return r.Reader.ReadCaveatByName(ctx, name)
 		},
@@ -134,7 +134,7 @@ func (r *definitionCachingReader) LookupCaveatsWithNames(
 	ctx context.Context,
 	caveatNames []string,
 ) ([]datastore.RevisionedCaveat, error) {
-	return listAndCache[*core.CaveatDefinition](ctx, r, caveatCacheKeyPrefix, caveatNames,
+	return listAndCache(ctx, r, caveatCacheKeyPrefix, caveatNames,
 		func(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
 			return r.Reader.LookupCaveatsWithNames(ctx, names)
 		},
@@ -254,7 +254,7 @@ func (rwt *definitionCachingRWT) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	return readAndCacheInTransaction[*core.NamespaceDefinition](
+	return readAndCacheInTransaction(
 		ctx, rwt, "namespace", nsName, func(ctx context.Context, name string) (*core.NamespaceDefinition, datastore.Revision, error) {
 			return rwt.ReadWriteTransaction.ReadNamespaceByName(ctx, name)
 		})
@@ -264,7 +264,7 @@ func (rwt *definitionCachingRWT) ReadCaveatByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.CaveatDefinition, datastore.Revision, error) {
-	return readAndCacheInTransaction[*core.CaveatDefinition](
+	return readAndCacheInTransaction(
 		ctx, rwt, "caveat", nsName, func(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 			return rwt.ReadWriteTransaction.ReadCaveatByName(ctx, name)
 		})

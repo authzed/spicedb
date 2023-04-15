@@ -227,8 +227,8 @@ func ApplySchemaChangesOverExisting(
 // sanityCheckCaveatChanges ensures that a caveat definition being written does not break
 // the types of the parameters that may already exist on relationships.
 func sanityCheckCaveatChanges(
-	ctx context.Context,
-	rwt datastore.ReadWriteTransaction,
+	_ context.Context,
+	_ datastore.ReadWriteTransaction,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
 ) (*caveats.Diff, error) {
@@ -387,7 +387,7 @@ func sanityCheckNamespaceChanges(
 
 // errorIfTupleIteratorReturnsTuples takes a tuple iterator and any error that was generated
 // when the original iterator was created, and returns an error if iterator contains any tuples.
-func errorIfTupleIteratorReturnsTuples(ctx context.Context, qy datastore.RelationshipIterator, qyErr error, message string, args ...interface{}) error {
+func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.RelationshipIterator, qyErr error, message string, args ...interface{}) error {
 	if qyErr != nil {
 		return qyErr
 	}

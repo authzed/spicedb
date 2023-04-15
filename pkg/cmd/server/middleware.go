@@ -41,10 +41,7 @@ func (mm MiddlewareModification) validate() error {
 	if mm.Operation != OperationReplaceAllUnsafe && mm.DependencyMiddlewareName == "" {
 		return fmt.Errorf("cannot perform middleware modification without a dependency: %v", mm)
 	}
-	if err := validate(mm.Middlewares); err != nil {
-		return err
-	}
-	return nil
+	return validate(mm.Middlewares)
 }
 
 func validate(mws []ReferenceableMiddleware) error {

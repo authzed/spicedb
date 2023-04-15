@@ -220,7 +220,7 @@ func DisabledReporter(ctx context.Context) error {
 	return nil
 }
 
-func SilentlyDisabledReporter(ctx context.Context) error {
+func SilentlyDisabledReporter(_ context.Context) error {
 	return nil
 }
 

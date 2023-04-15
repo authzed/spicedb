@@ -108,7 +108,7 @@ func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []
 	return toReturn, nil
 }
 
-func (rwt *memdbReadWriteTx) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt *memdbReadWriteTx) WriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()
@@ -140,7 +140,7 @@ func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDe
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) DeleteCaveats(ctx context.Context, names []string) error {
+func (rwt *memdbReadWriteTx) DeleteCaveats(_ context.Context, names []string) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 	tx, err := rwt.txSource()

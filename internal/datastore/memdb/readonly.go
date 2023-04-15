@@ -23,7 +23,7 @@ type memdbReader struct {
 
 // QueryRelationships reads relationships starting from the resource side.
 func (r *memdbReader) QueryRelationships(
-	ctx context.Context,
+	_ context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
@@ -73,7 +73,7 @@ func mustHaveBeenClosed(iter *memdbTupleIterator) {
 
 // ReverseQueryRelationships reads relationships starting from the subject.
 func (r *memdbReader) ReverseQueryRelationships(
-	ctx context.Context,
+	_ context.Context,
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
@@ -132,7 +132,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
 // which it was created or last written, if found.
-func (r *memdbReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
+func (r *memdbReader) ReadNamespaceByName(_ context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
 	if r.initErr != nil {
 		return nil, datastore.NoRevision, r.initErr
 	}
@@ -165,7 +165,7 @@ func (r *memdbReader) ReadNamespaceByName(ctx context.Context, nsName string) (n
 }
 
 // ListNamespaces lists all namespaces defined.
-func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (r *memdbReader) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}
@@ -202,7 +202,7 @@ func (r *memdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 	return nsDefs, nil
 }
 
-func (r *memdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (r *memdbReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if r.initErr != nil {
 		return nil, r.initErr
 	}

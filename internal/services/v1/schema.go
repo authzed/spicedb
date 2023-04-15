@@ -44,7 +44,7 @@ type schemaServer struct {
 	additiveOnly bool
 }
 
-func (ss *schemaServer) ReadSchema(ctx context.Context, in *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
+func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
 	// Schema is always read from the head revision.
 	ds := datastoremw.MustFromContext(ctx)
 	headRevision, err := ds.HeadRevision(ctx)

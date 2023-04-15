@@ -16,7 +16,7 @@ type SubjectSet struct {
 // NewSubjectSet creates and returns a new subject set.
 func NewSubjectSet() SubjectSet {
 	return SubjectSet{
-		BaseSubjectSet: NewBaseSubjectSet[*v1.FoundSubject](subjectSetConstructor),
+		BaseSubjectSet: NewBaseSubjectSet(subjectSetConstructor),
 	}
 }
 
@@ -52,7 +52,7 @@ func (ss SubjectSet) AsFoundSubjects() *v1.FoundSubjects {
 	}
 }
 
-func subjectSetConstructor(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []*v1.FoundSubject, sources ...*v1.FoundSubject) *v1.FoundSubject {
+func subjectSetConstructor(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []*v1.FoundSubject, _ ...*v1.FoundSubject) *v1.FoundSubject {
 	return &v1.FoundSubject{
 		SubjectId:        subjectID,
 		CaveatExpression: caveatExpression,

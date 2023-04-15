@@ -150,24 +150,24 @@ type delegateDispatchMock struct {
 	*mock.Mock
 }
 
-func (ddm delegateDispatchMock) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+func (ddm delegateDispatchMock) DispatchCheck(_ context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	args := ddm.Called(req)
 	return args.Get(0).(*v1.DispatchCheckResponse), args.Error(1)
 }
 
-func (ddm delegateDispatchMock) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+func (ddm delegateDispatchMock) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	return &v1.DispatchExpandResponse{}, nil
 }
 
-func (ddm delegateDispatchMock) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (ddm delegateDispatchMock) DispatchLookup(_ context.Context, _ *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
 	return &v1.DispatchLookupResponse{}, nil
 }
 
-func (ddm delegateDispatchMock) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
+func (ddm delegateDispatchMock) DispatchReachableResources(_ *v1.DispatchReachableResourcesRequest, _ dispatch.ReachableResourcesStream) error {
 	return nil
 }
 
-func (ddm delegateDispatchMock) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
+func (ddm delegateDispatchMock) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
 	return nil
 }
 

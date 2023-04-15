@@ -16,19 +16,19 @@ type testServer struct {
 	testpb.UnimplementedTestServiceServer
 }
 
-func (t testServer) PingEmpty(ctx context.Context, empty *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
+func (t testServer) PingEmpty(_ context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	return &testpb.PingEmptyResponse{}, nil
 }
 
-func (t testServer) Ping(ctx context.Context, request *testpb.PingRequest) (*testpb.PingResponse, error) {
+func (t testServer) Ping(_ context.Context, _ *testpb.PingRequest) (*testpb.PingResponse, error) {
 	return &testpb.PingResponse{Value: ""}, nil
 }
 
-func (t testServer) PingError(ctx context.Context, request *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
+func (t testServer) PingError(_ context.Context, _ *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
 	return nil, fmt.Errorf("err")
 }
 
-func (t testServer) PingList(request *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
+func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	var counter int32
 	for {
 		// Produce ping responses until the context is canceled.
@@ -47,7 +47,7 @@ func (t testServer) PingList(request *testpb.PingListRequest, server testpb.Test
 	}
 }
 
-func (t testServer) PingStream(stream testpb.TestService_PingStreamServer) error {
+func (t testServer) PingStream(_ testpb.TestService_PingStreamServer) error {
 	return fmt.Errorf("unused")
 }
 

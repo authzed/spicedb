@@ -196,7 +196,7 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 	}, nil
 }
 
-func (sd spannerDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+func (sd spannerDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
 }
 

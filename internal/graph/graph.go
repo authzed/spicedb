@@ -54,7 +54,7 @@ type LookupResult struct {
 type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResult)
 
 // AlwaysFailExpand is a ReduceableExpandFunc which will always fail when reduced.
-func AlwaysFailExpand(ctx context.Context, resultChan chan<- ExpandResult) {
+func AlwaysFailExpand(_ context.Context, resultChan chan<- ExpandResult) {
 	resultChan <- expandResultError(NewAlwaysFailErr(), emptyMetadata)
 }
 

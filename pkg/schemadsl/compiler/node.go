@@ -15,7 +15,7 @@ type dslNode struct {
 	children   map[string]*list.List
 }
 
-func createAstNode(source input.Source, kind dslshape.NodeType) parser.AstNode {
+func createAstNode(_ input.Source, kind dslshape.NodeType) parser.AstNode {
 	return &dslNode{
 		nodeType:   kind,
 		properties: make(map[string]interface{}),

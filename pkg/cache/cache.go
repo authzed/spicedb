@@ -87,11 +87,11 @@ type noopCache struct{}
 
 var _ Cache = (*noopCache)(nil)
 
-func (no *noopCache) Get(key any) (any, bool)             { return nil, false }
-func (no *noopCache) Set(key, entry any, cost int64) bool { return false }
-func (no *noopCache) Wait()                               {}
-func (no *noopCache) Close()                              {}
-func (no *noopCache) GetMetrics() Metrics                 { return &noopMetrics{} }
+func (no *noopCache) Get(_ any) (any, bool)      { return nil, false }
+func (no *noopCache) Set(_, _ any, _ int64) bool { return false }
+func (no *noopCache) Wait()                      {}
+func (no *noopCache) Close()                     {}
+func (no *noopCache) GetMetrics() Metrics        { return &noopMetrics{} }
 func (no *noopCache) MarshalZerologObject(e *zerolog.Event) {
 	e.Bool("enabled", false)
 }

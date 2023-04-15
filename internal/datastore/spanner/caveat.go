@@ -87,7 +87,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 	return caveats, nil
 }
 
-func (rwt spannerReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
 	names := map[string]struct{}{}
 	mutations := make([]*spanner.Mutation, 0, len(caveats))
 	for _, caveat := range caveats {
@@ -110,7 +110,7 @@ func (rwt spannerReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core
 	return rwt.spannerRWT.BufferWrite(mutations)
 }
 
-func (rwt spannerReadWriteTXN) DeleteCaveats(ctx context.Context, names []string) error {
+func (rwt spannerReadWriteTXN) DeleteCaveats(_ context.Context, names []string) error {
 	keys := make([]spanner.Key, 0, len(names))
 	for _, n := range names {
 		keys = append(keys, spanner.Key{n})

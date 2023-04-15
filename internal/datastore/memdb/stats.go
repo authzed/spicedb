@@ -30,7 +30,7 @@ func (mdb *memdbDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	}, nil
 }
 
-func (mdb *memdbDatastore) countRelationships(ctx context.Context) (uint64, error) {
+func (mdb *memdbDatastore) countRelationships(_ context.Context) (uint64, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 

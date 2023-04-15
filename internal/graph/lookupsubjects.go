@@ -95,7 +95,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	ctx context.Context,
 	req ValidatedLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
-	relation *core.Relation,
+	_ *core.Relation,
 	reader datastore.Reader,
 ) error {
 	// TODO(jschorr): use type information to skip subject relations that cannot reach the subject type.

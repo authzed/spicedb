@@ -21,7 +21,7 @@ func (fd *fakeDriver) Version(ctx context.Context) (string, error) {
 	return fd.currentVersion, ctx.Err()
 }
 
-func (fd *fakeDriver) WriteVersion(ctx context.Context, tx fakeTx, to, from string) error {
+func (fd *fakeDriver) WriteVersion(ctx context.Context, _ fakeTx, to, _ string) error {
 	if ctx.Err() == nil {
 		fd.currentVersion = to
 	}
@@ -32,7 +32,7 @@ func (*fakeDriver) Conn() fakeConnPool {
 	return fakeConnPool{}
 }
 
-func (*fakeDriver) RunTx(ctx context.Context, f TxMigrationFunc[fakeTx]) error {
+func (*fakeDriver) RunTx(ctx context.Context, _ TxMigrationFunc[fakeTx]) error {
 	return ctx.Err()
 }
 

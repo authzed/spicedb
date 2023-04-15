@@ -396,11 +396,11 @@ func (nilRevision) Equal(rhs Revision) bool {
 	return rhs == NoRevision
 }
 
-func (nilRevision) GreaterThan(rhs Revision) bool {
+func (nilRevision) GreaterThan(_ Revision) bool {
 	return false
 }
 
-func (nilRevision) LessThan(rhs Revision) bool {
+func (nilRevision) LessThan(_ Revision) bool {
 	return true
 }
 

@@ -130,7 +130,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 }
 
 func (mdb *memdbDatastore) ReadWriteTx(
-	ctx context.Context,
+	_ context.Context,
 	f datastore.TxUserFunc,
 ) (datastore.Revision, error) {
 	for i := 0; i < numRetries; i++ {
@@ -243,7 +243,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 	return datastore.NoRevision, errors.New("serialization max retries exceeded")
 }
 
-func (mdb *memdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+func (mdb *memdbDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
@@ -253,7 +253,7 @@ func (mdb *memdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 	}, nil
 }
 
-func (mdb *memdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+func (mdb *memdbDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
 }
 

@@ -814,7 +814,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require.False(commitFirstRev.Equal(commitLastRev))
 }
 
-func WatchNotEnabledTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest) {
 	require := require.New(t)
 
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -1017,7 +1017,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	return ds
 }
 
-func GCQueriesServedByExpectedIndexes(t *testing.T, b testdatastore.RunningEngineForTest) {
+func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngineForTest) {
 	require := require.New(t)
 	interceptor := &withQueryInterceptor{explanations: make(map[string]string, 0)}
 	ds := datastoreWithInterceptorAndTestData(t, interceptor)

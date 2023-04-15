@@ -205,10 +205,8 @@ func (pc *parallelChecker) Start() {
 				return nil
 			})
 		}
-		if err := sem.Acquire(ctx, int64(pc.maxConcurrent)); err != nil {
-			return err
-		}
-		return nil
+
+		return sem.Acquire(ctx, int64(pc.maxConcurrent))
 	})
 }
 
