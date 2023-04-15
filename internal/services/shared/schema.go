@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/tuple"

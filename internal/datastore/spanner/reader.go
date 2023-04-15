@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 

@@ -8,9 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 

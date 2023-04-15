@@ -10,8 +10,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )

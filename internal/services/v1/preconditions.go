@@ -6,8 +6,8 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 var limitOne uint64 = 1
