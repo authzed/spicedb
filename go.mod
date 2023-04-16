@@ -54,6 +54,7 @@ require (
 	github.com/prometheus/common v0.41.0
 	github.com/rs/cors v1.8.3
 	github.com/rs/zerolog v1.29.0
+	github.com/samber/lo v1.38.1
 	github.com/scylladb/go-set v1.0.2
 	github.com/sercand/kuberesolver/v4 v4.0.0
 	github.com/shopspring/decimal v1.3.1
