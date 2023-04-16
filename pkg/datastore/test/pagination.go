@@ -215,6 +215,12 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	tRequire := testfixtures.TupleChecker{Require: require.New(t), DS: ds}
+
 	for _, tc := range testCases {
 		expected := sortedStandardData(tc.objectType, options.ByResource)
 		for batchSize := 1; batchSize <= len(expected); batchSize++ {
@@ -222,12 +228,6 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 
 			t.Run(fmt.Sprintf("%s-%d-batches-%d", tc.objectType, tc.ordering, batchSize), func(t *testing.T) {
 				require := require.New(t)
-
-				rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
-				require.NoError(err)
-
-				ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require)
-				tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 				ctx := context.Background()
 
 				expected := sortedStandardData(tc.objectType, tc.ordering)

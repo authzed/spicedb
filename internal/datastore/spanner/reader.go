@@ -228,14 +228,14 @@ var queryTuples = sql.Select(
 	colCaveatContext,
 ).From(tableRelationship)
 
-var schema = common.SchemaInformation{
-	ColNamespace:        colNamespace,
-	ColObjectID:         colObjectID,
-	ColRelation:         colRelation,
-	ColUsersetNamespace: colUsersetNamespace,
-	ColUsersetObjectID:  colUsersetObjectID,
-	ColUsersetRelation:  colUsersetRelation,
-	ColCaveatName:       colCaveatName,
-}
+var schema = common.NewSchemaInformation(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatName,
+)
 
 var _ datastore.Reader = spannerReader{}

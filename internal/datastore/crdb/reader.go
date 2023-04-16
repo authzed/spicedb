@@ -35,15 +35,15 @@ var (
 		colCaveatContext,
 	)
 
-	schema = common.SchemaInformation{
-		ColNamespace:        colNamespace,
-		ColObjectID:         colObjectID,
-		ColRelation:         colRelation,
-		ColUsersetNamespace: colUsersetNamespace,
-		ColUsersetObjectID:  colUsersetObjectID,
-		ColUsersetRelation:  colUsersetRelation,
-		ColCaveatName:       colCaveatContextName,
-	}
+	schema = common.NewSchemaInformation(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+	)
 )
 
 type crdbReader struct {
