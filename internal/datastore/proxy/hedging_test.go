@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -30,7 +32,7 @@ var (
 	revisionKnown        = revision.NewFromDecimal(decimal.NewFromInt(1))
 	anotherRevisionKnown = revision.NewFromDecimal(decimal.NewFromInt(2))
 
-	emptyIterator = datastore.NewSliceRelationshipIterator(nil)
+	emptyIterator = common.NewSliceRelationshipIterator(nil, options.Unsorted)
 )
 
 type testFunc func(t *testing.T, proxy datastore.Datastore, expectFirst bool)
@@ -307,12 +309,12 @@ func TestDatastoreE2E(t *testing.T) {
 
 	delegateReader.
 		On("QueryRelationships", mock.Anything, mock.Anything).
-		Return(datastore.NewSliceRelationshipIterator(expectedTuples), nil).
+		Return(common.NewSliceRelationshipIterator(expectedTuples, options.Unsorted), nil).
 		WaitUntil(mockTime.After(2 * slowQueryTime)).
 		Once()
 	delegateReader.
 		On("QueryRelationships", mock.Anything, mock.Anything).
-		Return(datastore.NewSliceRelationshipIterator(expectedTuples), nil).
+		Return(common.NewSliceRelationshipIterator(expectedTuples, options.Unsorted), nil).
 		Once()
 
 	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)

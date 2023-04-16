@@ -1,20 +1,24 @@
-package datastore
+package common
 
 import (
-	"errors"
+	"runtime"
 
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-var errClosedIterator = errors.New("unable to iterate: iterator closed")
-
 // NewSliceRelationshipIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
-func NewSliceRelationshipIterator(tuples []*core.RelationTuple) RelationshipIterator {
-	return &sliceRelationshipIterator{tuples: tuples}
+func NewSliceRelationshipIterator(tuples []*core.RelationTuple, order options.SortOrder) datastore.RelationshipIterator {
+	iter := &sliceRelationshipIterator{tuples: tuples, order: order}
+	runtime.SetFinalizer(iter, MustIteratorBeClosed)
+	return iter
 }
 
 type sliceRelationshipIterator struct {
 	tuples []*core.RelationTuple
+	order  options.SortOrder
+	last   *core.RelationTuple
 	closed bool
 	err    error
 }
@@ -22,17 +26,31 @@ type sliceRelationshipIterator struct {
 // Next implements TupleIterator
 func (sti *sliceRelationshipIterator) Next() *core.RelationTuple {
 	if sti.closed {
-		sti.err = errClosedIterator
+		sti.err = datastore.ErrClosedIterator
 		return nil
 	}
 
 	if len(sti.tuples) > 0 {
 		first := sti.tuples[0]
 		sti.tuples = sti.tuples[1:]
+		sti.last = first
 		return first
 	}
 
 	return nil
+}
+
+func (sti *sliceRelationshipIterator) Cursor() (options.Cursor, error) {
+	switch {
+	case sti.order == options.Unsorted:
+		return nil, datastore.ErrCursorsWithoutSorting
+	case sti.last == nil:
+		return nil, datastore.ErrCursorEmpty
+	case sti.closed:
+		return nil, datastore.ErrClosedIterator
+	default:
+		return sti.last, nil
+	}
 }
 
 // Err implements TupleIterator

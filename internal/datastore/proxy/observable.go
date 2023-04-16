@@ -210,6 +210,8 @@ func (i *observableRelationshipIterator) Next() *core.RelationTuple {
 
 func (i *observableRelationshipIterator) Err() error { return i.delegate.Err() }
 
+func (i *observableRelationshipIterator) Cursor() (options.Cursor, error) { return i.delegate.Cursor() }
+
 func (i *observableRelationshipIterator) Close() {
 	loadedRelationshipCount.Observe(float64(i.count))
 	i.closer()

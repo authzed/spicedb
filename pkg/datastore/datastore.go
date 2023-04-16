@@ -367,6 +367,11 @@ type RelationshipIterator interface {
 	// Next returns the next tuple in the result set.
 	Next() *core.RelationTuple
 
+	// Cursor returns a cursor that can be used to resume reading of relationships
+	// from the last relationship returned. Only applies if a sort ordering was
+	// requested.
+	Cursor() (options.Cursor, error)
+
 	// Err after receiving a nil response, the caller must check for an error.
 	Err() error
 
