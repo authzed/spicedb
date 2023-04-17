@@ -42,6 +42,7 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colCaveatContextName,
+		common.TupleComparison,
 	)
 
 	readNamespace = psql.

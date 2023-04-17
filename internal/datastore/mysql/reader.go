@@ -45,6 +45,7 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
+	common.TupleComparison,
 )
 
 func (mr *mysqlReader) QueryRelationships(

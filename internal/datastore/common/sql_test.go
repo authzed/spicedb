@@ -367,6 +367,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"subject_object_id",
 				"subject_relation",
 				"caveat",
+				TupleComparison,
 			), base)
 
 			sql, args, err := test.run(filterer).queryBuilder.ToSql()

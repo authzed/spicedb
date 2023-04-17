@@ -64,8 +64,13 @@ func (pi *paginatedIterator) Next() *core.RelationTuple {
 		}
 
 		cursor, err := pi.delegate.Cursor()
-		if errors.Is(err, datastore.ErrCursorEmpty) {
-			// The last batch had no data
+		if err != nil {
+			if errors.Is(err, datastore.ErrCursorEmpty) {
+				// The last batch had no data
+				return nil
+			}
+
+			pi.err = err
 			return nil
 		}
 

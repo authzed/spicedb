@@ -43,6 +43,7 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colCaveatContextName,
+		common.TupleComparison,
 	)
 )
 
