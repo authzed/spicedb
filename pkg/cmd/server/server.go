@@ -231,10 +231,16 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
 		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
-		// Set this value to take effect the next time the replicas are updated
+
+		// Set the hashring values to take effect the next time the replicas are updated
 		// Applies to ALL running servers.
-		ConsistentHashringPicker.ReplicationFactor(c.DispatchHashringReplicationFactor)
-		ConsistentHashringPicker.Spread(c.DispatchHashringSpread)
+		if c.DispatchHashringReplicationFactor > 0 {
+			ConsistentHashringPicker.MustReplicationFactor(c.DispatchHashringReplicationFactor)
+		}
+
+		if c.DispatchHashringSpread > 0 {
+			ConsistentHashringPicker.MustSpread(c.DispatchHashringSpread)
+		}
 
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
