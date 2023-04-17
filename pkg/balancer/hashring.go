@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -86,13 +87,21 @@ func (b *ConsistentHashringPickerBuilder) MarshalZerologObject(e *zerolog.Event)
 	e.Uint8("consistent-hashring-spread", b.spread)
 }
 
-func (b *ConsistentHashringPickerBuilder) ReplicationFactor(rf uint16) {
+func (b *ConsistentHashringPickerBuilder) MustReplicationFactor(rf uint16) {
+	if rf == 0 {
+		panic("invalid ReplicationFactor")
+	}
+
 	b.Lock()
 	defer b.Unlock()
 	b.replicationFactor = rf
 }
 
-func (b *ConsistentHashringPickerBuilder) Spread(spread uint8) {
+func (b *ConsistentHashringPickerBuilder) MustSpread(spread uint8) {
+	if spread == 0 {
+		panic("invalid Spread")
+	}
+
 	b.Lock()
 	defer b.Unlock()
 	b.spread = spread
@@ -116,6 +125,11 @@ func (b *ConsistentHashringPickerBuilder) Build(info base.PickerBuildInfo) balan
 			return base.NewErrPicker(err)
 		}
 	}
+
+	if b.spread == 0 {
+		return base.NewErrPicker(fmt.Errorf("received invalid spread for consistent hash ring picker builder: %d", b.spread))
+	}
+
 	return &consistentHashringPicker{
 		hashring: hashring,
 		spread:   b.spread,
