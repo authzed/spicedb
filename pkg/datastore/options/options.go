@@ -14,7 +14,7 @@ const (
 	// Unsorted lets the underlying datastore choose the order, or no order at all
 	Unsorted SortOrder = iota
 
-	// By resource sorts the relationships by the resource component first
+	// ByResource sorts the relationships by the resource component first
 	ByResource
 
 	// BySubject sorts the relationships by the subject component first

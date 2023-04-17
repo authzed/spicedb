@@ -29,8 +29,6 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-const datastoreQueryBatchSize = 1000
-
 // PermissionsServerConfig is configuration for the permissions server.
 type PermissionsServerConfig struct {
 	// MaxUpdatesPerWrite holds the maximum number of updates allowed per
@@ -51,6 +49,10 @@ type PermissionsServerConfig struct {
 
 	// MaxCaveatContextSize defines the maximum length of the request caveat context in bytes
 	MaxCaveatContextSize int
+
+	// MaxDatastoreReadPageSize defines the maximum number of relationships loaded from the
+	// datastore in one query.
+	MaxDatastoreReadPageSize uint64
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -59,11 +61,12 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount: defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:    defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:       defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:   defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:  config.MaxCaveatContextSize,
+		MaxPreconditionsCount:    defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:       defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:          defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:      defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:     config.MaxCaveatContextSize,
+		MaxDatastoreReadPageSize: defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
 	}
 
 	return &permissionServer{
@@ -138,7 +141,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		ctx,
 		ds,
 		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
-		datastoreQueryBatchSize,
+		ps.config.MaxDatastoreReadPageSize,
 		options.ByResource,
 	)
 	if err != nil {
