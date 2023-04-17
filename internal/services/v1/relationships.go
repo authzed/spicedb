@@ -20,12 +20,16 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/pagination"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
+
+const datastoreQueryBatchSize = 1000
 
 // PermissionsServerConfig is configuration for the permissions server.
 type PermissionsServerConfig struct {
@@ -130,7 +134,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	tupleIterator, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter))
+	tupleIterator, err := pagination.NewPaginatedIterator(
+		ctx,
+		ds,
+		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
+		datastoreQueryBatchSize,
+		options.ByResource,
+	)
 	if err != nil {
 		return rewriteError(ctx, err)
 	}
