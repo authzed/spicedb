@@ -593,6 +593,17 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	)
 }
 
+func withDistinctMetadata(result CheckResult) CheckResult {
+	// NOTE: This is necessary to ensure unique debug information on the request and that debug
+	// information from the child metadata is *not* copied over.
+	clonedResp := result.Resp.CloneVT()
+	clonedResp.Metadata = combineResponseMetadata(emptyMetadata, clonedResp.Metadata)
+	return CheckResult{
+		Resp: clonedResp,
+		Err:  result.Err,
+	}
+}
+
 // union returns whether any one of the lazy checks pass, and is used for union.
 func union[T any](
 	ctx context.Context,
@@ -603,6 +614,10 @@ func union[T any](
 ) CheckResult {
 	if len(children) == 0 {
 		return noMembers()
+	}
+
+	if len(children) == 1 {
+		return withDistinctMetadata(handler(ctx, crc, children[0]))
 	}
 
 	resultChan := make(chan CheckResult, len(children))
@@ -646,6 +661,10 @@ func all[T any](
 ) CheckResult {
 	if len(children) == 0 {
 		return noMembers()
+	}
+
+	if len(children) == 1 {
+		return withDistinctMetadata(handler(ctx, crc, children[0]))
 	}
 
 	responseMetadata := emptyMetadata
