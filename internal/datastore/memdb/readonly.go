@@ -269,7 +269,7 @@ func filterFuncForFilters(
 	optionalSubjectsSelectors []datastore.SubjectsSelector,
 	optionalCaveatFilter string,
 	usersets []*core.ObjectAndRelation,
-	cursorFilter func(*core.RelationTuple) bool,
+	cursorFilter func(*relationship) bool,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)
@@ -336,47 +336,37 @@ func filterFuncForFilters(
 			return !found
 		}
 
-		tpl := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: tuple.namespace,
-				ObjectId:  tuple.resourceID,
-				Relation:  tuple.relation,
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: tuple.subjectNamespace,
-				ObjectId:  tuple.subjectObjectID,
-				Relation:  tuple.subjectRelation,
-			},
-		}
-
-		return cursorFilter(tpl)
+		return cursorFilter(tuple)
 	}
 }
 
-func makeCursorFilterFn(after *core.RelationTuple, order options.SortOrder) func(tpl *core.RelationTuple) bool {
+func makeCursorFilterFn(after *core.RelationTuple, order options.SortOrder) func(tpl *relationship) bool {
 	if after != nil {
 		switch order {
 		case options.ByResource:
-			return func(tpl *core.RelationTuple) bool {
-				return less(tpl.ResourceAndRelation, after.ResourceAndRelation) || (eq(tpl.ResourceAndRelation, after.ResourceAndRelation) && (less(tpl.Subject, after.Subject) || eq(tpl.Subject, after.Subject)))
+			return func(tpl *relationship) bool {
+				return less(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation) ||
+					(eq(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation) &&
+						(less(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) ||
+							eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject)))
 			}
 		}
 	}
 	return noopCursorFilter
 }
 
-func noopCursorFilter(_ *core.RelationTuple) bool {
+func noopCursorFilter(_ *relationship) bool {
 	return false
 }
 
-func less(lhs, rhs *core.ObjectAndRelation) bool {
-	return lhs.Namespace < rhs.Namespace ||
-		(lhs.Namespace == rhs.Namespace && lhs.ObjectId < rhs.ObjectId) ||
-		(lhs.Namespace == rhs.Namespace && lhs.ObjectId == rhs.ObjectId && lhs.Relation < rhs.Relation)
+func less(lhsNamespace, lhsObjectID, lhsRelation string, rhs *core.ObjectAndRelation) bool {
+	return lhsNamespace < rhs.Namespace ||
+		(lhsNamespace == rhs.Namespace && lhsObjectID < rhs.ObjectId) ||
+		(lhsNamespace == rhs.Namespace && lhsObjectID == rhs.ObjectId && lhsRelation < rhs.Relation)
 }
 
-func eq(lhs, rhs *core.ObjectAndRelation) bool {
-	return lhs.Namespace == rhs.Namespace && lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation
+func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs *core.ObjectAndRelation) bool {
+	return lhsNamespace == rhs.Namespace && lhsObjectID == rhs.ObjectId && lhsRelation == rhs.Relation
 }
 
 func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64, order options.SortOrder) *memdbTupleIterator {
