@@ -8,6 +8,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -27,6 +29,14 @@ import (
 	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
+
+var writeUpdateCounter = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "v1",
+	Name:      "write_relationships_updates",
+	Help:      "The update counts for the WriteRelationships calls",
+	Buckets:   []float64{0, 1, 2, 5, 10, 15, 25, 50, 100, 250, 500, 1000},
+}, []string{"kind"})
 
 // PermissionsServerConfig is configuration for the permissions server.
 type PermissionsServerConfig struct {
@@ -205,6 +215,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	// Execute the write operation(s).
+	tupleUpdates := tuple.UpdateFromRelationshipUpdates(req.Updates)
 	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
@@ -214,7 +225,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 
 		// Validate the updates.
-		tupleUpdates := tuple.UpdateFromRelationshipUpdates(req.Updates)
 		err := relationships.ValidateRelationshipUpdates(ctx, rwt, tupleUpdates)
 		if err != nil {
 			return rewriteError(ctx, err)
@@ -233,6 +243,16 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	})
 	if err != nil {
 		return nil, rewriteError(ctx, err)
+	}
+
+	// Log a metric of the counts of the different kinds of update operations.
+	updateCountByOperation := make(map[v1.RelationshipUpdate_Operation]int, 0)
+	for _, update := range req.Updates {
+		updateCountByOperation[update.Operation]++
+	}
+
+	for kind, count := range updateCountByOperation {
+		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
 	}
 
 	return &v1.WriteRelationshipsResponse{
