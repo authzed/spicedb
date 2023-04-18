@@ -10,8 +10,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -37,15 +37,16 @@ const (
 )
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-var schema = common.SchemaInformation{
-	ColNamespace:        colNamespace,
-	ColObjectID:         colObjectID,
-	ColRelation:         colRelation,
-	ColUsersetNamespace: colUsersetNamespace,
-	ColUsersetObjectID:  colUsersetObjectID,
-	ColUsersetRelation:  colUsersetRelation,
-	ColCaveatName:       colCaveatName,
-}
+var schema = common.NewSchemaInformation(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatName,
+	common.TupleComparison,
+)
 
 func (mr *mysqlReader) QueryRelationships(
 	ctx context.Context,

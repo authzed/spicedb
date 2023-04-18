@@ -14,9 +14,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -242,6 +242,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					SubjectType: testUserNamespace,
 				}, options.WithReverseLimit(&limit))
 				require.NoError(err)
+				defer iter.Close()
 				tRequire.VerifyIteratorCount(iter, len(testTuples)-1)
 			}
 

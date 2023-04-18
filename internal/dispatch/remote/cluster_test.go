@@ -31,7 +31,7 @@ func (fds *fakeDispatchSvc) DispatchCheck(context.Context, *v1.DispatchCheckRequ
 	return &v1.DispatchCheckResponse{}, nil
 }
 
-func (fds *fakeDispatchSvc) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, srv v1.DispatchService_DispatchLookupSubjectsServer) error {
+func (fds *fakeDispatchSvc) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, srv v1.DispatchService_DispatchLookupSubjectsServer) error {
 	time.Sleep(fds.sleepTime)
 	return srv.Send(&v1.DispatchLookupSubjectsResponse{})
 }

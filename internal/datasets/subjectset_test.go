@@ -1729,12 +1729,12 @@ func TestUnionWildcardWithWildcard(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
-			produced, err := unionWildcardWithWildcard[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
+			produced, err := unionWildcardWithWildcard(existing, tc.toUnion, subjectSetConstructor)
 			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
 			toUnion := wrap(tc.toUnion)
-			produced2, err := unionWildcardWithWildcard[*v1.FoundSubject](toUnion, tc.existing, subjectSetConstructor)
+			produced2, err := unionWildcardWithWildcard(toUnion, tc.existing, subjectSetConstructor)
 			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expectedInverse, produced2)
 		})
@@ -1849,7 +1849,7 @@ func TestUnionWildcardWithConcrete(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s U %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toUnion)), func(t *testing.T) {
 			existing := wrap(tc.existing)
-			produced := unionWildcardWithConcrete[*v1.FoundSubject](existing, tc.toUnion, subjectSetConstructor)
+			produced := unionWildcardWithConcrete(existing, tc.toUnion, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
@@ -1911,10 +1911,10 @@ func TestUnionConcreteWithConcrete(t *testing.T) {
 			existing := wrap(tc.existing)
 			toUnion := wrap(tc.toUnion)
 
-			produced := unionConcreteWithConcrete[*v1.FoundSubject](existing, toUnion, subjectSetConstructor)
+			produced := unionConcreteWithConcrete(existing, toUnion, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
-			produced2 := unionConcreteWithConcrete[*v1.FoundSubject](toUnion, existing, subjectSetConstructor)
+			produced2 := unionConcreteWithConcrete(toUnion, existing, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expectedInverted, produced2)
 		})
 	}
@@ -2053,7 +2053,7 @@ func TestSubtractWildcardFromWildcard(t *testing.T) {
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
 			existing := wrap(tc.existing)
 
-			produced, concrete := subtractWildcardFromWildcard[*v1.FoundSubject](existing, tc.toSubtract, subjectSetConstructor)
+			produced, concrete := subtractWildcardFromWildcard(existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 			testutil.RequireEquivalentSets(t, tc.expectedConcretes, concrete)
 		})
@@ -2160,7 +2160,7 @@ func TestSubtractWildcardFromConcrete(t *testing.T) {
 		tc := tc
 
 		t.Run(fmt.Sprintf("%v - %v", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
-			produced := subtractWildcardFromConcrete[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
+			produced := subtractWildcardFromConcrete(tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
@@ -2211,7 +2211,7 @@ func TestSubtractConcreteFromConcrete(t *testing.T) {
 		tc := tc
 
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
-			produced := subtractConcreteFromConcrete[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
+			produced := subtractConcreteFromConcrete(tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
@@ -2286,7 +2286,7 @@ func TestSubtractConcreteFromWildcard(t *testing.T) {
 		tc := tc
 
 		t.Run(fmt.Sprintf("%s - %s", testutil.FormatSubject(tc.existing), testutil.FormatSubject(tc.toSubtract)), func(t *testing.T) {
-			produced := subtractConcreteFromWildcard[*v1.FoundSubject](tc.existing, tc.toSubtract, subjectSetConstructor)
+			produced := subtractConcreteFromWildcard(tc.existing, tc.toSubtract, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
@@ -2346,7 +2346,7 @@ func TestIntersectConcreteWithConcrete(t *testing.T) {
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.first), testutil.FormatSubject(tc.second)), func(t *testing.T) {
 			second := wrap(tc.second)
 
-			produced := intersectConcreteWithConcrete[*v1.FoundSubject](tc.first, second, subjectSetConstructor)
+			produced := intersectConcreteWithConcrete(tc.first, second, subjectSetConstructor)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})
 	}
@@ -2459,11 +2459,11 @@ func TestIntersectWildcardWithWildcard(t *testing.T) {
 			first := wrap(tc.first)
 			second := wrap(tc.second)
 
-			produced, err := intersectWildcardWithWildcard[*v1.FoundSubject](first, second, subjectSetConstructor)
+			produced, err := intersectWildcardWithWildcard(first, second, subjectSetConstructor)
 			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 
-			produced2, err := intersectWildcardWithWildcard[*v1.FoundSubject](second, first, subjectSetConstructor)
+			produced2, err := intersectWildcardWithWildcard(second, first, subjectSetConstructor)
 			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expectedInverted, produced2)
 		})
@@ -2587,7 +2587,7 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 		t.Run(fmt.Sprintf("%s ∩ %s", testutil.FormatSubject(tc.concrete), testutil.FormatSubject(tc.wildcard)), func(t *testing.T) {
 			wildcard := wrap(tc.wildcard)
 
-			produced, err := intersectConcreteWithWildcard[*v1.FoundSubject](tc.concrete, wildcard, subjectSetConstructor)
+			produced, err := intersectConcreteWithWildcard(tc.concrete, wildcard, subjectSetConstructor)
 			require.NoError(t, err)
 			testutil.RequireExpectedSubject(t, tc.expected, produced)
 		})

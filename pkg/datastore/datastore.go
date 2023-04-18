@@ -11,7 +11,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -367,6 +367,11 @@ type RelationshipIterator interface {
 	// Next returns the next tuple in the result set.
 	Next() *core.RelationTuple
 
+	// Cursor returns a cursor that can be used to resume reading of relationships
+	// from the last relationship returned. Only applies if a sort ordering was
+	// requested.
+	Cursor() (options.Cursor, error)
+
 	// Err after receiving a nil response, the caller must check for an error.
 	Err() error
 
@@ -396,11 +401,11 @@ func (nilRevision) Equal(rhs Revision) bool {
 	return rhs == NoRevision
 }
 
-func (nilRevision) GreaterThan(rhs Revision) bool {
+func (nilRevision) GreaterThan(_ Revision) bool {
 	return false
 }
 
-func (nilRevision) LessThan(rhs Revision) bool {
+func (nilRevision) LessThan(_ Revision) bool {
 	return true
 }
 

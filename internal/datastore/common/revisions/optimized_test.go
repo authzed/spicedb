@@ -20,7 +20,7 @@ type trackingRevisionFunction struct {
 	mock.Mock
 }
 
-func (m *trackingRevisionFunction) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
+func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, error) {
 	args := m.Called()
 	return args.Get(0).(revision.Decimal), args.Get(1).(time.Duration), args.Error(2)
 }

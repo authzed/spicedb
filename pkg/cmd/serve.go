@@ -59,6 +59,9 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return err
 	}
 
+	// Flags for configuring the API usage of the datastore
+	cmd.Flags().Uint64Var(&config.MaxDatastoreReadPageSize, "max-datastore-read-page-size", 1_000, "limit on the maximum page size that we will load into memory from the datastore at one time")
+
 	// Flags for the namespace cache
 	cmd.Flags().Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {

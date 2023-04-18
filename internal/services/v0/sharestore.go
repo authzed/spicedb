@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -172,7 +171,7 @@ func (s3s *s3ShareStore) LookupSharedByReference(reference string) (SharedDataV2
 	}
 	defer result.Body.Close()
 
-	contentBytes, err := ioutil.ReadAll(result.Body)
+	contentBytes, err := io.ReadAll(result.Body)
 	if err != nil {
 		return SharedDataV2{}, LookupError, err
 	}

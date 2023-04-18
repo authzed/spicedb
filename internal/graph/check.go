@@ -435,7 +435,7 @@ func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, crc curren
 	}
 }
 
-func (cc *ConcurrentChecker) dispatch(ctx context.Context, crc currentRequestContext, req ValidatedCheckRequest) CheckResult {
+func (cc *ConcurrentChecker) dispatch(ctx context.Context, _ currentRequestContext, req ValidatedCheckRequest) CheckResult {
 	log.Ctx(ctx).Trace().Object("dispatch", req).Send()
 	result, err := cc.d.DispatchCheck(ctx, req.DispatchCheckRequest)
 	return CheckResult{result, err}

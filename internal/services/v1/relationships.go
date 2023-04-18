@@ -20,6 +20,8 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/pagination"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -47,6 +49,10 @@ type PermissionsServerConfig struct {
 
 	// MaxCaveatContextSize defines the maximum length of the request caveat context in bytes
 	MaxCaveatContextSize int
+
+	// MaxDatastoreReadPageSize defines the maximum number of relationships loaded from the
+	// datastore in one query.
+	MaxDatastoreReadPageSize uint64
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -55,11 +61,12 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount: defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:    defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:       defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:   defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:  config.MaxCaveatContextSize,
+		MaxPreconditionsCount:    defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:       defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:          defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:      defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:     config.MaxCaveatContextSize,
+		MaxDatastoreReadPageSize: defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
 	}
 
 	return &permissionServer{
@@ -130,7 +137,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	tupleIterator, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter))
+	tupleIterator, err := pagination.NewPaginatedIterator(
+		ctx,
+		ds,
+		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
+		ps.config.MaxDatastoreReadPageSize,
+		options.ByResource,
+	)
 	if err != nil {
 		return rewriteError(ctx, err)
 	}

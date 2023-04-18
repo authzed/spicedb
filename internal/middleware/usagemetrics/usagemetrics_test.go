@@ -22,7 +22,7 @@ type testServer struct {
 	testpb.UnimplementedTestServiceServer
 }
 
-func (t testServer) PingEmpty(ctx context.Context, empty *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
+func (t testServer) PingEmpty(ctx context.Context, _ *testpb.PingEmptyRequest) (*testpb.PingEmptyResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
@@ -30,7 +30,7 @@ func (t testServer) PingEmpty(ctx context.Context, empty *testpb.PingEmptyReques
 	return &testpb.PingEmptyResponse{}, nil
 }
 
-func (t testServer) Ping(ctx context.Context, request *testpb.PingRequest) (*testpb.PingResponse, error) {
+func (t testServer) Ping(ctx context.Context, _ *testpb.PingRequest) (*testpb.PingResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
@@ -38,7 +38,7 @@ func (t testServer) Ping(ctx context.Context, request *testpb.PingRequest) (*tes
 	return &testpb.PingResponse{Value: ""}, nil
 }
 
-func (t testServer) PingError(ctx context.Context, request *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
+func (t testServer) PingError(ctx context.Context, _ *testpb.PingErrorRequest) (*testpb.PingErrorResponse, error) {
 	SetInContext(ctx, &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,
@@ -46,7 +46,7 @@ func (t testServer) PingError(ctx context.Context, request *testpb.PingErrorRequ
 	return nil, fmt.Errorf("err")
 }
 
-func (t testServer) PingList(request *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
+func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestService_PingListServer) error {
 	SetInContext(server.Context(), &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 1,

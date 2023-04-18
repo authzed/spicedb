@@ -38,6 +38,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.HTTPGatewayCorsAllowedOrigins = c.HTTPGatewayCorsAllowedOrigins
 		to.DatastoreConfig = c.DatastoreConfig
 		to.Datastore = c.Datastore
+		to.MaxCaveatContextSize = c.MaxCaveatContextSize
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -60,7 +61,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.V1SchemaAdditiveOnly = c.V1SchemaAdditiveOnly
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
-		to.MaxCaveatContextSize = c.MaxCaveatContextSize
+		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
 		to.MiddlewareModification = c.MiddlewareModification
@@ -176,6 +177,13 @@ func WithDatastoreConfig(datastoreConfig datastore.Config) ConfigOption {
 func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 	return func(c *Config) {
 		c.Datastore = datastore
+	}
+}
+
+// WithMaxCaveatContextSize returns an option that can set MaxCaveatContextSize on a Config
+func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
+	return func(c *Config) {
+		c.MaxCaveatContextSize = maxCaveatContextSize
 	}
 }
 
@@ -333,10 +341,10 @@ func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption 
 	}
 }
 
-// WithMaxCaveatContextSize returns an option that can set MaxCaveatContextSize on a Config
-func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
+// WithMaxDatastoreReadPageSize returns an option that can set MaxDatastoreReadPageSize on a Config
+func WithMaxDatastoreReadPageSize(maxDatastoreReadPageSize uint64) ConfigOption {
 	return func(c *Config) {
-		c.MaxCaveatContextSize = maxCaveatContextSize
+		c.MaxDatastoreReadPageSize = maxDatastoreReadPageSize
 	}
 }
 

@@ -14,13 +14,11 @@ import (
 const (
 	tableNamespace = "namespace"
 
-	tableRelationship           = "relationship"
-	indexID                     = "id"
-	indexNamespace              = "namespace"
-	indexNamespaceAndResourceID = "namespaceAndResourceID"
-	indexNamespaceAndRelation   = "namespaceAndRelation"
-	indexNamespaceAndSubjectID  = "namespaceAndSubjectID"
-	indexSubjectNamespace       = "subjectNamespace"
+	tableRelationship         = "relationship"
+	indexID                   = "id"
+	indexNamespace            = "namespace"
+	indexNamespaceAndRelation = "namespaceAndRelation"
+	indexSubjectNamespace     = "subjectNamespace"
 
 	tableChangelog = "changelog"
 	indexRevision  = "id"
@@ -164,16 +162,6 @@ var schema = &memdb.DBSchema{
 					Unique:  false,
 					Indexer: &memdb.StringFieldIndex{Field: "namespace"},
 				},
-				indexNamespaceAndResourceID: {
-					Name:   indexNamespaceAndResourceID,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "resourceID"},
-						},
-					},
-				},
 				indexNamespaceAndRelation: {
 					Name:   indexNamespaceAndRelation,
 					Unique: false,
@@ -181,17 +169,6 @@ var schema = &memdb.DBSchema{
 						Indexes: []memdb.Indexer{
 							&memdb.StringFieldIndex{Field: "namespace"},
 							&memdb.StringFieldIndex{Field: "relation"},
-						},
-					},
-				},
-				indexNamespaceAndSubjectID: {
-					Name:   indexNamespaceAndSubjectID,
-					Unique: false,
-					Indexer: &memdb.CompoundIndex{
-						Indexes: []memdb.Indexer{
-							&memdb.StringFieldIndex{Field: "namespace"},
-							&memdb.StringFieldIndex{Field: "subjectNamespace"},
-							&memdb.StringFieldIndex{Field: "subjectObjectID"},
 						},
 					},
 				},

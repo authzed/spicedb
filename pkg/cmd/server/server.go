@@ -72,6 +72,9 @@ type Config struct {
 	DatastoreConfig datastorecfg.Config
 	Datastore       datastore.Datastore
 
+	// Datastore usage
+	MaxCaveatContextSize int
+
 	// Namespace cache
 	NamespaceCacheConfig CacheConfig
 
@@ -102,7 +105,7 @@ type Config struct {
 	V1SchemaAdditiveOnly     bool
 	MaximumUpdatesPerWrite   uint16
 	MaximumPreconditionCount uint16
-	MaxCaveatContextSize     int
+	MaxDatastoreReadPageSize uint64
 
 	// Additional Services
 	DashboardAPI util.HTTPServerConfig
@@ -333,10 +336,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount: c.MaximumPreconditionCount,
-		MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
-		MaximumAPIDepth:       c.DispatchMaxDepth,
-		MaxCaveatContextSize:  c.MaxCaveatContextSize,
+		MaxPreconditionsCount:    c.MaximumPreconditionCount,
+		MaxUpdatesPerWrite:       c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:          c.DispatchMaxDepth,
+		MaxCaveatContextSize:     c.MaxCaveatContextSize,
+		MaxDatastoreReadPageSize: c.MaxDatastoreReadPageSize,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

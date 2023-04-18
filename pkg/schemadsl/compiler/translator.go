@@ -623,7 +623,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 	return ref, nil
 }
 
-func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+func addWithCaveats(_ translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
 	caveats := typeRefNode.List(dslshape.NodeSpecificReferencePredicateCaveat)
 	if len(caveats) == 0 {
 		return nil

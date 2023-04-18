@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -35,15 +35,16 @@ var (
 		colCaveatContext,
 	)
 
-	schema = common.SchemaInformation{
-		ColNamespace:        colNamespace,
-		ColObjectID:         colObjectID,
-		ColRelation:         colRelation,
-		ColUsersetNamespace: colUsersetNamespace,
-		ColUsersetObjectID:  colUsersetObjectID,
-		ColUsersetRelation:  colUsersetRelation,
-		ColCaveatName:       colCaveatContextName,
-	}
+	schema = common.NewSchemaInformation(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+		common.TupleComparison,
+	)
 )
 
 type crdbReader struct {

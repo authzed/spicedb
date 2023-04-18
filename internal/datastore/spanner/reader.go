@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -228,14 +228,15 @@ var queryTuples = sql.Select(
 	colCaveatContext,
 ).From(tableRelationship)
 
-var schema = common.SchemaInformation{
-	ColNamespace:        colNamespace,
-	ColObjectID:         colObjectID,
-	ColRelation:         colRelation,
-	ColUsersetNamespace: colUsersetNamespace,
-	ColUsersetObjectID:  colUsersetObjectID,
-	ColUsersetRelation:  colUsersetRelation,
-	ColCaveatName:       colCaveatName,
-}
+var schema = common.NewSchemaInformation(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatName,
+	common.SpannerCompatible,
+)
 
 var _ datastore.Reader = spannerReader{}

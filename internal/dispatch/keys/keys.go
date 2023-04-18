@@ -43,39 +43,39 @@ type Handler interface {
 
 type baseKeyHandler struct{}
 
-func (b baseKeyHandler) LookupResourcesCacheKey(ctx context.Context, req *v1.DispatchLookupRequest) (DispatchCacheKey, error) {
+func (b baseKeyHandler) LookupResourcesCacheKey(_ context.Context, req *v1.DispatchLookupRequest) (DispatchCacheKey, error) {
 	return lookupRequestToKey(req, computeBothHashes), nil
 }
 
-func (b baseKeyHandler) LookupSubjectsCacheKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error) {
+func (b baseKeyHandler) LookupSubjectsCacheKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error) {
 	return lookupSubjectsRequestToKey(req, computeBothHashes), nil
 }
 
-func (b baseKeyHandler) ExpandCacheKey(ctx context.Context, req *v1.DispatchExpandRequest) (DispatchCacheKey, error) {
+func (b baseKeyHandler) ExpandCacheKey(_ context.Context, req *v1.DispatchExpandRequest) (DispatchCacheKey, error) {
 	return expandRequestToKey(req, computeBothHashes), nil
 }
 
-func (b baseKeyHandler) ReachableResourcesCacheKey(ctx context.Context, req *v1.DispatchReachableResourcesRequest) (DispatchCacheKey, error) {
+func (b baseKeyHandler) ReachableResourcesCacheKey(_ context.Context, req *v1.DispatchReachableResourcesRequest) (DispatchCacheKey, error) {
 	return reachableResourcesRequestToKey(req, computeBothHashes), nil
 }
 
-func (b baseKeyHandler) CheckDispatchKey(ctx context.Context, req *v1.DispatchCheckRequest) ([]byte, error) {
+func (b baseKeyHandler) CheckDispatchKey(_ context.Context, req *v1.DispatchCheckRequest) ([]byte, error) {
 	return checkRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
-func (b baseKeyHandler) LookupResourcesDispatchKey(ctx context.Context, req *v1.DispatchLookupRequest) ([]byte, error) {
+func (b baseKeyHandler) LookupResourcesDispatchKey(_ context.Context, req *v1.DispatchLookupRequest) ([]byte, error) {
 	return lookupRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
-func (b baseKeyHandler) LookupSubjectsDispatchKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error) {
+func (b baseKeyHandler) LookupSubjectsDispatchKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error) {
 	return lookupSubjectsRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
-func (b baseKeyHandler) ExpandDispatchKey(ctx context.Context, req *v1.DispatchExpandRequest) ([]byte, error) {
+func (b baseKeyHandler) ExpandDispatchKey(_ context.Context, req *v1.DispatchExpandRequest) ([]byte, error) {
 	return expandRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
-func (b baseKeyHandler) ReachableResourcesDispatchKey(ctx context.Context, req *v1.DispatchReachableResourcesRequest) ([]byte, error) {
+func (b baseKeyHandler) ReachableResourcesDispatchKey(_ context.Context, req *v1.DispatchReachableResourcesRequest) ([]byte, error) {
 	return reachableResourcesRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
@@ -84,7 +84,7 @@ type DirectKeyHandler struct {
 	baseKeyHandler
 }
 
-func (d *DirectKeyHandler) CheckCacheKey(ctx context.Context, req *v1.DispatchCheckRequest) (DispatchCacheKey, error) {
+func (d *DirectKeyHandler) CheckCacheKey(_ context.Context, req *v1.DispatchCheckRequest) (DispatchCacheKey, error) {
 	return checkRequestToKey(req, computeBothHashes), nil
 }
 

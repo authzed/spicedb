@@ -363,10 +363,7 @@ func TestTypeSystem(t *testing.T) {
 					}
 				}
 				cw := rwt.(datastore.CaveatStorer)
-				if err := cw.WriteCaveats(ctx, tc.caveats); err != nil {
-					return err
-				}
-				return nil
+				return cw.WriteCaveats(ctx, tc.caveats)
 			})
 			require.NoError(err)
 

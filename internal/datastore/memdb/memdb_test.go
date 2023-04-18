@@ -19,7 +19,7 @@ import (
 
 type memDBTest struct{}
 
-func (mdbt memDBTest) New(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+func (mdbt memDBTest) New(revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 	return NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
 }
 

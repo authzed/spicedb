@@ -63,14 +63,14 @@ func (ti *traceInterceptor) RowsNext(ctx context.Context, conn driver.Rows, dest
 }
 
 // Stmt interceptors
-func (ti *traceInterceptor) StmtExecContext(ctx context.Context, conn driver.StmtExecContext, query string, args []driver.NamedValue) (driver.Result, error) {
+func (ti *traceInterceptor) StmtExecContext(ctx context.Context, conn driver.StmtExecContext, _ string, args []driver.NamedValue) (driver.Result, error) {
 	ctx, span := tracer.Start(ctx, "StmtExecContext")
 	defer span.End()
 
 	return conn.ExecContext(ctx, args)
 }
 
-func (ti *traceInterceptor) StmtQueryContext(ctx context.Context, conn driver.StmtQueryContext, query string, args []driver.NamedValue) (driver.Rows, error) {
+func (ti *traceInterceptor) StmtQueryContext(ctx context.Context, conn driver.StmtQueryContext, _ string, args []driver.NamedValue) (driver.Rows, error) {
 	ctx, span := tracer.Start(ctx, "StmtQueryContext")
 	defer span.End()
 

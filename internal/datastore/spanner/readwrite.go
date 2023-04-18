@@ -225,7 +225,7 @@ func caveatVals(r *core.RelationTuple) []any {
 	return vals
 }
 
-func (rwt spannerReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	mutations := make([]*spanner.Mutation, 0, len(newConfigs))
 	for _, newConfig := range newConfigs {
 		serialized, err := proto.Marshal(newConfig)

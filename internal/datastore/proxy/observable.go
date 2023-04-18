@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -209,6 +209,8 @@ func (i *observableRelationshipIterator) Next() *core.RelationTuple {
 }
 
 func (i *observableRelationshipIterator) Err() error { return i.delegate.Err() }
+
+func (i *observableRelationshipIterator) Cursor() (options.Cursor, error) { return i.delegate.Cursor() }
 
 func (i *observableRelationshipIterator) Close() {
 	loadedRelationshipCount.Observe(float64(i.count))

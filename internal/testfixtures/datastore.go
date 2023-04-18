@@ -282,8 +282,6 @@ func (tc TupleChecker) ExactRelationshipIterator(ctx context.Context, tpl *core.
 }
 
 func (tc TupleChecker) VerifyIteratorCount(iter datastore.RelationshipIterator, count int) {
-	defer iter.Close()
-
 	foundCount := 0
 	for found := iter.Next(); found != nil; found = iter.Next() {
 		foundCount++
@@ -311,6 +309,22 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.RelationshipIterator
 	tc.Require.NoError(iter.Err())
 
 	tc.Require.Zero(len(toFind), "did not find some expected tuples: %#v", toFind)
+}
+
+func (tc TupleChecker) VerifyOrderedIteratorResults(iter datastore.RelationshipIterator, tpls ...*core.RelationTuple) {
+	for _, tpl := range tpls {
+		expectedStr := tuple.MustString(tpl)
+
+		found := iter.Next()
+		tc.Require.NotNil(found)
+
+		foundStr := tuple.MustString(found)
+		tc.Require.Equal(expectedStr, foundStr)
+	}
+
+	pastLast := iter.Next()
+	tc.Require.Nil(pastLast)
+	tc.Require.Nil(iter.Err())
 }
 
 func (tc TupleChecker) TupleExists(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) {

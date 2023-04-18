@@ -13,28 +13,6 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
-type selectQueryInterceptor struct {
-	explanations map[string]string
-}
-
-func (ql *selectQueryInterceptor) InterceptExec(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgconn.CommandTag, error) {
-	return querier.Exec(ctx, sql, args...)
-}
-
-func (ql *selectQueryInterceptor) InterceptQueryRow(ctx context.Context, querier pgxcommon.Querier, sql string, optionsAndArgs ...interface{}) pgx.Row {
-	return querier.QueryRow(ctx, sql, optionsAndArgs...)
-}
-
-func (ql *selectQueryInterceptor) InterceptQuery(ctx context.Context, querier pgxcommon.Querier, sql string, args ...interface{}) (pgx.Rows, error) {
-	explanation, err := getExplanation(ctx, querier, sql, args)
-	if err != nil {
-		return nil, err
-	}
-
-	ql.explanations[sql] = explanation
-	return querier.Query(ctx, sql, args...)
-}
-
 func getExplanation(ctx context.Context, querier pgxcommon.Querier, sql string, args []any) (string, error) {
 	// Make sure Postgres stats are fully up-to-date so it selects the correct index.
 	_, err := querier.Exec(ctx, "ANALYZE;")

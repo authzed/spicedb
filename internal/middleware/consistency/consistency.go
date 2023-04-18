@@ -175,11 +175,7 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 	}
 	ds := datastoremw.MustFromContext(s.ctx)
 
-	if err := AddRevisionToContext(s.ctx, m, ds); err != nil {
-		return err
-	}
-
-	return nil
+	return AddRevisionToContext(s.ctx, m, ds)
 }
 
 func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (datastore.Revision, error) {

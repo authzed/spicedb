@@ -65,7 +65,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errs
 }
 
-func (mdb *memdbDatastore) loadChanges(ctx context.Context, currentTxn int64) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
+func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 

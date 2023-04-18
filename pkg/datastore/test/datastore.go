@@ -56,6 +56,12 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
 
+	t.Run("TestOrdering", func(t *testing.T) { OrderingTest(t, tester) })
+	t.Run("TestLimit", func(t *testing.T) { LimitTest(t, tester) })
+	t.Run("TestOrderedLimit", func(t *testing.T) { OrderedLimitTest(t, tester) })
+	t.Run("TestResume", func(t *testing.T) { ResumeTest(t, tester) })
+	t.Run("TestCursorErrors", func(t *testing.T) { CursorErrorsTest(t, tester) })
+
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
 	t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })

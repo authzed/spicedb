@@ -19,6 +19,8 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 	return func(to *QueryOptions) {
 		to.Limit = q.Limit
 		to.Usersets = q.Usersets
+		to.Sort = q.Sort
+		to.After = q.After
 	}
 }
 
@@ -48,6 +50,20 @@ func WithUsersets(usersets *v1.ObjectAndRelation) QueryOptionsOption {
 func SetUsersets(usersets []*v1.ObjectAndRelation) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.Usersets = usersets
+	}
+}
+
+// WithSort returns an option that can set Sort on a QueryOptions
+func WithSort(sort SortOrder) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.Sort = sort
+	}
+}
+
+// WithAfter returns an option that can set After on a QueryOptions
+func WithAfter(after Cursor) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.After = after
 	}
 }
 

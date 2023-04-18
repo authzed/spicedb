@@ -45,7 +45,7 @@ type RunnableTestServer interface {
 
 type datastoreReady struct{}
 
-func (dr datastoreReady) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	return datastore.ReadyState{IsReady: true}, nil
 }
 

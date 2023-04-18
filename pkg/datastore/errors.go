@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -183,3 +184,9 @@ func (err ErrCaveatNameNotFound) DetailsMetadata() map[string]string {
 		"caveat_name": err.name,
 	}
 }
+
+var (
+	ErrClosedIterator        = errors.New("unable to iterate: iterator closed")
+	ErrCursorsWithoutSorting = errors.New("cursors are disabled on unsorted results")
+	ErrCursorEmpty           = errors.New("cursors are only available after the first result")
+)

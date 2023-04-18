@@ -359,15 +359,16 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			base := sq.Select("*")
-			filterer := NewSchemaQueryFilterer(SchemaInformation{
-				TableTuple:          "tuple",
-				ColNamespace:        "ns",
-				ColObjectID:         "object_id",
-				ColRelation:         "relation",
-				ColUsersetNamespace: "subject_ns",
-				ColUsersetObjectID:  "subject_object_id",
-				ColUsersetRelation:  "subject_relation",
-			}, base)
+			filterer := NewSchemaQueryFilterer(NewSchemaInformation(
+				"ns",
+				"object_id",
+				"relation",
+				"subject_ns",
+				"subject_object_id",
+				"subject_relation",
+				"caveat",
+				TupleComparison,
+			), base)
 
 			sql, args, err := test.run(filterer).queryBuilder.ToSql()
 			require.NoError(t, err)

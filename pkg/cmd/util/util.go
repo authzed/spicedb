@@ -265,12 +265,12 @@ func (c *completedGRPCServer) GracefulStop() {
 type disabledGrpcServer struct{}
 
 // WithOpts adds to the options for running the server
-func (d *disabledGrpcServer) WithOpts(opts ...grpc.ServerOption) RunnableGRPCServer {
+func (d *disabledGrpcServer) WithOpts(_ ...grpc.ServerOption) RunnableGRPCServer {
 	return d
 }
 
 // Listen runs a configured server
-func (d *disabledGrpcServer) Listen(ctx context.Context) func() error {
+func (d *disabledGrpcServer) Listen(_ context.Context) func() error {
 	return func() error {
 		return nil
 	}
@@ -282,12 +282,12 @@ func (d *disabledGrpcServer) Insecure() bool {
 }
 
 // DialContext starts a connection to grpc server
-func (d *disabledGrpcServer) DialContext(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+func (d *disabledGrpcServer) DialContext(_ context.Context, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 	return nil, nil
 }
 
 // NetDialContext starts a connection to grpc server
-func (d *disabledGrpcServer) NetDialContext(ctx context.Context, s string) (net.Conn, error) {
+func (d *disabledGrpcServer) NetDialContext(_ context.Context, _ string) (net.Conn, error) {
 	return nil, nil
 }
 

@@ -6,8 +6,8 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/authzed/spicedb/internal/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -21,7 +21,7 @@ func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader
 }
 
 func (dm *MockDatastore) ReadWriteTx(
-	ctx context.Context,
+	_ context.Context,
 	f datastore.TxUserFunc,
 ) (datastore.Revision, error) {
 	args := dm.Called()
@@ -34,17 +34,17 @@ func (dm *MockDatastore) ReadWriteTx(
 	return args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockDatastore) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
+func (dm *MockDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (dm *MockDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
+func (dm *MockDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (dm *MockDatastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+func (dm *MockDatastore) CheckRevision(_ context.Context, revision datastore.Revision) error {
 	args := dm.Called(revision)
 	return args.Error(0)
 }
@@ -54,22 +54,22 @@ func (dm *MockDatastore) RevisionFromString(s string) (datastore.Revision, error
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (dm *MockDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (dm *MockDatastore) Watch(_ context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	args := dm.Called(afterRevision)
 	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)
 }
 
-func (dm *MockDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+func (dm *MockDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.ReadyState), args.Error(1)
 }
 
-func (dm *MockDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+func (dm *MockDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	args := dm.Called()
 	return args.Get(0).(*datastore.Features), args.Error(1)
 }
 
-func (dm *MockDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+func (dm *MockDatastore) Statistics(_ context.Context) (datastore.Stats, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Stats), args.Error(1)
 }
@@ -84,7 +84,7 @@ type MockReader struct {
 }
 
 func (dm *MockReader) ReadNamespaceByName(
-	ctx context.Context,
+	_ context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	args := dm.Called(nsName)
@@ -98,7 +98,7 @@ func (dm *MockReader) ReadNamespaceByName(
 }
 
 func (dm *MockReader) QueryRelationships(
-	ctx context.Context,
+	_ context.Context,
 	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
@@ -118,7 +118,7 @@ func (dm *MockReader) QueryRelationships(
 }
 
 func (dm *MockReader) ReverseQueryRelationships(
-	ctx context.Context,
+	_ context.Context,
 	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
@@ -137,17 +137,17 @@ func (dm *MockReader) ReverseQueryRelationships(
 	return results, args.Error(1)
 }
 
-func (dm *MockReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReader) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called(nsNames)
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (dm *MockReader) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	args := dm.Called(name)
 
 	var def *core.CaveatDefinition
@@ -158,12 +158,12 @@ func (dm *MockReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReader) LookupCaveatsWithNames(_ context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called(caveatNames)
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
@@ -173,7 +173,7 @@ type MockReadWriteTransaction struct {
 }
 
 func (dm *MockReadWriteTransaction) ReadNamespaceByName(
-	ctx context.Context,
+	_ context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	args := dm.Called(nsName)
@@ -187,7 +187,7 @@ func (dm *MockReadWriteTransaction) ReadNamespaceByName(
 }
 
 func (dm *MockReadWriteTransaction) QueryRelationships(
-	ctx context.Context,
+	_ context.Context,
 	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
@@ -207,7 +207,7 @@ func (dm *MockReadWriteTransaction) QueryRelationships(
 }
 
 func (dm *MockReadWriteTransaction) ReverseQueryRelationships(
-	ctx context.Context,
+	_ context.Context,
 	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
@@ -226,32 +226,32 @@ func (dm *MockReadWriteTransaction) ReverseQueryRelationships(
 	return results, args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReadWriteTransaction) ListAllNamespaces(_ context.Context) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	args := dm.Called(nsNames)
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate) error {
 	args := dm.Called(mutations)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter) error {
 	args := dm.Called(filter)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
+func (dm *MockReadWriteTransaction) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	args := dm.Called(newConfigs)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames ...string) error {
 	xs := make([]any, 0, len(nsNames))
 	for _, nsName := range nsNames {
 		xs = append(xs, nsName)
@@ -261,7 +261,7 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(ctx context.Context, nsName
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
+func (dm *MockReadWriteTransaction) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	args := dm.Called(name)
 
 	var def *core.CaveatDefinition
@@ -272,22 +272,22 @@ func (dm *MockReadWriteTransaction) ReadCaveatByName(ctx context.Context, name s
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockReadWriteTransaction) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReadWriteTransaction) LookupCaveatsWithNames(_ context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called(caveatNames)
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+func (dm *MockReadWriteTransaction) ListAllCaveats(_ context.Context) ([]datastore.RevisionedCaveat, error) {
 	args := dm.Called()
 	return args.Get(0).([]datastore.RevisionedCaveat), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
+func (dm *MockReadWriteTransaction) WriteCaveats(_ context.Context, caveats []*core.CaveatDefinition) error {
 	args := dm.Called(caveats)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
+func (dm *MockReadWriteTransaction) DeleteCaveats(_ context.Context, _ []string) error {
 	panic("not used")
 }
 

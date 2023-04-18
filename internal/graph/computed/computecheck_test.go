@@ -932,7 +932,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	require.Equal(t, resp["third"].Membership, v1.ResourceCheckResult_NOT_MEMBER)
 }
 
-func writeCaveatedTuples(ctx context.Context, t *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {
+func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {
 	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       "schema",

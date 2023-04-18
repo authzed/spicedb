@@ -421,7 +421,7 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 	}, nil
 }
 
-func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+func (pgd *pgDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	return &datastore.Features{Watch: datastore.Feature{Enabled: pgd.watchEnabled}}, nil
 }
 
