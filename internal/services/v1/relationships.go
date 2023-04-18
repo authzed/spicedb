@@ -2,13 +2,12 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -151,7 +150,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
 		if tupleIterator.Err() != nil {
-			return status.Errorf(codes.Internal, "error when reading tuples: %s", tupleIterator.Err())
+			return rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 		}
 
 		err := resp.Send(&v1.ReadRelationshipsResponse{
@@ -159,9 +158,14 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 			Relationship: tuple.ToRelationship(tpl),
 		})
 		if err != nil {
-			return err
+			return rewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
 	}
+
+	if tupleIterator.Err() != nil {
+		return rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
+	}
+
 	tupleIterator.Close()
 	return nil
 }
