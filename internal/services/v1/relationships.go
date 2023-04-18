@@ -148,15 +148,19 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 	defer tupleIterator.Close()
 
+	response := &v1.ReadRelationshipsResponse{
+		ReadAt: revisionReadAt,
+	}
+	targetRel := tuple.NewRelationship()
+	targetCaveat := &v1.ContextualizedCaveat{}
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
 		if tupleIterator.Err() != nil {
 			return rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 		}
 
-		err := resp.Send(&v1.ReadRelationshipsResponse{
-			ReadAt:       revisionReadAt,
-			Relationship: tuple.ToRelationship(tpl),
-		})
+		tuple.MustToRelationshipMutating(tpl, targetRel, targetCaveat)
+		response.Relationship = targetRel
+		err := resp.Send(response)
 		if err != nil {
 			return rewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
