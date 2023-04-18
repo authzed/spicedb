@@ -242,6 +242,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					SubjectType: testUserNamespace,
 				}, options.WithReverseLimit(&limit))
 				require.NoError(err)
+				defer iter.Close()
 				tRequire.VerifyIteratorCount(iter, len(testTuples)-1)
 			}
 

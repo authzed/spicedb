@@ -102,12 +102,12 @@ func (pi *paginatedIterator) Cursor() (options.Cursor, error) {
 
 func (pi *paginatedIterator) Err() error {
 	switch {
+	case pi.closed:
+		return datastore.ErrClosedIterator
 	case pi.err != nil:
 		return pi.err
 	case pi.ctx.Err() != nil:
 		return pi.ctx.Err()
-	case pi.closed:
-		return datastore.ErrClosedIterator
 	default:
 		return nil
 	}

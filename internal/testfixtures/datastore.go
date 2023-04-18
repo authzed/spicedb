@@ -282,8 +282,6 @@ func (tc TupleChecker) ExactRelationshipIterator(ctx context.Context, tpl *core.
 }
 
 func (tc TupleChecker) VerifyIteratorCount(iter datastore.RelationshipIterator, count int) {
-	defer iter.Close()
-
 	foundCount := 0
 	for found := iter.Next(); found != nil; found = iter.Next() {
 		foundCount++

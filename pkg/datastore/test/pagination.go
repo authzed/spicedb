@@ -272,6 +272,68 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+func CursorErrorsTest(t *testing.T, tester DatastoreTester) {
+	testCases := []struct {
+		order              options.SortOrder
+		defaultCursorError error
+	}{
+		{options.Unsorted, datastore.ErrCursorsWithoutSorting},
+		{options.ByResource, nil},
+		{options.BySubject, nil},
+	}
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+	ctx := context.Background()
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Order-%d", tc.order), func(t *testing.T) {
+			require := require.New(t)
+
+			foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
+				iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+					ResourceType: testfixtures.DocumentNS.Name,
+				}, options.WithSort(tc.order))
+				require.NoError(err)
+				require.NotNil(iter)
+				defer iter.Close()
+
+				cursor, err := iter.Cursor()
+				require.Nil(cursor)
+				if tc.defaultCursorError != nil {
+					require.ErrorIs(err, tc.defaultCursorError)
+				} else {
+					require.ErrorIs(err, datastore.ErrCursorEmpty)
+				}
+
+				val := iter.Next()
+				require.NotNil(val)
+
+				cursor, err = iter.Cursor()
+				if tc.defaultCursorError != nil {
+					require.Nil(cursor)
+					require.ErrorIs(err, tc.defaultCursorError)
+				} else {
+					require.NotNil(cursor)
+					require.Nil(err)
+				}
+
+				iter.Close()
+				valAfterClose := iter.Next()
+				require.Nil(valAfterClose)
+
+				err = iter.Err()
+				require.ErrorIs(err, datastore.ErrClosedIterator)
+				cursorAfterClose, err := iter.Cursor()
+				require.Nil(cursorAfterClose)
+				require.ErrorIs(err, datastore.ErrClosedIterator)
+			})
+		})
+	}
+}
+
 func foreachTxType(
 	ctx context.Context,
 	ds datastore.Datastore,

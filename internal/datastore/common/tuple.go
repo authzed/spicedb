@@ -42,12 +42,12 @@ func (sti *sliceRelationshipIterator) Next() *core.RelationTuple {
 
 func (sti *sliceRelationshipIterator) Cursor() (options.Cursor, error) {
 	switch {
+	case sti.closed:
+		return nil, datastore.ErrClosedIterator
 	case sti.order == options.Unsorted:
 		return nil, datastore.ErrCursorsWithoutSorting
 	case sti.last == nil:
 		return nil, datastore.ErrCursorEmpty
-	case sti.closed:
-		return nil, datastore.ErrClosedIterator
 	default:
 		return sti.last, nil
 	}

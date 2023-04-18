@@ -436,6 +436,10 @@ type memdbTupleIterator struct {
 }
 
 func (mti *memdbTupleIterator) Next() *core.RelationTuple {
+	if mti.closed {
+		return nil
+	}
+
 	foundRaw := mti.it.Next()
 	if foundRaw == nil {
 		return nil
@@ -458,12 +462,12 @@ func (mti *memdbTupleIterator) Next() *core.RelationTuple {
 
 func (mti *memdbTupleIterator) Cursor() (options.Cursor, error) {
 	switch {
+	case mti.closed:
+		return nil, datastore.ErrClosedIterator
 	case mti.order == options.Unsorted:
 		return nil, datastore.ErrCursorsWithoutSorting
 	case mti.last == nil:
 		return nil, datastore.ErrCursorEmpty
-	case mti.closed:
-		return nil, datastore.ErrClosedIterator
 	default:
 		return mti.last, nil
 	}
@@ -475,6 +479,7 @@ func (mti *memdbTupleIterator) Err() error {
 
 func (mti *memdbTupleIterator) Close() {
 	mti.closed = true
+	mti.err = datastore.ErrClosedIterator
 }
 
 var _ datastore.Reader = &memdbReader{}
