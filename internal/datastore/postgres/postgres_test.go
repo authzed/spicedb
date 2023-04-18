@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -141,6 +142,24 @@ func TestPostgresDatastore(t *testing.T) {
 					RevisionQuantization(0),
 					GCWindow(1*time.Millisecond),
 					WatchBufferLength(1),
+					MigrationPhase(config.migrationPhase),
+				))
+
+				t.Run("ConcurrentRevisionWatch", createDatastoreTest(
+					b,
+					ConcurrentRevisionWatchTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(50),
+					MigrationPhase(config.migrationPhase),
+				))
+
+				t.Run("OverlappingRevisionWatch", createDatastoreTest(
+					b,
+					OverlappingRevisionWatchTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(50),
 					MigrationPhase(config.migrationPhase),
 				))
 			}
@@ -736,6 +755,239 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	}
 
 	require.Equal(2, len(found), "missing relationships in %v", found)
+}
+
+// ConcurrentRevisionWatchTest uses goroutines and channels to intentionally set up a pair of
+// revisions that are concurrently applied and then ensures that a Watch call does not end up
+// in a loop.
+func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	withCancel, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	r, err := ds.ReadyState(ctx)
+	require.NoError(err)
+	require.True(r.IsReady)
+
+	// Write basic namespaces.
+	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, namespace.Namespace(
+			"resource",
+			namespace.MustRelation("reader", nil),
+		), namespace.Namespace("user"))
+	})
+	require.NoError(err)
+
+	// Start a watch loop.
+	waitForWatch := make(chan struct{})
+	seenWatchRevisions := make([]datastore.Revision, 0)
+	seenWatchRevisionsLock := sync.Mutex{}
+
+	go func() {
+		changes, errChan := ds.Watch(withCancel, rev)
+
+		waitForWatch <- struct{}{}
+
+		for {
+			select {
+			case change, ok := <-changes:
+				if !ok {
+					err := <-errChan
+					require.NoError(err)
+					return
+				}
+
+				seenWatchRevisionsLock.Lock()
+				seenWatchRevisions = append(seenWatchRevisions, change.Revision)
+				seenWatchRevisionsLock.Unlock()
+
+				time.Sleep(1 * time.Millisecond)
+			case <-withCancel.Done():
+				return
+			}
+		}
+	}()
+
+	<-waitForWatch
+
+	// Write the two concurrent transactions, while watching for changes.
+	g := errgroup.Group{}
+
+	waitToStart := make(chan struct{})
+	waitToFinish := make(chan struct{})
+
+	var commitLastRev, commitFirstRev datastore.Revision
+	g.Go(func() error {
+		var err error
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+				tuple.Touch(tuple.MustParse("something:001#viewer@user:123")),
+				tuple.Touch(tuple.MustParse("something:002#viewer@user:123")),
+				tuple.Touch(tuple.MustParse("something:003#viewer@user:123")),
+			})
+			require.NoError(err)
+
+			close(waitToStart)
+			<-waitToFinish
+
+			return err
+		})
+		require.NoError(err)
+		return nil
+	})
+
+	<-waitToStart
+
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Touch(tuple.MustParse("resource:1001#reader@user:456")),
+			tuple.Touch(tuple.MustParse("resource:1002#reader@user:456")),
+			tuple.Touch(tuple.MustParse("resource:1003#reader@user:456")),
+		})
+	})
+	close(waitToFinish)
+
+	require.NoError(err)
+	require.NoError(g.Wait())
+
+	// Ensure the revisions do not compare.
+	require.False(commitFirstRev.GreaterThan(commitLastRev))
+	require.False(commitLastRev.GreaterThan(commitFirstRev))
+	require.False(commitFirstRev.Equal(commitLastRev))
+
+	// Write another revision.
+	afterRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		rtu := tuple.Touch(&core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "resource",
+				ObjectId:  "2345",
+				Relation:  "reader",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "user",
+				ObjectId:  "456",
+				Relation:  "...",
+			},
+		})
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+	})
+	require.NoError(err)
+	require.True(afterRev.GreaterThan(commitFirstRev))
+	require.True(afterRev.GreaterThan(commitLastRev))
+
+	// Ensure that the last revision is eventually seen from the watch.
+	require.Eventually(func() bool {
+		seenWatchRevisionsLock.Lock()
+		defer seenWatchRevisionsLock.Unlock()
+		return len(seenWatchRevisions) == 3 && seenWatchRevisions[len(seenWatchRevisions)-1].String() == afterRev.String()
+	}, 2*time.Second, 5*time.Millisecond)
+}
+
+func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	r, err := ds.ReadyState(ctx)
+	require.NoError(err)
+	require.True(r.IsReady)
+
+	rev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	pds := ds.(*pgDatastore)
+	require.True(pds.watchEnabled)
+
+	prev := rev.(postgresRevision)
+	nexttx := prev.snapshot.xmax + 1
+
+	// Manually construct an equivalent of overlapping transactions in the database, from the repro
+	// information (See: https://github.com/authzed/spicedb/issues/1272)
+	err = pgx.BeginTxFunc(ctx, pds.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, fmt.Sprintf(
+			`INSERT INTO %s ("%s", "%s") VALUES ('%d', '%d:%d:')`,
+			tableTransaction,
+			colXID,
+			colSnapshot,
+			nexttx,
+			nexttx,
+			nexttx,
+		))
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, fmt.Sprintf(
+			`INSERT INTO %s ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s") VALUES ('somenamespace', '123', 'viewer', 'user', '456', '...', '', null, '%d'::xid8)`,
+			tableTuple,
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatContextName,
+			colCaveatContext,
+			colCreatedXid,
+			nexttx,
+		))
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, fmt.Sprintf(
+			`INSERT INTO %s ("xid", "snapshot") VALUES ('%d', '%d:%d:')`,
+			tableTransaction,
+			nexttx+1,
+			nexttx,
+			nexttx,
+		))
+
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, fmt.Sprintf(
+			`INSERT INTO %s ("%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s") VALUES ('somenamespace', '456', 'viewer', 'user', '456', '...', '', null, '%d'::xid8)`,
+			tableTuple,
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatContextName,
+			colCaveatContext,
+			colCreatedXid,
+			nexttx+1,
+		))
+
+		return err
+	})
+	require.NoError(err)
+
+	// Call watch and ensure it terminates with having only read the two expected sets of changes.
+	changes, errChan := ds.Watch(ctx, rev)
+	transactionCount := 0
+loop:
+	for {
+		select {
+		case _, ok := <-changes:
+			if !ok {
+				err := <-errChan
+				require.NoError(err)
+				return
+			}
+
+			transactionCount++
+			time.Sleep(10 * time.Millisecond)
+		case <-time.NewTimer(1 * time.Second).C:
+			break loop
+		}
+	}
+
+	require.Equal(2, transactionCount)
 }
 
 // RevisionInversionTest uses goroutines and channels to intentionally set up a pair of

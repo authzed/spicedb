@@ -247,6 +247,10 @@ func (pr postgresRevision) LessThan(rhsRaw datastore.Revision) bool {
 	return ok && pr.snapshot.LessThan(rhs.snapshot)
 }
 
+func (pr postgresRevision) DebugString() string {
+	return pr.snapshot.String()
+}
+
 func (pr postgresRevision) String() string {
 	return base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
 }
