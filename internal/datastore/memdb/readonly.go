@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"sort"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -62,10 +60,6 @@ func (r *memdbReader) QueryRelationships(
 		makeCursorFilterFn(queryOpts.After, queryOpts.Sort),
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
-
-	if queryOpts.Sort == options.BySubject {
-		return newSubjectSortedIterator(filteredIterator, queryOpts.Limit)
-	}
 
 	iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit, queryOpts.Sort)
 	return iter, nil
@@ -359,46 +353,12 @@ func filterFuncForFilters(
 	}
 }
 
-func newSubjectSortedIterator(it memdb.ResultIterator, limit *uint64) (datastore.RelationshipIterator, error) {
-	results := make([]*core.RelationTuple, 0)
-
-	// Coalesce all of the results into memory
-	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
-		rt, err := foundRaw.(*relationship).RelationTuple()
-		if err != nil {
-			return nil, err
-		}
-
-		results = append(results, rt)
-	}
-
-	// Sort them by subject
-	sort.Slice(results, func(i, j int) bool {
-		lhsRes := results[i].ResourceAndRelation
-		lhsSub := results[i].Subject
-		rhsRes := results[j].ResourceAndRelation
-		rhsSub := results[j].Subject
-		return less(lhsSub, rhsSub) || (eq(lhsSub, rhsSub) && less(lhsRes, rhsRes))
-	})
-
-	// Limit them if requested
-	if limit != nil && uint64(len(results)) > *limit {
-		results = results[0:*limit]
-	}
-
-	return common.NewSliceRelationshipIterator(results, options.BySubject), nil
-}
-
 func makeCursorFilterFn(after *core.RelationTuple, order options.SortOrder) func(tpl *core.RelationTuple) bool {
 	if after != nil {
 		switch order {
 		case options.ByResource:
 			return func(tpl *core.RelationTuple) bool {
 				return less(tpl.ResourceAndRelation, after.ResourceAndRelation) || (eq(tpl.ResourceAndRelation, after.ResourceAndRelation) && (less(tpl.Subject, after.Subject) || eq(tpl.Subject, after.Subject)))
-			}
-		case options.BySubject:
-			return func(tpl *core.RelationTuple) bool {
-				return less(tpl.Subject, after.Subject) || (eq(tpl.Subject, after.Subject) && (less(tpl.ResourceAndRelation, after.ResourceAndRelation) || eq(tpl.ResourceAndRelation, after.ResourceAndRelation)))
 			}
 		}
 	}

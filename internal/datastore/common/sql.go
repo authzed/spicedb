@@ -124,15 +124,6 @@ func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFi
 			sqf.schema.colUsersetObjectID,
 			sqf.schema.colUsersetRelation,
 		)
-	case options.BySubject:
-		sqf.queryBuilder = sqf.queryBuilder.OrderBy(
-			sqf.schema.colUsersetNamespace,
-			sqf.schema.colUsersetObjectID,
-			sqf.schema.colUsersetRelation,
-			sqf.schema.colNamespace,
-			sqf.schema.colObjectID,
-			sqf.schema.colRelation,
-		)
 	}
 
 	return sqf
@@ -158,23 +149,6 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 				cursor.Subject.Namespace,
 				cursor.Subject.ObjectId,
 				cursor.Subject.Relation,
-			)
-		case options.BySubject:
-			comparisonTuple := fmt.Sprintf(
-				"(%s, %s, %s, %s, %s) > (?, ?, ?, ?, ?)",
-				sqf.schema.colUsersetNamespace,
-				sqf.schema.colUsersetObjectID,
-				sqf.schema.colUsersetRelation,
-				sqf.schema.colObjectID,
-				sqf.schema.colRelation,
-			)
-			sqf.queryBuilder = sqf.queryBuilder.Where(
-				comparisonTuple,
-				cursor.Subject.Namespace,
-				cursor.Subject.ObjectId,
-				cursor.Subject.Relation,
-				cursor.ResourceAndRelation.ObjectId,
-				cursor.ResourceAndRelation.Relation,
 			)
 		}
 
@@ -205,33 +179,6 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 						sq.Eq{sqf.schema.colUsersetNamespace: cursor.Subject.Namespace},
 						sq.Eq{sqf.schema.colUsersetObjectID: cursor.Subject.ObjectId},
 						sq.Gt{sqf.schema.colUsersetRelation: cursor.Subject.Relation},
-					},
-				})
-		case options.BySubject:
-			sqf.queryBuilder = sqf.queryBuilder.Where(
-				sq.Or{
-					sq.Gt{sqf.schema.colUsersetNamespace: cursor.Subject.Namespace},
-					sq.And{
-						sq.Eq{sqf.schema.colUsersetNamespace: cursor.Subject.Namespace},
-						sq.Gt{sqf.schema.colUsersetObjectID: cursor.Subject.ObjectId},
-					},
-					sq.And{
-						sq.Eq{sqf.schema.colUsersetNamespace: cursor.Subject.Namespace},
-						sq.Eq{sqf.schema.colUsersetObjectID: cursor.Subject.ObjectId},
-						sq.Gt{sqf.schema.colUsersetRelation: cursor.Subject.Relation},
-					},
-					sq.And{
-						sq.Eq{sqf.schema.colUsersetNamespace: cursor.Subject.Namespace},
-						sq.Eq{sqf.schema.colUsersetObjectID: cursor.Subject.ObjectId},
-						sq.Eq{sqf.schema.colUsersetRelation: cursor.Subject.Relation},
-						sq.Gt{sqf.schema.colObjectID: cursor.ResourceAndRelation.ObjectId},
-					},
-					sq.And{
-						sq.Eq{sqf.schema.colUsersetNamespace: cursor.Subject.Namespace},
-						sq.Eq{sqf.schema.colUsersetObjectID: cursor.Subject.ObjectId},
-						sq.Eq{sqf.schema.colUsersetRelation: cursor.Subject.Relation},
-						sq.Eq{sqf.schema.colObjectID: cursor.ResourceAndRelation.ObjectId},
-						sq.Gt{sqf.schema.colRelation: cursor.ResourceAndRelation.Relation},
 					},
 				})
 		}

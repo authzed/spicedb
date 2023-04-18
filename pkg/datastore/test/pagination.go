@@ -22,11 +22,8 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 		ordering   options.SortOrder
 	}{
 		{testfixtures.DocumentNS.Name, options.ByResource},
-		{testfixtures.DocumentNS.Name, options.BySubject},
 		{testfixtures.FolderNS.Name, options.ByResource},
-		{testfixtures.FolderNS.Name, options.BySubject},
 		{testfixtures.UserNS.Name, options.ByResource},
-		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -150,11 +147,8 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 		ordering   options.SortOrder
 	}{
 		{testfixtures.DocumentNS.Name, options.ByResource},
-		{testfixtures.DocumentNS.Name, options.BySubject},
 		{testfixtures.FolderNS.Name, options.ByResource},
-		{testfixtures.FolderNS.Name, options.BySubject},
 		{testfixtures.UserNS.Name, options.ByResource},
-		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -208,11 +202,8 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 		ordering   options.SortOrder
 	}{
 		{testfixtures.DocumentNS.Name, options.ByResource},
-		{testfixtures.DocumentNS.Name, options.BySubject},
 		{testfixtures.FolderNS.Name, options.ByResource},
-		{testfixtures.FolderNS.Name, options.BySubject},
 		{testfixtures.UserNS.Name, options.ByResource},
-		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -279,7 +270,6 @@ func CursorErrorsTest(t *testing.T, tester DatastoreTester) {
 	}{
 		{options.Unsorted, datastore.ErrCursorsWithoutSorting},
 		{options.ByResource, nil},
-		{options.BySubject, nil},
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -366,8 +356,6 @@ func sortedStandardData(objectType string, order options.SortOrder) []*core.Rela
 		switch order {
 		case options.ByResource:
 			return lhsResource < rhsResource || (lhsResource == rhsResource && lhsSubject < rhsSubject)
-		case options.BySubject:
-			return lhsSubject < rhsSubject || (lhsSubject == rhsSubject && lhsResource < rhsResource)
 		default:
 			panic("request for sorted test data with no sort order")
 		}
