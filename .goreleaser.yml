@@ -43,8 +43,6 @@ brews:
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache-2.0"
     folder: "Formula"
-    pull_request:
-      enabled: true
     custom_block: |
       head "https://github.com/authzed/spicedb.git", :branch => "main"
     dependencies:
