@@ -297,6 +297,36 @@ func ToRelationship(tpl *core.RelationTuple) *v1.Relationship {
 	}
 }
 
+// NewRelationship creates a new Relationship value with all its required child structures allocated
+func NewRelationship() *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{},
+		},
+	}
+}
+
+// MustToRelationshipMutating sets target relationship to all the values provided in the source tuple.
+func MustToRelationshipMutating(source *core.RelationTuple, targetRel *v1.Relationship, targetCaveat *v1.ContextualizedCaveat) {
+	targetRel.Resource.ObjectType = source.ResourceAndRelation.Namespace
+	targetRel.Resource.ObjectId = source.ResourceAndRelation.ObjectId
+	targetRel.Relation = source.ResourceAndRelation.Relation
+	targetRel.Subject.Object.ObjectType = source.Subject.Namespace
+	targetRel.Subject.Object.ObjectId = source.Subject.ObjectId
+	targetRel.Subject.OptionalRelation = stringz.Default(source.Subject.Relation, "", Ellipsis)
+	targetRel.OptionalCaveat = nil
+
+	if source.Caveat != nil {
+		if targetCaveat == nil {
+			panic("expected a provided target caveat")
+		}
+		targetCaveat.CaveatName = source.Caveat.CaveatName
+		targetCaveat.Context = source.Caveat.Context
+		targetRel.OptionalCaveat = targetCaveat
+	}
+}
+
 // MustToFilter converts a RelationTuple into a RelationshipFilter. Will panic if
 // the RelationTuple does not validate.
 func MustToFilter(tpl *core.RelationTuple) *v1.RelationshipFilter {
