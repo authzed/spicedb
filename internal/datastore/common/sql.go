@@ -58,9 +58,10 @@ const (
 	// which is not compatible with all datastores.
 	TupleComparison PaginationFilterType = iota
 
-	// SpannerCompatible comparison uses a nested tree of ANDs and ORs to properly
-	// filter out already received relationships.
-	SpannerCompatible
+	// ExpandedLogicComparison comparison uses a nested tree of ANDs and ORs to properly
+	// filter out already received relationships. Useful for databases that do not support
+	// tuple comparison, or do not execute it efficiently
+	ExpandedLogicComparison
 )
 
 // SchemaInformation holds the schema information from the SQL datastore implementation.
@@ -152,7 +153,7 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 			)
 		}
 
-	case SpannerCompatible:
+	case ExpandedLogicComparison:
 		switch order {
 		case options.ByResource:
 			sqf.queryBuilder = sqf.queryBuilder.Where(
