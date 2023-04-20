@@ -23,6 +23,7 @@ import (
 type ServerConfig struct {
 	MaxUpdatesPerWrite    uint16
 	MaxPreconditionsCount uint16
+	StreamingAPITimeout   time.Duration
 }
 
 // NewTestServer creates a new test server, using defaults for the config.
@@ -36,6 +37,7 @@ func NewTestServer(require *require.Assertions,
 		ServerConfig{
 			MaxUpdatesPerWrite:    1000,
 			MaxPreconditionsCount: 1000,
+			StreamingAPITimeout:   30 * time.Second,
 		},
 		dsInitFunc)
 }
@@ -58,6 +60,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
+		server.WithStreamingAPITimeout(config.StreamingAPITimeout),
 		server.WithMaxCaveatContextSize(4096),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,

@@ -107,6 +107,7 @@ type Config struct {
 	MaximumUpdatesPerWrite   uint16
 	MaximumPreconditionCount uint16
 	MaxDatastoreReadPageSize uint64
+	StreamingAPITimeout      time.Duration
 
 	// Additional Services
 	DashboardAPI util.HTTPServerConfig
@@ -342,6 +343,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaximumAPIDepth:          c.DispatchMaxDepth,
 		MaxCaveatContextSize:     c.MaxCaveatContextSize,
 		MaxDatastoreReadPageSize: c.MaxDatastoreReadPageSize,
+		StreamingAPITimeout:      c.StreamingAPITimeout,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

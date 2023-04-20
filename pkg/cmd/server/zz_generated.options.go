@@ -62,6 +62,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
+		to.StreamingAPITimeout = c.StreamingAPITimeout
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
 		to.MiddlewareModification = c.MiddlewareModification
@@ -345,6 +346,13 @@ func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption 
 func WithMaxDatastoreReadPageSize(maxDatastoreReadPageSize uint64) ConfigOption {
 	return func(c *Config) {
 		c.MaxDatastoreReadPageSize = maxDatastoreReadPageSize
+	}
+}
+
+// WithStreamingAPITimeout returns an option that can set StreamingAPITimeout on a Config
+func WithStreamingAPITimeout(streamingAPITimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.StreamingAPITimeout = streamingAPITimeout
 	}
 }
 
