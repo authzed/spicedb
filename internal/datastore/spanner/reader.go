@@ -236,7 +236,7 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
-	common.SpannerCompatible,
+	common.ExpandedLogicComparison,
 )
 
 var _ datastore.Reader = spannerReader{}
