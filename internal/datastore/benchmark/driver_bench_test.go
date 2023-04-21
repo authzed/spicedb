@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -104,9 +105,69 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						for rel := iter.Next(); rel != nil; rel = iter.Next() {
 							count++
 						}
-						iter.Close()
 						require.NoError(b, iter.Err())
+						iter.Close()
 						require.Equal(b, usersPerDoc, count)
+					}
+				})
+				b.Run("SortedSnapshotReadOnlyNamespace", func(b *testing.B) {
+					for n := 0; n < b.N; n++ {
+						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+							ResourceType: testfixtures.DocumentNS.Name,
+						}, options.WithSort(options.ByResource))
+						require.NoError(b, err)
+						var count int
+						for rel := iter.Next(); rel != nil; rel = iter.Next() {
+							count++
+						}
+						require.NoError(b, iter.Err())
+						iter.Close()
+					}
+				})
+				b.Run("SortedSnapshotReadWithRelation", func(b *testing.B) {
+					for n := 0; n < b.N; n++ {
+						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+							ResourceType:             testfixtures.DocumentNS.Name,
+							OptionalResourceRelation: "viewer",
+						}, options.WithSort(options.ByResource))
+						require.NoError(b, err)
+						var count int
+						for rel := iter.Next(); rel != nil; rel = iter.Next() {
+							count++
+						}
+						require.NoError(b, iter.Err())
+						iter.Close()
+					}
+				})
+				b.Run("SortedSnapshotReadAllResourceFields", func(b *testing.B) {
+					for n := 0; n < b.N; n++ {
+						randDocNum := rand.Intn(numDocuments)
+						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+							ResourceType:             testfixtures.DocumentNS.Name,
+							OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
+							OptionalResourceRelation: "viewer",
+						}, options.WithSort(options.ByResource))
+						require.NoError(b, err)
+						var count int
+						for rel := iter.Next(); rel != nil; rel = iter.Next() {
+							count++
+						}
+						require.NoError(b, iter.Err())
+						iter.Close()
+					}
+				})
+				b.Run("SnapshotReverseRead", func(b *testing.B) {
+					for n := 0; n < b.N; n++ {
+						iter, err := ds.SnapshotReader(headRev).ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
+							SubjectType: testfixtures.UserNS.Name,
+						}, options.WithSortForReverse(options.ByResource))
+						require.NoError(b, err)
+						var count int
+						for rel := iter.Next(); rel != nil; rel = iter.Next() {
+							count++
+						}
+						require.NoError(b, iter.Err())
+						iter.Close()
 					}
 				})
 				b.Run("Touch", buildTupleTest(ctx, ds, core.RelationTupleUpdate_TOUCH))

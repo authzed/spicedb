@@ -89,7 +89,9 @@ func (r *pgReader) ReverseQueryRelationships(
 
 	return r.querySplitter.SplitAndExecuteQuery(ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.ReverseLimit),
+		options.WithLimit(queryOpts.LimitForReverse),
+		options.WithAfter(queryOpts.AfterForReverse),
+		options.WithSort(queryOpts.SortForReverse),
 	)
 }
 

@@ -139,7 +139,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 						Namespace: tupleToFind.ResourceAndRelation.Namespace,
 						Relation:  tupleToFind.ResourceAndRelation.Relation,
 					}),
-					options.WithReverseLimit(options.LimitOne),
+					options.WithLimitForReverse(options.LimitOne),
 				)
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
@@ -240,7 +240,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				limit := uint64(len(testTuples) - 1)
 				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
-				}, options.WithReverseLimit(&limit))
+				}, options.WithLimitForReverse(&limit))
 				require.NoError(err)
 				defer iter.Close()
 				tRequire.VerifyIteratorCount(iter, len(testTuples)-1)

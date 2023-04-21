@@ -34,8 +34,11 @@ type QueryOptions struct {
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.
 type ReverseQueryOptions struct {
-	ReverseLimit *uint64
-	ResRelation  *ResourceRelation
+	ResRelation *ResourceRelation
+
+	LimitForReverse *uint64
+	SortForReverse  SortOrder
+	AfterForReverse Cursor
 }
 
 // ResourceRelation combines a resource object type and relation.

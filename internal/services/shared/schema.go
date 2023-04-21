@@ -271,7 +271,7 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 
 	qy, qyErr = rwt.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 		SubjectType: namespaceName,
-	}, options.WithReverseLimit(options.LimitOne))
+	}, options.WithLimitForReverse(options.LimitOne))
 	err := errorIfTupleIteratorReturnsTuples(
 		ctx,
 		qy,
@@ -326,7 +326,7 @@ func sanityCheckNamespaceChanges(
 				RelationFilter: datastore.SubjectRelationFilter{
 					NonEllipsisRelation: delta.RelationName,
 				},
-			}, options.WithReverseLimit(options.LimitOne))
+			}, options.WithLimitForReverse(options.LimitOne))
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
 				qy,

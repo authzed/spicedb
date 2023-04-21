@@ -316,7 +316,7 @@ func (tc TupleChecker) VerifyOrderedIteratorResults(iter datastore.RelationshipI
 		expectedStr := tuple.MustString(tpl)
 
 		found := iter.Next()
-		tc.Require.NotNil(found)
+		tc.Require.NotNil(found, "expected %s", expectedStr)
 
 		foundStr := tuple.MustString(found)
 		tc.Require.Equal(expectedStr, foundStr)
