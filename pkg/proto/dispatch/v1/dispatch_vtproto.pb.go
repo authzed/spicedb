@@ -257,12 +257,34 @@ func (m *DispatchLookupResponse) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
+func (m *Cursor) CloneVT() *Cursor {
+	if m == nil {
+		return (*Cursor)(nil)
+	}
+	r := &Cursor{}
+	if rhs := m.Sections; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Sections = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Cursor) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
 func (m *DispatchReachableResourcesRequest) CloneVT() *DispatchReachableResourcesRequest {
 	if m == nil {
 		return (*DispatchReachableResourcesRequest)(nil)
 	}
 	r := &DispatchReachableResourcesRequest{
-		Metadata: m.Metadata.CloneVT(),
+		Metadata:       m.Metadata.CloneVT(),
+		OptionalCursor: m.OptionalCursor.CloneVT(),
 	}
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
@@ -323,7 +345,8 @@ func (m *DispatchReachableResourcesResponse) CloneVT() *DispatchReachableResourc
 		return (*DispatchReachableResourcesResponse)(nil)
 	}
 	r := &DispatchReachableResourcesResponse{
-		Metadata: m.Metadata.CloneVT(),
+		Metadata:            m.Metadata.CloneVT(),
+		AfterResponseCursor: m.AfterResponseCursor.CloneVT(),
 	}
 	if rhs := m.Resources; rhs != nil {
 		tmpContainer := make([]*ReachableResource, len(rhs))
@@ -853,6 +876,31 @@ func (this *DispatchLookupResponse) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
+func (this *Cursor) EqualVT(that *Cursor) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if len(this.Sections) != len(that.Sections) {
+		return false
+	}
+	for i, vx := range this.Sections {
+		vy := that.Sections[i]
+		if vx != vy {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Cursor) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*Cursor)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *DispatchReachableResourcesRequest) EqualVT(that *DispatchReachableResourcesRequest) bool {
 	if this == that {
 		return true
@@ -888,6 +936,9 @@ func (this *DispatchReachableResourcesRequest) EqualVT(that *DispatchReachableRe
 		if vx != vy {
 			return false
 		}
+	}
+	if !this.OptionalCursor.EqualVT(that.OptionalCursor) {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -954,6 +1005,9 @@ func (this *DispatchReachableResourcesResponse) EqualVT(that *DispatchReachableR
 		}
 	}
 	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if !this.AfterResponseCursor.EqualVT(that.AfterResponseCursor) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1858,6 +1912,48 @@ func (m *DispatchLookupResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error
 	return len(dAtA) - i, nil
 }
 
+func (m *Cursor) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Cursor) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Sections) > 0 {
+		for iNdEx := len(m.Sections) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Sections[iNdEx])
+			copy(dAtA[i:], m.Sections[iNdEx])
+			i = encodeVarint(dAtA, i, uint64(len(m.Sections[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *DispatchReachableResourcesRequest) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -1887,6 +1983,16 @@ func (m *DispatchReachableResourcesRequest) MarshalToSizedBufferVT(dAtA []byte) 
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.OptionalCursor != nil {
+		size, err := m.OptionalCursor.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if len(m.SubjectIds) > 0 {
 		for iNdEx := len(m.SubjectIds) - 1; iNdEx >= 0; iNdEx-- {
@@ -2037,6 +2143,16 @@ func (m *DispatchReachableResourcesResponse) MarshalToSizedBufferVT(dAtA []byte)
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.AfterResponseCursor != nil {
+		size, err := m.AfterResponseCursor.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if m.Metadata != nil {
 		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
@@ -2835,6 +2951,22 @@ func (m *DispatchLookupResponse) SizeVT() (n int) {
 	return n
 }
 
+func (m *Cursor) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Sections) > 0 {
+		for _, s := range m.Sections {
+			l = len(s)
+			n += 1 + l + sov(uint64(l))
+		}
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
 func (m *DispatchReachableResourcesRequest) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -2870,6 +3002,10 @@ func (m *DispatchReachableResourcesRequest) SizeVT() (n int) {
 			l = len(s)
 			n += 1 + l + sov(uint64(l))
 		}
+	}
+	if m.OptionalCursor != nil {
+		l = m.OptionalCursor.SizeVT()
+		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2912,6 +3048,10 @@ func (m *DispatchReachableResourcesResponse) SizeVT() (n int) {
 	}
 	if m.Metadata != nil {
 		l = m.Metadata.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.AfterResponseCursor != nil {
+		l = m.AfterResponseCursor.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -4511,6 +4651,89 @@ func (m *DispatchLookupResponse) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *Cursor) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Cursor: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Cursor: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sections", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Sections = append(m.Sections, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *DispatchReachableResourcesRequest) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4695,6 +4918,42 @@ func (m *DispatchReachableResourcesRequest) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.SubjectIds = append(m.SubjectIds, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OptionalCursor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OptionalCursor == nil {
+				m.OptionalCursor = &Cursor{}
+			}
+			if err := m.OptionalCursor.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -4948,6 +5207,42 @@ func (m *DispatchReachableResourcesResponse) UnmarshalVT(dAtA []byte) error {
 				m.Metadata = &ResponseMeta{}
 			}
 			if err := m.Metadata.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AfterResponseCursor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AfterResponseCursor == nil {
+				m.AfterResponseCursor = &Cursor{}
+			}
+			if err := m.AfterResponseCursor.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

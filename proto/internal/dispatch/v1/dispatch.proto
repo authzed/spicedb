@@ -105,6 +105,10 @@ message DispatchLookupResponse {
   repeated ResolvedResource resolved_resources = 2;
 }
 
+message Cursor {
+  repeated string sections = 1;
+}
+
 message DispatchReachableResourcesRequest {
   ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
 
@@ -113,6 +117,7 @@ message DispatchReachableResourcesRequest {
   core.v1.RelationReference subject_relation = 3
       [ (validate.rules).message.required = true ];
   repeated string subject_ids = 4;
+  Cursor optional_cursor = 5;
 }
 
 message ReachableResource {
@@ -138,6 +143,7 @@ message ReachableResource {
 message DispatchReachableResourcesResponse {
   repeated ReachableResource resources = 1;
   ResponseMeta metadata = 2;
+  Cursor after_response_cursor = 3;
 }
 
 message DispatchLookupSubjectsRequest {
