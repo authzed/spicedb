@@ -314,7 +314,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 
 func noCleanup(context.Context) {}
 
-// ReadWriteTx tarts a read/write transaction, which will be committed if no error is
+// ReadWriteTx starts a read/write transaction, which will be committed if no error is
 // returned and rolled back if an error is returned.
 func (pgd *pgDatastore) ReadWriteTx(
 	ctx context.Context,
