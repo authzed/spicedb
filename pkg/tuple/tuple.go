@@ -437,26 +437,31 @@ func MustFromRelationships(rels []*v1.Relationship) []*core.RelationTuple {
 
 // FromRelationship converts a Relationship into a RelationTuple.
 func FromRelationship(r *v1.Relationship) *core.RelationTuple {
-	var caveat *core.ContextualizedCaveat
+	rel := &core.RelationTuple{
+		ResourceAndRelation: &core.ObjectAndRelation{},
+		Subject:             &core.ObjectAndRelation{},
+		Caveat:              &core.ContextualizedCaveat{},
+	}
+
+	CopyRelationshipToRelationTuple(r, rel)
+
+	return rel
+}
+
+func CopyRelationshipToRelationTuple(r *v1.Relationship, dst *core.RelationTuple) {
 	if r.OptionalCaveat != nil {
-		caveat = &core.ContextualizedCaveat{
-			CaveatName: r.OptionalCaveat.CaveatName,
-			Context:    r.OptionalCaveat.Context,
-		}
+		dst.Caveat.CaveatName = r.OptionalCaveat.CaveatName
+		dst.Caveat.Context = r.OptionalCaveat.Context
+	} else {
+		dst.Caveat = nil
 	}
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: r.Resource.ObjectType,
-			ObjectId:  r.Resource.ObjectId,
-			Relation:  r.Relation,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: r.Subject.Object.ObjectType,
-			ObjectId:  r.Subject.Object.ObjectId,
-			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
-		},
-		Caveat: caveat,
-	}
+
+	dst.ResourceAndRelation.Namespace = r.Resource.ObjectType
+	dst.ResourceAndRelation.ObjectId = r.Resource.ObjectId
+	dst.ResourceAndRelation.Relation = r.Relation
+	dst.Subject.Namespace = r.Subject.Object.ObjectType
+	dst.Subject.ObjectId = r.Subject.Object.ObjectId
+	dst.Subject.Relation = stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis)
 }
 
 // UpdateFromRelationshipUpdate converts a RelationshipUpdate into a

@@ -143,13 +143,13 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return err
 	})
 
-	util.ForEachChunk(updates, 500, func(updates []*core.RelationTupleUpdate) {
+	util.ForEachChunk(tuples, 500, func(tuples []*core.RelationTuple) {
 		if err != nil {
 			return
 		}
 
 		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationshipUpdates(ctx, rwt, updates)
+			err = relationships.ValidateRelationships(ctx, rwt, tuples)
 			if err != nil {
 				return err
 			}
