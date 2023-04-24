@@ -296,4 +296,19 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 	return nil
 }
 
+var copyCols = []string{
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatContextName,
+	colCaveatContext,
+}
+
+func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	return pgxcommon.BulkLoad(ctx, rwt.tx, tableTuple, copyCols, iter)
+}
+
 var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}

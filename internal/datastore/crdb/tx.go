@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 const (
@@ -42,15 +43,22 @@ func init() {
 
 type innerFunc func(ctx context.Context) error
 
-type executeTxRetryFunc func(context.Context, innerFunc) error
+type executeTxRetryFunc func(context.Context, innerFunc, ...options.RWTOptionsOption) error
 
 func executeWithMaxRetries(max uint8) executeTxRetryFunc {
-	return func(ctx context.Context, fn innerFunc) (err error) {
-		return executeWithResets(ctx, fn, max)
+	return func(ctx context.Context, fn innerFunc, opts ...options.RWTOptionsOption) (err error) {
+		config := options.NewRWTOptionsWithOptions(opts...)
+
+		retries := max
+		if config.DisableRetries {
+			retries = 0
+		}
+
+		return executeWithResets(ctx, fn, retries)
 	}
 }
 
-func executeOnce(ctx context.Context, fn innerFunc) (err error) {
+func executeOnce(ctx context.Context, fn innerFunc, _ ...options.RWTOptionsOption) (err error) {
 	return executeWithResets(ctx, fn, 0)
 }
 

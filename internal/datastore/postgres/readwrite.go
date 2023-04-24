@@ -249,6 +249,21 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	return nil
 }
 
+var copyCols = []string{
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatContextName,
+	colCaveatContext,
+}
+
+func (rwt *pgReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	return pgxcommon.BulkLoad(ctx, rwt.tx, tableTuple, copyCols, iter)
+}
+
 func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	return sq.Eq{
 		colNamespace:        r.ResourceAndRelation.Namespace,

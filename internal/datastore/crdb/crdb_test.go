@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,13 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
+
+// Implement the TestableDatastore interface
+func (cds *crdbDatastore) ExampleRetryableError() error {
+	return &pgconn.PgError{
+		Code: crdbRetryErrCode,
+	}
+}
 
 func TestCRDBDatastore(t *testing.T) {
 	b := testdatastore.RunCRDBForTesting(t, "")
@@ -55,6 +63,8 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
+	engine := testdatastore.RunCRDBForTesting(t, "")
+
 	quantizationDurations := []time.Duration{
 		0 * time.Second,
 		100 * time.Millisecond,
@@ -63,7 +73,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			require := require.New(t)
 
-			ds := testdatastore.RunCRDBForTesting(t, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds := engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := NewCRDBDatastore(
 					uri,
 					GCWindow(gcWindow),

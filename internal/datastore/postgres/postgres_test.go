@@ -14,6 +14,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -28,6 +29,13 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+// Implement the TestableDatastore interface
+func (pgd *pgDatastore) ExampleRetryableError() error {
+	return &pgconn.PgError{
+		Code: pgSerializationFailure,
+	}
+}
 
 func TestPostgresDatastore(t *testing.T) {
 	for _, config := range []struct {

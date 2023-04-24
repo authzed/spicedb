@@ -14,6 +14,7 @@ import (
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
@@ -25,7 +26,7 @@ const (
 var testUserNS = namespace.Namespace(testUserNamespace)
 
 func executeWithErrors(errors *[]error, maxRetries uint8) executeTxRetryFunc {
-	return func(ctx context.Context, fn innerFunc) (err error) {
+	return func(ctx context.Context, fn innerFunc, opts ...options.RWTOptionsOption) (err error) {
 		wrappedFn := func(ctx context.Context) error {
 			if len(*errors) > 0 {
 				retErr := (*errors)[0]
