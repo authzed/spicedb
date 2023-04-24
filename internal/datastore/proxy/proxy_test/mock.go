@@ -261,6 +261,11 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames 
 	return args.Error(0)
 }
 
+func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	args := dm.Called(iter)
+	return uint64(args.Int(0)), args.Error(1)
+}
+
 func (dm *MockReadWriteTransaction) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	args := dm.Called(name)
 

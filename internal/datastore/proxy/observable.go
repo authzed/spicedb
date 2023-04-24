@@ -296,6 +296,13 @@ func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.Re
 	return rwt.delegate.DeleteRelationships(ctx, filter)
 }
 
+func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	ctx, closer := observe(ctx, "BulkLoad")
+	defer closer()
+
+	return rwt.delegate.BulkLoad(ctx, iter)
+}
+
 func observe(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, func()) {
 	ctx, span := tracer.Start(ctx, name, opts...)
 	timer := prometheus.NewTimer(queryLatency.WithLabelValues(name))

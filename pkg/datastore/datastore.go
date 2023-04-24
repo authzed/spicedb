@@ -257,6 +257,13 @@ type ReadWriteTransaction interface {
 
 	// DeleteNamespaces deletes namespaces including associated relationships.
 	DeleteNamespaces(ctx context.Context, nsNames ...string) error
+
+	// BulkLoad takes a relationship source iterator, and writes all of the
+	// relationships to the backing datastore in an optimized fashion. This
+	// method can and will omit checks and otherwise cut corners in the
+	// interest of performance, and should not be relied upon for OLTP-style
+	// workloads.
+	BulkLoad(ctx context.Context, iter BulkWriteRelationshipSource) (uint64, error)
 }
 
 // TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.
@@ -269,6 +276,17 @@ type ReadyState struct {
 
 	// IsReady indicates whether the datastore is ready.
 	IsReady bool
+}
+
+// BulkWriteRelationshipSource is an interface for transferring relationships
+// to a backing datastore with a zero-copy methodology.
+type BulkWriteRelationshipSource interface {
+	// Returns a pointer to a relation tuple if one is available, or nil if
+	// there are no more or there was an error.
+	//
+	// Note: sources may re-use the same memory address for every tuple, data
+	// may change on every call to next even if the pointer has not changed.
+	Next(ctx context.Context) (*core.RelationTuple, error)
 }
 
 // Datastore represents tuple access for a single namespace.

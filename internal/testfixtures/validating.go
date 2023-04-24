@@ -227,6 +227,10 @@ func (vrwt validatingReadWriteTransaction) DeleteCaveats(ctx context.Context, na
 	return vrwt.delegate.DeleteCaveats(ctx, names)
 }
 
+func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {
+	return vrwt.delegate.BulkLoad(ctx, source)
+}
+
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.
 func validateUpdatesToWrite(updates ...*core.RelationTupleUpdate) error {
 	for _, update := range updates {

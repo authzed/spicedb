@@ -66,6 +66,9 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
 	t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
 
+	t.Run("TestBulkUpload", func(t *testing.T) { BulkUploadTest(t, tester) })
+	t.Run("TestBulkUploadErrors", func(t *testing.T) { BulkUploadErrorsTest(t, tester) })
+
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
 
 	t.Run("TestCaveatNotFound", func(t *testing.T) { CaveatNotFoundTest(t, tester) })
