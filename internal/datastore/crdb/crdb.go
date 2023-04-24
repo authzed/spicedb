@@ -79,12 +79,14 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	configureNodeDrainDetection(readPoolConfig)
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	configureNodeDrainDetection(writePoolConfig)
 
 	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -253,7 +255,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 					querySplitter,
 					cds.writeOverlapKeyer,
 					make(keySet),
-					executeOnce,
+					cds.execute,
 					func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
 						return query.From(fromStr)
 					},
@@ -380,6 +382,23 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	<-streamCtx.Done()
 
 	return &features, nil
+}
+
+func configureNodeDrainDetection(pgxConfig *pgxpool.Config) {
+	pgxConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		// return true to acquire, false to reject
+		var draining bool
+		if err := conn.QueryRow(ctx, "SELECT draining FROM crdb_internal.kv_node_liveness WHERE node_id = crdb_internal.node_id();").Scan(&draining); err != nil {
+			return false
+		}
+		// close draining connections
+		if draining {
+			if err := conn.Close(ctx); err != nil {
+				return false
+			}
+		}
+		return !draining
+	}
 }
 
 func readCRDBNow(ctx context.Context, tx pgx.Tx) (revision.Decimal, error) {

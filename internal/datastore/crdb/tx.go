@@ -50,10 +50,6 @@ func executeWithMaxRetries(max uint8) executeTxRetryFunc {
 	}
 }
 
-func executeOnce(ctx context.Context, fn innerFunc) (err error) {
-	return executeWithResets(ctx, fn, 0)
-}
-
 // executeWithResets executes transactionFn and resets the tx when ambiguous crdb errors are encountered.
 func executeWithResets(ctx context.Context, fn innerFunc, maxRetries uint8) (err error) {
 	var retries uint8
@@ -90,6 +86,14 @@ func resettable(ctx context.Context, err error) bool {
 	}
 	// detect when cockroach closed a connection
 	if strings.Contains(err.Error(), "unexpected EOF") {
+		return true
+	}
+	// detect when cockroach closed a connection
+	if strings.Contains(err.Error(), "conn closed") {
+		return true
+	}
+	// detect when cockroach resets a connection
+	if strings.Contains(err.Error(), "connection reset by peer") {
 		return true
 	}
 	sqlState := sqlErrorCode(ctx, err)
