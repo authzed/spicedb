@@ -14,13 +14,14 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
 	defaultWatchBufferLength = 128
-	numRetries               = 10
+	numAttempts              = 10
 )
 
 var errSerialization = errors.New("serialization error")
@@ -132,8 +133,15 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 func (mdb *memdbDatastore) ReadWriteTx(
 	_ context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	for i := 0; i < numRetries; i++ {
+	config := options.NewRWTOptionsWithOptions(opts...)
+	txNumAttempts := numAttempts
+	if config.DisableRetries {
+		txNumAttempts = 1
+	}
+
+	for i := 0; i < txNumAttempts; i++ {
 		var tx *memdb.Txn
 		createTxOnce := sync.Once{}
 		txSrc := func() (*memdb.Txn, error) {
