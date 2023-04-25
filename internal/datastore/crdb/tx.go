@@ -80,30 +80,38 @@ func resettable(ctx context.Context, err error) bool {
 	if err == nil {
 		return false
 	}
+
 	// detect when a cockroach node is taken out of service
 	if strings.Contains(err.Error(), "broken pipe") {
+		badConnection <- struct{}{}
 		return true
 	}
 	// detect when cockroach closed a connection
 	if strings.Contains(err.Error(), "unexpected EOF") {
+		badConnection <- struct{}{}
 		return true
 	}
 	// detect when cockroach closed a connection
 	if strings.Contains(err.Error(), "conn closed") {
+		badConnection <- struct{}{}
 		return true
 	}
 	// detect when cockroach resets a connection
 	if strings.Contains(err.Error(), "connection reset by peer") {
+		badConnection <- struct{}{}
 		return true
 	}
+
 	sqlState := sqlErrorCode(ctx, err)
+	// Retry on node draining
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
-	return sqlState == crdbAmbiguousErrorCode ||
-		// Reset for retriable errors
-		sqlState == crdbRetryErrCode ||
-		// Retry on node draining
-		sqlState == crdbServerNotAcceptingClients ||
+	if sqlState == crdbServerNotAcceptingClients || sqlState == crdbAmbiguousErrorCode {
+		badConnection <- struct{}{}
+		return true
+	}
+	// Reset for retriable errors
+	return sqlState == crdbRetryErrCode ||
 		// Error encountered when crdb nodes have large clock skew
 		(sqlState == crdbUnknownSQLState && strings.Contains(err.Error(), crdbClockSkewMessage))
 }

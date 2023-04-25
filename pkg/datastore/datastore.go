@@ -332,6 +332,12 @@ type Feature struct {
 	Reason  string
 }
 
+// ConnHealthChecker is an interface that datastores may implement if they
+// require a background process to manage connection pool health.
+type ConnHealthChecker interface {
+	StartConnectionHealthCheck(ctx context.Context) error
+}
+
 // Features holds values that represent what features a database can support.
 type Features struct {
 	// Watch is enabled if the underlying datastore can support the Watch api.

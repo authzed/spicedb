@@ -406,6 +406,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(metricsServer.Close)
 
+	connHealthChecker, ok := ds.(datastore.ConnHealthChecker)
+	if !ok {
+		connHealthChecker = nil
+	}
+
 	return &completedServerConfig{
 		gRPCServer:          grpcServer,
 		dispatchGRPCServer:  dispatchGrpcServer,
@@ -414,6 +419,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dashboardServer:     dashboardServer,
 		unaryMiddleware:     unaryMiddleware,
 		streamingMiddleware: streamingMiddleware,
+		connHealthChecker:   connHealthChecker,
 		presharedKeys:       c.PresharedKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
@@ -499,6 +505,7 @@ type completedServerConfig struct {
 	dashboardServer    util.RunnableHTTPServer
 	telemetryReporter  telemetry.Reporter
 	healthManager      health.Manager
+	connHealthChecker  datastore.ConnHealthChecker
 
 	unaryMiddleware     []grpc.UnaryServerInterceptor
 	streamingMiddleware []grpc.StreamServerInterceptor
@@ -530,6 +537,12 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 			<-ctx.Done()
 			return stopFn()
 		}
+	}
+
+	if c.connHealthChecker != nil {
+		g.Go(func() error {
+			return c.connHealthChecker.StartConnectionHealthCheck(ctx)
+		})
 	}
 
 	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -36,6 +38,8 @@ var (
 	gcTTLRegex = regexp.MustCompile(`gc\.ttlseconds\s*=\s*([1-9][0-9]+)`)
 
 	tracer = otel.Tracer("spicedb/internal/datastore/crdb")
+
+	badConnection = make(chan struct{})
 )
 
 const (
@@ -79,14 +83,14 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
-	configureNodeDrainDetection(readPoolConfig)
+	configureNodeDrainDetectionViaPolling(readPoolConfig)
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
-	configureNodeDrainDetection(writePoolConfig)
+	configureNodeDrainDetectionViaPolling(writePoolConfig)
 
 	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -182,6 +186,9 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		executeWithMaxRetries(config.maxRetries),
 		config.disableStats,
 		changefeedQuery,
+		// TODO: configurable
+		time.NewTicker(15 * time.Second),
+		5 * time.Second,
 	}
 
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
@@ -212,6 +219,9 @@ type crdbDatastore struct {
 	disableStats        bool
 
 	beginChangefeedQuery string
+
+	connHealthTicker *time.Ticker
+	connHealthJitter time.Duration
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -382,6 +392,101 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	<-streamCtx.Done()
 
 	return &features, nil
+}
+
+var draining atomic.Bool
+
+func configureNodeDrainDetectionViaPolling(pgxConfig *pgxpool.Config) {
+	pgxConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		// if the health checker hasn't determined that the cluster has any
+		// nodes in a draining state, skip checking the individual connection
+		if !draining.Load() {
+			return true
+		}
+
+		// need to check that we're not getting a connection to a draining node
+		var nodeDraining bool
+		if err := conn.QueryRow(ctx, "SELECT draining FROM crdb_internal.kv_node_liveness WHERE node_id = crdb_internal.node_id();").Scan(&nodeDraining); err != nil {
+			return false
+		}
+		// close draining connections
+		if nodeDraining {
+			if err := conn.Close(ctx); err != nil {
+				return false
+			}
+		}
+		return !nodeDraining
+	}
+}
+
+func (cds *crdbDatastore) StartConnectionHealthCheck(ctx context.Context) error {
+	for _, pool := range []*pgxpool.Pool{cds.readPool, cds.writePool} {
+		pool := pool
+		go func() {
+			// TODO: configurable poll and jitter
+
+			checkIfDraining := func() {
+				// find a good connection to a non-draining node
+				var conn *pgxpool.Conn
+				for {
+					var err error
+					conn, err = pool.Acquire(ctx)
+					if err != nil {
+						log.Ctx(ctx).Error().Err(err).Msg("error acquiring connection for health check")
+						continue
+					}
+					var draining bool
+					if err := conn.QueryRow(ctx, "SELECT draining FROM crdb_internal.kv_node_liveness WHERE node_id = crdb_internal.node_id();").Scan(&draining); err != nil {
+						log.Ctx(ctx).Error().Err(err).Msg("error determining drain status of health check connection")
+						continue
+					}
+					if !draining {
+						break
+					}
+				}
+
+				// we now have a connection to a non-draining node
+				rows, err := conn.Query(ctx, "SELECT node_id,draining FROM crdb_internal.kv_node_liveness;")
+				if err != nil {
+					log.Ctx(ctx).Error().Err(err).Msg("error determining drain status of all nodes")
+					return
+				}
+
+				foundDrainingNode := false
+				for rows.Next() {
+					var nodeID string
+					var nodeDraining bool
+					if err := rows.Scan(&nodeID, &nodeDraining); err != nil {
+						log.Ctx(ctx).Error().Err(err).Msg("error scanning drain status")
+						continue
+					}
+					if nodeDraining {
+						foundDrainingNode = true
+						break
+					}
+				}
+				rows.Close()
+
+				draining.Store(foundDrainingNode)
+			}
+
+			for {
+				select {
+				case <-ctx.Done():
+					cds.connHealthTicker.Stop()
+					return
+				case <-badConnection:
+					// this signal is sent if any bad connection is hit, which
+					// could becaused by a draining node
+					checkIfDraining()
+				case <-cds.connHealthTicker.C:
+					time.Sleep(time.Duration(rand.Int63n(cds.connHealthJitter.Nanoseconds())))
+					checkIfDraining()
+				}
+			}
+		}()
+	}
+	return nil
 }
 
 func configureNodeDrainDetection(pgxConfig *pgxpool.Config) {
