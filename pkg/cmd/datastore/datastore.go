@@ -91,11 +91,12 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	Engine               string
-	URI                  string
-	GCWindow             time.Duration
-	LegacyFuzzing        time.Duration
-	RevisionQuantization time.Duration
+	Engine                      string
+	URI                         string
+	GCWindow                    time.Duration
+	LegacyFuzzing               time.Duration
+	RevisionQuantization        time.Duration
+	MaxRevisionStalenessPercent float64
 
 	// Options
 	ReadConnPool           ConnPoolConfig
@@ -170,6 +171,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
 	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), defaults.GCMaxOperationTime, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
 	flagSet.DurationVar(&opts.RevisionQuantization, flagName("datastore-revision-quantization-interval"), defaults.RevisionQuantization, "boundary interval to which to round the quantized revision")
+	flagSet.Float64Var(&opts.MaxRevisionStalenessPercent, flagName("datastore-revision-quantization-max-staleness-percent"), defaults.MaxRevisionStalenessPercent, "percentage of the revision quantization interval where we may opt to select a stale revision for performance reasons")
 	flagSet.BoolVar(&opts.ReadOnly, flagName("datastore-readonly"), defaults.ReadOnly, "set the service to read-only mode")
 	flagSet.StringSliceVar(&opts.BootstrapFiles, flagName("datastore-bootstrap-files"), defaults.BootstrapFiles, "bootstrap data yaml files to load")
 	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data")
@@ -211,6 +213,7 @@ func DefaultDatastoreConfig() *Config {
 		GCWindow:                       24 * time.Hour,
 		LegacyFuzzing:                  -1,
 		RevisionQuantization:           5 * time.Second,
+		MaxRevisionStalenessPercent:    .1, // 10%
 		ReadConnPool:                   *DefaultReadConnPool(),
 		WriteConnPool:                  *DefaultWriteConnPool(),
 		SplitQueryCount:                1024,
@@ -326,6 +329,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
 		crdb.RevisionQuantization(opts.RevisionQuantization),
+		crdb.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		crdb.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		crdb.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		crdb.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
@@ -354,6 +358,7 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
+		postgres.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		postgres.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		postgres.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
@@ -382,6 +387,8 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 	return spanner.NewSpannerDatastore(
 		opts.URI,
 		spanner.FollowerReadDelay(opts.FollowerReadDelay),
+		spanner.RevisionQuantization(opts.RevisionQuantization),
+		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		spanner.GCInterval(opts.GCInterval),
 		spanner.GCWindow(opts.GCWindow),
 		spanner.GCEnabled(!opts.ReadOnly),
@@ -403,6 +410,7 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.ConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
+		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
