@@ -1707,6 +1707,8 @@ func (m *DispatchReachableResourcesRequest) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for OptionalLimit
+
 	if len(errors) > 0 {
 		return DispatchReachableResourcesRequestMultiError(errors)
 	}

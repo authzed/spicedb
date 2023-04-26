@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"sort"
 	"sync"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -116,7 +117,12 @@ func (rsm dispatchableResourcesSubjectMap) filterSubjectIDsToDispatch(dispatched
 // is directly found or requires an additional Check operation.
 func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoint bool) []*v1.ReachableResource {
 	resources := make([]*v1.ReachableResource, 0, rsm.resourcesAndSubjects.Len())
-	for _, resourceID := range rsm.resourcesAndSubjects.Keys() {
+
+	// Sort for stability.
+	sortedResourceIds := rsm.resourcesAndSubjects.Keys()
+	sort.Strings(sortedResourceIds)
+
+	for _, resourceID := range sortedResourceIds {
 		status := v1.ReachableResource_REQUIRES_CHECK
 		if isDirectEntrypoint {
 			status = v1.ReachableResource_HAS_PERMISSION
@@ -134,6 +140,9 @@ func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoi
 				nonCaveatedSubjectIDs = append(nonCaveatedSubjectIDs, info.subjectID)
 			}
 		}
+
+		// Sort for stability.
+		sort.Strings(subjectIDs)
 
 		// If all the incoming edges are caveated, then the entire status has to be marked as a check
 		// is required. Otherwise, if there is at least *one* non-caveated incoming edge, then we can

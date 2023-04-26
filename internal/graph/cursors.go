@@ -21,14 +21,18 @@ type cursorInformation struct {
 	// It is the responsibility of the *caller* to append together the incoming cursors to form
 	// the final cursor.
 	outgoingCursorSections []string
+
+	// limits is the limits tracker for the call over which the cursor is being used.
+	limits *limitTracker
 }
 
 // newCursorInformation constructs a new cursorInformation struct from the incoming cursor (which
 // may be nil)
-func newCursorInformation(incomingCursor *v1.Cursor) cursorInformation {
+func newCursorInformation(incomingCursor *v1.Cursor, limits *limitTracker) cursorInformation {
 	return cursorInformation{
 		currentCursor:          incomingCursor,
 		outgoingCursorSections: nil,
+		limits:                 limits,
 	}
 }
 
@@ -68,15 +72,15 @@ func (ci cursorInformation) sectionValue(name string) (string, error) {
 }
 
 // integerSectionValue returns the *integer* found after the `name` at the head of the incoming cursor.
-// If the incoming cursor is empty, returns -1. If the incoming cursor does not start with the name,
+// If the incoming cursor is empty, returns 0. If the incoming cursor does not start with the name,
 // fails with an error.
 func (ci cursorInformation) integerSectionValue(name string) (int, error) {
 	valueStr, err := ci.sectionValue(name)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	if valueStr == "" {
-		return -1, err
+		return 0, err
 	}
 
 	return strconv.Atoi(valueStr)
@@ -102,12 +106,14 @@ func (ci cursorInformation) mustWithOutgoingSection(name string, values ...strin
 				Sections: slices.Clone(ci.currentCursor.Sections[len(values)+1:]),
 			},
 			outgoingCursorSections: ocs,
+			limits:                 ci.limits,
 		}
 	}
 
 	return cursorInformation{
 		currentCursor:          nil,
 		outgoingCursorSections: ocs,
+		limits:                 ci.limits,
 	}
 }
 
@@ -128,32 +134,19 @@ func (ci cursorInformation) removeSectionAndValue(name string) (cursorInformatio
 			Sections: slices.Clone(ci.currentCursor.Sections[2:]),
 		},
 		outgoingCursorSections: ci.outgoingCursorSections,
+		limits:                 ci.limits,
 	}, nil
 }
 
-type cursorHandler func(c cursorInformation) error
-
-// withSingletonInCursor executes the given handler if and only if the singleton name is not found
-// at the head of the cursor. If it is found, the handler is skipped. The next handler is always
-// invoked with updated cursor information indicating that the handler's work has been completed.
-func withSingletonInCursor(ci cursorInformation, name string, handler cursorHandler, next cursorHandler) error {
-	skipHandler, err := ci.hasPrefix(name)
-	if err != nil {
-		return err
+func (ci cursorInformation) clearIncoming() cursorInformation {
+	return cursorInformation{
+		currentCursor:          nil,
+		outgoingCursorSections: ci.outgoingCursorSections,
+		limits:                 ci.limits,
 	}
-
-	// If the name was found at the head of the cursor, then the handler has already been run and
-	// should be skipped.
-	if !skipHandler {
-		err := handler(ci.mustWithOutgoingSection(name))
-		if err != nil {
-			return err
-		}
-	}
-
-	// Run the next handler.
-	return next(ci.mustWithOutgoingSection(name))
 }
+
+type cursorHandler func(c cursorInformation) error
 
 // withIterableInCursor executes the given handler for each item in the items list, skipping any
 // items marked as completed at the head of the cursor and injecting a cursor representing the current
@@ -173,25 +166,37 @@ func withIterableInCursor[T any](
 		return err
 	}
 
+	isFirstIteration := true
 	for index, item := range items {
 		if index < afterIndex {
 			continue
 		}
 
+		if ci.limits.hasExhaustedLimit() {
+			return nil
+		}
+
 		// Invoke the handler with the current item's index in the outgoing cursor, indicating that
 		// subsequent invocations should jump right to this item.
-		err := handler(ci.mustWithOutgoingSection(name, strconv.Itoa(index)), item)
+		currentCursor := ci.mustWithOutgoingSection(name, strconv.Itoa(index))
+		if !isFirstIteration {
+			currentCursor = currentCursor.clearIncoming()
+		}
+
+		err := handler(currentCursor, item)
 		if err != nil {
 			return err
 		}
+
+		isFirstIteration = false
 	}
 
 	return nil
 }
 
-// withQueryInCursor executes the given handler until it returns an empty "next" datastore cursor,
+// withDatastoreCursorInCursor executes the given handler until it returns an empty "next" datastore cursor,
 // starting at the datastore cursor found in the cursor information (if any).
-func withQueryInCursor(
+func withDatastoreCursorInCursor(
 	ci cursorInformation,
 	name string,
 	handler func(queryCursor options.Cursor, ci cursorInformation) (options.Cursor, error),
@@ -209,8 +214,17 @@ func withQueryInCursor(
 
 	// Execute the loop, starting at the datastore's cursor (if any), until there is no additional
 	// datastore cursor returned.
+	isFirstIteration := true
 	for {
+		if ci.limits.hasExhaustedLimit() {
+			return nil
+		}
+
 		currentCursor := ci.mustWithOutgoingSection(name, tuple.MustString(datastoreCursor))
+		if !isFirstIteration {
+			currentCursor = currentCursor.clearIncoming()
+		}
+
 		nextDCCursor, err := handler(datastoreCursor, currentCursor)
 		if err != nil {
 			return err
@@ -219,13 +233,14 @@ func withQueryInCursor(
 			return nil
 		}
 		datastoreCursor = nextDCCursor
+		isFirstIteration = false
 	}
 }
 
-// withOffsetInCursor executes the given handler with the offset found at the beginning of the cursor.
-// If the offset is not found, executes with -1. The cursor information given to the handler has the
+// withCustomOffsetInCursor executes the given handler with the offset found at the beginning of the cursor.
+// If the offset is not found, executes with 0. The cursor information given to the handler has the
 // offset removed and it is the job of the *handler* to compute the correct outgoing cursor.
-func withOffsetInCursor(
+func withCustomOffsetInCursor(
 	ci cursorInformation,
 	name string,
 	handler func(ci cursorInformation, offset int) error,
@@ -241,6 +256,43 @@ func withOffsetInCursor(
 	}
 
 	return handler(updatedCI, offset)
+}
+
+type afterResponseCursor func(nextOffset int) *v1.Cursor
+
+// withSubsetInCursor executes the given handler with the offset index found at the beginning of the
+// cursor. If the offset is not found, executes with 0. The handler is given the current offset as
+// well as a callback to mint the cursor with the next offset.
+func withSubsetInCursor(
+	ci cursorInformation,
+	name string,
+	handler func(currentOffset int, nextCursorWith afterResponseCursor) error,
+	next cursorHandler,
+) error {
+	if ci.limits.hasExhaustedLimit() {
+		return nil
+	}
+
+	afterIndex, err := ci.integerSectionValue(name)
+	if err != nil {
+		return err
+	}
+
+	if afterIndex >= 0 {
+		err = handler(afterIndex, func(nextOffset int) *v1.Cursor {
+			return ci.mustWithOutgoingSection(name, strconv.Itoa(nextOffset)).responsePartialCursor()
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if ci.limits.hasExhaustedLimit() {
+		return nil
+	}
+
+	// -1 means that the handler has been completed.
+	return next(ci.mustWithOutgoingSection(name, "-1"))
 }
 
 // mustCombineCursors combines the given cursors into one resulting cursor.

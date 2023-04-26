@@ -168,8 +168,6 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
-				fmt.Println(streamResult.AfterResponseCursor)
-
 				for _, found := range streamResult.Resources {
 					results = append(results, reachableResource{
 						tuple.StringONR(&core.ObjectAndRelation{
@@ -724,7 +722,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 	cancel()
 }
 
-func TestReachableResourcesPagination(t *testing.T) {
+func TestReachableResourcesCursors(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -772,7 +770,7 @@ func TestReachableResourcesPagination(t *testing.T) {
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-			// Dispatch reachable resources but stop reading after the first 1000 results.
+			// Dispatch reachable resources but stop reading after the second chunk of results.
 			ctxWithCancel, cancel := context.WithCancel(ctx)
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 			err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
@@ -805,8 +803,6 @@ func TestReachableResourcesPagination(t *testing.T) {
 					break
 				}
 			}
-
-			fmt.Println(cursor)
 
 			// Ensure we've found a cursor and that we got 200 resources back in the first + second result.
 			require.NotNil(t, cursor, "got no cursor and %d results", foundResources.Len())
@@ -846,6 +842,88 @@ func TestReachableResourcesPagination(t *testing.T) {
 			// Ensure *all* results were found.
 			for i := 0; i < 410; i++ {
 				require.True(t, foundResources.Has("res"+strconv.Itoa(i)), "missing res%d", i)
+			}
+		})
+	}
+}
+
+func TestReachableResourcesPaginationWithLimit(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	testRels := make([]*core.RelationTuple, 0)
+
+	for i := 0; i < 410; i++ {
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
+	}
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
+		rawDS,
+		`
+			definition user {}
+
+			definition resource {
+				relation editor: user
+				relation viewer: user
+				permission edit = editor
+				permission view = viewer + edit
+			}
+		`,
+		testRels,
+		require.New(t),
+	)
+
+	for _, limit := range []uint32{1, 10, 50, 100, 150, 250, 500} {
+		limit := limit
+		t.Run(fmt.Sprintf("limit-%d", limit), func(t *testing.T) {
+			dispatcher := NewLocalOnlyDispatcher(2)
+			var cursor *v1.Cursor
+			foundResources := util.NewSet[string]()
+
+			for i := 0; i < (410/int(limit))+1; i++ {
+				ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+				require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+				ctxWithCancel, cancel := context.WithCancel(ctx)
+				stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
+				err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+					ResourceRelation: RR("resource", "view"),
+					SubjectRelation: &core.RelationReference{
+						Namespace: "user",
+						Relation:  "...",
+					},
+					SubjectIds: []string{"tom"},
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     revision.String(),
+						DepthRemaining: 50,
+					},
+					OptionalCursor: cursor,
+					OptionalLimit:  limit,
+				}, stream)
+				require.NoError(t, err)
+				defer cancel()
+
+				newFound := 0
+				for _, result := range stream.Results() {
+					for _, resource := range result.Resources {
+						require.True(t, foundResources.Add(resource.ResourceId))
+						newFound += 1
+					}
+
+					cursor = result.AfterResponseCursor
+				}
+				require.LessOrEqual(t, newFound, int(limit))
+				if newFound == 0 {
+					break
+				}
+			}
+
+			// Ensure *all* results were found.
+			for i := 0; i < 410; i++ {
+				resourceId := fmt.Sprintf("res%03d", i)
+				require.True(t, foundResources.Has(resourceId), "missing %s", resourceId)
 			}
 		})
 	}

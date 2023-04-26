@@ -285,6 +285,7 @@ func (m *DispatchReachableResourcesRequest) CloneVT() *DispatchReachableResource
 	r := &DispatchReachableResourcesRequest{
 		Metadata:       m.Metadata.CloneVT(),
 		OptionalCursor: m.OptionalCursor.CloneVT(),
+		OptionalLimit:  m.OptionalLimit,
 	}
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
@@ -938,6 +939,9 @@ func (this *DispatchReachableResourcesRequest) EqualVT(that *DispatchReachableRe
 		}
 	}
 	if !this.OptionalCursor.EqualVT(that.OptionalCursor) {
+		return false
+	}
+	if this.OptionalLimit != that.OptionalLimit {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1984,6 +1988,11 @@ func (m *DispatchReachableResourcesRequest) MarshalToSizedBufferVT(dAtA []byte) 
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.OptionalLimit != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.OptionalLimit))
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.OptionalCursor != nil {
 		size, err := m.OptionalCursor.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -3006,6 +3015,9 @@ func (m *DispatchReachableResourcesRequest) SizeVT() (n int) {
 	if m.OptionalCursor != nil {
 		l = m.OptionalCursor.SizeVT()
 		n += 1 + l + sov(uint64(l))
+	}
+	if m.OptionalLimit != 0 {
+		n += 1 + sov(uint64(m.OptionalLimit))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -4955,6 +4967,25 @@ func (m *DispatchReachableResourcesRequest) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OptionalLimit", wireType)
+			}
+			m.OptionalLimit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.OptionalLimit |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

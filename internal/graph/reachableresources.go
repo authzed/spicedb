@@ -42,9 +42,11 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 		return fmt.Errorf("no subjects ids given to reachable resources dispatch")
 	}
 
-	ci := newCursorInformation(req.OptionalCursor)
-	return withSingletonInCursor(ci, "same-type",
-		func(ci cursorInformation) error {
+	limits, ctx := newLimitTracker(stream.Context(), req.OptionalLimit)
+	ci := newCursorInformation(req.OptionalCursor, limits)
+
+	return withSubsetInCursor(ci, "same-type",
+		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			// If the resource type matches the subject type, yield directly as a one-to-one result
 			// for each subjectID.
 			if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
@@ -58,10 +60,18 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 					})
 				}
 
+				offsetted := resources[currentOffset:]
+				if len(offsetted) == 0 {
+					return nil
+				}
+
+				count, done := ci.limits.mustPrepareForPublishing(len(offsetted))
+				defer done()
+
 				err := stream.Publish(&v1.DispatchReachableResourcesResponse{
-					Resources:           resources,
+					Resources:           offsetted[0:count],
 					Metadata:            emptyMetadata,
-					AfterResponseCursor: ci.responsePartialCursor(),
+					AfterResponseCursor: nextCursorWith(currentOffset + count),
 				})
 				if err != nil {
 					return err
@@ -69,16 +79,17 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 			}
 			return nil
 		}, func(ci cursorInformation) error {
-			return crr.afterSameType(ci, req, stream)
+			// Once done checking for the matching subject type, yield by dispatching over entrypoints.
+			return crr.afterSameType(ctx, ci, req, stream)
 		})
 }
 
 func (crr *ConcurrentReachableResources) afterSameType(
+	ctx context.Context,
 	ci cursorInformation,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
-	ctx := stream.Context()
 	dispatched := &syncONRSet{}
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
@@ -225,7 +236,7 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 	resourceType *core.RelationReference,
 	handler func(ctx context.Context, ci cursorInformation, resources dispatchableResourcesSubjectMap) error,
 ) error {
-	return withQueryInCursor(ci, "query-rels",
+	return withDatastoreCursorInCursor(ci, "query-rels",
 		func(queryCursor options.Cursor, ci cursorInformation) (options.Cursor, error) {
 			it, err := reader.ReverseQueryRelationships(
 				ctx,
@@ -342,88 +353,138 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		return err
 	}
 
-	// If there are no entrypoints, then no further dispatch is necessary.
-	if !hasResourceEntrypoints {
-		// If the found resource matches the target resource type and relation, yield the resource.
-		if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace &&
-			foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
-			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
-				Resources:           foundResources.asReachableResources(entrypoint.IsDirectResult()),
-				Metadata:            emptyMetadata,
-				AfterResponseCursor: ci.responsePartialCursor(),
-			})
-		}
+	return withSubsetInCursor(ci, "matching",
+		func(currentOffset int, nextCursorWith afterResponseCursor) error {
+			if !hasResourceEntrypoints {
+				// If the found resource matches the target resource type and relation, yield the resource.
+				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace &&
+					foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
 
-		// Otherwise, we're done.
-		return nil
-	}
+					resources := foundResources.asReachableResources(entrypoint.IsDirectResult())
+					if len(resources) == 0 {
+						return nil
+					}
 
-	return withOffsetInCursor(ci, "result-index", func(ci cursorInformation, offset int) error {
-		// Otherwise, redispatch.
-		resultIndex := 0
-		stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
-			Stream: parentStream,
-			Ctx:    ctx,
-			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
-				if resultIndex < offset {
-					resultIndex++
-					return nil, false, nil
+					if currentOffset >= len(resources) {
+						return nil
+					}
+
+					offsetted := resources[currentOffset:]
+					if len(offsetted) == 0 {
+						return nil
+					}
+
+					count, done := ci.limits.mustPrepareForPublishing(len(offsetted))
+					defer done()
+
+					return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
+						Resources:           offsetted[0:count],
+						Metadata:            emptyMetadata,
+						AfterResponseCursor: nextCursorWith(currentOffset + count),
+					})
 				}
-
-				// If the context has been closed, nothing more to do.
-				select {
-				case <-ctx.Done():
-					return nil, false, ctx.Err()
-
-				default:
-				}
-
-				// Map the found resources via the subject+resources used for dispatching, to determine
-				// if any need to be made conditional due to caveats.
-				mapped, err := foundResources.mapFoundResources(result.Resources, entrypoint.IsDirectResult())
-				if err != nil {
-					return nil, false, err
-				}
-
-				// The cursor for the response is that of the parent response + the current result index +
-				// the cursor from the result itself.
-				afterResponseCursor := mustCombineCursors(
-					ci.responsePartialCursor(),
-					mustCombineCursors(
-						cursorForNamedInt("result-index", resultIndex),
-						result.AfterResponseCursor,
-					),
-				)
-				resultIndex++
-
-				return &v1.DispatchReachableResourcesResponse{
-					Resources:           mapped,
-					Metadata:            addCallToResponseMetadata(result.Metadata),
-					AfterResponseCursor: afterResponseCursor,
-				}, true, nil
-			},
-		}
-
-		// The new subject type for dispatching was the found type of the *resource*.
-		newSubjectType := foundResourceType
-
-		// To avoid duplicate work, remove any subjects already dispatched.
-		filteredSubjectIDs := foundResources.filterSubjectIDsToDispatch(dispatched, newSubjectType)
-		if len(filteredSubjectIDs) == 0 {
+			}
 			return nil
-		}
+		}, func(ci cursorInformation) error {
+			if !hasResourceEntrypoints {
+				return nil
+			}
 
-		// Dispatch the found resources as the subjects for the next call, to continue the
-		// resolution.
-		return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-			ResourceRelation: parentRequest.ResourceRelation,
-			SubjectRelation:  newSubjectType,
-			SubjectIds:       filteredSubjectIDs,
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     parentRequest.Revision.String(),
-				DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-			},
-			OptionalCursor: ci.currentCursor,
-		}, stream)
-	})
+			return withCustomOffsetInCursor(ci, "result-index", func(ci cursorInformation, startingOffset int) error {
+				// Otherwise, redispatch.
+				seenResultCount := 0
+				stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
+					Stream: parentStream,
+					Ctx:    ctx,
+					Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
+						// If the context has been closed, nothing more to do.
+						select {
+						case <-ctx.Done():
+							return nil, false, ctx.Err()
+
+						default:
+						}
+
+						// If we've exhausted the limit of resources to be returned, nothing more to do.
+						if ci.limits.hasExhaustedLimit() {
+							return nil, false, nil
+						}
+
+						// Map the found resources via the subject+resources used for dispatching, to determine
+						// if any need to be made conditional due to caveats.
+						mapped, err := foundResources.mapFoundResources(result.Resources, entrypoint.IsDirectResult())
+						if err != nil {
+							return nil, false, err
+						}
+
+						if len(mapped) == 0 {
+							return nil, false, nil
+						}
+
+						// Skip if we're before the starting offset.
+						nextSeenResultCount := seenResultCount + len(mapped)
+						if nextSeenResultCount < startingOffset {
+							seenResultCount = nextSeenResultCount
+							return nil, false, nil
+						}
+
+						// Otherwise, publish the found results.
+						offsetted := mapped
+						startIndex := seenResultCount
+						if startingOffset >= seenResultCount && startingOffset < nextSeenResultCount {
+							offsetted = offsetted[(startingOffset - seenResultCount):]
+							startIndex = startingOffset
+						}
+
+						if len(offsetted) == 0 {
+							return nil, false, nil
+						}
+
+						count, done := ci.limits.mustPrepareForPublishing(len(offsetted))
+						defer done()
+
+						// The cursor for the response is that of the parent response + the current result index +
+						// the cursor from the result itself.
+						afterResponseCursor := mustCombineCursors(
+							ci.responsePartialCursor(),
+							mustCombineCursors(
+								cursorForNamedInt("result-index", startIndex),
+								result.AfterResponseCursor,
+							),
+						)
+
+						resp := &v1.DispatchReachableResourcesResponse{
+							Resources:           offsetted[0:count],
+							Metadata:            addCallToResponseMetadata(result.Metadata),
+							AfterResponseCursor: afterResponseCursor,
+						}
+						seenResultCount += count
+						return resp, true, nil
+					},
+				}
+
+				// The new subject type for dispatching was the found type of the *resource*.
+				newSubjectType := foundResourceType
+
+				// To avoid duplicate work, remove any subjects already dispatched.
+				filteredSubjectIDs := foundResources.filterSubjectIDsToDispatch(dispatched, newSubjectType)
+				if len(filteredSubjectIDs) == 0 {
+					return nil
+				}
+
+				// Dispatch the found resources as the subjects for the next call, to continue the
+				// resolution.
+				return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+					ResourceRelation: parentRequest.ResourceRelation,
+					SubjectRelation:  newSubjectType,
+					SubjectIds:       filteredSubjectIDs,
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     parentRequest.Revision.String(),
+						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+					},
+					OptionalCursor: ci.currentCursor,
+					OptionalLimit:  ci.limits.currentLimit,
+				}, stream)
+			})
+		})
 }
