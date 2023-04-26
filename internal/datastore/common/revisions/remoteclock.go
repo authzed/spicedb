@@ -27,8 +27,6 @@ type RemoteClockRevisions struct {
 
 // NewRemoteClockRevisions returns a RemoteClockRevisions for the given configuration
 func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, quantization time.Duration) *RemoteClockRevisions {
-	rev := atomicRevision{}
-	rev.set(validRevision{datastore.NoRevision, time.Time{}})
 	revisions := &RemoteClockRevisions{
 		CachedOptimizedRevisions: NewCachedOptimizedRevisions(
 			maxRevisionStaleness,

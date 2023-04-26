@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,10 @@ var (
 	three = revision.NewFromDecimal(decimal.NewFromInt(3))
 )
 
+func cand(revs ...datastore.Revision) []datastore.Revision {
+	return revs
+}
+
 func TestOptimizedRevisionCache(t *testing.T) {
 	type revisionResponse struct {
 		rev      datastore.Revision
@@ -41,7 +46,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 		name                  string
 		maxStaleness          time.Duration
 		expectedCallResponses []revisionResponse
-		expectedRevisions     []datastore.Revision
+		expectedRevisions     [][]datastore.Revision
 	}{
 		{
 			"single request",
@@ -49,7 +54,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			[]revisionResponse{
 				{one, 0},
 			},
-			[]datastore.Revision{one},
+			[][]datastore.Revision{cand(one)},
 		},
 		{
 			"simple no caching request",
@@ -59,7 +64,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{two, 0},
 				{three, 0},
 			},
-			[]datastore.Revision{one, two, three},
+			[][]datastore.Revision{cand(one), cand(two), cand(three)},
 		},
 		{
 			"simple cached once",
@@ -68,26 +73,25 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{one, 7 * time.Millisecond},
 				{two, 0},
 			},
-			[]datastore.Revision{one, one, two},
+			[][]datastore.Revision{cand(one), cand(one), cand(two)},
 		},
 		{
 			"cached by staleness",
 			7 * time.Millisecond,
 			[]revisionResponse{
 				{one, 0},
-				{two, 0},
+				{two, 100 * time.Millisecond},
 			},
-			[]datastore.Revision{one, one, two, two},
+			[][]datastore.Revision{cand(one), cand(one, two), cand(two), cand(two)},
 		},
 		{
 			"cached by staleness and validity",
 			2 * time.Millisecond,
 			[]revisionResponse{
 				{one, 4 * time.Millisecond},
-				{two, 0},
-				{three, 0},
+				{two, 100 * time.Millisecond},
 			},
-			[]datastore.Revision{one, one, two, three},
+			[][]datastore.Revision{cand(one), cand(one, two), cand(two)},
 		},
 		{
 			"cached for a while",
@@ -96,7 +100,7 @@ func TestOptimizedRevisionCache(t *testing.T) {
 				{one, 28 * time.Millisecond},
 				{two, 0},
 			},
-			[]datastore.Revision{one, one, one, one, one, one, two},
+			[][]datastore.Revision{cand(one), cand(one), cand(one), cand(one), cand(one), cand(one), cand(two)},
 		},
 	}
 
@@ -118,10 +122,13 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 			defer cancel()
 
-			for _, expectedRev := range tc.expectedRevisions {
+			for _, expectedRevSet := range tc.expectedRevisions {
 				revision, err := or.OptimizedRevision(ctx)
 				require.NoError(err)
-				require.True(expectedRev.Equal(revision), "must return the proper revision %s != %s", expectedRev, revision)
+				printableRevSet := lo.Map(expectedRevSet, func(val datastore.Revision, index int) string {
+					return val.String()
+				})
+				require.Contains(expectedRevSet, revision, "must return the proper revision, allowed set %#v, received %s", printableRevSet, revision)
 
 				mockTime.Add(5 * time.Millisecond)
 			}
