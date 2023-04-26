@@ -144,7 +144,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 				{
 					ResourceId:    "first",
 					ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-					ForSubjectIds: []string{"tom", "sarah"},
+					ForSubjectIds: []string{"sarah", "tom"},
 				},
 			},
 		},
@@ -162,7 +162,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 				{
 					ResourceId:    "first",
 					ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-					ForSubjectIds: []string{"tom", "sarah"},
+					ForSubjectIds: []string{"sarah", "tom"},
 				},
 				{
 					ResourceId:    "second",

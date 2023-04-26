@@ -731,8 +731,20 @@ func TestReachableResourcesPagination(t *testing.T) {
 	require.NoError(t, err)
 
 	testRels := make([]*core.RelationTuple, 0)
+
+	// tom and sarah have access via a single role on each.
 	for i := 0; i < 410; i++ {
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#viewer@user:tom", i)))
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#editor@user:sarah", i)))
+	}
+
+	// fred is half on viewer and half on editor.
+	for i := 0; i < 410; i++ {
+		if i > 200 {
+			testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#viewer@user:fred", i)))
+		} else {
+			testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#editor@user:fred", i)))
+		}
 	}
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
@@ -741,89 +753,100 @@ func TestReachableResourcesPagination(t *testing.T) {
 			definition user {}
 
 			definition resource {
+				relation editor: user
 				relation viewer: user
-				permission view = viewer
+				permission edit = editor
+				permission view = viewer + edit
 			}
 		`,
 		testRels,
 		require.New(t),
 	)
-	dispatcher := NewLocalOnlyDispatcher(2)
 
-	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
-	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+	subjects := []string{"tom", "sarah", "fred"}
 
-	// Dispatch reachable resources but stop reading after the first 1000 results.
-	ctxWithCancel, cancel := context.WithCancel(ctx)
-	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
-	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("resource", "view"),
-		SubjectRelation: &core.RelationReference{
-			Namespace: "user",
-			Relation:  "...",
-		},
-		SubjectIds: []string{"tom"},
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     revision.String(),
-			DepthRemaining: 50,
-		},
-	}, stream)
-	require.NoError(t, err)
-	defer cancel()
+	for _, subject := range subjects {
+		t.Run(subject, func(t *testing.T) {
+			dispatcher := NewLocalOnlyDispatcher(2)
 
-	foundResources := util.NewSet[string]()
-	var cursor *v1.Cursor
+			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-	for index, result := range stream.Results() {
-		for _, resource := range result.Resources {
-			require.True(t, foundResources.Add(resource.ResourceId))
-		}
+			// Dispatch reachable resources but stop reading after the first 1000 results.
+			ctxWithCancel, cancel := context.WithCancel(ctx)
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
+			err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+				ResourceRelation: RR("resource", "view"),
+				SubjectRelation: &core.RelationReference{
+					Namespace: "user",
+					Relation:  "...",
+				},
+				SubjectIds: []string{"tom"},
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+			}, stream)
+			require.NoError(t, err)
+			defer cancel()
 
-		// Break on the second result.
-		if index == 1 {
-			cursor = result.AfterResponseCursor
-			cancel()
-			break
-		}
-	}
+			foundResources := util.NewSet[string]()
+			var cursor *v1.Cursor
 
-	// Ensure we've found a cursor and that we got 200 resources back in the first + second result.
-	require.NotNil(t, cursor, "got no cursor and %d results", foundResources.Len())
-	require.Equal(t, foundResources.Len(), 200)
+			for index, result := range stream.Results() {
+				for _, resource := range result.Resources {
+					require.True(t, foundResources.Add(resource.ResourceId))
+				}
 
-	// Call reachable resources again with the cursor, which should continue in the second result
-	// and then move forward from there.
-	stream2 := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
-	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("resource", "view"),
-		SubjectRelation: &core.RelationReference{
-			Namespace: "user",
-			Relation:  "...",
-		},
-		SubjectIds: []string{"tom"},
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     revision.String(),
-			DepthRemaining: 50,
-		},
-		OptionalCursor: cursor,
-	}, stream2)
-	require.NoError(t, err)
-
-	count := 0
-	overlappingCount := 0
-	for _, result := range stream2.Results() {
-		for _, resource := range result.Resources {
-			count++
-			if !foundResources.Add(resource.ResourceId) {
-				overlappingCount++
+				// Break on the second result.
+				if index == 1 {
+					cursor = result.AfterResponseCursor
+					cancel()
+					break
+				}
 			}
-		}
-	}
-	require.LessOrEqual(t, count, 310)
-	require.LessOrEqual(t, overlappingCount, 100)
 
-	// Ensure *all* results were found.
-	for i := 0; i < 410; i++ {
-		require.True(t, foundResources.Has("res"+strconv.Itoa(i)), "missing res%d", i)
+			fmt.Println(cursor)
+
+			// Ensure we've found a cursor and that we got 200 resources back in the first + second result.
+			require.NotNil(t, cursor, "got no cursor and %d results", foundResources.Len())
+			require.Equal(t, foundResources.Len(), 200)
+
+			// Call reachable resources again with the cursor, which should continue in the second result
+			// and then move forward from there.
+			stream2 := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
+			err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+				ResourceRelation: RR("resource", "view"),
+				SubjectRelation: &core.RelationReference{
+					Namespace: "user",
+					Relation:  "...",
+				},
+				SubjectIds: []string{"tom"},
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				OptionalCursor: cursor,
+			}, stream2)
+			require.NoError(t, err)
+
+			count := 0
+			overlappingCount := 0
+			for _, result := range stream2.Results() {
+				for _, resource := range result.Resources {
+					count++
+					if !foundResources.Add(resource.ResourceId) {
+						overlappingCount++
+					}
+				}
+			}
+			require.LessOrEqual(t, count, 310)
+			require.LessOrEqual(t, overlappingCount, 100)
+
+			// Ensure *all* results were found.
+			for i := 0; i < 410; i++ {
+				require.True(t, foundResources.Has("res"+strconv.Itoa(i)), "missing res%d", i)
+			}
+		})
 	}
 }

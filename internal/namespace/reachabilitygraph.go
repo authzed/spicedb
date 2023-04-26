@@ -3,8 +3,11 @@ package namespace
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"sync"
+
+	"golang.org/x/exp/maps"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -226,8 +229,13 @@ func (rg *ReachabilityGraph) collectEntrypoints(
 		return nil
 	}
 
+	// Sort the keys to ensure a stable graph is produced.
+	keys := maps.Keys(rrg.EntrypointsBySubjectRelation)
+	sort.Strings(keys)
+
 	// Recursively collect over any reachability graphs for subjects with non-ellipsis relations.
-	for _, entrypointSet := range rrg.EntrypointsBySubjectRelation {
+	for _, entrypointSetKey := range keys {
+		entrypointSet := rrg.EntrypointsBySubjectRelation[entrypointSetKey]
 		if entrypointSet.SubjectRelation != nil && entrypointSet.SubjectRelation.Relation != tuple.Ellipsis {
 			err := rg.collectEntrypoints(ctx, subjectType, entrypointSet.SubjectRelation, collected, encounteredRelations, reachabilityOption, entrypointLookupOption)
 			if err != nil {
