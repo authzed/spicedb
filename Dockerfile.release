@@ -4,4 +4,5 @@ FROM $BASE
 
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.12 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe
 COPY spicedb /usr/local/bin/spicedb
+ENV PATH="$PATH:/usr/local/bin"
 ENTRYPOINT ["spicedb"]
