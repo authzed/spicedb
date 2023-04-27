@@ -100,8 +100,16 @@ func (pgd *pgDatastore) Watch(
 						errs <- datastore.NewWatchDisconnectedErr()
 						return
 					}
+				}
 
-					currentTxn = changeToWrite.Revision.(revisionWithXid).postgresRevision
+				// In order to make progress, we need to ensure that any seen transactions here are
+				// marked as done in the revision given back to Postgres on the next iteration. We pick
+				// the *last* transaction to start, as it should encompass all completed transactions
+				// except those running concurrently, which is handled by calling markComplete on the other
+				// transactions.
+				currentTxn = newTxns[len(newTxns)-1].postgresRevision
+				for _, newTx := range newTxns {
+					currentTxn = postgresRevision{currentTxn.snapshot.markComplete(newTx.tx.Uint64)}
 				}
 			} else {
 				sleep := time.NewTimer(watchSleep)
