@@ -20,7 +20,7 @@ import (
 type clusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
-	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error)
+	DispatchLookup(ctx context.Context, req *v1.DispatchLookupResourcesRequest, opts ...grpc.CallOption) (*v1.DispatchLookupResponse, error)
 	DispatchReachableResources(ctx context.Context, in *v1.DispatchReachableResourcesRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchReachableResourcesClient, error)
 	DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error)
 }
@@ -108,7 +108,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 	return resp, nil
 }
 
-func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (cr *clusterDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupResourcesRequest) (*v1.DispatchLookupResponse, error) {
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
 		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
 	}

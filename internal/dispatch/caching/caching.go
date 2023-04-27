@@ -15,7 +15,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -34,10 +33,10 @@ type Dispatcher struct {
 
 	checkTotalCounter                  prometheus.Counter
 	checkFromCacheCounter              prometheus.Counter
-	lookupTotalCounter                 prometheus.Counter
-	lookupFromCacheCounter             prometheus.Counter
 	reachableResourcesTotalCounter     prometheus.Counter
 	reachableResourcesFromCacheCounter prometheus.Counter
+	lookupResourcesTotalCounter        prometheus.Counter
+	lookupResourcesFromCacheCounter    prometheus.Counter
 	lookupSubjectsTotalCounter         prometheus.Counter
 	lookupSubjectsFromCacheCounter     prometheus.Counter
 }
@@ -69,15 +68,15 @@ func NewCachingDispatcher(cacheInst cache.Cache, metricsEnabled bool, prometheus
 		Name:      "check_from_cache_total",
 	})
 
-	lookupTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
+	lookupResourcesTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
-		Name:      "lookup_total",
+		Name:      "lookup_resources_total",
 	})
-	lookupFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
+	lookupResourcesFromCacheCounter := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: prometheusNamespace,
 		Subsystem: prometheusSubsystem,
-		Name:      "lookup_from_cache_total",
+		Name:      "lookup_resources_from_cache_total",
 	})
 
 	reachableResourcesTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -111,11 +110,11 @@ func NewCachingDispatcher(cacheInst cache.Cache, metricsEnabled bool, prometheus
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(lookupTotalCounter)
+		err = prometheus.Register(lookupResourcesTotalCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
-		err = prometheus.Register(lookupFromCacheCounter)
+		err = prometheus.Register(lookupResourcesFromCacheCounter)
 		if err != nil {
 			return nil, fmt.Errorf(errCachingInitialization, err)
 		}
@@ -147,10 +146,10 @@ func NewCachingDispatcher(cacheInst cache.Cache, metricsEnabled bool, prometheus
 		keyHandler:                         keyHandler,
 		checkTotalCounter:                  checkTotalCounter,
 		checkFromCacheCounter:              checkFromCacheCounter,
-		lookupTotalCounter:                 lookupTotalCounter,
-		lookupFromCacheCounter:             lookupFromCacheCounter,
 		reachableResourcesTotalCounter:     reachableResourcesTotalCounter,
 		reachableResourcesFromCacheCounter: reachableResourcesFromCacheCounter,
+		lookupResourcesTotalCounter:        lookupResourcesTotalCounter,
+		lookupResourcesFromCacheCounter:    lookupResourcesFromCacheCounter,
 		lookupSubjectsTotalCounter:         lookupSubjectsTotalCounter,
 		lookupSubjectsFromCacheCounter:     lookupSubjectsFromCacheCounter,
 	}, nil
@@ -221,51 +220,6 @@ func (cd *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpand
 	return resp, err
 }
 
-// DispatchLookup implements dispatch.Lookup interface and does not do any caching yet.
-func (cd *Dispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
-	cd.lookupTotalCounter.Inc()
-
-	requestKey, err := cd.keyHandler.LookupResourcesCacheKey(ctx, req)
-	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
-	}
-
-	if cachedResultRaw, found := cd.c.Get(requestKey); found {
-		var response v1.DispatchLookupResponse
-		if err := response.UnmarshalVT(cachedResultRaw.([]byte)); err != nil {
-			return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
-		}
-
-		if req.Metadata.DepthRemaining >= response.Metadata.DepthRequired {
-			log.Ctx(ctx).Trace().Object("cachedLookup", req).Int("resultCount", len(response.ResolvedResources)).Send()
-			cd.lookupFromCacheCounter.Inc()
-			return &response, nil
-		}
-	}
-	computed, err := cd.d.DispatchLookup(ctx, req)
-
-	// We only want to cache the result if there was no error.
-	if err == nil {
-		log.Ctx(ctx).Trace().Object("cachingLookup", req).Int("resultCount", len(computed.ResolvedResources)).Send()
-
-		adjustedComputed := computed.CloneVT()
-		adjustedComputed.Metadata.CachedDispatchCount = adjustedComputed.Metadata.DispatchCount
-		adjustedComputed.Metadata.DispatchCount = 0
-		adjustedComputed.Metadata.DebugInfo = nil
-
-		adjustedBytes, err := adjustedComputed.MarshalVT()
-		if err != nil {
-			return &v1.DispatchLookupResponse{Metadata: &v1.ResponseMeta{}}, err
-		}
-
-		cd.c.Set(requestKey, adjustedBytes, sliceSize(adjustedBytes))
-	}
-
-	// Return both the computed and err in ALL cases: computed contains resolved
-	// metadata even if there was an error.
-	return computed, err
-}
-
 // DispatchReachableResources implements dispatch.ReachableResources interface.
 func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
@@ -332,6 +286,71 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 func sliceSize(xs []byte) int64 {
 	// Slice Header + Slice Contents
 	return int64(int(unsafe.Sizeof(xs)) + len(xs))
+}
+
+// DispatchLookupResources implements dispatch.LookupResources interface.
+func (cd *Dispatcher) DispatchLookupResources(req *v1.DispatchLookupResourcesRequest, stream dispatch.LookupResourcesStream) error {
+	cd.lookupResourcesTotalCounter.Inc()
+
+	requestKey, err := cd.keyHandler.LookupResourcesCacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cd.lookupResourcesFromCacheCounter.Inc()
+		for _, slice := range cachedResultRaw.([][]byte) {
+			var response v1.DispatchLookupResourcesResponse
+			if err := response.UnmarshalVT(slice); err != nil {
+				return err
+			}
+			if err := stream.Publish(&response); err != nil {
+				// don't wrap error with additional context, as it may be a grpc status.Status.
+				// status.FromError() is unable to unwrap status.Status values, and as a consequence
+				// the Dispatcher wouldn't properly propagate the gRPC error code
+				return err
+			}
+		}
+		return nil
+	}
+
+	var (
+		mu             sync.Mutex
+		toCacheResults [][]byte
+	)
+	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchLookupResourcesResponse]{
+		Stream: stream,
+		Ctx:    stream.Context(),
+		Processor: func(result *v1.DispatchLookupResourcesResponse) (*v1.DispatchLookupResourcesResponse, bool, error) {
+			adjustedResult := result.CloneVT()
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.DispatchCount = 0
+			adjustedResult.Metadata.DebugInfo = nil
+
+			adjustedBytes, err := adjustedResult.MarshalVT()
+			if err != nil {
+				return &v1.DispatchLookupResourcesResponse{Metadata: &v1.ResponseMeta{}}, false, err
+			}
+
+			mu.Lock()
+			toCacheResults = append(toCacheResults, adjustedBytes)
+			mu.Unlock()
+
+			return result, true, nil
+		},
+	}
+
+	if err := cd.d.DispatchLookupResources(req, wrapped); err != nil {
+		return err
+	}
+
+	var size int64
+	for _, slice := range toCacheResults {
+		size += sliceSize(slice)
+	}
+
+	cd.c.Set(requestKey, toCacheResults, size)
+	return nil
 }
 
 // DispatchLookupSubjects implements dispatch.LookupSubjects interface.
@@ -401,11 +420,11 @@ func (cd *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsReque
 
 func (cd *Dispatcher) Close() error {
 	prometheus.Unregister(cd.checkTotalCounter)
-	prometheus.Unregister(cd.lookupTotalCounter)
-	prometheus.Unregister(cd.reachableResourcesTotalCounter)
-	prometheus.Unregister(cd.lookupFromCacheCounter)
 	prometheus.Unregister(cd.checkFromCacheCounter)
+	prometheus.Unregister(cd.reachableResourcesTotalCounter)
 	prometheus.Unregister(cd.reachableResourcesFromCacheCounter)
+	prometheus.Unregister(cd.lookupResourcesTotalCounter)
+	prometheus.Unregister(cd.lookupResourcesFromCacheCounter)
 	prometheus.Unregister(cd.lookupSubjectsFromCacheCounter)
 	prometheus.Unregister(cd.lookupSubjectsTotalCounter)
 	if cache := cd.c; cache != nil {

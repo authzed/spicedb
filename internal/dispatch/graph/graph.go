@@ -28,8 +28,8 @@ var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . ConcurrencyLimits
 type ConcurrencyLimits struct {
 	Check              uint16 `debugmap:"visible"`
-	LookupResources    uint16 `debugmap:"visible"`
 	ReachableResources uint16 `debugmap:"visible"`
+	LookupResources    uint16 `debugmap:"visible"`
 	LookupSubjects     uint16 `debugmap:"visible"`
 }
 
@@ -68,8 +68,8 @@ func limitOrDefault(limit uint16, defaultLimit uint16) uint16 {
 func SharedConcurrencyLimits(concurrencyLimit uint16) ConcurrencyLimits {
 	return ConcurrencyLimits{
 		Check:              concurrencyLimit,
-		LookupResources:    concurrencyLimit,
 		ReachableResources: concurrencyLimit,
+		LookupResources:    concurrencyLimit,
 		LookupSubjects:     concurrencyLimit,
 	}
 }
@@ -88,8 +88,8 @@ func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispa
 
 	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.lookupHandler = graph.NewConcurrentLookup(d, d, concurrencyLimits.LookupResources)
 	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimits.ReachableResources)
+	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects)
 
 	return d
@@ -102,15 +102,15 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 
 	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	lookupHandler := graph.NewConcurrentLookup(redispatcher, redispatcher, concurrencyLimits.LookupResources)
 	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimits.ReachableResources)
+	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects)
 
 	return &localDispatcher{
 		checker:                   checker,
 		expander:                  expander,
-		lookupHandler:             lookupHandler,
 		reachableResourcesHandler: reachableResourcesHandler,
+		lookupResourcesHandler:    lookupResourcesHandler,
 		lookupSubjectsHandler:     lookupSubjectsHandler,
 	}
 }
@@ -118,8 +118,8 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 type localDispatcher struct {
 	checker                   *graph.ConcurrentChecker
 	expander                  *graph.ConcurrentExpander
-	lookupHandler             *graph.ConcurrentLookup
 	reachableResourcesHandler *graph.ConcurrentReachableResources
+	lookupResourcesHandler    *graph.CursoredLookupResources
 	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
 }
 
@@ -268,36 +268,6 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 	}, relation)
 }
 
-// DispatchLookup implements dispatch.Lookup interface
-func (ld *localDispatcher) DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
-	// TODO(jschorr): Since lookup is now calling reachable resources exclusively, we should
-	// probably move it out of the dispatcher and into computed
-	ctx, span := tracer.Start(ctx, "DispatchLookup", trace.WithAttributes(
-		attribute.String("start", tuple.StringRR(req.ObjectRelation)),
-		attribute.String("subject", tuple.StringONR(req.Subject)),
-		attribute.Int64("limit", int64(req.Limit)),
-	))
-	defer span.End()
-
-	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
-	}
-
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
-	if err != nil {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata}, err
-	}
-
-	if req.Limit <= 0 {
-		return &v1.DispatchLookupResponse{Metadata: emptyMetadata, ResolvedResources: []*v1.ResolvedResource{}}, nil
-	}
-
-	return ld.lookupHandler.LookupViaReachability(ctx, graph.ValidatedLookupRequest{
-		DispatchLookupRequest: req,
-		Revision:              revision,
-	})
-}
-
 // DispatchReachableResources implements dispatch.ReachableResources interface
 func (ld *localDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
@@ -323,6 +293,35 @@ func (ld *localDispatcher) DispatchReachableResources(
 		graph.ValidatedReachableResourcesRequest{
 			DispatchReachableResourcesRequest: req,
 			Revision:                          revision,
+		},
+		dispatch.StreamWithContext(ctx, stream),
+	)
+}
+
+// DispatchLookupResources implements dispatch.LookupResources interface
+func (ld *localDispatcher) DispatchLookupResources(
+	req *v1.DispatchLookupResourcesRequest,
+	stream dispatch.LookupResourcesStream,
+) error {
+	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources", trace.WithAttributes(
+		attribute.String("resource-type", tuple.StringRR(req.ObjectRelation)),
+		attribute.String("subject", tuple.StringONR(req.Subject)),
+	))
+	defer span.End()
+
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		return err
+	}
+
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	if err != nil {
+		return err
+	}
+
+	return ld.lookupResourcesHandler.LookupResources(
+		graph.ValidatedLookupResourcesRequest{
+			DispatchLookupResourcesRequest: req,
+			Revision:                       revision,
 		},
 		dispatch.StreamWithContext(ctx, stream),
 	)

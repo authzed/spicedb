@@ -11,6 +11,7 @@ import (
 	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -32,7 +33,7 @@ func resolvedRes(resourceID string) *v1.ResolvedResource {
 	}
 }
 
-func TestSimpleLookup(t *testing.T) {
+func TestSimpleLookupResources(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
 
 	testCases := []struct {
@@ -111,18 +112,21 @@ func TestSimpleLookup(t *testing.T) {
 			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
 			require := require.New(t)
-			ctx, dispatch, revision := newLocalDispatcher(t)
-			defer dispatch.Close()
+			ctx, dispatcher, revision := newLocalDispatcher(t)
+			defer dispatcher.Close()
 
-			lookupResult, err := dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
 				ObjectRelation: tc.start,
 				Subject:        tc.target,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Limit: 10,
-			})
+			}, stream)
+
+			require.Equal(t, 0, len(stream.Results()))
+			lookupResult := stream.Results()[0]
 
 			require.NoError(err)
 			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
@@ -136,18 +140,22 @@ func TestSimpleLookup(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 
 			// Run again with the cache available.
-			lookupResult, err = dispatch.DispatchLookup(context.Background(), &v1.DispatchLookupRequest{
+			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+			err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
 				ObjectRelation: tc.start,
 				Subject:        tc.target,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				Limit: 10,
-			})
-			dispatch.Close()
+			}, stream)
+			dispatcher.Close()
 
 			require.NoError(err)
+
+			require.Equal(t, 0, len(stream.Results()))
+			lookupResult = stream.Results()[0]
+
 			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
 			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
 			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
@@ -165,19 +173,21 @@ func TestMaxDepthLookup(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatcher := NewLocalOnlyDispatcher(10)
+	defer dispatcher.Close()
+
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 
-	_, err = dispatch.DispatchLookup(ctx, &v1.DispatchLookupRequest{
+	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
 		ObjectRelation: RR("document", "view"),
 		Subject:        ONR("user", "legal", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
 		},
-		Limit: 10,
-	})
+	}, stream)
 
 	require.Error(err)
 }

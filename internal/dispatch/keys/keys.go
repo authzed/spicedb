@@ -14,7 +14,7 @@ type Handler interface {
 	CheckCacheKey(ctx context.Context, req *v1.DispatchCheckRequest) (DispatchCacheKey, error)
 
 	// LookupResourcesCacheKey computes the caching key for a LookupResources operation.
-	LookupResourcesCacheKey(ctx context.Context, req *v1.DispatchLookupRequest) (DispatchCacheKey, error)
+	LookupResourcesCacheKey(ctx context.Context, req *v1.DispatchLookupResourcesRequest) (DispatchCacheKey, error)
 
 	// LookupSubjectsCacheKey computes the caching key for a LookupSubjects operation.
 	LookupSubjectsCacheKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error)
@@ -29,7 +29,7 @@ type Handler interface {
 	CheckDispatchKey(ctx context.Context, req *v1.DispatchCheckRequest) ([]byte, error)
 
 	// LookupResourcesDispatchKey computes the dispatch key for a LookupResources operation.
-	LookupResourcesDispatchKey(ctx context.Context, req *v1.DispatchLookupRequest) ([]byte, error)
+	LookupResourcesDispatchKey(ctx context.Context, req *v1.DispatchLookupResourcesRequest) ([]byte, error)
 
 	// LookupSubjectsDispatchKey computes the key for a LookupSubjects operation.
 	LookupSubjectsDispatchKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error)
@@ -43,7 +43,7 @@ type Handler interface {
 
 type baseKeyHandler struct{}
 
-func (b baseKeyHandler) LookupResourcesCacheKey(_ context.Context, req *v1.DispatchLookupRequest) (DispatchCacheKey, error) {
+func (b baseKeyHandler) LookupResourcesCacheKey(_ context.Context, req *v1.DispatchLookupResourcesRequest) (DispatchCacheKey, error) {
 	return lookupRequestToKey(req, computeBothHashes), nil
 }
 
@@ -63,7 +63,7 @@ func (b baseKeyHandler) CheckDispatchKey(_ context.Context, req *v1.DispatchChec
 	return checkRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
-func (b baseKeyHandler) LookupResourcesDispatchKey(_ context.Context, req *v1.DispatchLookupRequest) ([]byte, error) {
+func (b baseKeyHandler) LookupResourcesDispatchKey(_ context.Context, req *v1.DispatchLookupResourcesRequest) ([]byte, error) {
 	return lookupRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 

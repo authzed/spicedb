@@ -53,7 +53,7 @@ func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *dispatchv1.Di
 	return resp, rewriteGraphError(ctx, err)
 }
 
-func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *dispatchv1.DispatchLookupRequest) (*dispatchv1.DispatchLookupResponse, error) {
+func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *dispatchv1.DispatchLookupResourcesRequest) (*dispatchv1.DispatchLookupResponse, error) {
 	resp, err := ds.localDispatch.DispatchLookup(ctx, req)
 	return resp, rewriteGraphError(ctx, err)
 }

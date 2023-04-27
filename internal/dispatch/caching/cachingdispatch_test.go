@@ -159,7 +159,7 @@ func (ddm delegateDispatchMock) DispatchExpand(_ context.Context, _ *v1.Dispatch
 	return &v1.DispatchExpandResponse{}, nil
 }
 
-func (ddm delegateDispatchMock) DispatchLookup(_ context.Context, _ *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
+func (ddm delegateDispatchMock) DispatchLookup(_ context.Context, _ *v1.DispatchLookupResourcesRequest) (*v1.DispatchLookupResponse, error) {
 	return &v1.DispatchLookupResponse{}, nil
 }
 
