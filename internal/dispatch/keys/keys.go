@@ -44,7 +44,7 @@ type Handler interface {
 type baseKeyHandler struct{}
 
 func (b baseKeyHandler) LookupResourcesCacheKey(_ context.Context, req *v1.DispatchLookupResourcesRequest) (DispatchCacheKey, error) {
-	return lookupRequestToKey(req, computeBothHashes), nil
+	return lookupResourcesRequestToKey(req, computeBothHashes), nil
 }
 
 func (b baseKeyHandler) LookupSubjectsCacheKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) (DispatchCacheKey, error) {
@@ -64,7 +64,7 @@ func (b baseKeyHandler) CheckDispatchKey(_ context.Context, req *v1.DispatchChec
 }
 
 func (b baseKeyHandler) LookupResourcesDispatchKey(_ context.Context, req *v1.DispatchLookupResourcesRequest) ([]byte, error) {
-	return lookupRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
+	return lookupResourcesRequestToKey(req, computeOnlyStableHash).StableSumAsBytes(), nil
 }
 
 func (b baseKeyHandler) LookupSubjectsDispatchKey(_ context.Context, req *v1.DispatchLookupSubjectsRequest) ([]byte, error) {

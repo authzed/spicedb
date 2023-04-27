@@ -40,15 +40,15 @@ func TestSimpleLookupResources(t *testing.T) {
 		start                 *core.RelationReference
 		target                *core.ObjectAndRelation
 		expectedResources     []*v1.ResolvedResource
-		expectedDispatchCount int
-		expectedDepthRequired int
+		expectedDispatchCount uint32
+		expectedDepthRequired uint32
 	}{
 		{
 			RR("document", "view"),
 			ONR("user", "unknown", "..."),
 			[]*v1.ResolvedResource{},
-			1,
-			1,
+			0,
+			0,
 		},
 		{
 			RR("document", "view"),
@@ -125,15 +125,13 @@ func TestSimpleLookupResources(t *testing.T) {
 				},
 			}, stream)
 
-			require.Equal(t, 0, len(stream.Results()))
-			lookupResult := stream.Results()[0]
-
 			require.NoError(err)
-			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
-			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
-			require.LessOrEqual(int(lookupResult.Metadata.DispatchCount), tc.expectedDispatchCount, "Found dispatch count greater than expected")
-			require.Equal(0, int(lookupResult.Metadata.CachedDispatchCount))
-			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired), "Depth required mismatch")
+
+			foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount := processResults(stream)
+			require.ElementsMatch(tc.expectedResources, foundResources, "Found: %v, Expected: %v", foundResources, tc.expectedResources)
+			require.Equal(tc.expectedDepthRequired, maxDepthRequired, "Depth required mismatch")
+			require.LessOrEqual(maxDispatchCount, tc.expectedDispatchCount, "Found dispatch count greater than expected")
+			require.Equal(uint32(0), maxCachedDispatchCount)
 
 			// We have to sleep a while to let the cache converge:
 			// https://github.com/outcaste-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
@@ -153,16 +151,36 @@ func TestSimpleLookupResources(t *testing.T) {
 
 			require.NoError(err)
 
-			require.Equal(t, 0, len(stream.Results()))
-			lookupResult = stream.Results()[0]
-
-			require.ElementsMatch(tc.expectedResources, lookupResult.ResolvedResources, "Found: %v, Expected: %v", lookupResult.ResolvedResources, tc.expectedResources)
-			require.GreaterOrEqual(lookupResult.Metadata.DepthRequired, uint32(1))
-			require.Equal(0, int(lookupResult.Metadata.DispatchCount))
-			require.LessOrEqual(int(lookupResult.Metadata.CachedDispatchCount), tc.expectedDispatchCount)
-			require.Equal(tc.expectedDepthRequired, int(lookupResult.Metadata.DepthRequired))
+			foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount = processResults(stream)
+			require.ElementsMatch(tc.expectedResources, foundResources, "Found: %v, Expected: %v", foundResources, tc.expectedResources)
+			require.Equal(tc.expectedDepthRequired, maxDepthRequired, "Depth required mismatch")
+			require.LessOrEqual(maxCachedDispatchCount, tc.expectedDispatchCount, "Found dispatch count greater than expected")
+			require.Equal(uint32(0), maxDispatchCount)
 		})
 	}
+}
+
+func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResourcesResponse]) ([]*v1.ResolvedResource, uint32, uint32, uint32) {
+	foundResources := []*v1.ResolvedResource{}
+	var maxDepthRequired uint32
+	var maxDispatchCount uint32
+	var maxCachedDispatchCount uint32
+	for _, result := range stream.Results() {
+		for _, resolved := range result.ResolvedResources {
+			foundResources = append(foundResources, resolved)
+		}
+		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
+		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)
+		maxCachedDispatchCount = max(maxCachedDispatchCount, result.Metadata.CachedDispatchCount)
+	}
+	return foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount
+}
+
+func max(a, b uint32) uint32 {
+	if b > a {
+		return b
+	}
+	return a
 }
 
 func TestMaxDepthLookup(t *testing.T) {

@@ -58,8 +58,8 @@ func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey s
 	return cacheKey, nil
 }
 
-// lookupRequestToKey converts a lookup request into a cache key
-func lookupRequestToKey(req *v1.DispatchLookupResourcesRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+// lookupResourcesRequestToKey converts a lookup request into a cache key
+func lookupResourcesRequestToKey(req *v1.DispatchLookupResourcesRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ObjectRelation},
 		hashableOnr{req.Subject},

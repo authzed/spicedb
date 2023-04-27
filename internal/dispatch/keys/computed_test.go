@@ -109,10 +109,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -123,10 +122,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources with nil context",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -138,10 +136,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources with empty context",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -156,10 +153,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources with context",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -177,10 +173,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources with different context",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -198,10 +193,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources with escaped string",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -218,10 +212,9 @@ func TestStableCacheKeys(t *testing.T) {
 		{
 			"lookup resources with nested context",
 			func() DispatchCacheKey {
-				return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 					ObjectRelation: RR("document", "view"),
 					Subject:        ONR("user", "mariah", "..."),
-					Limit:          10,
 					Metadata: &v1.ResolverMeta{
 						AtRevision: "1234",
 					},
@@ -340,7 +333,7 @@ var generatorFuncs = map[string]generatorFunc{
 		subjectRelation *core.RelationReference,
 		metadata *v1.ResolverMeta,
 	) (DispatchCacheKey, []string) {
-		return lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+		return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 				ObjectRelation: resourceRelation,
 				Subject:        ONR(subjectRelation.Namespace, subjectIds[0], subjectRelation.Relation),
 				Metadata:       metadata,
@@ -508,10 +501,9 @@ func TestComputeOnlyStableHash(t *testing.T) {
 }
 
 func TestComputeContextHash(t *testing.T) {
-	result := lookupRequestToKey(&v1.DispatchLookupResourcesRequest{
+	result := lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
 		ObjectRelation: RR("document", "view"),
 		Subject:        ONR("user", "mariah", "..."),
-		Limit:          10,
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
 		},

@@ -339,49 +339,62 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		return shared.RewriteError(ctx, err)
 	}
 
-	// TODO(jschorr): Change the internal dispatched lookup to also be streamed.
-	lookupResp, err := ps.dispatch.DispatchLookup(ctx, &dispatch.DispatchLookupRequest{
-		Metadata: &dispatch.ResolverMeta{
-			AtRevision:     atRevision.String(),
-			DepthRemaining: ps.config.MaximumAPIDepth,
-		},
-		ObjectRelation: &core.RelationReference{
-			Namespace: req.ResourceObjectType,
-			Relation:  req.Permission,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: req.Subject.Object.ObjectType,
-			ObjectId:  req.Subject.Object.ObjectId,
-			Relation:  normalizeSubjectRelation(req.Subject),
-		},
-		Context: req.Context,
-		Limit:   ^uint32(0), // Set no limit for now
+	respMetadata := &dispatch.ResponseMeta{
+		DispatchCount:       1,
+		CachedDispatchCount: 0,
+		DepthRequired:       0,
+		DebugInfo:           nil,
+	}
+	usagemetrics.SetInContext(ctx, respMetadata)
+
+	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResourcesResponse) error {
+		for _, found := range result.ResolvedResources {
+			var partial *v1.PartialCaveatInfo
+			permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+			if found.Permissionship == dispatch.ResolvedResource_CONDITIONALLY_HAS_PERMISSION {
+				permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+				partial = &v1.PartialCaveatInfo{
+					MissingRequiredContext: found.MissingRequiredContext,
+				}
+			}
+
+			err := resp.Send(&v1.LookupResourcesResponse{
+				LookedUpAt:        revisionReadAt,
+				ResourceObjectId:  found.ResourceId,
+				Permissionship:    permissionship,
+				PartialCaveatInfo: partial,
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+		return nil
 	})
-	usagemetrics.SetInContext(ctx, lookupResp.Metadata)
+
+	err = ps.dispatch.DispatchLookupResources(
+		&dispatch.DispatchLookupResourcesRequest{
+			Metadata: &dispatch.ResolverMeta{
+				AtRevision:     atRevision.String(),
+				DepthRemaining: ps.config.MaximumAPIDepth,
+			},
+			ObjectRelation: &core.RelationReference{
+				Namespace: req.ResourceObjectType,
+				Relation:  req.Permission,
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: req.Subject.Object.ObjectType,
+				ObjectId:  req.Subject.Object.ObjectId,
+				Relation:  normalizeSubjectRelation(req.Subject),
+			},
+			Context: req.Context,
+		},
+		stream)
 	if err != nil {
 		return shared.RewriteError(ctx, err)
 	}
 
-	for _, found := range lookupResp.ResolvedResources {
-		var partial *v1.PartialCaveatInfo
-		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
-		if found.Permissionship == dispatch.ResolvedResource_CONDITIONALLY_HAS_PERMISSION {
-			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
-			partial = &v1.PartialCaveatInfo{
-				MissingRequiredContext: found.MissingRequiredContext,
-			}
-		}
-
-		err := resp.Send(&v1.LookupResourcesResponse{
-			LookedUpAt:        revisionReadAt,
-			ResourceObjectId:  found.ResourceId,
-			Permissionship:    permissionship,
-			PartialCaveatInfo: partial,
-		})
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
