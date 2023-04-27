@@ -15,6 +15,9 @@ import (
 	"github.com/authzed/spicedb/pkg/cache"
 )
 
+// Factor by which we will extend the maximum amount of expected needed TTL
+const ttlExtensionFactor = 2.0
+
 var (
 	// At startup, measure 75% of available free memory.
 	freeMemory uint64
@@ -36,10 +39,15 @@ type CacheConfig struct {
 	defaultTTL  time.Duration
 }
 
-// WithQuantization configures a cache such that all entries are given a TTL
+// WithRevisionParameters configures a cache such that all entries are given a TTL
 // that will expire safely outside of the quantization window.
-func (cc *CacheConfig) WithQuantization(window time.Duration) *CacheConfig {
-	cc.defaultTTL = window * 2
+func (cc *CacheConfig) WithRevisionParameters(
+	quantizationInterval time.Duration,
+	followerReadDelay time.Duration,
+	maxStalenessPercent float64,
+) *CacheConfig {
+	maxExpectedLifetime := float64(quantizationInterval.Nanoseconds())*(1+maxStalenessPercent) + float64(followerReadDelay.Nanoseconds())
+	cc.defaultTTL = time.Duration(maxExpectedLifetime*ttlExtensionFactor) * time.Nanosecond
 	return cc
 }
 
