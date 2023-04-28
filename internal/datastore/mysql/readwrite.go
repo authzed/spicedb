@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -14,6 +15,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -22,10 +24,13 @@ import (
 )
 
 const (
-	errUnableToWriteRelationships  = "unable to write relationships: %w"
-	errUnableToDeleteRelationships = "unable to delete relationships: %w"
-	errUnableToWriteConfig         = "unable to write namespace config: %w"
-	errUnableToDeleteConfig        = "unable to delete namespace config: %w"
+	errUnableToWriteRelationships     = "unable to write relationships: %w"
+	errUnableToBulkWriteRelationships = "unable to bulk write relationships: %w"
+	errUnableToDeleteRelationships    = "unable to delete relationships: %w"
+	errUnableToWriteConfig            = "unable to write namespace config: %w"
+	errUnableToDeleteConfig           = "unable to delete namespace config: %w"
+
+	bulkInsertRowsLimit = 1_000
 )
 
 var duplicateEntryRegx = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'uq_relation_tuple_living'$`)
@@ -33,8 +38,9 @@ var duplicateEntryRegx = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'uq
 type mysqlReadWriteTXN struct {
 	*mysqlReader
 
-	tx       *sql.Tx
-	newTxnID uint64
+	tupleTableName string
+	tx             *sql.Tx
+	newTxnID       uint64
 }
 
 // caveatContextWrapper is used to marshall maps into MySQLs JSON data type
@@ -286,6 +292,70 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 	}
 
 	return nil
+}
+
+func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	var sqlStmt bytes.Buffer
+
+	sql, _, err := rwt.WriteTupleQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9).ToSql()
+	if err != nil {
+		return 0, err
+	}
+
+	var numWritten uint64
+	var tpl *core.RelationTuple
+
+	// Bootstrap the loop
+	tpl, err = iter.Next(ctx)
+
+	for tpl != nil && err == nil {
+		sqlStmt.Reset()
+		sqlStmt.WriteString(sql)
+		var args []interface{}
+		var batchLen uint64
+
+		for ; tpl != nil && err == nil && batchLen < bulkInsertRowsLimit; tpl, err = iter.Next(ctx) {
+			if batchLen != 0 {
+				sqlStmt.WriteString(",(?,?,?,?,?,?,?,?,?)")
+			}
+
+			var caveatName string
+			var caveatContext caveatContextWrapper
+			if tpl.Caveat != nil {
+				caveatName = tpl.Caveat.CaveatName
+				caveatContext = tpl.Caveat.Context.AsMap()
+			}
+			args = append(args,
+				tpl.ResourceAndRelation.Namespace,
+				tpl.ResourceAndRelation.ObjectId,
+				tpl.ResourceAndRelation.Relation,
+				tpl.Subject.Namespace,
+				tpl.Subject.ObjectId,
+				tpl.Subject.Relation,
+				caveatName,
+				&caveatContext,
+				rwt.newTxnID,
+			)
+			batchLen++
+		}
+		if err != nil {
+			return 0, fmt.Errorf(errUnableToBulkWriteRelationships, err)
+		}
+
+		if batchLen > 0 {
+			log.Warn().Uint64("count", batchLen).Uint64("written", numWritten).Msg("writing batch")
+			if _, err := rwt.tx.Exec(sqlStmt.String(), args...); err != nil {
+				return 0, fmt.Errorf(errUnableToBulkWriteRelationships, fmt.Errorf("error writing batch: %w", err))
+			}
+		}
+
+		numWritten += batchLen
+	}
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToBulkWriteRelationships, err)
+	}
+
+	return numWritten, nil
 }
 
 func convertToWriteConstraintError(err error) error {
