@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/datastore"
-
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -25,6 +23,8 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -314,6 +314,10 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 	}
 }
 
+// lookupResourcesLimit is a limit set on the lookup resources calls to ensure caching
+// stores smaller chunks.
+const lookupResourcesLimit = 1000
+
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
@@ -347,8 +351,38 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResourcesResponse) error {
-		for _, found := range result.ResolvedResources {
+	limit := lookupResourcesLimit
+	var currentCursor *dispatch.Cursor
+
+	lrRequestHash, err := computeCallHash("v1.lookupresources", req.Consistency, map[string]any{
+		"resource-type": req.ResourceObjectType,
+		"permission":    req.Permission,
+		"subject":       tuple.StringSubjectRef(req.Subject),
+		"limit":         req.OptionalLimit,
+		"context":       req.Context,
+	})
+	if err != nil {
+		return shared.RewriteError(ctx, err)
+	}
+
+	if req.OptionalCursor != nil {
+		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+		if err != nil {
+			return shared.RewriteError(ctx, err)
+		}
+		currentCursor = decodedCursor
+	}
+
+	if req.OptionalLimit > 0 {
+		limit = int(req.OptionalLimit)
+	}
+
+	for {
+		countResourcesFound := 0
+		stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResourcesResponse) error {
+			found := result.ResolvedResource
+			countResourcesFound++
+
 			var partial *v1.PartialCaveatInfo
 			permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
 			if found.Permissionship == dispatch.ResolvedResource_CONDITIONALLY_HAS_PERMISSION {
@@ -358,44 +392,64 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 				}
 			}
 
-			err := resp.Send(&v1.LookupResourcesResponse{
+			encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash)
+			if err != nil {
+				return err
+			}
+
+			err = resp.Send(&v1.LookupResourcesResponse{
 				LookedUpAt:        revisionReadAt,
 				ResourceObjectId:  found.ResourceId,
 				Permissionship:    permissionship,
 				PartialCaveatInfo: partial,
+				AfterResultCursor: encodedCursor,
 			})
 			if err != nil {
 				return err
 			}
+
+			dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+			currentCursor = result.AfterResponseCursor
+			return nil
+		})
+
+		err = ps.dispatch.DispatchLookupResources(
+			&dispatch.DispatchLookupResourcesRequest{
+				Metadata: &dispatch.ResolverMeta{
+					AtRevision:     atRevision.String(),
+					DepthRemaining: ps.config.MaximumAPIDepth,
+				},
+				ObjectRelation: &core.RelationReference{
+					Namespace: req.ResourceObjectType,
+					Relation:  req.Permission,
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: req.Subject.Object.ObjectType,
+					ObjectId:  req.Subject.Object.ObjectId,
+					Relation:  normalizeSubjectRelation(req.Subject),
+				},
+				Context:        req.Context,
+				OptionalCursor: currentCursor,
+				OptionalLimit:  uint32(limit),
+			},
+			stream)
+
+		if err != nil {
+			return shared.RewriteError(ctx, err)
 		}
 
-		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
-		return nil
-	})
+		if countResourcesFound < limit {
+			return nil
+		}
 
-	err = ps.dispatch.DispatchLookupResources(
-		&dispatch.DispatchLookupResourcesRequest{
-			Metadata: &dispatch.ResolverMeta{
-				AtRevision:     atRevision.String(),
-				DepthRemaining: ps.config.MaximumAPIDepth,
-			},
-			ObjectRelation: &core.RelationReference{
-				Namespace: req.ResourceObjectType,
-				Relation:  req.Permission,
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: req.Subject.Object.ObjectType,
-				ObjectId:  req.Subject.Object.ObjectId,
-				Relation:  normalizeSubjectRelation(req.Subject),
-			},
-			Context: req.Context,
-		},
-		stream)
-	if err != nil {
-		return shared.RewriteError(ctx, err)
+		if req.OptionalLimit > 0 {
+			limit = limit - countResourcesFound
+		}
+
+		if limit <= 0 {
+			return nil
+		}
 	}
-
-	return nil
 }
 
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {

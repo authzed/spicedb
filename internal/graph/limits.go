@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 )
 
 // limitTracker is a helper struct for tracking the limit requested by a caller and decrementing
@@ -24,42 +23,37 @@ func newLimitTracker(ctx context.Context, optionalLimit uint32) (*limitTracker, 
 	}, withCancel
 }
 
-// mustPrepareForPublishing asks the limit tracker to remove the count from the limit requested,
-// returning the number of values of that can be published, as well as a function that should be
+// prepareForPublishing asks the limit tracker to remove an element from the limit requested,
+// returning whether that element can be published, as well as a function that should be
 // invoked after publishing to cancel the context if the limit has been reached.
 //
 // Example usage:
 //
-//	count, done := limits.mustPrepareForPublishing(42)
+//	okay, done := limits.prepareForPublishing()
 //	defer done()
 //
-//	publish(items[0:count])
-func (lt *limitTracker) mustPrepareForPublishing(count int) (int, func()) {
-	if count <= 0 {
-		panic(fmt.Sprintf("got zero or negative count: %d", count))
-	}
-
+//	if okay {
+//		publish(item)
+//	}
+func (lt *limitTracker) prepareForPublishing() (bool, func()) {
 	// if there is no limit defined, then the count is always allowed.
 	if !lt.hasLimit {
-		return count, func() {}
+		return true, func() {}
 	}
 
 	// if the limit has been reached, allow no further items to be published.
 	if lt.currentLimit == 0 {
-		return 0, func() {}
+		return false, func() {}
 	}
 
-	// if the count is greater than the limit remaining, only return the limit remaining and mark
-	// the context as canceled once the publish has completed.
-	if int(lt.currentLimit) < count {
-		existingLimit := int(lt.currentLimit)
+	if lt.currentLimit == 1 {
 		lt.currentLimit = 0
-		return existingLimit, lt.cancel
+		return true, lt.cancel
 	}
 
-	// otherwise, remove the count from the limit.
-	lt.currentLimit = lt.currentLimit - uint32(count)
-	return count, func() {}
+	// otherwise, remove the element from the limit.
+	lt.currentLimit -= 1
+	return true, func() {}
 }
 
 // hasExhaustedLimit returns true if the limit has been reached and all items allowable have been

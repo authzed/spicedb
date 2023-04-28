@@ -1,18 +1,15 @@
 package graph
 
 import (
+	"context"
 	"errors"
 
-	"github.com/authzed/spicedb/internal/graph/computed"
-
-	"github.com/authzed/spicedb/pkg/util"
-
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -36,6 +33,10 @@ type ValidatedLookupResourcesRequest struct {
 	Revision datastore.Revision
 }
 
+// reachableResourcesLimit is a limit set on the reachable resources calls to ensure caching
+// stores smaller chunks.
+const reachableResourcesLimit = 1000
+
 func (cl *CursoredLookupResources) LookupResources(
 	req ValidatedLookupResourcesRequest,
 	stream dispatch.LookupResourcesStream,
@@ -44,105 +45,113 @@ func (cl *CursoredLookupResources) LookupResources(
 		return NewErrInvalidArgument(errors.New("cannot perform lookup resources on wildcard"))
 	}
 
-	rrStream := dispatch.NewHandlingDispatchStream(stream.Context(), func(result *v1.DispatchReachableResourcesResponse) error {
-		toCheck := util.NewSet[string]()
-		for _, reachableResource := range result.Resources {
+	limits, ctx := newLimitTracker(stream.Context(), req.OptionalLimit)
+	reachableResourcesCursor := req.OptionalCursor
+
+	// Loop until the limit has been exhausted or no additional reachable resources are found (see below)
+	for !limits.hasExhaustedLimit() {
+		reachableResourcesFound := 0
+
+		// Create a new handling stream that consumes the reachable resources results and publishes them
+		// as found resources if they are properly checked.
+		rrStream := dispatch.NewHandlingDispatchStream(ctx, func(result *v1.DispatchReachableResourcesResponse) error {
+			reachableResourcesCursor = result.AfterResponseCursor
+			reachableResourcesFound++
+
+			if limits.hasExhaustedLimit() {
+				return nil
+			}
+
+			reachableResource := result.Resource
+			metadata := addCallToResponseMetadata(result.Metadata)
+
+			// See if a check is required.
+			var checkResult *v1.ResourceCheckResult
 			if reachableResource.ResultStatus == v1.ReachableResource_REQUIRES_CHECK {
-				toCheck.Add(reachableResource.ResourceId)
-			}
-		}
-
-		var checkResults map[string]*v1.ResourceCheckResult
-		checkMeta := emptyMetadata
-		if !toCheck.IsEmpty() {
-			results, resultsMeta, err := computed.ComputeBulkCheck(
-				stream.Context(),
-				cl.c,
-				computed.CheckParameters{
-					ResourceType:  req.ObjectRelation,
-					Subject:       req.Subject,
-					CaveatContext: req.Context.AsMap(),
-					AtRevision:    req.Revision,
-					MaximumDepth:  req.Metadata.DepthRemaining,
-					DebugOption:   computed.NoDebugging,
-				},
-				toCheck.AsSlice(),
-			)
-			if err != nil {
-				return err
-			}
-			checkResults = results
-			checkMeta = addCallToResponseMetadata(resultsMeta)
-		}
-
-		for _, reachableResource := range result.Resources {
-			switch reachableResource.ResultStatus {
-			case v1.ReachableResource_HAS_PERMISSION:
-				stream.Publish(&v1.DispatchLookupResourcesResponse{
-					ResolvedResources: []*v1.ResolvedResource{
-						{
-							ResourceId:     reachableResource.ResourceId,
-							Permissionship: v1.ResolvedResource_HAS_PERMISSION,
-						},
+				results, resultsMeta, err := computed.ComputeBulkCheck(
+					ctx,
+					cl.c,
+					computed.CheckParameters{
+						ResourceType:  req.ObjectRelation,
+						Subject:       req.Subject,
+						CaveatContext: req.Context.AsMap(),
+						AtRevision:    req.Revision,
+						MaximumDepth:  req.Metadata.DepthRemaining,
+						DebugOption:   computed.NoDebugging,
 					},
-					Metadata: addCallToResponseMetadata(result.Metadata),
-				})
-				continue
-
-			case v1.ReachableResource_REQUIRES_CHECK:
-				checkResult, ok := checkResults[reachableResource.ResourceId]
-				if !ok {
-					return spiceerrors.MustBugf("missing checked result")
+					[]string{reachableResource.ResourceId},
+				)
+				if err != nil {
+					return err
 				}
-				switch checkResult.Membership {
-				case v1.ResourceCheckResult_MEMBER:
-					stream.Publish(&v1.DispatchLookupResourcesResponse{
-						ResolvedResources: []*v1.ResolvedResource{
-							{
-								ResourceId:     reachableResource.ResourceId,
-								Permissionship: v1.ResolvedResource_HAS_PERMISSION,
-							},
-						},
-						Metadata: combineResponseMetadata(result.Metadata, checkMeta),
-					})
-					continue
 
-				case v1.ResourceCheckResult_CAVEATED_MEMBER:
-					stream.Publish(&v1.DispatchLookupResourcesResponse{
-						ResolvedResources: []*v1.ResolvedResource{
-							{
-								ResourceId:             reachableResource.ResourceId,
-								Permissionship:         v1.ResolvedResource_CONDITIONALLY_HAS_PERMISSION,
-								MissingRequiredContext: checkResult.MissingExprFields,
-							},
-						},
-						Metadata: combineResponseMetadata(result.Metadata, checkMeta),
-					})
-					continue
+				checkResult = results[reachableResource.ResourceId]
+				metadata = combineResponseMetadata(resultsMeta, metadata)
+			}
 
-				case v1.ResourceCheckResult_NOT_MEMBER:
-					// Skip.
-					continue
+			// Publish the resource, if applicable.
+			permissionship := v1.ResolvedResource_UNKNOWN
+			var missingFields []string
 
-				default:
-					return spiceerrors.MustBugf("unknown check result status for reachable resources")
-				}
+			switch {
+			case reachableResource.ResultStatus == v1.ReachableResource_HAS_PERMISSION:
+				permissionship = v1.ResolvedResource_HAS_PERMISSION
+
+			case checkResult == nil || checkResult.Membership == v1.ResourceCheckResult_NOT_MEMBER:
+				return nil
+
+			case checkResult != nil && checkResult.Membership == v1.ResourceCheckResult_MEMBER:
+				permissionship = v1.ResolvedResource_HAS_PERMISSION
+
+			case checkResult != nil && checkResult.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER:
+				permissionship = v1.ResolvedResource_CONDITIONALLY_HAS_PERMISSION
+				missingFields = checkResult.MissingExprFields
 
 			default:
-				return spiceerrors.MustBugf("unknown result status for reachable resources")
+				return spiceerrors.MustBugf("unknown check result status for reachable resources")
 			}
+
+			okay, done := limits.prepareForPublishing()
+			defer done()
+
+			if !okay {
+				return nil
+			}
+
+			return stream.Publish(&v1.DispatchLookupResourcesResponse{
+				ResolvedResource: &v1.ResolvedResource{
+					ResourceId:             reachableResource.ResourceId,
+					Permissionship:         permissionship,
+					MissingRequiredContext: missingFields,
+				},
+				Metadata:            metadata,
+				AfterResponseCursor: result.AfterResponseCursor,
+			})
+		})
+
+		err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+			ResourceRelation: req.ObjectRelation,
+			SubjectRelation: &core.RelationReference{
+				Namespace: req.Subject.Namespace,
+				Relation:  req.Subject.Relation,
+			},
+			SubjectIds:     []string{req.Subject.ObjectId},
+			Metadata:       req.Metadata,
+			OptionalCursor: reachableResourcesCursor,
+			OptionalLimit:  reachableResourcesLimit,
+		}, rrStream)
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return nil
+			}
+
+			return err
 		}
 
-		return nil
-	})
+		if reachableResourcesFound < reachableResourcesLimit {
+			return nil
+		}
+	}
 
-	return cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: req.ObjectRelation,
-		SubjectRelation: &core.RelationReference{
-			Namespace: req.Subject.Namespace,
-			Relation:  req.Subject.Relation,
-		},
-		SubjectIds: []string{req.Subject.ObjectId},
-		Metadata:   req.Metadata,
-	}, rrStream)
+	return nil
 }

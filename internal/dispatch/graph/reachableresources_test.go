@@ -100,6 +100,7 @@ func TestSimpleReachableResources(t *testing.T) {
 			[]reachableResource{
 				reachable(ONR("document", "companyplan", "view"), true),
 				reachable(ONR("document", "masterplan", "view"), true),
+				reachable(ONR("document", "ownerplan", "view"), true),
 			},
 		},
 		{
@@ -164,20 +165,19 @@ func TestSimpleReachableResources(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
+				OptionalLimit: 100000000,
 			}, stream)
 
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
-				for _, found := range streamResult.Resources {
-					results = append(results, reachableResource{
-						tuple.StringONR(&core.ObjectAndRelation{
-							Namespace: tc.start.Namespace,
-							ObjectId:  found.ResourceId,
-							Relation:  tc.start.Relation,
-						}),
-						found.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
-					})
-				}
+				results = append(results, reachableResource{
+					tuple.StringONR(&core.ObjectAndRelation{
+						Namespace: tc.start.Namespace,
+						ObjectId:  streamResult.Resource.ResourceId,
+						Relation:  tc.start.Relation,
+					}),
+					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
+				})
 			}
 			dispatcher.Close()
 
@@ -204,6 +204,7 @@ func TestMaxDepthreachableResources(t *testing.T) {
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
 		},
+		OptionalLimit: 100000000,
 	}, stream)
 
 	require.Error(err)
@@ -286,13 +287,11 @@ func BenchmarkReachableResources(b *testing.B) {
 
 				results := []*core.ObjectAndRelation{}
 				for _, streamResult := range stream.Results() {
-					for _, found := range streamResult.Resources {
-						results = append(results, &core.ObjectAndRelation{
-							Namespace: tc.start.Namespace,
-							ObjectId:  found.ResourceId,
-							Relation:  tc.start.Relation,
-						})
-					}
+					results = append(results, &core.ObjectAndRelation{
+						Namespace: tc.start.Namespace,
+						ObjectId:  streamResult.Resource.ResourceId,
+						Relation:  tc.start.Relation,
+					})
 				}
 				require.GreaterOrEqual(len(results), 0)
 			}
@@ -596,16 +595,14 @@ func TestCaveatedReachableResources(t *testing.T) {
 
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
-				for _, found := range streamResult.Resources {
-					results = append(results, reachableResource{
-						tuple.StringONR(&core.ObjectAndRelation{
-							Namespace: tc.start.Namespace,
-							ObjectId:  found.ResourceId,
-							Relation:  tc.start.Relation,
-						}),
-						found.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
-					})
-				}
+				results = append(results, reachableResource{
+					tuple.StringONR(&core.ObjectAndRelation{
+						Namespace: tc.start.Namespace,
+						ObjectId:  streamResult.Resource.ResourceId,
+						Relation:  tc.start.Relation,
+					}),
+					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
+				})
 			}
 			sort.Sort(byONRAndPermission(results))
 			sort.Sort(byONRAndPermission(tc.reachable))
@@ -635,6 +632,7 @@ func TestReachableResourcesWithConsistencyLimitOf1(t *testing.T) {
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
 		},
+		OptionalLimit: 100000000,
 	}, stream)
 	require.NoError(t, err)
 
@@ -792,12 +790,10 @@ func TestReachableResourcesCursors(t *testing.T) {
 			var cursor *v1.Cursor
 
 			for index, result := range stream.Results() {
-				for _, resource := range result.Resources {
-					require.True(t, foundResources.Add(resource.ResourceId))
-				}
+				require.True(t, foundResources.Add(result.Resource.ResourceId))
 
-				// Break on the second result.
-				if index == 1 {
+				// Break on the 200th result.
+				if index == 199 {
 					cursor = result.AfterResponseCursor
 					cancel()
 					break
@@ -829,11 +825,9 @@ func TestReachableResourcesCursors(t *testing.T) {
 			count := 0
 			overlappingCount := 0
 			for _, result := range stream2.Results() {
-				for _, resource := range result.Resources {
-					count++
-					if !foundResources.Add(resource.ResourceId) {
-						overlappingCount++
-					}
+				count++
+				if !foundResources.Add(result.Resource.ResourceId) {
+					overlappingCount++
 				}
 			}
 			require.LessOrEqual(t, count, 310)
@@ -907,10 +901,8 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 
 				newFound := 0
 				for _, result := range stream.Results() {
-					for _, resource := range result.Resources {
-						require.True(t, foundResources.Add(resource.ResourceId))
-						newFound += 1
-					}
+					require.True(t, foundResources.Add(result.Resource.ResourceId))
+					newFound += 1
 
 					cursor = result.AfterResponseCursor
 				}

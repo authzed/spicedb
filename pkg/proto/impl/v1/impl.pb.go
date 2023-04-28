@@ -67,7 +67,7 @@ func (x RelationMetadata_RelationKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RelationMetadata_RelationKind.Descriptor instead.
 func (RelationMetadata_RelationKind) EnumDescriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{4, 0}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{6, 0}
 }
 
 type DecodedCaveat struct {
@@ -317,6 +317,133 @@ func (*DecodedZedToken_DeprecatedV1Zookie) isDecodedZedToken_VersionOneof() {}
 
 func (*DecodedZedToken_V1) isDecodedZedToken_VersionOneof() {}
 
+type DecodedCursor struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// we do version_oneof in case we decide to add a new version.
+	//
+	// Types that are assignable to VersionOneof:
+	//
+	//	*DecodedCursor_V1
+	VersionOneof isDecodedCursor_VersionOneof `protobuf_oneof:"version_oneof"`
+}
+
+func (x *DecodedCursor) Reset() {
+	*x = DecodedCursor{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_impl_v1_impl_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DecodedCursor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecodedCursor) ProtoMessage() {}
+
+func (x *DecodedCursor) ProtoReflect() protoreflect.Message {
+	mi := &file_impl_v1_impl_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecodedCursor.ProtoReflect.Descriptor instead.
+func (*DecodedCursor) Descriptor() ([]byte, []int) {
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{3}
+}
+
+func (m *DecodedCursor) GetVersionOneof() isDecodedCursor_VersionOneof {
+	if m != nil {
+		return m.VersionOneof
+	}
+	return nil
+}
+
+func (x *DecodedCursor) GetV1() *V1Cursor {
+	if x, ok := x.GetVersionOneof().(*DecodedCursor_V1); ok {
+		return x.V1
+	}
+	return nil
+}
+
+type isDecodedCursor_VersionOneof interface {
+	isDecodedCursor_VersionOneof()
+}
+
+type DecodedCursor_V1 struct {
+	V1 *V1Cursor `protobuf:"bytes,1,opt,name=v1,proto3,oneof"`
+}
+
+func (*DecodedCursor_V1) isDecodedCursor_VersionOneof() {}
+
+type V1Cursor struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// sections are the sections of the dispatching cursor.
+	Sections []string `protobuf:"bytes,1,rep,name=sections,proto3" json:"sections,omitempty"`
+	// call_and_parameters_hash is a hash of the call that manufactored this cursor and all its
+	// parameters, including limits and zedtoken, to ensure no inputs changed when using this cursor.
+	CallAndParametersHash string `protobuf:"bytes,2,opt,name=call_and_parameters_hash,json=callAndParametersHash,proto3" json:"call_and_parameters_hash,omitempty"`
+}
+
+func (x *V1Cursor) Reset() {
+	*x = V1Cursor{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_impl_v1_impl_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *V1Cursor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*V1Cursor) ProtoMessage() {}
+
+func (x *V1Cursor) ProtoReflect() protoreflect.Message {
+	mi := &file_impl_v1_impl_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use V1Cursor.ProtoReflect.Descriptor instead.
+func (*V1Cursor) Descriptor() ([]byte, []int) {
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *V1Cursor) GetSections() []string {
+	if x != nil {
+		return x.Sections
+	}
+	return nil
+}
+
+func (x *V1Cursor) GetCallAndParametersHash() string {
+	if x != nil {
+		return x.CallAndParametersHash
+	}
+	return ""
+}
+
 type DocComment struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -328,7 +455,7 @@ type DocComment struct {
 func (x *DocComment) Reset() {
 	*x = DocComment{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[3]
+		mi := &file_impl_v1_impl_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -341,7 +468,7 @@ func (x *DocComment) String() string {
 func (*DocComment) ProtoMessage() {}
 
 func (x *DocComment) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[3]
+	mi := &file_impl_v1_impl_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -354,7 +481,7 @@ func (x *DocComment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DocComment.ProtoReflect.Descriptor instead.
 func (*DocComment) Descriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{3}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DocComment) GetComment() string {
@@ -375,7 +502,7 @@ type RelationMetadata struct {
 func (x *RelationMetadata) Reset() {
 	*x = RelationMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[4]
+		mi := &file_impl_v1_impl_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -388,7 +515,7 @@ func (x *RelationMetadata) String() string {
 func (*RelationMetadata) ProtoMessage() {}
 
 func (x *RelationMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[4]
+	mi := &file_impl_v1_impl_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +528,7 @@ func (x *RelationMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelationMetadata.ProtoReflect.Descriptor instead.
 func (*RelationMetadata) Descriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{4}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RelationMetadata) GetKind() RelationMetadata_RelationKind {
@@ -423,7 +550,7 @@ type NamespaceAndRevision struct {
 func (x *NamespaceAndRevision) Reset() {
 	*x = NamespaceAndRevision{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[5]
+		mi := &file_impl_v1_impl_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -436,7 +563,7 @@ func (x *NamespaceAndRevision) String() string {
 func (*NamespaceAndRevision) ProtoMessage() {}
 
 func (x *NamespaceAndRevision) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[5]
+	mi := &file_impl_v1_impl_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -449,7 +576,7 @@ func (x *NamespaceAndRevision) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NamespaceAndRevision.ProtoReflect.Descriptor instead.
 func (*NamespaceAndRevision) Descriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{5}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *NamespaceAndRevision) GetNamespaceName() string {
@@ -477,7 +604,7 @@ type V1Alpha1Revision struct {
 func (x *V1Alpha1Revision) Reset() {
 	*x = V1Alpha1Revision{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[6]
+		mi := &file_impl_v1_impl_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -490,7 +617,7 @@ func (x *V1Alpha1Revision) String() string {
 func (*V1Alpha1Revision) ProtoMessage() {}
 
 func (x *V1Alpha1Revision) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[6]
+	mi := &file_impl_v1_impl_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -503,7 +630,7 @@ func (x *V1Alpha1Revision) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use V1Alpha1Revision.ProtoReflect.Descriptor instead.
 func (*V1Alpha1Revision) Descriptor() ([]byte, []int) {
-	return file_impl_v1_impl_proto_rawDescGZIP(), []int{6}
+	return file_impl_v1_impl_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *V1Alpha1Revision) GetNsRevisions() []*NamespaceAndRevision {
@@ -524,7 +651,7 @@ type DecodedZookie_V1Zookie struct {
 func (x *DecodedZookie_V1Zookie) Reset() {
 	*x = DecodedZookie_V1Zookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[7]
+		mi := &file_impl_v1_impl_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -537,7 +664,7 @@ func (x *DecodedZookie_V1Zookie) String() string {
 func (*DecodedZookie_V1Zookie) ProtoMessage() {}
 
 func (x *DecodedZookie_V1Zookie) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[7]
+	mi := &file_impl_v1_impl_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -571,7 +698,7 @@ type DecodedZookie_V2Zookie struct {
 func (x *DecodedZookie_V2Zookie) Reset() {
 	*x = DecodedZookie_V2Zookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[8]
+		mi := &file_impl_v1_impl_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -584,7 +711,7 @@ func (x *DecodedZookie_V2Zookie) String() string {
 func (*DecodedZookie_V2Zookie) ProtoMessage() {}
 
 func (x *DecodedZookie_V2Zookie) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[8]
+	mi := &file_impl_v1_impl_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -618,7 +745,7 @@ type DecodedZedToken_V1Zookie struct {
 func (x *DecodedZedToken_V1Zookie) Reset() {
 	*x = DecodedZedToken_V1Zookie{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[9]
+		mi := &file_impl_v1_impl_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -631,7 +758,7 @@ func (x *DecodedZedToken_V1Zookie) String() string {
 func (*DecodedZedToken_V1Zookie) ProtoMessage() {}
 
 func (x *DecodedZedToken_V1Zookie) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[9]
+	mi := &file_impl_v1_impl_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,7 +792,7 @@ type DecodedZedToken_V1ZedToken struct {
 func (x *DecodedZedToken_V1ZedToken) Reset() {
 	*x = DecodedZedToken_V1ZedToken{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_impl_v1_impl_proto_msgTypes[10]
+		mi := &file_impl_v1_impl_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -678,7 +805,7 @@ func (x *DecodedZedToken_V1ZedToken) String() string {
 func (*DecodedZedToken_V1ZedToken) ProtoMessage() {}
 
 func (x *DecodedZedToken_V1ZedToken) ProtoReflect() protoreflect.Message {
-	mi := &file_impl_v1_impl_proto_msgTypes[10]
+	mi := &file_impl_v1_impl_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -746,39 +873,50 @@ var file_impl_v1_impl_proto_rawDesc = []byte{
 	0x1a, 0x28, 0x0a, 0x0a, 0x56, 0x31, 0x5a, 0x65, 0x64, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x1a,
 	0x0a, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x42, 0x0f, 0x0a, 0x0d, 0x76, 0x65,
-	0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x6e, 0x65, 0x6f, 0x66, 0x22, 0x26, 0x0a, 0x0a, 0x44,
-	0x6f, 0x63, 0x43, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6d,
-	0x6d, 0x65, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63, 0x6f, 0x6d, 0x6d,
-	0x65, 0x6e, 0x74, 0x22, 0x8e, 0x01, 0x0a, 0x10, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-	0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x3a, 0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x26, 0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x76, 0x31,
-	0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74,
-	0x61, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x04,
-	0x6b, 0x69, 0x6e, 0x64, 0x22, 0x3e, 0x0a, 0x0c, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-	0x4b, 0x69, 0x6e, 0x64, 0x12, 0x10, 0x0a, 0x0c, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x5f,
-	0x4b, 0x49, 0x4e, 0x44, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x52, 0x45, 0x4c, 0x41, 0x54, 0x49,
-	0x4f, 0x4e, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x50, 0x45, 0x52, 0x4d, 0x49, 0x53, 0x53, 0x49,
-	0x4f, 0x4e, 0x10, 0x02, 0x22, 0x59, 0x0a, 0x14, 0x4e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63,
-	0x65, 0x41, 0x6e, 0x64, 0x52, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x25, 0x0a, 0x0e,
-	0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x4e,
-	0x61, 0x6d, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x22,
-	0x54, 0x0a, 0x10, 0x56, 0x31, 0x41, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x52, 0x65, 0x76, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x12, 0x40, 0x0a, 0x0c, 0x6e, 0x73, 0x5f, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69,
-	0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x69, 0x6d, 0x70, 0x6c,
-	0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x41, 0x6e, 0x64,
-	0x52, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x0b, 0x6e, 0x73, 0x52, 0x65, 0x76, 0x69,
-	0x73, 0x69, 0x6f, 0x6e, 0x73, 0x42, 0x8a, 0x01, 0x0a, 0x0b, 0x63, 0x6f, 0x6d, 0x2e, 0x69, 0x6d,
-	0x70, 0x6c, 0x2e, 0x76, 0x31, 0x42, 0x09, 0x49, 0x6d, 0x70, 0x6c, 0x50, 0x72, 0x6f, 0x74, 0x6f,
-	0x50, 0x01, 0x5a, 0x33, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61,
-	0x75, 0x74, 0x68, 0x7a, 0x65, 0x64, 0x2f, 0x73, 0x70, 0x69, 0x63, 0x65, 0x64, 0x62, 0x2f, 0x70,
-	0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x69, 0x6d, 0x70, 0x6c, 0x2f, 0x76, 0x31,
-	0x3b, 0x69, 0x6d, 0x70, 0x6c, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x49, 0x58, 0x58, 0xaa, 0x02, 0x07,
-	0x49, 0x6d, 0x70, 0x6c, 0x2e, 0x56, 0x31, 0xca, 0x02, 0x07, 0x49, 0x6d, 0x70, 0x6c, 0x5c, 0x56,
-	0x31, 0xe2, 0x02, 0x13, 0x49, 0x6d, 0x70, 0x6c, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d,
-	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x08, 0x49, 0x6d, 0x70, 0x6c, 0x3a, 0x3a,
-	0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x6e, 0x65, 0x6f, 0x66, 0x22, 0x45, 0x0a, 0x0d, 0x44,
+	0x65, 0x63, 0x6f, 0x64, 0x65, 0x64, 0x43, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x12, 0x23, 0x0a, 0x02,
+	0x76, 0x31, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x11, 0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e,
+	0x76, 0x31, 0x2e, 0x56, 0x31, 0x43, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x48, 0x00, 0x52, 0x02, 0x76,
+	0x31, 0x42, 0x0f, 0x0a, 0x0d, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x6f, 0x6e, 0x65,
+	0x6f, 0x66, 0x22, 0x5f, 0x0a, 0x08, 0x56, 0x31, 0x43, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x12, 0x1a,
+	0x0a, 0x08, 0x73, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09,
+	0x52, 0x08, 0x73, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x37, 0x0a, 0x18, 0x63, 0x61,
+	0x6c, 0x6c, 0x5f, 0x61, 0x6e, 0x64, 0x5f, 0x70, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72,
+	0x73, 0x5f, 0x68, 0x61, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x15, 0x63, 0x61,
+	0x6c, 0x6c, 0x41, 0x6e, 0x64, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x48,
+	0x61, 0x73, 0x68, 0x22, 0x26, 0x0a, 0x0a, 0x44, 0x6f, 0x63, 0x43, 0x6f, 0x6d, 0x6d, 0x65, 0x6e,
+	0x74, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x07, 0x63, 0x6f, 0x6d, 0x6d, 0x65, 0x6e, 0x74, 0x22, 0x8e, 0x01, 0x0a, 0x10,
+	0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61,
+	0x12, 0x3a, 0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x26,
+	0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69,
+	0x6f, 0x6e, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x22, 0x3e, 0x0a, 0x0c,
+	0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x10, 0x0a, 0x0c,
+	0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x5f, 0x4b, 0x49, 0x4e, 0x44, 0x10, 0x00, 0x12, 0x0c,
+	0x0a, 0x08, 0x52, 0x45, 0x4c, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a,
+	0x50, 0x45, 0x52, 0x4d, 0x49, 0x53, 0x53, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x22, 0x59, 0x0a, 0x14,
+	0x4e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x41, 0x6e, 0x64, 0x52, 0x65, 0x76, 0x69,
+	0x73, 0x69, 0x6f, 0x6e, 0x12, 0x25, 0x0a, 0x0e, 0x6e, 0x61, 0x6d, 0x65, 0x73, 0x70, 0x61, 0x63,
+	0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x6e, 0x61,
+	0x6d, 0x65, 0x73, 0x70, 0x61, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x72,
+	0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x72,
+	0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x54, 0x0a, 0x10, 0x56, 0x31, 0x41, 0x6c, 0x70,
+	0x68, 0x61, 0x31, 0x52, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x40, 0x0a, 0x0c, 0x6e,
+	0x73, 0x5f, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x1d, 0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x61, 0x6d, 0x65,
+	0x73, 0x70, 0x61, 0x63, 0x65, 0x41, 0x6e, 0x64, 0x52, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e,
+	0x52, 0x0b, 0x6e, 0x73, 0x52, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x42, 0x8a, 0x01,
+	0x0a, 0x0b, 0x63, 0x6f, 0x6d, 0x2e, 0x69, 0x6d, 0x70, 0x6c, 0x2e, 0x76, 0x31, 0x42, 0x09, 0x49,
+	0x6d, 0x70, 0x6c, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x33, 0x67, 0x69, 0x74, 0x68,
+	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x75, 0x74, 0x68, 0x7a, 0x65, 0x64, 0x2f, 0x73,
+	0x70, 0x69, 0x63, 0x65, 0x64, 0x62, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x2f, 0x69, 0x6d, 0x70, 0x6c, 0x2f, 0x76, 0x31, 0x3b, 0x69, 0x6d, 0x70, 0x6c, 0x76, 0x31, 0xa2,
+	0x02, 0x03, 0x49, 0x58, 0x58, 0xaa, 0x02, 0x07, 0x49, 0x6d, 0x70, 0x6c, 0x2e, 0x56, 0x31, 0xca,
+	0x02, 0x07, 0x49, 0x6d, 0x70, 0x6c, 0x5c, 0x56, 0x31, 0xe2, 0x02, 0x13, 0x49, 0x6d, 0x70, 0x6c,
+	0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea,
+	0x02, 0x08, 0x49, 0x6d, 0x70, 0x6c, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
@@ -794,35 +932,38 @@ func file_impl_v1_impl_proto_rawDescGZIP() []byte {
 }
 
 var file_impl_v1_impl_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_impl_v1_impl_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_impl_v1_impl_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_impl_v1_impl_proto_goTypes = []interface{}{
 	(RelationMetadata_RelationKind)(0), // 0: impl.v1.RelationMetadata.RelationKind
 	(*DecodedCaveat)(nil),              // 1: impl.v1.DecodedCaveat
 	(*DecodedZookie)(nil),              // 2: impl.v1.DecodedZookie
 	(*DecodedZedToken)(nil),            // 3: impl.v1.DecodedZedToken
-	(*DocComment)(nil),                 // 4: impl.v1.DocComment
-	(*RelationMetadata)(nil),           // 5: impl.v1.RelationMetadata
-	(*NamespaceAndRevision)(nil),       // 6: impl.v1.NamespaceAndRevision
-	(*V1Alpha1Revision)(nil),           // 7: impl.v1.V1Alpha1Revision
-	(*DecodedZookie_V1Zookie)(nil),     // 8: impl.v1.DecodedZookie.V1Zookie
-	(*DecodedZookie_V2Zookie)(nil),     // 9: impl.v1.DecodedZookie.V2Zookie
-	(*DecodedZedToken_V1Zookie)(nil),   // 10: impl.v1.DecodedZedToken.V1Zookie
-	(*DecodedZedToken_V1ZedToken)(nil), // 11: impl.v1.DecodedZedToken.V1ZedToken
-	(*v1alpha1.CheckedExpr)(nil),       // 12: google.api.expr.v1alpha1.CheckedExpr
+	(*DecodedCursor)(nil),              // 4: impl.v1.DecodedCursor
+	(*V1Cursor)(nil),                   // 5: impl.v1.V1Cursor
+	(*DocComment)(nil),                 // 6: impl.v1.DocComment
+	(*RelationMetadata)(nil),           // 7: impl.v1.RelationMetadata
+	(*NamespaceAndRevision)(nil),       // 8: impl.v1.NamespaceAndRevision
+	(*V1Alpha1Revision)(nil),           // 9: impl.v1.V1Alpha1Revision
+	(*DecodedZookie_V1Zookie)(nil),     // 10: impl.v1.DecodedZookie.V1Zookie
+	(*DecodedZookie_V2Zookie)(nil),     // 11: impl.v1.DecodedZookie.V2Zookie
+	(*DecodedZedToken_V1Zookie)(nil),   // 12: impl.v1.DecodedZedToken.V1Zookie
+	(*DecodedZedToken_V1ZedToken)(nil), // 13: impl.v1.DecodedZedToken.V1ZedToken
+	(*v1alpha1.CheckedExpr)(nil),       // 14: google.api.expr.v1alpha1.CheckedExpr
 }
 var file_impl_v1_impl_proto_depIdxs = []int32{
-	12, // 0: impl.v1.DecodedCaveat.cel:type_name -> google.api.expr.v1alpha1.CheckedExpr
-	8,  // 1: impl.v1.DecodedZookie.v1:type_name -> impl.v1.DecodedZookie.V1Zookie
-	9,  // 2: impl.v1.DecodedZookie.v2:type_name -> impl.v1.DecodedZookie.V2Zookie
-	10, // 3: impl.v1.DecodedZedToken.deprecated_v1_zookie:type_name -> impl.v1.DecodedZedToken.V1Zookie
-	11, // 4: impl.v1.DecodedZedToken.v1:type_name -> impl.v1.DecodedZedToken.V1ZedToken
-	0,  // 5: impl.v1.RelationMetadata.kind:type_name -> impl.v1.RelationMetadata.RelationKind
-	6,  // 6: impl.v1.V1Alpha1Revision.ns_revisions:type_name -> impl.v1.NamespaceAndRevision
-	7,  // [7:7] is the sub-list for method output_type
-	7,  // [7:7] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	14, // 0: impl.v1.DecodedCaveat.cel:type_name -> google.api.expr.v1alpha1.CheckedExpr
+	10, // 1: impl.v1.DecodedZookie.v1:type_name -> impl.v1.DecodedZookie.V1Zookie
+	11, // 2: impl.v1.DecodedZookie.v2:type_name -> impl.v1.DecodedZookie.V2Zookie
+	12, // 3: impl.v1.DecodedZedToken.deprecated_v1_zookie:type_name -> impl.v1.DecodedZedToken.V1Zookie
+	13, // 4: impl.v1.DecodedZedToken.v1:type_name -> impl.v1.DecodedZedToken.V1ZedToken
+	5,  // 5: impl.v1.DecodedCursor.v1:type_name -> impl.v1.V1Cursor
+	0,  // 6: impl.v1.RelationMetadata.kind:type_name -> impl.v1.RelationMetadata.RelationKind
+	8,  // 7: impl.v1.V1Alpha1Revision.ns_revisions:type_name -> impl.v1.NamespaceAndRevision
+	8,  // [8:8] is the sub-list for method output_type
+	8,  // [8:8] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_impl_v1_impl_proto_init() }
@@ -868,7 +1009,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DocComment); i {
+			switch v := v.(*DecodedCursor); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -880,7 +1021,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RelationMetadata); i {
+			switch v := v.(*V1Cursor); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -892,7 +1033,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NamespaceAndRevision); i {
+			switch v := v.(*DocComment); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -904,7 +1045,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*V1Alpha1Revision); i {
+			switch v := v.(*RelationMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -916,7 +1057,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DecodedZookie_V1Zookie); i {
+			switch v := v.(*NamespaceAndRevision); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -928,7 +1069,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DecodedZookie_V2Zookie); i {
+			switch v := v.(*V1Alpha1Revision); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -940,7 +1081,7 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DecodedZedToken_V1Zookie); i {
+			switch v := v.(*DecodedZookie_V1Zookie); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -952,6 +1093,30 @@ func file_impl_v1_impl_proto_init() {
 			}
 		}
 		file_impl_v1_impl_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DecodedZookie_V2Zookie); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_impl_v1_impl_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DecodedZedToken_V1Zookie); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_impl_v1_impl_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DecodedZedToken_V1ZedToken); i {
 			case 0:
 				return &v.state
@@ -975,13 +1140,16 @@ func file_impl_v1_impl_proto_init() {
 		(*DecodedZedToken_DeprecatedV1Zookie)(nil),
 		(*DecodedZedToken_V1)(nil),
 	}
+	file_impl_v1_impl_proto_msgTypes[3].OneofWrappers = []interface{}{
+		(*DecodedCursor_V1)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_impl_v1_impl_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

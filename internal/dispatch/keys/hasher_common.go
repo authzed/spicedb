@@ -127,3 +127,22 @@ func (hsv hashableStructValue) AppendToHash(hasher hasherInterface) {
 		panic(fmt.Sprintf("unknown struct value type: %T", t))
 	}
 }
+
+type hashableLimit uint32
+
+func (hl hashableLimit) AppendToHash(hasher hasherInterface) {
+	if hl > 0 {
+		hasher.WriteString(strconv.Itoa(int(hl)))
+	}
+}
+
+type hashableCursor struct{ *v1.Cursor }
+
+func (hc hashableCursor) AppendToHash(hasher hasherInterface) {
+	if hc.Cursor != nil {
+		for _, section := range hc.Cursor.Sections {
+			hasher.WriteString(section)
+			hasher.WriteString(",")
+		}
+	}
+}

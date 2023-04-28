@@ -3,9 +3,12 @@ package graph
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/authzed/spicedb/pkg/util"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -85,7 +88,7 @@ func TestSimpleLookupResources(t *testing.T) {
 				resolvedRes("specialplan"),
 			},
 			7,
-			4,
+			3,
 		},
 		{
 			RR("folder", "view"),
@@ -123,6 +126,7 @@ func TestSimpleLookupResources(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
+				OptionalLimit: 1000000000,
 			}, stream)
 
 			require.NoError(err)
@@ -146,6 +150,7 @@ func TestSimpleLookupResources(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
+				OptionalLimit: 1000000000,
 			}, stream)
 			dispatcher.Close()
 
@@ -160,15 +165,92 @@ func TestSimpleLookupResources(t *testing.T) {
 	}
 }
 
+func TestSimpleLookupResourcesWithCursor(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	for _, tc := range []struct {
+		subject        string
+		expectedFirst  []string
+		expectedSecond []string
+	}{
+		{
+			subject:        "owner",
+			expectedFirst:  []string{"ownerplan"},
+			expectedSecond: []string{"companyplan", "masterplan", "ownerplan"},
+		},
+		{
+			subject:        "chief_financial_officer",
+			expectedFirst:  []string{"healthplan"},
+			expectedSecond: []string{"healthplan", "masterplan"},
+		},
+		{
+			subject:        "auditor",
+			expectedFirst:  []string{"companyplan"},
+			expectedSecond: []string{"companyplan", "masterplan"},
+		},
+	} {
+		tc := tc
+		t.Run(tc.subject, func(t *testing.T) {
+			require := require.New(t)
+			ctx, dispatcher, revision := newLocalDispatcher(t)
+			defer dispatcher.Close()
+
+			found := util.NewSet[string]()
+
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+				ObjectRelation: RR("document", "view"),
+				Subject:        ONR("user", tc.subject, "..."),
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				OptionalLimit: 1,
+			}, stream)
+
+			require.NoError(err)
+
+			require.Equal(1, len(stream.Results()))
+
+			found.Add(stream.Results()[0].ResolvedResource.ResourceId)
+			require.Equal(tc.expectedFirst, found.AsSlice())
+
+			cursor := stream.Results()[0].AfterResponseCursor
+			require.NotNil(cursor)
+
+			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+			err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+				ObjectRelation: RR("document", "view"),
+				Subject:        ONR("user", tc.subject, "..."),
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				OptionalCursor: cursor,
+				OptionalLimit:  2,
+			}, stream)
+
+			require.NoError(err)
+
+			for _, result := range stream.Results() {
+				found.Add(result.ResolvedResource.ResourceId)
+			}
+
+			foundResults := found.AsSlice()
+			sort.Strings(foundResults)
+
+			require.Equal(tc.expectedSecond, foundResults)
+		})
+	}
+}
+
 func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResourcesResponse]) ([]*v1.ResolvedResource, uint32, uint32, uint32) {
 	foundResources := []*v1.ResolvedResource{}
 	var maxDepthRequired uint32
 	var maxDispatchCount uint32
 	var maxCachedDispatchCount uint32
 	for _, result := range stream.Results() {
-		for _, resolved := range result.ResolvedResources {
-			foundResources = append(foundResources, resolved)
-		}
+		foundResources = append(foundResources, result.ResolvedResource)
 		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
 		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)
 		maxCachedDispatchCount = max(maxCachedDispatchCount, result.Metadata.CachedDispatchCount)

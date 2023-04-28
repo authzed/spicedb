@@ -423,8 +423,13 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 					}
 
 					locked := rsm.asReadOnly()
-					resources, err := locked.mapFoundResources(tc.foundResources, isDirectEntrypoint)
-					require.NoError(t, err)
+
+					resources := make([]*v1.ReachableResource, 0, len(tc.foundResources))
+					for _, resource := range tc.foundResources {
+						r, err := locked.mapFoundResource(resource, isDirectEntrypoint)
+						require.NoError(t, err)
+						resources = append(resources, r)
+					}
 
 					for _, r := range resources {
 						sort.Strings(r.ForSubjectIds)

@@ -93,10 +93,7 @@ message DispatchReachableResourcesRequest {
   repeated string subject_ids = 4;
 
   // optional_cursor, if the specified, is the cursor at which to resume returning results. Note
-  // that due to the batching and stream semantics of DispatchReachableResources, this is *not* a
-  // true "after" cursor, and that resumption from the cursor will *partially* return results
-  // already returned (while skipping the majority of the previous results). It is the caller's
-  // responsibility to check for duplicates (which can already exist in Reachable Resources).
+  // that reachableresources can return duplicates.
   Cursor optional_cursor = 5;
   
   // optional_limit, if given, specifies a limit on the number of resources returned.
@@ -124,7 +121,7 @@ message ReachableResource {
 }
 
 message DispatchReachableResourcesResponse {
-  repeated ReachableResource resources = 1;
+  ReachableResource resource = 1;
   ResponseMeta metadata = 2;
   Cursor after_response_cursor = 3;
 }
@@ -137,6 +134,13 @@ message DispatchLookupResourcesRequest {
   core.v1.ObjectAndRelation subject = 3
       [ (validate.rules).message.required = true ];
   google.protobuf.Struct context = 5;
+
+  // optional_limit, if given, specifies a limit on the number of resources returned.
+  uint32 optional_limit = 4;
+
+  // optional_cursor, if the specified, is the cursor at which to resume returning results. Note
+  // that lookupresources can return duplicates.
+  Cursor optional_cursor = 6;
 }
 
 message ResolvedResource {
@@ -153,7 +157,8 @@ message ResolvedResource {
 
 message DispatchLookupResourcesResponse {
   ResponseMeta metadata = 1;
-  repeated ResolvedResource resolved_resources = 2;
+  ResolvedResource resolved_resource = 2;
+  Cursor after_response_cursor = 3;
 }
 
 message DispatchLookupSubjectsRequest {
