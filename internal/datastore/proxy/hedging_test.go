@@ -325,6 +325,7 @@ func TestDatastoreE2E(t *testing.T) {
 		},
 	)
 	require.NoError(err)
+	defer it.Close()
 
 	only := it.Next()
 	require.Equal(expectedTuples[0], only)
