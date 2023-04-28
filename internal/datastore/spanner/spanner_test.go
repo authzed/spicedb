@@ -8,11 +8,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 )
+
+// Implement TestableDatastore interface
+func (sd spannerDatastore) ExampleRetryableError() error {
+	return status.New(codes.Aborted, "retryable").Err()
+}
 
 func TestSpannerDatastore(t *testing.T) {
 	b := testdatastore.RunSpannerForTesting(t, "")

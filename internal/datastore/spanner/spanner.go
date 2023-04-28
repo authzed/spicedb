@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -34,8 +35,9 @@ const (
 
 	errRevision = "unable to load revision: %w"
 
-	errUnableToWriteRelationships  = "unable to write relationships: %w"
-	errUnableToDeleteRelationships = "unable to delete relationships: %w"
+	errUnableToWriteRelationships    = "unable to write relationships: %w"
+	errUnableToBulkLoadRelationships = "unable to bulk load relationships: %w"
+	errUnableToDeleteRelationships   = "unable to delete relationships: %w"
 
 	errUnableToWriteConfig    = "unable to write namespace config: %w"
 	errUnableToReadConfig     = "unable to read namespace config: %w"
@@ -138,7 +140,11 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 func (sd spannerDatastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
+	config := options.NewRWTOptionsWithOptions(opts...)
+
+	ctx, cancel := context.WithCancel(ctx)
 	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
 		txSource := func() readTX {
 			return spannerRWT
@@ -153,7 +159,14 @@ func (sd spannerDatastore) ReadWriteTx(
 			spannerRWT,
 			sd.config.disableStats,
 		}
-		return fn(rwt)
+		if err := fn(rwt); err != nil {
+			if config.DisableRetries {
+				defer cancel()
+			}
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		if cerr := convertToWriteConstraintError(err); cerr != nil {
