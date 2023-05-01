@@ -954,8 +954,8 @@ github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.buf.build/protocolbuffers/go/gogo/protobuf v1.3.9 h1:Gem1ArgYzrhdAuaORVqtvkT4WGPRiwFLXpTgRn+QLC8=
 go.buf.build/protocolbuffers/go/gogo/protobuf v1.3.9/go.mod h1:i2gBbO3BPCoVRjhpYl5wkyH+sQ8aZyE+ELx44rJm2/E=
-go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.5 h1:B8ImtWBPAdf8drdgHDQsXOAJbh+NpzcwCiP+bUfQjhM=
-go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.5/go.mod h1:MscLIBPVmRlS3Z4XijKkiqzOiBQaRFi1PqWt7KAzf9o=
+go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.8 h1:2LntQlPZuEgucC8Phqnirpj150+k1rNeCzoF9tCTJX0=
+go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.8/go.mod h1:MscLIBPVmRlS3Z4XijKkiqzOiBQaRFi1PqWt7KAzf9o=
 go.etcd.io/bbolt v1.3.5/go.mod h1:G5EMThwa9y8QZGBClrRx5EY+Yw9kAhnjy3bSjsnlVTQ=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
