@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/util"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -79,11 +80,12 @@ func (p *definitionCachingProxy) SnapshotReader(rev datastore.Revision) datastor
 func (p *definitionCachingProxy) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	return p.Datastore.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
 		rwt := &definitionCachingRWT{delegateRWT, &sync.Map{}}
 		return f(rwt)
-	})
+	}, opts...)
 }
 
 const (

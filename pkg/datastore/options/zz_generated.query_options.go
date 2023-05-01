@@ -183,3 +183,36 @@ func WithAfterForReverse(afterForReverse Cursor) ReverseQueryOptionsOption {
 		r.AfterForReverse = afterForReverse
 	}
 }
+
+type RWTOptionsOption func(r *RWTOptions)
+
+// NewRWTOptionsWithOptions creates a new RWTOptions with the passed in options set
+func NewRWTOptionsWithOptions(opts ...RWTOptionsOption) *RWTOptions {
+	r := &RWTOptions{}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
+// ToOption returns a new RWTOptionsOption that sets the values from the passed in RWTOptions
+func (r *RWTOptions) ToOption() RWTOptionsOption {
+	return func(to *RWTOptions) {
+		to.DisableRetries = r.DisableRetries
+	}
+}
+
+// RWTOptionsWithOptions configures an existing RWTOptions with the passed in options set
+func RWTOptionsWithOptions(r *RWTOptions, opts ...RWTOptionsOption) *RWTOptions {
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
+// WithDisableRetries returns an option that can set DisableRetries on a RWTOptions
+func WithDisableRetries(disableRetries bool) RWTOptionsOption {
+	return func(r *RWTOptions) {
+		r.DisableRetries = disableRetries
+	}
+}

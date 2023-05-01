@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -29,6 +30,8 @@ var (
 	zero = revision.NewFromDecimal(decimal.NewFromInt(0))
 	one  = revision.NewFromDecimal(decimal.NewFromInt(1))
 	two  = revision.NewFromDecimal(decimal.NewFromInt(2))
+
+	nilOpts []options.RWTOptionsOption
 )
 
 const (
@@ -209,7 +212,7 @@ func TestRWTCaching(t *testing.T) {
 
 			require := require.New(t)
 
-			dsMock.On("ReadWriteTx").Return(rwtMock, one, nil).Once()
+			dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
 			rwtMock.On(tester.readSingleFunctionName, nsA).Return(nil, zero, nil).Once()
 
 			ctx := context.Background()
@@ -246,7 +249,7 @@ func TestRWTCacheWithWrites(t *testing.T) {
 
 			require := require.New(t)
 
-			dsMock.On("ReadWriteTx").Return(rwtMock, one, nil).Once()
+			dsMock.On("ReadWriteTx", nilOpts).Return(rwtMock, one, nil).Once()
 			rwtMock.On(tester.readSingleFunctionName, nsA).Return(nil, zero, tester.notFoundErr).Once()
 
 			ctx := context.Background()

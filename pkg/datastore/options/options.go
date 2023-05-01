@@ -4,7 +4,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.query_options.go . QueryOptions ReverseQueryOptions
+//go:generate go run github.com/ecordell/optgen -output zz_generated.query_options.go . QueryOptions ReverseQueryOptions RWTOptions
 
 // SortOrder is an enum which represents the order in which the caller would like
 // the data returned.
@@ -45,6 +45,12 @@ type ReverseQueryOptions struct {
 type ResourceRelation struct {
 	Namespace string
 	Relation  string
+}
+
+// RWTOptions are options that can affect the way a read-write transaction is
+// executed.
+type RWTOptions struct {
+	DisableRetries bool
 }
 
 var (

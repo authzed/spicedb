@@ -297,7 +297,7 @@ type Datastore interface {
 
 	// ReadWriteTx tarts a read/write transaction, which will be committed if no error is
 	// returned and rolled back if an error is returned.
-	ReadWriteTx(context.Context, TxUserFunc) (Revision, error)
+	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.

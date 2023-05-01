@@ -72,10 +72,14 @@ func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &observableReader{delegateReader}
 }
 
-func (p *observableProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFunc) (datastore.Revision, error) {
+func (p *observableProxy) ReadWriteTx(
+	ctx context.Context,
+	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
+) (datastore.Revision, error) {
 	return p.delegate.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
 		return f(&observableRWT{&observableReader{delegateRWT}, delegateRWT})
-	})
+	}, opts...)
 }
 
 func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
