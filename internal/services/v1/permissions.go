@@ -25,6 +25,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -34,14 +35,14 @@ import (
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	// Perform our preflight checks in parallel
@@ -65,7 +66,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		)
 	})
 	if err := errG.Wait(); err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	debugOption := computed.NoDebugging
@@ -101,24 +102,24 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		// the footer.
 		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata, ds)
 		if cerr != nil {
-			return nil, rewriteError(ctx, cerr)
+			return nil, shared.RewriteError(ctx, cerr)
 		}
 
 		marshaled, merr := protojson.Marshal(converted)
 		if merr != nil {
-			return nil, rewriteError(ctx, merr)
+			return nil, shared.RewriteError(ctx, merr)
 		}
 
 		serr := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 			responsemeta.DebugInformation: string(marshaled),
 		})
 		if serr != nil {
-			return nil, rewriteError(ctx, serr)
+			return nil, shared.RewriteError(ctx, serr)
 		}
 	}
 
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	var partialCaveat *v1.PartialCaveatInfo
@@ -142,14 +143,14 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
@@ -166,7 +167,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	})
 	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
@@ -326,7 +327,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
@@ -352,7 +353,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		)
 	})
 	if err := errG.Wait(); err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	// TODO(jschorr): Change the internal dispatched lookup to also be streamed.
@@ -375,7 +376,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	})
 	usagemetrics.SetInContext(ctx, lookupResp.Metadata)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	for _, found := range lookupResp.ResolvedResources {
@@ -405,14 +406,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	// Perform our preflight checks in parallel
@@ -436,7 +437,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		)
 	})
 	if err := errG.Wait(); err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	respMetadata := &dispatch.ResponseMeta{
@@ -517,7 +518,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		},
 		stream)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	return nil
@@ -572,7 +573,7 @@ func GetCaveatContext(ctx context.Context, caveatCtx *structpb.Struct, maxCaveat
 	var caveatContext map[string]any
 	if caveatCtx != nil {
 		if size := proto.Size(caveatCtx); maxCaveatContextSize > 0 && size > maxCaveatContextSize {
-			return nil, rewriteError(
+			return nil, shared.RewriteError(
 				ctx,
 				status.Errorf(
 					codes.InvalidArgument,

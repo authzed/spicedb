@@ -137,13 +137,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, ds); err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -158,7 +158,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		options.ByResource,
 	)
 	if err != nil {
-		return rewriteError(ctx, err)
+		return shared.RewriteError(ctx, err)
 	}
 	defer tupleIterator.Close()
 
@@ -169,19 +169,19 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	targetCaveat := &v1.ContextualizedCaveat{}
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
 		if tupleIterator.Err() != nil {
-			return rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
+			return shared.RewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 		}
 
 		tuple.MustToRelationshipMutating(tpl, targetRel, targetCaveat)
 		response.Relationship = targetRel
 		err := resp.Send(response)
 		if err != nil {
-			return rewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
+			return shared.RewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
 	}
 
 	if tupleIterator.Err() != nil {
-		return rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
+		return shared.RewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 	}
 
 	tupleIterator.Close()
@@ -193,14 +193,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
-		return nil, rewriteError(
+		return nil, shared.RewriteError(
 			ctx,
 			NewExceedsMaximumUpdatesErr(uint16(len(req.Updates)), ps.config.MaxUpdatesPerWrite),
 		)
 	}
 
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
-		return nil, rewriteError(
+		return nil, shared.RewriteError(
 			ctx,
 			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
 		)
@@ -211,7 +211,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	for _, update := range req.Updates {
 		tupleStr := tuple.StringRelationshipWithoutCaveat(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
-			return nil, rewriteError(
+			return nil, shared.RewriteError(
 				ctx,
 				NewDuplicateRelationshipErr(update),
 			)
@@ -235,7 +235,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		// Validate the updates.
 		err := relationships.ValidateRelationships(ctx, rwt, tuples)
 		if err != nil {
-			return rewriteError(ctx, err)
+			return shared.RewriteError(ctx, err)
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -250,7 +250,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return rwt.WriteRelationships(ctx, tupleUpdates)
 	})
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	// Log a metric of the counts of the different kinds of update operations.
@@ -422,7 +422,7 @@ func (ps *permissionServer) BulkLoadRelationships(stream v1.PermissionsService_B
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
-		return nil, rewriteError(
+		return nil, shared.RewriteError(
 			ctx,
 			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
 		)
@@ -447,7 +447,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 	})
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	return &v1.DeleteRelationshipsResponse{
