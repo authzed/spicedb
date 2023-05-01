@@ -3,6 +3,8 @@ package development
 import (
 	"fmt"
 
+	v1t "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -38,7 +40,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	var failures []*devinterface.DeveloperError
 
 	for _, assertion := range assertions {
-		tpl := tuple.MustFromRelationship(assertion.Relationship)
+		tpl := tuple.MustFromRelationship[*v1t.ObjectReference, *v1t.SubjectReference, *v1t.ContextualizedCaveat](assertion.Relationship)
 
 		if tpl.Caveat != nil {
 			failures = append(failures, &devinterface.DeveloperError{

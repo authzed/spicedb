@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/spicedb/pkg/util"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -100,7 +101,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 
 		// Parse relationships for updates.
 		for _, rel := range parsed.Relationships.Relationships {
-			tpl := tuple.MustFromRelationship(rel)
+			tpl := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](rel)
 			updates = append(updates, tuple.Touch(tpl))
 			tuples = append(tuples, tpl)
 		}

@@ -429,7 +429,7 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 								},
 							} {
 								for _, assertion := range entry.assertions {
-									assertionRel := tuple.MustFromRelationship(assertion.Relationship)
+									assertionRel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
 									if !assertionRel.ResourceAndRelation.EqualVT(resource) {
 										continue
 									}
@@ -585,7 +585,7 @@ func runAssertions(t *testing.T, vctx validationContext) {
 					for _, assertion := range entry.assertions {
 						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
-							rel := tuple.MustFromRelationship(assertion.Relationship)
+							rel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
 							permissionship, err := vctx.serviceTester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, vctx.revision, assertion.CaveatContext)
 							require.NoError(t, err)
 							require.Equal(t, entry.expectedPermissionship, permissionship, "Assertion `%s` returned %s; expected %s", tuple.MustString(rel), permissionship, entry.expectedPermissionship)

@@ -400,7 +400,7 @@ func TestConvert(t *testing.T) {
 			relString := strings.Replace(MustRelString(relationship), " ", "", -1)
 			require.Equal(tc.expectedOutput, relString)
 
-			backToTpl := FromRelationship(relationship)
+			backToTpl := FromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](relationship)
 			testutil.RequireProtoEqual(t, tc.tupleFormat, backToTpl, "found difference in converted tuple")
 
 			serialized := strings.Replace(MustString(backToTpl), " ", "", -1)
