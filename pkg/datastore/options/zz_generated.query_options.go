@@ -195,6 +195,16 @@ func NewRWTOptionsWithOptions(opts ...RWTOptionsOption) *RWTOptions {
 	return r
 }
 
+// NewRWTOptionsWithOptionsAndDefaults creates a new RWTOptions with the passed in options set starting from the defaults
+func NewRWTOptionsWithOptionsAndDefaults(opts ...RWTOptionsOption) *RWTOptions {
+	r := &RWTOptions{}
+	defaults.MustSet(r)
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
 // ToOption returns a new RWTOptionsOption that sets the values from the passed in RWTOptions
 func (r *RWTOptions) ToOption() RWTOptionsOption {
 	return func(to *RWTOptions) {
@@ -202,8 +212,23 @@ func (r *RWTOptions) ToOption() RWTOptionsOption {
 	}
 }
 
+// DebugMap returns a map form of RWTOptions for debugging
+func (r RWTOptions) DebugMap() map[string]any {
+	debugMap := map[string]any{}
+	debugMap["DisableRetries"] = helpers.DebugValue(r.DisableRetries, false)
+	return debugMap
+}
+
 // RWTOptionsWithOptions configures an existing RWTOptions with the passed in options set
 func RWTOptionsWithOptions(r *RWTOptions, opts ...RWTOptionsOption) *RWTOptions {
+	for _, o := range opts {
+		o(r)
+	}
+	return r
+}
+
+// WithOptions configures the receiver RWTOptions with the passed in options set
+func (r *RWTOptions) WithOptions(opts ...RWTOptionsOption) *RWTOptions {
 	for _, o := range opts {
 		o(r)
 	}

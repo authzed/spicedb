@@ -56,6 +56,7 @@ func RegisterGrpcServices(
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig))
+	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer())
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {

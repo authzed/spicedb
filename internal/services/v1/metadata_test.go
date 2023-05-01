@@ -156,17 +156,6 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 
 				return trailer
 			},
-			"BulkLoadRelationships": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
-				var trailer metadata.MD
-				writer, err := client.BulkLoadRelationships(ctx, grpc.Trailer(&trailer))
-				require.NoError(t, err)
-
-				resp, err := writer.CloseAndRecv()
-				require.NoError(t, err)
-				require.Zero(t, resp.NumLoaded)
-
-				return trailer
-			},
 		},
 	)
 

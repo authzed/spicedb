@@ -50,7 +50,7 @@ type ResourceRelation struct {
 // RWTOptions are options that can affect the way a read-write transaction is
 // executed.
 type RWTOptions struct {
-	DisableRetries bool
+	DisableRetries bool `debugmap:"visible"`
 }
 
 var (
