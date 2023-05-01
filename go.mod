@@ -14,7 +14,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/dalzilio/rudd v1.1.1-0.20220422201445-0a0cd32c7df9
 	github.com/dlmiddlecote/sqlstats v1.0.2
-	github.com/dustin/go-humanize v1.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/ecordell/optgen v0.0.6
 	github.com/emirpasic/gods v1.18.1
 	github.com/envoyproxy/protoc-gen-validate v0.9.1
