@@ -42,25 +42,13 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 
 	localNow := cor.clockFn.Now()
 
-	cor.Lock()
-
-	// Prune the candidates that have definitely expired
-	var numToDrop uint
-	for _, candidate := range cor.candidates {
-		if candidate.validThrough.Add(cor.maxRevisionStaleness).Before(localNow) {
-			numToDrop++
-		} else {
-			break
-		}
-	}
-	cor.candidates = cor.candidates[numToDrop:]
-
 	// Subtract a random amount of time from now, to let barely expired candidates get selected
 	adjustedNow := localNow
 	if cor.maxRevisionStaleness > 0 {
 		adjustedNow = localNow.Add(-1 * time.Duration(rand.Int63n(cor.maxRevisionStaleness.Nanoseconds())) * time.Nanosecond)
 	}
 
+	cor.Lock()
 	for _, candidate := range cor.candidates {
 		if candidate.validThrough.After(adjustedNow) {
 			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
@@ -69,7 +57,6 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 			return candidate.revision, nil
 		}
 	}
-
 	cor.Unlock()
 
 	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
@@ -84,6 +71,18 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		rvt := localNow.Add(validFor)
 		cor.Lock()
 		defer cor.Unlock()
+
+		// Prune the candidates that have definitely expired
+		var numToDrop uint
+		for _, candidate := range cor.candidates {
+			if candidate.validThrough.Add(cor.maxRevisionStaleness).Before(localNow) {
+				numToDrop++
+			} else {
+				break
+			}
+		}
+		cor.candidates = cor.candidates[numToDrop:]
+
 		cor.candidates = append(cor.candidates, validRevision{optimized, rvt})
 		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
 
