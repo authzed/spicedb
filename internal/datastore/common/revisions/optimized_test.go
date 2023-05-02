@@ -123,12 +123,22 @@ func TestOptimizedRevisionCache(t *testing.T) {
 			defer cancel()
 
 			for _, expectedRevSet := range tc.expectedRevisions {
-				revision, err := or.OptimizedRevision(ctx)
-				require.NoError(err)
-				printableRevSet := lo.Map(expectedRevSet, func(val datastore.Revision, index int) string {
-					return val.String()
-				})
-				require.Contains(expectedRevSet, revision, "must return the proper revision, allowed set %#v, received %s", printableRevSet, revision)
+				awaitingRevisions := make(map[datastore.Revision]struct{}, len(expectedRevSet))
+				for _, rev := range expectedRevSet {
+					awaitingRevisions[rev] = struct{}{}
+				}
+
+				require.Eventually(func() bool {
+					revision, err := or.OptimizedRevision(ctx)
+					require.NoError(err)
+					printableRevSet := lo.Map(expectedRevSet, func(val datastore.Revision, index int) string {
+						return val.String()
+					})
+					require.Contains(expectedRevSet, revision, "must return the proper revision, allowed set %#v, received %s", printableRevSet, revision)
+
+					delete(awaitingRevisions, revision)
+					return len(awaitingRevisions) == 0
+				}, 1*time.Second, 1*time.Microsecond)
 
 				mockTime.Add(5 * time.Millisecond)
 			}
@@ -171,6 +181,30 @@ func TestOptimizedRevisionCacheSingleFlight(t *testing.T) {
 	require.NoError(err)
 
 	mock.AssertExpectations(t)
+}
+
+func BenchmarkOptimizedRevisions(b *testing.B) {
+	b.SetParallelism(1024)
+
+	quantization := 1 * time.Millisecond
+	or := NewCachedOptimizedRevisions(quantization)
+
+	or.SetOptimizedRevisionFunc(func(ctx context.Context) (datastore.Revision, time.Duration, error) {
+		nowNS := time.Now().UnixNano()
+		validForNS := nowNS % quantization.Nanoseconds()
+		roundedNS := nowNS - validForNS
+		rev := revision.NewFromDecimal(decimal.NewFromInt(roundedNS))
+		return rev, time.Duration(validForNS) * time.Nanosecond, nil
+	})
+
+	ctx := context.Background()
+	b.RunParallel(func(p *testing.PB) {
+		for p.Next() {
+			if _, err := or.OptimizedRevision(ctx); err != nil {
+				b.FailNow()
+			}
+		}
+	})
 }
 
 func TestSingleFlightError(t *testing.T) {
