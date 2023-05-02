@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // MustStreamServerInterceptor returns a new stream server interceptor that cancels the context
@@ -34,6 +35,10 @@ type sendWrapper struct {
 
 func (s *sendWrapper) Context() context.Context {
 	return s.ctx
+}
+
+func (s *sendWrapper) SetTrailer(trailer metadata.MD) {
+	s.timer.Stop()
 }
 
 func (s *sendWrapper) SendMsg(m any) error {

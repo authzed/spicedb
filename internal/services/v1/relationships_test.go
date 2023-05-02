@@ -1122,6 +1122,66 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 	require.Contains(err.Error(), "update count of 2 is greater than maximum allowed of 1")
 }
 
+func TestReadRelationshipsWithTimeout(t *testing.T) {
+	require := require.New(t)
+
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		0,
+		memdb.DisableGC,
+		false,
+		testserver.ServerConfig{
+			MaxUpdatesPerWrite:    1000,
+			MaxPreconditionsCount: 1000,
+			StreamingAPITimeout:   1,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	// Write additional test data.
+	counter := 0
+	for i := 0; i < 10; i++ {
+		updates := make([]*v1.RelationshipUpdate, 0, 100)
+		for j := 0; j < 1000; j++ {
+			counter++
+			updates = append(updates, &v1.RelationshipUpdate{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: tuple.MustToRelationship(tuple.Parse(fmt.Sprintf("document:doc%d#viewer@user:someguy", counter))),
+			})
+		}
+
+		_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+			Updates: updates,
+		})
+		require.NoError(err)
+	}
+
+	retryCount := 5
+	for i := 0; i < retryCount; i++ {
+		// Perform a read and ensures it times out.
+		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+			},
+			RelationshipFilter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+		})
+		require.NoError(err)
+
+		// Ensure the recv fails with a context cancelation.
+		_, err = stream.Recv()
+		if err == nil {
+			continue
+		}
+
+		require.ErrorContains(err, "context canceled")
+		grpcutil.RequireStatus(t, codes.Canceled, err)
+	}
+}
+
 func readAll(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken) map[string]struct{} {
 	got := make(map[string]struct{})
 	namespaces := []string{"document", "folder"}
