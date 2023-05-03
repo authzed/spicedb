@@ -45,7 +45,10 @@ func (cl *CursoredLookupResources) LookupResources(
 		return NewErrInvalidArgument(errors.New("cannot perform lookup resources on wildcard"))
 	}
 
-	limits, ctx := newLimitTracker(stream.Context(), req.OptionalLimit)
+	withCancel, cancelReachable := context.WithCancel(stream.Context())
+	defer cancelReachable()
+
+	limits, ctx := newLimitTracker(withCancel, req.OptionalLimit)
 	reachableResourcesCursor := req.OptionalCursor
 
 	// Loop until the limit has been exhausted or no additional reachable resources are found (see below)
