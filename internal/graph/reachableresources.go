@@ -47,7 +47,10 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 	sort.Strings(req.SubjectIds)
 
 	limits, ctx := newLimitTracker(stream.Context(), req.OptionalLimit)
-	ci := newCursorInformation(req.OptionalCursor, limits)
+	ci, err := newCursorInformation(req.OptionalCursor, req.Revision, limits)
+	if err != nil {
+		return err
+	}
 
 	return withSubsetInCursor(ci, "same-type",
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
@@ -56,6 +59,10 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 			if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
 				req.SubjectRelation.Relation == req.ResourceRelation.Relation {
 				for index, subjectID := range req.SubjectIds {
+					if index < currentOffset {
+						continue
+					}
+
 					okay, done := ci.limits.prepareForPublishing()
 					defer done()
 
@@ -70,7 +77,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 							ForSubjectIds: []string{subjectID},
 						},
 						Metadata:            emptyMetadata,
-						AfterResponseCursor: nextCursorWith(currentOffset + index + 1),
+						AfterResponseCursor: nextCursorWith(index + 1),
 					})
 					if err != nil {
 						return err
@@ -217,13 +224,6 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
 		func(ctx context.Context, ci cursorInformation, drsm dispatchableResourcesSubjectMap) error {
 			return crr.redispatchOrReport(ctx, ci, relationReference, drsm, rg, entrypoint, stream, req, dispatched)
 		})
-}
-
-func min(a, b int) int {
-	if b < a {
-		return b
-	}
-	return a
 }
 
 var queryLimit uint64 = 100

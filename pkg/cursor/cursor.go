@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -57,6 +59,10 @@ func Decode(encoded *v1.Cursor) (*impl.DecodedCursor, error) {
 // API method. The call hash should contain all the parameters of the calling API function,
 // as well as its revision and name.
 func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string) (*v1.Cursor, error) {
+	if dispatchCursor == nil {
+		return nil, spiceerrors.MustBugf("got nil dispatch cursor")
+	}
+
 	return Encode(&impl.DecodedCursor{
 		VersionOneof: &impl.DecodedCursor_V1{
 			V1: &impl.V1Cursor{

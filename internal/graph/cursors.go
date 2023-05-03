@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/exp/slices"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -24,22 +25,31 @@ type cursorInformation struct {
 
 	// limits is the limits tracker for the call over which the cursor is being used.
 	limits *limitTracker
+
+	// revision is the revision at which cursors are being created.
+	revision datastore.Revision
 }
 
 // newCursorInformation constructs a new cursorInformation struct from the incoming cursor (which
 // may be nil)
-func newCursorInformation(incomingCursor *v1.Cursor, limits *limitTracker) cursorInformation {
+func newCursorInformation(incomingCursor *v1.Cursor, revision datastore.Revision, limits *limitTracker) (cursorInformation, error) {
+	if incomingCursor != nil && incomingCursor.AtRevision != revision.String() {
+		return cursorInformation{}, spiceerrors.MustBugf("revision mismatch when creating cursor information. expected: %s, found: %s", revision.String(), incomingCursor.AtRevision)
+	}
+
 	return cursorInformation{
 		currentCursor:          incomingCursor,
 		outgoingCursorSections: nil,
 		limits:                 limits,
-	}
+		revision:               revision,
+	}, nil
 }
 
 // responsePartialCursor is the *partial* cursor to return in a response.
 func (ci cursorInformation) responsePartialCursor() *v1.Cursor {
 	return &v1.Cursor{
-		Sections: ci.outgoingCursorSections,
+		AtRevision: ci.revision.String(),
+		Sections:   ci.outgoingCursorSections,
 	}
 }
 
@@ -103,10 +113,12 @@ func (ci cursorInformation) mustWithOutgoingSection(name string, values ...strin
 		// If the section already exists, remove it and its values in the cursor.
 		return cursorInformation{
 			currentCursor: &v1.Cursor{
-				Sections: slices.Clone(ci.currentCursor.Sections[len(values)+1:]),
+				AtRevision: ci.revision.String(),
+				Sections:   slices.Clone(ci.currentCursor.Sections[len(values)+1:]),
 			},
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
+			revision:               ci.revision,
 		}
 	}
 
@@ -114,28 +126,8 @@ func (ci cursorInformation) mustWithOutgoingSection(name string, values ...strin
 		currentCursor:          nil,
 		outgoingCursorSections: ocs,
 		limits:                 ci.limits,
+		revision:               ci.revision,
 	}
-}
-
-// removeSectionAndValue removes the section with the given name, and its value, from the incoming
-// cursor (if applicable) and returns the updated cursorInformation.
-func (ci cursorInformation) removeSectionAndValue(name string) (cursorInformation, error) {
-	if ci.currentCursor == nil {
-		return ci, nil
-	}
-
-	_, err := ci.sectionValue(name)
-	if err != nil {
-		return ci, err
-	}
-
-	return cursorInformation{
-		currentCursor: &v1.Cursor{
-			Sections: slices.Clone(ci.currentCursor.Sections[2:]),
-		},
-		outgoingCursorSections: ci.outgoingCursorSections,
-		limits:                 ci.limits,
-	}, nil
 }
 
 func (ci cursorInformation) clearIncoming() cursorInformation {
@@ -143,6 +135,7 @@ func (ci cursorInformation) clearIncoming() cursorInformation {
 		currentCursor:          nil,
 		outgoingCursorSections: ci.outgoingCursorSections,
 		limits:                 ci.limits,
+		revision:               ci.revision,
 	}
 }
 
@@ -237,27 +230,6 @@ func withDatastoreCursorInCursor(
 	}
 }
 
-// withCustomOffsetInCursor executes the given handler with the offset found at the beginning of the cursor.
-// If the offset is not found, executes with 0. The cursor information given to the handler has the
-// offset removed and it is the job of the *handler* to compute the correct outgoing cursor.
-func withCustomOffsetInCursor(
-	ci cursorInformation,
-	name string,
-	handler func(ci cursorInformation, offset int) error,
-) error {
-	offset, err := ci.integerSectionValue(name)
-	if err != nil {
-		return err
-	}
-
-	updatedCI, err := ci.removeSectionAndValue(name)
-	if err != nil {
-		return err
-	}
-
-	return handler(updatedCI, offset)
-}
-
 type afterResponseCursor func(nextOffset int) *v1.Cursor
 
 // withSubsetInCursor executes the given handler with the offset index found at the beginning of the
@@ -303,17 +275,13 @@ func mustCombineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) *v1.Cursor {
 
 	if cursor == nil {
 		return &v1.Cursor{
-			Sections: toAdd.Sections,
+			AtRevision: toAdd.AtRevision,
+			Sections:   toAdd.Sections,
 		}
 	}
 
 	return &v1.Cursor{
-		Sections: append(slices.Clone(cursor.Sections), toAdd.Sections...),
-	}
-}
-
-func cursorForNamedInt(name string, value int) *v1.Cursor {
-	return &v1.Cursor{
-		Sections: []string{name, strconv.Itoa(value)},
+		AtRevision: cursor.AtRevision,
+		Sections:   append(slices.Clone(cursor.Sections), toAdd.Sections...),
 	}
 }

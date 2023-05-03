@@ -172,7 +172,9 @@ func (m *Cursor) CloneVT() *Cursor {
 	if m == nil {
 		return (*Cursor)(nil)
 	}
-	r := &Cursor{}
+	r := &Cursor{
+		AtRevision: m.AtRevision,
+	}
 	if rhs := m.Sections; rhs != nil {
 		tmpContainer := make([]string, len(rhs))
 		copy(tmpContainer, rhs)
@@ -757,6 +759,9 @@ func (this *Cursor) EqualVT(that *Cursor) bool {
 	if this == that {
 		return true
 	} else if this == nil || that == nil {
+		return false
+	}
+	if this.AtRevision != that.AtRevision {
 		return false
 	}
 	if len(this.Sections) != len(that.Sections) {
@@ -1697,8 +1702,15 @@ func (m *Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			copy(dAtA[i:], m.Sections[iNdEx])
 			i = encodeVarint(dAtA, i, uint64(len(m.Sections[iNdEx])))
 			i--
-			dAtA[i] = 0xa
+			dAtA[i] = 0x12
 		}
+	}
+	if len(m.AtRevision) > 0 {
+		i -= len(m.AtRevision)
+		copy(dAtA[i:], m.AtRevision)
+		i = encodeVarint(dAtA, i, uint64(len(m.AtRevision)))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -2860,6 +2872,10 @@ func (m *Cursor) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
+	l = len(m.AtRevision)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	if len(m.Sections) > 0 {
 		for _, s := range m.Sections {
 			l = len(s)
@@ -4188,6 +4204,38 @@ func (m *Cursor) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AtRevision", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AtRevision = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Sections", wireType)
 			}
