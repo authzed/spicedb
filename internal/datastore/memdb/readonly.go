@@ -113,11 +113,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		"",
 		nil,
-		noopCursorFilter,
+		makeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
 
-	return newMemdbTupleIterator(filteredIterator, queryOpts.ReverseLimit, options.Unsorted), nil
+	return newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse, queryOpts.SortForReverse), nil
 }
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at

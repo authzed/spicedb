@@ -186,7 +186,9 @@ func (cr *crdbReader) ReverseQueryRelationships(
 		iter, err = cr.querySplitter.SplitAndExecuteQuery(
 			ctx,
 			qBuilder,
-			options.WithLimit(queryOpts.ReverseLimit),
+			options.WithLimit(queryOpts.LimitForReverse),
+			options.WithAfter(queryOpts.AfterForReverse),
+			options.WithSort(queryOpts.SortForReverse),
 		)
 		return err
 	})

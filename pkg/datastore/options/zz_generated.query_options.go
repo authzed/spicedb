@@ -81,8 +81,10 @@ func NewReverseQueryOptionsWithOptions(opts ...ReverseQueryOptionsOption) *Rever
 // ToOption returns a new ReverseQueryOptionsOption that sets the values from the passed in ReverseQueryOptions
 func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
 	return func(to *ReverseQueryOptions) {
-		to.ReverseLimit = r.ReverseLimit
 		to.ResRelation = r.ResRelation
+		to.LimitForReverse = r.LimitForReverse
+		to.SortForReverse = r.SortForReverse
+		to.AfterForReverse = r.AfterForReverse
 	}
 }
 
@@ -94,16 +96,30 @@ func ReverseQueryOptionsWithOptions(r *ReverseQueryOptions, opts ...ReverseQuery
 	return r
 }
 
-// WithReverseLimit returns an option that can set ReverseLimit on a ReverseQueryOptions
-func WithReverseLimit(reverseLimit *uint64) ReverseQueryOptionsOption {
-	return func(r *ReverseQueryOptions) {
-		r.ReverseLimit = reverseLimit
-	}
-}
-
 // WithResRelation returns an option that can set ResRelation on a ReverseQueryOptions
 func WithResRelation(resRelation *ResourceRelation) ReverseQueryOptionsOption {
 	return func(r *ReverseQueryOptions) {
 		r.ResRelation = resRelation
+	}
+}
+
+// WithLimitForReverse returns an option that can set LimitForReverse on a ReverseQueryOptions
+func WithLimitForReverse(limitForReverse *uint64) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.LimitForReverse = limitForReverse
+	}
+}
+
+// WithSortForReverse returns an option that can set SortForReverse on a ReverseQueryOptions
+func WithSortForReverse(sortForReverse SortOrder) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.SortForReverse = sortForReverse
+	}
+}
+
+// WithAfterForReverse returns an option that can set AfterForReverse on a ReverseQueryOptions
+func WithAfterForReverse(afterForReverse Cursor) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.AfterForReverse = afterForReverse
 	}
 }
