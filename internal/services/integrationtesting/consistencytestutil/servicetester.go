@@ -28,7 +28,7 @@ type ServiceTester interface {
 	Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error)
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
-	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error)
+	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
 	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
 }
 
@@ -149,7 +149,7 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 	return tuples, nil
 }
 
-func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error) {
+func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error) {
 	lookupResp, err := v1st.permClient.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 		ResourceObjectType: resourceRelation.Namespace,
 		Permission:         resourceRelation.Relation,
@@ -165,12 +165,15 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
+		OptionalLimit:  limit,
+		OptionalCursor: cursor,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	found := map[string]*v1.LookupResourcesResponse{}
+	var lastCursor *v1.Cursor
+	found := []*v1.LookupResourcesResponse{}
 	for {
 		resp, err := lookupResp.Recv()
 		if errors.Is(err, io.EOF) {
@@ -178,12 +181,13 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		found[resp.ResourceObjectId] = resp
+		found = append(found, resp)
+		lastCursor = resp.AfterResultCursor
 	}
-	return found, nil
+	return found, lastCursor, nil
 }
 
 func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {

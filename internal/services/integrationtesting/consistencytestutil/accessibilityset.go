@@ -304,11 +304,14 @@ func (as *AccessibilitySet) SubjectTypes() []*core.RelationReference {
 // AllSubjectsNoWildcards returns all *defined*, non-wildcard subjects found.
 func (as *AccessibilitySet) AllSubjectsNoWildcards() []*core.ObjectAndRelation {
 	subjects := make([]*core.ObjectAndRelation, 0)
+	seenSubjects := util.NewSet[string]()
 	for _, subject := range as.SubjectsByNamespace.Values() {
 		if subject.ObjectId == tuple.PublicWildcard {
 			continue
 		}
-		subjects = append(subjects, subject)
+		if seenSubjects.Add(tuple.StringONR(subject)) {
+			subjects = append(subjects, subject)
+		}
 	}
 	return subjects
 }

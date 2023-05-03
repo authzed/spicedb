@@ -214,7 +214,7 @@ func testForEachResourceType(
 		resourceType := resourceType
 		for _, relation := range resourceType.Relation {
 			relation := relation
-			t.Run(fmt.Sprintf("%s_%s_%s", prefix, resourceType.Name, relation.Name),
+			t.Run(fmt.Sprintf("%s_%s_%s_", prefix, resourceType.Name, relation.Name),
 				func(t *testing.T) {
 					handler(t, &core.RelationReference{
 						Namespace: resourceType.Name,
@@ -351,43 +351,68 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
 				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
-					// Perform a lookup call and ensure it returns the at least the same set of object IDs.
-					resolvedResources, err := vctx.serviceTester.LookupResources(context.Background(), resourceRelation, subject, vctx.revision)
-					require.NoError(t, err)
+					for _, pageSize := range []uint32{0, 2} {
+						pageSize := pageSize
+						t.Run(fmt.Sprintf("pagesize-%d", pageSize), func(t *testing.T) {
+							accessibleResources := vctx.accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
 
-					accessibleResources := vctx.accessibilitySet.LookupAccessibleResources(resourceRelation, subject)
-					requireSameSets(t, maps.Keys(accessibleResources), maps.Keys(resolvedResources))
+							// Perform a lookup call and ensure it returns the at least the same set of object IDs.
+							// Loop until all resources have been found or we've hit max iterations.
+							var currentCursor *v1.Cursor
+							resolvedResources := map[string]*v1.LookupResourcesResponse{}
+							for i := 0; i < 100; i++ {
+								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(context.Background(), resourceRelation, subject, vctx.revision, currentCursor, pageSize)
+								require.NoError(t, err)
 
-					// Ensure that every returned concrete object Checks directly.
-					for _, resolvedResource := range resolvedResources {
-						permissionship, err := vctx.serviceTester.Check(context.Background(),
-							&core.ObjectAndRelation{
-								Namespace: resourceRelation.Namespace,
-								Relation:  resourceRelation.Relation,
-								ObjectId:  resolvedResource.ResourceObjectId,
-							},
-							subject,
-							vctx.revision,
-							nil,
-						)
+								if pageSize > 0 {
+									require.LessOrEqual(t, len(foundResources), int(pageSize))
+								}
 
-						expectedPermissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
-						if resolvedResource.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
-							expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
-						}
+								currentCursor = lastCursor
 
-						require.NoError(t, err)
-						require.Equal(t,
-							expectedPermissionship,
-							permissionship,
-							"Found Check failure for relation %s:%s#%s and subject %s in lookup resources; expected %v, found %v",
-							resourceRelation.Namespace,
-							resolvedResource.ResourceObjectId,
-							resourceRelation.Relation,
-							tuple.StringONR(subject),
-							expectedPermissionship,
-							permissionship,
-						)
+								for _, resource := range foundResources {
+									resolvedResources[resource.ResourceObjectId] = resource
+								}
+
+								if pageSize == 0 || len(foundResources) < int(pageSize) {
+									break
+								}
+							}
+
+							requireSameSets(t, maps.Keys(accessibleResources), maps.Keys(resolvedResources))
+
+							// Ensure that every returned concrete object Checks directly.
+							for _, resolvedResource := range resolvedResources {
+								permissionship, err := vctx.serviceTester.Check(context.Background(),
+									&core.ObjectAndRelation{
+										Namespace: resourceRelation.Namespace,
+										Relation:  resourceRelation.Relation,
+										ObjectId:  resolvedResource.ResourceObjectId,
+									},
+									subject,
+									vctx.revision,
+									nil,
+								)
+
+								expectedPermissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+								if resolvedResource.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+									expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+								}
+
+								require.NoError(t, err)
+								require.Equal(t,
+									expectedPermissionship,
+									permissionship,
+									"Found Check failure for relation %s:%s#%s and subject %s in lookup resources; expected %v, found %v",
+									resourceRelation.Namespace,
+									resolvedResource.ResourceObjectId,
+									resourceRelation.Relation,
+									tuple.StringONR(subject),
+									expectedPermissionship,
+									permissionship,
+								)
+							}
+						})
 					}
 				})
 			}
@@ -591,13 +616,18 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							require.Equal(t, entry.expectedPermissionship, permissionship, "Assertion `%s` returned %s; expected %s", tuple.MustString(rel), permissionship, entry.expectedPermissionship)
 
 							// Ensure the assertion passes LookupResources.
-							resolvedResources, err := vctx.serviceTester.LookupResources(context.Background(), &core.RelationReference{
+							resolvedResources, _, err := vctx.serviceTester.LookupResources(context.Background(), &core.RelationReference{
 								Namespace: rel.ResourceAndRelation.Namespace,
 								Relation:  rel.ResourceAndRelation.Relation,
-							}, rel.Subject, vctx.revision)
+							}, rel.Subject, vctx.revision, nil, 0)
 							require.NoError(t, err)
 
-							resolvedResourceIds := maps.Keys(resolvedResources)
+							resolvedResourcesMap := map[string]*v1.LookupResourcesResponse{}
+							for _, resource := range resolvedResources {
+								resolvedResourcesMap[resource.ResourceObjectId] = resource
+							}
+
+							resolvedResourceIds := maps.Keys(resolvedResourcesMap)
 							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.ResourceAndRelation, rel.Subject)
 
 							switch permissionship {
@@ -607,10 +637,10 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								if len(assertion.CaveatContext) == 0 {
 									require.NotContains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
 								} else if accessibility == consistencytestutil.NotAccessible {
-									found, ok := resolvedResources[rel.ResourceAndRelation.ObjectId]
+									found, ok := resolvedResourcesMap[rel.ResourceAndRelation.ObjectId]
 									require.True(t, !ok || found.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION) // LookupResources can be caveated, since we didn't rerun LookupResources with the context
 								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResources[rel.ResourceAndRelation.ObjectId].Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
@@ -618,12 +648,12 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								// If the caveat context given is empty, then the lookup result must be fully permissioned.
 								// Otherwise, it *could* be caveated or fully permissioned, depending on the context given.
 								if len(assertion.CaveatContext) == 0 {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedResources[rel.ResourceAndRelation.ObjectId].Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
 								require.Contains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
-								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResources[rel.ResourceAndRelation.ObjectId].Permissionship)
+								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
 
 							default:
 								panic("unknown permissionship")
