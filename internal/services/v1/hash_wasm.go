@@ -3,6 +3,9 @@ package v1
 import (
 	"crypto/sha256"
 	"fmt"
+	"sort"
+
+	"golang.org/x/exp/maps"
 )
 
 func computeAPICallHash(apiName string, arguments map[string]string) (string, error) {
@@ -13,7 +16,7 @@ func computeAPICallHash(apiName string, arguments map[string]string) (string, er
 		return "", err
 	}
 
-	_, err := h.Write([]byte(":"))
+	_, err = h.Write([]byte(":"))
 	if err != nil {
 		return "", err
 	}
@@ -43,5 +46,5 @@ func computeAPICallHash(apiName string, arguments map[string]string) (string, er
 		}
 	}
 
-	return fmt.Sprintf("%x", hasher.Sum64()), nil
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
