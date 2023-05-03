@@ -727,6 +727,8 @@ func (m *V1Cursor) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for Revision
+
 	// no validation rules for CallAndParametersHash
 
 	if len(errors) > 0 {

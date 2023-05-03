@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // Public facing errors
@@ -66,6 +66,7 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 	return Encode(&impl.DecodedCursor{
 		VersionOneof: &impl.DecodedCursor_V1{
 			V1: &impl.V1Cursor{
+				Revision:              dispatchCursor.AtRevision,
 				Sections:              dispatchCursor.Sections,
 				CallAndParametersHash: callAndParameterHash,
 			},
@@ -93,6 +94,32 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 	}
 
 	return &dispatch.Cursor{
-		Sections: v1decoded.Sections,
+		AtRevision: v1decoded.Revision,
+		Sections:   v1decoded.Sections,
 	}, nil
+}
+
+// DecodeToDispatchRevision decodes an encoded API cursor into an internal dispatch revision.
+// NOTE: this method does *not* verify the caller's method signature.
+func DecodeToDispatchRevision(encoded *v1.Cursor, ds revisionDecoder) (datastore.Revision, error) {
+	decoded, err := Decode(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	v1decoded := decoded.GetV1()
+	if v1decoded == nil {
+		return nil, ErrNilCursor
+	}
+
+	parsed, err := ds.RevisionFromString(v1decoded.Revision)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf(errDecodeError, err)
+	}
+
+	return parsed, nil
+}
+
+type revisionDecoder interface {
+	RevisionFromString(string) (datastore.Revision, error)
 }

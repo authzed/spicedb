@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -158,4 +160,37 @@ func TestAddRevisionToContextNoConsistencyAPI(t *testing.T) {
 
 	_, _, err := RevisionFromContext(updated)
 	require.Error(err)
+}
+
+func TestAddRevisionToContextWithCursor(t *testing.T) {
+	require := require.New(t)
+
+	ds := &proxy_test.MockDatastore{}
+	ds.On("CheckRevision", optimized).Return(nil).Times(1)
+	ds.On("RevisionFromString", optimized.String()).Return(optimized, nil).Once()
+
+	// cursor is at `optimized`
+	cursor, err := cursor.EncodeFromDispatchCursor(&dispatch.Cursor{
+		AtRevision: optimized.String(),
+	}, "somehash")
+	require.NoError(err)
+
+	// revision in context is at `exact`
+	updated := ContextWithHandle(context.Background())
+	err = AddRevisionToContext(updated, &v1.LookupResourcesRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: zedtoken.MustNewFromRevision(exact),
+			},
+		},
+		OptionalCursor: cursor,
+	}, ds)
+	require.NoError(err)
+
+	// ensure we get back `optimized` from the cursor
+	rev, _, err := RevisionFromContext(updated)
+	require.NoError(err)
+
+	require.True(optimized.Equal(rev))
+	ds.AssertExpectations(t)
 }

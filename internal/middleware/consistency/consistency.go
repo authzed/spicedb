@@ -14,12 +14,17 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 type hasConsistency interface {
 	GetConsistency() *v1.Consistency
+}
+
+type hasOptionalCursor interface {
+	GetOptionalCursor() *v1.Cursor
 }
 
 type ctxKeyType struct{}
@@ -74,7 +79,23 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	var revision datastore.Revision
 	consistency := req.GetConsistency()
 
+	withOptionalCursor, hasOptionalCursor := req.(hasOptionalCursor)
+
 	switch {
+	case hasOptionalCursor && withOptionalCursor.GetOptionalCursor() != nil:
+		// Always use the revision encoded in the cursor.
+		requestedRev, err := cursor.DecodeToDispatchRevision(withOptionalCursor.GetOptionalCursor(), ds)
+		if err != nil {
+			return rewriteDatastoreError(ctx, err)
+		}
+
+		err = ds.CheckRevision(ctx, requestedRev)
+		if err != nil {
+			return rewriteDatastoreError(ctx, err)
+		}
+
+		revision = requestedRev
+
 	case consistency == nil || consistency.GetMinimizeLatency():
 		// Minimize Latency: Use the datastore's current revision, whatever it may be.
 		databaseRev, err := ds.OptimizedRevision(ctx)

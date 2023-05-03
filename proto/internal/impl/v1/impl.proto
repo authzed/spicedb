@@ -40,12 +40,15 @@ message DecodedCursor {
 }
 
 message V1Cursor {
+  // revision is the string form of the revision for the cursor.
+  string revision = 1;
+
   // sections are the sections of the dispatching cursor.
-  repeated string sections = 1;
+  repeated string sections = 2;
 
   // call_and_parameters_hash is a hash of the call that manufactored this cursor and all its
   // parameters, including limits and zedtoken, to ensure no inputs changed when using this cursor.
-  string call_and_parameters_hash = 2;
+  string call_and_parameters_hash = 3;
 }
 
 message DocComment { string comment = 1; }

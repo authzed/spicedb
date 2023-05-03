@@ -250,6 +250,7 @@ func (m *V1Cursor) CloneVT() *V1Cursor {
 		return (*V1Cursor)(nil)
 	}
 	r := &V1Cursor{
+		Revision:              m.Revision,
 		CallAndParametersHash: m.CallAndParametersHash,
 	}
 	if rhs := m.Sections; rhs != nil {
@@ -693,6 +694,9 @@ func (this *V1Cursor) EqualVT(that *V1Cursor) bool {
 	if this == nil {
 		return that == nil
 	} else if that == nil {
+		return false
+	}
+	if this.Revision != that.Revision {
 		return false
 	}
 	if len(this.Sections) != len(that.Sections) {
@@ -1300,7 +1304,7 @@ func (m *V1Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.CallAndParametersHash)
 		i = encodeVarint(dAtA, i, uint64(len(m.CallAndParametersHash)))
 		i--
-		dAtA[i] = 0x12
+		dAtA[i] = 0x1a
 	}
 	if len(m.Sections) > 0 {
 		for iNdEx := len(m.Sections) - 1; iNdEx >= 0; iNdEx-- {
@@ -1308,8 +1312,15 @@ func (m *V1Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			copy(dAtA[i:], m.Sections[iNdEx])
 			i = encodeVarint(dAtA, i, uint64(len(m.Sections[iNdEx])))
 			i--
-			dAtA[i] = 0xa
+			dAtA[i] = 0x12
 		}
+	}
+	if len(m.Revision) > 0 {
+		i -= len(m.Revision)
+		copy(dAtA[i:], m.Revision)
+		i = encodeVarint(dAtA, i, uint64(len(m.Revision)))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -1692,6 +1703,10 @@ func (m *V1Cursor) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
+	l = len(m.Revision)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	if len(m.Sections) > 0 {
 		for _, s := range m.Sections {
 			l = len(s)
@@ -2627,6 +2642,38 @@ func (m *V1Cursor) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Revision", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Revision = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Sections", wireType)
 			}
 			var stringLen uint64
@@ -2657,7 +2704,7 @@ func (m *V1Cursor) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Sections = append(m.Sections, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
-		case 2:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field CallAndParametersHash", wireType)
 			}
