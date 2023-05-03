@@ -357,9 +357,7 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			if !hasResourceEntrypoints {
 				// If the found resource matches the target resource type and relation, yield the resource.
-				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace &&
-					foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
-
+				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace && foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
 					resources := foundResources.asReachableResources(entrypoint.IsDirectResult())
 					if len(resources) == 0 {
 						return nil

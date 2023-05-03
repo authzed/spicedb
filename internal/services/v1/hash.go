@@ -3,9 +3,8 @@ package v1
 import (
 	"strconv"
 
-	"github.com/golang/protobuf/ptypes/struct"
-
-	"github.com/authzed/authzed-go/proto/authzed/api/v1"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	structpb "github.com/golang/protobuf/ptypes/struct"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -54,5 +53,5 @@ func computeCallHash(apiName string, consistency *v1.Consistency, arguments map[
 			return "", spiceerrors.MustBugf("unknown argument type in compute call hash")
 		}
 	}
-	return computeApiCallHash(apiName, stringArguments)
+	return computeAPICallHash(apiName, stringArguments)
 }

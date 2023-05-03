@@ -104,6 +104,7 @@ var FolderNS = ns.Namespace(
 	),
 )
 
+// StandardTuples defines standard tuples for tests.
 // NOTE: some tests index directly into this slice, so if you're adding a new tuple, add it
 // at the *end*.
 var StandardTuples = []string{

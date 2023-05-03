@@ -90,7 +90,7 @@ func (cl *CursoredLookupResources) LookupResources(
 			}
 
 			// Publish the resource, if applicable.
-			permissionship := v1.ResolvedResource_UNKNOWN
+			var permissionship v1.ResolvedResource_Permissionship
 			var missingFields []string
 
 			switch {

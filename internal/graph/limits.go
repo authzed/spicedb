@@ -52,7 +52,7 @@ func (lt *limitTracker) prepareForPublishing() (bool, func()) {
 	}
 
 	// otherwise, remove the element from the limit.
-	lt.currentLimit -= 1
+	lt.currentLimit--
 	return true, func() {}
 }
 

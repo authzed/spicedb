@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"sort"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/cespare/xxhash/v2"
+	"golang.org/x/exp/maps"
 )
 
-func computeApiCallHash(apiName string, arguments map[string]string) (string, error) {
+func computeAPICallHash(apiName string, arguments map[string]string) (string, error) {
 	hasher := xxhash.New()
 	_, err := hasher.WriteString(apiName)
 	if err != nil {

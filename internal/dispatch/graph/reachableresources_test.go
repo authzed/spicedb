@@ -902,7 +902,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 				newFound := 0
 				for _, result := range stream.Results() {
 					require.True(t, foundResources.Add(result.Resource.ResourceId))
-					newFound += 1
+					newFound++
 
 					cursor = result.AfterResponseCursor
 				}
@@ -914,8 +914,8 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 
 			// Ensure *all* results were found.
 			for i := 0; i < 410; i++ {
-				resourceId := fmt.Sprintf("res%03d", i)
-				require.True(t, foundResources.Has(resourceId), "missing %s", resourceId)
+				resourceID := fmt.Sprintf("res%03d", i)
+				require.True(t, foundResources.Has(resourceID), "missing %s", resourceID)
 			}
 		})
 	}

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-func computeApiCallHash(apiName string, arguments map[string]string) (string, error) {
+func computeAPICallHash(apiName string, arguments map[string]string) (string, error) {
 	h := sha256.New()
 
 	_, err := h.Write([]byte(apiName))
