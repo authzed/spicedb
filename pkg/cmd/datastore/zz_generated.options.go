@@ -22,6 +22,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCWindow = c.GCWindow
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
+		to.MaxRevisionStalenessPercent = c.MaxRevisionStalenessPercent
 		to.ReadConnPool = c.ReadConnPool
 		to.WriteConnPool = c.WriteConnPool
 		to.SplitQueryCount = c.SplitQueryCount
@@ -90,6 +91,13 @@ func WithLegacyFuzzing(legacyFuzzing time.Duration) ConfigOption {
 func WithRevisionQuantization(revisionQuantization time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.RevisionQuantization = revisionQuantization
+	}
+}
+
+// WithMaxRevisionStalenessPercent returns an option that can set MaxRevisionStalenessPercent on a Config
+func WithMaxRevisionStalenessPercent(maxRevisionStalenessPercent float64) ConfigOption {
+	return func(c *Config) {
+		c.MaxRevisionStalenessPercent = maxRevisionStalenessPercent
 	}
 }
 

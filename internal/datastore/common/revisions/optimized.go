@@ -3,7 +3,8 @@ package revisions
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
+	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -23,12 +24,9 @@ type OptimizedRevisionFunction func(context.Context) (rev datastore.Revision, va
 
 // NewCachedOptimizedRevisions returns a CachedOptimizedRevisions for the given configuration
 func NewCachedOptimizedRevisions(maxRevisionStaleness time.Duration) *CachedOptimizedRevisions {
-	rev := atomicRevision{}
-	rev.set(validRevision{datastore.NoRevision, time.Time{}})
 	return &CachedOptimizedRevisions{
-		maxRevisionStaleness:  maxRevisionStaleness,
-		lastQuantizedRevision: &rev,
-		clockFn:               clock.New(),
+		maxRevisionStaleness: maxRevisionStaleness,
+		clockFn:              clock.New(),
 	}
 }
 
@@ -43,15 +41,26 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	defer span.End()
 
 	localNow := cor.clockFn.Now()
-	lastRevision := cor.lastQuantizedRevision.get()
-	if localNow.Before(lastRevision.validThrough) {
-		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("returning cached revision")
-		span.AddEvent("returning cached revision")
-		return lastRevision.revision, nil
+
+	// Subtract a random amount of time from now, to let barely expired candidates get selected
+	adjustedNow := localNow
+	if cor.maxRevisionStaleness > 0 {
+		adjustedNow = localNow.Add(-1 * time.Duration(rand.Int63n(cor.maxRevisionStaleness.Nanoseconds())) * time.Nanosecond)
 	}
 
-	lastQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
-		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", lastRevision.validThrough).Msg("computing new revision")
+	cor.Lock()
+	for _, candidate := range cor.candidates {
+		if candidate.validThrough.After(adjustedNow) {
+			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
+			span.AddEvent("returning cached revision")
+			cor.Unlock()
+			return candidate.revision, nil
+		}
+	}
+	cor.Unlock()
+
+	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
+		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
 		span.AddEvent("computing new revision")
 
 		optimized, validFor, err := cor.optimizedFunc(ctx)
@@ -59,10 +68,22 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 			return nil, fmt.Errorf("unable to compute optimized revision: %w", err)
 		}
 
-		rvt := localNow.
-			Add(validFor).
-			Add(cor.maxRevisionStaleness)
-		cor.lastQuantizedRevision.set(validRevision{optimized, rvt})
+		rvt := localNow.Add(validFor)
+		cor.Lock()
+		defer cor.Unlock()
+
+		// Prune the candidates that have definitely expired
+		var numToDrop uint
+		for _, candidate := range cor.candidates {
+			if candidate.validThrough.Add(cor.maxRevisionStaleness).Before(localNow) {
+				numToDrop++
+			} else {
+				break
+			}
+		}
+		cor.candidates = cor.candidates[numToDrop:]
+
+		cor.candidates = append(cor.candidates, validRevision{optimized, rvt})
 		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
 
 		return optimized, nil
@@ -70,18 +91,20 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	if err != nil {
 		return datastore.NoRevision, err
 	}
-	return lastQuantizedRevision.(datastore.Revision), err
+	return newQuantizedRevision.(datastore.Revision), err
 }
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
 type CachedOptimizedRevisions struct {
+	sync.Mutex
+
 	maxRevisionStaleness time.Duration
 	optimizedFunc        OptimizedRevisionFunction
 	clockFn              clock.Clock
 
-	// this value is read and set by multiple consumers, it's protected
-	// by atomic load/store
-	lastQuantizedRevision *atomicRevision
+	// these values are read and set by multiple consumers, they're protected
+	// by a mutex
+	candidates []validRevision
 
 	// the updategroup consolidates concurrent requests to the database into 1
 	updateGroup singleflight.Group
@@ -90,17 +113,4 @@ type CachedOptimizedRevisions struct {
 type validRevision struct {
 	revision     datastore.Revision
 	validThrough time.Time
-}
-
-// safeRevision is a wrapper that protects a revision with atomic
-type atomicRevision struct {
-	v atomic.Value
-}
-
-func (r *atomicRevision) get() validRevision {
-	return r.v.Load().(validRevision)
-}
-
-func (r *atomicRevision) set(revision validRevision) {
-	r.v.Store(revision)
 }

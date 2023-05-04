@@ -222,7 +222,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := c.DispatchCacheConfig.WithQuantization(c.DatastoreConfig.RevisionQuantization).Complete()
+		cc, err := c.DispatchCacheConfig.WithRevisionParameters(
+			c.DatastoreConfig.RevisionQuantization,
+			c.DatastoreConfig.FollowerReadDelay,
+			c.DatastoreConfig.MaxRevisionStalenessPercent,
+		).Complete()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
@@ -277,7 +281,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, err := c.ClusterDispatchCacheConfig.WithQuantization(c.DatastoreConfig.RevisionQuantization).Complete()
+		cdcc, err := c.ClusterDispatchCacheConfig.WithRevisionParameters(
+			c.DatastoreConfig.RevisionQuantization,
+			c.DatastoreConfig.FollowerReadDelay,
+			c.DatastoreConfig.MaxRevisionStalenessPercent,
+		).Complete()
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}
