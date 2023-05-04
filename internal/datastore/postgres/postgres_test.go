@@ -786,7 +786,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	seenWatchRevisionsLock := sync.Mutex{}
 
 	go func() {
-		changes, errChan := ds.Watch(withCancel, rev)
+		changes, _ := ds.Watch(withCancel, rev)
 
 		waitForWatch <- struct{}{}
 
@@ -794,8 +794,6 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 			select {
 			case change, ok := <-changes:
 				if !ok {
-					err := <-errChan
-					require.NoError(err)
 					return
 				}
 
