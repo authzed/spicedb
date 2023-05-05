@@ -304,6 +304,37 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			},
 		},
 		{
+			"ip address caveat",
+			`definition user {}
+
+			caveat has_valid_ip(user_ip ipaddress, allowed_range string) {
+				user_ip.in_cidr(allowed_range)
+			}
+			
+			definition resource {
+				relation viewer: user | user with has_valid_ip
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:first#viewer@user:sarah[has_valid_ip:{"allowed_range":"192.168.0.0/16"}]`),
+			},
+			[]debugCheckInfo{
+				{
+					"sarah as viewer",
+					debugCheckRequest{
+						obj("resource", "first"),
+						"viewer",
+						sub("user", "sarah", ""),
+						map[string]any{
+							"user_ip": "192.168.1.100",
+						},
+					},
+					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+					0,
+					nil,
+				},
+			},
+		},
+		{
 			"multiple caveated debug",
 			`definition user {}
 			

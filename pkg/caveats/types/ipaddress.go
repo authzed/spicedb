@@ -33,6 +33,10 @@ type IPAddress struct {
 	ip netip.Addr
 }
 
+func (ipa IPAddress) SerializedString() string {
+	return ipa.ip.String()
+}
+
 func (ipa IPAddress) ConvertToNative(typeDesc reflect.Type) (interface{}, error) {
 	switch typeDesc {
 	case reflect.TypeOf(""):
@@ -67,7 +71,7 @@ func (ipa IPAddress) Value() interface{} {
 	return ipa
 }
 
-var IPAddressType = registerCustomType(
+var IPAddressType = registerCustomType[IPAddress](
 	"ipaddress",
 	cel.ObjectType("IPAddress"),
 	func(value any) (any, error) {

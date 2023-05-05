@@ -80,7 +80,7 @@ func registerGenericType(
 }
 
 // registerCustomType registers a custom type that wraps a base CEL type.
-func registerCustomType(keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) VariableType {
+func registerCustomType[T CustomType](keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) VariableType {
 	CustomTypes[keyword] = opts
 	return registerBasicType(keyword, baseCelType, converter)
 }
