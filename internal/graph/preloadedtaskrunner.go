@@ -98,7 +98,7 @@ func (tr *preloadedTaskRunner) selectTask() TaskFunc {
 		return nil
 	}
 
-	task := tr.tasks[0]
-	tr.tasks = tr.tasks[1:]
+	var task TaskFunc
+	task, tr.tasks = tr.tasks[0], tr.tasks[1:]
 	return task
 }
