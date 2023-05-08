@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/authzed/grpcutil"
 	"github.com/cespare/xxhash/v2"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
@@ -390,27 +392,30 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithoutError(dashboardServer.Close)
 
-	registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
-	if err != nil {
-		log.Ctx(ctx).Warn().Err(err).Msg("unable to initialize telemetry collector")
-	}
+	var telemetryRegistry *prometheus.Registry
 
 	reporter := telemetry.DisabledReporter
 	if c.SilentlyDisableTelemetry {
 		reporter = telemetry.SilentlyDisabledReporter
 	} else if c.TelemetryEndpoint != "" && c.DatastoreConfig.DisableStats {
 		reporter = telemetry.DisabledReporter
-	} else if c.TelemetryEndpoint != "" && registry != nil {
-		var err error
+	} else if c.TelemetryEndpoint != "" {
+		log.Ctx(ctx).Debug().Msg("initializing telemetry collector")
+		registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
+		if err != nil {
+			return nil, fmt.Errorf("unable to initialize telemetry collector: %w", err)
+		}
+
+		telemetryRegistry = registry
 		reporter, err = telemetry.RemoteReporter(
-			registry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
+			telemetryRegistry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize metrics reporter: %w", err)
 		}
 	}
 
-	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(registry))
+	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(telemetryRegistry))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
 	}
