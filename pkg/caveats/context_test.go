@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
@@ -95,6 +96,15 @@ func TestConvertContextToStruct(t *testing.T) {
 			mustNewStruct(map[string]any{
 				"another_field": 1234,
 				"some_time":     "2h45m0s",
+			}),
+		},
+		{
+			"converts ip address",
+			map[string]any{
+				"user_ip": types.MustParseIPAddress("192.168.1.100"),
+			},
+			mustNewStruct(map[string]any{
+				"user_ip": "192.168.1.100",
 			}),
 		},
 	}
