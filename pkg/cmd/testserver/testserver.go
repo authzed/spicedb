@@ -27,14 +27,14 @@ const maxDepth = 50
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	GRPCServer               util.GRPCServerConfig
-	ReadOnlyGRPCServer       util.GRPCServerConfig
-	HTTPGateway              util.HTTPServerConfig
-	ReadOnlyHTTPGateway      util.HTTPServerConfig
-	LoadConfigs              []string
-	MaximumUpdatesPerWrite   uint16
-	MaximumPreconditionCount uint16
-	MaxCaveatContextSize     int
+	GRPCServer               util.GRPCServerConfig `debugmap:"visible"`
+	ReadOnlyGRPCServer       util.GRPCServerConfig `debugmap:"visible"`
+	HTTPGateway              util.HTTPServerConfig `debugmap:"visible"`
+	ReadOnlyHTTPGateway      util.HTTPServerConfig `debugmap:"visible"`
+	LoadConfigs              []string              `debugmap:"visible"`
+	MaximumUpdatesPerWrite   uint16                `debugmap:"visible"`
+	MaximumPreconditionCount uint16                `debugmap:"visible"`
+	MaxCaveatContextSize     int                   `debugmap:"visible"`
 }
 
 type RunnableTestServer interface {
@@ -114,7 +114,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
 
-	if c.HTTPGateway.Enabled {
+	if c.HTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
 	}
 
@@ -128,7 +128,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
 
-	if c.ReadOnlyHTTPGateway.Enabled {
+	if c.ReadOnlyHTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
 	}
 

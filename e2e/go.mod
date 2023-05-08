@@ -7,7 +7,7 @@ require (
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/authzed/spicedb v1.5.0
 	github.com/brianvoe/gofakeit/v6 v6.15.0
-	github.com/ecordell/optgen v0.0.6
+	github.com/ecordell/optgen v0.0.9
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/tools v0.6.0
@@ -18,10 +18,12 @@ require (
 require (
 	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
-	github.com/dave/jennifer v1.5.0 // indirect
+	github.com/creasty/defaults v1.7.0 // indirect
+	github.com/dave/jennifer v1.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/protoc-gen-validate v0.9.1 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/cel-go v0.12.5 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect

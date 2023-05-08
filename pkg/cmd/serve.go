@@ -48,7 +48,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
-	cmd.Flags().StringSliceVar(&config.PresharedKey, PresharedKeyFlag, []string{}, "preshared key(s) to require for authenticated requests")
+	cmd.Flags().StringSliceVar(&config.PresharedSecureKey, PresharedKeyFlag, []string{}, "preshared key(s) to require for authenticated requests")
 	cmd.Flags().DurationVar(&config.ShutdownGracePeriod, "grpc-shutdown-grace-period", 0*time.Second, "amount of time after receiving sigint to continue serving")
 	if err := cmd.MarkFlagRequired(PresharedKeyFlag); err != nil {
 		return fmt.Errorf("failed to mark flag as required: %w", err)

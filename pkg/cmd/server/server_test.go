@@ -23,7 +23,7 @@ func TestServerGracefulTermination(t *testing.T) {
 
 	c := ConfigWithOptions(
 		&Config{},
-		WithPresharedKey("psk"),
+		WithPresharedSecureKey("psk"),
 		WithDatastore(ds),
 		WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
@@ -32,9 +32,9 @@ func TestServerGracefulTermination(t *testing.T) {
 		WithNamespaceCacheConfig(CacheConfig{Enabled: true}),
 		WithDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
-		WithHTTPGateway(util.HTTPServerConfig{Enabled: true, Address: ":"}),
-		WithDashboardAPI(util.HTTPServerConfig{Enabled: true, Address: ":"}),
-		WithMetricsAPI(util.HTTPServerConfig{Enabled: true, Address: ":"}),
+		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
+		WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
+		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
 	)
 	rs, err := c.Complete(ctx)
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 		GRPCServer: util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 		},
-	}, WithPresharedKey("psk"), WithDatastore(ds))
+	}, WithPresharedSecureKey("psk"), WithDatastore(ds))
 	cancel()
 	_, err = c.Complete(ctx)
 	require.ErrorIs(t, err, context.Canceled)
