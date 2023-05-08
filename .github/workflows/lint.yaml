@@ -1,6 +1,6 @@
 ---
 name: "Lint"
-on: # yamllint disable-line rule:truthy
+on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "!dependabot/*"
@@ -8,7 +8,7 @@ on: # yamllint disable-line rule:truthy
   pull_request:
     branches: ["*"]
 env:
-  GO_VERSION: "~1.20.3"
+  GO_VERSION: "~1.20.4"
 jobs:
   go-lint:
     name: "Lint Go"
