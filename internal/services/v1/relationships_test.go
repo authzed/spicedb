@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
@@ -982,6 +984,110 @@ func TestDeleteRelationships(t *testing.T) {
 	}
 }
 
+func TestDeleteRelationshipsBeyondLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	_, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: "document",
+		},
+		OptionalLimit:                 5,
+		OptionalAllowPartialDeletions: false,
+	})
+	require.Error(err)
+	require.Contains(err.Error(), "found more than 5 relationships to be deleted and partial deletion was not requested")
+}
+
+func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	_, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: "document",
+		},
+		OptionalLimit:                 1005,
+		OptionalAllowPartialDeletions: false,
+	})
+	require.Error(err)
+	require.Contains(err.Error(), "value must be inside range [0, 1000]")
+}
+
+func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
+	expected := map[string]struct{}{
+		"document:companyplan#parent@folder:company":                                                                        {},
+		"document:masterplan#parent@folder:strategy":                                                                        {},
+		"document:masterplan#owner@user:product_manager":                                                                    {},
+		"document:masterplan#viewer@user:eng_lead":                                                                          {},
+		"document:masterplan#parent@folder:plans":                                                                           {},
+		"document:healthplan#parent@folder:plans":                                                                           {},
+		"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
+		"document:specialplan#editor@user:multiroleguy":                                                                     {},
+		"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
+		"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
+		"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
+	}
+
+	for _, batchSize := range []int{5, 6, 7, 10} {
+		batchSize := batchSize
+		require.Greater(t, len(expected), batchSize)
+
+		t.Run(fmt.Sprintf("batchsize-%d", batchSize), func(t *testing.T) {
+			require := require.New(t)
+			conn, cleanup, ds, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			client := v1.NewPermissionsServiceClient(conn)
+			t.Cleanup(cleanup)
+
+			iterations := 0
+			for i := 0; i < 10; i++ {
+				iterations++
+
+				headRev, err := ds.HeadRevision(context.Background())
+				require.NoError(err)
+
+				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevision(headRev))
+
+				resp, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+					RelationshipFilter: &v1.RelationshipFilter{
+						ResourceType: "document",
+					},
+					OptionalLimit:                 uint32(batchSize),
+					OptionalAllowPartialDeletions: true,
+				})
+				require.NoError(err)
+
+				headRev, err = ds.HeadRevision(context.Background())
+				require.NoError(err)
+
+				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevision(headRev))
+				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
+
+				if i == 0 {
+					require.Equal(v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL, resp.DeletionProgress)
+				}
+
+				if resp.DeletionProgress == v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE {
+					require.NoError(err)
+					require.NotNil(resp.DeletedAt)
+
+					rev, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+					require.NoError(err)
+					require.True(rev.GreaterThan(revision))
+					require.EqualValues(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
+					break
+				}
+			}
+
+			require.LessOrEqual(iterations, (len(expected)/batchSize)+1)
+		})
+	}
+}
+
 func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
@@ -1182,31 +1288,38 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 	}
 }
 
+func readOfType(require *require.Assertions, resourceType string, client v1.PermissionsServiceClient, token *v1.ZedToken) map[string]struct{} {
+	got := make(map[string]struct{})
+	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtExactSnapshot{
+				AtExactSnapshot: token,
+			},
+		},
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: resourceType,
+		},
+	})
+	require.NoError(err)
+
+	for {
+		rel, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(err)
+
+		got[tuple.MustRelString(rel.Relationship)] = struct{}{}
+	}
+	return got
+}
+
 func readAll(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken) map[string]struct{} {
 	got := make(map[string]struct{})
 	namespaces := []string{"document", "folder"}
 	for _, n := range namespaces {
-		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
-			Consistency: &v1.Consistency{
-				Requirement: &v1.Consistency_AtExactSnapshot{
-					AtExactSnapshot: token,
-				},
-			},
-			RelationshipFilter: &v1.RelationshipFilter{
-				ResourceType: n,
-			},
-		})
-		require.NoError(err)
-
-		for {
-			rel, err := stream.Recv()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			require.NoError(err)
-
-			got[tuple.MustRelString(rel.Relationship)] = struct{}{}
-		}
+		found := readOfType(require, n, client, token)
+		maps.Copy(got, found)
 	}
 	return got
 }

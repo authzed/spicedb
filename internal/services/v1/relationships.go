@@ -275,10 +275,45 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}
 
 	ds := datastoremw.MustFromContext(ctx)
+	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
 	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, rwt); err != nil {
 			return err
+		}
+
+		var deleteMutations []*core.RelationTupleUpdate
+
+		if req.OptionalLimit > 0 {
+			limit := uint64(req.OptionalLimit)
+			deleteMutations = make([]*core.RelationTupleUpdate, 0, limit)
+
+			limitPlusOne := limit + 1
+			filter := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+
+			iter, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne))
+			if err != nil {
+				return shared.RewriteError(ctx, err)
+			}
+			defer iter.Close()
+
+			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+				if iter.Err() != nil {
+					return shared.RewriteError(ctx, err)
+				}
+
+				if len(deleteMutations) == int(limit) {
+					deletionProgress = v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL
+					if !req.OptionalAllowPartialDeletions {
+						return shared.RewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
+					}
+
+					break
+				}
+
+				deleteMutations = append(deleteMutations, tuple.Delete(tpl))
+			}
+			iter.Close()
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -290,6 +325,10 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			return err
 		}
 
+		if len(deleteMutations) > 0 {
+			return rwt.WriteRelationships(ctx, deleteMutations)
+		}
+
 		return rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 	})
 	if err != nil {
@@ -297,6 +336,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	}
 
 	return &v1.DeleteRelationshipsResponse{
-		DeletedAt: zedtoken.MustNewFromRevision(revision),
+		DeletedAt:        zedtoken.MustNewFromRevision(revision),
+		DeletionProgress: deletionProgress,
 	}, nil
 }
