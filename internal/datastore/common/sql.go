@@ -127,85 +127,113 @@ func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFi
 			sqf.schema.colUsersetObjectID,
 			sqf.schema.colUsersetRelation,
 		)
+
+	case options.BySubject:
+		sqf.queryBuilder = sqf.queryBuilder.OrderBy(
+			sqf.schema.colUsersetNamespace,
+			sqf.schema.colUsersetObjectID,
+			sqf.schema.colUsersetRelation,
+			sqf.schema.colNamespace,
+			sqf.schema.colObjectID,
+			sqf.schema.colRelation,
+		)
 	}
 
 	return sqf
 }
 
+type nameAndValue struct {
+	name  string
+	value string
+}
+
 func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.SortOrder) SchemaQueryFilterer {
-	columnsAndValues := []struct {
-		name  string
-		value string
-	}{
-		{
-			sqf.schema.colNamespace, cursor.ResourceAndRelation.Namespace,
+	columnsAndValues := map[options.SortOrder][]nameAndValue{
+		options.ByResource: {
+			{
+				sqf.schema.colNamespace, cursor.ResourceAndRelation.Namespace,
+			},
+			{
+				sqf.schema.colObjectID, cursor.ResourceAndRelation.ObjectId,
+			},
+			{
+				sqf.schema.colRelation, cursor.ResourceAndRelation.Relation,
+			},
+			{
+				sqf.schema.colUsersetNamespace, cursor.Subject.Namespace,
+			},
+			{
+				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectId,
+			},
+			{
+				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
+			},
 		},
-		{
-			sqf.schema.colObjectID, cursor.ResourceAndRelation.ObjectId,
+		options.BySubject: {
+			{
+				sqf.schema.colUsersetNamespace, cursor.Subject.Namespace,
+			},
+			{
+				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectId,
+			},
+			{
+				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
+			},
+			{
+				sqf.schema.colNamespace, cursor.ResourceAndRelation.Namespace,
+			},
+			{
+				sqf.schema.colObjectID, cursor.ResourceAndRelation.ObjectId,
+			},
+			{
+				sqf.schema.colRelation, cursor.ResourceAndRelation.Relation,
+			},
 		},
-		{
-			sqf.schema.colRelation, cursor.ResourceAndRelation.Relation,
-		},
-		{
-			sqf.schema.colUsersetNamespace, cursor.Subject.Namespace,
-		},
-		{
-			sqf.schema.colUsersetObjectID, cursor.Subject.ObjectId,
-		},
-		{
-			sqf.schema.colUsersetRelation, cursor.Subject.Relation,
-		},
-	}
+	}[order]
 
 	switch sqf.schema.paginationFilterType {
 	case TupleComparison:
-		switch order {
-		case options.ByResource:
-			// For performance reasons, remove any column names that have static values in the query.
-			columnNames := make([]string, 0, len(columnsAndValues))
-			valueSlots := make([]any, 0, len(columnsAndValues))
-			comparisonSlotCount := 0
+		// For performance reasons, remove any column names that have static values in the query.
+		columnNames := make([]string, 0, len(columnsAndValues))
+		valueSlots := make([]any, 0, len(columnsAndValues))
+		comparisonSlotCount := 0
 
-			for _, cav := range columnsAndValues {
-				if sqf.filteringColumnCounts[cav.name] != 1 {
-					columnNames = append(columnNames, cav.name)
-					valueSlots = append(valueSlots, cav.value)
-					comparisonSlotCount++
-				}
-			}
-
-			if comparisonSlotCount > 0 {
-				comparisonTuple := "(" + strings.Join(columnNames, ",") + ") > (" + strings.Repeat(",?", comparisonSlotCount)[1:] + ")"
-				sqf.queryBuilder = sqf.queryBuilder.Where(
-					comparisonTuple,
-					valueSlots...,
-				)
+		for _, cav := range columnsAndValues {
+			if sqf.filteringColumnCounts[cav.name] != 1 {
+				columnNames = append(columnNames, cav.name)
+				valueSlots = append(valueSlots, cav.value)
+				comparisonSlotCount++
 			}
 		}
 
+		if comparisonSlotCount > 0 {
+			comparisonTuple := "(" + strings.Join(columnNames, ",") + ") > (" + strings.Repeat(",?", comparisonSlotCount)[1:] + ")"
+			sqf.queryBuilder = sqf.queryBuilder.Where(
+				comparisonTuple,
+				valueSlots...,
+			)
+		}
+
 	case ExpandedLogicComparison:
-		switch order {
-		case options.ByResource:
-			// For performance reasons, remove any column names that have static values in the query.
-			orClause := sq.Or{}
+		// For performance reasons, remove any column names that have static values in the query.
+		orClause := sq.Or{}
 
-			for index, cav := range columnsAndValues {
-				if sqf.filteringColumnCounts[cav.name] != 1 {
-					andClause := sq.And{}
-					for _, previous := range columnsAndValues[0:index] {
-						if sqf.filteringColumnCounts[previous.name] != 1 {
-							andClause = append(andClause, sq.Eq{previous.name: previous.value})
-						}
+		for index, cav := range columnsAndValues {
+			if sqf.filteringColumnCounts[cav.name] != 1 {
+				andClause := sq.And{}
+				for _, previous := range columnsAndValues[0:index] {
+					if sqf.filteringColumnCounts[previous.name] != 1 {
+						andClause = append(andClause, sq.Eq{previous.name: previous.value})
 					}
-
-					andClause = append(andClause, sq.Gt{cav.name: cav.value})
-					orClause = append(orClause, andClause)
 				}
-			}
 
-			if len(orClause) > 0 {
-				sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
+				andClause = append(andClause, sq.Gt{cav.name: cav.value})
+				orClause = append(orClause, andClause)
 			}
+		}
+
+		if len(orClause) > 0 {
+			sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
 		}
 	}
 

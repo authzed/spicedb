@@ -18,12 +18,16 @@ import (
 
 func OrderingTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
-		objectType string
-		ordering   options.SortOrder
+		resourceType string
+		ordering     options.SortOrder
 	}{
 		{testfixtures.DocumentNS.Name, options.ByResource},
 		{testfixtures.FolderNS.Name, options.ByResource},
 		{testfixtures.UserNS.Name, options.ByResource},
+
+		{testfixtures.DocumentNS.Name, options.BySubject},
+		{testfixtures.FolderNS.Name, options.BySubject},
+		{testfixtures.UserNS.Name, options.BySubject},
 	}
 
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
@@ -33,15 +37,17 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 	tRequire := testfixtures.TupleChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("%s-%d", tc.objectType, tc.ordering), func(t *testing.T) {
+		tc := tc
+
+		t.Run(fmt.Sprintf("%s-%d", tc.resourceType, tc.ordering), func(t *testing.T) {
 			require := require.New(t)
 			ctx := context.Background()
 
-			expected := sortedStandardData(tc.objectType, tc.ordering)
+			expected := sortedStandardData(tc.resourceType, tc.ordering)
 
 			// Check the snapshot reader order
 			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: tc.objectType,
+				ResourceType: tc.resourceType,
 			}, options.WithSort(tc.ordering))
 
 			require.NoError(err)
@@ -65,7 +71,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 			// Check a reader from with a transaction
 			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 				iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType: tc.objectType,
+					ResourceType: tc.resourceType,
 				}, options.WithSort(tc.ordering))
 				require.NoError(err)
 				defer iter.Close()
@@ -384,13 +390,13 @@ func foreachTxType(
 	})
 }
 
-func sortedStandardData(objectType string, order options.SortOrder) []*core.RelationTuple {
+func sortedStandardData(resourceType string, order options.SortOrder) []*core.RelationTuple {
 	asTuples := lo.Map(testfixtures.StandardTuples, func(item string, _ int) *core.RelationTuple {
 		return tuple.Parse(item)
 	})
 
 	filteredToType := lo.Filter(asTuples, func(item *core.RelationTuple, _ int) bool {
-		return item.ResourceAndRelation.Namespace == objectType
+		return item.ResourceAndRelation.Namespace == resourceType
 	})
 
 	sort.Slice(filteredToType, func(i, j int) bool {
@@ -401,6 +407,8 @@ func sortedStandardData(objectType string, order options.SortOrder) []*core.Rela
 		switch order {
 		case options.ByResource:
 			return lhsResource < rhsResource || (lhsResource == rhsResource && lhsSubject < rhsSubject)
+		case options.BySubject:
+			return lhsSubject < rhsSubject || (lhsSubject == rhsSubject && lhsResource < rhsResource)
 		default:
 			panic("request for sorted test data with no sort order")
 		}
