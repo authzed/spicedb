@@ -605,11 +605,17 @@ func WriteDeleteWriteTest(t *testing.T, tester DatastoreTester) {
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 
+	ensureTuples(ctx, require, ds, tpl)
+
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tpl)
 	require.NoError(err)
 
+	ensureNotTuples(ctx, require, ds, tpl)
+
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl)
 }
 
 // CreateAlreadyExistingTest tests creating a relationship twice.
@@ -644,11 +650,48 @@ func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 
 	tpl1 := makeTestTuple("foo", "tom")
 	tpl2 := makeTestTuple("foo", "sarah")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1, tpl2)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl1, tpl2)
+
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1, tpl2)
 	require.NoError(err)
 
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1)
+	ensureTuples(ctx, require, ds, tpl1, tpl2)
+
+	tpl3 := makeTestTuple("foo", "fred")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1, tpl3)
 	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl1, tpl2, tpl3)
+}
+
+// TouchAlreadyExistingCaveatedTest tests touching a relationship twice.
+func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := tuple.MustWithCaveat(makeTestTuple("foo", "tom"), "formercaveat")
+	tpl2 := makeTestTuple("foo", "sarah")
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1, tpl2)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl1, tpl2)
+
+	ctpl1 := tuple.MustWithCaveat(makeTestTuple("foo", "tom"), "somecaveat")
+	tpl3 := makeTestTuple("foo", "fred")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, ctpl1, tpl3)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl2, tpl3, ctpl1)
 }
 
 // UsersetsTest tests whether or not the requirements for reading usersets hold
@@ -797,5 +840,61 @@ func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {
 		SubjectType:        onr.Namespace,
 		OptionalSubjectIds: []string{onr.ObjectId},
 		RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(onr.Relation),
+	}
+}
+
+func ensureTuples(ctx context.Context, require *require.Assertions, ds datastore.Datastore, tpls ...*core.RelationTuple) {
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+
+	for _, tpl := range tpls {
+		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType:             tpl.ResourceAndRelation.Namespace,
+			OptionalResourceIds:      []string{tpl.ResourceAndRelation.ObjectId},
+			OptionalResourceRelation: tpl.ResourceAndRelation.Relation,
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					OptionalSubjectType: tpl.Subject.Namespace,
+					OptionalSubjectIds:  []string{tpl.Subject.ObjectId},
+				},
+			},
+		})
+		require.NoError(err)
+		defer iter.Close()
+
+		found := iter.Next()
+		require.NotNil(found, "expected tuple %s", tuple.MustString(tpl))
+		iter.Close()
+
+		require.Equal(tuple.MustString(tpl), tuple.MustString(found))
+	}
+}
+
+func ensureNotTuples(ctx context.Context, require *require.Assertions, ds datastore.Datastore, tpls ...*core.RelationTuple) {
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+
+	for _, tpl := range tpls {
+		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			ResourceType:             tpl.ResourceAndRelation.Namespace,
+			OptionalResourceIds:      []string{tpl.ResourceAndRelation.ObjectId},
+			OptionalResourceRelation: tpl.ResourceAndRelation.Relation,
+			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+				{
+					OptionalSubjectType: tpl.Subject.Namespace,
+					OptionalSubjectIds:  []string{tpl.Subject.ObjectId},
+				},
+			},
+		})
+		require.NoError(err)
+		defer iter.Close()
+
+		found := iter.Next()
+		require.Nil(found, "expected tuple %s to not exist", tuple.MustString(tpl))
+		iter.Close()
 	}
 }

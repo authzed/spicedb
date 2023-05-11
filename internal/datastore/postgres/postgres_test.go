@@ -280,7 +280,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 	tRequire.TupleExists(ctx, tpl, wroteOneRelationship)
 
-	// Overwrite the relationship.
+	// Overwrite the relationship by changing its caveat.
+	tpl = tuple.MustWithCaveat(tpl, "somecaveat")
 	relOverwrittenAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl)
 	require.NoError(err)
 
@@ -325,6 +326,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Write a the relationship a few times.
 	var relLastWriteAt datastore.Revision
 	for i := 0; i < 3; i++ {
+		tpl = tuple.MustWithCaveat(tpl, fmt.Sprintf("somecaveat%d", i))
+
 		var err error
 		relLastWriteAt, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl)
 		require.NoError(err)

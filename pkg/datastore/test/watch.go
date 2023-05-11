@@ -77,7 +77,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				}
 			}
 
-			updateUpdate := tuple.Touch(makeTestTuple("relation0", "test_user"))
+			updateUpdate := tuple.Touch(tuple.MustWithCaveat(makeTestTuple("relation0", "test_user"), "somecaveat"))
 			createUpdate := tuple.Touch(makeTestTuple("another_relation", "somestuff"))
 
 			batch := []*core.RelationTupleUpdate{updateUpdate, createUpdate}
