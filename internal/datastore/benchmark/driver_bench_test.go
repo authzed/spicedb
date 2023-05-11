@@ -5,6 +5,8 @@ package benchmark
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -23,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -172,6 +175,34 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 				})
 				b.Run("Touch", buildTupleTest(ctx, ds, core.RelationTupleUpdate_TOUCH))
 				b.Run("Create", buildTupleTest(ctx, ds, core.RelationTupleUpdate_CREATE))
+				b.Run("CreateAndTouch", func(b *testing.B) {
+					const totalRelationships = 1000
+					for _, portionCreate := range []float64{0, 0.10, 0.25, 0.50, 1} {
+						portionCreate := portionCreate
+						b.Run(fmt.Sprintf("%v_", portionCreate), func(b *testing.B) {
+							for n := 0; n < b.N; n++ {
+								portionCreateIndex := int(math.Floor(portionCreate * totalRelationships))
+								mutations := make([]*core.RelationTupleUpdate, 0, totalRelationships)
+								for index := 0; index < totalRelationships; index++ {
+									if index >= portionCreateIndex {
+										stableID := fmt.Sprintf("id-%d", index)
+										tpl := docViewer(stableID, stableID)
+										mutations = append(mutations, tuple.Touch(tpl))
+									} else {
+										randomID := testfixtures.RandomObjectID(32)
+										tpl := docViewer(randomID, randomID)
+										mutations = append(mutations, tuple.Create(tpl))
+									}
+								}
+
+								_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+									return rwt.WriteRelationships(ctx, mutations)
+								})
+								require.NoError(b, err)
+							}
+						})
+					}
+				})
 			})
 		})
 	}
