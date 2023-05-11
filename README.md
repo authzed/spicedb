@@ -79,7 +79,7 @@ brew install authzed/tap/spicedb authzed/tap/zed
 
 ```command
 sudo echo "deb [trusted=yes] https://apt.fury.io/authzed/ /" > /etc/apt/sources.list.d/authzed-fury.list
-sudo apt update && apt install spicedb
+sudo apt update && sudo apt install spicedb
 ```
 
 [RPM-based Linux] users can install SpiceDB packages by adding a new YUM repository:

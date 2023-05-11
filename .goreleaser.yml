@@ -33,6 +33,8 @@ brews:
       owner: "authzed"
       name: "homebrew-tap"
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
     url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     download_strategy: "CurlDownloadStrategy"
     commit_author:
@@ -43,8 +45,6 @@ brews:
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache-2.0"
     folder: "Formula"
-    pull_request:
-      enabled: true
     custom_block: |
       head "https://github.com/authzed/spicedb.git", :branch => "main"
     dependencies:
