@@ -16,14 +16,14 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
-func NewConcurrentReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentReachableResources {
-	return &ConcurrentReachableResources{d, concurrencyLimit}
+// NewCursoredReachableResources creates an instance of CursoredReachableResources.
+func NewCursoredReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *CursoredReachableResources {
+	return &CursoredReachableResources{d, concurrencyLimit}
 }
 
-// ConcurrentReachableResources exposes a method to perform ReachableResources requests, and
+// CursoredReachableResources exposes a method to perform ReachableResources requests, and
 // delegates subproblems to the provided dispatch.ReachableResources instance.
-type ConcurrentReachableResources struct {
+type CursoredReachableResources struct {
 	d                dispatch.ReachableResources
 	concurrencyLimit uint16
 }
@@ -35,7 +35,7 @@ type ValidatedReachableResourcesRequest struct {
 	Revision datastore.Revision
 }
 
-func (crr *ConcurrentReachableResources) ReachableResources(
+func (crr *CursoredReachableResources) ReachableResources(
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
@@ -91,7 +91,7 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 		})
 }
 
-func (crr *ConcurrentReachableResources) afterSameType(
+func (crr *CursoredReachableResources) afterSameType(
 	ctx context.Context,
 	ci cursorInformation,
 	req ValidatedReachableResourcesRequest,
@@ -165,7 +165,7 @@ func (crr *ConcurrentReachableResources) afterSameType(
 		})
 }
 
-func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
+func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 	ctx context.Context,
 	ci cursorInformation,
 	entrypoint namespace.ReachabilityEntrypoint,
@@ -228,7 +228,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
 
 var queryLimit uint64 = 100
 
-func (crr *ConcurrentReachableResources) chunkedRedispatch(
+func (crr *CursoredReachableResources) chunkedRedispatch(
 	ctx context.Context,
 	ci cursorInformation,
 	reader datastore.Reader,
@@ -255,14 +255,13 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 			defer it.Close()
 
 			rsm := newResourcesSubjectMap(resourceType)
-			var lastTpl *core.RelationTuple
+			var lastTpl options.Cursor
 			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 				if it.Err() != nil {
 					return nil, it.Err()
 				}
 
-				err := rsm.addRelationship(tpl)
-				if err != nil {
+				if err := rsm.addRelationship(tpl); err != nil {
 					return nil, err
 				}
 
@@ -278,7 +277,7 @@ func (crr *ConcurrentReachableResources) chunkedRedispatch(
 		})
 }
 
-func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context,
+func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 	ci cursorInformation,
 	entrypoint namespace.ReachabilityEntrypoint,
 	rg *namespace.ReachabilityGraph,
@@ -331,7 +330,7 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 // redispatchOrReport checks if further redispatching is necessary for the found resource
 // type. If not, and the found resource type+relation matches the target resource type+relation,
 // the resource is reported to the parent stream.
-func (crr *ConcurrentReachableResources) redispatchOrReport(
+func (crr *CursoredReachableResources) redispatchOrReport(
 	ctx context.Context,
 	ci cursorInformation,
 	foundResourceType *core.RelationReference,

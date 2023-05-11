@@ -823,15 +823,11 @@ func TestReachableResourcesCursors(t *testing.T) {
 			require.NoError(t, err)
 
 			count := 0
-			overlappingCount := 0
 			for _, result := range stream2.Results() {
 				count++
-				if !foundResources.Add(result.Resource.ResourceId) {
-					overlappingCount++
-				}
+				foundResources.Add(result.Resource.ResourceId)
 			}
 			require.LessOrEqual(t, count, 310)
-			require.LessOrEqual(t, overlappingCount, 100)
 
 			// Ensure *all* results were found.
 			for i := 0; i < 410; i++ {

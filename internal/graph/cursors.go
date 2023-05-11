@@ -21,6 +21,9 @@ type cursorInformation struct {
 	// outgoingCursorSections are the sections to be added to the outgoing *partial* cursor.
 	// It is the responsibility of the *caller* to append together the incoming cursors to form
 	// the final cursor.
+	//
+	// A `section` is a named portion of the cursor, representing a section of code that was
+	// executed to produce the section of the cursor.
 	outgoingCursorSections []string
 
 	// limits is the limits tracker for the call over which the cursor is being used.
@@ -53,8 +56,8 @@ func (ci cursorInformation) responsePartialCursor() *v1.Cursor {
 	}
 }
 
-// hasPrefix returns true if the current cursor has the given name as the prefix of the cursor.
-func (ci cursorInformation) hasPrefix(name string) (bool, error) {
+// hasHeadSection returns true if the current cursor has the given name as the prefix of the cursor.
+func (ci cursorInformation) hasHeadSection(name string) (bool, error) {
 	if ci.currentCursor == nil || len(ci.currentCursor.Sections) == 0 {
 		return false, nil
 	}
@@ -97,10 +100,10 @@ func (ci cursorInformation) integerSectionValue(name string) (int, error) {
 }
 
 // mustWithOutgoingSection returns cursorInformation updated with the given name and optional
-// value(s) appended to the PostExecutionCursorSections for the current cursor. If the current
+// value(s) appended to the outgoingCursorSections for the current cursor. If the current
 // cursor already begins with the given name, its value is replaced.
 func (ci cursorInformation) mustWithOutgoingSection(name string, values ...string) cursorInformation {
-	hasSection, err := ci.hasPrefix(name)
+	hasSection, err := ci.hasHeadSection(name)
 	if err != nil {
 		panic(err)
 	}

@@ -88,7 +88,7 @@ func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispa
 
 	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.reachableResourcesHandler = graph.NewConcurrentReachableResources(d, concurrencyLimits.ReachableResources)
+	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources)
 	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects)
 
@@ -102,7 +102,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 
 	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	reachableResourcesHandler := graph.NewConcurrentReachableResources(redispatcher, concurrencyLimits.ReachableResources)
+	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources)
 	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects)
 
@@ -118,7 +118,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 type localDispatcher struct {
 	checker                   *graph.ConcurrentChecker
 	expander                  *graph.ConcurrentExpander
-	reachableResourcesHandler *graph.ConcurrentReachableResources
+	reachableResourcesHandler *graph.CursoredReachableResources
 	lookupResourcesHandler    *graph.CursoredLookupResources
 	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
 }
