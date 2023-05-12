@@ -37,7 +37,6 @@ jobs:
       - uses: "docker/setup-buildx-action@v1"
       - uses: "goreleaser/goreleaser-action@v4"
         with:
-          distribution: "goreleaser-pro"
           version: "latest"
           args: "release --clean"
         env:
