@@ -47,7 +47,7 @@ type crdbReadWriteTXN struct {
 
 var (
 	upsertTupleSuffix = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s",
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -55,6 +55,10 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colTimestamp,
+		colCaveatContextName,
+		colCaveatContextName,
+		colCaveatContext,
+		colCaveatContext,
 		colCaveatContextName,
 		colCaveatContextName,
 		colCaveatContext,
