@@ -4,54 +4,49 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
-    paths:
-      - ".github/workflows/build-test.yaml"
-      - "buf.gen.yaml"
-      - "buf.work.yaml"
-      - "Dockerfile"
-      - "go.mod"
-      - "go.sum"
-      - "cmd/**"
-      - "pkg/**"
-      - "e2e/**"
-      - "internal/**"
-      - "proto/**"
   pull_request:
     branches:
       - "*"
-    paths:
-      - ".github/workflows/build-test.yaml"
-      - "buf.gen.yaml"
-      - "buf.work.yaml"
-      - "Dockerfile"
-      - "go.mod"
-      - "go.sum"
-      - "cmd/**"
-      - "pkg/**"
-      - "e2e/**"
-      - "internal/**"
-      - "proto/**"
   merge_group:
     types:
       - "checks_requested"
-    paths:
-      - ".github/workflows/build-test.yaml"
-      - "buf.gen.yaml"
-      - "buf.work.yaml"
-      - "Dockerfile"
-      - "go.mod"
-      - "go.sum"
-      - "cmd/**"
-      - "pkg/**"
-      - "e2e/**"
-      - "internal/**"
-      - "proto/**"
 env:
   GO_VERSION: "~1.20.4"
 jobs:
+  paths-filter:
+    runs-on: "ubuntu-latest"
+    outputs:
+      codechange: "${{ steps.code-filter.outputs.codechange }}"
+      protochange: "${{ steps.proto-filter.outputs.protochange }}"
+    steps:
+      - uses: "actions/checkout@v2"
+      - uses: "dorny/paths-filter@v2"
+        id: "code-filter"
+        with:
+          filters: |
+            codechange:
+              - ".github/workflows/build-test.yaml"
+              - "Dockerfile"
+              - "go.mod"
+              - "go.sum"
+              - "cmd/**"
+              - "pkg/**"
+              - "e2e/**"
+              - "internal/**"
+      - uses: "dorny/paths-filter@v2"
+        id: "proto-filter"
+        with:
+          filters: |
+            proto-change:
+              - "buf.gen.yaml"
+              - "buf.work.yaml"
+              - "proto/**"
   build:
     name: "Build Binary"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -62,6 +57,9 @@ jobs:
   image-build:
     name: "Build Container Image"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/docker-build@main"
@@ -81,6 +79,9 @@ jobs:
   unit:
     name: "Unit"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -94,6 +95,9 @@ jobs:
   integration:
     name: "Integration Tests"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -108,6 +112,9 @@ jobs:
   datastore:
     name: "Datastore Tests"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -126,6 +133,9 @@ jobs:
   datastoreconsistency:
     name: "Datastore Consistency Tests"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -142,6 +152,9 @@ jobs:
   e2e:
     name: "E2E"
     runs-on: "ubuntu-latest-8-cores"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -191,6 +204,9 @@ jobs:
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -204,6 +220,9 @@ jobs:
   development:
     name: "WASM Tests"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -217,6 +236,9 @@ jobs:
   protobuf:
     name: "Generate Protobufs"
     runs-on: "ubuntu-latest"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.protochange == 'true'
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"

@@ -3,9 +3,6 @@ name: "Build WASM"
 on:  # yamllint disable-line rule:truthy
   release:
     types: ["created"]
-  merge_group:
-    types:
-      - "checks_requested"
 permissions:
   contents: "write"
 env:
