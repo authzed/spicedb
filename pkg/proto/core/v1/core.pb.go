@@ -130,12 +130,15 @@ func (SetOperationUserset_Operation) EnumDescriptor() ([]byte, []int) {
 type ReachabilityEntrypoint_ReachabilityEntrypointKind int32
 
 const (
+	// *
 	// RELATION_ENTRYPOINT indicates an entrypoint where the subject object can be directly
 	// found for a relationship.
 	ReachabilityEntrypoint_RELATION_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 0
+	// *
 	// COMPUTED_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
 	// "rewritten" via a `computed_userset` to the target permission's operation node.
 	ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 1
+	// *
 	// TUPLESET_TO_USERSET_ENTRYPOINT indicates an entrypoint where the subject's relation is
 	// walked via a `tupleset_to_userset` in the target permission's operation node.
 	ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT ReachabilityEntrypoint_ReachabilityEntrypointKind = 2
@@ -185,10 +188,12 @@ func (ReachabilityEntrypoint_ReachabilityEntrypointKind) EnumDescriptor() ([]byt
 type ReachabilityEntrypoint_EntrypointResultStatus int32
 
 const (
+	// *
 	// REACHABLE_CONDITIONAL_RESULT indicates that the entrypoint is under one or more intersections
 	// or exclusion operations, indicating that any reachable object *may* be a result, conditional
 	// on the parent non-union operation(s).
 	ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT ReachabilityEntrypoint_EntrypointResultStatus = 0
+	// *
 	// DIRECT_OPERATION_RESULT indicates that the entrypoint exists solely under zero or more
 	// union operations, making any reachable object also a *result* of the relation or permission.
 	ReachabilityEntrypoint_DIRECT_OPERATION_RESULT ReachabilityEntrypoint_EntrypointResultStatus = 1
@@ -336,11 +341,11 @@ type RelationTuple struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// resource_and_relation is the resource for the tuple
+	// * resource_and_relation is the resource for the tuple
 	ResourceAndRelation *ObjectAndRelation `protobuf:"bytes,1,opt,name=resource_and_relation,json=resourceAndRelation,proto3" json:"resource_and_relation,omitempty"`
-	// subject is the subject for the tuple
+	// * subject is the subject for the tuple
 	Subject *ObjectAndRelation `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`
-	// caveat is a reference to a the caveat that must be enforced over the tuple *
+	// * caveat is a reference to a the caveat that must be enforced over the tuple *
 	Caveat *ContextualizedCaveat `protobuf:"bytes,3,opt,name=caveat,proto3" json:"caveat,omitempty"`
 }
 
@@ -397,6 +402,7 @@ func (x *RelationTuple) GetCaveat() *ContextualizedCaveat {
 	return nil
 }
 
+// *
 // ContextualizedCaveat represents a reference to a caveat used to by caveated tuples.
 // The context are key-value pairs that will be injected at evaluation time.
 type ContextualizedCaveat struct {
@@ -404,9 +410,9 @@ type ContextualizedCaveat struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// caveat_name is the name used in the schema for a stored caveat *
+	// * caveat_name is the name used in the schema for a stored caveat *
 	CaveatName string `protobuf:"bytes,1,opt,name=caveat_name,json=caveatName,proto3" json:"caveat_name,omitempty"`
-	// context are arguments used as input during caveat evaluation with a predefined value *
+	// * context are arguments used as input during caveat evaluation with a predefined value *
 	Context *structpb.Struct `protobuf:"bytes,2,opt,name=context,proto3" json:"context,omitempty"`
 }
 
@@ -461,15 +467,15 @@ type CaveatDefinition struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// name represents the globally-unique identifier of the caveat *
+	// * name represents the globally-unique identifier of the caveat *
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// serialized_expression is the byte representation of a caveat's logic
+	// * serialized_expression is the byte representation of a caveat's logic
 	SerializedExpression []byte `protobuf:"bytes,2,opt,name=serialized_expression,json=serializedExpression,proto3" json:"serialized_expression,omitempty"`
-	// parameters_and_types is a map from parameter name to its type
+	// * parameters_and_types is a map from parameter name to its type
 	ParameterTypes map[string]*CaveatTypeReference `protobuf:"bytes,3,rep,name=parameter_types,json=parameterTypes,proto3" json:"parameter_types,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// metadata contains compiler metadata from schemas compiled into caveats
+	// * metadata contains compiler metadata from schemas compiled into caveats
 	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// source_position contains the position of the caveat in the source schema, if any
+	// * source_position contains the position of the caveat in the source schema, if any
 	SourcePosition *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 }
 
@@ -600,11 +606,11 @@ type ObjectAndRelation struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// namespace is the full namespace path for the referenced object
+	// * namespace is the full namespace path for the referenced object
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	// object_id is the unique ID for the object within the namespace
+	// * object_id is the unique ID for the object within the namespace
 	ObjectId string `protobuf:"bytes,2,opt,name=object_id,json=objectId,proto3" json:"object_id,omitempty"`
-	// relation is the name of the referenced relation or permission under the namespace
+	// * relation is the name of the referenced relation or permission under the namespace
 	Relation string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
 }
 
@@ -666,9 +672,9 @@ type RelationReference struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// namespace is the full namespace path
+	// * namespace is the full namespace path
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	// relation is the name of the referenced relation or permission under the namespace
+	// * relation is the name of the referenced relation or permission under the namespace
 	Relation string `protobuf:"bytes,3,opt,name=relation,proto3" json:"relation,omitempty"`
 }
 
@@ -1074,6 +1080,7 @@ func (x *DirectSubjects) GetSubjects() []*DirectSubject {
 	return nil
 }
 
+// *
 // Metadata is compiler metadata added to namespace definitions, such as doc comments and
 // relation kinds.
 type Metadata struct {
@@ -1123,19 +1130,20 @@ func (x *Metadata) GetMetadataMessage() []*anypb.Any {
 	return nil
 }
 
+// *
 // NamespaceDefinition represents a single definition of an object type
 type NamespaceDefinition struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// name is the unique for the namespace, including prefixes (which are optional)
+	// * name is the unique for the namespace, including prefixes (which are optional)
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// relation contains the relations and permissions defined in the namespace
+	// * relation contains the relations and permissions defined in the namespace
 	Relation []*Relation `protobuf:"bytes,2,rep,name=relation,proto3" json:"relation,omitempty"`
-	// metadata contains compiler metadata from schemas compiled into namespaces
+	// * metadata contains compiler metadata from schemas compiled into namespaces
 	Metadata *Metadata `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// source_position contains the position of the namespace in the source schema, if any
+	// * source_position contains the position of the namespace in the source schema, if any
 	SourcePosition *SourcePosition `protobuf:"bytes,4,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 }
 
@@ -1199,22 +1207,24 @@ func (x *NamespaceDefinition) GetSourcePosition() *SourcePosition {
 	return nil
 }
 
+// *
 // Relation represents the definition of a relation or permission under a namespace.
 type Relation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// name is the full name for the relation or permission
+	// * name is the full name for the relation or permission
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// userset_rewrite, if specified, is the rewrite for computing the value of the permission.
+	// * userset_rewrite, if specified, is the rewrite for computing the value of the permission.
 	UsersetRewrite *UsersetRewrite `protobuf:"bytes,2,opt,name=userset_rewrite,json=usersetRewrite,proto3" json:"userset_rewrite,omitempty"`
+	// *
 	// type_information, if specified, is the list of allowed object types that can appear in this
 	// relation
 	TypeInformation *TypeInformation `protobuf:"bytes,3,opt,name=type_information,json=typeInformation,proto3" json:"type_information,omitempty"`
-	// metadata contains compiler metadata from schemas compiled into namespaces
+	// * metadata contains compiler metadata from schemas compiled into namespaces
 	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// source_position contains the position of the relation in the source schema, if any
+	// * source_position contains the position of the relation in the source schema, if any
 	SourcePosition    *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
 	AliasingRelation  string          `protobuf:"bytes,6,opt,name=aliasing_relation,json=aliasingRelation,proto3" json:"aliasing_relation,omitempty"`
 	CanonicalCacheKey string          `protobuf:"bytes,7,opt,name=canonical_cache_key,json=canonicalCacheKey,proto3" json:"canonical_cache_key,omitempty"`
@@ -1301,6 +1311,7 @@ func (x *Relation) GetCanonicalCacheKey() string {
 	return ""
 }
 
+// *
 // ReachabilityGraph is a serialized form of a reachability graph, representing how a relation can
 // be reached from one or more subject types.
 //
@@ -1337,9 +1348,11 @@ type ReachabilityGraph struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// *
 	// entrypoints_by_subject_type provides all entrypoints by subject *type*, representing wildcards.
 	// The keys of the map are the full path(s) for the namespace(s) referenced by reachable wildcards
 	EntrypointsBySubjectType map[string]*ReachabilityEntrypoints `protobuf:"bytes,1,rep,name=entrypoints_by_subject_type,json=entrypointsBySubjectType,proto3" json:"entrypoints_by_subject_type,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// *
 	// entrypoints_by_subject_relation provides all entrypoints by subject type+relation.
 	// The keys of the map are of the form `namespace_path#relation_name`
 	EntrypointsBySubjectRelation map[string]*ReachabilityEntrypoints `protobuf:"bytes,2,rep,name=entrypoints_by_subject_relation,json=entrypointsBySubjectRelation,proto3" json:"entrypoints_by_subject_relation,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -1391,6 +1404,7 @@ func (x *ReachabilityGraph) GetEntrypointsBySubjectRelation() map[string]*Reacha
 	return nil
 }
 
+// *
 // ReachabilityEntrypoints represents all the entrypoints for a specific subject type or subject
 // relation into the reachability graph for a particular target relation.
 type ReachabilityEntrypoints struct {
@@ -1398,11 +1412,14 @@ type ReachabilityEntrypoints struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// *
 	// entrypoints are the entrypoints found.
 	Entrypoints []*ReachabilityEntrypoint `protobuf:"bytes,1,rep,name=entrypoints,proto3" json:"entrypoints,omitempty"`
+	// *
 	// subject_type, if specified, is the type of subjects to which the entrypoint(s) apply. A
 	// subject type is only set for wildcards.
 	SubjectType string `protobuf:"bytes,2,opt,name=subject_type,json=subjectType,proto3" json:"subject_type,omitempty"`
+	// *
 	// subject_relation, if specified, is the type and relation of subjects to which the
 	// entrypoint(s) apply.
 	SubjectRelation *RelationReference `protobuf:"bytes,3,opt,name=subject_relation,json=subjectRelation,proto3" json:"subject_relation,omitempty"`
@@ -1461,6 +1478,7 @@ func (x *ReachabilityEntrypoints) GetSubjectRelation() *RelationReference {
 	return nil
 }
 
+// *
 // ReachabilityEntrypoint represents a single entrypoint for a specific subject type or subject
 // relation into the reachability graph for a particular target relation.
 type ReachabilityEntrypoint struct {
@@ -1468,13 +1486,17 @@ type ReachabilityEntrypoint struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// *
 	// kind is the kind of the entrypoint.
 	Kind ReachabilityEntrypoint_ReachabilityEntrypointKind `protobuf:"varint,1,opt,name=kind,proto3,enum=core.v1.ReachabilityEntrypoint_ReachabilityEntrypointKind" json:"kind,omitempty"`
+	// *
 	// target_relation is the relation on which the entrypoint exists.
 	TargetRelation *RelationReference `protobuf:"bytes,2,opt,name=target_relation,json=targetRelation,proto3" json:"target_relation,omitempty"`
+	// *
 	// result_status contains the status of objects found for this entrypoint as direct results for
 	// the parent relation/permission.
 	ResultStatus ReachabilityEntrypoint_EntrypointResultStatus `protobuf:"varint,4,opt,name=result_status,json=resultStatus,proto3,enum=core.v1.ReachabilityEntrypoint_EntrypointResultStatus" json:"result_status,omitempty"`
+	// *
 	// tupleset_relation is the name of the tupleset relation on the TupleToUserset this entrypoint
 	// represents, if applicable.
 	TuplesetRelation string `protobuf:"bytes,5,opt,name=tupleset_relation,json=tuplesetRelation,proto3" json:"tupleset_relation,omitempty"`
@@ -1540,12 +1562,14 @@ func (x *ReachabilityEntrypoint) GetTuplesetRelation() string {
 	return ""
 }
 
+// *
 // TypeInformation defines the allowed types for a relation.
 type TypeInformation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// *
 	// allowed_direct_relations are those relation types allowed to be placed into a relation,
 	// e.g. the types of subjects allowed when a relationship is written to the relation
 	AllowedDirectRelations []*AllowedRelation `protobuf:"bytes,1,rep,name=allowed_direct_relations,json=allowedDirectRelations,proto3" json:"allowed_direct_relations,omitempty"`
@@ -1590,14 +1614,16 @@ func (x *TypeInformation) GetAllowedDirectRelations() []*AllowedRelation {
 	return nil
 }
 
+// *
 // AllowedRelation is an allowed type of a relation when used as a subject.
 type AllowedRelation struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// namespace is the full namespace path of the allowed object type
+	// * namespace is the full namespace path of the allowed object type
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	// *
 	// relation_or_wildcard indicates the relation for the objects, or a wildcard.
 	//
 	// Types that are assignable to RelationOrWildcard:
@@ -1605,8 +1631,9 @@ type AllowedRelation struct {
 	//	*AllowedRelation_Relation
 	//	*AllowedRelation_PublicWildcard_
 	RelationOrWildcard isAllowedRelation_RelationOrWildcard `protobuf_oneof:"relation_or_wildcard"`
-	// source_position contains the position of the type in the source schema, if any
+	// * source_position contains the position of the type in the source schema, if any
 	SourcePosition *SourcePosition `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
+	// *
 	// required_caveat defines the required caveat on this relation.
 	RequiredCaveat *AllowedCaveat `protobuf:"bytes,6,opt,name=required_caveat,json=requiredCaveat,proto3" json:"required_caveat,omitempty"`
 }
@@ -1701,12 +1728,14 @@ func (*AllowedRelation_Relation) isAllowedRelation_RelationOrWildcard() {}
 
 func (*AllowedRelation_PublicWildcard_) isAllowedRelation_RelationOrWildcard() {}
 
+// *
 // AllowedCaveat is an allowed caveat of a relation.
 type AllowedCaveat struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// *
 	// caveat_name is the name of the allowed caveat.
 	CaveatName string `protobuf:"bytes,1,opt,name=caveat_name,json=caveatName,proto3" json:"caveat_name,omitempty"`
 }
@@ -2269,6 +2298,7 @@ type SetOperation_Child struct {
 	//	*SetOperation_Child_XNil
 	ChildType      isSetOperation_Child_ChildType `protobuf_oneof:"child_type"`
 	SourcePosition *SourcePosition                `protobuf:"bytes,5,opt,name=source_position,json=sourcePosition,proto3" json:"source_position,omitempty"`
+	// *
 	// operation_path (if specified) is the *unique* ID for the set operation in the permission
 	// definition. It is a heirarchy representing the position of the operation under its parent
 	// operation. For example, the operation path of an operation which is the third child of the

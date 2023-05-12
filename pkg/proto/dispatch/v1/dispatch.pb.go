@@ -268,9 +268,11 @@ func (ResolvedResource_Permissionship) EnumDescriptor() ([]byte, []int) {
 type ReachableResource_ResultStatus int32
 
 const (
+	// *
 	// REQUIRES_CHECK indicates that the resource is reachable but a Check is required to
 	// determine if the resource is actually found for the user.
 	ReachableResource_REQUIRES_CHECK ReachableResource_ResultStatus = 0
+	// *
 	// HAS_PERMISSION indicates that the resource is both reachable and found for the permission
 	// for the subject.
 	ReachableResource_HAS_PERMISSION ReachableResource_ResultStatus = 1
