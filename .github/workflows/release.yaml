@@ -1,4 +1,7 @@
 name: "Release"
+
+run-name: "Release tag: ${{ inputs.tag }}, branch: ${{ github.ref_name }}"
+
 on:
   workflow_dispatch:
     inputs:
