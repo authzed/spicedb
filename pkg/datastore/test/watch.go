@@ -215,3 +215,115 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 		}
 	}
 }
+
+func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// TOUCH a relationship and ensure watch sees it.
+	changes, errchan := ds.Watch(ctx, lowestRevision)
+	require.Zero(len(errchan))
+
+	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{
+			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom")),
+			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:sarah")),
+			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]")),
+		},
+	},
+		changes,
+		errchan,
+		false,
+	)
+
+	// TOUCH the relationship again with no changes and ensure it does *not* appear in the watch.
+	changes, errchan = ds.Watch(ctx, afterTouchRevision)
+	require.Zero(len(errchan))
+
+	afterNoChangesRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom"))
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+
+	verifyNoUpdates(require,
+		changes,
+		errchan,
+		false,
+	)
+
+	// TOUCH the relationship again with a caveat change and ensure it does appear in the watch.
+	changes, errchan = ds.Watch(ctx, afterNoChangesRevision)
+	require.Zero(len(errchan))
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds,
+		tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))},
+	},
+		changes,
+		errchan,
+		false,
+	)
+}
+
+func verifyNoUpdates(
+	require *require.Assertions,
+	changes <-chan *datastore.RevisionChanges,
+	errchan <-chan error,
+	expectDisconnect bool,
+) {
+	changeWait := time.NewTimer(waitForChangesTimeout)
+	select {
+	case _, ok := <-changes:
+		if !ok {
+			require.True(expectDisconnect, "unexpected disconnect")
+			errWait := time.NewTimer(waitForChangesTimeout)
+			select {
+			case err := <-errchan:
+				require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+				return
+			case <-errWait.C:
+				require.Fail("Timed out waiting for ErrWatchDisconnected")
+			}
+			return
+		}
+
+		require.Fail("expected no changes")
+	case <-changeWait.C:
+		return
+	}
+}

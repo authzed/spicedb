@@ -95,6 +95,7 @@ func All(t *testing.T, tester DatastoreTester) {
 	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
 	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
 	t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
+	t.Run("TestWatchWithTouch", func(t *testing.T) { WatchWithTouchTest(t, tester) })
 }
 
 var testResourceNS = namespace.Namespace(
