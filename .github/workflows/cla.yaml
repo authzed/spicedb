@@ -9,6 +9,9 @@ on:  # yamllint disable-line rule:truthy
       - "opened"
       - "closed"
       - "synchronize"
+  merge_group:
+    types:
+      - "checks_requested"
 jobs:
   cla:
     name: "Check Signature"

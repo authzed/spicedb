@@ -1,7 +1,10 @@
 ---
 name: "Pull Request Labeler"
 on:  # yamllint disable-line rule:truthy
-  - "pull_request_target"
+  pull_request_target:
+  merge_group:
+    types:
+      - "checks_requested"
 jobs:
   triage:
     runs-on: "ubuntu-latest"
