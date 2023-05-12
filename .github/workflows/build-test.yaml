@@ -31,6 +31,9 @@ on:  # yamllint disable-line rule:truthy
       - "e2e/**"
       - "internal/**"
       - "proto/**"
+  merge_group:
+    types:
+      - "checks_requested"
 env:
   GO_VERSION: "~1.20.4"
 jobs:

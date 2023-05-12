@@ -4,6 +4,9 @@ on:  # yamllint disable-line rule:truthy
   push:
     tags:
       - "*"
+  merge_group:
+    types:
+      - "checks_requested"
 permissions:
   contents: "write"
   packages: "write"
