@@ -14,6 +14,7 @@ import (
 
 	"github.com/authzed/grpcutil"
 	"github.com/cespare/xxhash/v2"
+	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/go-multierror"
@@ -58,75 +59,75 @@ var ConsistentHashringPicker = balancer.NewConsistentHashringPickerBuilder(
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
 	// API config
-	GRPCServer             util.GRPCServerConfig
-	GRPCAuthFunc           grpc_auth.AuthFunc
-	PresharedKey           []string
-	ShutdownGracePeriod    time.Duration
-	DisableVersionResponse bool
+	GRPCServer             util.GRPCServerConfig `debugmap:"visible"`
+	GRPCAuthFunc           grpc_auth.AuthFunc    `debugmap:"visible"`
+	PresharedSecureKey     []string              `debugmap:"sensitive"`
+	ShutdownGracePeriod    time.Duration         `debugmap:"visible"`
+	DisableVersionResponse bool                  `debugmap:"visible"`
 
 	// GRPC Gateway config
-	HTTPGateway                    util.HTTPServerConfig
-	HTTPGatewayUpstreamAddr        string
-	HTTPGatewayUpstreamTLSCertPath string
-	HTTPGatewayCorsEnabled         bool
-	HTTPGatewayCorsAllowedOrigins  []string
+	HTTPGateway                    util.HTTPServerConfig `debugmap:"visible"`
+	HTTPGatewayUpstreamAddr        string                `debugmap:"visible"`
+	HTTPGatewayUpstreamTLSCertPath string                `debugmap:"visible"`
+	HTTPGatewayCorsEnabled         bool                  `debugmap:"visible"`
+	HTTPGatewayCorsAllowedOrigins  []string              `debugmap:"visible-format"`
 
 	// Datastore
-	DatastoreConfig datastorecfg.Config
-	Datastore       datastore.Datastore
+	DatastoreConfig datastorecfg.Config `debugmap:"visible"`
+	Datastore       datastore.Datastore `debugmap:"visible"`
 
 	// Datastore usage
-	MaxCaveatContextSize int
+	MaxCaveatContextSize int `debugmap:"visible"`
 
 	// Namespace cache
-	NamespaceCacheConfig CacheConfig
+	NamespaceCacheConfig CacheConfig `debugmap:"visible"`
 
 	// Schema options
-	SchemaPrefixesRequired bool
+	SchemaPrefixesRequired bool `debugmap:"visible"`
 
 	// Dispatch options
-	DispatchServer                    util.GRPCServerConfig
-	DispatchMaxDepth                  uint32
-	GlobalDispatchConcurrencyLimit    uint16
-	DispatchConcurrencyLimits         graph.ConcurrencyLimits
-	DispatchUpstreamAddr              string
-	DispatchUpstreamCAPath            string
-	DispatchUpstreamTimeout           time.Duration
-	DispatchClientMetricsEnabled      bool
-	DispatchClientMetricsPrefix       string
-	DispatchClusterMetricsEnabled     bool
-	DispatchClusterMetricsPrefix      string
-	Dispatcher                        dispatch.Dispatcher
-	DispatchHashringReplicationFactor uint16
-	DispatchHashringSpread            uint8
+	DispatchServer                    util.GRPCServerConfig   `debugmap:"visible"`
+	DispatchMaxDepth                  uint32                  `debugmap:"visible"`
+	GlobalDispatchConcurrencyLimit    uint16                  `debugmap:"visible"`
+	DispatchConcurrencyLimits         graph.ConcurrencyLimits `debugmap:"visible"`
+	DispatchUpstreamAddr              string                  `debugmap:"visible"`
+	DispatchUpstreamCAPath            string                  `debugmap:"visible"`
+	DispatchUpstreamTimeout           time.Duration           `debugmap:"visible"`
+	DispatchClientMetricsEnabled      bool                    `debugmap:"visible"`
+	DispatchClientMetricsPrefix       string                  `debugmap:"visible"`
+	DispatchClusterMetricsEnabled     bool                    `debugmap:"visible"`
+	DispatchClusterMetricsPrefix      string                  `debugmap:"visible"`
+	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
+	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
+	DispatchHashringSpread            uint8                   `debugmap:"visible"`
 
-	DispatchCacheConfig        CacheConfig
-	ClusterDispatchCacheConfig CacheConfig
+	DispatchCacheConfig        CacheConfig `debugmap:"visible"`
+	ClusterDispatchCacheConfig CacheConfig `debugmap:"visible"`
 
 	// API Behavior
-	DisableV1SchemaAPI       bool
-	V1SchemaAdditiveOnly     bool
-	MaximumUpdatesPerWrite   uint16
-	MaximumPreconditionCount uint16
-	MaxDatastoreReadPageSize uint64
-	StreamingAPITimeout      time.Duration
+	DisableV1SchemaAPI       bool          `debugmap:"visible"`
+	V1SchemaAdditiveOnly     bool          `debugmap:"visible"`
+	MaximumUpdatesPerWrite   uint16        `debugmap:"visible"`
+	MaximumPreconditionCount uint16        `debugmap:"visible"`
+	MaxDatastoreReadPageSize uint64        `debugmap:"visible"`
+	StreamingAPITimeout      time.Duration `debugmap:"visible"`
 
 	// Additional Services
-	DashboardAPI util.HTTPServerConfig
-	MetricsAPI   util.HTTPServerConfig
+	DashboardAPI util.HTTPServerConfig `debugmap:"visible"`
+	MetricsAPI   util.HTTPServerConfig `debugmap:"visible"`
 
 	// Middleware for grpc API
-	MiddlewareModification []MiddlewareModification
+	MiddlewareModification []MiddlewareModification `debugmap:"hidden"`
 
 	// Middleware for internal dispatch API
-	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor
-	DispatchStreamingMiddleware []grpc.StreamServerInterceptor
+	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
+	DispatchStreamingMiddleware []grpc.StreamServerInterceptor `debugmap:"hidden"`
 
 	// Telemetry
-	SilentlyDisableTelemetry bool
-	TelemetryCAOverridePath  string
-	TelemetryEndpoint        string
-	TelemetryInterval        time.Duration
+	SilentlyDisableTelemetry bool          `debugmap:"visible"`
+	TelemetryCAOverridePath  string        `debugmap:"visible"`
+	TelemetryEndpoint        string        `debugmap:"visible"`
+	TelemetryInterval        time.Duration `debugmap:"visible"`
 }
 
 type closeableStack struct {
@@ -172,6 +173,8 @@ func (c *closeableStack) CloseIfError(err error) error {
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
+	log.Ctx(ctx).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+
 	closeables := closeableStack{}
 	var err error
 	defer func() {
@@ -181,13 +184,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		}
 	}()
 
-	if len(c.PresharedKey) < 1 && c.GRPCAuthFunc == nil {
+	if len(c.PresharedSecureKey) < 1 && c.GRPCAuthFunc == nil {
 		return nil, fmt.Errorf("a preshared key must be provided to authenticate API requests")
 	}
 
 	if c.GRPCAuthFunc == nil {
-		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedKey)).Msg("using gRPC auth with preshared key(s)")
-		for index, presharedKey := range c.PresharedKey {
+		log.Ctx(ctx).Trace().Int("preshared-keys-count", len(c.PresharedSecureKey)).Msg("using gRPC auth with preshared key(s)")
+		for index, presharedKey := range c.PresharedSecureKey {
 			if len(presharedKey) == 0 {
 				return nil, fmt.Errorf("preshared key #%d is empty", index+1)
 			}
@@ -195,7 +198,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			log.Ctx(ctx).Trace().Int("preshared-key-"+strconv.Itoa(index+1)+"-length", len(presharedKey)).Msg("preshared key configured")
 		}
 
-		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedKey)
+		c.GRPCAuthFunc = auth.MustRequirePresharedKey(c.PresharedSecureKey)
 	} else {
 		log.Ctx(ctx).Trace().Msg("using preconfigured auth function")
 	}
@@ -236,8 +239,8 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		log.Ctx(ctx).Info().EmbedObject(cc).Msg("configured dispatch cache")
 
 		dispatchPresharedKey := ""
-		if len(c.PresharedKey) > 0 {
-			dispatchPresharedKey = c.PresharedKey[0]
+		if len(c.PresharedSecureKey) > 0 {
+			dispatchPresharedKey = c.PresharedSecureKey[0]
 		}
 
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
@@ -275,7 +278,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedKey), ds)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds)
 		} else {
 			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds)
 		}
@@ -415,7 +418,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		}
 	}
 
-	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(telemetryRegistry))
+	metricsServer, err := c.MetricsAPI.Complete(zerolog.InfoLevel, MetricsHandler(telemetryRegistry, c))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize metrics server: %w", err)
 	}
@@ -429,7 +432,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dashboardServer:     dashboardServer,
 		unaryMiddleware:     unaryMiddleware,
 		streamingMiddleware: streamingMiddleware,
-		presharedKeys:       c.PresharedKey,
+		presharedKeys:       c.PresharedSecureKey,
 		telemetryReporter:   reporter,
 		healthManager:       healthManager,
 		closeFunc:           closeables.Close,
@@ -464,7 +467,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 
 	// If the requested network is a buffered one, then disable the HTTPGateway.
 	if c.GRPCServer.Network == util.BufferedNetwork {
-		c.HTTPGateway.Enabled = false
+		c.HTTPGateway.HTTPEnabled = false
 		c.HTTPGatewayUpstreamAddr = "invalidaddr:1234" // We need an address-like value here for gRPC
 	}
 
@@ -485,7 +488,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 		}).Handler(gatewayHandler)
 	}
 
-	if c.HTTPGateway.Enabled {
+	if c.HTTPGateway.HTTPEnabled {
 		log.Ctx(ctx).Info().Str("upstream", c.HTTPGatewayUpstreamAddr).Msg("starting REST gateway")
 	}
 

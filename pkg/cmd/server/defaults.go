@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -71,7 +72,7 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 
 // MetricsHandler sets up an HTTP server that handles serving Prometheus
 // metrics and pprof endpoints.
-func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
+func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("/metrics", promhttp.Handler())
@@ -86,6 +87,20 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry) http.Handler {
 	mux.HandleFunc("/debug/pprof/cmdline", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "This profile type has been disabled to avoid leaking private command-line arguments")
+	})
+	mux.HandleFunc("/debug/config", func(w http.ResponseWriter, r *http.Request) {
+		if c == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		json, err := json.MarshalIndent(c.DebugMap(), "", "  ")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Fprintf(w, "%s", string(json))
 	})
 
 	return mux

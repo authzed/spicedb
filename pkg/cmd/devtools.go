@@ -126,7 +126,7 @@ func httpMetricsServiceBuilder() *cobrahttp.Builder {
 	return cobrahttp.New("metrics",
 		cobrahttp.WithLogger(zerologr.New(&log.Logger)),
 		cobrahttp.WithFlagPrefix("metrics"),
-		cobrahttp.WithHandler(server.MetricsHandler(server.DisableTelemetryHandler)),
+		cobrahttp.WithHandler(server.MetricsHandler(server.DisableTelemetryHandler, nil)),
 	)
 }
 

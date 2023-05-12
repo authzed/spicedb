@@ -26,19 +26,19 @@ type Cursor *core.RelationTuple
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
-	Limit    *uint64
-	Usersets []*core.ObjectAndRelation
-	Sort     SortOrder
-	After    Cursor
+	Limit    *uint64                   `debugmap:"visible"`
+	Usersets []*core.ObjectAndRelation `debugmap:"visible"`
+	Sort     SortOrder                 `debugmap:"visible"`
+	After    Cursor                    `debugmap:"visible"`
 }
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.
 type ReverseQueryOptions struct {
-	ResRelation *ResourceRelation
+	ResRelation *ResourceRelation `debugmap:"visible"`
 
-	LimitForReverse *uint64
-	SortForReverse  SortOrder
-	AfterForReverse Cursor
+	LimitForReverse *uint64   `debugmap:"visible"`
+	SortForReverse  SortOrder `debugmap:"visible"`
+	AfterForReverse Cursor    `debugmap:"visible"`
 }
 
 // ResourceRelation combines a resource object type and relation.

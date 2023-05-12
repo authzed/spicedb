@@ -30,13 +30,15 @@ func init() {
 }
 
 // CacheConfig defines the configuration various SpiceDB caches.
+//
+//go:generate go run github.com/ecordell/optgen -output zz_generated.cacheconfig.options.go . CacheConfig
 type CacheConfig struct {
-	Name        string
-	MaxCost     string
-	NumCounters int64
-	Metrics     bool
-	Enabled     bool
-	defaultTTL  time.Duration
+	Name        string        `debugmap:"visible"`
+	MaxCost     string        `debugmap:"visible"`
+	NumCounters int64         `debugmap:"visible"`
+	Metrics     bool          `debugmap:"visible"`
+	Enabled     bool          `debugmap:"visible"`
+	defaultTTL  time.Duration `debugmap:"visible"`
 }
 
 // WithRevisionParameters configures a cache such that all entries are given a TTL

@@ -7,6 +7,8 @@ import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
+	defaults "github.com/creasty/defaults"
+	helpers "github.com/ecordell/optgen/helpers"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpc "google.golang.org/grpc"
 	"time"
@@ -23,12 +25,22 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	return c
 }
 
+// NewConfigWithOptionsAndDefaults creates a new Config with the passed in options set starting from the defaults
+func NewConfigWithOptionsAndDefaults(opts ...ConfigOption) *Config {
+	c := &Config{}
+	defaults.MustSet(c)
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
 // ToOption returns a new ConfigOption that sets the values from the passed in Config
 func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.GRPCServer = c.GRPCServer
 		to.GRPCAuthFunc = c.GRPCAuthFunc
-		to.PresharedKey = c.PresharedKey
+		to.PresharedSecureKey = c.PresharedSecureKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
 		to.DisableVersionResponse = c.DisableVersionResponse
 		to.HTTPGateway = c.HTTPGateway
@@ -75,8 +87,65 @@ func (c *Config) ToOption() ConfigOption {
 	}
 }
 
+// DebugMap returns a map form of Config for debugging
+func (c Config) DebugMap() map[string]any {
+	debugMap := map[string]any{}
+	debugMap["GRPCServer"] = helpers.DebugValue(c.GRPCServer, false)
+	debugMap["GRPCAuthFunc"] = helpers.DebugValue(c.GRPCAuthFunc, false)
+	debugMap["PresharedSecureKey"] = helpers.SensitiveDebugValue(c.PresharedSecureKey)
+	debugMap["ShutdownGracePeriod"] = helpers.DebugValue(c.ShutdownGracePeriod, false)
+	debugMap["DisableVersionResponse"] = helpers.DebugValue(c.DisableVersionResponse, false)
+	debugMap["HTTPGateway"] = helpers.DebugValue(c.HTTPGateway, false)
+	debugMap["HTTPGatewayUpstreamAddr"] = helpers.DebugValue(c.HTTPGatewayUpstreamAddr, false)
+	debugMap["HTTPGatewayUpstreamTLSCertPath"] = helpers.DebugValue(c.HTTPGatewayUpstreamTLSCertPath, false)
+	debugMap["HTTPGatewayCorsEnabled"] = helpers.DebugValue(c.HTTPGatewayCorsEnabled, false)
+	debugMap["HTTPGatewayCorsAllowedOrigins"] = helpers.DebugValue(c.HTTPGatewayCorsAllowedOrigins, true)
+	debugMap["DatastoreConfig"] = helpers.DebugValue(c.DatastoreConfig, false)
+	debugMap["Datastore"] = helpers.DebugValue(c.Datastore, false)
+	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
+	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
+	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
+	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
+	debugMap["DispatchMaxDepth"] = helpers.DebugValue(c.DispatchMaxDepth, false)
+	debugMap["GlobalDispatchConcurrencyLimit"] = helpers.DebugValue(c.GlobalDispatchConcurrencyLimit, false)
+	debugMap["DispatchConcurrencyLimits"] = helpers.DebugValue(c.DispatchConcurrencyLimits, false)
+	debugMap["DispatchUpstreamAddr"] = helpers.DebugValue(c.DispatchUpstreamAddr, false)
+	debugMap["DispatchUpstreamCAPath"] = helpers.DebugValue(c.DispatchUpstreamCAPath, false)
+	debugMap["DispatchUpstreamTimeout"] = helpers.DebugValue(c.DispatchUpstreamTimeout, false)
+	debugMap["DispatchClientMetricsEnabled"] = helpers.DebugValue(c.DispatchClientMetricsEnabled, false)
+	debugMap["DispatchClientMetricsPrefix"] = helpers.DebugValue(c.DispatchClientMetricsPrefix, false)
+	debugMap["DispatchClusterMetricsEnabled"] = helpers.DebugValue(c.DispatchClusterMetricsEnabled, false)
+	debugMap["DispatchClusterMetricsPrefix"] = helpers.DebugValue(c.DispatchClusterMetricsPrefix, false)
+	debugMap["Dispatcher"] = helpers.DebugValue(c.Dispatcher, false)
+	debugMap["DispatchHashringReplicationFactor"] = helpers.DebugValue(c.DispatchHashringReplicationFactor, false)
+	debugMap["DispatchHashringSpread"] = helpers.DebugValue(c.DispatchHashringSpread, false)
+	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
+	debugMap["ClusterDispatchCacheConfig"] = helpers.DebugValue(c.ClusterDispatchCacheConfig, false)
+	debugMap["DisableV1SchemaAPI"] = helpers.DebugValue(c.DisableV1SchemaAPI, false)
+	debugMap["V1SchemaAdditiveOnly"] = helpers.DebugValue(c.V1SchemaAdditiveOnly, false)
+	debugMap["MaximumUpdatesPerWrite"] = helpers.DebugValue(c.MaximumUpdatesPerWrite, false)
+	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
+	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
+	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
+	debugMap["DashboardAPI"] = helpers.DebugValue(c.DashboardAPI, false)
+	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
+	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
+	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
+	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
+	debugMap["TelemetryInterval"] = helpers.DebugValue(c.TelemetryInterval, false)
+	return debugMap
+}
+
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
+// WithOptions configures the receiver Config with the passed in options set
+func (c *Config) WithOptions(opts ...ConfigOption) *Config {
 	for _, o := range opts {
 		o(c)
 	}
@@ -97,17 +166,17 @@ func WithGRPCAuthFunc(gRPCAuthFunc auth.AuthFunc) ConfigOption {
 	}
 }
 
-// WithPresharedKey returns an option that can append PresharedKeys to Config.PresharedKey
-func WithPresharedKey(presharedKey string) ConfigOption {
+// WithPresharedSecureKey returns an option that can append PresharedSecureKeys to Config.PresharedSecureKey
+func WithPresharedSecureKey(presharedSecureKey string) ConfigOption {
 	return func(c *Config) {
-		c.PresharedKey = append(c.PresharedKey, presharedKey)
+		c.PresharedSecureKey = append(c.PresharedSecureKey, presharedSecureKey)
 	}
 }
 
-// SetPresharedKey returns an option that can set PresharedKey on a Config
-func SetPresharedKey(presharedKey []string) ConfigOption {
+// SetPresharedSecureKey returns an option that can set PresharedSecureKey on a Config
+func SetPresharedSecureKey(presharedSecureKey []string) ConfigOption {
 	return func(c *Config) {
-		c.PresharedKey = presharedKey
+		c.PresharedSecureKey = presharedSecureKey
 	}
 }
 

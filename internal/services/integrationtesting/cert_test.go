@@ -133,9 +133,9 @@ func TestCertRotation(t *testing.T) {
 		server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
 			return ctx, nil
 		}),
-		server.WithHTTPGateway(util.HTTPServerConfig{Enabled: false}),
-		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
-		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
+		server.WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		server.WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
 		server.SetMiddlewareModification([]server.MiddlewareModification{
 			{

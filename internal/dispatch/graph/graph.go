@@ -24,11 +24,13 @@ const errDispatch = "error dispatching request: %w"
 var tracer = otel.Tracer("spicedb/internal/dispatch/local")
 
 // ConcurrencyLimits defines per-dispatch-type concurrency limits.
+//
+//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . ConcurrencyLimits
 type ConcurrencyLimits struct {
-	Check              uint16
-	LookupResources    uint16
-	ReachableResources uint16
-	LookupSubjects     uint16
+	Check              uint16 `debugmap:"visible"`
+	LookupResources    uint16 `debugmap:"visible"`
+	ReachableResources uint16 `debugmap:"visible"`
+	LookupSubjects     uint16 `debugmap:"visible"`
 }
 
 const defaultConcurrencyLimit = 50

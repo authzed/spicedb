@@ -38,13 +38,14 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 	MySQLEngine:     newMySQLDatastore,
 }
 
+//go:generate go run github.com/ecordell/optgen -output zz_generated.connpool.options.go . ConnPoolConfig
 type ConnPoolConfig struct {
-	MaxIdleTime         time.Duration
-	MaxLifetime         time.Duration
-	MaxLifetimeJitter   time.Duration
-	MaxOpenConns        int
-	MinOpenConns        int
-	HealthCheckInterval time.Duration
+	MaxIdleTime         time.Duration `debugmap:"visible"`
+	MaxLifetime         time.Duration `debugmap:"visible"`
+	MaxLifetimeJitter   time.Duration `debugmap:"visible"`
+	MaxOpenConns        int           `debugmap:"visible"`
+	MinOpenConns        int           `debugmap:"visible"`
+	HealthCheckInterval time.Duration `debugmap:"visible"`
 }
 
 func DefaultReadConnPool() *ConnPoolConfig {
@@ -89,57 +90,57 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 	_ = flagSet.MarkDeprecated("datastore-conn-healthcheck-interval", warning)
 }
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
+//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.options.go . Config
 type Config struct {
-	Engine                      string
-	URI                         string
-	GCWindow                    time.Duration
-	LegacyFuzzing               time.Duration
-	RevisionQuantization        time.Duration
-	MaxRevisionStalenessPercent float64
+	Engine                      string        `debugmap:"visible"`
+	URI                         string        `debugmap:"sensitive"`
+	GCWindow                    time.Duration `debugmap:"visible"`
+	LegacyFuzzing               time.Duration `debugmap:"visible"`
+	RevisionQuantization        time.Duration `debugmap:"visible"`
+	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
 
 	// Options
-	ReadConnPool           ConnPoolConfig
-	WriteConnPool          ConnPoolConfig
-	SplitQueryCount        uint16
-	ReadOnly               bool
-	EnableDatastoreMetrics bool
-	DisableStats           bool
+	ReadConnPool           ConnPoolConfig `debugmap:"visible"`
+	WriteConnPool          ConnPoolConfig `debugmap:"visible"`
+	SplitQueryCount        uint16         `debugmap:"visible"`
+	ReadOnly               bool           `debugmap:"visible"`
+	EnableDatastoreMetrics bool           `debugmap:"visible"`
+	DisableStats           bool           `debugmap:"visible"`
 
 	// Bootstrap
-	BootstrapFiles        []string
-	BootstrapFileContents map[string][]byte
-	BootstrapOverwrite    bool
-	BootstrapTimeout      time.Duration
+	BootstrapFiles        []string          `debugmap:"visible-format"`
+	BootstrapFileContents map[string][]byte `debugmap:"visible"`
+	BootstrapOverwrite    bool              `debugmap:"visible"`
+	BootstrapTimeout      time.Duration     `debugmap:"visible"`
 
 	// Hedging
-	RequestHedgingEnabled          bool
-	RequestHedgingInitialSlowValue time.Duration
-	RequestHedgingMaxRequests      uint64
-	RequestHedgingQuantile         float64
+	RequestHedgingEnabled          bool          `debugmap:"visible"`
+	RequestHedgingInitialSlowValue time.Duration `debugmap:"visible"`
+	RequestHedgingMaxRequests      uint64        `debugmap:"visible"`
+	RequestHedgingQuantile         float64       `debugmap:"visible"`
 
 	// CRDB
-	FollowerReadDelay time.Duration
-	MaxRetries        int
-	OverlapKey        string
-	OverlapStrategy   string
+	FollowerReadDelay time.Duration `debugmap:"visible"`
+	MaxRetries        int           `debugmap:"visible"`
+	OverlapKey        string        `debugmap:"visible"`
+	OverlapStrategy   string        `debugmap:"visible"`
 
 	// Postgres
-	GCInterval         time.Duration
-	GCMaxOperationTime time.Duration
+	GCInterval         time.Duration `debugmap:"visible"`
+	GCMaxOperationTime time.Duration `debugmap:"visible"`
 
 	// Spanner
-	SpannerCredentialsFile string
-	SpannerEmulatorHost    string
+	SpannerCredentialsFile string `debugmap:"visible"`
+	SpannerEmulatorHost    string `debugmap:"visible"`
 
 	// MySQL
-	TablePrefix string
+	TablePrefix string `debugmap:"visible"`
 
 	// Internal
-	WatchBufferLength uint16
+	WatchBufferLength uint16 `debugmap:"visible"`
 
 	// Migrations
-	MigrationPhase string
+	MigrationPhase string `debugmap:"visible"`
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
