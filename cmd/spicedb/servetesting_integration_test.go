@@ -164,6 +164,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 		return nil, fmt.Errorf("Could not connect to docker: %w", err)
 	}
 
+	pool.MaxWait = 3 * time.Minute
+
 	resource, err := pool.RunWithOptions(containerOpts)
 	if err != nil {
 		return nil, fmt.Errorf("Could not start resource: %w", err)
@@ -182,25 +184,21 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 	}
 
 	// Give the service time to boot.
-	require.Eventually(t, func() bool {
+	require.NoError(t, pool.Retry(func() error {
 		conn, err := grpc.Dial(
 			fmt.Sprintf("localhost:%s", port),
 			grpc.WithInsecure(),
 			grpcutil.WithInsecureBearerToken(token),
 		)
 		if err != nil {
-			return false
+			return err
 		}
 
 		client := v1.NewSchemaServiceClient(conn)
 
 		if withExistingSchema {
 			_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
-			if err != nil {
-				s, ok := status.FromError(err)
-				require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
-			}
-			return err == nil
+			return err
 		}
 
 		// Write a basic schema.
@@ -217,12 +215,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			`,
 		})
 
-		if err != nil {
-			s, ok := status.FromError(err)
-			require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
-		}
-		return err == nil
-	}, 3*time.Second, 10*time.Millisecond, "could not start test server")
+		return err
+	}))
 
 	return &spicedbHandle{
 		port:             port,
