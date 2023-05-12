@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -29,7 +31,7 @@ import (
 func TestTestServer(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
-
+	key := uuid.NewString()
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository: "authzed/spicedb",
@@ -44,13 +46,14 @@ func TestTestServer(t *testing.T) {
 			},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
-		"",
+		key,
 		false,
 	)
 	require.NoError(err)
 	defer tester.cleanup()
 
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(key)}
+	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), options...)
 	require.NoError(err)
 	defer conn.Close()
 
@@ -58,7 +61,7 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
 
-	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), options...)
 	require.NoError(err)
 	defer roConn.Close()
 
@@ -115,7 +118,7 @@ func TestTestServer(t *testing.T) {
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Try a call with a different auth header and ensure it fails.
-	authedConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithInsecure(), grpcutil.WithInsecureBearerToken("someothertoken"))
+	authedConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken("someothertoken"))
 	require.NoError(err)
 	defer authedConn.Close()
 
@@ -127,10 +130,12 @@ func TestTestServer(t *testing.T) {
 
 	// Make an HTTP call and ensure it succeeds.
 	readUrl := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.httpPort)
-	hresp, err := http.Post(readUrl, "", nil)
+	req, err := http.NewRequest("POST", readUrl, nil)
+	req.Header.Add("Authorization", "Bearer "+key)
+	hresp, err := http.DefaultClient.Do(req)
 	require.NoError(err)
 
-	body, err := ioutil.ReadAll(hresp.Body)
+	body, err := io.ReadAll(hresp.Body)
 	require.NoError(err)
 
 	require.Equal(200, hresp.StatusCode)
@@ -161,12 +166,14 @@ type spicedbHandle struct {
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
-		return nil, fmt.Errorf("Could not connect to docker: %w", err)
+		return nil, fmt.Errorf("could not connect to docker: %w", err)
 	}
+
+	pool.MaxWait = 3 * time.Minute
 
 	resource, err := pool.RunWithOptions(containerOpts)
 	if err != nil {
-		return nil, fmt.Errorf("Could not start resource: %w", err)
+		return nil, fmt.Errorf("could not start resource: %w", err)
 	}
 
 	port := resource.GetPort("50051/tcp")
@@ -182,25 +189,21 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 	}
 
 	// Give the service time to boot.
-	require.Eventually(t, func() bool {
+	require.NoError(t, pool.Retry(func() error {
 		conn, err := grpc.Dial(
 			fmt.Sprintf("localhost:%s", port),
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpcutil.WithInsecureBearerToken(token),
 		)
 		if err != nil {
-			return false
+			return err
 		}
 
 		client := v1.NewSchemaServiceClient(conn)
 
 		if withExistingSchema {
 			_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
-			if err != nil {
-				s, ok := status.FromError(err)
-				require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
-			}
-			return err == nil
+			return err
 		}
 
 		// Write a basic schema.
@@ -217,12 +220,8 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			`,
 		})
 
-		if err != nil {
-			s, ok := status.FromError(err)
-			require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
-		}
-		return err == nil
-	}, 3*time.Second, 10*time.Millisecond, "could not start test server")
+		return err
+	}))
 
 	return &spicedbHandle{
 		port:             port,
