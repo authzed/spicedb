@@ -28,7 +28,7 @@ jobs:
       - name: "Run Go Mod Download"
         shell: "bash"
         run: "go mod download"
-      - uses: "docker/login-action@v1"
+      - uses: "docker/login-action@v2"
         with:
           registry: "ghcr.io"
           username: "${{ github.actor }}"
