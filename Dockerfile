@@ -1,6 +1,8 @@
 FROM golang:1.20-alpine3.16 AS spicedb-builder
 ARG APP_VERSION
 WORKDIR /go/src/app
+COPY go.mod .
+COPY go.sum .
 RUN apk update && apk add --no-cache git
 RUN go mod download
 ADD . .
