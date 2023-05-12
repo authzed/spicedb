@@ -308,7 +308,7 @@ func verifyNoUpdates(
 ) {
 	changeWait := time.NewTimer(waitForChangesTimeout)
 	select {
-	case _, ok := <-changes:
+	case changes, ok := <-changes:
 		if !ok {
 			require.True(expectDisconnect, "unexpected disconnect")
 			errWait := time.NewTimer(waitForChangesTimeout)
@@ -322,7 +322,7 @@ func verifyNoUpdates(
 			return
 		}
 
-		require.Fail("expected no changes")
+		require.Equal(0, len(changes.Changes), "expected no changes")
 	case <-changeWait.C:
 		return
 	}
