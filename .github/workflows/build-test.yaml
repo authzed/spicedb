@@ -34,6 +34,18 @@ on:  # yamllint disable-line rule:truthy
   merge_group:
     types:
       - "checks_requested"
+    paths:
+      - ".github/workflows/build-test.yaml"
+      - "buf.gen.yaml"
+      - "buf.work.yaml"
+      - "Dockerfile"
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "pkg/**"
+      - "e2e/**"
+      - "internal/**"
+      - "proto/**"
 env:
   GO_VERSION: "~1.20.4"
 jobs:
