@@ -31,6 +31,7 @@ func (vd validatingDatastore) SnapshotReader(revision datastore.Revision) datast
 func (vd validatingDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	if f == nil {
 		return datastore.NoRevision, fmt.Errorf("nil delegate function")
@@ -39,7 +40,7 @@ func (vd validatingDatastore) ReadWriteTx(
 	return vd.Datastore.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		txDelegate := validatingReadWriteTransaction{validatingSnapshotReader{rwt}, rwt}
 		return f(txDelegate)
-	})
+	}, opts...)
 }
 
 func (vd validatingDatastore) Unwrap() datastore.Datastore {
@@ -225,6 +226,10 @@ func (vrwt validatingReadWriteTransaction) WriteCaveats(ctx context.Context, cav
 
 func (vrwt validatingReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
 	return vrwt.delegate.DeleteCaveats(ctx, names)
+}
+
+func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {
+	return vrwt.delegate.BulkLoad(ctx, source)
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.

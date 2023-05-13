@@ -8,6 +8,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/test"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -38,8 +39,12 @@ func NewSeparatingContextDatastoreProxy(d datastore.Datastore) datastore.Datasto
 
 type ctxProxy struct{ delegate datastore.Datastore }
 
-func (p *ctxProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFunc) (datastore.Revision, error) {
-	return p.delegate.ReadWriteTx(ctx, f)
+func (p *ctxProxy) ReadWriteTx(
+	ctx context.Context,
+	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
+) (datastore.Revision, error) {
+	return p.delegate.ReadWriteTx(ctx, f, opts...)
 }
 
 func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
@@ -83,6 +88,11 @@ func (p *ctxProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 
 func (p *ctxProxy) Unwrap() datastore.Datastore {
 	return p.delegate
+}
+
+// Implement the TestableDatastore interface
+func (p *ctxProxy) ExampleRetryableError() error {
+	return p.delegate.(test.TestableDatastore).ExampleRetryableError()
 }
 
 type ctxReader struct{ delegate datastore.Reader }

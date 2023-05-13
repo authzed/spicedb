@@ -23,8 +23,9 @@ func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader
 func (dm *MockDatastore) ReadWriteTx(
 	_ context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	args := dm.Called()
+	args := dm.Called(opts)
 	mockRWT := args.Get(0).(datastore.ReadWriteTransaction)
 
 	if err := f(mockRWT); err != nil {
@@ -259,6 +260,11 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames 
 
 	args := dm.Called(xs...)
 	return args.Error(0)
+}
+
+func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	args := dm.Called(iter)
+	return uint64(args.Int(0)), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {

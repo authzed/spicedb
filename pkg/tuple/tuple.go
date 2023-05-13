@@ -3,6 +3,7 @@ package tuple
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -418,7 +419,7 @@ func UpdateToRelationshipUpdate(update *core.RelationTupleUpdate) *v1.Relationsh
 }
 
 // MustFromRelationship converts a Relationship into a RelationTuple.
-func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
+func MustFromRelationship[R objectReference, S subjectReference[R], C caveat](r relationship[R, S, C]) *core.RelationTuple {
 	if err := r.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid relationship: %#v %s", r, err))
 	}
@@ -426,7 +427,7 @@ func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
 }
 
 // MustFromRelationships converts a slice of Relationship's into a slice of RelationTuple's.
-func MustFromRelationships(rels []*v1.Relationship) []*core.RelationTuple {
+func MustFromRelationships[R objectReference, S subjectReference[R], C caveat](rels []relationship[R, S, C]) []*core.RelationTuple {
 	tuples := make([]*core.RelationTuple, 0, len(rels))
 	for _, rel := range rels {
 		tpl := MustFromRelationship(rel)
@@ -436,27 +437,32 @@ func MustFromRelationships(rels []*v1.Relationship) []*core.RelationTuple {
 }
 
 // FromRelationship converts a Relationship into a RelationTuple.
-func FromRelationship(r *v1.Relationship) *core.RelationTuple {
-	var caveat *core.ContextualizedCaveat
-	if r.OptionalCaveat != nil {
-		caveat = &core.ContextualizedCaveat{
-			CaveatName: r.OptionalCaveat.CaveatName,
-			Context:    r.OptionalCaveat.Context,
-		}
+func FromRelationship[T objectReference, S subjectReference[T], C caveat](r relationship[T, S, C]) *core.RelationTuple {
+	rel := &core.RelationTuple{
+		ResourceAndRelation: &core.ObjectAndRelation{},
+		Subject:             &core.ObjectAndRelation{},
+		Caveat:              &core.ContextualizedCaveat{},
 	}
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: r.Resource.ObjectType,
-			ObjectId:  r.Resource.ObjectId,
-			Relation:  r.Relation,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: r.Subject.Object.ObjectType,
-			ObjectId:  r.Subject.Object.ObjectId,
-			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
-		},
-		Caveat: caveat,
+
+	CopyRelationshipToRelationTuple(r, rel)
+
+	return rel
+}
+
+func CopyRelationshipToRelationTuple[T objectReference, S subjectReference[T], C caveat](r relationship[T, S, C], dst *core.RelationTuple) {
+	if !reflect.ValueOf(r.GetOptionalCaveat()).IsZero() {
+		dst.Caveat.CaveatName = r.GetOptionalCaveat().GetCaveatName()
+		dst.Caveat.Context = r.GetOptionalCaveat().GetContext()
+	} else {
+		dst.Caveat = nil
 	}
+
+	dst.ResourceAndRelation.Namespace = r.GetResource().GetObjectType()
+	dst.ResourceAndRelation.ObjectId = r.GetResource().GetObjectId()
+	dst.ResourceAndRelation.Relation = r.GetRelation()
+	dst.Subject.Namespace = r.GetSubject().GetObject().GetObjectType()
+	dst.Subject.ObjectId = r.GetSubject().GetObject().GetObjectId()
+	dst.Subject.Relation = stringz.DefaultEmpty(r.GetSubject().GetOptionalRelation(), Ellipsis)
 }
 
 // UpdateFromRelationshipUpdate converts a RelationshipUpdate into a
@@ -476,7 +482,7 @@ func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationT
 
 	return &core.RelationTupleUpdate{
 		Operation: op,
-		Tuple:     FromRelationship(update.Relationship),
+		Tuple:     FromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](update.Relationship),
 	}
 }
 

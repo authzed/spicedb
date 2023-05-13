@@ -33,6 +33,12 @@ func (f DatastoreTesterFunc) New(revisionQuantization, gcInterval, gcWindow time
 	return f(revisionQuantization, gcInterval, gcWindow, watchBufferLength)
 }
 
+type TestableDatastore interface {
+	datastore.Datastore
+
+	ExampleRetryableError() error
+}
+
 // AllExceptWatch runs all generic datastore tests on a DatastoreTester, except
 // those invoking the watch API.
 func AllExceptWatch(t *testing.T, tester DatastoreTester) {
@@ -66,7 +72,12 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
 	t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
 
+	t.Run("TestBulkUpload", func(t *testing.T) { BulkUploadTest(t, tester) })
+	t.Run("TestBulkUploadErrors", func(t *testing.T) { BulkUploadErrorsTest(t, tester) })
+
 	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
+
+	t.Run("TestRetries", func(t *testing.T) { RetryTest(t, tester) })
 
 	t.Run("TestCaveatNotFound", func(t *testing.T) { CaveatNotFoundTest(t, tester) })
 	t.Run("TestWriteReadDeleteCaveat", func(t *testing.T) { WriteReadDeleteCaveatTest(t, tester) })

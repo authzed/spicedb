@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -12,13 +10,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/graph"
-	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/internal/namespace"
-	"github.com/authzed/spicedb/internal/services/shared"
-	"github.com/authzed/spicedb/internal/sharederrors"
-	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -184,65 +175,6 @@ func (err ErrDuplicateRelationshipError) GRPCStatus() *status.Status {
 			},
 		),
 	)
-}
-
-func rewriteError(ctx context.Context, err error) error {
-	// Check if the error can be directly used.
-	if _, ok := status.FromError(err); ok {
-		return err
-	}
-
-	// Otherwise, convert any graph/datastore errors.
-	var nsNotFoundError sharederrors.UnknownNamespaceError
-	var relationNotFoundError sharederrors.UnknownRelationError
-
-	var compilerError compiler.BaseCompilerError
-	var sourceError spiceerrors.ErrorWithSource
-	var typeError namespace.TypeError
-
-	switch {
-	case errors.As(err, &typeError):
-		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_SCHEMA_TYPE_ERROR)
-	case errors.As(err, &compilerError):
-		return spiceerrors.WithCodeAndReason(err, codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_SCHEMA_PARSE_ERROR)
-	case errors.As(err, &sourceError):
-		return spiceerrors.WithCodeAndReason(err, codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_SCHEMA_PARSE_ERROR)
-
-	case errors.As(err, &nsNotFoundError):
-		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_DEFINITION)
-	case errors.As(err, &relationNotFoundError):
-		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_RELATION_OR_PERMISSION)
-
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return shared.ErrServiceReadOnly
-	case errors.As(err, &datastore.ErrInvalidRevision{}):
-		return status.Errorf(codes.OutOfRange, "invalid zedtoken: %s", err)
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return shared.ErrServiceReadOnly
-	case errors.As(err, &datastore.ErrCaveatNameNotFound{}):
-		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT)
-	case errors.As(err, &datastore.ErrWatchDisabled{}):
-		return status.Errorf(codes.FailedPrecondition, "%s", err)
-
-	case errors.As(err, &graph.ErrInvalidArgument{}):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-	case errors.As(err, &graph.ErrRequestCanceled{}):
-		return status.Errorf(codes.Canceled, "request canceled: %s", err)
-	case errors.As(err, &graph.ErrRelationMissingTypeInfo{}):
-		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
-	case errors.As(err, &graph.ErrAlwaysFail{}):
-		log.Ctx(ctx).Err(err).Msg("received internal error")
-		return status.Errorf(codes.Internal, "internal error: %s", err)
-	case errors.As(err, &graph.ErrUnimplemented{}):
-		return status.Errorf(codes.Unimplemented, "%s", err)
-	case errors.Is(err, context.DeadlineExceeded):
-		return status.Errorf(codes.DeadlineExceeded, "%s", err)
-	case errors.Is(err, context.Canceled):
-		return status.Errorf(codes.Canceled, "%s", err)
-	default:
-		log.Ctx(ctx).Err(err).Msg("received unexpected error")
-		return err
-	}
 }
 
 func defaultIfZero[T comparable](value T, defaultValue T) T {

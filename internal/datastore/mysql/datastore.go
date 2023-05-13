@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -282,7 +283,10 @@ func noCleanup() error { return nil }
 func (mds *Datastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
+	config := options.NewRWTOptionsWithOptions(opts...)
+
 	var err error
 	for i := uint8(0); i <= mds.maxRetries; i++ {
 		var newTxnID uint64
@@ -308,13 +312,14 @@ func (mds *Datastore) ReadWriteTx(
 					querySplitter,
 					currentlyLivingObjects,
 				},
+				mds.driver.RelationTuple(),
 				tx,
 				newTxnID,
 			}
 
 			return fn(rwt)
 		}); err != nil {
-			if isErrorRetryable(err) {
+			if !config.DisableRetries && isErrorRetryable(err) {
 				continue
 			}
 
@@ -323,7 +328,10 @@ func (mds *Datastore) ReadWriteTx(
 
 		return revisionFromTransaction(newTxnID), nil
 	}
-	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
+	if !config.DisableRetries {
+		err = fmt.Errorf("max retries exceeded: %w", err)
+	}
+	return datastore.NoRevision, err
 }
 
 func isErrorRetryable(err error) bool {

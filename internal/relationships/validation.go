@@ -12,20 +12,20 @@ import (
 	"github.com/authzed/spicedb/pkg/util"
 )
 
-// ValidateRelationshipUpdates performs validation on the given relationship updates, ensuring that
+// ValidateRelationships performs validation on the given relationships, ensuring that
 // they can be applied against the datastore.
-func ValidateRelationshipUpdates(
+func ValidateRelationships(
 	ctx context.Context,
 	reader datastore.Reader,
-	updates []*core.RelationTupleUpdate,
+	rels []*core.RelationTuple,
 ) error {
 	referencedNamespaceNames := util.NewSet[string]()
 	referencedCaveatNamesWithContext := util.NewSet[string]()
-	for _, update := range updates {
-		referencedNamespaceNames.Add(update.Tuple.ResourceAndRelation.Namespace)
-		referencedNamespaceNames.Add(update.Tuple.Subject.Namespace)
-		if hasNonEmptyCaveatContext(update) {
-			referencedCaveatNamesWithContext.Add(update.Tuple.Caveat.CaveatName)
+	for _, rel := range rels {
+		referencedNamespaceNames.Add(rel.ResourceAndRelation.Namespace)
+		referencedNamespaceNames.Add(rel.Subject.Namespace)
+		if hasNonEmptyCaveatContext(rel) {
+			referencedCaveatNamesWithContext.Add(rel.Caveat.CaveatName)
 		}
 	}
 
@@ -63,99 +63,115 @@ func ValidateRelationshipUpdates(
 		}
 	}
 
-	// Validate each update's types.
-	for _, update := range updates {
-		// Validate the IDs of the resource and subject.
-		if err := tuple.ValidateResourceID(update.Tuple.ResourceAndRelation.ObjectId); err != nil {
+	// Validate each relationship's types.
+	for _, rel := range rels {
+		if err := ValidateOneRelationship(
+			referencedNamespaceMap,
+			referencedCaveatMap,
+			rel,
+		); err != nil {
 			return err
-		}
-
-		if err := tuple.ValidateSubjectID(update.Tuple.Subject.ObjectId); err != nil {
-			return err
-		}
-
-		// Validate the namespace and relation for the resource.
-		resourceTS, ok := referencedNamespaceMap[update.Tuple.ResourceAndRelation.Namespace]
-		if !ok {
-			return namespace.NewNamespaceNotFoundErr(update.Tuple.ResourceAndRelation.Namespace)
-		}
-
-		if !resourceTS.HasRelation(update.Tuple.ResourceAndRelation.Relation) {
-			return namespace.NewRelationNotFoundErr(update.Tuple.ResourceAndRelation.Namespace, update.Tuple.ResourceAndRelation.Relation)
-		}
-
-		// Validate the namespace and relation for the subject.
-		subjectTS, ok := referencedNamespaceMap[update.Tuple.Subject.Namespace]
-		if !ok {
-			return namespace.NewNamespaceNotFoundErr(update.Tuple.Subject.Namespace)
-		}
-
-		if update.Tuple.Subject.Relation != tuple.Ellipsis {
-			if !subjectTS.HasRelation(update.Tuple.Subject.Relation) {
-				return namespace.NewRelationNotFoundErr(update.Tuple.Subject.Namespace, update.Tuple.Subject.Relation)
-			}
-		}
-
-		// Validate that the relationship is not writing to a permission.
-		if resourceTS.IsPermission(update.Tuple.ResourceAndRelation.Relation) {
-			return NewCannotWriteToPermissionError(update)
-		}
-
-		// Validate the subject against the allowed relation(s).
-		var relationToCheck *core.AllowedRelation
-		var caveat *core.AllowedCaveat
-
-		if update.Tuple.Caveat != nil {
-			caveat = ns.AllowedCaveat(update.Tuple.Caveat.CaveatName)
-		}
-
-		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard {
-			relationToCheck = ns.AllowedPublicNamespaceWithCaveat(update.Tuple.Subject.Namespace, caveat)
-		} else {
-			relationToCheck = ns.AllowedRelationWithCaveat(
-				update.Tuple.Subject.Namespace,
-				update.Tuple.Subject.Relation,
-				caveat)
-		}
-
-		isAllowed, err := resourceTS.HasAllowedRelation(
-			update.Tuple.ResourceAndRelation.Relation,
-			relationToCheck,
-		)
-		if err != nil {
-			return err
-		}
-
-		if isAllowed != namespace.AllowedRelationValid {
-			return NewInvalidSubjectTypeError(update, relationToCheck)
-		}
-
-		// Validate caveat and its context, if applicable.
-		if hasNonEmptyCaveatContext(update) {
-			caveat, ok := referencedCaveatMap[update.Tuple.Caveat.CaveatName]
-			if !ok {
-				// Should ideally never happen since the caveat is type checked above, but just in case.
-				return NewCaveatNotFoundError(update)
-			}
-
-			// Verify that the provided context information matches the types of the parameters defined.
-			_, err := caveats.ConvertContextToParameters(
-				update.Tuple.Caveat.Context.AsMap(),
-				caveat.ParameterTypes,
-				caveats.ErrorForUnknownParameters,
-			)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
 	return nil
 }
 
-func hasNonEmptyCaveatContext(update *core.RelationTupleUpdate) bool {
-	return update.Tuple.Caveat != nil &&
-		update.Tuple.Caveat.CaveatName != "" &&
-		update.Tuple.Caveat.Context != nil &&
-		len(update.Tuple.Caveat.Context.GetFields()) > 0
+func ValidateOneRelationship(
+	namespaceMap map[string]*namespace.TypeSystem,
+	caveatMap map[string]*core.CaveatDefinition,
+	rel *core.RelationTuple,
+) error {
+	// Validate the IDs of the resource and subject.
+	if err := tuple.ValidateResourceID(rel.ResourceAndRelation.ObjectId); err != nil {
+		return err
+	}
+
+	if err := tuple.ValidateSubjectID(rel.Subject.ObjectId); err != nil {
+		return err
+	}
+
+	// Validate the namespace and relation for the resource.
+	resourceTS, ok := namespaceMap[rel.ResourceAndRelation.Namespace]
+	if !ok {
+		return namespace.NewNamespaceNotFoundErr(rel.ResourceAndRelation.Namespace)
+	}
+
+	if !resourceTS.HasRelation(rel.ResourceAndRelation.Relation) {
+		return namespace.NewRelationNotFoundErr(rel.ResourceAndRelation.Namespace, rel.ResourceAndRelation.Relation)
+	}
+
+	// Validate the namespace and relation for the subject.
+	subjectTS, ok := namespaceMap[rel.Subject.Namespace]
+	if !ok {
+		return namespace.NewNamespaceNotFoundErr(rel.Subject.Namespace)
+	}
+
+	if rel.Subject.Relation != tuple.Ellipsis {
+		if !subjectTS.HasRelation(rel.Subject.Relation) {
+			return namespace.NewRelationNotFoundErr(rel.Subject.Namespace, rel.Subject.Relation)
+		}
+	}
+
+	// Validate that the relationship is not writing to a permission.
+	if resourceTS.IsPermission(rel.ResourceAndRelation.Relation) {
+		return NewCannotWriteToPermissionError(rel)
+	}
+
+	// Validate the subject against the allowed relation(s).
+	var relationToCheck *core.AllowedRelation
+	var caveat *core.AllowedCaveat
+
+	if rel.Caveat != nil {
+		caveat = ns.AllowedCaveat(rel.Caveat.CaveatName)
+	}
+
+	if rel.Subject.ObjectId == tuple.PublicWildcard {
+		relationToCheck = ns.AllowedPublicNamespaceWithCaveat(rel.Subject.Namespace, caveat)
+	} else {
+		relationToCheck = ns.AllowedRelationWithCaveat(
+			rel.Subject.Namespace,
+			rel.Subject.Relation,
+			caveat)
+	}
+
+	isAllowed, err := resourceTS.HasAllowedRelation(
+		rel.ResourceAndRelation.Relation,
+		relationToCheck,
+	)
+	if err != nil {
+		return err
+	}
+
+	if isAllowed != namespace.AllowedRelationValid {
+		return NewInvalidSubjectTypeError(rel, relationToCheck)
+	}
+
+	// Validate caveat and its context, if applicable.
+	if hasNonEmptyCaveatContext(rel) {
+		caveat, ok := caveatMap[rel.Caveat.CaveatName]
+		if !ok {
+			// Should ideally never happen since the caveat is type checked above, but just in case.
+			return NewCaveatNotFoundError(rel)
+		}
+
+		// Verify that the provided context information matches the types of the parameters defined.
+		_, err := caveats.ConvertContextToParameters(
+			rel.Caveat.Context.AsMap(),
+			caveat.ParameterTypes,
+			caveats.ErrorForUnknownParameters,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func hasNonEmptyCaveatContext(update *core.RelationTuple) bool {
+	return update.Caveat != nil &&
+		update.Caveat.CaveatName != "" &&
+		update.Caveat.Context != nil &&
+		len(update.Caveat.Context.GetFields()) > 0
 }

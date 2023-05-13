@@ -145,7 +145,7 @@ type (
 	iterator func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error)
 )
 
-func forwardIterator(resourceType string, ordering options.SortOrder) iterator {
+func forwardIterator(resourceType string, _ options.SortOrder) iterator {
 	return func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error) {
 		return reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			ResourceType: resourceType,
@@ -153,7 +153,7 @@ func forwardIterator(resourceType string, ordering options.SortOrder) iterator {
 	}
 }
 
-func reverseIterator(subjectType string, ordering options.SortOrder) iterator {
+func reverseIterator(subjectType string, _ options.SortOrder) iterator {
 	return func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error) {
 		return reader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 			SubjectType: subjectType,

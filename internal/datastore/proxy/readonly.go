@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 var errReadOnly = datastore.NewReadonlyErr()
@@ -18,6 +19,10 @@ func NewReadonlyDatastore(delegate datastore.Datastore) datastore.Datastore {
 	return roDatastore{Datastore: delegate}
 }
 
-func (rd roDatastore) ReadWriteTx(context.Context, datastore.TxUserFunc) (datastore.Revision, error) {
+func (rd roDatastore) ReadWriteTx(
+	context.Context,
+	datastore.TxUserFunc,
+	...options.RWTOptionsOption,
+) (datastore.Revision, error) {
 	return datastore.NoRevision, errReadOnly
 }

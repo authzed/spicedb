@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/authzed/spicedb/pkg/util"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
@@ -100,7 +101,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 
 		// Parse relationships for updates.
 		for _, rel := range parsed.Relationships.Relationships {
-			tpl := tuple.MustFromRelationship(rel)
+			tpl := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](rel)
 			updates = append(updates, tuple.Touch(tpl))
 			tuples = append(tuples, tpl)
 		}
@@ -143,13 +144,13 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return err
 	})
 
-	util.ForEachChunk(updates, 500, func(updates []*core.RelationTupleUpdate) {
+	util.ForEachChunk(tuples, 500, func(tuples []*core.RelationTuple) {
 		if err != nil {
 			return
 		}
 
 		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationshipUpdates(ctx, rwt, updates)
+			err = relationships.ValidateRelationships(ctx, rwt, tuples)
 			if err != nil {
 				return err
 			}

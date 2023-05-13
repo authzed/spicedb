@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
@@ -234,6 +235,7 @@ func noCleanup(context.Context) {}
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	var commitTimestamp revision.Decimal
 	if err := cds.execute(ctx, func(ctx context.Context) error {
@@ -291,7 +293,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 
 			return nil
 		})
-	}); err != nil {
+	}, opts...); err != nil {
 		return datastore.NoRevision, err
 	}
 

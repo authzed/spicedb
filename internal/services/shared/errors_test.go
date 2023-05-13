@@ -1,4 +1,4 @@
-package v1
+package shared
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 func TestRewriteCanceledError(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	cancelFunc()
-	errorRewritten := rewriteError(ctx, ctx.Err())
+	errorRewritten := RewriteError(ctx, ctx.Err())
 	grpcutil.RequireStatus(t, codes.Canceled, errorRewritten)
 }
 
 func TestRewriteDeadlineExceededError(t *testing.T) {
 	ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now())
 	defer cancelFunc()
-	errorRewritten := rewriteError(ctx, ctx.Err())
+	errorRewritten := RewriteError(ctx, ctx.Err())
 	grpcutil.RequireStatus(t, codes.DeadlineExceeded, errorRewritten)
 }

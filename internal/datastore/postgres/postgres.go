@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 )
 
 func init() {
@@ -319,7 +320,10 @@ func noCleanup(context.Context) {}
 func (pgd *pgDatastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
+	config := options.NewRWTOptionsWithOptions(opts...)
+
 	var err error
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newXID xid8
@@ -353,7 +357,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			return fn(rwt)
 		})
 		if err != nil {
-			if errorRetryable(err) {
+			if !config.DisableRetries && errorRetryable(err) {
 				continue
 			}
 			return datastore.NoRevision, err
@@ -361,7 +365,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 
 		return postgresRevision{newSnapshot.markComplete(newXID.Uint64)}, nil
 	}
-	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
+	if !config.DisableRetries {
+		err = fmt.Errorf("max retries exceeded: %w", err)
+	}
+	return datastore.NoRevision, err
 }
 
 func (pgd *pgDatastore) Close() error {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +30,13 @@ import (
 const (
 	chunkRelationshipCount = 2000
 )
+
+// Implement TestableDatastore interface
+func (mds *Datastore) ExampleRetryableError() error {
+	return &mysql.MySQLError{
+		Number: errMysqlDeadlock,
+	}
+}
 
 type datastoreTester struct {
 	b      testdatastore.RunningEngineForTest

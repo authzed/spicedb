@@ -49,19 +49,19 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 	ds := datastoremw.MustFromContext(ctx)
 	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	reader := ds.SnapshotReader(headRevision)
 
 	nsDefs, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	caveatDefs, err := reader.ListAllCaveats(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	if len(nsDefs) == 0 {
@@ -79,7 +79,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -103,14 +103,14 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		SchemaString: in.GetSchema(),
 	}, &emptyDefaultPrefix)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
 	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.additiveOnly)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	// Update the schema.
@@ -125,7 +125,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil
 	})
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, shared.RewriteError(ctx, err)
 	}
 
 	return &v1.WriteSchemaResponse{}, nil

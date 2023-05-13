@@ -72,10 +72,14 @@ func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &observableReader{delegateReader}
 }
 
-func (p *observableProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFunc) (datastore.Revision, error) {
+func (p *observableProxy) ReadWriteTx(
+	ctx context.Context,
+	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
+) (datastore.Revision, error) {
 	return p.delegate.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
 		return f(&observableRWT{&observableReader{delegateRWT}, delegateRWT})
-	})
+	}, opts...)
 }
 
 func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
@@ -294,6 +298,13 @@ func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.Re
 	defer closer()
 
 	return rwt.delegate.DeleteRelationships(ctx, filter)
+}
+
+func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	ctx, closer := observe(ctx, "BulkLoad")
+	defer closer()
+
+	return rwt.delegate.BulkLoad(ctx, iter)
 }
 
 func observe(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, func()) {

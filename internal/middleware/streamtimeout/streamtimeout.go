@@ -37,7 +37,7 @@ func (s *sendWrapper) Context() context.Context {
 	return s.ctx
 }
 
-func (s *sendWrapper) SetTrailer(trailer metadata.MD) {
+func (s *sendWrapper) SetTrailer(_ metadata.MD) {
 	s.timer.Stop()
 }
 

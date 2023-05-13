@@ -20,6 +20,7 @@ type ConnPooler interface {
 	Querier
 	Begin(ctx context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
 	Close()
 }
 
@@ -173,6 +174,10 @@ func (i InterceptorPooler) BeginTx(ctx context.Context, txOptions pgx.TxOptions)
 		return nil, err
 	}
 	return i.txInterceptor(tx), nil
+}
+
+func (i InterceptorPooler) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	return i.delegate.CopyFrom(ctx, tableName, columnNames, rowSrc)
 }
 
 func (i InterceptorPooler) Close() {

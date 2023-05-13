@@ -143,7 +143,7 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 			return nil, err
 		}
 
-		tuples = append(tuples, tuple.MustFromRelationship(resp.Relationship))
+		tuples = append(tuples, tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](resp.Relationship))
 	}
 
 	return tuples, nil

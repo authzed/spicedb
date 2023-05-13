@@ -198,6 +198,25 @@ func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames ...stri
 	return nil
 }
 
+func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	updates := []*core.RelationTupleUpdate{{
+		Operation: core.RelationTupleUpdate_TOUCH,
+	}}
+
+	var numCopied uint64
+	var next *core.RelationTuple
+	var err error
+	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
+		updates[0].Tuple = next
+		if err := rwt.WriteRelationships(ctx, updates); err != nil {
+			return 0, err
+		}
+		numCopied++
+	}
+
+	return numCopied, err
+}
+
 func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{}) bool {
 	return func(tupleRaw interface{}) bool {
 		tuple := tupleRaw.(*relationship)

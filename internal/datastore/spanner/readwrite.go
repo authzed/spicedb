@@ -26,32 +26,12 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 	changeUUID := uuid.New().String()
 
 	var rowCountChange int64
-
 	for _, mutation := range mutations {
-		var txnMut *spanner.Mutation
-		var op int
-		switch mutation.Operation {
-		case core.RelationTupleUpdate_TOUCH:
-			rowCountChange++
-			txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(mutation.Tuple))
-			op = colChangeOpTouch
-		case core.RelationTupleUpdate_CREATE:
-			rowCountChange++
-			txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(mutation.Tuple))
-			op = colChangeOpCreate
-		case core.RelationTupleUpdate_DELETE:
-			rowCountChange--
-			txnMut = spanner.Delete(tableRelationship, keyFromRelationship(mutation.Tuple))
-			op = colChangeOpDelete
-		default:
-			log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
-			return fmt.Errorf(
-				errUnableToWriteRelationships,
-				fmt.Errorf("unknown mutation operation: %s", mutation.Operation),
-			)
+		txnMut, changelogMut, countChange, err := spannerMutation(ctx, changeUUID, mutation.Operation, mutation.Tuple)
+		if err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
-
-		changelogMut := spanner.Insert(tableChangelog, allChangelogCols, changeVals(changeUUID, op, mutation.Tuple))
+		rowCountChange += countChange
 		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
@@ -64,6 +44,36 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 	}
 
 	return nil
+}
+
+func spannerMutation(
+	ctx context.Context,
+	changeUUID string,
+	operation core.RelationTupleUpdate_Operation,
+	tpl *core.RelationTuple,
+) (txnMut *spanner.Mutation, changelogMut *spanner.Mutation, countChange int64, err error) {
+	var op int64
+	switch operation {
+	case core.RelationTupleUpdate_TOUCH:
+		countChange = 1
+		txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(tpl))
+		op = colChangeOpTouch
+	case core.RelationTupleUpdate_CREATE:
+		countChange = 1
+		txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(tpl))
+		op = colChangeOpCreate
+	case core.RelationTupleUpdate_DELETE:
+		countChange = -1
+		txnMut = spanner.Delete(tableRelationship, keyFromRelationship(tpl))
+		op = colChangeOpDelete
+	default:
+		log.Ctx(ctx).Error().Stringer("operation", operation).Msg("unknown operation type")
+		err = fmt.Errorf("unknown mutation operation: %s", operation)
+		return
+	}
+
+	changelogMut = spanner.Insert(tableChangelog, allChangelogCols, changeVals(changeUUID, op, tpl))
+	return
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
@@ -196,7 +206,7 @@ func keyFromRelationship(r *core.RelationTuple) spanner.Key {
 	}
 }
 
-func changeVals(changeUUID string, op int, r *core.RelationTuple) []any {
+func changeVals(changeUUID string, op int64, r *core.RelationTuple) []any {
 	vals := []any{
 		spanner.CommitTimestamp,
 		changeUUID,
@@ -260,6 +270,40 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 	}
 
 	return nil
+}
+
+func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	changeUUID := uuid.New().String()
+
+	var numLoaded uint64
+	var tpl *core.RelationTuple
+	var err error
+	for tpl, err = iter.Next(ctx); err == nil && tpl != nil; tpl, err = iter.Next(ctx) {
+		txnMut, changelogMut, _, err := spannerMutation(
+			ctx,
+			changeUUID,
+			core.RelationTupleUpdate_CREATE,
+			tpl,
+		)
+		if err != nil {
+			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		}
+		numLoaded++
+		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
+			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		}
+	}
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+	}
+
+	if !rwt.disableStats {
+		if err := updateCounter(ctx, rwt.spannerRWT, int64(numLoaded)); err != nil {
+			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+		}
+	}
+
+	return numLoaded, nil
 }
 
 var _ datastore.ReadWriteTransaction = spannerReadWriteTXN{}
