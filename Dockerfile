@@ -2,7 +2,7 @@ FROM golang:1.20-alpine3.16 AS spicedb-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 COPY . .
-RUN CGO_ENABLED=0 go build -v ./cmd/spicedb/
+RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -v ./cmd/...
 
 FROM cgr.dev/chainguard/static:latest
 COPY --from=ghcr.io/grpc-ecosystem/grpc-health-probe:v0.4.12 /ko-app/grpc-health-probe /usr/local/bin/grpc_health_probe

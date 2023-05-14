@@ -11,15 +11,19 @@ managed:
       - 'buf.build/googleapis/googleapis'
 plugins:
   - name: 'go'
+    path: ["go", "run", "google.golang.org/protobuf/cmd/protoc-gen-go"]
     out: '.'
     opt: 'paths=source_relative'
   - name: 'go-grpc'
     out: '.'
+    path: ["go", "run", "google.golang.org/grpc/cmd/protoc-gen-go-grpc"]
     opt: 'paths=source_relative'
   - name: 'go-vtproto'
+    path: ["go", "run", "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"]
     out: '.'
     # To generate pooling methods, you must add an additional `pool=fully/qualified.ProtoMessageType`
     opt: 'paths=source_relative,features=marshal+unmarshal+size+clone+pool+equal'
   - name: 'validate'
+    path: ["go", "run", "github.com/envoyproxy/protoc-gen-validate"]
     out: '.'
     opt: 'paths=source_relative,lang=go'
