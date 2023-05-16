@@ -62,6 +62,22 @@ func (re ReachabilityEntrypoint) IsDirectResult() bool {
 	return re.re.ResultStatus == core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT
 }
 
+func (re ReachabilityEntrypoint) MustDebugString() string {
+	switch re.EntrypointKind() {
+	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
+		return fmt.Sprintf("relation-entrypoint: %s#%s", re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+
+	case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
+		return fmt.Sprintf("ttu-entrypoint: %s#%s | %s | %s#%s", re.parentRelation.Namespace, re.parentRelation.Relation, re.re.TuplesetRelation, re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+
+	case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
+		return fmt.Sprintf("computed-entrypoint: %s#%s", re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+
+	default:
+		panic("unknown relation entrypoint kind")
+	}
+}
+
 // ReachabilityGraphFor returns a reachability graph for the given namespace.
 func ReachabilityGraphFor(ts *ValidatedNamespaceTypeSystem) *ReachabilityGraph {
 	return &ReachabilityGraph{ts.TypeSystem, sync.Map{}, sync.Map{}}
