@@ -25,11 +25,12 @@ import (
 )
 
 type spannerTest struct {
-	hostname string
+	hostname        string
+	targetMigration string
 }
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
-func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
+func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -75,7 +76,9 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineF
 		return err
 	}))
 
-	builder := &spannerTest{}
+	builder := &spannerTest{
+		targetMigration: targetMigration,
+	}
 	if bridgeNetworkName != "" {
 		builder.hostname = name
 	}
@@ -138,7 +141,7 @@ func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Da
 	migrationDriver, err := migrations.NewSpannerDriver(db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
 	require.NoError(t, err)
 
-	err = migrations.SpannerMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.SpannerMigrations.Run(context.Background(), migrationDriver, b.targetMigration, migrate.LiveRun)
 	require.NoError(t, err)
 
 	return initFunc("spanner", db)

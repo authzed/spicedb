@@ -16,6 +16,22 @@ type spannerOptions struct {
 	credentialsFilePath         string
 	emulatorHost                string
 	disableStats                bool
+
+	migrationPhase string
+}
+
+type migrationPhase uint8
+
+const (
+	writeChangelogReadChangelog migrationPhase = iota
+	writeChangelogReadStream
+	complete
+)
+
+var migrationPhases = map[string]migrationPhase{
+	"write-changelog-read-changelog": writeChangelogReadChangelog,
+	"write-changelog-read-stream":    writeChangelogReadStream,
+	"":                               complete,
 }
 
 const (
@@ -58,6 +74,10 @@ func generateConfig(options []Option) (spannerOptions, error) {
 			computed.revisionQuantization,
 			computed.gcWindow,
 		)
+	}
+
+	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
+		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
 	return computed, nil
@@ -152,4 +172,12 @@ func DisableStats(disable bool) Option {
 	return func(po *spannerOptions) {
 		po.disableStats = disable
 	}
+}
+
+// MigrationPhase configures the postgres driver to the proper state of a
+// multi-phase migration.
+//
+// Steady-state configuration (e.g. fully migrated) by default
+func MigrationPhase(phase string) Option {
+	return func(po *spannerOptions) { po.migrationPhase = phase }
 }

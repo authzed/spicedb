@@ -18,8 +18,9 @@ import (
 
 type spannerReadWriteTXN struct {
 	spannerReader
-	spannerRWT   *spanner.ReadWriteTransaction
-	disableStats bool
+	spannerRWT     *spanner.ReadWriteTransaction
+	disableStats   bool
+	migrationPhase migrationPhase
 }
 
 func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
@@ -32,8 +33,15 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 		rowCountChange += countChange
-		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+
+		if rwt.migrationPhase != complete {
+			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
+				return fmt.Errorf(errUnableToWriteRelationships, err)
+			}
+		} else {
+			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
+				return fmt.Errorf(errUnableToWriteRelationships, err)
+			}
 		}
 	}
 
@@ -77,7 +85,7 @@ func spannerMutation(
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.disableStats)
+	err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.migrationPhase, rwt.disableStats)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -95,7 +103,7 @@ func (snd selectAndDelete) Where(pred interface{}, args ...interface{}) selectAn
 	return snd
 }
 
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) error {
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, migrationPhase migrationPhase, disableStats bool) error {
 	queries := selectAndDelete{queryTuples, sql.Delete(tableRelationship)}
 
 	// Add clauses for the ResourceFilter
@@ -118,55 +126,57 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		}
 	}
 
-	ssql, sargs, err := queries.sel.ToSql()
-	if err != nil {
-		return err
-	}
-
-	toDelete := rwt.Query(ctx, statementFromSQL(ssql, sargs))
-
-	changeUUID := uuid.NewString()
-
-	// Pre-allocate a single relationship
-	rel := core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{},
-		Subject:             &core.ObjectAndRelation{},
-	}
-	var caveatName spanner.NullString
-	var caveatCtx spanner.NullJSON
-
-	var changelogMutations []*spanner.Mutation
-	if err := toDelete.Do(func(row *spanner.Row) error {
-		err := row.Columns(
-			&rel.ResourceAndRelation.Namespace,
-			&rel.ResourceAndRelation.ObjectId,
-			&rel.ResourceAndRelation.Relation,
-			&rel.Subject.Namespace,
-			&rel.Subject.ObjectId,
-			&rel.Subject.Relation,
-			&caveatName,
-			&caveatCtx,
-		)
-		if err != nil {
-			return err
-		}
-		rel.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
+	if migrationPhase != complete {
+		ssql, sargs, err := queries.sel.ToSql()
 		if err != nil {
 			return err
 		}
 
-		changelogMutations = append(changelogMutations, spanner.Insert(
-			tableChangelog,
-			allChangelogCols,
-			changeVals(changeUUID, colChangeOpDelete, &rel),
-		))
-		return nil
-	}); err != nil {
-		return err
-	}
+		toDelete := rwt.Query(ctx, statementFromSQL(ssql, sargs))
 
-	if err := rwt.BufferWrite(changelogMutations); err != nil {
-		return err
+		changeUUID := uuid.NewString()
+
+		// Pre-allocate a single relationship
+		rel := core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{},
+			Subject:             &core.ObjectAndRelation{},
+		}
+		var caveatName spanner.NullString
+		var caveatCtx spanner.NullJSON
+
+		var changelogMutations []*spanner.Mutation
+		if err := toDelete.Do(func(row *spanner.Row) error {
+			err := row.Columns(
+				&rel.ResourceAndRelation.Namespace,
+				&rel.ResourceAndRelation.ObjectId,
+				&rel.ResourceAndRelation.Relation,
+				&rel.Subject.Namespace,
+				&rel.Subject.ObjectId,
+				&rel.Subject.Relation,
+				&caveatName,
+				&caveatCtx,
+			)
+			if err != nil {
+				return err
+			}
+			rel.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
+			if err != nil {
+				return err
+			}
+
+			changelogMutations = append(changelogMutations, spanner.Insert(
+				tableChangelog,
+				allChangelogCols,
+				changeVals(changeUUID, colChangeOpDelete, &rel),
+			))
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		if err := rwt.BufferWrite(changelogMutations); err != nil {
+			return err
+		}
 	}
 
 	sql, args, err := queries.del.ToSql()
@@ -257,7 +267,7 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 	for _, nsName := range nsNames {
 		if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{
 			ResourceType: nsName,
-		}, rwt.disableStats); err != nil {
+		}, rwt.migrationPhase, rwt.disableStats); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 
