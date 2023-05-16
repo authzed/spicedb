@@ -299,8 +299,15 @@ func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.Bulk
 			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 		}
 		numLoaded++
-		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
-			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+
+		if rwt.migrationPhase != complete {
+			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
+				return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+			}
+		} else {
+			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
+				return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
+			}
 		}
 	}
 	if err != nil {
