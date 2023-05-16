@@ -67,9 +67,10 @@ type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
 	revision.DecimalDecoder
 
-	client *spanner.Client
-	config spannerOptions
-	stopGC context.CancelFunc
+	client   *spanner.Client
+	config   spannerOptions
+	stopGC   context.CancelFunc
+	database string
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -104,8 +105,9 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		client: client,
-		config: config,
+		client:   client,
+		config:   config,
+		database: database,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 

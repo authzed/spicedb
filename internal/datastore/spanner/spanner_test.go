@@ -23,7 +23,10 @@ func (sd spannerDatastore) ExampleRetryableError() error {
 
 func TestSpannerDatastore(t *testing.T) {
 	b := testdatastore.RunSpannerForTesting(t, "")
-	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+
+	// TODO(jschorr): Once https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/issues/74 has been resolved,
+	// change back to `All` to re-enable the watch tests.
+	test.AllExceptWatch(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewSpannerDatastore(uri,
 				RevisionQuantization(revisionQuantization),
