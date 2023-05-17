@@ -354,13 +354,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	limit := lookupResourcesLimit
 	var currentCursor *dispatch.Cursor
 
-	lrRequestHash, err := computeCallHash("v1.lookupresources", req.Consistency, map[string]any{
-		"resource-type": req.ResourceObjectType,
-		"permission":    req.Permission,
-		"subject":       tuple.StringSubjectRef(req.Subject),
-		"limit":         req.OptionalLimit,
-		"context":       req.Context,
-	})
+	lrRequestHash, err := computeLRRequestHash(req)
 	if err != nil {
 		return shared.RewriteError(ctx, err)
 	}

@@ -1,6 +1,7 @@
 package keys
 
 import (
+	"github.com/authzed/spicedb/pkg/caveats"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -81,7 +82,7 @@ func lookupResourcesRequestToKey(req *v1.DispatchLookupResourcesRequest, option 
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ObjectRelation},
 		hashableOnr{req.Subject},
-		hashableContext{req.Context}, // NOTE: context is included here because lookup does a single dispatch
+		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
 		hashableCursor{req.OptionalCursor},
 		hashableLimit(req.OptionalLimit),
 	)
