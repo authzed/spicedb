@@ -20,7 +20,7 @@ func TestCursorWithWrongRevision(t *testing.T) {
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	require.Panics(t, func() {
-		newCursorInformation(&v1.Cursor{}, revision, limits)
+		_, _ = newCursorInformation(&v1.Cursor{}, revision, limits)
 	})
 }
 
