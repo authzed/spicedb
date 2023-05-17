@@ -22,6 +22,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const veryLargeLimit = 1000000000
+
 func RR(namespaceName string, relationName string) *core.RelationReference {
 	return &core.RelationReference{
 		Namespace: namespaceName,
@@ -126,7 +128,7 @@ func TestSimpleLookupResources(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				OptionalLimit: 1000000000,
+				OptionalLimit: veryLargeLimit,
 			}, stream)
 
 			require.NoError(err)
@@ -150,7 +152,7 @@ func TestSimpleLookupResources(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				OptionalLimit: 1000000000,
+				OptionalLimit: veryLargeLimit,
 			}, stream)
 			dispatcher.Close()
 
