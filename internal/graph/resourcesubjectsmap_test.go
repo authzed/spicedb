@@ -49,6 +49,11 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ForSubjectIds: []string{"first"},
 		},
 		{
+			ResourceId:    "fourth",
+			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
+			ForSubjectIds: []string{"sarah"},
+		},
+		{
 			ResourceId:    "second",
 			ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
 			ForSubjectIds: []string{"second"},
@@ -58,12 +63,7 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
 			ForSubjectIds: []string{"tom"},
 		},
-		{
-			ResourceId:    "fourth",
-			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-			ForSubjectIds: []string{"sarah"},
-		},
-	}, directAsResources, sortByResource, "different resources")
+	}, directAsResources, nil, "different resources")
 
 	notDirectAsResources := locked.asReachableResources(false)
 	testutil.RequireProtoSlicesEqual(t, []*v1.ReachableResource{
@@ -73,6 +73,11 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ForSubjectIds: []string{"first"},
 		},
 		{
+			ResourceId:    "fourth",
+			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
+			ForSubjectIds: []string{"sarah"},
+		},
+		{
 			ResourceId:    "second",
 			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
 			ForSubjectIds: []string{"second"},
@@ -82,12 +87,7 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
 			ForSubjectIds: []string{"tom"},
 		},
-		{
-			ResourceId:    "fourth",
-			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-			ForSubjectIds: []string{"sarah"},
-		},
-	}, notDirectAsResources, sortByResource, "different resources")
+	}, notDirectAsResources, nil, "different resources")
 }
 
 func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
