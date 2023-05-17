@@ -65,7 +65,7 @@ func TestEncodeDecode(t *testing.T) {
 
 func TestDecode(t *testing.T) {
 	for _, testCase := range []struct {
-		format           string
+		name             string
 		token            string
 		expectedRevision decimal.Decimal
 		expectedSections []string
@@ -73,7 +73,7 @@ func TestDecode(t *testing.T) {
 		expectError      bool
 	}{
 		{
-			format:           "invalid",
+			name:             "invalid",
 			token:            "abc",
 			expectedRevision: decimal.Zero,
 			expectedSections: []string{},
@@ -81,7 +81,7 @@ func TestDecode(t *testing.T) {
 			expectError:      true,
 		},
 		{
-			format:           "empty",
+			name:             "empty",
 			token:            "Cg0KATEaCHNvbWVoYXNo",
 			expectedRevision: revision1,
 			expectedSections: nil,
@@ -89,7 +89,7 @@ func TestDecode(t *testing.T) {
 			expectError:      false,
 		},
 		{
-			format:           "basic",
+			name:             "basic",
 			token:            "ChUKATESAWESAWISAWMaB2Fub3RoZXI=",
 			expectedRevision: revision1,
 			expectedSections: []string{"a", "b", "c"},
@@ -97,7 +97,7 @@ func TestDecode(t *testing.T) {
 			expectError:      false,
 		},
 		{
-			format:           "basic with wrong hash",
+			name:             "basic with wrong hash",
 			token:            "ChUKATESAWESAWISAWMaB2Fub3RoZXI=",
 			expectedRevision: revision1,
 			expectedSections: []string{"a", "b", "c"},
@@ -105,7 +105,7 @@ func TestDecode(t *testing.T) {
 			expectError:      true,
 		},
 		{
-			format:           "basic with different revision",
+			name:             "basic with different revision",
 			token:            "ChUKATISAWESAWISAWMaB2Fub3RoZXI=",
 			expectedRevision: revision2,
 			expectedSections: []string{"a", "b", "c"},
@@ -114,7 +114,7 @@ func TestDecode(t *testing.T) {
 		},
 	} {
 		testCase := testCase
-		testName := fmt.Sprintf("%s(%s)=>%s", testCase.format, testCase.token, testCase.expectedRevision)
+		testName := fmt.Sprintf("%s(%s)=>%s", testCase.name, testCase.token, testCase.expectedRevision)
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
