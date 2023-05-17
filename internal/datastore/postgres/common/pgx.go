@@ -93,12 +93,19 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			}
 
 			// do not log cancelled queries as errors
+			// do not log serialization failues as errors
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
 				if ok && errors.Is(err, context.Canceled) {
 					return
 				}
+
+				var pgerr *pgconn.PgError
+				if errors.As(err, &pgerr) && pgerr.SQLState() == pgSerializationFailure {
+					return
+				}
 			}
+
 			logger.Log(ctx, level, msg, data)
 		}
 	}
