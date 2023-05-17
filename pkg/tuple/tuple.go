@@ -465,6 +465,32 @@ func CopyRelationshipToRelationTuple[T objectReference, S subjectReference[T], C
 	dst.Subject.Relation = stringz.DefaultEmpty(r.GetSubject().GetOptionalRelation(), Ellipsis)
 }
 
+// CopyRelationTupleToRelationship copies a source core.RelationTuple to a
+// destination v1.Relationship without allocating new memory. It requires that
+// the structure for the destination be pre-allocated for the fixed parts, and
+// an optional caveat context be provided for use when the source contains a
+// caveat.
+func CopyRelationTupleToRelationship(
+	src *core.RelationTuple,
+	dst *v1.Relationship,
+	dstCaveat *v1.ContextualizedCaveat,
+) {
+	dst.Resource.ObjectType = src.ResourceAndRelation.Namespace
+	dst.Resource.ObjectId = src.ResourceAndRelation.ObjectId
+	dst.Relation = src.ResourceAndRelation.Relation
+	dst.Subject.Object.ObjectType = src.Subject.Namespace
+	dst.Subject.Object.ObjectId = src.Subject.ObjectId
+	dst.Subject.OptionalRelation = stringz.Default(src.Subject.Relation, "", Ellipsis)
+
+	if src.Caveat != nil {
+		dst.OptionalCaveat = dstCaveat
+		dst.OptionalCaveat.CaveatName = src.Caveat.CaveatName
+		dst.OptionalCaveat.Context = src.Caveat.Context
+	} else {
+		dst.OptionalCaveat = nil
+	}
+}
+
 // UpdateFromRelationshipUpdate converts a RelationshipUpdate into a
 // RelationTupleUpdate.
 func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationTupleUpdate {
