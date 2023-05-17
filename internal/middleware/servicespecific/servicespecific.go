@@ -28,7 +28,7 @@ func UnaryServerInterceptor(ctx context.Context, req interface{}, info *grpc.Una
 	return handler(ctx, req)
 }
 
-// StreamServerInterceptor returns a new unary server interceptor that runs bundled interceptors.
+// StreamServerInterceptor returns a new stream server interceptor that runs bundled interceptors.
 func StreamServerInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	if hasExtraInterceptor, ok := srv.(ExtraStreamInterceptor); ok {
 		interceptor := hasExtraInterceptor.StreamInterceptor()
