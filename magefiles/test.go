@@ -31,7 +31,7 @@ func (Test) Unit() error {
 // Run tests that run the built image
 func (Test) Image() error {
 	mg.Deps(Build{}.Testimage)
-	return goTest("./...", "-tags", "docker,image")
+	return goDirTest("./cmd/spicedb", "./...", "-tags", "docker,image")
 }
 
 // Run integration tests
