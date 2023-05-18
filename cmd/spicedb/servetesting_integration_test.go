@@ -169,52 +169,55 @@ type spicedbHandle struct {
 	cleanup          func()
 }
 
+const retryCount = 5
+
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to docker: %w", err)
-	}
-
-	pool.MaxWait = 3 * time.Minute
-
-	resource, err := pool.RunWithOptions(containerOpts)
-	if err != nil {
-		return nil, fmt.Errorf("could not start resource: %w", err)
-	}
-
-	port := resource.GetPort("50051/tcp")
-	readonlyPort := resource.GetPort("50052/tcp")
-	httpPort := resource.GetPort("8443/tcp")
-	readonlyHttpPort := resource.GetPort("8444/tcp")
-
-	cleanup := func() {
-		// When you're done, kill and remove the container
-		if err = pool.Purge(resource); err != nil {
-			log.Fatalf("Could not purge resource: %s", err)
-		}
-	}
-
-	// Give the service time to boot.
-	require.NoError(t, pool.Retry(func() error {
-		conn, err := grpc.Dial(
-			fmt.Sprintf("localhost:%s", port),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpcutil.WithInsecureBearerToken(token),
-		)
+	for i := 0; i < retryCount; i++ {
+		pool, err := dockertest.NewPool("")
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("could not connect to docker: %w", err)
 		}
 
-		client := v1.NewSchemaServiceClient(conn)
+		pool.MaxWait = 30 * time.Second
 
-		if withExistingSchema {
-			_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
-			return err
+		resource, err := pool.RunWithOptions(containerOpts)
+		if err != nil {
+			return nil, fmt.Errorf("could not start resource: %w", err)
 		}
 
-		// Write a basic schema.
-		_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
-			Schema: `
+		port := resource.GetPort("50051/tcp")
+		readonlyPort := resource.GetPort("50052/tcp")
+		httpPort := resource.GetPort("8443/tcp")
+		readonlyHttpPort := resource.GetPort("8444/tcp")
+
+		cleanup := func() {
+			// When you're done, kill and remove the container
+			if err = pool.Purge(resource); err != nil {
+				log.Fatalf("Could not purge resource: %s", err)
+			}
+		}
+
+		// Give the service time to boot.
+		err = pool.Retry(func() error {
+			conn, err := grpc.Dial(
+				fmt.Sprintf("localhost:%s", port),
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpcutil.WithInsecureBearerToken(token),
+			)
+			if err != nil {
+				return err
+			}
+
+			client := v1.NewSchemaServiceClient(conn)
+
+			if withExistingSchema {
+				_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+				return err
+			}
+
+			// Write a basic schema.
+			_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: `
 			definition user {}
 			
 			definition resource {
@@ -224,16 +227,23 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 				permission view = reader + writer
 			}
 			`,
+			})
+
+			return err
 		})
+		if err != nil {
+			cleanup()
+			continue
+		}
 
-		return err
-	}))
+		return &spicedbHandle{
+			port:             port,
+			readonlyPort:     readonlyPort,
+			httpPort:         httpPort,
+			readonlyHttpPort: readonlyHttpPort,
+			cleanup:          cleanup,
+		}, nil
+	}
 
-	return &spicedbHandle{
-		port:             port,
-		readonlyPort:     readonlyPort,
-		httpPort:         httpPort,
-		readonlyHttpPort: readonlyHttpPort,
-		cleanup:          cleanup,
-	}, nil
+	return nil, fmt.Errorf("hit maximum retries when trying to spawn test server")
 }
