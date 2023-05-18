@@ -21,7 +21,8 @@ const (
 	RelationTupleChangeStreamName = "relation_tuple_stream"
 )
 
-// Copied from the spanner library
+// Copied from the spanner library: https://github.com/googleapis/google-cloud-go/blob/f03779538f949fb4ad93d5247d3c6b3e5b21091a/spanner/client.go#L67
+// License: Apache License, Version 2.0, Copyright 2017 Google LLC
 var validDBPattern = regexp.MustCompile("^projects/(?P<project>[^/]+)/instances/(?P<instance>[^/]+)/databases/(?P<database>[^/]+)$")
 
 func parseDatabaseName(db string) (project, instance, database string, err error) {

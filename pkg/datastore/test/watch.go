@@ -263,7 +263,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan = ds.Watch(ctx, afterTouchRevision)
 	require.Zero(len(errchan))
 
-	afterNoChangesRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom"))
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom"))
 	require.NoError(err)
 
 	ensureTuples(ctx, require, ds,
@@ -278,11 +278,11 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		false,
 	)
 
-	// TOUCH the relationship again with a caveat change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterNoChangesRevision)
+	// TOUCH the relationship again with a caveat name change and ensure it does appear in the watch.
+	changes, errchan = ds.Watch(ctx, afterTouchRevision)
 	require.Zero(len(errchan))
 
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))
+	afterNameChange, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))
 	require.NoError(err)
 
 	ensureTuples(ctx, require, ds,
@@ -293,6 +293,27 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 
 	verifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))},
+	},
+		changes,
+		errchan,
+		false,
+	)
+
+	// TOUCH the relationship again with a caveat context change and ensure it does appear in the watch.
+	changes, errchan = ds.Watch(ctx, afterNameChange)
+	require.Zero(len(errchan))
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds,
+		tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
 	},
 		changes,
 		errchan,

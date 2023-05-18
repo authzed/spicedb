@@ -844,35 +844,14 @@ func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {
 }
 
 func ensureTuples(ctx context.Context, require *require.Assertions, ds datastore.Datastore, tpls ...*core.RelationTuple) {
-	headRev, err := ds.HeadRevision(ctx)
-	require.NoError(err)
-
-	reader := ds.SnapshotReader(headRev)
-
-	for _, tpl := range tpls {
-		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType:             tpl.ResourceAndRelation.Namespace,
-			OptionalResourceIds:      []string{tpl.ResourceAndRelation.ObjectId},
-			OptionalResourceRelation: tpl.ResourceAndRelation.Relation,
-			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
-				{
-					OptionalSubjectType: tpl.Subject.Namespace,
-					OptionalSubjectIds:  []string{tpl.Subject.ObjectId},
-				},
-			},
-		})
-		require.NoError(err)
-		defer iter.Close()
-
-		found := iter.Next()
-		require.NotNil(found, "expected tuple %s", tuple.MustString(tpl))
-		iter.Close()
-
-		require.Equal(tuple.MustString(tpl), tuple.MustString(found))
-	}
+	ensureTuplesStatus(ctx, require, ds, tpls, true)
 }
 
 func ensureNotTuples(ctx context.Context, require *require.Assertions, ds datastore.Datastore, tpls ...*core.RelationTuple) {
+	ensureTuplesStatus(ctx, require, ds, tpls, false)
+}
+
+func ensureTuplesStatus(ctx context.Context, require *require.Assertions, ds datastore.Datastore, tpls []*core.RelationTuple, mustExist bool) {
 	headRev, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
@@ -894,7 +873,17 @@ func ensureNotTuples(ctx context.Context, require *require.Assertions, ds datast
 		defer iter.Close()
 
 		found := iter.Next()
-		require.Nil(found, "expected tuple %s to not exist", tuple.MustString(tpl))
+
+		if mustExist {
+			require.NotNil(found, "expected tuple %s", tuple.MustString(tpl))
+		} else {
+			require.Nil(found, "expected tuple %s to not exist", tuple.MustString(tpl))
+		}
+
 		iter.Close()
+
+		if mustExist {
+			require.Equal(tuple.MustString(tpl), tuple.MustString(found))
+		}
 	}
 }

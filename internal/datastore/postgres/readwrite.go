@@ -185,22 +185,22 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 		// context has changed. For ones in which the caveat name and/or context did not change, there is
 		// no need to replace the row, as it is already present.
 		for _, mut := range touchMutationsByNonCaveat {
-			deleteClauses = append(deleteClauses, exactRelationshipDiffentCaveatClause(mut.Tuple))
+			deleteClauses = append(deleteClauses, exactRelationshipDifferentCaveatClause(mut.Tuple))
 		}
 	}
 
 	// Execute the DELETE operation for any DELETE mutations or TOUCH mutations that matched existing
-	// relationships and whose caveat name or context is different in some manner.
+	// relationships and whose caveat name or context is different in some manner. We use RETURNING
+	// to determine which TOUCHed relationships were deleted by virtue of their caveat name and/or
+	// context being changed.
 	if len(deleteClauses) == 0 {
 		// Nothing more to do.
 		return nil
 	}
 
-	builder := deleteTuple.Where(deleteClauses)
-
-	// If there are any TOUCH deletions, add RETURNING to track which ones were deleted.
-	if len(touchMutationsByNonCaveat) > 0 {
-		builder = builder.Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
+	builder := deleteTuple.
+		Where(deleteClauses).
+		Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
 			colNamespace,
 			colObjectID,
 			colRelation,
@@ -208,7 +208,6 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			colUsersetObjectID,
 			colUsersetRelation,
 		))
-	}
 
 	sql, args, err := builder.
 		Set(colDeletedXid, rwt.newXID).
@@ -223,56 +222,54 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	}
 	defer rows.Close()
 
-	if len(touchMutationsByNonCaveat) > 0 {
-		// For each deleted row representing a TOUCH, recreate with the new caveat and/or context.
-		touchWrite := writeTuple
-		touchWriteHasValues := false
+	// For each deleted row representing a TOUCH, recreate with the new caveat and/or context.
+	touchWrite := writeTuple
+	touchWriteHasValues := false
 
-		deletedTpl := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
+	deletedTpl := &core.RelationTuple{
+		ResourceAndRelation: &core.ObjectAndRelation{},
+		Subject:             &core.ObjectAndRelation{},
+	}
 
-		for rows.Next() {
-			err := rows.Scan(
-				&deletedTpl.ResourceAndRelation.Namespace,
-				&deletedTpl.ResourceAndRelation.ObjectId,
-				&deletedTpl.ResourceAndRelation.Relation,
-				&deletedTpl.Subject.Namespace,
-				&deletedTpl.Subject.ObjectId,
-				&deletedTpl.Subject.Relation,
-			)
-			if err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
-
-			tplString := tuple.StringWithoutCaveat(deletedTpl)
-			mutation, ok := touchMutationsByNonCaveat[tplString]
-			if !ok {
-				// This did not represent a TOUCH operation.
-				continue
-			}
-
-			touchWrite = appendForInsertion(touchWrite, mutation.Tuple)
-			touchWriteHasValues = true
-		}
-		rows.Close()
-
-		// If no INSERTs are necessary to update caveats, then nothing more to do.
-		if !touchWriteHasValues {
-			return nil
-		}
-
-		// Otherwise execute the INSERTs for the caveated-changes TOUCHed relationships.
-		sql, args, err = touchWrite.ToSql()
+	for rows.Next() {
+		err := rows.Scan(
+			&deletedTpl.ResourceAndRelation.Namespace,
+			&deletedTpl.ResourceAndRelation.ObjectId,
+			&deletedTpl.ResourceAndRelation.Relation,
+			&deletedTpl.Subject.Namespace,
+			&deletedTpl.Subject.ObjectId,
+			&deletedTpl.Subject.Relation,
+		)
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
-		_, err = rwt.tx.Exec(ctx, sql, args...)
-		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+		tplString := tuple.StringWithoutCaveat(deletedTpl)
+		mutation, ok := touchMutationsByNonCaveat[tplString]
+		if !ok {
+			// This did not represent a TOUCH operation.
+			continue
 		}
+
+		touchWrite = appendForInsertion(touchWrite, mutation.Tuple)
+		touchWriteHasValues = true
+	}
+	rows.Close()
+
+	// If no INSERTs are necessary to update caveats, then nothing more to do.
+	if !touchWriteHasValues {
+		return nil
+	}
+
+	// Otherwise execute the INSERTs for the caveated-changes TOUCHed relationships.
+	sql, args, err = touchWrite.ToSql()
+	if err != nil {
+		return fmt.Errorf(errUnableToWriteRelationships, err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
 	return nil
@@ -430,7 +427,7 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	}
 }
 
-func exactRelationshipDiffentCaveatClause(r *core.RelationTuple) sq.And {
+func exactRelationshipDifferentCaveatClause(r *core.RelationTuple) sq.And {
 	var caveatName string
 	var caveatContext map[string]any
 	if r.Caveat != nil {
