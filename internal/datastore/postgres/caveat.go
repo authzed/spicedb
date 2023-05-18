@@ -47,7 +47,9 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 
 	var txID xid8
 	var serializedDef []byte
-	err = tx.QueryRow(ctx, sql, args...).Scan(&serializedDef, &txID)
+	err = tx.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&serializedDef, &txID)
+	}, sql, args...)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
@@ -94,31 +96,28 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 	}
 	defer txCleanup(ctx)
 
-	rows, err := tx.Query(ctx, sql, args...)
+	var caveats []datastore.RevisionedCaveat
+	err = tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var version xid8
+			var defBytes []byte
+			err = rows.Scan(&defBytes, &version)
+			if err != nil {
+				return fmt.Errorf(errListCaveats, err)
+			}
+			c := core.CaveatDefinition{}
+			err = c.UnmarshalVT(defBytes)
+			if err != nil {
+				return fmt.Errorf(errListCaveats, err)
+			}
+
+			revision := revisionForVersion(version)
+			caveats = append(caveats, datastore.RevisionedCaveat{Definition: &c, LastWrittenRevision: revision})
+		}
+		return rows.Err()
+	}, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf(errListCaveats, err)
-	}
-
-	defer rows.Close()
-	var caveats []datastore.RevisionedCaveat
-	for rows.Next() {
-		var version xid8
-		var defBytes []byte
-		err = rows.Scan(&defBytes, &version)
-		if err != nil {
-			return nil, fmt.Errorf(errListCaveats, err)
-		}
-		c := core.CaveatDefinition{}
-		err = c.UnmarshalVT(defBytes)
-		if err != nil {
-			return nil, fmt.Errorf(errListCaveats, err)
-		}
-
-		revision := revisionForVersion(version)
-		caveats = append(caveats, datastore.RevisionedCaveat{Definition: &c, LastWrittenRevision: revision})
-	}
-	if rows.Err() != nil {
-		return nil, fmt.Errorf(errListCaveats, rows.Err())
 	}
 
 	return caveats, nil

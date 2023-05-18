@@ -8,7 +8,7 @@ require (
 	github.com/authzed/spicedb v1.5.0
 	github.com/brianvoe/gofakeit/v6 v6.15.0
 	github.com/ecordell/optgen v0.0.9
-	github.com/jackc/pgx/v5 v5.3.1
+	github.com/jackc/pgx/v5 v5.3.2-0.20230516120255-eab316e200b1
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/tools v0.9.1
 	google.golang.org/grpc v1.54.0

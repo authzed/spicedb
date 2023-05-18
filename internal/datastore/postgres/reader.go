@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -182,32 +183,29 @@ func loadAllNamespaces(
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, sql, args...)
+	var nsDefs []datastore.RevisionedNamespace
+	err = tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var config []byte
+			var version xid8
+
+			if err := rows.Scan(&config, &version); err != nil {
+				return err
+			}
+
+			loaded := &core.NamespaceDefinition{}
+			if err := loaded.UnmarshalVT(config); err != nil {
+				return fmt.Errorf(errUnableToReadConfig, err)
+			}
+
+			revision := revisionForVersion(version)
+
+			nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
+		}
+		return rows.Err()
+	}, sql, args...)
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	var nsDefs []datastore.RevisionedNamespace
-	for rows.Next() {
-		var config []byte
-		var version xid8
-
-		if err := rows.Scan(&config, &version); err != nil {
-			return nil, err
-		}
-
-		loaded := &core.NamespaceDefinition{}
-		if err := loaded.UnmarshalVT(config); err != nil {
-			return nil, fmt.Errorf(errUnableToReadConfig, err)
-		}
-
-		revision := revisionForVersion(version)
-
-		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
-	}
-	if rows.Err() != nil {
-		return nil, rows.Err()
 	}
 
 	return nsDefs, nil

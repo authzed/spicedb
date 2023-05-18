@@ -256,7 +256,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	for _, nsName := range nsNames {
-		_, timestamp, err := rwt.loadNamespace(ctx, rwt.tx, nsName)
+		_, timestamp, err := rwt.loadNamespace(ctx, pgxcommon.DBReaderFor(rwt.tx), nsName)
 		if err != nil {
 			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 				return err

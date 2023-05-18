@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
@@ -44,7 +45,8 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	var uniqueID string
 	var nsDefs []datastore.RevisionedNamespace
 	var relCount uint64
-	if err := pgx.BeginTxFunc(ctx, cds.readPool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+
+	if err := cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&uniqueID); err != nil {
 			return fmt.Errorf("unable to query unique ID: %w", err)
 		}
@@ -53,7 +55,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 			return fmt.Errorf("unable to read relationship count: %w", err)
 		}
 
-		nsDefs, err = loadAllNamespaces(ctx, tx, func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
+		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.DBReaderFor(tx), func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
 			return sb.From(fromStr)
 		})
 		if err != nil {

@@ -15,11 +15,12 @@ type crdbOptions struct {
 	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
-	maxRetries                  uint8
+	maxRetries                  uint32
 	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
 	disableStats                bool
+	enableConnectionBalancing   bool
 
 	enablePrometheusStats bool
 }
@@ -41,7 +42,8 @@ const (
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
 
-	defaultEnablePrometheusStats = false
+	defaultEnablePrometheusStats     = false
+	defaultEnableConnectionBalancing = true
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -61,6 +63,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		overlapStrategy:             defaultOverlapStrategy,
 		disableStats:                false,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		enableConnectionBalancing:   defaultEnableConnectionBalancing,
 	}
 
 	for _, option := range options {
@@ -256,7 +259,7 @@ func GCWindow(window time.Duration) Option {
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
 // Default: 5
-func MaxRetries(maxRetries uint8) Option {
+func MaxRetries(maxRetries uint32) Option {
 	return func(po *crdbOptions) { po.maxRetries = maxRetries }
 }
 
@@ -283,4 +286,12 @@ func DisableStats(disable bool) Option {
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(po *crdbOptions) { po.enablePrometheusStats = enablePrometheusStats }
+}
+
+// WithEnableConnectionBalancing marks whether Prometheus metrics provided by the Postgres
+// clients being used by the datastore are enabled.
+//
+// Prometheus metrics are disabled by default.
+func WithEnableConnectionBalancing(connectionBalancing bool) Option {
+	return func(po *crdbOptions) { po.enableConnectionBalancing = connectionBalancing }
 }
