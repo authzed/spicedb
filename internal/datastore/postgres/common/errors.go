@@ -13,6 +13,7 @@ import (
 
 const (
 	pgUniqueConstraintViolation = "23505"
+	pgSerializationFailure      = "40001"
 )
 
 var createConflictDetailsRegex = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
