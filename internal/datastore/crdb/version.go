@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 
-	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 var versionRegex = regexp.MustCompile(`v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?`)
 
-func queryServerVersion(ctx context.Context, db *pool.RetryPool, version *crdbVersion) error {
+func queryServerVersion(ctx context.Context, db pgxcommon.DBFuncQuerier, version *crdbVersion) error {
 	if err := db.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 		return row.Scan(version)
 	}, queryVersionJSON); err != nil {

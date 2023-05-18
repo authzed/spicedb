@@ -16,7 +16,7 @@ import (
 )
 
 type pgReader struct {
-	txSource      pgxcommon.TxFactory
+	query         pgxcommon.DBFuncQuerier
 	querySplitter common.TupleQuerySplitter
 	filterer      queryFilterer
 }
@@ -97,13 +97,7 @@ func (r *pgReader) ReverseQueryRelationships(
 }
 
 func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
-	}
-	defer txCleanup(ctx)
-
-	loaded, version, err := r.loadNamespace(ctx, nsName, tx, r.filterer)
+	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.filterer)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -114,7 +108,7 @@ func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*cor
 	}
 }
 
-func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBReader, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
+func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBFuncQuerier, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -133,13 +127,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 }
 
 func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer txCleanup(ctx)
-
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, r.filterer)
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.filterer)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -152,18 +140,12 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 		return nil, nil
 	}
 
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer txCleanup(ctx)
-
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, func(original sq.SelectBuilder) sq.SelectBuilder {
 		return r.filterer(original).Where(clause)
 	})
 	if err != nil {
@@ -175,7 +157,7 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 
 func loadAllNamespaces(
 	ctx context.Context,
-	tx pgxcommon.DBReader,
+	tx pgxcommon.DBFuncQuerier,
 	filterer queryFilterer,
 ) ([]datastore.RevisionedNamespace, error) {
 	sql, args, err := filterer(readNamespace).ToSql()

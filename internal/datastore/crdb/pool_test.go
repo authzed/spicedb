@@ -29,7 +29,7 @@ func TestTxReset(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		maxRetries  uint32
+		maxRetries  uint8
 		errors      []error
 		expectError bool
 	}{

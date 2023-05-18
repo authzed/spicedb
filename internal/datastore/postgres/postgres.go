@@ -297,23 +297,18 @@ type pgDatastore struct {
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
 	rev := revRaw.(postgresRevision)
 
-	createTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-		return pgxcommon.DBReaderFor(pgd.readPool), func(ctx context.Context) {}, nil
-	}
-
+	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(createTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(queryFuncs),
 		UsersetBatchSize: pgd.usersetBatchSize,
 	}
 
 	return &pgReader{
-		createTxFunc,
+		queryFuncs,
 		querySplitter,
 		buildLivingObjectFilterForRevision(rev),
 	}
 }
-
-func noCleanup(context.Context) {}
 
 // ReadWriteTx starts a read/write transaction, which will be committed if no error is
 // returned and rolled back if an error is returned.
@@ -335,18 +330,15 @@ func (pgd *pgDatastore) ReadWriteTx(
 				return err
 			}
 
-			longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-				return pgxcommon.DBReaderFor(tx), noCleanup, nil
-			}
-
+			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
 			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
+				Executor:         pgxcommon.NewPGXExecutor(queryFuncs),
 				UsersetBatchSize: pgd.usersetBatchSize,
 			}
 
 			rwt := &pgReadWriteTXN{
 				&pgReader{
-					longLivedTx,
+					queryFuncs,
 					querySplitter,
 					currentlyLivingObjects,
 				},

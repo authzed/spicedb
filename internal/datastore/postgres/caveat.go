@@ -39,15 +39,9 @@ func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.Cav
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
 
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
-	}
-	defer txCleanup(ctx)
-
 	var txID xid8
 	var serializedDef []byte
-	err = tx.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+	err = r.query.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 		return row.Scan(&serializedDef, &txID)
 	}, sql, args...)
 	if err != nil {
@@ -90,14 +84,8 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
 
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, fmt.Errorf(errListCaveats, err)
-	}
-	defer txCleanup(ctx)
-
 	var caveats []datastore.RevisionedCaveat
-	err = tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		for rows.Next() {
 			var version xid8
 			var defBytes []byte

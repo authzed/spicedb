@@ -55,7 +55,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 			return fmt.Errorf("unable to read relationship count: %w", err)
 		}
 
-		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.DBReaderFor(tx), func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
+		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
 			return sb.From(fromStr)
 		})
 		if err != nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"hash/maphash"
 	"math/rand"
-	"runtime"
 	"strconv"
 	"time"
 
@@ -13,17 +12,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
-var connectionsPerCRDBNodeCountGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-	Name: "crdb_connections_per_node",
-	Help: "the number of connections spicedb has to each crdb node",
-}, []string{"pool", "node_id"})
+var (
+	connectionsPerCRDBNodeCountGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "crdb_connections_per_node",
+		Help: "the number of connections spicedb has to each crdb node",
+	}, []string{"pool", "node_id"})
+
+	pruningTimeHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "crdb_pruning_duration",
+		Help:    "milliseconds spent on one iteration of pruning excess connections",
+		Buckets: []float64{.1, .2, .5, 1, 2, 5, 10, 20, 50, 100},
+	}, []string{"pool"})
+)
 
 func init() {
 	prometheus.MustRegister(connectionsPerCRDBNodeCountGauge)
+	prometheus.MustRegister(pruningTimeHistogram)
 }
 
 type balancePoolConn[C balanceConn] interface {
@@ -42,7 +51,7 @@ type balanceablePool[P balancePoolConn[C], C balanceConn] interface {
 	ID() string
 	AcquireAllIdle(ctx context.Context) []P
 	Node(conn C) uint32
-	GC(conn C) uint32
+	GC(conn C)
 	MaxConns() uint32
 	Range(func(conn C, nodeID uint32))
 }
@@ -64,6 +73,7 @@ func NewNodeConnectionBalancer(pool *RetryPool, healthTracker *NodeHealthTracker
 // testing purposes. Callers should use the exported NodeConnectionBalancer
 type nodeConnectionBalancer[P balancePoolConn[C], C balanceConn] struct {
 	ticker        *time.Ticker
+	sem           *semaphore.Weighted
 	pool          balanceablePool[P, C]
 	healthTracker *NodeHealthTracker
 	rnd           *rand.Rand
@@ -76,6 +86,7 @@ func newNodeConnectionBalancer[P balancePoolConn[C], C balanceConn](pool balance
 	seed := int64(new(maphash.Hash).Sum64())
 	return &nodeConnectionBalancer[P, C]{
 		ticker:        time.NewTicker(interval),
+		sem:           semaphore.NewWeighted(1),
 		healthTracker: healthTracker,
 		pool:          pool,
 		seed:          seed,
@@ -91,8 +102,12 @@ func (p *nodeConnectionBalancer[P, C]) Prune(ctx context.Context) {
 			p.ticker.Stop()
 			return
 		case <-p.ticker.C:
-			p.pruneConnections(ctx)
-			runtime.GC()
+			if p.sem.TryAcquire(1) {
+				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				p.pruneConnections(ctx)
+				cancel()
+				p.sem.Release(1)
+			}
 		}
 	}
 }
@@ -101,6 +116,10 @@ func (p *nodeConnectionBalancer[P, C]) Prune(ctx context.Context) {
 // This causes the pool to reconnect, which over time will lead to a balanced number of connections
 // across each node.
 func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
+	start := time.Now()
+	defer func() {
+		pruningTimeHistogram.WithLabelValues(p.pool.ID()).Observe(float64(time.Since(start).Milliseconds()))
+	}()
 	conns := p.pool.AcquireAllIdle(ctx)
 	defer func() {
 		// release all acquired idle conns back
@@ -139,7 +158,7 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 		Msg("connections per node")
 
 	// Delete metrics for nodes we no longer have connections for
-	p.healthTracker.Lock()
+	p.healthTracker.RLock()
 	for node := range p.healthTracker.nodesEverSeen {
 		// TODO: does this handle network interruptions correctly?
 		if _, ok := connectionCounts[node]; !ok {
@@ -149,7 +168,7 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 			})
 		}
 	}
-	p.healthTracker.Unlock()
+	p.healthTracker.RUnlock()
 
 	nodes := maps.Keys(connectionCounts)
 	slices.Sort(nodes)
@@ -163,6 +182,7 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 		nodes[j], nodes[i] = nodes[i], nodes[j]
 	})
 
+	initialPerNodeMax := p.pool.MaxConns() / nodeCount
 	for i, node := range nodes {
 		count := connectionCounts[node]
 		connectionsPerCRDBNodeCountGauge.WithLabelValues(
@@ -170,7 +190,7 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 			strconv.FormatUint(uint64(node), 10),
 		).Set(float64(count))
 
-		perNodeMax := p.pool.MaxConns() / nodeCount
+		perNodeMax := initialPerNodeMax
 
 		// Assign MaxConns%(# of nodes) nodes an extra connection. This ensures that
 		// the sum of all perNodeMax values exactly equals the pool MaxConns.

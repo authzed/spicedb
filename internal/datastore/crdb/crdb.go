@@ -246,12 +246,8 @@ type crdbDatastore struct {
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	useImplicitTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-		return cds.readPool, func(context.Context) {}, nil
-	}
-
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(useImplicitTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(cds.readPool),
 		UsersetBatchSize: cds.usersetBatchSize,
 	}
 
@@ -259,10 +255,8 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		return query.From(fromStr + " AS OF SYSTEM TIME " + rev.String())
 	}
 
-	return &crdbReader{useImplicitTxFunc, querySplitter, noOverlapKeyer, nil, fromBuilder}
+	return &crdbReader{cds.readPool, querySplitter, noOverlapKeyer, nil, fromBuilder}
 }
-
-func noCleanup(context.Context) {}
 
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
@@ -277,18 +271,15 @@ func (cds *crdbDatastore) ReadWriteTx(
 	}
 
 	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
-		longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-			return pgxcommon.DBReaderFor(tx), noCleanup, nil
-		}
-
+		querier := pgxcommon.QuerierFuncsFor(tx)
 		querySplitter := common.TupleQuerySplitter{
-			Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
+			Executor:         pgxcommon.NewPGXExecutor(querier),
 			UsersetBatchSize: cds.usersetBatchSize,
 		}
 
 		rwt := &crdbReadWriteTXN{
 			&crdbReader{
-				longLivedTx,
+				querier,
 				querySplitter,
 				cds.writeOverlapKeyer,
 				make(keySet),
@@ -314,7 +305,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 
 		if cds.disableStats {
 			var err error
-			commitTimestamp, err = readCRDBNow(ctx, pgxcommon.DBReaderFor(tx))
+			commitTimestamp, err = readCRDBNow(ctx, querier)
 			if err != nil {
 				return fmt.Errorf("error getting commit timestamp: %w", err)
 			}
@@ -420,7 +411,7 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	return &features, nil
 }
 
-func readCRDBNow(ctx context.Context, reader pgxcommon.DBReader) (revision.Decimal, error) {
+func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.Decimal, error) {
 	ctx, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
@@ -434,7 +425,7 @@ func readCRDBNow(ctx context.Context, reader pgxcommon.DBReader) (revision.Decim
 	return revision.NewFromDecimal(hlcNow), nil
 }
 
-func readClusterTTLNanos(ctx context.Context, conn *pool.RetryPool) (int64, error) {
+func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
 	var target, configSQL string
 
 	if err := conn.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {

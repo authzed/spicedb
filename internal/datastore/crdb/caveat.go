@@ -40,16 +40,10 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, name, err)
 	}
 
-	tx, txCleanup, err := cr.txSource(ctx)
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, name, err)
-	}
-	defer txCleanup(ctx)
-
 	var definitionBytes []byte
 	var timestamp time.Time
 
-	err = tx.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+	err = cr.query.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 		return row.Scan(&definitionBytes, &timestamp)
 	}, sql, args...)
 	if err != nil {
@@ -94,15 +88,9 @@ func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) (
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
 
-	tx, txCleanup, err := cr.txSource(ctx)
-	if err != nil {
-		return nil, fmt.Errorf(errListCaveats, err)
-	}
-	defer txCleanup(ctx)
-
 	var allDefinitionBytes []bytesAndTimestamp
 
-	err = tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+	err = cr.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		for rows.Next() {
 			var defBytes []byte
 			var name string

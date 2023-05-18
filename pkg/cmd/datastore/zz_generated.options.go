@@ -93,6 +93,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxRetries"] = helpers.DebugValue(c.MaxRetries, false)
 	debugMap["OverlapKey"] = helpers.DebugValue(c.OverlapKey, false)
 	debugMap["OverlapStrategy"] = helpers.DebugValue(c.OverlapStrategy, false)
+	debugMap["EnableConnectionBalancing"] = helpers.DebugValue(c.EnableConnectionBalancing, false)
 	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
 	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)

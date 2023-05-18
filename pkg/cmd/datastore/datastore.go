@@ -348,7 +348,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
-		crdb.MaxRetries(uint32(opts.MaxRetries)),
+		crdb.MaxRetries(uint8(opts.MaxRetries)),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),

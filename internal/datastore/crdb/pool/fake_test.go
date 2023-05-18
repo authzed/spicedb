@@ -70,13 +70,12 @@ func (f *FakePool) Node(conn *FakeConn) uint32 {
 	return id
 }
 
-func (f *FakePool) GC(conn *FakeConn) uint32 {
+func (f *FakePool) GC(conn *FakeConn) {
 	f.Lock()
 	defer f.Unlock()
 	id := f.nodeForConn[conn]
 	delete(f.nodeForConn, conn)
 	f.gc[conn] = id
-	return id
 }
 
 func (f *FakePool) MaxConns() uint32 {

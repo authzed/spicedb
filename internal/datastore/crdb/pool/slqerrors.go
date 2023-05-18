@@ -1,13 +1,10 @@
 package pool
 
 import (
-	"context"
 	"errors"
 	"strconv"
 
 	"github.com/jackc/pgx/v5/pgconn"
-
-	log "github.com/authzed/spicedb/internal/logging"
 )
 
 const (
@@ -25,7 +22,7 @@ const (
 
 // MaxRetryError is returned when the retry budget is exhausted.
 type MaxRetryError struct {
-	MaxRetries uint32
+	MaxRetries uint8
 	LastErr    error
 }
 
@@ -51,10 +48,9 @@ func (e *RetryableError) Error() string { return "retryable error" + ": " + e.Er
 func (e *RetryableError) Unwrap() error { return e.Err }
 
 // sqlErrorCode attempts to extract the crdb error code from the error state.
-func sqlErrorCode(ctx context.Context, err error) string {
+func sqlErrorCode(err error) string {
 	var pgerr *pgconn.PgError
 	if !errors.As(err, &pgerr) {
-		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
 		return ""
 	}
 

@@ -17,8 +17,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.retry_options.go . RetryOptions
-
 var resetHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "crdb_client_resets",
 	Help:    "cockroachdb client-side tx reset distribution",
@@ -38,13 +36,13 @@ type RetryPool struct {
 	id            string
 	healthTracker *NodeHealthTracker
 
-	sync.Mutex
-	maxRetries  uint32
+	sync.RWMutex
+	maxRetries  uint8
 	nodeForConn map[*pgx.Conn]uint32
 	gc          map[*pgx.Conn]struct{}
 }
 
-func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint32) (*RetryPool, error) {
+func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8) (*RetryPool, error) {
 	config = config.Copy()
 	p := &RetryPool{
 		id:            name,
@@ -74,15 +72,17 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		return nil
 	}
 
-	// if we attempt to acquire or release a connection that has been marked for GC,
-	// return false to tell the underlying pool to destroy the connection
+	// if we attempt to acquire or release a connection that has been marked for
+	// GC, return false to tell the underlying pool to destroy the connection
 	gcConnection := func(conn *pgx.Conn) bool {
-		p.Lock()
-		defer p.Unlock()
+		p.RLock()
 		_, ok := p.gc[conn]
+		p.RUnlock()
 		if ok {
+			p.Lock()
 			delete(p.gc, conn)
 			delete(p.nodeForConn, conn)
+			p.Unlock()
 		}
 		return !ok
 	}
@@ -179,7 +179,6 @@ func (p *RetryPool) BeginTxFunc(ctx context.Context, txOptions pgx.TxOptions, tx
 	return p.withRetries(ctx, func(conn *pgxpool.Conn) error {
 		tx, err := conn.BeginTx(ctx, txOptions)
 		if err != nil {
-			conn.Release() // ?
 			return err
 		}
 
@@ -209,8 +208,8 @@ func (p *RetryPool) Stat() *pgxpool.Stat {
 
 // Node returns the id for a connection
 func (p *RetryPool) Node(conn *pgx.Conn) uint32 {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 	id, ok := p.nodeForConn[conn]
 	if !ok {
 		return 0
@@ -220,8 +219,8 @@ func (p *RetryPool) Node(conn *pgx.Conn) uint32 {
 
 // Range applies a function to every entry in the connection list
 func (p *RetryPool) Range(f func(conn *pgx.Conn, nodeID uint32)) {
-	p.Lock()
-	defer p.Unlock()
+	p.RLock()
+	defer p.RUnlock()
 	for k, v := range p.nodeForConn {
 		f(k, v)
 	}
@@ -231,14 +230,18 @@ func (p *RetryPool) Range(f func(conn *pgx.Conn, nodeID uint32)) {
 func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn) error) error {
 	conn, err := p.pool.Acquire(ctx)
 	if err != nil {
-		conn.Release()
+		if conn != nil {
+			conn.Release()
+		}
 		return fmt.Errorf("error acquiring connection from pool: %w", err)
 	}
 	defer func() {
-		conn.Release()
+		if conn != nil {
+			conn.Release()
+		}
 	}()
 
-	var retries uint32
+	var retries uint8
 	defer func() {
 		resetHistogram.Observe(float64(retries))
 	}()
@@ -248,12 +251,12 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 		maxRetries = 0
 	}
 
-	for retries = uint32(0); retries <= maxRetries; retries++ {
+	for retries = uint8(0); retries <= maxRetries; retries++ {
 		err = wrapRetryableError(ctx, fn(conn))
 		if err == nil {
 			conn.Release()
 			if retries > 0 {
-				log.Ctx(ctx).Info().Uint32("retries", retries).Msg("resettable database error succeeded after retry")
+				log.Ctx(ctx).Info().Uint8("retries", retries).Msg("resettable database error succeeded after retry")
 			}
 			return nil
 		}
@@ -262,68 +265,52 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 			resettable *ResettableError
 			retryable  *RetryableError
 		)
-		if errors.As(err, &resettable) {
-			log.Ctx(ctx).Info().Err(err).Uint32("retries", retries).Msg("resettable error")
+		if errors.As(err, &resettable) || conn.Conn().IsClosed() {
+			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("resettable error")
 
-			id := p.safeGC(ctx, conn)
+			nodeID := p.nodeForConn[conn.Conn()]
+			p.GC(conn.Conn())
 			conn.Release()
 
 			// After a resettable error, mark the node as unhealthy
 			// TODO: configurable error count / circuit-breaker
-			if id > 0 {
-				p.healthTracker.SetNodeHealth(id, false)
+			if nodeID > 0 {
+				p.healthTracker.SetNodeHealth(nodeID, false)
 			}
 
 			sleepOnErr(ctx, err, retries)
 
-			conn, err = p.acquireFromDifferentNode(ctx, id)
+			conn, err = p.acquireFromDifferentNode(ctx, nodeID)
 			if err != nil {
 				return fmt.Errorf("error acquiring connection from pool after retry %d: %w", retries, err)
 			}
 			continue
 		}
 		if errors.As(err, &retryable) {
-			log.Ctx(ctx).Info().Err(err).Uint32("retries", retries).Msg("retryable error")
+			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("retryable error")
 			sleepOnErr(ctx, err, retries)
 			continue
 		}
 		conn.Release()
 		// error is not resettable or retryable
-		log.Ctx(ctx).Warn().Err(err).Uint32("retries", retries).Msg("error is not resettable or retryable")
+		log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
 		return err
 	}
 	return &MaxRetryError{MaxRetries: p.maxRetries, LastErr: err}
-}
-
-// safeGC recovers if the underlying puddle's connection is nil
-// It returns a nodeID of zero if so, since we lost access to the connection object
-// to compute the id from.
-func (p *RetryPool) safeGC(ctx context.Context, conn *pgxpool.Conn) uint32 {
-	var id uint32
-	defer func() {
-		if r := recover(); r != nil {
-			log.Ctx(ctx).Warn().Msg("recovered from a missing pgx.Conn on a pgxpool.Conn")
-		}
-	}()
-	id = p.GC(conn.Conn())
-	return id
 }
 
 // GC marks a connection for destruction on the next Acquire.
 // BeforeAcquire can signal to the pool to close the connection and clean up
 // the reference in the pool at the same time, so we lazily GC connections
 // instead of closing the connection directly.
-// It returns the node id of the connection that was just closed.
-func (p *RetryPool) GC(conn *pgx.Conn) uint32 {
+func (p *RetryPool) GC(conn *pgx.Conn) {
 	p.Lock()
 	defer p.Unlock()
 	p.gc[conn] = struct{}{}
-	node := p.nodeForConn[conn]
 	delete(p.nodeForConn, conn)
-	return node
 }
 
-func sleepOnErr(ctx context.Context, err error, retries uint32) {
+func sleepOnErr(ctx context.Context, err error, retries uint8) {
 	after := retry.BackoffExponentialWithJitter(100*time.Millisecond, 0.5)(uint(retries + 1)) // add one so we always wait at least a little bit
 	log.Ctx(ctx).Warn().Err(err).Dur("after", after).Msg("retrying on database error")
 	time.Sleep(after)
@@ -334,7 +321,9 @@ func (p *RetryPool) acquireFromDifferentNode(ctx context.Context, nodeID uint32)
 	for {
 		conn, err := p.pool.Acquire(ctx)
 		if err != nil {
-			conn.Release()
+			if conn != nil {
+				conn.Release()
+			}
 			return nil, err
 		}
 		if p.healthTracker.HealthyNodeCount() <= 1 {
@@ -373,7 +362,10 @@ func wrapRetryableError(ctx context.Context, err error) error {
 		return &ResettableError{Err: err}
 	}
 
-	sqlState := sqlErrorCode(ctx, err)
+	sqlState := sqlErrorCode(err)
+	if sqlState == "" {
+		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+	}
 	// Ambiguous result error includes connection closed errors
 	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
 	if sqlState == CrdbAmbiguousErrorCode ||

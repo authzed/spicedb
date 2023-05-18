@@ -48,7 +48,7 @@ var (
 )
 
 type crdbReader struct {
-	txSource      pgxcommon.TxFactory
+	query         pgxcommon.DBFuncQuerier
 	querySplitter common.TupleQuerySplitter
 	keyer         overlapKeyer
 	overlapKeySet keySet
@@ -59,13 +59,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 	ctx context.Context,
 	nsName string,
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
-	tx, txCleanup, err := cr.txSource(ctx)
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
-	}
-	defer txCleanup(ctx)
-
-	config, timestamp, err := cr.loadNamespace(ctx, tx, nsName)
+	config, timestamp, err := cr.loadNamespace(ctx, cr.query, nsName)
 	if err != nil {
 		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 			return nil, datastore.NoRevision, err
@@ -77,13 +71,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 }
 
 func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	tx, txCleanup, err := cr.txSource(ctx)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToListNamespaces, err)
-	}
-	defer txCleanup(ctx)
-
-	nsDefs, err := loadAllNamespaces(ctx, tx, cr.fromBuilder)
+	nsDefs, err := loadAllNamespaces(ctx, cr.query, cr.fromBuilder)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -94,13 +82,7 @@ func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []s
 	if len(nsNames) == 0 {
 		return nil, nil
 	}
-	tx, txCleanup, err := cr.txSource(ctx)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToListNamespaces, err)
-	}
-	defer txCleanup(ctx)
-
-	nsDefs, err := cr.lookupNamespaces(ctx, tx, nsNames)
+	nsDefs, err := cr.lookupNamespaces(ctx, cr.query, nsNames)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -149,7 +131,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 		options.WithSort(queryOpts.SortForReverse))
 }
 
-func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBReader, nsName string) (*core.NamespaceDefinition, time.Time, error) {
+func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsName string) (*core.NamespaceDefinition, time.Time, error) {
 	query := cr.fromBuilder(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
 
 	sql, args, err := query.ToSql()
@@ -178,7 +160,7 @@ func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBReader, n
 	return loaded, timestamp, nil
 }
 
-func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBReader, nsNames []string) ([]datastore.RevisionedNamespace, error) {
+func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{colNamespace: nsName})
@@ -224,7 +206,7 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBReader
 	return nsDefs, nil
 }
 
-func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBReader, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
+func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
 	query := fromBuilder(queryReadNamespace, tableNamespace)
 
 	sql, args, err := query.ToSql()

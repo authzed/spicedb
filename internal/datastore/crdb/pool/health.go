@@ -28,7 +28,7 @@ func init() {
 //
 // Consumers can manually mark a node healthy or unhealthy as well.
 type NodeHealthTracker struct {
-	sync.Mutex
+	sync.RWMutex
 	connConfig    *pgx.ConnConfig
 	healthyNodes  map[uint32]struct{}
 	nodesEverSeen map[uint32]struct{}
@@ -77,7 +77,7 @@ func (t *NodeHealthTracker) tryConnect(interval time.Duration) {
 	if err = conn.Ping(ctx); err != nil {
 		return
 	}
-	log.Ctx(ctx).Info().
+	log.Ctx(ctx).Trace().
 		Uint32("nodeID", nodeID(conn)).
 		Msg("health check connected to node")
 
@@ -104,15 +104,15 @@ func (t *NodeHealthTracker) SetNodeHealth(nodeID uint32, healthy bool) {
 
 // IsHealthy returns true if the given nodeID has been marked healthy.
 func (t *NodeHealthTracker) IsHealthy(nodeID uint32) bool {
-	t.Lock()
+	t.RLock()
 	_, ok := t.healthyNodes[nodeID]
-	t.Unlock()
+	t.RUnlock()
 	return ok
 }
 
 // HealthyNodeCount returns the number of healthy nodes currently tracked.
 func (t *NodeHealthTracker) HealthyNodeCount() int {
-	t.Lock()
-	defer t.Unlock()
+	t.RLock()
+	defer t.RUnlock()
 	return len(t.healthyNodes)
 }
