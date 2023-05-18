@@ -43,6 +43,9 @@ linters:
     - 'wastedassign'
     - 'whitespace'
 issues:
+  include:
+    - EXC0012
+    - EXC0014
   exclude-rules:
     - text: 'tx.Rollback()'
       linters:
