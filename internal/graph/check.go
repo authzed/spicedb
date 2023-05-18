@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -594,6 +593,17 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	)
 }
 
+func withDistinctMetadata(result CheckResult) CheckResult {
+	// NOTE: This is necessary to ensure unique debug information on the request and that debug
+	// information from the child metadata is *not* copied over.
+	clonedResp := result.Resp.CloneVT()
+	clonedResp.Metadata = combineResponseMetadata(emptyMetadata, clonedResp.Metadata)
+	return CheckResult{
+		Resp: clonedResp,
+		Err:  result.Err,
+	}
+}
+
 // union returns whether any one of the lazy checks pass, and is used for union.
 func union[T any](
 	ctx context.Context,
@@ -606,16 +616,14 @@ func union[T any](
 		return noMembers()
 	}
 
+	if len(children) == 1 {
+		return withDistinctMetadata(handler(ctx, crc, children[0]))
+	}
+
 	resultChan := make(chan CheckResult, len(children))
 	childCtx, cancelFn := context.WithCancel(ctx)
-
-	dispatcherCleanup := dispatchAllAsync(childCtx, crc, children, handler, resultChan, concurrencyLimit)
-
-	defer func() {
-		cancelFn()
-		dispatcherCleanup()
-		close(resultChan)
-	}()
+	dispatchAllAsync(childCtx, crc, children, handler, resultChan, concurrencyLimit)
+	defer cancelFn()
 
 	responseMetadata := emptyMetadata
 	membershipSet := NewMembershipSet()
@@ -655,22 +663,21 @@ func all[T any](
 		return noMembers()
 	}
 
+	if len(children) == 1 {
+		return withDistinctMetadata(handler(ctx, crc, children[0]))
+	}
+
 	responseMetadata := emptyMetadata
+
 	resultChan := make(chan CheckResult, len(children))
 	childCtx, cancelFn := context.WithCancel(ctx)
-
-	cleanupFunc := dispatchAllAsync(childCtx, currentRequestContext{
+	dispatchAllAsync(childCtx, currentRequestContext{
 		parentReq:           crc.parentReq,
 		filteredResourceIDs: crc.filteredResourceIDs,
 		resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
 		maxDispatchCount:    crc.maxDispatchCount,
 	}, children, handler, resultChan, concurrencyLimit)
-
-	defer func() {
-		cancelFn()
-		cleanupFunc()
-		close(resultChan)
-	}()
+	defer cancelFn()
 
 	var membershipSet *MembershipSet
 	for i := 0; i < len(children); i++ {
@@ -716,32 +723,21 @@ func difference[T any](
 	}
 
 	childCtx, cancelFn := context.WithCancel(ctx)
-
 	baseChan := make(chan CheckResult, 1)
 	othersChan := make(chan CheckResult, len(children)-1)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
 	go func() {
 		result := handler(childCtx, crc, children[0])
 		baseChan <- result
-		wg.Done()
 	}()
 
-	cleanupFunc := dispatchAllAsync(childCtx, currentRequestContext{
+	dispatchAllAsync(childCtx, currentRequestContext{
 		parentReq:           crc.parentReq,
 		filteredResourceIDs: crc.filteredResourceIDs,
 		resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
 		maxDispatchCount:    crc.maxDispatchCount,
 	}, children[1:], handler, othersChan, concurrencyLimit-1)
-
-	defer func() {
-		cancelFn()
-		cleanupFunc()
-		close(othersChan)
-		wg.Wait()
-		close(baseChan)
-	}()
+	defer cancelFn()
 
 	responseMetadata := emptyMetadata
 	membershipSet := NewMembershipSet()
@@ -794,37 +790,18 @@ func dispatchAllAsync[T any](
 	handler func(ctx context.Context, crc currentRequestContext, child T) CheckResult,
 	resultChan chan<- CheckResult,
 	concurrencyLimit uint16,
-) func() {
-	sem := make(chan struct{}, concurrencyLimit)
-	var wg sync.WaitGroup
-
-	runHandler := func(child T) {
-		result := handler(ctx, crc, child)
-		resultChan <- result
-		<-sem
-		wg.Done()
+) {
+	tr := newPreloadedTaskRunner(ctx, concurrencyLimit)
+	for _, currentChild := range children {
+		currentChild := currentChild
+		tr.add(func(ctx context.Context) error {
+			result := handler(ctx, crc, currentChild)
+			resultChan <- result
+			return result.Err
+		})
 	}
 
-	wg.Add(1)
-	go func() {
-	dispatcher:
-		for _, currentChild := range children {
-			currentChild := currentChild
-			select {
-			case sem <- struct{}{}:
-				wg.Add(1)
-				go runHandler(currentChild)
-			case <-ctx.Done():
-				break dispatcher
-			}
-		}
-		wg.Done()
-	}()
-
-	return func() {
-		wg.Wait()
-		close(sem)
-	}
+	tr.start()
 }
 
 func noMembers() CheckResult {
