@@ -18,7 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 )
 
-func TestBulkLoadRelationships(t *testing.T) {
+func TestBulkImportRelationships(t *testing.T) {
 	testCases := []struct {
 		name       string
 		batchSize  func() int
@@ -42,7 +42,7 @@ func TestBulkLoadRelationships(t *testing.T) {
 
 			ctx := context.Background()
 
-			writer, err := client.BulkLoadRelationships(ctx)
+			writer, err := client.BulkImportRelationships(ctx)
 			require.NoError(err)
 
 			var expectedTotal uint64
@@ -61,7 +61,7 @@ func TestBulkLoadRelationships(t *testing.T) {
 					))
 				}
 
-				err := writer.Send(&v1.BulkLoadRelationshipsRequest{
+				err := writer.Send(&v1.BulkImportRelationshipsRequest{
 					Relationships: batch,
 				})
 				require.NoError(err)
@@ -138,10 +138,10 @@ func TestBulkExportRelationships(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	writer, err := client.BulkLoadRelationships(ctx)
+	writer, err := client.BulkImportRelationships(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, writer.Send(&v1.BulkLoadRelationshipsRequest{
+	require.NoError(t, writer.Send(&v1.BulkImportRelationshipsRequest{
 		Relationships: batch,
 	}))
 

@@ -56,7 +56,7 @@ type experimentalServer struct {
 }
 
 type bulkLoadAdapter struct {
-	stream                 v1.ExperimentalService_BulkLoadRelationshipsServer
+	stream                 v1.ExperimentalService_BulkImportRelationshipsServer
 	referencedNamespaceMap map[string]*namespace.TypeSystem
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                core.RelationTuple
@@ -140,7 +140,7 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 	return lo.Keys(newNamespaces), lo.Keys(newCaveats)
 }
 
-func (es *experimentalServer) BulkLoadRelationships(stream v1.ExperimentalService_BulkLoadRelationshipsServer) error {
+func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
 	ds := datastoremw.MustFromContext(stream.Context())
 
 	var numWritten uint64
@@ -206,7 +206,7 @@ func (es *experimentalServer) BulkLoadRelationships(stream v1.ExperimentalServic
 		DispatchCount: 1,
 	})
 
-	return stream.SendAndClose(&v1.BulkLoadRelationshipsResponse{
+	return stream.SendAndClose(&v1.BulkImportRelationshipsResponse{
 		NumLoaded: numWritten,
 	})
 }
