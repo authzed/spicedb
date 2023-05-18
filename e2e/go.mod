@@ -12,11 +12,11 @@ require (
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/tools v0.9.1
 	google.golang.org/grpc v1.54.0
-	mvdan.cc/gofumpt v0.4.0
+	mvdan.cc/gofumpt v0.5.0
 )
 
 require (
-	github.com/antlr/antlr4/runtime/Go/antlr v0.0.0-20220418222510-f25a4f6275ed // indirect
+	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d // indirect
 	github.com/creasty/defaults v1.7.0 // indirect
 	github.com/dave/jennifer v1.6.1 // indirect
@@ -33,13 +33,13 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jzelinskie/stringz v0.0.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.16 // indirect
+	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/exp v0.0.0-20220823124025-807a23277127 // indirect
+	golang.org/x/crypto v0.8.0 // indirect
+	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect

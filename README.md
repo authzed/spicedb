@@ -140,7 +140,6 @@ kubectl apply -f https://raw.githubusercontent.com/authzed/examples/main/kuberne
 ```
 
 [examples]: https://github.com/authzed/examples
-[Docker Compose]: https://github.com/authzed/examples/tree/main/datastores
 [SpiceDB Operator]: https://github.com/authzed/spicedb-operator
 [testing SpiceDB on Kubernetes]: https://github.com/authzed/examples/tree/main/kubernetes
 

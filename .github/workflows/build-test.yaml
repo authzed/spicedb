@@ -37,10 +37,11 @@ jobs:
         id: "proto-filter"
         with:
           filters: |
-            proto-change:
+            protochange:
               - "buf.gen.yaml"
               - "buf.work.yaml"
               - "proto/**"
+              - "go.mod"
   build:
     name: "Build Binary"
     runs-on: "ubuntu-latest"
@@ -62,19 +63,11 @@ jobs:
       needs.paths-filter.outputs.codechange == 'true'
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/docker-build@main"
-        with:
-          push: false
-          tags: "authzed/spicedb:ci"
-          buildx: false
-          qemu: false
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          working_directory: "cmd/spicedb"
-          tags: "docker,image"
+      - name: "Image tests"
+        run: "go run mage.go test:image"
 
   unit:
     name: "Unit"
@@ -87,10 +80,8 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,skipintegrationtests"
-          timeout: "10m"
+      - name: "Unit tests"
+        run: "go run mage.go test:unit"
 
   integration:
     name: "Integration Tests"
@@ -103,11 +94,8 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,docker"
-          timeout: "15m"
-          working_directory: "internal/services/integrationtesting"
+      - name: "Integration tests"
+        run: "go run mage.go test:integration"
 
   datastore:
     name: "Datastore Tests"
@@ -124,11 +112,8 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,docker"
-          timeout: "10m"
-          working_directory: "internal/datastore/${{ matrix.datastore }}"
+      - name: "Integration tests"
+        run: "go run mage.go testds:${{ matrix.datastore }}"
 
   datastoreconsistency:
     name: "Datastore Consistency Tests"
@@ -139,15 +124,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        datastore: ["cockroachdb", "mysql", "postgres", "spanner"]
+        datastore: ["crdb", "mysql", "postgres", "spanner"]
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - name: "Run Datastore Consistency Tests"
-        working-directory: "internal/services/integrationtesting"
-        run: "go test --failfast -count=1 -timeout '10m' --tags='ci,docker,datastoreconsistency' ./... -run TestConsistencyPerDatastore/${{ matrix.datastore }}"
+      - name: "Integration tests"
+        run: "go run mage.go testcons:${{ matrix.datastore }}"
 
   e2e:
     name: "E2E"
@@ -214,9 +198,8 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          working_directory: "tools/analyzers"
+      - name: "Analyzer tests"
+        run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
     runs-on: "ubuntu-latest"
@@ -228,10 +211,8 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - name: "Install wasmbrowsertest"
-        run: "go install github.com/agnivade/wasmbrowsertest@latest"
-      - name: "Run WASM Tests"
-        run: "GOOS=js GOARCH=wasm go test ./pkg/development/wasm/... -exec wasmbrowsertest"
+      - name: "WASM tests"
+        run: "go run mage.go test:wasm"
 
   protobuf:
     name: "Generate Protobufs"
@@ -244,11 +225,13 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - name: "Install Go Tools"
-        run: "./hack/install-tools.sh"
-      - uses: "authzed/actions/buf-generate@main"
+      - name: "Generate Protos"
+        run: "go run mage.go gen:proto"
+      - uses: "chainguard-dev/actions/nodiff@main"
         with:
-          github_token: "${{ secrets.GITHUB_TOKEN }}"
+          path: ""
+          fixup-command: "go run mage.go gen:proto"
+      - uses: "bufbuild/buf-setup-action@v1"
       - uses: "bufbuild/buf-breaking-action@v1.1.1"
         if: "github.event_name == 'pull_request'"
         env:
