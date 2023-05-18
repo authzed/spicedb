@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
@@ -55,9 +56,14 @@ func TestServe(t *testing.T) {
 			require.NoError(err)
 			defer conn.Close()
 
-			resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-			require.NoError(err)
-			require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
+			require.Eventually(func() bool {
+				resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+				if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+					return false
+				}
+
+				return true
+			}, 5*time.Second, 1*time.Millisecond, "was unable to connect to running service")
 
 			client := v1.NewSchemaServiceClient(conn)
 			_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
