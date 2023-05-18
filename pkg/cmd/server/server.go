@@ -45,15 +45,10 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-const (
-	hashringReplicationFactor = 100
-	backendsPerKey            = 1
-)
-
-var ConsistentHashringPicker = balancer.NewConsistentHashringPickerBuilder(
+// ConsistentHashringBuilder is a balancer Builder that uses xxhash as the
+// underlying hash for the ConsistentHashringBalancers it creates.
+var ConsistentHashringBuilder = balancer.NewConsistentHashringBuilder(
 	xxhash.Sum64,
-	hashringReplicationFactor,
-	backendsPerKey,
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
@@ -246,14 +241,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
 		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
-		// Set the hashring values to take effect the next time the replicas are updated
-		// Applies to ALL running servers.
-		if c.DispatchHashringReplicationFactor > 0 {
-			ConsistentHashringPicker.MustReplicationFactor(c.DispatchHashringReplicationFactor)
-		}
-
-		if c.DispatchHashringSpread > 0 {
-			ConsistentHashringPicker.MustSpread(c.DispatchHashringSpread)
+		hashringConfigJSON, err := (&balancer.ConsistentHashringBalancerConfig{
+			ReplicationFactor: c.DispatchHashringReplicationFactor,
+			Spread:            c.DispatchHashringSpread,
+		}).ToServiceConfigJSON()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create hashring balancer config: %w", err)
 		}
 
 		dispatcher, err = combineddispatch.NewDispatcher(
@@ -262,7 +255,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-				grpc.WithDefaultServiceConfig(balancer.BalancerServiceConfig),
+				grpc.WithDefaultServiceConfig(hashringConfigJSON),
 			),
 			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
@@ -272,7 +265,8 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
-		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).EmbedObject(ConsistentHashringPicker).Msg("configured dispatcher")
+
+		log.Ctx(ctx).Info().EmbedObject(concurrencyLimits).RawJSON("balancerconfig", []byte(hashringConfigJSON)).Msg("configured dispatcher")
 	}
 	closeables.AddWithError(dispatcher.Close)
 

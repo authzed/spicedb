@@ -59,9 +59,7 @@ var testResolverBuilder = &SafeManualResolverBuilder{}
 
 func init() {
 	// register hashring balancer
-	balancer.Register(hashbalancer.NewConsistentHashringBuilder(
-		hashbalancer.NewConsistentHashringPickerBuilder(xxhash.Sum64, 1500, 1)),
-	)
+	balancer.Register(hashbalancer.NewConsistentHashringBuilder(xxhash.Sum64))
 
 	// Register a manual resolver.Builder  that we can feed addresses for tests
 	// Registration is not thread safe, so we register a single resolver.Builder
@@ -168,7 +166,10 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.GrpcDialOpts(
-				grpc.WithDefaultServiceConfig(hashbalancer.BalancerServiceConfig),
+				grpc.WithDefaultServiceConfig((&hashbalancer.ConsistentHashringBalancerConfig{
+					ReplicationFactor: 1500,
+					Spread:            1,
+				}).MustToServiceConfigJSON()),
 				grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 					// it's possible grpc tries to dial before we have set the
 					// buffconn dialers, we have to return a "TempError" so that
