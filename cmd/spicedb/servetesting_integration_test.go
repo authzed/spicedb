@@ -57,17 +57,23 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	defer conn.Close()
 
-	resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-	require.NoError(err)
-	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
-
 	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), options...)
 	require.NoError(err)
 	defer roConn.Close()
 
-	resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-	require.NoError(err)
-	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
+	require.Eventually(func() bool {
+		resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			return false
+		}
+
+		resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			return false
+		}
+
+		return true
+	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
 
 	v1client := v1.NewPermissionsServiceClient(conn)
 	rov1client := v1.NewPermissionsServiceClient(roConn)

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 // Based on a test originally written by https://github.com/wscalf
@@ -41,6 +43,15 @@ func TestCheckPermissionOnTesterNoFlakes(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		require.NoError(t, err)
+
+		require.Eventually(t, func() bool {
+			resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+			if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+				return false
+			}
+
+			return true
+		}, 5*time.Second, 1*time.Millisecond, "was unable to connect to running service")
 
 		client := v1.NewPermissionsServiceClient(conn)
 		result, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
