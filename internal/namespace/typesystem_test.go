@@ -2,17 +2,22 @@ package namespace
 
 import (
 	"context"
+	"sort"
 	"testing"
-
-	"github.com/authzed/spicedb/pkg/caveats"
 
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 func TestTypeSystem(t *testing.T) {
@@ -376,6 +381,393 @@ func TestTypeSystem(t *testing.T) {
 			} else {
 				require.Error(terr)
 				require.Equal(tc.expectedError, terr.Error())
+			}
+		})
+	}
+}
+
+type tsTester func(t *testing.T, ts *ValidatedNamespaceTypeSystem)
+
+func noError[T any](result T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+
+	return result
+}
+
+func requireSameAllowedRelations(t *testing.T, found []*core.AllowedRelation, expected ...*core.AllowedRelation) {
+	foundSet := util.NewSet[string]()
+	for _, f := range found {
+		foundSet.Add(SourceForAllowedRelation(f))
+	}
+
+	expectSet := util.NewSet[string]()
+	for _, e := range expected {
+		expectSet.Add(SourceForAllowedRelation(e))
+	}
+
+	foundSlice := foundSet.AsSlice()
+	expectedSlice := expectSet.AsSlice()
+
+	sort.Strings(foundSlice)
+	sort.Strings(expectedSlice)
+
+	require.Equal(t, expectedSlice, foundSlice)
+}
+
+func requireSameSubjectRelations(t *testing.T, found []*core.RelationReference, expected ...*core.RelationReference) {
+	foundSet := util.NewSet[string]()
+	for _, f := range found {
+		foundSet.Add(tuple.StringRR(f))
+	}
+
+	expectSet := util.NewSet[string]()
+	for _, e := range expected {
+		expectSet.Add(tuple.StringRR(e))
+	}
+
+	foundSlice := foundSet.AsSlice()
+	expectedSlice := expectSet.AsSlice()
+
+	sort.Strings(foundSlice)
+	sort.Strings(expectedSlice)
+
+	require.Equal(t, expectedSlice, foundSlice)
+}
+
+func TestTypeSystemAccessors(t *testing.T) {
+	tcs := []struct {
+		name       string
+		schema     string
+		namespaces map[string]tsTester
+	}{
+		{
+			"basic schema",
+			`definition user {}
+		
+			definition resource {
+				relation editor: user
+				relation viewer: user
+
+				permission edit = editor
+				permission view = viewer + edit
+			}`,
+			map[string]tsTester{
+				"user": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					require.False(t, vts.IsPermission("somenonpermission"))
+				},
+				"resource": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					t.Run("IsPermission", func(t *testing.T) {
+						require.False(t, vts.IsPermission("somenonpermission"))
+
+						require.False(t, vts.IsPermission("viewer"))
+						require.False(t, vts.IsPermission("editor"))
+
+						require.True(t, vts.IsPermission("view"))
+						require.True(t, vts.IsPermission("edit"))
+					})
+
+					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
+
+						_, err := vts.IsAllowedPublicNamespace("unknown", "user")
+						require.Error(t, err)
+					})
+
+					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+
+						_, err := vts.IsAllowedPublicNamespace("unknown", "user")
+						require.Error(t, err)
+					})
+
+					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
+
+						require.Equal(t, DirectRelationNotValid, noError(vts.IsAllowedDirectRelation("editor", "user", "other")))
+						require.Equal(t, DirectRelationNotValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "other")))
+
+						_, err := vts.IsAllowedDirectRelation("unknown", "user", "...")
+						require.Error(t, err)
+					})
+
+					t.Run("HasAllowedRelation", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("editor", userDirect)))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", userDirect)))
+
+						userWithCaveat := ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("editor", userWithCaveat)))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("viewer", userWithCaveat)))
+
+						_, err := vts.HasAllowedRelation("unknown", userDirect)
+						require.Error(t, err)
+					})
+
+					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						allowed := noError(vts.AllowedDirectRelationsAndWildcards("editor"))
+						requireSameAllowedRelations(t, allowed, userDirect)
+
+						_, err := vts.AllowedDirectRelationsAndWildcards("unknown")
+						require.Error(t, err)
+					})
+
+					t.Run("AllowedSubjectRelations", func(t *testing.T) {
+						userDirect := ns.RelationReference("user", "...")
+						allowed := noError(vts.AllowedSubjectRelations("editor"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+
+						_, err := vts.AllowedSubjectRelations("unknown")
+						require.Error(t, err)
+					})
+				},
+			},
+		},
+		{
+			"schema with wildcards",
+			`definition user {}
+		
+			definition resource {
+				relation editor: user
+				relation viewer: user | user:*
+				permission view = viewer + editor
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					t.Run("IsPermission", func(t *testing.T) {
+						require.False(t, vts.IsPermission("viewer"))
+						require.True(t, vts.IsPermission("view"))
+					})
+
+					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
+						require.Equal(t, PublicSubjectAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
+					})
+
+					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+					})
+
+					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
+					})
+
+					t.Run("HasAllowedRelation", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("editor", userDirect)))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", userDirect)))
+
+						userWildcard := ns.AllowedPublicNamespace("user")
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("editor", userWildcard)))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", userWildcard)))
+					})
+
+					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						userWildcard := ns.AllowedPublicNamespace("user")
+
+						allowed := noError(vts.AllowedDirectRelationsAndWildcards("editor"))
+						requireSameAllowedRelations(t, allowed, userDirect)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("viewer"))
+						requireSameAllowedRelations(t, allowed, userDirect, userWildcard)
+					})
+
+					t.Run("AllowedSubjectRelations", func(t *testing.T) {
+						userDirect := ns.RelationReference("user", "...")
+						allowed := noError(vts.AllowedSubjectRelations("viewer"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+					})
+				},
+			},
+		},
+		{
+			"schema with subject relations",
+			`definition user {}
+
+			definition thirdtype {}
+
+			definition group {
+				relation member: user | group#member
+			}`,
+			map[string]tsTester{
+				"group": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					t.Run("IsPermission", func(t *testing.T) {
+						require.False(t, vts.IsPermission("member"))
+					})
+
+					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("member", "user")))
+					})
+
+					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("member", "user")))
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("member", "group")))
+						require.Equal(t, AllowedNamespaceNotValid, noError(vts.IsAllowedDirectNamespace("member", "thirdtype")))
+					})
+
+					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("member", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("member", "group", "member")))
+						require.Equal(t, DirectRelationNotValid, noError(vts.IsAllowedDirectRelation("member", "group", "...")))
+					})
+
+					t.Run("HasAllowedRelation", func(t *testing.T) {
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("member", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("member", ns.AllowedRelation("group", "member"))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("member", ns.AllowedRelation("group", "..."))))
+					})
+
+					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						groupMember := ns.AllowedRelation("group", "member")
+
+						allowed := noError(vts.AllowedDirectRelationsAndWildcards("member"))
+						requireSameAllowedRelations(t, allowed, userDirect, groupMember)
+					})
+
+					t.Run("AllowedSubjectRelations", func(t *testing.T) {
+						userDirect := ns.RelationReference("user", "...")
+						groupMember := ns.RelationReference("group", "member")
+
+						allowed := noError(vts.AllowedSubjectRelations("member"))
+						requireSameSubjectRelations(t, allowed, userDirect, groupMember)
+					})
+				},
+			},
+		},
+		{
+			"schema with caveats",
+			`definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation editor: user
+				relation viewer: user | user with somecaveat
+				relation onlycaveated: user with somecaveat
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					t.Run("IsPermission", func(t *testing.T) {
+						require.False(t, vts.IsPermission("editor"))
+						require.False(t, vts.IsPermission("viewer"))
+						require.False(t, vts.IsPermission("onlycaveated"))
+					})
+
+					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("onlycaveated", "user")))
+					})
+
+					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("onlycaveated", "user")))
+					})
+
+					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("onlycaveated", "user", "...")))
+					})
+
+					t.Run("HasAllowedRelation", func(t *testing.T) {
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("onlycaveated", ns.AllowedRelation("user", "..."))))
+
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("onlycaveated", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+					})
+
+					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						caveatedUser := ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))
+
+						allowed := noError(vts.AllowedDirectRelationsAndWildcards("editor"))
+						requireSameAllowedRelations(t, allowed, userDirect)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("viewer"))
+						requireSameAllowedRelations(t, allowed, userDirect, caveatedUser)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("onlycaveated"))
+						requireSameAllowedRelations(t, allowed, caveatedUser)
+					})
+
+					t.Run("AllowedSubjectRelations", func(t *testing.T) {
+						userDirect := ns.RelationReference("user", "...")
+
+						allowed := noError(vts.AllowedSubjectRelations("editor"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+
+						allowed = noError(vts.AllowedSubjectRelations("viewer"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+
+						allowed = noError(vts.AllowedSubjectRelations("onlycaveated"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+					})
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+
+			empty := ""
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: tc.schema,
+			}, &empty)
+			require.NoError(err)
+
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
+			for _, nsDef := range compiled.ObjectDefinitions {
+				reader := ds.SnapshotReader(lastRevision)
+				ts, err := NewNamespaceTypeSystem(nsDef,
+					ResolverForDatastoreReader(reader).WithPredefinedElements(PredefinedElements{
+						Namespaces: compiled.ObjectDefinitions,
+						Caveats:    compiled.CaveatDefinitions,
+					}))
+				require.NoError(err)
+
+				vts, terr := ts.Validate(ctx)
+				require.NoError(terr)
+
+				require.Equal(vts.Namespace(), nsDef)
+
+				tester, ok := tc.namespaces[nsDef.Name]
+				if ok {
+					tester := tester
+					vts := vts
+					t.Run(nsDef.Name, func(t *testing.T) {
+						for _, relation := range nsDef.Relation {
+							require.True(vts.IsPermission(relation.Name) || vts.HasTypeInformation(relation.Name))
+						}
+
+						tester(t, vts)
+					})
+				}
 			}
 		})
 	}
