@@ -16,9 +16,9 @@ type Test mg.Namespace
 func (t Test) All() error {
 	ds := Testds{}
 	c := Testcons{}
-	mg.Deps(t.Unit(), t.Integration(), t.Image(), t.Analyzers(),
-		ds.Crdb(), ds.Postgres(), ds.Spanner(), ds.Mysql(),
-		c.Crdb(), c.Spanner(), c.Postgres(), c.Mysql())
+	mg.Deps(t.Unit, t.Integration, t.Image, t.Analyzers,
+		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
+		c.Crdb, c.Spanner, c.Postgres, c.Mysql)
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -42,7 +43,7 @@ type RetryPool struct {
 	gc          map[*pgx.Conn]struct{}
 }
 
-func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8) (*RetryPool, error) {
+func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, healthTracker *NodeHealthTracker, maxRetries uint8, connectRate time.Duration) (*RetryPool, error) {
 	config = config.Copy()
 	p := &RetryPool{
 		id:            name,
@@ -52,6 +53,7 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		gc:            make(map[*pgx.Conn]struct{}, 0),
 	}
 
+	limiter := rate.NewLimiter(rate.Every(connectRate), 1)
 	afterConnect := config.AfterConnect
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		if afterConnect != nil {
@@ -67,6 +69,11 @@ func NewRetryPool(ctx context.Context, name string, config *pgxpool.Config, heal
 		delete(p.gc, conn)
 
 		healthTracker.SetNodeHealth(nodeID(conn), true)
+
+		if err := limiter.Wait(ctx); err != nil {
+			return err
+		}
+
 		p.nodeForConn[conn] = nodeID(conn)
 
 		return nil
@@ -135,6 +142,11 @@ func (p *RetryPool) ID() string {
 // MaxConns returns the MaxConns configured on the underlying pool
 func (p *RetryPool) MaxConns() uint32 {
 	return uint32(p.pool.Config().MaxConns)
+}
+
+// MinConns returns the MinConns configured on the underlying pool
+func (p *RetryPool) MinConns() uint32 {
+	return uint32(p.pool.Config().MinConns)
 }
 
 // ExecFunc is a replacement for pgxpool.Pool.Exec that allows resetting the
@@ -268,12 +280,13 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 		if errors.As(err, &resettable) || conn.Conn().IsClosed() {
 			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("resettable error")
 
-			nodeID := p.nodeForConn[conn.Conn()]
+			nodeID := p.Node(conn.Conn())
 			p.GC(conn.Conn())
 			conn.Release()
 
 			// After a resettable error, mark the node as unhealthy
-			// TODO: configurable error count / circuit-breaker
+			// The health tracker enforces an error rate, so a single request
+			// failing will not mark the node as globally unhealthy.
 			if nodeID > 0 {
 				p.healthTracker.SetNodeHealth(nodeID, false)
 			}

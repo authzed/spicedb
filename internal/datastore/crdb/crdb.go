@@ -90,7 +90,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
-	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	initCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	healthChecker, err := pool.NewNodeHealthChecker(url)
@@ -98,12 +98,12 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	writePool, err := pool.NewRetryPool(initCtx, "write", writePoolConfig.Copy(), healthChecker, config.maxRetries)
+	writePool, err := pool.NewRetryPool(initCtx, "write", writePoolConfig.Copy(), healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	readPool, err := pool.NewRetryPool(initCtx, "read", readPoolConfig.Copy(), healthChecker, config.maxRetries)
+	readPool, err := pool.NewRetryPool(initCtx, "read", readPoolConfig.Copy(), healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -344,18 +344,42 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return datastore.ReadyState{}, err
 	}
 
-	if version == headMigration {
-		return datastore.ReadyState{IsReady: true}, nil
+	if version != headMigration {
+		return datastore.ReadyState{
+			Message: fmt.Sprintf(
+				"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
+				version,
+				headMigration,
+			),
+			IsReady: false,
+		}, nil
 	}
 
-	return datastore.ReadyState{
-		Message: fmt.Sprintf(
-			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
-			version,
-			headMigration,
-		),
-		IsReady: false,
-	}, nil
+	// Wait for either minconns or maxconns/2 connections to be available,
+	// whichever is smaller.
+	writeMin := cds.writePool.MinConns()
+	if halfMax := cds.writePool.MaxConns() / 2; halfMax < writeMin {
+		writeMin = halfMax
+	}
+	readMin := cds.readPool.MinConns()
+	if halfMax := cds.readPool.MaxConns() / 2; halfMax < readMin {
+		readMin = halfMax
+	}
+	writeTotal := uint32(cds.writePool.Stat().TotalConns())
+	readTotal := uint32(cds.readPool.Stat().TotalConns())
+	if writeTotal < writeMin || readTotal < readMin {
+		return datastore.ReadyState{
+			Message: fmt.Sprintf(
+				"spicedb does have the required minimum connection count to the datastore. Read: %d/%d, Write: %d/%d",
+				writeTotal,
+				readMin,
+				readTotal,
+				writeMin,
+			),
+			IsReady: false,
+		}, nil
+	}
+	return datastore.ReadyState{IsReady: true}, nil
 }
 
 func (cds *crdbDatastore) Close() error {

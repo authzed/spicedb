@@ -56,6 +56,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.OverlapKey = c.OverlapKey
 		to.OverlapStrategy = c.OverlapStrategy
 		to.EnableConnectionBalancing = c.EnableConnectionBalancing
+		to.ConnectRate = c.ConnectRate
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
@@ -94,6 +95,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["OverlapKey"] = helpers.DebugValue(c.OverlapKey, false)
 	debugMap["OverlapStrategy"] = helpers.DebugValue(c.OverlapStrategy, false)
 	debugMap["EnableConnectionBalancing"] = helpers.DebugValue(c.EnableConnectionBalancing, false)
+	debugMap["ConnectRate"] = helpers.DebugValue(c.ConnectRate, false)
 	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
 	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)
@@ -306,6 +308,13 @@ func WithOverlapStrategy(overlapStrategy string) ConfigOption {
 func WithEnableConnectionBalancing(enableConnectionBalancing bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableConnectionBalancing = enableConnectionBalancing
+	}
+}
+
+// WithConnectRate returns an option that can set ConnectRate on a Config
+func WithConnectRate(connectRate time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.ConnectRate = connectRate
 	}
 }
 

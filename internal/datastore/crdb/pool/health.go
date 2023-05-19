@@ -9,9 +9,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/lthibault/jitterbug"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
+
+const errorBurst = 2
 
 var healthyCRDBNodeCountGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name: "crdb_healthy_nodes",
@@ -31,7 +34,8 @@ type NodeHealthTracker struct {
 	sync.RWMutex
 	connConfig    *pgx.ConnConfig
 	healthyNodes  map[uint32]struct{}
-	nodesEverSeen map[uint32]struct{}
+	nodesEverSeen map[uint32]*rate.Limiter
+	newLimiter    func() *rate.Limiter
 }
 
 // NewNodeHealthChecker builds a health checker that polls the cluster at the given url.
@@ -44,7 +48,10 @@ func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
 	return &NodeHealthTracker{
 		connConfig:    connConfig,
 		healthyNodes:  make(map[uint32]struct{}, 0),
-		nodesEverSeen: make(map[uint32]struct{}, 0),
+		nodesEverSeen: make(map[uint32]*rate.Limiter, 0),
+		newLimiter: func() *rate.Limiter {
+			return rate.NewLimiter(rate.Every(1*time.Minute), errorBurst)
+		},
 	}, nil
 }
 
@@ -85,7 +92,7 @@ func (t *NodeHealthTracker) tryConnect(interval time.Duration) {
 	t.SetNodeHealth(nodeID(conn), true)
 	t.Lock()
 	defer t.Unlock()
-	t.nodesEverSeen[nodeID(conn)] = struct{}{}
+	t.nodesEverSeen[nodeID(conn)] = t.newLimiter()
 }
 
 // SetNodeHealth marks a node as either healthy or unhealthy.
@@ -95,11 +102,24 @@ func (t *NodeHealthTracker) SetNodeHealth(nodeID uint32, healthy bool) {
 	defer func() {
 		healthyCRDBNodeCountGauge.Set(float64(len(t.healthyNodes)))
 	}()
+
+	if _, ok := t.nodesEverSeen[nodeID]; !ok {
+		t.nodesEverSeen[nodeID] = t.newLimiter()
+	}
+
 	if healthy {
 		t.healthyNodes[nodeID] = struct{}{}
+		t.nodesEverSeen[nodeID] = t.newLimiter()
 		return
 	}
-	delete(t.healthyNodes, nodeID)
+
+	// If the limiter allows the request, it means we haven't seen more than
+	// 2 failures in the past 1m, so the node shouldn't be marked unhealthy yet.
+	// If the limiter denies the request, we've hit too many errors and the node
+	// is marked unhealthy.
+	if !t.nodesEverSeen[nodeID].Allow() {
+		delete(t.healthyNodes, nodeID)
+	}
 }
 
 // IsHealthy returns true if the given nodeID has been marked healthy.

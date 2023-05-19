@@ -125,6 +125,7 @@ type Config struct {
 	OverlapKey                string        `debugmap:"visible"`
 	OverlapStrategy           string        `debugmap:"visible"`
 	EnableConnectionBalancing bool          `debugmap:"visible"`
+	ConnectRate               time.Duration `debugmap:"visible"`
 
 	// Postgres
 	GCInterval         time.Duration `debugmap:"visible"`
@@ -190,6 +191,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
 	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (cockroach driver only)")
+	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 1*time.Second, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (cockroach driver only)")
 	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
@@ -224,6 +226,7 @@ func DefaultDatastoreConfig() *Config {
 		MaxRetries:                     10,
 		OverlapKey:                     "key",
 		OverlapStrategy:                "static",
+		ConnectRate:                    1 * time.Second,
 		EnableConnectionBalancing:      true,
 		GCInterval:                     3 * time.Minute,
 		GCMaxOperationTime:             1 * time.Minute,
@@ -355,6 +358,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.DisableStats(opts.DisableStats),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
+		crdb.ConnectRate(opts.ConnectRate),
 	)
 }
 

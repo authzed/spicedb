@@ -9,6 +9,7 @@ import (
 
 type crdbOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
+	connectRate                 time.Duration
 
 	watchBufferLength           uint16
 	revisionQuantization        time.Duration
@@ -44,6 +45,7 @@ const (
 
 	defaultEnablePrometheusStats     = false
 	defaultEnableConnectionBalancing = true
+	defaultConnectRate               = 1 * time.Second
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -64,6 +66,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		disableStats:                false,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		enableConnectionBalancing:   defaultEnableConnectionBalancing,
+		connectRate:                 defaultConnectRate,
 	}
 
 	for _, option := range options {
@@ -254,6 +257,13 @@ func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
 // This value defaults to 24 hours.
 func GCWindow(window time.Duration) Option {
 	return func(po *crdbOptions) { po.gcWindow = window }
+}
+
+// ConnectRate is the rate at which new datastore connections can be made.
+//
+// This is a duration, the rate is 1/period.
+func ConnectRate(rate time.Duration) Option {
+	return func(po *crdbOptions) { po.connectRate = rate }
 }
 
 // MaxRetries is the maximum number of times a retriable transaction will be

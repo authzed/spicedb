@@ -160,7 +160,6 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 	// Delete metrics for nodes we no longer have connections for
 	p.healthTracker.RLock()
 	for node := range p.healthTracker.nodesEverSeen {
-		// TODO: does this handle network interruptions correctly?
 		if _, ok := connectionCounts[node]; !ok {
 			connectionsPerCRDBNodeCountGauge.DeletePartialMatch(map[string]string{
 				"pool":    p.pool.ID(),
