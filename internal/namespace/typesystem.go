@@ -48,7 +48,7 @@ const (
 	PublicSubjectNotAllowed
 )
 
-// AllowedRelationOption indicates whether an allowed relation off a particular kind is allowed on the right side of another relation.
+// AllowedRelationOption indicates whether an allowed relation of a particular kind is allowed on the right side of another relation.
 type AllowedRelationOption int
 
 const (
@@ -61,6 +61,21 @@ const (
 
 	// AllowedRelationNotValid indicates that the specified subject relation is not valid.
 	AllowedRelationNotValid
+)
+
+// AllowedNamespaceOption indicates whether an allowed namespace of a particular kind is allowed on the right side of another relation.
+type AllowedNamespaceOption int
+
+const (
+	// UnknownIfAllowedNamespace indicates that no type information is defined for
+	// this relation.
+	UnknownIfAllowedNamespace AllowedNamespaceOption = iota
+
+	// AllowedNamespaceValid indicates that the specified subject namespace is valid.
+	AllowedNamespaceValid
+
+	// AllowedNamespaceNotValid indicates that the specified subject namespace is not valid.
+	AllowedNamespaceNotValid
 )
 
 // NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
@@ -123,6 +138,29 @@ func (nts *TypeSystem) IsPermission(relationName string) bool {
 	}
 
 	return nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION
+}
+
+// IsAllowedDirectNamespace returns whether the target namespace is defined as appearing somewhere on the
+// right side of a relation (except public).
+func (nts *TypeSystem) IsAllowedDirectNamespace(sourceRelationName string, targetNamespaceName string) (AllowedNamespaceOption, error) {
+	found, ok := nts.relationMap[sourceRelationName]
+	if !ok {
+		return UnknownIfAllowedNamespace, asTypeError(NewRelationNotFoundErr(nts.nsDef.Name, sourceRelationName))
+	}
+
+	typeInfo := found.GetTypeInformation()
+	if typeInfo == nil {
+		return UnknownIfAllowedNamespace, nil
+	}
+
+	allowedRelations := typeInfo.GetAllowedDirectRelations()
+	for _, allowedRelation := range allowedRelations {
+		if allowedRelation.GetNamespace() == targetNamespaceName && allowedRelation.GetPublicWildcard() == nil {
+			return AllowedNamespaceValid, nil
+		}
+	}
+
+	return AllowedNamespaceNotValid, nil
 }
 
 // IsAllowedPublicNamespace returns whether the target namespace is defined as public on the source relation.

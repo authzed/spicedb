@@ -285,28 +285,15 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 		return err
 	}
 
-	// Determine the subject relation(s) for which to search. Note that we need to do so
-	// for both `...` as well as the subject's defined relation, as either is applicable in
-	// the tupleset (the relation is ignored when following the arrow).
-	relationFilter := datastore.SubjectRelationFilter{}
-
-	isEllipsisAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.SubjectRelation.Namespace, tuple.Ellipsis)
+	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
+	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
+	// for the subject namespace as a whole.
+	isAllowed, err := ttuTypeSystem.IsAllowedDirectNamespace(tuplesetRelation, req.SubjectRelation.Namespace)
 	if err != nil {
 		return err
 	}
-	if isEllipsisAllowed == namespace.DirectRelationValid {
-		relationFilter = relationFilter.WithEllipsisRelation()
-	}
 
-	isDirectAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.SubjectRelation.Namespace, req.SubjectRelation.Relation)
-	if err != nil {
-		return err
-	}
-	if isDirectAllowed == namespace.DirectRelationValid {
-		relationFilter = relationFilter.WithNonEllipsisRelation(req.SubjectRelation.Relation)
-	}
-
-	if relationFilter.IsEmpty() {
+	if isAllowed != namespace.AllowedNamespaceValid {
 		return nil
 	}
 
@@ -314,7 +301,6 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 	subjectsFilter := datastore.SubjectsFilter{
 		SubjectType:        req.SubjectRelation.Namespace,
 		OptionalSubjectIds: req.SubjectIds,
-		RelationFilter:     relationFilter,
 	}
 
 	tuplesetRelationReference := &core.RelationReference{
