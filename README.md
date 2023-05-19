@@ -182,3 +182,4 @@ We appreciate all contributions, large and small, and would like to thank all th
 In addition, we'd like to highlight a few notable contributions:
 
 - The GitHub Authorization Team for implementing and contributing the MySQL datastore
+- The Netflix Authorization Team for [sponsoring and being a design partner for Caveats](https://authzed.com/blog/abac-on-spicedb-enabling-netflix-complex-identity-types)
