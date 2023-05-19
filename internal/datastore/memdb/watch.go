@@ -37,6 +37,10 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
+				if len(changeToWrite.Changes) == 0 {
+					continue
+				}
+
 				select {
 				case updates <- changeToWrite:
 				default:
