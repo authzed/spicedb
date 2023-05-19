@@ -177,6 +177,62 @@ func (err ErrDuplicateRelationshipError) GRPCStatus() *status.Status {
 	)
 }
 
+// ErrCouldNotTransactionallyDelete indicates that a deletion could not occur transactionally.
+type ErrCouldNotTransactionallyDelete struct {
+	error
+	limit  uint32
+	filter *v1.RelationshipFilter
+}
+
+// NewCouldNotTransactionallyDeleteErr constructs a new could not transactionally deleter error.
+func NewCouldNotTransactionallyDeleteErr(filter *v1.RelationshipFilter, limit uint32) ErrCouldNotTransactionallyDelete {
+	return ErrCouldNotTransactionallyDelete{
+		error: fmt.Errorf(
+			"found more than %d relationships to be deleted and partial deletion was not requested",
+			limit,
+		),
+		limit:  limit,
+		filter: filter,
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrCouldNotTransactionallyDelete) GRPCStatus() *status.Status {
+	metadata := map[string]string{
+		"limit":                strconv.Itoa(int(err.limit)),
+		"filter_resource_type": err.filter.ResourceType,
+	}
+
+	if err.filter.OptionalResourceId != "" {
+		metadata["filter_resource_id"] = err.filter.OptionalResourceId
+	}
+
+	if err.filter.OptionalRelation != "" {
+		metadata["filter_relation"] = err.filter.OptionalRelation
+	}
+
+	if err.filter.OptionalSubjectFilter != nil {
+		metadata["filter_subject_type"] = err.filter.OptionalSubjectFilter.SubjectType
+
+		if err.filter.OptionalSubjectFilter.OptionalSubjectId != "" {
+			metadata["filter_subject_id"] = err.filter.OptionalSubjectFilter.OptionalSubjectId
+		}
+
+		if err.filter.OptionalSubjectFilter.OptionalRelation != nil {
+			metadata["filter_subject_relation"] = err.filter.OptionalSubjectFilter.OptionalRelation.Relation
+		}
+	}
+
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_TOO_MANY_RELATIONSHIPS_FOR_TRANSACTIONAL_DELETE,
+			metadata,
+		),
+	)
+}
+
 func defaultIfZero[T comparable](value T, defaultValue T) T {
 	var zero T
 	if value == zero {
