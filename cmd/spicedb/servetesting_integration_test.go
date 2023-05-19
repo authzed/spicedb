@@ -128,6 +128,15 @@ func TestTestServer(t *testing.T) {
 	require.NoError(err)
 	defer authedConn.Close()
 
+	require.Eventually(func() bool {
+		resp, err := healthpb.NewHealthClient(authedConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			return false
+		}
+
+		return true
+	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
+
 	authedv1client := v1.NewPermissionsServiceClient(authedConn)
 	_, err = authedv1client.CheckPermission(context.Background(), checkReq)
 	s, ok := status.FromError(err)
