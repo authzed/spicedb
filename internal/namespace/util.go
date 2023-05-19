@@ -35,6 +35,69 @@ func ReadNamespaceAndRelation(
 	return nil, nil, NewRelationNotFoundErr(namespace, relation)
 }
 
+// TypeAndRelationToCheck is a single check of a namespace+relation pair.
+type TypeAndRelationToCheck struct {
+	// NamespaceName is the namespace name to ensure exists.
+	NamespaceName string
+
+	// RelationName is the relation name to ensure exists under the namespace.
+	RelationName string
+
+	// AllowEllipsis, if true, allows for the ellipsis as the RelationName.
+	AllowEllipsis bool
+}
+
+// CheckNamespaceAndRelations ensures that the given namespace+relation checks all succeed. If any fail, returns an error.
+//
+// Returns ErrNamespaceNotFound if the namespace cannot be found.
+// Returns ErrRelationNotFound if the relation was not found in the namespace.
+// Returns the direct downstream error for all other unknown error.
+func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToCheck, ds datastore.Reader) error {
+	nsNames := util.NewSet[string]()
+	for _, toCheck := range checks {
+		nsNames.Add(toCheck.NamespaceName)
+	}
+
+	if nsNames.IsEmpty() {
+		return nil
+	}
+
+	namespaces, err := ds.LookupNamespacesWithNames(ctx, nsNames.AsSlice())
+	if err != nil {
+		return err
+	}
+
+	mappedNamespaces := make(map[string]*core.NamespaceDefinition, len(namespaces))
+	for _, namespace := range namespaces {
+		mappedNamespaces[namespace.Definition.Name] = namespace.Definition
+	}
+
+	for _, toCheck := range checks {
+		nsDef, ok := mappedNamespaces[toCheck.NamespaceName]
+		if !ok {
+			return NewNamespaceNotFoundErr(toCheck.NamespaceName)
+		}
+
+		if toCheck.AllowEllipsis && toCheck.RelationName == datastore.Ellipsis {
+			continue
+		}
+
+		foundRelation := false
+		for _, rel := range nsDef.Relation {
+			if rel.Name == toCheck.RelationName {
+				foundRelation = true
+				break
+			}
+		}
+
+		if !foundRelation {
+			return NewRelationNotFoundErr(toCheck.NamespaceName, toCheck.RelationName)
+		}
+	}
+
+	return nil
+}
+
 // CheckNamespaceAndRelation checks that the specified namespace and relation exist in the
 // datastore.
 //
