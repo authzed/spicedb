@@ -74,8 +74,21 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 				}
 				return common.NewCreateRelationshipExistsError(rt)
 			}
-			fallthrough
+			if err := tx.Insert(tableRelationship, rel); err != nil {
+				return fmt.Errorf("error inserting relationship: %w", err)
+			}
+
 		case core.RelationTupleUpdate_TOUCH:
+			if existing != nil {
+				rt, err := existing.RelationTuple()
+				if err != nil {
+					return err
+				}
+				if tuple.MustString(rt) == tuple.MustString(mutation.Tuple) {
+					continue
+				}
+			}
+
 			if err := tx.Insert(tableRelationship, rel); err != nil {
 				return fmt.Errorf("error inserting relationship: %w", err)
 			}

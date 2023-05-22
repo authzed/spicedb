@@ -21,6 +21,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -61,44 +63,38 @@ func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
 func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	// there are some fundamental changes introduced to prevent a deadlock in MySQL
+	// TODO(jschorr): Determine if we can do this in a more efficient manner using ON CONFLICT UPDATE
+	// rather than SELECT FOR UPDATE as we've been doing.
+	//
+	// NOTE: There are some fundamental changes introduced to prevent a deadlock in MySQL vs the initial
+	// Postgres implementation from which this was copied.
 
 	bulkWrite := rwt.WriteTupleQuery
 	bulkWriteHasValues := false
 
-	selectForUpdateQuery := rwt.QueryTupleIdsQuery
+	selectForUpdateQuery := rwt.QueryTuplesWithIdsQuery
 
 	clauses := sq.Or{}
+	createAndTouchMutationsByTuple := make(map[string]*core.RelationTupleUpdate, len(mutations))
 
-	// Process the actual updates
+	// Collect all TOUCH and DELETE operations. CREATE is handled below.
 	for _, mut := range mutations {
 		tpl := mut.Tuple
+		tplString := tuple.StringWithoutCaveat(tpl)
 
-		// Implementation for TOUCH deviates from PostgreSQL datastore to prevent a deadlock in MySQL
-		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_DELETE {
+		switch mut.Operation {
+		case core.RelationTupleUpdate_CREATE:
+			createAndTouchMutationsByTuple[tplString] = mut
+
+		case core.RelationTupleUpdate_TOUCH:
+			createAndTouchMutationsByTuple[tplString] = mut
 			clauses = append(clauses, exactRelationshipClause(tpl))
-		}
 
-		var caveatName string
-		var caveatContext caveatContextWrapper
-		if tpl.Caveat != nil {
-			caveatName = tpl.Caveat.CaveatName
-			caveatContext = tpl.Caveat.Context.AsMap()
-		}
-		if mut.Operation == core.RelationTupleUpdate_TOUCH || mut.Operation == core.RelationTupleUpdate_CREATE {
-			bulkWrite = bulkWrite.Values(
-				tpl.ResourceAndRelation.Namespace,
-				tpl.ResourceAndRelation.ObjectId,
-				tpl.ResourceAndRelation.Relation,
-				tpl.Subject.Namespace,
-				tpl.Subject.ObjectId,
-				tpl.Subject.Relation,
-				caveatName,
-				&caveatContext,
-				rwt.newTxnID,
-			)
-			bulkWriteHasValues = true
+		case core.RelationTupleUpdate_DELETE:
+			clauses = append(clauses, exactRelationshipClause(tpl))
+
+		default:
+			return spiceerrors.MustBugf("unknown mutation operation")
 		}
 	}
 
@@ -114,24 +110,59 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		}
 		defer common.LogOnError(ctx, rows.Close)
 
-		tupleIds := make([]int64, 0, len(clauses))
+		foundTpl := &core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{},
+			Subject:             &core.ObjectAndRelation{},
+		}
+
+		var caveatName string
+		var caveatContext caveatContextWrapper
+
+		tupleIdsToDelete := make([]int64, 0, len(clauses))
 		for rows.Next() {
 			var tupleID int64
-			if err := rows.Scan(&tupleID); err != nil {
+			if err := rows.Scan(
+				&tupleID,
+				&foundTpl.ResourceAndRelation.Namespace,
+				&foundTpl.ResourceAndRelation.ObjectId,
+				&foundTpl.ResourceAndRelation.Relation,
+				&foundTpl.Subject.Namespace,
+				&foundTpl.Subject.ObjectId,
+				&foundTpl.Subject.Relation,
+				&caveatName,
+				&caveatContext,
+			); err != nil {
 				return fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 
-			tupleIds = append(tupleIds, tupleID)
+			// if the relationship to be deleted is for a TOUCH operation and the caveat
+			// name or context has not changed, then remove it from delete and create.
+			tplString := tuple.StringWithoutCaveat(foundTpl)
+			if mut, ok := createAndTouchMutationsByTuple[tplString]; ok {
+				foundTpl.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
+				if err != nil {
+					return fmt.Errorf(errUnableToQueryTuples, err)
+				}
+
+				// Ensure the tuples are the same.
+				// TODO(jschorr): Use a faster method then string comparison.
+				if tuple.MustString(mut.Tuple) == tuple.MustString(foundTpl) {
+					delete(createAndTouchMutationsByTuple, tplString)
+					continue
+				}
+			}
+
+			tupleIdsToDelete = append(tupleIdsToDelete, tupleID)
 		}
 
 		if rows.Err() != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, rows.Err())
 		}
 
-		if len(tupleIds) > 0 {
+		if len(tupleIdsToDelete) > 0 {
 			query, args, err := rwt.
 				DeleteTupleQuery.
-				Where(sq.Eq{colID: tupleIds}).
+				Where(sq.Eq{colID: tupleIdsToDelete}).
 				Set(colDeletedTxn, rwt.newTxnID).
 				ToSql()
 			if err != nil {
@@ -141,6 +172,29 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 				return fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 		}
+	}
+
+	for _, mut := range createAndTouchMutationsByTuple {
+		tpl := mut.Tuple
+
+		var caveatName string
+		var caveatContext caveatContextWrapper
+		if tpl.Caveat != nil {
+			caveatName = tpl.Caveat.CaveatName
+			caveatContext = tpl.Caveat.Context.AsMap()
+		}
+		bulkWrite = bulkWrite.Values(
+			tpl.ResourceAndRelation.Namespace,
+			tpl.ResourceAndRelation.ObjectId,
+			tpl.ResourceAndRelation.Relation,
+			tpl.Subject.Namespace,
+			tpl.Subject.ObjectId,
+			tpl.Subject.Relation,
+			caveatName,
+			&caveatContext,
+			rwt.newTxnID,
+		)
+		bulkWriteHasValues = true
 	}
 
 	if bulkWriteHasValues {

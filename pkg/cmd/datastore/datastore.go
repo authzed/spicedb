@@ -397,6 +397,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
+		spanner.MigrationPhase(opts.MigrationPhase),
 	)
 }
 

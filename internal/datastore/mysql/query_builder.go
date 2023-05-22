@@ -17,13 +17,13 @@ type QueryBuilder struct {
 	DeleteNamespaceQuery       sq.UpdateBuilder
 	DeleteNamespaceTuplesQuery sq.UpdateBuilder
 
-	QueryTupleIdsQuery    sq.SelectBuilder
-	QueryTuplesQuery      sq.SelectBuilder
-	DeleteTupleQuery      sq.UpdateBuilder
-	QueryTupleExistsQuery sq.SelectBuilder
-	WriteTupleQuery       sq.InsertBuilder
-	QueryChangedQuery     sq.SelectBuilder
-	CountTupleQuery       sq.SelectBuilder
+	QueryTuplesWithIdsQuery sq.SelectBuilder
+	QueryTuplesQuery        sq.SelectBuilder
+	DeleteTupleQuery        sq.UpdateBuilder
+	QueryTupleExistsQuery   sq.SelectBuilder
+	WriteTupleQuery         sq.InsertBuilder
+	QueryChangedQuery       sq.SelectBuilder
+	CountTupleQuery         sq.SelectBuilder
 
 	WriteCaveatQuery  sq.InsertBuilder
 	ReadCaveatQuery   sq.SelectBuilder
@@ -46,7 +46,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.DeleteNamespaceQuery = deleteNamespace(driver.Namespace())
 
 	// tuple builders
-	builder.QueryTupleIdsQuery = queryTupleIds(driver.RelationTuple())
+	builder.QueryTuplesWithIdsQuery = queryTuplesWithIds(driver.RelationTuple())
 	builder.DeleteNamespaceTuplesQuery = deleteNamespaceTuples(driver.RelationTuple())
 	builder.QueryTuplesQuery = queryTuples(driver.RelationTuple())
 	builder.DeleteTupleQuery = deleteTuple(driver.RelationTuple())
@@ -112,9 +112,17 @@ func deleteNamespaceTuples(tableTuple string) sq.UpdateBuilder {
 	return sb.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }
 
-func queryTupleIds(tableTuple string) sq.SelectBuilder {
+func queryTuplesWithIds(tableTuple string) sq.SelectBuilder {
 	return sb.Select(
 		colID,
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatName,
+		colCaveatContext,
 	).From(tableTuple)
 }
 

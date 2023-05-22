@@ -66,7 +66,7 @@ func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName
 	case "mysql":
 		return RunMySQLForTesting(t, bridgeNetworkName)
 	case "spanner":
-		return RunSpannerForTesting(t, bridgeNetworkName)
+		return RunSpannerForTesting(t, bridgeNetworkName, migrate.Head)
 	default:
 		t.Fatalf("found missing engine for RunDatastoreEngine: %s", engine)
 		return nil

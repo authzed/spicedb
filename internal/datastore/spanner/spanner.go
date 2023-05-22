@@ -67,9 +67,10 @@ type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
 	revision.DecimalDecoder
 
-	client *spanner.Client
-	config spannerOptions
-	stopGC context.CancelFunc
+	client   *spanner.Client
+	config   spannerOptions
+	stopGC   context.CancelFunc
+	database string
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -104,8 +105,9 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		client: client,
-		config: config,
+		client:   client,
+		config:   config,
+		database: database,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -158,6 +160,7 @@ func (sd spannerDatastore) ReadWriteTx(
 			spannerReader{querySplitter, txSource},
 			spannerRWT,
 			sd.config.disableStats,
+			migrationPhases[sd.config.migrationPhase],
 		}
 		if err := fn(rwt); err != nil {
 			if config.DisableRetries {
@@ -195,7 +198,8 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 		return datastore.ReadyState{}, err
 	}
 
-	if version == headMigration {
+	// TODO(jschorr): Remove register-tuple-change-stream once the multi-phase is done.
+	if version == headMigration || version == "register-tuple-change-stream" {
 		return datastore.ReadyState{IsReady: true}, nil
 	}
 
