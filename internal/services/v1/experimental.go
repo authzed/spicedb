@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
 
@@ -29,9 +31,40 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const (
+	defaultExportBatchSizeFallback   = 1_000
+	maxExportBatchSizeFallback       = 1_000
+	streamReadTimeoutFallbackSeconds = 600
+)
+
 // NewExperimentalServer creates a ExperimentalServiceServer instance.
 func NewExperimentalServer(opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
 	config := options.NewExperimentalServerOptionsWithOptionsAndDefaults(opts...)
+
+	if config.DefaultExportBatchSize == 0 {
+		log.
+			Warn().
+			Uint32("specified", config.DefaultExportBatchSize).
+			Uint32("fallback", defaultExportBatchSizeFallback).
+			Msg("experimental server config specified invalid DefaultExportBatchSize, setting to fallback")
+		config.DefaultExportBatchSize = defaultExportBatchSizeFallback
+	}
+	if config.MaxExportBatchSize == 0 {
+		log.
+			Warn().
+			Uint32("specified", config.MaxExportBatchSize).
+			Uint32("fallback", maxExportBatchSizeFallback).
+			Msg("experimental server config specified invalid MaxExportBatchSize, setting to fallback")
+		config.MaxExportBatchSize = maxExportBatchSizeFallback
+	}
+	if config.StreamReadTimeount == 0 {
+		log.
+			Warn().
+			Stringer("specified", config.StreamReadTimeount).
+			Stringer("fallback", streamReadTimeoutFallbackSeconds*time.Second).
+			Msg("experimental server config specified invalid StreamReadTimeount, setting to fallback")
+		config.StreamReadTimeount = streamReadTimeoutFallbackSeconds * time.Second
+	}
 
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
@@ -47,12 +80,17 @@ func NewExperimentalServer(opts ...options.ExperimentalServerOptionsOption) v1.E
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeount),
 			),
 		},
+		defaultBatchSize: uint64(config.DefaultExportBatchSize),
+		maxBatchSize:     uint64(config.MaxExportBatchSize),
 	}
 }
 
 type experimentalServer struct {
 	v1.UnimplementedExperimentalServiceServer
 	shared.WithServiceSpecificInterceptors
+
+	defaultBatchSize uint64
+	maxBatchSize     uint64
 }
 
 type bulkLoadAdapter struct {
@@ -255,9 +293,13 @@ func (es *experimentalServer) BulkExportRelationships(
 		namespaces = namespaces[1:]
 	}
 
-	limit := uint64(1_000)
+	limit := es.defaultBatchSize
 	if req.OptionalLimit > 0 {
 		limit = uint64(req.OptionalLimit)
+	}
+
+	if limit > es.maxBatchSize {
+		limit = es.maxBatchSize
 	}
 
 	relsArray := make([]v1.Relationship, limit)

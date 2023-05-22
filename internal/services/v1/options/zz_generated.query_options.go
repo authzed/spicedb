@@ -32,6 +32,8 @@ func NewExperimentalServerOptionsWithOptionsAndDefaults(opts ...ExperimentalServ
 func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 	return func(to *ExperimentalServerOptions) {
 		to.StreamReadTimeount = e.StreamReadTimeount
+		to.DefaultExportBatchSize = e.DefaultExportBatchSize
+		to.MaxExportBatchSize = e.MaxExportBatchSize
 	}
 }
 
@@ -39,6 +41,8 @@ func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 func (e ExperimentalServerOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["StreamReadTimeount"] = helpers.DebugValue(e.StreamReadTimeount, false)
+	debugMap["DefaultExportBatchSize"] = helpers.DebugValue(e.DefaultExportBatchSize, false)
+	debugMap["MaxExportBatchSize"] = helpers.DebugValue(e.MaxExportBatchSize, false)
 	return debugMap
 }
 
@@ -62,5 +66,19 @@ func (e *ExperimentalServerOptions) WithOptions(opts ...ExperimentalServerOption
 func WithStreamReadTimeount(streamReadTimeount time.Duration) ExperimentalServerOptionsOption {
 	return func(e *ExperimentalServerOptions) {
 		e.StreamReadTimeount = streamReadTimeount
+	}
+}
+
+// WithDefaultExportBatchSize returns an option that can set DefaultExportBatchSize on a ExperimentalServerOptions
+func WithDefaultExportBatchSize(defaultExportBatchSize uint32) ExperimentalServerOptionsOption {
+	return func(e *ExperimentalServerOptions) {
+		e.DefaultExportBatchSize = defaultExportBatchSize
+	}
+}
+
+// WithMaxExportBatchSize returns an option that can set MaxExportBatchSize on a ExperimentalServerOptions
+func WithMaxExportBatchSize(maxExportBatchSize uint32) ExperimentalServerOptionsOption {
+	return func(e *ExperimentalServerOptions) {
+		e.MaxExportBatchSize = maxExportBatchSize
 	}
 }
