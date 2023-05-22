@@ -2,7 +2,6 @@ package closeafterusagecheck
 
 import (
 	"flag"
-	"fmt"
 	"go/ast"
 	"strings"
 
@@ -114,7 +113,7 @@ func Analyzer() *analysis.Analyzer {
 					for _, expr := range s.Lhs {
 						foundType := pass.TypesInfo.TypeOf(expr)
 						if foundType == nil {
-							return false
+							continue
 						}
 
 						varTypeString := foundType.String()
@@ -204,11 +203,4 @@ func min(x int, y int) int {
 		return y
 	}
 	return x
-}
-
-func printTypes(nodes []ast.Node) {
-	for _, n := range nodes {
-		fmt.Printf("%T, ", n)
-	}
-	fmt.Println()
 }
