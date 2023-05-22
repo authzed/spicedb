@@ -421,3 +421,107 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestCopyRelationTupleToRelationship(t *testing.T) {
+	testCases := []*core.RelationTuple{
+		{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "abc",
+				ObjectId:  "def",
+				Relation:  "ghi",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "jkl",
+				ObjectId:  "mno",
+				Relation:  "pqr",
+			},
+		},
+		{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "abc",
+				ObjectId:  "def",
+				Relation:  "ghi",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "jkl",
+				ObjectId:  "mno",
+				Relation:  "...",
+			},
+		},
+		{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "abc",
+				ObjectId:  "def",
+				Relation:  "ghi",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "jkl",
+				ObjectId:  "mno",
+				Relation:  "pqr",
+			},
+			Caveat: &core.ContextualizedCaveat{
+				CaveatName: "stu",
+				Context:    &structpb.Struct{},
+			},
+		},
+		{
+			ResourceAndRelation: &core.ObjectAndRelation{
+				Namespace: "abc",
+				ObjectId:  "def",
+				Relation:  "ghi",
+			},
+			Subject: &core.ObjectAndRelation{
+				Namespace: "jkl",
+				ObjectId:  "mno",
+				Relation:  "pqr",
+			},
+			Caveat: &core.ContextualizedCaveat{
+				CaveatName: "stu",
+				Context: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"vwx": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "yz",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(MustString(tc), func(t *testing.T) {
+			require := require.New(t)
+
+			dst := &v1.Relationship{
+				Resource: &v1.ObjectReference{},
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{},
+				},
+			}
+			optionalCaveat := &v1.ContextualizedCaveat{}
+
+			CopyRelationTupleToRelationship(tc, dst, optionalCaveat)
+
+			expectedSubjectRelation := tc.Subject.Relation
+			if tc.Subject.Relation == "..." {
+				expectedSubjectRelation = ""
+			}
+
+			require.Equal(tc.ResourceAndRelation.Namespace, dst.Resource.ObjectType)
+			require.Equal(tc.ResourceAndRelation.ObjectId, dst.Resource.ObjectId)
+			require.Equal(tc.ResourceAndRelation.Relation, dst.Relation)
+			require.Equal(tc.Subject.Namespace, dst.Subject.Object.ObjectType)
+			require.Equal(tc.Subject.ObjectId, dst.Subject.Object.ObjectId)
+			require.Equal(expectedSubjectRelation, dst.Subject.OptionalRelation)
+
+			if tc.Caveat != nil {
+				require.Equal(tc.Caveat.CaveatName, dst.OptionalCaveat.CaveatName)
+				require.Equal(tc.Caveat.Context, dst.OptionalCaveat.Context)
+			} else {
+				require.Nil(dst.OptionalCaveat)
+			}
+		})
+	}
+}

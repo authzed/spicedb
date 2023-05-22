@@ -3,7 +3,7 @@ module github.com/authzed/spicedb/e2e
 go 1.19
 
 require (
-	github.com/authzed/authzed-go v0.8.1-0.20230511215435-5ca552307f34
+	github.com/authzed/authzed-go v0.8.1-0.20230518180225-6772f818d051
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
 	github.com/authzed/spicedb v1.21.0
 	github.com/brianvoe/gofakeit/v6 v6.15.0
@@ -45,7 +45,7 @@ require (
 	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683 // indirect
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

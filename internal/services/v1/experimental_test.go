@@ -2,20 +2,25 @@ package v1_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"strconv"
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestBulkLoadRelationships(t *testing.T) {
+func TestBulkImportRelationships(t *testing.T) {
 	testCases := []struct {
 		name       string
 		batchSize  func() int
@@ -39,7 +44,7 @@ func TestBulkLoadRelationships(t *testing.T) {
 
 			ctx := context.Background()
 
-			writer, err := client.BulkLoadRelationships(ctx)
+			writer, err := client.BulkImportRelationships(ctx)
 			require.NoError(err)
 
 			var expectedTotal uint64
@@ -58,7 +63,7 @@ func TestBulkLoadRelationships(t *testing.T) {
 					))
 				}
 
-				err := writer.Send(&v1.BulkLoadRelationshipsRequest{
+				err := writer.Send(&v1.BulkImportRelationshipsRequest{
 					Relationships: batch,
 				})
 				require.NoError(err)
@@ -100,5 +105,110 @@ func constBatch(size int) func() int {
 func randomBatch(min, max int) func() int {
 	return func() int {
 		return rand.Intn(max-min) + min
+	}
+}
+
+func TestBulkExportRelationships(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+	client := v1.NewExperimentalServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	nsAndRels := []struct {
+		namespace string
+		relation  string
+	}{
+		{tf.DocumentNS.Name, "viewer"},
+		{tf.FolderNS.Name, "viewer"},
+		{tf.DocumentNS.Name, "owner"},
+		{tf.FolderNS.Name, "owner"},
+		{tf.DocumentNS.Name, "editor"},
+		{tf.FolderNS.Name, "editor"},
+	}
+
+	totalToWrite := uint64(1_000)
+	expectedRels := set.NewStringSetWithSize(int(totalToWrite))
+	batch := make([]*v1.Relationship, totalToWrite)
+	for i := range batch {
+		nsAndRel := nsAndRels[i%len(nsAndRels)]
+		rel := rel(
+			nsAndRel.namespace,
+			strconv.Itoa(i),
+			nsAndRel.relation,
+			tf.UserNS.Name,
+			strconv.Itoa(i),
+			"",
+		)
+		batch[i] = rel
+		expectedRels.Add(tuple.MustStringRelationship(rel))
+	}
+
+	ctx := context.Background()
+	writer, err := client.BulkImportRelationships(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, writer.Send(&v1.BulkImportRelationshipsRequest{
+		Relationships: batch,
+	}))
+
+	resp, err := writer.CloseAndRecv()
+	require.NoError(t, err)
+	require.Equal(t, totalToWrite, resp.NumLoaded)
+
+	testCases := []struct {
+		batchSize      uint32
+		paginateEveryN int
+	}{
+		{1_000, math.MaxInt},
+		{10, math.MaxInt},
+		{1_000, 1},
+		{100, 5},
+		{97, 7},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%d-%d", tc.batchSize, tc.paginateEveryN), func(t *testing.T) {
+			require := require.New(t)
+
+			var totalRead uint64
+			remainingRels := expectedRels.Copy()
+			require.Equal(totalToWrite, uint64(expectedRels.Size()))
+			var cursor *v1.Cursor
+
+			var done bool
+			for !done {
+				streamCtx, cancel := context.WithCancel(ctx)
+
+				stream, err := client.BulkExportRelationships(streamCtx, &v1.BulkExportRelationshipsRequest{
+					OptionalLimit:  tc.batchSize,
+					OptionalCursor: cursor,
+				})
+				require.NoError(err)
+
+				for i := 0; i < tc.paginateEveryN; i++ {
+					batch, err := stream.Recv()
+					if errors.Is(err, io.EOF) {
+						done = true
+						break
+					}
+
+					require.NoError(err)
+					require.LessOrEqual(uint32(len(batch.Relationships)), tc.batchSize)
+					require.NotNil(batch.AfterResultCursor)
+					require.NotEmpty(batch.AfterResultCursor.Token)
+
+					cursor = batch.AfterResultCursor
+					totalRead += uint64(len(batch.Relationships))
+
+					for _, rel := range batch.Relationships {
+						remainingRels.Remove(tuple.MustStringRelationship(rel))
+					}
+				}
+
+				cancel()
+			}
+
+			require.Equal(totalToWrite, totalRead)
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
+		})
 	}
 }
