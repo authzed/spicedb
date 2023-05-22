@@ -123,7 +123,7 @@ func NewPostgresDatastore(
 }
 
 func newPostgresDatastore(
-	url string,
+	pgURL string,
 	options ...Option,
 ) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
@@ -131,31 +131,39 @@ func newPostgresDatastore(
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	if config.migrationPhase != "" {
-		log.Info().
-			Str("phase", config.migrationPhase).
-			Msg("postgres configured to use intermediate migration phase")
-	}
-
-	// config must be initialized by ParseConfig
-	readPoolConfig, err := pgxpool.ParseConfig(url)
+	// Parse the DB URI into configuration.
+	parsedConfig, err := pgxpool.ParseConfig(pgURL)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
+
+	// Setup the default custom plan setting, if applicable.
+	pgConfig, err := defaultCustomPlan(parsedConfig)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	// Setup the config for each of the read and write pools.
+	readPoolConfig := pgConfig.Copy()
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
+
 	readPoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		RegisterTypes(conn.TypeMap())
 		return nil
 	}
 
-	writePoolConfig, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
-	}
+	writePoolConfig := pgConfig.Copy()
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
+
 	writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		RegisterTypes(conn.TypeMap())
 		return nil
+	}
+
+	if config.migrationPhase != "" {
+		log.Info().
+			Str("phase", config.migrationPhase).
+			Msg("postgres configured to use intermediate migration phase")
 	}
 
 	initializationContext, cancelInit := context.WithTimeout(context.Background(), 5*time.Second)
@@ -233,7 +241,7 @@ func newPostgresDatastore(
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
-		dburl:                   url,
+		dburl:                   pgURL,
 		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:               pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor),
 		watchBufferLength:       config.watchBufferLength,
@@ -442,6 +450,27 @@ func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+}
+
+// defaultCustomPlan parses a Postgres URI and determines if a plan_cache_mode
+// has been specified. If not, it defaults to "force_custom_plan".
+// This works around a bug impacting performance documented here:
+// https://spicedb.dev/d/force-custom-plan.
+func defaultCustomPlan(poolConfig *pgxpool.Config) (*pgxpool.Config, error) {
+	if existing, ok := poolConfig.ConnConfig.Config.RuntimeParams["plan_cache_mode"]; ok {
+		log.Info().
+			Str("plan_cache_mode", existing).
+			Msg("found plan_cache_mode in DB URI; leaving as-is")
+		return poolConfig, nil
+	}
+
+	poolConfig.ConnConfig.Config.RuntimeParams["plan_cache_mode"] = "force_custom_plan"
+	log.Warn().
+		Str("details-url", "https://spicedb.dev/d/force-custom-plan").
+		Str("plan_cache_mode", "force_custom_plan").
+		Msg("defaulting value in Postgres DB URI")
+
+	return poolConfig, nil
 }
 
 var _ datastore.Datastore = &pgDatastore{}
