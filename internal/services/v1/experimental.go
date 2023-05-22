@@ -280,32 +280,28 @@ func (es *experimentalServer) BulkExportRelationships(
 			// Lop off any rels we've already sent
 			rels = rels[:0]
 
-			iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: ns.Definition.Name,
-			}, dsoptions.WithLimit(&limit), dsoptions.WithAfter(cur), dsoptions.WithSort(dsoptions.ByResource))
-			if err != nil {
-				return shared.RewriteError(ctx, err)
-			}
-
-			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+			tplFn := func(tpl *core.RelationTuple) {
 				offset := len(rels)
 				rels = append(rels, &relsArray[offset]) // nozero
 				tuple.CopyRelationTupleToRelationship(tpl, &relsArray[offset], &caveatArray[offset])
 			}
-			if iter.Err() != nil {
-				return shared.RewriteError(ctx, iter.Err())
-			}
 
-			if len(rels) == 0 {
-				iter.Close()
-				continue
-			}
-
-			cur, err = iter.Cursor()
+			cur, err = queryForEach(
+				ctx,
+				reader,
+				datastore.RelationshipsFilter{ResourceType: ns.Definition.Name},
+				tplFn,
+				dsoptions.WithLimit(&limit),
+				dsoptions.WithAfter(cur),
+				dsoptions.WithSort(dsoptions.ByResource),
+			)
 			if err != nil {
 				return shared.RewriteError(ctx, err)
 			}
-			iter.Close()
+
+			if len(rels) == 0 {
+				continue
+			}
 
 			encoded, err := cursor.Encode(&implv1.DecodedCursor{
 				VersionOneof: &implv1.DecodedCursor_V1{
@@ -335,6 +331,40 @@ func (es *experimentalServer) BulkExportRelationships(
 	}
 
 	return nil
+}
+
+func queryForEach(
+	ctx context.Context,
+	reader datastore.Reader,
+	filter datastore.RelationshipsFilter,
+	fn func(tpl *core.RelationTuple),
+	opts ...dsoptions.QueryOptionsOption,
+) (*core.RelationTuple, error) {
+	iter, err := reader.QueryRelationships(ctx, filter, opts...)
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	var hadTuples bool
+	for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+		fn(tpl)
+		hadTuples = true
+	}
+	if iter.Err() != nil {
+		return nil, err
+	}
+
+	var cur *core.RelationTuple
+	if hadTuples {
+		cur, err = iter.Cursor()
+		iter.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return cur, nil
 }
 
 func decodeCursor(ds datastore.Datastore, encoded *v1.Cursor) (datastore.Revision, *core.RelationTuple, error) {
