@@ -1022,15 +1022,16 @@ func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 
 func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 	expected := map[string]struct{}{
-		"document:companyplan#parent@folder:company":                                                                        {},
-		"document:masterplan#parent@folder:strategy":                                                                        {},
-		"document:masterplan#owner@user:product_manager":                                                                    {},
-		"document:masterplan#viewer@user:eng_lead":                                                                          {},
-		"document:masterplan#parent@folder:plans":                                                                           {},
-		"document:healthplan#parent@folder:plans":                                                                           {},
-		"document:specialplan#viewer_and_editor@user:multiroleguy":                                                          {},
-		"document:specialplan#editor@user:multiroleguy":                                                                     {},
-		"document:specialplan#viewer_and_editor@user:missingrolegal":                                                        {},
+		"document:ownerplan#viewer@user:owner":                       {},
+		"document:companyplan#parent@folder:company":                 {},
+		"document:masterplan#parent@folder:strategy":                 {},
+		"document:masterplan#owner@user:product_manager":             {},
+		"document:masterplan#viewer@user:eng_lead":                   {},
+		"document:masterplan#parent@folder:plans":                    {},
+		"document:healthplan#parent@folder:plans":                    {},
+		"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+		"document:specialplan#editor@user:multiroleguy":              {},
+		"document:specialplan#viewer_and_editor@user:missingrolegal": {},
 		"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
 		"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
 	}
