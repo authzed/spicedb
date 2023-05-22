@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/pagination"
@@ -148,12 +149,47 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
+	limit := 0
+	var startCursor options.Cursor
+
+	rrRequestHash, err := computeReadRelationshipsRequestHash(req)
+	if err != nil {
+		return shared.RewriteError(ctx, err)
+	}
+
+	if req.OptionalCursor != nil {
+		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, rrRequestHash)
+		if err != nil {
+			return shared.RewriteError(ctx, err)
+		}
+
+		if len(decodedCursor.Sections) != 1 {
+			return shared.RewriteError(ctx, NewInvalidCursorErr("did not find expected resume relationship"))
+		}
+
+		parsed := tuple.Parse(decodedCursor.Sections[0])
+		if parsed == nil {
+			return shared.RewriteError(ctx, NewInvalidCursorErr("could not parse resume relationship"))
+		}
+
+		startCursor = options.Cursor(parsed)
+	}
+
+	pageSize := ps.config.MaxDatastoreReadPageSize
+	if req.OptionalLimit > 0 {
+		limit = int(req.OptionalLimit)
+		if uint64(limit) < pageSize {
+			pageSize = uint64(limit)
+		}
+	}
+
 	tupleIterator, err := pagination.NewPaginatedIterator(
 		ctx,
 		ds,
 		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
-		ps.config.MaxDatastoreReadPageSize,
+		pageSize,
 		options.ByResource,
+		startCursor,
 	)
 	if err != nil {
 		return shared.RewriteError(ctx, err)
@@ -165,17 +201,36 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 	targetRel := tuple.NewRelationship()
 	targetCaveat := &v1.ContextualizedCaveat{}
+	returnedCount := 0
+
+	dispatchCursor := &dispatchv1.Cursor{
+		AtRevision: atRevision.String(),
+		Sections:   []string{""},
+	}
+
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
+		if limit > 0 && returnedCount >= limit {
+			break
+		}
+
 		if tupleIterator.Err() != nil {
 			return shared.RewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 		}
 
+		dispatchCursor.Sections[0] = tuple.StringWithoutCaveat(tpl)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash)
+		if err != nil {
+			return shared.RewriteError(ctx, err)
+		}
+
 		tuple.MustToRelationshipMutating(tpl, targetRel, targetCaveat)
 		response.Relationship = targetRel
-		err := resp.Send(response)
+		response.AfterResultCursor = encodedCursor
+		err = resp.Send(response)
 		if err != nil {
 			return shared.RewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
+		returnedCount++
 	}
 
 	if tupleIterator.Err() != nil {

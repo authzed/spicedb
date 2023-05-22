@@ -233,6 +233,36 @@ func (err ErrCouldNotTransactionallyDelete) GRPCStatus() *status.Status {
 	)
 }
 
+// ErrInvalidCursor indicates that an invalid cursor was found.
+type ErrInvalidCursor struct {
+	error
+	reason string
+}
+
+// NewInvalidCursorErr constructs a new invalid cursor error.
+func NewInvalidCursorErr(reason string) ErrInvalidCursor {
+	return ErrInvalidCursor{
+		error: fmt.Errorf(
+			"the cursor provided is not valid: %s",
+			reason,
+		),
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrInvalidCursor) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.FailedPrecondition,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_INVALID_CURSOR,
+			map[string]string{
+				"reason": err.reason,
+			},
+		),
+	)
+}
+
 func defaultIfZero[T comparable](value T, defaultValue T) T {
 	var zero T
 	if value == zero {

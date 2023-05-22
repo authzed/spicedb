@@ -204,56 +204,80 @@ func TestReadRelationships(t *testing.T) {
 		},
 	}
 
-	for _, delta := range testTimedeltas {
-		delta := delta
-		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
-			for _, tc := range testCases {
-				tc := tc
-				t.Run(tc.name, func(t *testing.T) {
-					require := require.New(t)
-					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
-					client := v1.NewPermissionsServiceClient(conn)
-					t.Cleanup(cleanup)
+	for _, pageSize := range []int{0, 1, 5, 10} {
+		pageSize := pageSize
+		t.Run(fmt.Sprintf("page%d_", pageSize), func(t *testing.T) {
+			for _, delta := range testTimedeltas {
+				delta := delta
+				t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+					for _, tc := range testCases {
+						tc := tc
+						t.Run(tc.name, func(t *testing.T) {
+							require := require.New(t)
+							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							client := v1.NewPermissionsServiceClient(conn)
+							t.Cleanup(cleanup)
 
-					stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
-						Consistency: &v1.Consistency{
-							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
-							},
-						},
-						RelationshipFilter: tc.filter,
-					})
-					require.NoError(err)
+							var currentCursor *v1.Cursor
 
-					if tc.expectedCode == codes.OK {
-						// Make a copy of the expected map
-						testExpected := make(map[string]struct{}, len(tc.expected))
-						for k := range tc.expected {
-							testExpected[k] = struct{}{}
-						}
-
-						for {
-							rel, err := stream.Recv()
-							if errors.Is(err, io.EOF) {
-								break
+							// Make a copy of the expected map
+							testExpected := make(map[string]struct{}, len(tc.expected))
+							for k := range tc.expected {
+								testExpected[k] = struct{}{}
 							}
 
-							require.NoError(err)
+							for i := 0; i < 20; i++ {
+								stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+									Consistency: &v1.Consistency{
+										Requirement: &v1.Consistency_AtLeastAsFresh{
+											AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+										},
+									},
+									RelationshipFilter: tc.filter,
+									OptionalLimit:      uint32(pageSize),
+									OptionalCursor:     currentCursor,
+								})
+								require.NoError(err)
 
-							relString := tuple.MustRelString(rel.Relationship)
-							_, found := tc.expected[relString]
-							require.True(found, "relationship was not expected: %s", relString)
+								if tc.expectedCode != codes.OK {
+									_, err := stream.Recv()
+									grpcutil.RequireStatus(t, tc.expectedCode, err)
+									return
+								}
 
-							_, notFoundTwice := testExpected[relString]
-							require.True(notFoundTwice, "relationship was received from service twice: %s", relString)
+								foundCount := 0
+								for {
+									rel, err := stream.Recv()
+									if errors.Is(err, io.EOF) {
+										break
+									}
 
-							delete(testExpected, relString)
-						}
+									require.NoError(err)
 
-						require.Empty(testExpected, "expected relationships were not received: %v", testExpected)
-					} else {
-						_, err := stream.Recv()
-						grpcutil.RequireStatus(t, tc.expectedCode, err)
+									relString := tuple.MustRelString(rel.Relationship)
+									_, found := tc.expected[relString]
+									require.True(found, "relationship was not expected: %s", relString)
+
+									_, notFoundTwice := testExpected[relString]
+									require.True(notFoundTwice, "relationship was received from service twice: %s", relString)
+
+									delete(testExpected, relString)
+									currentCursor = rel.AfterResultCursor
+									foundCount++
+								}
+
+								if pageSize == 0 {
+									break
+								}
+
+								require.LessOrEqual(foundCount, pageSize)
+								if foundCount < pageSize {
+									break
+								}
+							}
+
+							require.Empty(testExpected, "expected relationships were not received: %v", testExpected)
+						})
 					}
 				})
 			}

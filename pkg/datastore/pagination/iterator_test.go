@@ -31,7 +31,7 @@ func TestDownstreamErrors(t *testing.T) {
 			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, defaultPageSize).
 			Return(nilIter, defaultError)
 
-		_, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder)
+		_, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder, nil)
 		require.ErrorIs(err, defaultError)
 		require.True(ds.AssertExpectations(t))
 	})
@@ -49,7 +49,7 @@ func TestDownstreamErrors(t *testing.T) {
 			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, defaultPageSize).
 			Return(iterMock, nil)
 
-		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder)
+		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder, nil)
 		require.NoError(err)
 		require.NotNil(iter)
 
@@ -77,7 +77,7 @@ func TestDownstreamErrors(t *testing.T) {
 			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, defaultPageSize).
 			Return(iterMock, nil)
 
-		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder)
+		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder, nil)
 		require.NoError(err)
 		require.NotNil(iter)
 
@@ -137,7 +137,7 @@ func TestPaginatedIterator(t *testing.T) {
 			ctx := context.Background()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
 				ResourceType: "unused",
-			}, tc.pageSize, options.ByResource)
+			}, tc.pageSize, options.ByResource, nil)
 			require.NoError(err)
 			defer iter.Close()
 
