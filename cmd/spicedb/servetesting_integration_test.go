@@ -29,7 +29,6 @@ import (
 )
 
 func TestTestServer(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 	key := uuid.NewString()
 	tester, err := newTester(t,
@@ -241,6 +240,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			return err
 		})
 		if err != nil {
+			fmt.Printf("got error on startup: %v\n", err)
 			cleanup()
 			continue
 		}
