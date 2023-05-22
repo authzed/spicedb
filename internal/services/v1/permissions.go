@@ -10,7 +10,6 @@ import (
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -45,27 +44,19 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, shared.RewriteError(ctx, err)
 	}
 
-	// Perform our preflight checks in parallel
-	errG, checksCtx := errgroup.WithContext(ctx)
-	errG.Go(func() error {
-		return namespace.CheckNamespaceAndRelation(
-			checksCtx,
-			req.Resource.ObjectType,
-			req.Permission,
-			false,
-			ds,
-		)
-	})
-	errG.Go(func() error {
-		return namespace.CheckNamespaceAndRelation(
-			checksCtx,
-			req.Subject.Object.ObjectType,
-			normalizeSubjectRelation(req.Subject),
-			true,
-			ds,
-		)
-	})
-	if err := errG.Wait(); err != nil {
+	if err := namespace.CheckNamespaceAndRelations(ctx,
+		[]namespace.TypeAndRelationToCheck{
+			{
+				NamespaceName: req.Resource.ObjectType,
+				RelationName:  req.Permission,
+				AllowEllipsis: false,
+			},
+			{
+				NamespaceName: req.Subject.Object.ObjectType,
+				RelationName:  normalizeSubjectRelation(req.Subject),
+				AllowEllipsis: true,
+			},
+		}, ds); err != nil {
 		return nil, shared.RewriteError(ctx, err)
 	}
 
@@ -332,27 +323,19 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	// Perform our preflight checks in parallel
-	errG, checksCtx := errgroup.WithContext(ctx)
-	errG.Go(func() error {
-		return namespace.CheckNamespaceAndRelation(
-			checksCtx,
-			req.Subject.Object.ObjectType,
-			normalizeSubjectRelation(req.Subject),
-			true,
-			ds,
-		)
-	})
-	errG.Go(func() error {
-		return namespace.CheckNamespaceAndRelation(
-			ctx,
-			req.ResourceObjectType,
-			req.Permission,
-			false,
-			ds,
-		)
-	})
-	if err := errG.Wait(); err != nil {
+	if err := namespace.CheckNamespaceAndRelations(ctx,
+		[]namespace.TypeAndRelationToCheck{
+			{
+				NamespaceName: req.ResourceObjectType,
+				RelationName:  req.Permission,
+				AllowEllipsis: false,
+			},
+			{
+				NamespaceName: req.Subject.Object.ObjectType,
+				RelationName:  normalizeSubjectRelation(req.Subject),
+				AllowEllipsis: true,
+			},
+		}, ds); err != nil {
 		return shared.RewriteError(ctx, err)
 	}
 
@@ -416,27 +399,19 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return shared.RewriteError(ctx, err)
 	}
 
-	// Perform our preflight checks in parallel
-	errG, checksCtx := errgroup.WithContext(ctx)
-	errG.Go(func() error {
-		return namespace.CheckNamespaceAndRelation(
-			checksCtx,
-			req.Resource.ObjectType,
-			req.Permission,
-			false,
-			ds,
-		)
-	})
-	errG.Go(func() error {
-		return namespace.CheckNamespaceAndRelation(
-			ctx,
-			req.SubjectObjectType,
-			stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
-			true,
-			ds,
-		)
-	})
-	if err := errG.Wait(); err != nil {
+	if err := namespace.CheckNamespaceAndRelations(ctx,
+		[]namespace.TypeAndRelationToCheck{
+			{
+				NamespaceName: req.Resource.ObjectType,
+				RelationName:  req.Permission,
+				AllowEllipsis: false,
+			},
+			{
+				NamespaceName: req.SubjectObjectType,
+				RelationName:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+				AllowEllipsis: true,
+			},
+		}, ds); err != nil {
 		return shared.RewriteError(ctx, err)
 	}
 
