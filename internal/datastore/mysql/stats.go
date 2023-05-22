@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
@@ -40,13 +41,14 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	if err != nil {
 		return datastore.Stats{}, err
 	}
-	var count uint64
+
+	var count sql.NullInt64
 	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return datastore.Stats{}, err
 	}
 
-	if count == 0 {
+	if !count.Valid || count.Int64 == 0 {
 		// If we get a count of zero, its possible the information schema table has not yet
 		// been updated, so we use a slower count(*) call.
 		query, args, err := mds.QueryBuilder.CountTupleQuery.ToSql()
@@ -75,7 +77,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	return datastore.Stats{
 		UniqueID:                   uniqueID,
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(nsDefs),
-		EstimatedRelationshipCount: count,
+		EstimatedRelationshipCount: uint64(count.Int64),
 	}, nil
 }
 

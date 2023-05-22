@@ -37,6 +37,7 @@ type mysqlTester struct {
 type MySQLTesterOptions struct {
 	Prefix                 string
 	MigrateForNewDatastore bool
+	UseV8                  bool
 }
 
 // RunMySQLForTesting returns a RunningEngineForTest for the mysql driver
@@ -51,11 +52,16 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
+	containerImageTag := "5"
+	if options.UseV8 {
+		containerImageTag = "8"
+	}
+
 	name := fmt.Sprintf("mysql-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
 		Repository: "mysql",
-		Tag:        "5",
+		Tag:        containerImageTag,
 		Platform:   "linux/amd64", // required because the mysql:5 image does not have arm support
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 		// increase max connections (default 151) to accommodate tests using the same docker container
@@ -120,7 +126,7 @@ func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) {
 }
 
 func (mb *mysqlTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	dsn := mb.NewDatabase((t))
+	dsn := mb.NewDatabase(t)
 	if mb.options.MigrateForNewDatastore {
 		mb.runMigrate(t, dsn)
 	}
