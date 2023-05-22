@@ -9,7 +9,201 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHashStability(t *testing.T) {
+func TestReadRelationshipsHashStability(t *testing.T) {
+	tcs := []struct {
+		name         string
+		request      *v1.ReadRelationshipsRequest
+		expectedHash string
+	}{
+		{
+			"basic read",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType: "someresourcetype",
+				},
+			},
+			"0a0e721527f9e3b2",
+		},
+		{
+			"full read",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"0375e86e0c72f281",
+		},
+		{
+			"different resource type",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype2",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"a7d3548f8303f0ba",
+		},
+		{
+			"different resource id",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo2",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"77c9a81be9232973",
+		},
+		{
+			"different resource relation",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation2",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"765b640f81f98ff5",
+		},
+		{
+			"no subject filter",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+				},
+				OptionalLimit: 1000,
+			},
+			"42abbaaaf9d6cb12",
+		},
+		{
+			"different subject type",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype2",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"55b37fccd04ae2df",
+		},
+		{
+			"different subject id",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject2",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"0ba2e49c26fb8ae1",
+		},
+		{
+			"different subject relation",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation2",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"73e715ccd9ea2225",
+		},
+		{
+			"different limit",
+			&v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 999,
+			},
+			"7e7fdc450bf08327",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			verr := tc.request.Validate()
+			require.NoError(t, verr)
+
+			hash, err := computeReadRelationshipsRequestHash(tc.request)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedHash, hash)
+		})
+	}
+}
+
+func TestLRHashStability(t *testing.T) {
 	tcs := []struct {
 		name         string
 		request      *v1.LookupResourcesRequest
