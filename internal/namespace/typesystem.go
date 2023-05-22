@@ -281,13 +281,13 @@ type WildcardTypeReference struct {
 	WildcardType *core.AllowedRelation
 }
 
-// ReferencesWildcardType returns true if the relation references a wildcard type, either directly or via
+// referencesWildcardType returns true if the relation references a wildcard type, either directly or via
 // another relation.
-func (nts *TypeSystem) ReferencesWildcardType(ctx context.Context, relationName string) (*WildcardTypeReference, error) {
-	return nts.referencesWildcardType(ctx, relationName, map[string]bool{})
+func (nts *TypeSystem) referencesWildcardType(ctx context.Context, relationName string) (*WildcardTypeReference, error) {
+	return nts.referencesWildcardTypeWithEncountered(ctx, relationName, map[string]bool{})
 }
 
-func (nts *TypeSystem) referencesWildcardType(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
+func (nts *TypeSystem) referencesWildcardTypeWithEncountered(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
 	cached, isCached := nts.wildcardCheckCache[relationName]
 	if isCached {
 		return cached, nil
@@ -327,7 +327,7 @@ func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relati
 
 		if allowedRelation.GetRelation() != tuple.Ellipsis {
 			if allowedRelation.GetNamespace() == nts.nsDef.Name {
-				found, err := nts.referencesWildcardType(ctx, allowedRelation.GetRelation(), encountered)
+				found, err := nts.referencesWildcardTypeWithEncountered(ctx, allowedRelation.GetRelation(), encountered)
 				if err != nil {
 					return nil, asTypeError(err)
 				}
@@ -343,7 +343,7 @@ func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relati
 				return nil, asTypeError(err)
 			}
 
-			found, err := subjectTS.referencesWildcardType(ctx, allowedRelation.GetRelation(), encountered)
+			found, err := subjectTS.referencesWildcardTypeWithEncountered(ctx, allowedRelation.GetRelation(), encountered)
 			if err != nil {
 				return nil, asTypeError(err)
 			}
@@ -411,7 +411,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
-				referencedWildcard, err := nts.ReferencesWildcardType(ctx, relationName)
+				referencedWildcard, err := nts.referencesWildcardType(ctx, relationName)
 				if err != nil {
 					return err
 				}
@@ -521,7 +521,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 					}
 
 					// Ensure the relation doesn't itself import wildcard.
-					referencedWildcard, err := subjectTS.ReferencesWildcardType(ctx, allowedRelation.GetRelation())
+					referencedWildcard, err := subjectTS.referencesWildcardType(ctx, allowedRelation.GetRelation())
 					if err != nil {
 						return nil, err
 					}
