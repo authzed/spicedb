@@ -395,7 +395,7 @@ type V1Cursor struct {
 	Revision string `protobuf:"bytes,1,opt,name=revision,proto3" json:"revision,omitempty"`
 	// sections are the sections of the dispatching cursor.
 	Sections []string `protobuf:"bytes,2,rep,name=sections,proto3" json:"sections,omitempty"`
-	// call_and_parameters_hash is a hash of the call that manufactored this cursor and all its
+	// call_and_parameters_hash is a hash of the call that manufactured this cursor and all its
 	// parameters, including limits and zedtoken, to ensure no inputs changed when using this cursor.
 	CallAndParametersHash string `protobuf:"bytes,3,opt,name=call_and_parameters_hash,json=callAndParametersHash,proto3" json:"call_and_parameters_hash,omitempty"`
 }

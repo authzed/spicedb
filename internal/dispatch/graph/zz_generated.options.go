@@ -31,8 +31,8 @@ func NewConcurrencyLimitsWithOptionsAndDefaults(opts ...ConcurrencyLimitsOption)
 func (c *ConcurrencyLimits) ToOption() ConcurrencyLimitsOption {
 	return func(to *ConcurrencyLimits) {
 		to.Check = c.Check
-		to.LookupResources = c.LookupResources
 		to.ReachableResources = c.ReachableResources
+		to.LookupResources = c.LookupResources
 		to.LookupSubjects = c.LookupSubjects
 	}
 }
@@ -41,8 +41,8 @@ func (c *ConcurrencyLimits) ToOption() ConcurrencyLimitsOption {
 func (c ConcurrencyLimits) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["Check"] = helpers.DebugValue(c.Check, false)
-	debugMap["LookupResources"] = helpers.DebugValue(c.LookupResources, false)
 	debugMap["ReachableResources"] = helpers.DebugValue(c.ReachableResources, false)
+	debugMap["LookupResources"] = helpers.DebugValue(c.LookupResources, false)
 	debugMap["LookupSubjects"] = helpers.DebugValue(c.LookupSubjects, false)
 	return debugMap
 }
@@ -70,17 +70,17 @@ func WithCheck(check uint16) ConcurrencyLimitsOption {
 	}
 }
 
-// WithLookupResources returns an option that can set LookupResources on a ConcurrencyLimits
-func WithLookupResources(lookupResources uint16) ConcurrencyLimitsOption {
-	return func(c *ConcurrencyLimits) {
-		c.LookupResources = lookupResources
-	}
-}
-
 // WithReachableResources returns an option that can set ReachableResources on a ConcurrencyLimits
 func WithReachableResources(reachableResources uint16) ConcurrencyLimitsOption {
 	return func(c *ConcurrencyLimits) {
 		c.ReachableResources = reachableResources
+	}
+}
+
+// WithLookupResources returns an option that can set LookupResources on a ConcurrencyLimits
+func WithLookupResources(lookupResources uint16) ConcurrencyLimitsOption {
+	return func(c *ConcurrencyLimits) {
+		c.LookupResources = lookupResources
 	}
 }
 

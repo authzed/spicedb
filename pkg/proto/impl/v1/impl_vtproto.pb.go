@@ -231,7 +231,7 @@ func (m *DecodedCursor) CloneVT() *DecodedCursor {
 	return r
 }
 
-func (m *DecodedCursor) CloneGenericVT() proto.Message {
+func (m *DecodedCursor) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -265,7 +265,7 @@ func (m *V1Cursor) CloneVT() *V1Cursor {
 	return r
 }
 
-func (m *V1Cursor) CloneGenericVT() proto.Message {
+func (m *V1Cursor) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -645,9 +645,9 @@ func (this *DecodedZedToken_V1) EqualVT(thatIface isDecodedZedToken_VersionOneof
 }
 
 func (this *DecodedCursor) EqualVT(that *DecodedCursor) bool {
-	if this == nil {
-		return that == nil
-	} else if that == nil {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
 		return false
 	}
 	if this.VersionOneof == nil && that.VersionOneof != nil {
@@ -665,6 +665,13 @@ func (this *DecodedCursor) EqualVT(that *DecodedCursor) bool {
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
+func (this *DecodedCursor) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*DecodedCursor)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *DecodedCursor_V1) EqualVT(thatIface isDecodedCursor_VersionOneof) bool {
 	that, ok := thatIface.(*DecodedCursor_V1)
 	if !ok {
@@ -691,9 +698,9 @@ func (this *DecodedCursor_V1) EqualVT(thatIface isDecodedCursor_VersionOneof) bo
 }
 
 func (this *V1Cursor) EqualVT(that *V1Cursor) bool {
-	if this == nil {
-		return that == nil
-	} else if that == nil {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
 		return false
 	}
 	if this.Revision != that.Revision {
@@ -714,6 +721,13 @@ func (this *V1Cursor) EqualVT(that *V1Cursor) bool {
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
+func (this *V1Cursor) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*V1Cursor)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *DocComment) EqualVT(that *DocComment) bool {
 	if this == that {
 		return true
