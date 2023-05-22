@@ -23,7 +23,6 @@ import (
 var toSkip = []string{"memory"}
 
 func TestMigrate(t *testing.T) {
-	t.Parallel()
 	bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
 
 	pool, err := dockertest.NewPool("")

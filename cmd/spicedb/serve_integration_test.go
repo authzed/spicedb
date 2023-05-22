@@ -21,7 +21,6 @@ import (
 )
 
 func TestServe(t *testing.T) {
-	t.Parallel()
 	requireParent := require.New(t)
 
 	tester, err := newTester(t,
