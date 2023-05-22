@@ -149,6 +149,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		config.gcWindow = time.Duration(clusterTTLNanos) * time.Nanosecond
 	}
 
+	keySetInit := newKeySet
 	var keyer overlapKeyer
 	switch config.overlapStrategy {
 	case overlapStrategyStatic:
@@ -161,6 +162,10 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		keyer = appendStaticKey(config.overlapKey)
 	case overlapStrategyPrefix:
 		keyer = prefixKeyer
+	case overlapStrategyRequest:
+		// overlap keys are computed over requests and not data
+		keyer = noOverlapKeyer
+		keySetInit = overlapKeysFromContext
 	case overlapStrategyInsecure:
 		log.Warn().Str("strategy", overlapStrategyInsecure).
 			Msg("running in this mode is only safe when replicas == nodes")
@@ -183,6 +188,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		writePool:            writePool,
 		watchBufferLength:    config.watchBufferLength,
 		writeOverlapKeyer:    keyer,
+		overlapKeyInit:       keySetInit,
 		usersetBatchSize:     config.splitAtUsersetCount,
 		disableStats:         config.disableStats,
 		beginChangefeedQuery: changefeedQuery,
@@ -235,6 +241,7 @@ type crdbDatastore struct {
 	readPool, writePool *pool.RetryPool
 	watchBufferLength   uint16
 	writeOverlapKeyer   overlapKeyer
+	overlapKeyInit      func(ctx context.Context) keySet
 	usersetBatchSize    uint16
 	disableStats        bool
 
@@ -282,7 +289,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 				querier,
 				querySplitter,
 				cds.writeOverlapKeyer,
-				make(keySet),
+				cds.overlapKeyInit(ctx),
 				func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
 					return query.From(fromStr)
 				},
