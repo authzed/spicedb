@@ -302,6 +302,8 @@ func (es *experimentalServer) BulkExportRelationships(
 		limit = es.maxBatchSize
 	}
 
+	// Pre-allocate all of the relationships that we might need in order to
+	// make export easier and faster for the garbage collector.
 	relsArray := make([]v1.Relationship, limit)
 	objArray := make([]v1.ObjectReference, limit)
 	subArray := make([]v1.SubjectReference, limit)
@@ -318,6 +320,9 @@ func (es *experimentalServer) BulkExportRelationships(
 	for _, ns := range namespaces {
 		rels := emptyRels
 
+		// We want to keep iterating as long as we're sending full batches.
+		// To bootstrap this loop, we enter the first time with a full rels
+		// slice of dummy rels that were never sent.
 		for uint64(len(rels)) == limit {
 			// Lop off any rels we've already sent
 			rels = rels[:0]

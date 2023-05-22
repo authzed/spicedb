@@ -11,11 +11,13 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestBulkImportRelationships(t *testing.T) {
@@ -124,10 +126,11 @@ func TestBulkExportRelationships(t *testing.T) {
 	}
 
 	totalToWrite := uint64(1_000)
+	expectedRels := set.NewStringSetWithSize(int(totalToWrite))
 	batch := make([]*v1.Relationship, totalToWrite)
 	for i := range batch {
 		nsAndRel := nsAndRels[i%len(nsAndRels)]
-		batch[i] = rel(
+		rel := rel(
 			nsAndRel.namespace,
 			strconv.Itoa(i),
 			nsAndRel.relation,
@@ -135,6 +138,8 @@ func TestBulkExportRelationships(t *testing.T) {
 			strconv.Itoa(i),
 			"",
 		)
+		batch[i] = rel
+		expectedRels.Add(tuple.MustStringRelationship(rel))
 	}
 
 	ctx := context.Background()
@@ -165,6 +170,8 @@ func TestBulkExportRelationships(t *testing.T) {
 			require := require.New(t)
 
 			var totalRead uint64
+			remainingRels := expectedRels.Copy()
+			require.Equal(totalToWrite, uint64(expectedRels.Size()))
 			var cursor *v1.Cursor
 
 			var done bool
@@ -191,12 +198,17 @@ func TestBulkExportRelationships(t *testing.T) {
 
 					cursor = batch.AfterResultCursor
 					totalRead += uint64(len(batch.Relationships))
+
+					for _, rel := range batch.Relationships {
+						remainingRels.Remove(tuple.MustStringRelationship(rel))
+					}
 				}
 
 				cancel()
 			}
 
 			require.Equal(totalToWrite, totalRead)
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
 		})
 	}
 }
