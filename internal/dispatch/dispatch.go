@@ -27,8 +27,8 @@ type ReadyState struct {
 type Dispatcher interface {
 	Check
 	Expand
-	Lookup
 	ReachableResources
+	LookupResources
 	LookupSubjects
 
 	// Close closes the dispatcher.
@@ -50,12 +50,6 @@ type Expand interface {
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error)
 }
 
-// Lookup interface describes just the methods required to dispatch lookup requests.
-type Lookup interface {
-	// DispatchLookup submits a single lookup request and returns its result.
-	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error)
-}
-
 // ReachableResourcesStream is an alias for the stream to which reachable resources will be written.
 type ReachableResourcesStream = Stream[*v1.DispatchReachableResourcesResponse]
 
@@ -65,6 +59,18 @@ type ReachableResources interface {
 	DispatchReachableResources(
 		req *v1.DispatchReachableResourcesRequest,
 		stream ReachableResourcesStream,
+	) error
+}
+
+// LookupResourcesStream is an alias for the stream to which found resources will be written.
+type LookupResourcesStream = Stream[*v1.DispatchLookupResourcesResponse]
+
+// LookupResources interface describes just the methods required to dispatch LookupResources requests.
+type LookupResources interface {
+	// DispatchLookupResources submits a single lookup request and returns its result.
+	DispatchLookupResources(
+		req *v1.DispatchLookupResourcesRequest,
+		stream LookupResourcesStream,
 	) error
 }
 

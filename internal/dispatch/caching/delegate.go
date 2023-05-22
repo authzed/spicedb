@@ -28,11 +28,11 @@ func (fd fakeDelegate) DispatchExpand(_ context.Context, _ *v1.DispatchExpandReq
 	return &v1.DispatchExpandResponse{}, spiceerrors.MustBugf(errMessage)
 }
 
-func (fd fakeDelegate) DispatchLookup(_ context.Context, _ *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error) {
-	return &v1.DispatchLookupResponse{}, spiceerrors.MustBugf(errMessage)
+func (fd fakeDelegate) DispatchReachableResources(_ *v1.DispatchReachableResourcesRequest, _ dispatch.ReachableResourcesStream) error {
+	return spiceerrors.MustBugf(errMessage)
 }
 
-func (fd fakeDelegate) DispatchReachableResources(_ *v1.DispatchReachableResourcesRequest, _ dispatch.ReachableResourcesStream) error {
+func (fd fakeDelegate) DispatchLookupResources(_ *v1.DispatchLookupResourcesRequest, _ dispatch.LookupResourcesStream) error {
 	return spiceerrors.MustBugf(errMessage)
 }
 

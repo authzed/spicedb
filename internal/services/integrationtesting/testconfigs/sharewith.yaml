@@ -1,74 +1,74 @@
 ---
 schema: |+
-    definition sharewith/user {}
+  definition user {}
 
-    definition sharewith/resource {
-    	relation manager: sharewith/user | sharewith/usergroup#member | sharewith/usergroup#manager
-    	relation viewer: sharewith/user | sharewith/usergroup#member | sharewith/usergroup#manager
-        permission view = viewer + manager
-    }
+  definition resource {
+  	relation manager: user | usergroup#member | usergroup#manager
+  	relation viewer: user | usergroup#member | usergroup#manager
+      permission view = viewer + manager
+  }
 
-    definition sharewith/usergroup {
-    	relation manager: sharewith/user | sharewith/usergroup#member | sharewith/usergroup#manager
-    	relation direct_member: sharewith/user | sharewith/usergroup#member | sharewith/usergroup#manager
-        permission member = direct_member + manager
-    }
+  definition usergroup {
+  	relation manager: user | usergroup#member | usergroup#manager
+  	relation direct_member: user | usergroup#member | usergroup#manager
+      permission member = direct_member + manager
+  }
 
-    definition sharewith/organization {
-    	relation group: sharewith/usergroup
-    	relation resource: sharewith/resource
-    	relation admin: sharewith/user | sharewith/usergroup#member | sharewith/usergroup#manager
-    	permission member = admin + group->member
-    	permission user = admin + member + resource->view
-    }
+  definition organization {
+  	relation group: usergroup
+  	relation resource: resource
+  	relation admin: user | usergroup#member | usergroup#manager
+  	permission member = admin + group->member
+  	permission user = admin + member + resource->view
+  }
 
 relationships: >-
-    sharewith/usergroup:productname#manager@sharewith/user:an_eng_manager#...
+  usergroup:productname#manager@user:an_eng_manager#...
 
-    sharewith/usergroup:productname#direct_member@sharewith/user:an_engineer#...
+  usergroup:productname#direct_member@user:an_engineer#...
 
-    sharewith/usergroup:applications#manager@sharewith/user:an_eng_director#...
+  usergroup:applications#manager@user:an_eng_director#...
 
-    sharewith/usergroup:engineering#manager@sharewith/user:cto#...
+  usergroup:engineering#manager@user:cto#...
 
-    sharewith/usergroup:csuite#manager@sharewith/user:ceo#...
+  usergroup:csuite#manager@user:ceo#...
 
-    sharewith/usergroup:csuite#direct_member@sharewith/user:cto#...
+  usergroup:csuite#direct_member@user:cto#...
 
-    sharewith/usergroup:engineering#direct_member@sharewith/usergroup:applications#member
+  usergroup:engineering#direct_member@usergroup:applications#member
 
-    sharewith/usergroup:applications#direct_member@sharewith/usergroup:productname#member
+  usergroup:applications#direct_member@usergroup:productname#member
 
-    sharewith/usergroup:engineering#direct_member@sharewith/usergroup:csuite#member
+  usergroup:engineering#direct_member@usergroup:csuite#member
 
-    sharewith/organization:someorg#group@sharewith/usergroup:csuite#...
+  organization:someorg#group@usergroup:csuite#...
 
-    sharewith/organization:someorg#group@sharewith/usergroup:productname#...
+  organization:someorg#group@usergroup:productname#...
 
-    sharewith/organization:someorg#group@sharewith/usergroup:applications#...
+  organization:someorg#group@usergroup:applications#...
 
-    sharewith/organization:someorg#group@sharewith/usergroup:engineering#...
+  organization:someorg#group@usergroup:engineering#...
 
-    sharewith/organization:someorg#resource@sharewith/resource:promserver#...
+  organization:someorg#resource@resource:promserver#...
 
-    sharewith/organization:someorg#resource@sharewith/resource:jira#...
+  organization:someorg#resource@resource:jira#...
 
-    sharewith/organization:someorg#admin@sharewith/usergroup:csuite#member
+  organization:someorg#admin@usergroup:csuite#member
 
-    sharewith/organization:someorg#admin@sharewith/user:it_admin#...
+  organization:someorg#admin@user:it_admin#...
 
-    sharewith/resource:promserver#manager@sharewith/usergroup:productname#member
+  resource:promserver#manager@usergroup:productname#member
 
-    sharewith/resource:promserver#viewer@sharewith/usergroup:engineering#member
+  resource:promserver#viewer@usergroup:engineering#member
 
-    sharewith/resource:jira#viewer@sharewith/usergroup:engineering#member
+  resource:jira#viewer@usergroup:engineering#member
 
-    sharewith/resource:jira#manager@sharewith/usergroup:engineering#manager
+  resource:jira#manager@usergroup:engineering#manager
 
-    sharewith/resource:promserver#viewer@sharewith/user:an_external_user#...
+  resource:promserver#viewer@user:an_external_user#...
 
-    sharewith/usergroup:blackhats#manager@sharewith/user:a_villain#...
+  usergroup:blackhats#manager@user:a_villain#...
 
 assertions:
-    assertTrue: []
-    assertFalse: []
+  assertTrue: []
+  assertFalse: []

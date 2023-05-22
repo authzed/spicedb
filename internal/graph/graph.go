@@ -44,12 +44,6 @@ type ExpandResult struct {
 	Err  error
 }
 
-// LookupResult is the data that is returned by a single lookup or sub-lookup.
-type LookupResult struct {
-	Resp *v1.DispatchLookupResponse
-	Err  error
-}
-
 // ReduceableExpandFunc is a function that can be bound to a execution context.
 type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResult)
 

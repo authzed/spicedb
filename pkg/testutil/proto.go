@@ -67,8 +67,10 @@ func AreProtoSlicesEqual[T proto.Message](expected []T, found []T, sorter SortFu
 		)
 	}
 
-	sort.Sort(sortByFunc[T]{expected, sorter})
-	sort.Sort(sortByFunc[T]{found, sorter})
+	if sorter != nil {
+		sort.Sort(sortByFunc[T]{expected, sorter})
+		sort.Sort(sortByFunc[T]{found, sorter})
+	}
 
 	for index := range expected {
 		err := AreProtoEqual(expected[index], found[index], "%s\n\nFound mismatch for element at index %d", formattedMessage, index)

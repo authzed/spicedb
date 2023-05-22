@@ -32,6 +32,25 @@ message DecodedZedToken {
   }
 }
 
+message DecodedCursor {
+  // we do version_oneof in case we decide to add a new version.
+  oneof version_oneof {
+    V1Cursor v1 = 1;
+  }
+}
+
+message V1Cursor {
+  // revision is the string form of the revision for the cursor.
+  string revision = 1;
+
+  // sections are the sections of the dispatching cursor.
+  repeated string sections = 2;
+
+  // call_and_parameters_hash is a hash of the call that manufactured this cursor and all its
+  // parameters, including limits and zedtoken, to ensure no inputs changed when using this cursor.
+  string call_and_parameters_hash = 3;
+}
+
 message DocComment { string comment = 1; }
 
 message RelationMetadata {

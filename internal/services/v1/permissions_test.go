@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/datastore"
-
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -29,11 +27,13 @@ import (
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	pgraph "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -398,7 +398,7 @@ func TestLookupResources(t *testing.T) {
 		{
 			"document", "view",
 			sub("user", "owner", ""),
-			[]string{"masterplan", "companyplan"},
+			[]string{"masterplan", "companyplan", "ownerplan"},
 			codes.OK,
 		},
 		{
@@ -1402,4 +1402,118 @@ func TestGetCaveatContext(t *testing.T) {
 	caveatMap, err = v1svc.GetCaveatContext(context.Background(), strct, -1)
 	require.NoError(t, err)
 	require.Contains(t, caveatMap, "foo")
+}
+
+func TestLookupResourcesWithCursors(t *testing.T) {
+	testCases := []struct {
+		objectType        string
+		permission        string
+		subject           *v1.SubjectReference
+		expectedObjectIds []string
+	}{
+		{
+			"document", "view",
+			sub("user", "eng_lead", ""),
+			[]string{"masterplan"},
+		},
+		{
+			"document", "view",
+			sub("user", "product_manager", ""),
+			[]string{"masterplan"},
+		},
+		{
+			"document", "view",
+			sub("user", "chief_financial_officer", ""),
+			[]string{"masterplan", "healthplan"},
+		},
+		{
+			"document", "view",
+			sub("user", "auditor", ""),
+			[]string{"masterplan", "companyplan"},
+		},
+		{
+			"document", "view",
+			sub("user", "vp_product", ""),
+			[]string{"masterplan"},
+		},
+		{
+			"document", "view",
+			sub("user", "legal", ""),
+			[]string{"masterplan", "companyplan"},
+		},
+		{
+			"document", "view",
+			sub("user", "owner", ""),
+			[]string{"masterplan", "companyplan", "ownerplan"},
+		},
+	}
+
+	for _, delta := range testTimedeltas {
+		delta := delta
+		t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+			for _, limit := range []int{1, 2, 5, 10, 100} {
+				limit := limit
+				t.Run(fmt.Sprintf("limit%d", limit), func(t *testing.T) {
+					for _, tc := range testCases {
+						tc := tc
+						t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
+							require := require.New(t)
+							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							client := v1.NewPermissionsServiceClient(conn)
+							t.Cleanup(func() {
+								goleak.VerifyNone(t, goleak.IgnoreCurrent())
+							})
+							t.Cleanup(cleanup)
+
+							var currentCursor *v1.Cursor
+							foundObjectIds := util.NewSet[string]()
+
+							for i := 0; i < 5; i++ {
+								var trailer metadata.MD
+								lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+									ResourceObjectType: tc.objectType,
+									Permission:         tc.permission,
+									Subject:            tc.subject,
+									Consistency: &v1.Consistency{
+										Requirement: &v1.Consistency_AtLeastAsFresh{
+											AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+										},
+									},
+									OptionalLimit:  uint32(limit),
+									OptionalCursor: currentCursor,
+								}, grpc.Trailer(&trailer))
+
+								require.NoError(err)
+
+								var locallyResolvedObjectIds []string
+								for {
+									resp, err := lookupClient.Recv()
+									if errors.Is(err, io.EOF) {
+										break
+									}
+
+									require.NoError(err)
+
+									locallyResolvedObjectIds = append(locallyResolvedObjectIds, resp.ResourceObjectId)
+									foundObjectIds.Add(resp.ResourceObjectId)
+									currentCursor = resp.AfterResultCursor
+								}
+
+								require.LessOrEqual(len(locallyResolvedObjectIds), limit)
+								if len(locallyResolvedObjectIds) < limit {
+									break
+								}
+							}
+
+							resolvedObjectIds := foundObjectIds.AsSlice()
+							sort.Strings(tc.expectedObjectIds)
+							sort.Strings(resolvedObjectIds)
+
+							require.Equal(tc.expectedObjectIds, resolvedObjectIds)
+						})
+					}
+				})
+			}
+		})
+	}
 }
