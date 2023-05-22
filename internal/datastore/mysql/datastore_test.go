@@ -94,10 +94,30 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
 }
 
-func TestMySQLDatastore(t *testing.T) {
+func TestMySQL5Datastore(t *testing.T) {
 	b := testdatastore.RunMySQLForTesting(t, "")
 	dst := datastoreTester{b: b, t: t}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+	additionalMySQLTests(t, b)
+}
+
+func TestMySQL8Datastore(t *testing.T) {
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, UseV8: true}, "")
+	dst := datastoreTester{b: b, t: t}
+	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+	additionalMySQLTests(t, b)
+}
+
+func TestMySQL5DatastoreWithTablePrefix(t *testing.T) {
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
+	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
+	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+}
+
+func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
+	reg := prometheus.NewRegistry()
+	prometheus.DefaultGatherer = reg
+	prometheus.DefaultRegisterer = reg
 
 	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest))
 	t.Run("PrometheusCollector", createDatastoreTest(
@@ -114,12 +134,6 @@ func TestMySQLDatastore(t *testing.T) {
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
-}
-
-func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
-	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
-	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
-	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
 
 func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
