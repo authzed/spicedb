@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
+
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 )
 
 const (
@@ -21,8 +23,10 @@ const (
 
 var versionRegex = regexp.MustCompile(`v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?`)
 
-func queryServerVersion(ctx context.Context, db rowQuerier, version *crdbVersion) error {
-	if err := db.QueryRow(ctx, queryVersionJSON).Scan(version); err != nil {
+func queryServerVersion(ctx context.Context, db pgxcommon.DBFuncQuerier, version *crdbVersion) error {
+	if err := db.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(version)
+	}, queryVersionJSON); err != nil {
 		var pgerr *pgconn.PgError
 		if !errors.As(err, &pgerr) || pgerr.Code != errFunctionDoesNotExist {
 			return err
@@ -30,7 +34,9 @@ func queryServerVersion(ctx context.Context, db rowQuerier, version *crdbVersion
 
 		// The crdb_internal.active_version() wasn't added until v22.1.X, try to parse the version
 		var versionStr string
-		if err := db.QueryRow(ctx, queryVersion).Scan(&versionStr); err != nil {
+		if err := db.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+			return row.Scan(&versionStr)
+		}, queryVersion); err != nil {
 			return err
 		}
 
@@ -72,8 +78,4 @@ type crdbVersion struct {
 
 func (v crdbVersion) MarshalZerologObject(e *zerolog.Event) {
 	e.Int("major", v.Major).Int("minor", v.Minor).Int("patch", v.Patch)
-}
-
-type rowQuerier interface {
-	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
 }

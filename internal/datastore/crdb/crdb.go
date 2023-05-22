@@ -11,14 +11,17 @@ import (
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -87,15 +90,20 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
-	initCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	initCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	readPool, err := pgxpool.NewWithConfig(initCtx, readPoolConfig)
+	healthChecker, err := pool.NewNodeHealthChecker(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	writePool, err := pgxpool.NewWithConfig(initCtx, writePoolConfig)
+	writePool, err := pool.NewRetryPool(initCtx, "write", writePoolConfig.Copy(), healthChecker, config.maxRetries, config.connectRate)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	readPool, err := pool.NewRetryPool(initCtx, "read", readPoolConfig.Copy(), healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
@@ -112,19 +120,17 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 
 	if config.enablePrometheusStats {
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
-			"db_name":    "spicedb",
-			"pool_usage": "read",
-		})); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
 		if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
 			"db_name":    "spicedb",
 			"pool_usage": "write",
 		})); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
-		if err := common.RegisterGCMetrics(); err != nil {
+
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "read",
+		})); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 	}
@@ -165,25 +171,48 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
 	ds := &crdbDatastore{
-		revisions.NewRemoteClockRevisions(
+		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			config.gcWindow,
 			maxRevisionStaleness,
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		revision.DecimalDecoder{},
-		url,
-		readPool,
-		writePool,
-		config.watchBufferLength,
-		keyer,
-		config.splitAtUsersetCount,
-		executeWithMaxRetries(config.maxRetries),
-		config.disableStats,
-		changefeedQuery,
+		DecimalDecoder:       revision.DecimalDecoder{},
+		dburl:                url,
+		readPool:             readPool,
+		writePool:            writePool,
+		watchBufferLength:    config.watchBufferLength,
+		writeOverlapKeyer:    keyer,
+		usersetBatchSize:     config.splitAtUsersetCount,
+		disableStats:         config.disableStats,
+		beginChangefeedQuery: changefeedQuery,
 	}
 
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
+
+	// TODO: this (and the GC startup that it's based on for mysql/pg) should
+	// be removed and have the lifetimes tied to server start/stop.
+
+	// Start goroutines for pruning
+	if config.enableConnectionBalancing {
+		log.Ctx(initCtx).Info().Msg("starting cockroach connection balancer")
+		ds.pruneCtx, ds.cancelPrune = context.WithCancel(context.Background())
+		ds.pruneGroup, ds.pruneCtx = errgroup.WithContext(ds.pruneCtx)
+		writePoolBalancer := pool.NewNodeConnectionBalancer(ds.writePool, healthChecker, 5*time.Second)
+		readPoolBalancer := pool.NewNodeConnectionBalancer(ds.readPool, healthChecker, 5*time.Second)
+		ds.pruneGroup.Go(func() error {
+			writePoolBalancer.Prune(ds.pruneCtx)
+			return nil
+		})
+		ds.pruneGroup.Go(func() error {
+			readPoolBalancer.Prune(ds.pruneCtx)
+			return nil
+		})
+		ds.pruneGroup.Go(func() error {
+			healthChecker.Poll(ds.pruneCtx, 5*time.Second)
+			return nil
+		})
+	}
 
 	return ds, nil
 }
@@ -203,23 +232,22 @@ type crdbDatastore struct {
 	revision.DecimalDecoder
 
 	dburl               string
-	readPool, writePool *pgxpool.Pool
+	readPool, writePool *pool.RetryPool
 	watchBufferLength   uint16
 	writeOverlapKeyer   overlapKeyer
 	usersetBatchSize    uint16
-	execute             executeTxRetryFunc
 	disableStats        bool
 
 	beginChangefeedQuery string
+
+	pruneGroup  *errgroup.Group
+	pruneCtx    context.Context
+	cancelPrune context.CancelFunc
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	useImplicitTxFunc := func(ctx context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-		return cds.readPool, func(context.Context) {}, nil
-	}
-
 	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(useImplicitTxFunc),
+		Executor:         pgxcommon.NewPGXExecutor(cds.readPool),
 		UsersetBatchSize: cds.usersetBatchSize,
 	}
 
@@ -227,10 +255,8 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		return query.From(fromStr + " AS OF SYSTEM TIME " + rev.String())
 	}
 
-	return &crdbReader{useImplicitTxFunc, querySplitter, noOverlapKeyer, nil, cds.execute, fromBuilder}
+	return &crdbReader{cds.readPool, querySplitter, noOverlapKeyer, nil, fromBuilder}
 }
-
-func noCleanup(context.Context) {}
 
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
@@ -238,62 +264,63 @@ func (cds *crdbDatastore) ReadWriteTx(
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	var commitTimestamp revision.Decimal
-	if err := cds.execute(ctx, func(ctx context.Context) error {
-		return pgx.BeginFunc(ctx, cds.writePool, func(tx pgx.Tx) error {
-			longLivedTx := func(context.Context) (pgxcommon.DBReader, common.TxCleanupFunc, error) {
-				return tx, noCleanup, nil
-			}
 
-			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(longLivedTx),
-				UsersetBatchSize: cds.usersetBatchSize,
-			}
+	config := options.NewRWTOptionsWithOptions(opts...)
+	if config.DisableRetries {
+		ctx = context.WithValue(ctx, pool.CtxDisableRetries, true)
+	}
 
-			rwt := &crdbReadWriteTXN{
-				&crdbReader{
-					longLivedTx,
-					querySplitter,
-					cds.writeOverlapKeyer,
-					make(keySet),
-					executeOnce,
-					func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
-						return query.From(fromStr)
-					},
+	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
+		querier := pgxcommon.QuerierFuncsFor(tx)
+		querySplitter := common.TupleQuerySplitter{
+			Executor:         pgxcommon.NewPGXExecutor(querier),
+			UsersetBatchSize: cds.usersetBatchSize,
+		}
+
+		rwt := &crdbReadWriteTXN{
+			&crdbReader{
+				querier,
+				querySplitter,
+				cds.writeOverlapKeyer,
+				make(keySet),
+				func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
+					return query.From(fromStr)
 				},
-				tx,
-				0,
-			}
+			},
+			tx,
+			0,
+		}
 
-			if err := f(rwt); err != nil {
-				return err
-			}
+		if err := f(rwt); err != nil {
+			return err
+		}
 
-			// Touching the transaction key happens last so that the "write intent" for
-			// the transaction as a whole lands in a range for the affected tuples.
-			for k := range rwt.overlapKeySet {
-				if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
-					return fmt.Errorf("error writing overlapping keys: %w", err)
-				}
+		// Touching the transaction key happens last so that the "write intent" for
+		// the transaction as a whole lands in a range for the affected tuples.
+		for k := range rwt.overlapKeySet {
+			if _, err := tx.Exec(ctx, queryTouchTransaction, k); err != nil {
+				return fmt.Errorf("error writing overlapping keys: %w", err)
 			}
+		}
 
-			if cds.disableStats {
-				var err error
-				commitTimestamp, err = readCRDBNow(ctx, tx)
-				if err != nil {
-					return fmt.Errorf("error getting commit timestamp: %w", err)
-				}
-				return nil
-			}
-
+		if cds.disableStats {
 			var err error
-			commitTimestamp, err = updateCounter(ctx, tx, rwt.relCountChange)
+			commitTimestamp, err = readCRDBNow(ctx, querier)
 			if err != nil {
-				return fmt.Errorf("error updating relationship counter: %w", err)
+				return fmt.Errorf("error getting commit timestamp: %w", err)
 			}
-
 			return nil
-		})
-	}, opts...); err != nil {
+		}
+
+		var err error
+		commitTimestamp, err = updateCounter(ctx, tx, rwt.relCountChange)
+		if err != nil {
+			return fmt.Errorf("error updating relationship counter: %w", err)
+		}
+
+		return nil
+	})
+	if err != nil {
 		return datastore.NoRevision, err
 	}
 
@@ -303,7 +330,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	headMigration, err := migrations.CRDBMigrations.HeadRevision()
 	if err != nil {
-		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for postgres: %w", err)
+		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for cockroach: %w", err)
 	}
 
 	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
@@ -317,21 +344,46 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return datastore.ReadyState{}, err
 	}
 
-	if version == headMigration {
-		return datastore.ReadyState{IsReady: true}, nil
+	if version != headMigration {
+		return datastore.ReadyState{
+			Message: fmt.Sprintf(
+				"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
+				version,
+				headMigration,
+			),
+			IsReady: false,
+		}, nil
 	}
 
-	return datastore.ReadyState{
-		Message: fmt.Sprintf(
-			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
-			version,
-			headMigration,
-		),
-		IsReady: false,
-	}, nil
+	// Wait for either minconns or maxconns/2 connections to be available,
+	// whichever is smaller.
+	writeMin := cds.writePool.MinConns()
+	if halfMax := cds.writePool.MaxConns() / 2; halfMax < writeMin {
+		writeMin = halfMax
+	}
+	readMin := cds.readPool.MinConns()
+	if halfMax := cds.readPool.MaxConns() / 2; halfMax < readMin {
+		readMin = halfMax
+	}
+	writeTotal := uint32(cds.writePool.Stat().TotalConns())
+	readTotal := uint32(cds.readPool.Stat().TotalConns())
+	if writeTotal < writeMin || readTotal < readMin {
+		return datastore.ReadyState{
+			Message: fmt.Sprintf(
+				"spicedb does have the required minimum connection count to the datastore. Read: %d/%d, Write: %d/%d",
+				writeTotal,
+				readMin,
+				readTotal,
+				writeMin,
+			),
+			IsReady: false,
+		}, nil
+	}
+	return datastore.ReadyState{IsReady: true}, nil
 }
 
 func (cds *crdbDatastore) Close() error {
+	cds.cancelPrune()
 	cds.readPool.Close()
 	cds.writePool.Close()
 	return nil
@@ -343,19 +395,14 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 
 func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
 	var hlcNow revision.Decimal
-	err := cds.execute(ctx, func(ctx context.Context) error {
-		return pgx.BeginTxFunc(ctx, cds.readPool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-			var fnErr error
-			hlcNow, fnErr = readCRDBNow(ctx, tx)
-			if fnErr != nil {
-				hlcNow = revision.NoRevision
-				return fmt.Errorf(errRevision, fnErr)
-			}
-			return nil
-		})
-	})
 
-	return hlcNow, err
+	var fnErr error
+	hlcNow, fnErr = readCRDBNow(ctx, cds.readPool)
+	if fnErr != nil {
+		return revision.NoRevision, fmt.Errorf(errRevision, fnErr)
+	}
+
+	return hlcNow, fnErr
 }
 
 func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
@@ -371,36 +418,43 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	time.AfterFunc(1*time.Second, cancel)
-	_, err = cds.writePool.Exec(streamCtx, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head))
-	if err != nil && errors.Is(err, context.Canceled) {
-		features.Watch.Enabled = true
-		features.Watch.Reason = ""
-	} else if err != nil {
-		features.Watch.Enabled = false
-		features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
-	}
+
+	_ = cds.writePool.ExecFunc(streamCtx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
+		if err != nil && errors.Is(err, context.Canceled) {
+			features.Watch.Enabled = true
+			features.Watch.Reason = ""
+		} else if err != nil {
+			features.Watch.Enabled = false
+			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
+		}
+		return nil
+	}, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head))
+
 	<-streamCtx.Done()
 
 	return &features, nil
 }
 
-func readCRDBNow(ctx context.Context, tx pgx.Tx) (revision.Decimal, error) {
+func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.Decimal, error) {
 	ctx, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
 	var hlcNow decimal.Decimal
-	if err := tx.QueryRow(ctx, querySelectNow).Scan(&hlcNow); err != nil {
+	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hlcNow)
+	}, querySelectNow); err != nil {
 		return revision.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 
 	return revision.NewFromDecimal(hlcNow), nil
 }
 
-func readClusterTTLNanos(ctx context.Context, conn *pgxpool.Pool) (int64, error) {
+func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
 	var target, configSQL string
-	if err := conn.
-		QueryRow(ctx, queryShowZoneConfig).
-		Scan(&target, &configSQL); err != nil {
+
+	if err := conn.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&target, &configSQL)
+	}, queryShowZoneConfig); err != nil {
 		return 0, err
 	}
 

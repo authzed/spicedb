@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -15,7 +16,7 @@ import (
 )
 
 type pgReader struct {
-	txSource      pgxcommon.TxFactory
+	query         pgxcommon.DBFuncQuerier
 	querySplitter common.TupleQuerySplitter
 	filterer      queryFilterer
 }
@@ -96,13 +97,7 @@ func (r *pgReader) ReverseQueryRelationships(
 }
 
 func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
-	}
-	defer txCleanup(ctx)
-
-	loaded, version, err := r.loadNamespace(ctx, nsName, tx, r.filterer)
+	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.filterer)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -113,7 +108,7 @@ func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*cor
 	}
 }
 
-func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBReader, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
+func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBFuncQuerier, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -132,13 +127,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 }
 
 func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer txCleanup(ctx)
-
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, r.filterer)
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.filterer)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -151,18 +140,12 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 		return nil, nil
 	}
 
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer txCleanup(ctx)
-
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, func(original sq.SelectBuilder) sq.SelectBuilder {
 		return r.filterer(original).Where(clause)
 	})
 	if err != nil {
@@ -174,7 +157,7 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 
 func loadAllNamespaces(
 	ctx context.Context,
-	tx pgxcommon.DBReader,
+	tx pgxcommon.DBFuncQuerier,
 	filterer queryFilterer,
 ) ([]datastore.RevisionedNamespace, error) {
 	sql, args, err := filterer(readNamespace).ToSql()
@@ -182,32 +165,29 @@ func loadAllNamespaces(
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, sql, args...)
+	var nsDefs []datastore.RevisionedNamespace
+	err = tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var config []byte
+			var version xid8
+
+			if err := rows.Scan(&config, &version); err != nil {
+				return err
+			}
+
+			loaded := &core.NamespaceDefinition{}
+			if err := loaded.UnmarshalVT(config); err != nil {
+				return fmt.Errorf(errUnableToReadConfig, err)
+			}
+
+			revision := revisionForVersion(version)
+
+			nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
+		}
+		return rows.Err()
+	}, sql, args...)
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	var nsDefs []datastore.RevisionedNamespace
-	for rows.Next() {
-		var config []byte
-		var version xid8
-
-		if err := rows.Scan(&config, &version); err != nil {
-			return nil, err
-		}
-
-		loaded := &core.NamespaceDefinition{}
-		if err := loaded.UnmarshalVT(config); err != nil {
-			return nil, fmt.Errorf(errUnableToReadConfig, err)
-		}
-
-		revision := revisionForVersion(version)
-
-		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
-	}
-	if rows.Err() != nil {
-		return nil, rows.Err()
 	}
 
 	return nsDefs, nil

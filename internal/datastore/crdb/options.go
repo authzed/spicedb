@@ -9,6 +9,7 @@ import (
 
 type crdbOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
+	connectRate                 time.Duration
 
 	watchBufferLength           uint16
 	revisionQuantization        time.Duration
@@ -20,6 +21,7 @@ type crdbOptions struct {
 	overlapStrategy             string
 	overlapKey                  string
 	disableStats                bool
+	enableConnectionBalancing   bool
 
 	enablePrometheusStats bool
 }
@@ -41,7 +43,9 @@ const (
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
 
-	defaultEnablePrometheusStats = false
+	defaultEnablePrometheusStats     = false
+	defaultEnableConnectionBalancing = true
+	defaultConnectRate               = 1 * time.Second
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -61,6 +65,8 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		overlapStrategy:             defaultOverlapStrategy,
 		disableStats:                false,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		enableConnectionBalancing:   defaultEnableConnectionBalancing,
+		connectRate:                 defaultConnectRate,
 	}
 
 	for _, option := range options {
@@ -253,6 +259,13 @@ func GCWindow(window time.Duration) Option {
 	return func(po *crdbOptions) { po.gcWindow = window }
 }
 
+// ConnectRate is the rate at which new datastore connections can be made.
+//
+// This is a duration, the rate is 1/period.
+func ConnectRate(rate time.Duration) Option {
+	return func(po *crdbOptions) { po.connectRate = rate }
+}
+
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
 // Default: 5
@@ -283,4 +296,12 @@ func DisableStats(disable bool) Option {
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(po *crdbOptions) { po.enablePrometheusStats = enablePrometheusStats }
+}
+
+// WithEnableConnectionBalancing marks whether Prometheus metrics provided by the Postgres
+// clients being used by the datastore are enabled.
+//
+// Prometheus metrics are disabled by default.
+func WithEnableConnectionBalancing(connectionBalancing bool) Option {
+	return func(po *crdbOptions) { po.enableConnectionBalancing = connectionBalancing }
 }

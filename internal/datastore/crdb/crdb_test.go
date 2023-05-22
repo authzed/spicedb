@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
+	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
@@ -36,7 +37,7 @@ import (
 // Implement the TestableDatastore interface
 func (cds *crdbDatastore) ExampleRetryableError() error {
 	return &pgconn.PgError{
-		Code: crdbRetryErrCode,
+		Code: pool.CrdbRetryErrCode,
 	}
 }
 

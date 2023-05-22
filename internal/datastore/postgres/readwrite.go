@@ -357,8 +357,9 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
+	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
 	for _, nsName := range nsNames {
-		_, _, err := rwt.loadNamespace(ctx, nsName, rwt.tx, filterer)
+		_, _, err := rwt.loadNamespace(ctx, nsName, querier, filterer)
 		switch {
 		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 			return err

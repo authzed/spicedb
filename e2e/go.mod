@@ -5,10 +5,10 @@ go 1.19
 require (
 	github.com/authzed/authzed-go v0.8.1-0.20230511215435-5ca552307f34
 	github.com/authzed/grpcutil v0.0.0-20220104222419-f813f77722e5
-	github.com/authzed/spicedb v1.5.0
+	github.com/authzed/spicedb v1.21.0
 	github.com/brianvoe/gofakeit/v6 v6.15.0
 	github.com/ecordell/optgen v0.0.9
-	github.com/jackc/pgx/v5 v5.3.1
+	github.com/jackc/pgx/v5 v5.3.2-0.20230516120255-eab316e200b1
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/tools v0.9.1
 	google.golang.org/grpc v1.54.0

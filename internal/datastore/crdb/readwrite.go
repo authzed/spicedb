@@ -255,12 +255,13 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 }
 
 func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
 	// For each namespace, check they exist and collect predicates for the
 	// "WHERE" clause to delete the namespaces and associated tuples.
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	for _, nsName := range nsNames {
-		_, timestamp, err := rwt.loadNamespace(ctx, rwt.tx, nsName)
+		_, timestamp, err := rwt.loadNamespace(ctx, querier, nsName)
 		if err != nil {
 			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 				return err

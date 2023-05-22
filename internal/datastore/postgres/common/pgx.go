@@ -23,63 +23,57 @@ import (
 const errUnableToQueryTuples = "unable to query tuples: %w"
 
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(txSource TxFactory) common.ExecuteQueryFunc {
+func NewPGXExecutor(querier DBFuncQuerier) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
 		span := trace.SpanFromContext(ctx)
-
-		tx, txCleanup, err := txSource(ctx)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
-		}
-		defer txCleanup(ctx)
-		return queryTuples(ctx, sql, args, span, tx)
+		return queryTuples(ctx, sql, args, span, querier)
 	}
 }
 
 // queryTuples queries tuples for the given query and transaction.
-func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBReader) ([]*corev1.RelationTuple, error) {
-	span.AddEvent("DB transaction established")
-	rows, err := tx.Query(ctx, sqlStatement, args...)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
-	}
-	defer rows.Close()
-
-	span.AddEvent("Query issued to database")
-
+func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBFuncQuerier) ([]*corev1.RelationTuple, error) {
 	var tuples []*corev1.RelationTuple
-	for rows.Next() {
-		nextTuple := &corev1.RelationTuple{
-			ResourceAndRelation: &corev1.ObjectAndRelation{},
-			Subject:             &corev1.ObjectAndRelation{},
+	err := tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		span.AddEvent("Query issued to database")
+
+		for rows.Next() {
+			nextTuple := &corev1.RelationTuple{
+				ResourceAndRelation: &corev1.ObjectAndRelation{},
+				Subject:             &corev1.ObjectAndRelation{},
+			}
+			var caveatName sql.NullString
+			var caveatCtx map[string]any
+			err := rows.Scan(
+				&nextTuple.ResourceAndRelation.Namespace,
+				&nextTuple.ResourceAndRelation.ObjectId,
+				&nextTuple.ResourceAndRelation.Relation,
+				&nextTuple.Subject.Namespace,
+				&nextTuple.Subject.ObjectId,
+				&nextTuple.Subject.Relation,
+				&caveatName,
+				&caveatCtx,
+			)
+			if err != nil {
+				return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
+			}
+
+			nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
+			if err != nil {
+				return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("unable to fetch caveat context: %w", err))
+			}
+			tuples = append(tuples, nextTuple)
 		}
-		var caveatName sql.NullString
-		var caveatCtx map[string]any
-		err := rows.Scan(
-			&nextTuple.ResourceAndRelation.Namespace,
-			&nextTuple.ResourceAndRelation.ObjectId,
-			&nextTuple.ResourceAndRelation.Relation,
-			&nextTuple.Subject.Namespace,
-			&nextTuple.Subject.ObjectId,
-			&nextTuple.Subject.Relation,
-			&caveatName,
-			&caveatCtx,
-		)
-		if err != nil {
-			return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("rows err: %w", err))
 		}
 
-		nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
-		if err != nil {
-			return nil, fmt.Errorf("unable to fetch caveat context: %w", err)
-		}
-		tuples = append(tuples, nextTuple)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf(errUnableToQueryTuples, err)
+		span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
+		return nil
+	}, sqlStatement, args...)
+	if err != nil {
+		return nil, err
 	}
 
-	span.AddEvent("Tuples loaded", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 	return tuples, nil
 }
 
@@ -114,16 +108,12 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 	connConfig.Tracer = &tracelog.TraceLog{Logger: levelMappingFn(l), LogLevel: tracelog.LogLevelInfo}
 }
 
-// DBReader copies enough of the common interface between pgxpool and tx to be useful
-type DBReader interface {
-	Exec(ctx context.Context, sql string, arguments ...interface{}) (commandTag pgconn.CommandTag, err error)
-	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+// DBFuncQuerier is satisfied by RetryPool and QuerierFuncs (which can wrap a pgxpool or transaction)
+type DBFuncQuerier interface {
+	ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error
+	QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error
+	QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error
 }
-
-// TxFactory returns a transaction, cleanup function, and any errors that may have
-// occurred when building the transaction.
-type TxFactory func(context.Context) (DBReader, common.TxCleanupFunc, error)
 
 // PoolOptions is the set of configuration used for a pgx connection pool.
 type PoolOptions struct {
@@ -169,4 +159,30 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
 	}
 
 	ConfigurePGXLogger(pgxConfig.ConnConfig)
+}
+
+type QuerierFuncs struct {
+	d Querier
+}
+
+func (t *QuerierFuncs) ExecFunc(ctx context.Context, tagFunc func(ctx context.Context, tag pgconn.CommandTag, err error) error, sql string, arguments ...any) error {
+	tag, err := t.d.Exec(ctx, sql, arguments...)
+	return tagFunc(ctx, tag, err)
+}
+
+func (t *QuerierFuncs) QueryFunc(ctx context.Context, rowsFunc func(ctx context.Context, rows pgx.Rows) error, sql string, optionsAndArgs ...any) error {
+	rows, err := t.d.Query(ctx, sql, optionsAndArgs...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	return rowsFunc(ctx, rows)
+}
+
+func (t *QuerierFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx context.Context, row pgx.Row) error, sql string, optionsAndArgs ...any) error {
+	return rowFunc(ctx, t.d.QueryRow(ctx, sql, optionsAndArgs...))
+}
+
+func QuerierFuncsFor(d Querier) DBFuncQuerier {
+	return &QuerierFuncs{d: d}
 }
