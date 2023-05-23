@@ -72,6 +72,9 @@ If you have already authored a commit that is missing the signed-off, you can am
 
 ## Common tasks
 
+We use [mage](https://magefile.org/#installation) to run common tasks in the project.
+Mage can be installed system-wide, or can be run with no installation with `go run mage.go`
+
 ### Testing
 
 In order to build and test the project, the [latest stable version of Go] and knowledge of a [working Go environment] are required.
@@ -80,14 +83,28 @@ In order to build and test the project, the [latest stable version of Go] and kn
 [working Go environment]: https://golang.org/doc/code.html
 
 ```sh
-go test -v ./...
+mage test:unit
 ```
 
 To run integration tests (for example when testing datastores):
 
 ```sh
-go test -v --failfast --tags 'ci,docker' -count=1 ./...
+mage test:integration
 ```
+
+Run `mage` or `mage -l` for a full list of test suites.
+
+### Linting
+
+SpiceDB uses several linters to maintain code and docs quality.
+
+Run them with:
+
+```sh
+mage lint:all
+```
+
+See `mage -l` to run specific linters.
 
 ### Adding dependencies
 
@@ -101,17 +118,17 @@ go get github.com/org/newdependency@version
 
 Continuous integration enforces that `go mod tidy` has been run.
 
+`mage deps:tidy` can be used to tidy all go modules in the project at once.
+
 ### Updating generated Protobuf code
 
 All [Protobuf] code is managed using [buf].
-The [shebang] at the top of `buf.gen.yaml` contains the [Buf Registry ref] that will be generated.
-You can regenerate the code by executing `buf.gen.yaml`:
+
+To regenerate the protos:
+
+```sh
+mage gen:proto
+```
 
 [Protobuf]: https://developers.google.com/protocol-buffers/
 [buf]: https://docs.buf.build/installation
-[shebang]: https://en.wikipedia.org/wiki/Shebang_(Unix)
-[Buf Registry ref]: https://buf.build/authzed/api/history
-
-```sh
-./buf.gen.yaml
-```
