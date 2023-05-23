@@ -17,9 +17,10 @@ const (
 	// ByResource sorts the relationships by the resource component first
 	ByResource
 
-	// NOTE: if you are intending to implement BySubject, it was fully implemented
-	// but not performance tested, and the code can be recovered from source control
-	// BySubject
+	// BySubject sorts the relationships by the subject component first. Note that
+	// BySubject might be quite a bit slower than ByResource, as relationships are
+	// indexed by resource.
+	BySubject
 )
 
 type Cursor *core.RelationTuple

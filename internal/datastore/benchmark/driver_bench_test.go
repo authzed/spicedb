@@ -54,6 +54,11 @@ var skipped = []string{
 	spanner.Engine, // Not useful to benchmark a simulator
 }
 
+var sortOrders = map[string]options.SortOrder{
+	"ByResource": options.ByResource,
+	"BySubject":  options.BySubject,
+}
+
 func BenchmarkDatastoreDriver(b *testing.B) {
 	for _, driver := range drivers {
 		b.Run(driver.name+driver.suffix, func(b *testing.B) {
@@ -114,49 +119,64 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 					}
 				})
 				b.Run("SortedSnapshotReadOnlyNamespace", func(b *testing.B) {
-					for n := 0; n < b.N; n++ {
-						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-							ResourceType: testfixtures.DocumentNS.Name,
-						}, options.WithSort(options.ByResource))
-						require.NoError(b, err)
-						var count int
-						for rel := iter.Next(); rel != nil; rel = iter.Next() {
-							count++
-						}
-						require.NoError(b, iter.Err())
-						iter.Close()
+					for orderName, order := range sortOrders {
+						order := order
+						b.Run(orderName, func(b *testing.B) {
+							for n := 0; n < b.N; n++ {
+								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+									ResourceType: testfixtures.DocumentNS.Name,
+								}, options.WithSort(order))
+								require.NoError(b, err)
+								var count int
+								for rel := iter.Next(); rel != nil; rel = iter.Next() {
+									count++
+								}
+								require.NoError(b, iter.Err())
+								iter.Close()
+							}
+						})
 					}
 				})
 				b.Run("SortedSnapshotReadWithRelation", func(b *testing.B) {
-					for n := 0; n < b.N; n++ {
-						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-							ResourceType:             testfixtures.DocumentNS.Name,
-							OptionalResourceRelation: "viewer",
-						}, options.WithSort(options.ByResource))
-						require.NoError(b, err)
-						var count int
-						for rel := iter.Next(); rel != nil; rel = iter.Next() {
-							count++
-						}
-						require.NoError(b, iter.Err())
-						iter.Close()
+					for orderName, order := range sortOrders {
+						order := order
+						b.Run(orderName, func(b *testing.B) {
+							for n := 0; n < b.N; n++ {
+								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+									ResourceType:             testfixtures.DocumentNS.Name,
+									OptionalResourceRelation: "viewer",
+								}, options.WithSort(order))
+								require.NoError(b, err)
+								var count int
+								for rel := iter.Next(); rel != nil; rel = iter.Next() {
+									count++
+								}
+								require.NoError(b, iter.Err())
+								iter.Close()
+							}
+						})
 					}
 				})
 				b.Run("SortedSnapshotReadAllResourceFields", func(b *testing.B) {
-					for n := 0; n < b.N; n++ {
-						randDocNum := rand.Intn(numDocuments)
-						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-							ResourceType:             testfixtures.DocumentNS.Name,
-							OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
-							OptionalResourceRelation: "viewer",
-						}, options.WithSort(options.ByResource))
-						require.NoError(b, err)
-						var count int
-						for rel := iter.Next(); rel != nil; rel = iter.Next() {
-							count++
-						}
-						require.NoError(b, iter.Err())
-						iter.Close()
+					for orderName, order := range sortOrders {
+						order := order
+						b.Run(orderName, func(b *testing.B) {
+							for n := 0; n < b.N; n++ {
+								randDocNum := rand.Intn(numDocuments)
+								iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+									ResourceType:             testfixtures.DocumentNS.Name,
+									OptionalResourceIds:      []string{strconv.Itoa(randDocNum)},
+									OptionalResourceRelation: "viewer",
+								}, options.WithSort(order))
+								require.NoError(b, err)
+								var count int
+								for rel := iter.Next(); rel != nil; rel = iter.Next() {
+									count++
+								}
+								require.NoError(b, iter.Err())
+								iter.Close()
+							}
+						})
 					}
 				})
 				b.Run("SnapshotReverseRead", func(b *testing.B) {

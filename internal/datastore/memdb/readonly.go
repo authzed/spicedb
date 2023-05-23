@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sort"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -61,8 +65,20 @@ func (r *memdbReader) QueryRelationships(
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
 
-	iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit, queryOpts.Sort)
-	return iter, nil
+	switch queryOpts.Sort {
+	case options.Unsorted:
+		fallthrough
+
+	case options.ByResource:
+		iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit, queryOpts.Sort)
+		return iter, nil
+
+	case options.BySubject:
+		return newSubjectSortedIterator(filteredIterator, queryOpts.Limit)
+
+	default:
+		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.Sort)
+	}
 }
 
 func mustHaveBeenClosed(iter *memdbTupleIterator) {
@@ -350,9 +366,48 @@ func makeCursorFilterFn(after *core.RelationTuple, order options.SortOrder) func
 						(less(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) ||
 							eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject)))
 			}
+		case options.BySubject:
+			return func(tpl *relationship) bool {
+				return less(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) ||
+					(eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) &&
+						(less(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation) ||
+							eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject)))
+			}
 		}
 	}
 	return noopCursorFilter
+}
+
+func newSubjectSortedIterator(it memdb.ResultIterator, limit *uint64) (datastore.RelationshipIterator, error) {
+	results := make([]*core.RelationTuple, 0)
+
+	// Coalesce all of the results into memory
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		rt, err := foundRaw.(*relationship).RelationTuple()
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, rt)
+	}
+
+	// Sort them by subject
+	sort.Slice(results, func(i, j int) bool {
+		lhsRes := results[i].ResourceAndRelation
+		lhsSub := results[i].Subject
+		rhsRes := results[j].ResourceAndRelation
+		rhsSub := results[j].Subject
+		return less(lhsSub.Namespace, lhsSub.ObjectId, lhsSub.Relation, rhsSub) ||
+			(eq(lhsSub.Namespace, lhsSub.ObjectId, lhsSub.Relation, rhsSub) &&
+				(less(lhsRes.Namespace, lhsRes.ObjectId, lhsRes.Relation, rhsRes)))
+	})
+
+	// Limit them if requested
+	if limit != nil && uint64(len(results)) > *limit {
+		results = results[0:*limit]
+	}
+
+	return common.NewSliceRelationshipIterator(results, options.BySubject), nil
 }
 
 func noopCursorFilter(_ *relationship) bool {
