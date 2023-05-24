@@ -29,7 +29,7 @@ type ServiceTester interface {
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
 	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
-	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
+	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any, cursor *v1.Cursor, limit uint32) (map[string]*v1.LookupSubjectsResponse, *v1.Cursor, error)
 	// NOTE: ExperimentalService/BulkCheckPermission has been promoted to PermissionsService/CheckBulkPermissions
 	BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error)
 	CheckBulk(ctx context.Context, items []*v1.CheckBulkPermissionsRequestItem, atRevision datastore.Revision) ([]*v1.CheckBulkPermissionsPair, error)
@@ -194,12 +194,12 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 	return found, lastCursor, nil
 }
 
-func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
+func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any, cursor *v1.Cursor, limit uint32) (map[string]*v1.LookupSubjectsResponse, *v1.Cursor, error) {
 	var builtContext *structpb.Struct
 	if caveatContext != nil {
 		built, err := structpb.NewStruct(caveatContext)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		builtContext = built
 	}
@@ -217,13 +217,16 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.Obj
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
-		Context: builtContext,
+		Context:               builtContext,
+		OptionalCursor:        cursor,
+		OptionalConcreteLimit: limit,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	found := map[string]*v1.LookupSubjectsResponse{}
+	var lastCursor *v1.Cursor
 	for {
 		resp, err := lookupResp.Recv()
 		if errors.Is(err, io.EOF) {
@@ -231,12 +234,13 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.Obj
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		found[resp.Subject.SubjectObjectId] = resp
+		lastCursor = resp.AfterResultCursor
 	}
-	return found, nil
+	return found, lastCursor, nil
 }
 
 func (v1st v1ServiceTester) BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error) {

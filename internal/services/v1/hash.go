@@ -66,6 +66,17 @@ func computeLRRequestHash(req *v1.LookupResourcesRequest) (string, error) {
 	})
 }
 
+func computeLSRequestHash(req *v1.LookupSubjectsRequest) (string, error) {
+	return computeCallHash("v1.lookupsubjects", req.Consistency, map[string]any{
+		"subject-type":    req.SubjectObjectType,
+		"permission":      req.Permission,
+		"resource":        tuple.StringObjectRef(req.Resource),
+		"limit":           req.OptionalConcreteLimit,
+		"context":         req.Context,
+		"wildcard-option": int(req.WildcardOption),
+	})
+}
+
 func computeCallHash(apiName string, consistency *v1.Consistency, arguments map[string]any) (string, error) {
 	stringArguments := make(map[string]string, len(arguments)+1)
 

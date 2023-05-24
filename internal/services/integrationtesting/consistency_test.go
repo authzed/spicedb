@@ -181,6 +181,7 @@ func testForEachResource(
 ) {
 	t.Helper()
 
+	encountered := mapz.NewSet[string]()
 	for _, resourceType := range vctx.clusterAndData.Populated.NamespaceDefinitions {
 		resources, ok := vctx.accessibilitySet.ResourcesByNamespace.Get(resourceType.Name)
 		if !ok {
@@ -192,13 +193,19 @@ func testForEachResource(
 			relation := relation
 			for _, resource := range resources {
 				resource := resource
+				onr := &core.ObjectAndRelation{
+					Namespace: resourceType.Name,
+					ObjectId:  resource.ObjectId,
+					Relation:  relation.Name,
+				}
+				key := tuple.StringONR(onr)
+				if !encountered.Add(key) {
+					continue
+				}
+
 				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectId, relation.Name),
 					func(t *testing.T) {
-						handler(t, &core.ObjectAndRelation{
-							Namespace: resourceType.Name,
-							ObjectId:  resource.ObjectId,
-							Relation:  relation.Name,
-						})
+						handler(t, onr)
 					})
 			}
 		}
@@ -368,7 +375,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 								require.NoError(t, err)
 
 								if pageSize > 0 {
-									require.LessOrEqual(t, len(foundResources), int(pageSize))
+									require.LessOrEqual(t, len(foundResources), int(pageSize)+1) // +1 for the wildcard
 								}
 
 								currentCursor = lastCursor
@@ -460,152 +467,176 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 				subjectType := subjectType
 				t.Run(fmt.Sprintf("%s#%s", subjectType.Namespace, subjectType.Relation),
 					func(t *testing.T) {
-						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, nil)
-						require.NoError(t, err)
+						for _, pageSize := range []uint32{0, 2} {
+							pageSize := pageSize
+							t.Run(fmt.Sprintf("pagesize-%d", pageSize), func(t *testing.T) {
+								// Loop until all subjects have been found or we've hit max iterations.
+								var currentCursor *v1.Cursor
+								resolvedSubjects := map[string]*v1.LookupSubjectsResponse{}
+								for i := 0; i < 100; i++ {
+									foundSubjects, lastCursor, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, nil, currentCursor, pageSize)
+									require.NoError(t, err)
 
-						// Ensure the subjects found include those defined as expected. Since the
-						// accessibility set does not include "inferred" subjects (e.g. those with
-						// permissions as their subject relation, or wildcards), this should be a
-						// subset.
-						expectedDefinedSubjects := vctx.accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
-						requireSubsetOf(t, maps.Keys(resolvedSubjects), maps.Keys(expectedDefinedSubjects))
-
-						// Ensure all subjects in true and caveated assertions for the subject type are found
-						// in the LookupSubject result, except those added via wildcard.
-						for _, parsedFile := range vctx.clusterAndData.Populated.ParsedFiles {
-							for _, entry := range []struct {
-								assertions         []blocks.Assertion
-								requiresPermission bool
-							}{
-								{
-									assertions:         parsedFile.Assertions.AssertTrue,
-									requiresPermission: true,
-								},
-								{
-									assertions:         parsedFile.Assertions.AssertCaveated,
-									requiresPermission: false,
-								},
-							} {
-								for _, assertion := range entry.assertions {
-									assertionRel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
-									if !assertionRel.ResourceAndRelation.EqualVT(resource) {
-										continue
+									if pageSize > 0 {
+										require.LessOrEqual(t, len(foundSubjects), int(pageSize)+1) // +1 for possible wildcard
 									}
 
-									if assertionRel.Subject.Namespace != subjectType.Namespace ||
-										assertionRel.Subject.Relation != subjectType.Relation {
-										continue
+									currentCursor = lastCursor
+
+									for _, subject := range foundSubjects {
+										resolvedSubjects[subject.Subject.SubjectObjectId] = subject
 									}
 
-									// For subjects found solely via wildcard, check that a wildcard instead exists in
-									// the result and that the subject is not excluded.
-									accessibility, _, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, assertionRel.Subject)
-									if !ok || accessibility == consistencytestutil.AccessibleViaWildcardOnly {
-										resolvedSubjectsToCheck := resolvedSubjects
+									if pageSize == 0 || len(foundSubjects) < int(pageSize) {
+										break
+									}
+								}
 
-										// If the assertion has caveat context, rerun LookupSubjects with the context to ensure the returned subject
-										// matches the context given.
-										if len(assertion.CaveatContext) > 0 {
-											resolvedSubjectsWithContext, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, assertion.CaveatContext)
-											require.NoError(t, err)
+								// Ensure the subjects found include those defined as expected. Since the
+								// accessibility set does not include "inferred" subjects (e.g. those with
+								// permissions as their subject relation, or wildcards), this should be a
+								// subset.
+								expectedDefinedSubjects := vctx.accessibilitySet.DirectlyAccessibleDefinedSubjectsOfType(resource, subjectType)
+								requireSubsetOf(t, maps.Keys(resolvedSubjects), maps.Keys(expectedDefinedSubjects))
 
-											resolvedSubjectsToCheck = resolvedSubjectsWithContext
-										}
-
-										resolvedSubject, ok := resolvedSubjectsToCheck[tuple.PublicWildcard]
-										require.True(t, ok, "expected wildcard in lookupsubjects response for assertion `%s`", assertion.RelationshipWithContextString)
-
-										if entry.requiresPermission {
-											require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedSubject.Subject.Permissionship)
-										}
-
-										// Ensure that the subject is not excluded. If a caveated assertion, then the exclusion
-										// can be caveated.
-										for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
-											if entry.requiresPermission {
-												require.NotEqual(t, excludedSubject.SubjectObjectId, assertionRel.Subject.ObjectId, "wildcard excludes the asserted subject ID: %s", assertionRel.Subject.ObjectId)
-											} else if excludedSubject.SubjectObjectId == assertionRel.Subject.ObjectId {
-												require.NotEqual(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, excludedSubject.Permissionship, "wildcard concretely excludes the asserted subject ID: %s", assertionRel.Subject.ObjectId)
+								// Ensure all subjects in true and caveated assertions for the subject type are found
+								// in the LookupSubject result, except those added via wildcard.
+								for _, parsedFile := range vctx.clusterAndData.Populated.ParsedFiles {
+									for _, entry := range []struct {
+										assertions         []blocks.Assertion
+										requiresPermission bool
+									}{
+										{
+											assertions:         parsedFile.Assertions.AssertTrue,
+											requiresPermission: true,
+										},
+										{
+											assertions:         parsedFile.Assertions.AssertCaveated,
+											requiresPermission: false,
+										},
+									} {
+										for _, assertion := range entry.assertions {
+											assertionRel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
+											if !assertionRel.ResourceAndRelation.EqualVT(resource) {
+												continue
 											}
+
+											if assertionRel.Subject.Namespace != subjectType.Namespace ||
+												assertionRel.Subject.Relation != subjectType.Relation {
+												continue
+											}
+
+											// For subjects found solely via wildcard, check that a wildcard instead exists in
+											// the result and that the subject is not excluded.
+											accessibility, _, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resource, assertionRel.Subject)
+											if !ok || accessibility == consistencytestutil.AccessibleViaWildcardOnly {
+												resolvedSubjectsToCheck := resolvedSubjects
+
+												// If the assertion has caveat context, rerun LookupSubjects with the context to ensure the returned subject
+												// matches the context given.
+												if len(assertion.CaveatContext) > 0 {
+													resolvedSubjectsWithContext, _, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, assertion.CaveatContext, nil, 0)
+													require.NoError(t, err)
+
+													resolvedSubjectsToCheck = resolvedSubjectsWithContext
+												}
+
+												resolvedSubject, ok := resolvedSubjectsToCheck[tuple.PublicWildcard]
+												require.True(t, ok, "expected wildcard in lookupsubjects response for assertion `%s`", assertion.RelationshipWithContextString)
+
+												if entry.requiresPermission {
+													require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedSubject.Subject.Permissionship)
+												}
+
+												// Ensure that the subject is not excluded. If a caveated assertion, then the exclusion
+												// can be caveated.
+												for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
+													if entry.requiresPermission {
+														require.NotEqual(t, excludedSubject.SubjectObjectId, assertionRel.Subject.ObjectId, "wildcard excludes the asserted subject ID: %s", assertionRel.Subject.ObjectId)
+													} else if excludedSubject.SubjectObjectId == assertionRel.Subject.ObjectId {
+														require.NotEqual(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, excludedSubject.Permissionship, "wildcard concretely excludes the asserted subject ID: %s", assertionRel.Subject.ObjectId)
+													}
+												}
+												continue
+											}
+
+											_, ok = resolvedSubjects[assertionRel.Subject.ObjectId]
+											require.True(t, ok, "missing expected subject %s from assertion %s", assertionRel.Subject.ObjectId, assertion.RelationshipWithContextString)
 										}
+									}
+								}
+
+								// Ensure that all excluded subjects from wildcards do not have access.
+								for _, resolvedSubject := range resolvedSubjects {
+									if resolvedSubject.Subject.SubjectObjectId != tuple.PublicWildcard {
 										continue
 									}
 
-									_, ok = resolvedSubjects[assertionRel.Subject.ObjectId]
-									require.True(t, ok, "missing expected subject %s from assertion %s", assertionRel.Subject.ObjectId, assertion.RelationshipWithContextString)
+									for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
+										permissionship, err := vctx.serviceTester.Check(context.Background(),
+											resource,
+											&core.ObjectAndRelation{
+												Namespace: subjectType.Namespace,
+												ObjectId:  excludedSubject.SubjectObjectId,
+												Relation:  subjectType.Relation,
+											},
+											vctx.revision,
+											nil,
+										)
+										require.NoError(t, err)
+
+										expectedPermissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
+										if resolvedSubject.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+											expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+										}
+										if excludedSubject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+											expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+										}
+
+										require.Equal(t,
+											expectedPermissionship,
+											permissionship,
+											"Found Check failure for resource %s and excluded subject %s in lookup subjects",
+											tuple.StringONR(resource),
+											excludedSubject.SubjectObjectId,
+										)
+									}
 								}
-							}
-						}
 
-						// Ensure that all excluded subjects from wildcards do not have access.
-						for _, resolvedSubject := range resolvedSubjects {
-							if resolvedSubject.Subject.SubjectObjectId != tuple.PublicWildcard {
-								continue
-							}
+								// Ensure that every returned defined, non-wildcard subject found checks as expected.
+								for _, resolvedSubject := range resolvedSubjects {
+									if resolvedSubject.Subject.SubjectObjectId == tuple.PublicWildcard {
+										continue
+									}
 
-							for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
-								permissionship, err := vctx.serviceTester.Check(context.Background(),
-									resource,
-									&core.ObjectAndRelation{
+									subject := &core.ObjectAndRelation{
 										Namespace: subjectType.Namespace,
-										ObjectId:  excludedSubject.SubjectObjectId,
+										ObjectId:  resolvedSubject.Subject.SubjectObjectId,
 										Relation:  subjectType.Relation,
-									},
-									vctx.revision,
-									nil,
-								)
-								require.NoError(t, err)
+									}
 
-								expectedPermissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
-								if resolvedSubject.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
-									expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+									permissionship, err := vctx.serviceTester.Check(context.Background(),
+										resource,
+										subject,
+										vctx.revision,
+										nil,
+									)
+									require.NoError(t, err)
+
+									expectedPermissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+									if resolvedSubject.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+										expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+									}
+
+									require.Equal(t,
+										expectedPermissionship,
+										permissionship,
+										"Found Check failure for resource %s and subject %s in lookup subjects",
+										tuple.StringONR(resource),
+										tuple.StringONR(subject),
+									)
 								}
-								if excludedSubject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
-									expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
-								}
-
-								require.Equal(t,
-									expectedPermissionship,
-									permissionship,
-									"Found Check failure for resource %s and excluded subject %s in lookup subjects",
-									tuple.StringONR(resource),
-									excludedSubject.SubjectObjectId,
-								)
-							}
-						}
-
-						// Ensure that every returned defined, non-wildcard subject found checks as expected.
-						for _, resolvedSubject := range resolvedSubjects {
-							if resolvedSubject.Subject.SubjectObjectId == tuple.PublicWildcard {
-								continue
-							}
-
-							subject := &core.ObjectAndRelation{
-								Namespace: subjectType.Namespace,
-								ObjectId:  resolvedSubject.Subject.SubjectObjectId,
-								Relation:  subjectType.Relation,
-							}
-
-							permissionship, err := vctx.serviceTester.Check(context.Background(),
-								resource,
-								subject,
-								vctx.revision,
-								nil,
-							)
-							require.NoError(t, err)
-
-							expectedPermissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
-							if resolvedSubject.Subject.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
-								expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
-							}
-
-							require.Equal(t,
-								expectedPermissionship,
-								permissionship,
-								"Found Check failure for resource %s and subject %s in lookup subjects",
-								tuple.StringONR(resource),
-								tuple.StringONR(subject),
-							)
+							})
 						}
 					})
 			}

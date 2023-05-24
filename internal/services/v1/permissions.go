@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -535,86 +536,163 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupSubjectsResponse) error {
-		foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
-		if !ok {
-			return fmt.Errorf("missing resource ID in returned LS")
-		}
+	var currentCursor *dispatch.Cursor
+	remainingConcreteLimit := 0
 
-		for _, foundSubject := range foundSubjects.FoundSubjects {
-			excludedSubjectIDs := make([]string, 0, len(foundSubject.ExcludedSubjects))
-			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				excludedSubjectIDs = append(excludedSubjectIDs, excludedSubject.SubjectId)
-			}
-
-			excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
-			for _, excludedSubject := range foundSubject.ExcludedSubjects {
-				resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds)
-				if err != nil {
-					return err
-				}
-
-				if resolvedExcludedSubject == nil {
-					continue
-				}
-
-				excludedSubjects = append(excludedSubjects, resolvedExcludedSubject)
-			}
-
-			subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds)
-			if err != nil {
-				return err
-			}
-			if subject == nil {
-				continue
-			}
-
-			err = resp.Send(&v1.LookupSubjectsResponse{
-				Subject:            subject,
-				ExcludedSubjects:   excludedSubjects,
-				LookedUpAt:         revisionReadAt,
-				SubjectObjectId:    foundSubject.SubjectId,    // Deprecated
-				ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
-				Permissionship:     subject.Permissionship,    // Deprecated
-				PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
-		return nil
-	})
-
-	bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
-	if err != nil {
-		return err
-	}
-
-	err = ps.dispatch.DispatchLookupSubjects(
-		&dispatch.DispatchLookupSubjectsRequest{
-			Metadata: &dispatch.ResolverMeta{
-				AtRevision:     atRevision.String(),
-				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: bf,
-			},
-			ResourceRelation: &core.RelationReference{
-				Namespace: req.Resource.ObjectType,
-				Relation:  req.Permission,
-			},
-			ResourceIds: []string{req.Resource.ObjectId},
-			SubjectRelation: &core.RelationReference{
-				Namespace: req.SubjectObjectType,
-				Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
-			},
-		},
-		stream)
+	lsRequestHash, err := computeLSRequestHash(req)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
-	return nil
+	if req.OptionalCursor != nil {
+		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lsRequestHash)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+		currentCursor = decodedCursor
+	}
+
+	if req.OptionalConcreteLimit > 0 {
+		remainingConcreteLimit = int(req.OptionalConcreteLimit)
+	}
+
+	internalResponseCursor := &impl.DecodedCursor{
+		VersionOneof: &impl.DecodedCursor_V1{
+			V1: &impl.V1Cursor{
+				Revision:              atRevision.String(),
+				CallAndParametersHash: lsRequestHash,
+			},
+		},
+	}
+
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	for {
+		countSubjectsFound := 0
+
+		stream := dispatchpkg.NewHandlingDispatchStream(ctxWithCancel, func(result *dispatch.DispatchLookupSubjectsResponse) error {
+			foundSubjects, ok := result.FoundSubjectsByResourceId[req.Resource.ObjectId]
+			if !ok {
+				return fmt.Errorf("missing resource ID in returned LS")
+			}
+
+			for _, foundSubject := range foundSubjects.FoundSubjects {
+				// Skip wildcards if requested they be skipped.
+				if req.WildcardOption == v1.LookupSubjectsRequest_WILDCARD_OPTION_EXCLUDE_WILDCARDS && foundSubject.SubjectId == tuple.PublicWildcard {
+					continue
+				}
+
+				excludedSubjectIDs := make([]string, 0, len(foundSubject.ExcludedSubjects))
+				excludedSubjects := make([]*v1.ResolvedSubject, 0, len(foundSubject.ExcludedSubjects))
+				for _, excludedSubject := range foundSubject.ExcludedSubjects {
+					excludedSubjectIDs = append(excludedSubjectIDs, excludedSubject.SubjectId)
+
+					resolvedExcludedSubject, err := foundSubjectToResolvedSubject(ctx, excludedSubject, caveatContext, ds)
+					if err != nil {
+						return fmt.Errorf("error when resolving excluded subject: %w", err)
+					}
+
+					if resolvedExcludedSubject == nil {
+						continue
+					}
+
+					excludedSubjects = append(excludedSubjects, resolvedExcludedSubject)
+				}
+
+				subject, err := foundSubjectToResolvedSubject(ctx, foundSubject, caveatContext, ds)
+				if err != nil {
+					return fmt.Errorf("error when resolving subject: %w", err)
+				}
+				if subject == nil {
+					continue
+				}
+
+				// NOTE: we need to recompute the cursor here because we get multiple results back from DispatchLookupSubjects
+				// in one message.
+				dispatchCursor, err := graph.CursorForFoundSubjectID(subject.SubjectObjectId, result.AfterResponseCursor)
+				if err != nil {
+					return err
+				}
+
+				// Update the existing internal cursor for encoding.
+				internalResponseCursor.GetV1().DispatchVersion = dispatchCursor.DispatchVersion
+				internalResponseCursor.GetV1().Sections = dispatchCursor.Sections
+
+				encodedCursor, err := cursor.Encode(internalResponseCursor)
+				if err != nil {
+					return err
+				}
+
+				currentCursor = dispatchCursor
+
+				if subject.SubjectObjectId != tuple.PublicWildcard {
+					countSubjectsFound++
+					if req.OptionalConcreteLimit > 0 && remainingConcreteLimit <= 0 {
+						return nil
+					}
+					remainingConcreteLimit--
+				}
+
+				err = resp.Send(&v1.LookupSubjectsResponse{
+					Subject:            subject,
+					ExcludedSubjects:   excludedSubjects,
+					LookedUpAt:         revisionReadAt,
+					SubjectObjectId:    foundSubject.SubjectId,    // Deprecated
+					ExcludedSubjectIds: excludedSubjectIDs,        // Deprecated
+					Permissionship:     subject.Permissionship,    // Deprecated
+					PartialCaveatInfo:  subject.PartialCaveatInfo, // Deprecated
+					AfterResultCursor:  encodedCursor,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+			return nil
+		})
+
+		bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+		if err != nil {
+			return err
+		}
+
+		err = ps.dispatch.DispatchLookupSubjects(
+			&dispatch.DispatchLookupSubjectsRequest{
+				Metadata: &dispatch.ResolverMeta{
+					AtRevision:     atRevision.String(),
+					DepthRemaining: ps.config.MaximumAPIDepth,
+					TraversalBloom: bf,
+				},
+				ResourceRelation: &core.RelationReference{
+					Namespace: req.Resource.ObjectType,
+					Relation:  req.Permission,
+				},
+				ResourceIds: []string{req.Resource.ObjectId},
+				SubjectRelation: &core.RelationReference{
+					Namespace: req.SubjectObjectType,
+					Relation:  stringz.DefaultEmpty(req.OptionalSubjectRelation, tuple.Ellipsis),
+				},
+				OptionalCursor: currentCursor,
+				OptionalLimit:  req.OptionalConcreteLimit,
+			},
+			stream)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
+		// If no concrete limit was requested, then all results are streamed in a single call to match
+		// older behavior.
+		if req.OptionalConcreteLimit == 0 {
+			return nil
+		}
+
+		// If no subjects were found, then we're done.
+		if countSubjectsFound == 0 || remainingConcreteLimit <= 0 {
+			return nil
+		}
+	}
 }
 
 func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.FoundSubject, caveatContext map[string]any, ds datastore.CaveatReader) (*v1.ResolvedSubject, error) {

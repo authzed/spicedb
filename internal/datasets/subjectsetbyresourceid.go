@@ -32,6 +32,15 @@ func (ssr SubjectSetByResourceID) add(resourceID string, subject *v1.FoundSubjec
 	return ssr.subjectSetByResourceID[resourceID].Add(subject)
 }
 
+// ConcreteSubjectCount returns the number concrete subjects in the map.
+func (ssr SubjectSetByResourceID) ConcreteSubjectCount() int {
+	count := 0
+	for _, subjectSet := range ssr.subjectSetByResourceID {
+		count += subjectSet.ConcreteSubjectCount()
+	}
+	return count
+}
+
 // AddFromRelationship adds the subject found in the given relationship to this map, indexed at
 // the resource ID specified in the relationship.
 func (ssr SubjectSetByResourceID) AddFromRelationship(relationship *core.RelationTuple) error {
