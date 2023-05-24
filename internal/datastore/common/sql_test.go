@@ -577,6 +577,58 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"subject_ns": 2,
 			},
 		},
+		{
+			"order by subject",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithRelationshipsFilter(
+					datastore.RelationshipsFilter{
+						ResourceType: "someresourcetype",
+					},
+				).TupleOrder(options.BySubject)
+			},
+			"SELECT * WHERE ns = ? ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
+			[]any{"someresourcetype"},
+			map[string]int{
+				"ns": 1,
+			},
+		},
+		{
+			"order by subject, after with subject namespace",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+				}).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.BySubject)
+			},
+			"SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?)",
+			[]any{"somesubjectype", "bar", "...", "someresourcetype", "foo", "viewer"},
+			map[string]int{
+				"subject_ns": 1,
+			},
+		},
+		{
+			"order by subject, after with subject namespace and subject object id",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					OptionalSubjectIds:  []string{"foo"},
+				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:bar"), options.BySubject)
+			},
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (subject_relation,ns,object_id,relation) > (?,?,?,?)",
+			[]any{"somesubjectype", "foo", "...", "someresourcetype", "someresource", "viewer"},
+			map[string]int{"subject_ns": 1, "subject_object_id": 1},
+		},
+		{
+			"order by subject, after with subject namespace and multiple subject object IDs",
+			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+					OptionalSubjectIds:  []string{"foo", "bar"},
+				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:next"), options.BySubject)
+			},
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?))) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?)",
+			[]any{"somesubjectype", "foo", "bar", "next", "...", "someresourcetype", "someresource", "viewer"},
+			map[string]int{"subject_ns": 1, "subject_object_id": 2},
+		},
 	}
 
 	for _, test := range tests {
