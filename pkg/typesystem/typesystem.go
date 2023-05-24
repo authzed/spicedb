@@ -144,6 +144,16 @@ func (nts *TypeSystem) MustGetRelation(relationName string) *core.Relation {
 	return rel
 }
 
+// GetRelationOrError returns the relation with the givne name defined on the namespace, or RelationNotFoundErr if
+// not found.
+func (nts *TypeSystem) GetRelationOrError(relationName string) (*core.Relation, error) {
+	relation, ok := nts.relationMap[relationName]
+	if !ok {
+		return nil, NewRelationNotFoundErr(nts.nsDef.Name, relationName)
+	}
+	return relation, nil
+}
+
 // IsPermission returns true if the namespace has the given relation defined and it is
 // a permission.
 func (nts *TypeSystem) IsPermission(relationName string) bool {
@@ -309,6 +319,27 @@ func (nts *TypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*co
 		})
 	}
 	return filtered, nil
+}
+
+// HasIndirectSubjects returns true if and only if there exists at least one non-ellipsis (i.e. indirect) subject
+// allowed on the specified relation.
+func (nts *TypeSystem) HasIndirectSubjects(sourceRelationName string) (bool, error) {
+	allowedRelations, err := nts.AllowedDirectRelationsAndWildcards(sourceRelationName)
+	if err != nil {
+		return false, asTypeError(err)
+	}
+
+	for _, allowedRelation := range allowedRelations {
+		if allowedRelation.GetPublicWildcard() != nil {
+			continue
+		}
+
+		if allowedRelation.GetRelation() != tuple.Ellipsis {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // WildcardTypeReference represents a relation that references a wildcard type.

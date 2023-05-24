@@ -163,7 +163,16 @@ message DispatchLookupSubjectsRequest {
   core.v1.RelationReference resource_relation = 2 [(validate.rules).message.required = true];
   repeated string resource_ids = 3;
 
-  core.v1.RelationReference subject_relation = 4 [(validate.rules).message.required = true];
+  core.v1.RelationReference subject_relation = 4
+      [ (validate.rules).message.required = true ];
+
+  // optional_limit, if given, specifies a limit on the number of subjects returned. Note that the number
+  // returned may be less than this count.
+  uint32 optional_limit = 5;
+
+  // optional_cursor, if the specified, is the cursor at which to resume returning results. Note
+  // that lookupsubjects can return duplicates.
+  Cursor optional_cursor = 6;
 }
 
 message FoundSubject {
@@ -179,6 +188,7 @@ message FoundSubjects {
 message DispatchLookupSubjectsResponse {
   map<string, FoundSubjects> found_subjects_by_resource_id = 1;
   ResponseMeta metadata = 2;
+  Cursor after_response_cursor = 3;
 }
 
 message ResolverMeta {

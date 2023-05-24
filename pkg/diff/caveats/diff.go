@@ -108,8 +108,8 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 		})
 	}
 
-	existingParameterNames := mapz.NewSet(maps.Keys(existing.ParameterTypes)...)
-	updatedParameterNames := mapz.NewSet(maps.Keys(updated.ParameterTypes)...)
+	existingParameterNames := mapz.NewSetFromSlice(maps.Keys(existing.ParameterTypes))
+	updatedParameterNames := mapz.NewSetFromSlice(maps.Keys(updated.ParameterTypes))
 
 	for _, removed := range existingParameterNames.Subtract(updatedParameterNames).AsSlice() {
 		deltas = append(deltas, Delta{

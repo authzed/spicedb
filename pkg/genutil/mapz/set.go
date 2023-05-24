@@ -15,6 +15,11 @@ type Set[T comparable] struct {
 
 // NewSet returns a new set.
 func NewSet[T comparable](items ...T) *Set[T] {
+	return NewSetFromSlice(items)
+}
+
+// NewSetFromSlice returns a new set with the given values.
+func NewSetFromSlice[T comparable](items []T) *Set[T] {
 	s := &Set[T]{
 		values: map[T]struct{}{},
 	}

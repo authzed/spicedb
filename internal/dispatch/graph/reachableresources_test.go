@@ -21,6 +21,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testutil"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -1021,13 +1022,13 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 1510),
+				testutil.GenTuples("document", "editor", "user", "tom", 1510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 1510),
+			testutil.GenResourceIds("document", 1510),
 		},
 		{
 			"basic exclusion",
@@ -1038,10 +1039,10 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			genTuples("document", "viewer", "user", "tom", 1010),
+			testutil.GenTuples("document", "viewer", "user", "tom", 1010),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 1010),
+			testutil.GenResourceIds("document", 1010),
 		},
 		{
 			"basic intersection",
@@ -1052,13 +1053,13 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 510),
-				genTuples("document", "editor", "user", "tom", 510),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 510),
+				testutil.GenTuples("document", "editor", "user", "tom", 510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 510),
+			testutil.GenResourceIds("document", 510),
 		},
 		{
 			"union and exclused union",
@@ -1071,13 +1072,13 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission can_view = viewer - banned
 				permission view = can_view + editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 1310),
+				testutil.GenTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 2450),
+			testutil.GenResourceIds("document", 2450),
 		},
 		{
 			"basic caveats",
@@ -1091,10 +1092,10 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			testutil.GenTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 2450),
+			testutil.GenResourceIds("document", 2450),
 		},
 		{
 			"excluded items",
@@ -1105,13 +1106,13 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 1310),
+				testutil.GenTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 1310),
+			testutil.GenResourceIds("document", 1310),
 		},
 		{
 			"basic caveats with missing field",
@@ -1125,10 +1126,10 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			testutil.GenTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 2450),
+			testutil.GenResourceIds("document", 2450),
 		},
 		{
 			"larger arrow dispatch",
@@ -1142,13 +1143,13 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder->viewer
   			 }`,
-			joinTuples(
-				genTuples("folder", "viewer", "user", "tom", 150),
-				genSubjectTuples("document", "folder", "folder", "...", 150),
+			testutil.JoinTuples(
+				testutil.GenTuples("folder", "viewer", "user", "tom", 150),
+				testutil.GenSubjectTuples("document", "folder", "folder", "...", 150),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 150),
+			testutil.GenResourceIds("document", 150),
 		},
 		{
 			"big",
@@ -1159,13 +1160,13 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 15100),
-				genTuples("document", "editor", "user", "tom", 15100),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 15100),
+				testutil.GenTuples("document", "editor", "user", "tom", 15100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 15100),
+			testutil.GenResourceIds("document", 15100),
 		},
 		{
 			"chunked arrow with chunked redispatch",

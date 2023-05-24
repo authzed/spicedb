@@ -264,6 +264,25 @@ func (bss BaseSubjectSet[T]) AsSlice() []T {
 	return values
 }
 
+// SubjectCount returns the number of subjects in the set.
+func (bss BaseSubjectSet[T]) SubjectCount() int {
+	if bss.HasWildcard() {
+		return bss.ConcreteSubjectCount() + 1
+	}
+	return bss.ConcreteSubjectCount()
+}
+
+// ConcreteSubjectCount returns the number of concrete subjects in the set.
+func (bss BaseSubjectSet[T]) ConcreteSubjectCount() int {
+	return len(bss.concrete)
+}
+
+// HasWildcard returns true if the subject set contains the specialized wildcard subject.
+func (bss BaseSubjectSet[T]) HasWildcard() bool {
+	_, ok := bss.wildcard.get()
+	return ok
+}
+
 // Clone returns a clone of this subject set. Note that this is a shallow clone.
 // NOTE: Should only be used when performance is not a concern.
 func (bss BaseSubjectSet[T]) Clone() BaseSubjectSet[T] {

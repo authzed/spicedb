@@ -80,3 +80,47 @@ func TestForEachChunkOverflowIncorrect(t *testing.T) {
 		})
 	}
 }
+
+func TestForEachChunkUntil(t *testing.T) {
+	for _, datasize := range []int{0, 1, 5, 10, 50, 100, 250} {
+		datasize := datasize
+		for _, chunksize := range []uint16{1, 2, 3, 5, 10, 50} {
+			chunksize := chunksize
+			t.Run(fmt.Sprintf("test-%d-%d", datasize, chunksize), func(t *testing.T) {
+				var data []int
+				for i := 0; i < datasize; i++ {
+					data = append(data, i)
+				}
+
+				var found []int
+				ok, err := ForEachChunkUntil(data, chunksize, func(items []int) (bool, error) {
+					found = append(found, items...)
+					require.True(t, len(items) <= int(chunksize))
+					require.True(t, len(items) > 0)
+					return true, nil
+				})
+				require.True(t, ok)
+				require.NoError(t, err)
+				require.Equal(t, data, found)
+			})
+		}
+	}
+}
+
+func TestForEachChunkUntilCancels(t *testing.T) {
+	ok, err := ForEachChunkUntil([]int{1, 2, 3, 4}, 2, func(items []int) (bool, error) {
+		require.Equal(t, []int{1, 2}, items)
+		return false, nil
+	})
+	require.False(t, ok)
+	require.NoError(t, err)
+}
+
+func TestForEachChunkUntilErrors(t *testing.T) {
+	ok, err := ForEachChunkUntil([]int{1, 2, 3, 4}, 2, func(items []int) (bool, error) {
+		require.Equal(t, []int{1, 2}, items)
+		return true, fmt.Errorf("some error")
+	})
+	require.False(t, ok)
+	require.Error(t, err)
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/internal/testutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -333,52 +335,15 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(err)
 }
 
-func joinTuples(first []*core.RelationTuple, second []*core.RelationTuple) []*core.RelationTuple {
-	return append(first, second...)
+type OrderedResolved []*v1.ResolvedResource
+
+func (a OrderedResolved) Len() int { return len(a) }
+
+func (a OrderedResolved) Less(i, j int) bool {
+	return strings.Compare(a[i].ResourceId, a[j].ResourceId) < 0
 }
 
-func genTuplesWithOffset(resourceName string, relation string, subjectName string, subjectID string, offset int, number int) []*core.RelationTuple {
-	return genTuplesWithCaveat(resourceName, relation, subjectName, subjectID, "", nil, offset, number)
-}
-
-func genTuples(resourceName string, relation string, subjectName string, subjectID string, number int) []*core.RelationTuple {
-	return genTuplesWithOffset(resourceName, relation, subjectName, subjectID, 0, number)
-}
-
-func genSubjectTuples(resourceName string, relation string, subjectName string, subjectRelation string, number int) []*core.RelationTuple {
-	tuples := make([]*core.RelationTuple, 0, number)
-	for i := 0; i < number; i++ {
-		tpl := &core.RelationTuple{
-			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
-			Subject:             ONR(subjectName, fmt.Sprintf("%s-%d", subjectName, i), subjectRelation),
-		}
-		tuples = append(tuples, tpl)
-	}
-	return tuples
-}
-
-func genTuplesWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
-	tuples := make([]*core.RelationTuple, 0, number)
-	for i := 0; i < number; i++ {
-		tpl := &core.RelationTuple{
-			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
-			Subject:             ONR(subjectName, subjectID, "..."),
-		}
-		if caveatName != "" {
-			tpl = tuple.MustWithCaveat(tpl, caveatName, context)
-		}
-		tuples = append(tuples, tpl)
-	}
-	return tuples
-}
-
-func genResourceIds(resourceName string, number int) []string {
-	resourceIDs := make([]string, 0, number)
-	for i := 0; i < number; i++ {
-		resourceIDs = append(resourceIDs, fmt.Sprintf("%s-%d", resourceName, i))
-	}
-	return resourceIDs
-}
+func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 	testCases := []struct {
@@ -398,13 +363,13 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 1510),
+				testutil.GenTuples("document", "editor", "user", "tom", 1510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 1510),
+			testutil.GenResourceIds("document", 1510),
 		},
 		{
 			"basic exclusion",
@@ -415,10 +380,10 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			genTuples("document", "viewer", "user", "tom", 1010),
+			testutil.GenTuples("document", "viewer", "user", "tom", 1010),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 1010),
+			testutil.GenResourceIds("document", 1010),
 		},
 		{
 			"basic intersection",
@@ -429,13 +394,13 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 510),
-				genTuples("document", "editor", "user", "tom", 510),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 510),
+				testutil.GenTuples("document", "editor", "user", "tom", 510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 510),
+			testutil.GenResourceIds("document", 510),
 		},
 		{
 			"union and exclused union",
@@ -448,13 +413,13 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission can_view = viewer - banned
 				permission view = can_view + editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 1310),
+				testutil.GenTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 2450),
+			testutil.GenResourceIds("document", 2450),
 		},
 		{
 			"basic caveats",
@@ -468,10 +433,10 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			testutil.GenTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 2450),
+			testutil.GenResourceIds("document", 2450),
 		},
 		{
 			"excluded items",
@@ -482,13 +447,13 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 1310),
+				testutil.GenTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 1210),
+			testutil.GenResourceIds("document", 1210),
 		},
 		{
 			"basic caveats with missing field",
@@ -502,10 +467,10 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			testutil.GenTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 2450),
+			testutil.GenResourceIds("document", 2450),
 		},
 		{
 			"larger arrow dispatch",
@@ -519,13 +484,13 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation folder: folder
 				permission view = folder->viewer
   			 }`,
-			joinTuples(
-				genTuples("folder", "viewer", "user", "tom", 150),
-				genSubjectTuples("document", "folder", "folder", "...", 150),
+			testutil.JoinTuples(
+				testutil.GenTuples("folder", "viewer", "user", "tom", 150),
+				testutil.GenSubjectTuples("document", "folder", "folder", "...", 150),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 150),
+			testutil.GenResourceIds("document", 150),
 		},
 		{
 			"big",
@@ -536,13 +501,13 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 15100),
-				genTuples("document", "editor", "user", "tom", 15100),
+			testutil.JoinTuples(
+				testutil.GenTuples("document", "viewer", "user", "tom", 15100),
+				testutil.GenTuples("document", "editor", "user", "tom", 15100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
-			genResourceIds("document", 15100),
+			testutil.GenResourceIds("document", 15100),
 		},
 	}
 

@@ -403,7 +403,71 @@ func TestStableCacheKeys(t *testing.T) {
 					},
 				}, computeBothHashes)
 			},
-			"d699c5b5d3a6dfade601",
+			"c2b2d3fcb3aa94f5a801",
+		},
+		{
+			"lookup subjects with default limit",
+			func() DispatchCacheKey {
+				return lookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					ResourceIds:      []string{"mariah", "tom"},
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalLimit: 0,
+				}, computeBothHashes)
+			},
+			"c2b2d3fcb3aa94f5a801",
+		},
+		{
+			"lookup subjects with different limit",
+			func() DispatchCacheKey {
+				return lookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					ResourceIds:      []string{"mariah", "tom"},
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalLimit: 10,
+				}, computeBothHashes)
+			},
+			"ca98fbc58abac8983b",
+		},
+		{
+			"lookup subjects with cursor",
+			func() DispatchCacheKey {
+				return lookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					ResourceIds:      []string{"mariah", "tom"},
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{
+						Sections: []string{"foo", "bar"},
+					},
+				}, computeBothHashes)
+			},
+			"e7d38be4d395cfc3fc01",
+		},
+		{
+			"lookup subjects with different cursor",
+			func() DispatchCacheKey {
+				return lookupSubjectsRequestToKey(&v1.DispatchLookupSubjectsRequest{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					ResourceIds:      []string{"mariah", "tom"},
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{
+						Sections: []string{"foo", "baz"},
+					},
+				}, computeBothHashes)
+			},
+			"fccbc38e9cdbcc8cf901",
 		},
 	}
 

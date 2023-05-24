@@ -557,7 +557,7 @@ func (swc *schemaWatchCache[T]) readDefinitionsWithNames(ctx context.Context, na
 	}
 
 	// Find whichever trackers are cached.
-	remainingNames := mapz.NewSet(names...)
+	remainingNames := mapz.NewSetFromSlice(names)
 	foundDefs := make([]datastore.RevisionedDefinition[T], 0, len(names))
 	for _, name := range names {
 		tracker := swc.getTrackerForName(name)

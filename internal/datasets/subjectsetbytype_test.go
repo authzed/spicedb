@@ -35,6 +35,26 @@ func TestSubjectByTypeSet(t *testing.T) {
 			}
 		})
 		require.True(t, wasFound)
+
+		wasFound = false
+		err := s.ForEachTypeUntil(func(foundRR *core.RelationReference, subjects SubjectSet) (bool, error) {
+			objectIds := make([]string, 0, len(subjects.AsSlice()))
+			for _, subject := range subjects.AsSlice() {
+				require.Empty(t, subject.GetExcludedSubjects())
+				objectIds = append(objectIds, subject.SubjectId)
+			}
+
+			if rr.Namespace == foundRR.Namespace && rr.Relation == foundRR.Relation {
+				sort.Strings(objectIds)
+				require.Equal(t, expected, objectIds)
+				wasFound = true
+				return false, nil
+			}
+
+			return true, nil
+		})
+		require.True(t, wasFound)
+		require.NoError(t, err)
 	}
 
 	set := NewSubjectByTypeSet()

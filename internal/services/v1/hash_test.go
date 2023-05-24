@@ -813,3 +813,187 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 		})
 	}
 }
+
+func TestLSHashStability(t *testing.T) {
+	tcs := []struct {
+		name         string
+		request      *v1.LookupSubjectsRequest
+		expectedHash string
+	}{
+		{
+			"basic LS",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+			},
+			"15f87f570009e190",
+		},
+		{
+			"different subject",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject2",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+			},
+			"a41898256f42203a",
+		},
+		{
+			"different permission",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view2",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+			},
+			"5dbe04c00a1cd2b0",
+		},
+		{
+			"different resource type",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource2",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+			},
+			"0ede1ecdd53c204f",
+		},
+		{
+			"different resource id",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc2",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+			},
+			"5f957ee550300986",
+		},
+		{
+			"no limit",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+			},
+			"dc3f5673a6a3d173",
+		},
+		{
+			"different limit",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 999,
+			},
+			"3b350c4c36efb985",
+		},
+		{
+			"default wildcard option",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+				WildcardOption:        v1.LookupSubjectsRequest_WILDCARD_OPTION_UNSPECIFIED,
+			},
+			"15f87f570009e190",
+		},
+		{
+			"different wildcard option",
+			&v1.LookupSubjectsRequest{
+				SubjectObjectType: "subject",
+				Permission:        "view",
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "somedoc",
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_MinimizeLatency{
+						MinimizeLatency: true,
+					},
+				},
+				OptionalConcreteLimit: 1000,
+				WildcardOption:        v1.LookupSubjectsRequest_WILDCARD_OPTION_EXCLUDE_WILDCARDS,
+			},
+			"df28dbb33cdcc8dd",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			verr := tc.request.Validate()
+			require.NoError(t, verr)
+
+			hash, err := computeLSRequestHash(tc.request)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedHash, hash)
+		})
+	}
+}

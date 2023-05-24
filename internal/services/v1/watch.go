@@ -44,7 +44,7 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		return status.Errorf(codes.InvalidArgument, "cannot specify both object types and relationship filters")
 	}
 
-	objectTypes := mapz.NewSet[string](req.GetOptionalObjectTypes()...)
+	objectTypes := mapz.NewSetFromSlice(req.GetOptionalObjectTypes())
 	filters := make([]datastore.RelationshipsFilter, 0, len(req.OptionalRelationshipFilters))
 
 	ctx := stream.Context()
