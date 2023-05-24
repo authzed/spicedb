@@ -31,7 +31,7 @@ func NewExperimentalServerOptionsWithOptionsAndDefaults(opts ...ExperimentalServ
 // ToOption returns a new ExperimentalServerOptionsOption that sets the values from the passed in ExperimentalServerOptions
 func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 	return func(to *ExperimentalServerOptions) {
-		to.StreamReadTimeount = e.StreamReadTimeount
+		to.StreamReadTimeout = e.StreamReadTimeout
 		to.DefaultExportBatchSize = e.DefaultExportBatchSize
 		to.MaxExportBatchSize = e.MaxExportBatchSize
 	}
@@ -40,7 +40,7 @@ func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 // DebugMap returns a map form of ExperimentalServerOptions for debugging
 func (e ExperimentalServerOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
-	debugMap["StreamReadTimeount"] = helpers.DebugValue(e.StreamReadTimeount, false)
+	debugMap["StreamReadTimeout"] = helpers.DebugValue(e.StreamReadTimeout, false)
 	debugMap["DefaultExportBatchSize"] = helpers.DebugValue(e.DefaultExportBatchSize, false)
 	debugMap["MaxExportBatchSize"] = helpers.DebugValue(e.MaxExportBatchSize, false)
 	return debugMap
@@ -62,10 +62,10 @@ func (e *ExperimentalServerOptions) WithOptions(opts ...ExperimentalServerOption
 	return e
 }
 
-// WithStreamReadTimeount returns an option that can set StreamReadTimeount on a ExperimentalServerOptions
-func WithStreamReadTimeount(streamReadTimeount time.Duration) ExperimentalServerOptionsOption {
+// WithStreamReadTimeout returns an option that can set StreamReadTimeout on a ExperimentalServerOptions
+func WithStreamReadTimeout(streamReadTimeout time.Duration) ExperimentalServerOptionsOption {
 	return func(e *ExperimentalServerOptions) {
-		e.StreamReadTimeount = streamReadTimeount
+		e.StreamReadTimeout = streamReadTimeout
 	}
 }
 

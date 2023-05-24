@@ -57,13 +57,13 @@ func NewExperimentalServer(opts ...options.ExperimentalServerOptionsOption) v1.E
 			Msg("experimental server config specified invalid MaxExportBatchSize, setting to fallback")
 		config.MaxExportBatchSize = maxExportBatchSizeFallback
 	}
-	if config.StreamReadTimeount == 0 {
+	if config.StreamReadTimeout == 0 {
 		log.
 			Warn().
-			Stringer("specified", config.StreamReadTimeount).
+			Stringer("specified", config.StreamReadTimeout).
 			Stringer("fallback", streamReadTimeoutFallbackSeconds*time.Second).
-			Msg("experimental server config specified invalid StreamReadTimeount, setting to fallback")
-		config.StreamReadTimeount = streamReadTimeoutFallbackSeconds * time.Second
+			Msg("experimental server config specified invalid StreamReadTimeout, setting to fallback")
+		config.StreamReadTimeout = streamReadTimeoutFallbackSeconds * time.Second
 	}
 
 	return &experimentalServer{
@@ -77,7 +77,7 @@ func NewExperimentalServer(opts ...options.ExperimentalServerOptionsOption) v1.E
 				grpcvalidate.StreamServerInterceptor(true),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
-				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeount),
+				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
 			),
 		},
 		defaultBatchSize: uint64(config.DefaultExportBatchSize),
