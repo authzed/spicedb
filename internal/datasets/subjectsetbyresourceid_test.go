@@ -43,6 +43,7 @@ func TestSubjectSetByResourceIDBasicOperations(t *testing.T) {
 	slices.SortFunc(asMap["seconddoc"].FoundSubjects, testutil.CmpSubjects)
 
 	require.Equal(t, expected, asMap)
+	require.Equal(t, 3, ssr.ConcreteSubjectCount())
 }
 
 func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
@@ -88,6 +89,8 @@ func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
 			},
 		},
 	}, found)
+
+	require.Equal(t, 5, ssr.ConcreteSubjectCount())
 }
 
 func TestSubjectSetByResourceIDIntersectionDifference(t *testing.T) {

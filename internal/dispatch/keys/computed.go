@@ -101,5 +101,7 @@ func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest, option di
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
 		hashableIds(req.ResourceIds),
+		hashableCursor{req.OptionalCursor},
+		hashableLimit(req.OptionalLimit),
 	)
 }
