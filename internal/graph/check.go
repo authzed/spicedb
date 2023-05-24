@@ -791,7 +791,7 @@ func dispatchAllAsync[T any](
 	resultChan chan<- CheckResult,
 	concurrencyLimit uint16,
 ) {
-	tr := newPreloadedTaskRunner(ctx, concurrencyLimit)
+	tr := newPreloadedTaskRunner(ctx, concurrencyLimit, len(children))
 	for _, currentChild := range children {
 		currentChild := currentChild
 		tr.add(func(ctx context.Context) error {
