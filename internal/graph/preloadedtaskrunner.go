@@ -22,7 +22,7 @@ type preloadedTaskRunner struct {
 	tasks []TaskFunc
 }
 
-func newPreloadedTaskRunner(ctx context.Context, concurrencyLimit uint16) *preloadedTaskRunner {
+func newPreloadedTaskRunner(ctx context.Context, concurrencyLimit uint16, initialCapacity int) *preloadedTaskRunner {
 	// Ensure a concurrency level of at least 1.
 	if concurrencyLimit <= 0 {
 		concurrencyLimit = 1
@@ -33,7 +33,7 @@ func newPreloadedTaskRunner(ctx context.Context, concurrencyLimit uint16) *prelo
 		ctx:    ctxWithCancel,
 		cancel: cancel,
 		sem:    make(chan token, concurrencyLimit),
-		tasks:  make([]TaskFunc, 0),
+		tasks:  make([]TaskFunc, 0, initialCapacity),
 	}
 }
 

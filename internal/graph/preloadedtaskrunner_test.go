@@ -17,7 +17,7 @@ import (
 func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	tr := newPreloadedTaskRunner(context.Background(), 2)
+	tr := newPreloadedTaskRunner(context.Background(), 2, 5)
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < 5; i++ {
@@ -44,7 +44,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tr := newPreloadedTaskRunner(ctx, 3)
+	tr := newPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
 	for i := 0; i < 10; i++ {
@@ -82,7 +82,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tr := newPreloadedTaskRunner(ctx, 3)
+	tr := newPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
 	for i := 0; i < 10; i++ {
