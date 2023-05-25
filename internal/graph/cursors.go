@@ -99,13 +99,13 @@ func (ci cursorInformation) integerSectionValue(name string) (int, error) {
 	return strconv.Atoi(valueStr)
 }
 
-// mustWithOutgoingSection returns cursorInformation updated with the given name and optional
+// withOutgoingSection returns cursorInformation updated with the given name and optional
 // value(s) appended to the outgoingCursorSections for the current cursor. If the current
 // cursor already begins with the given name, its value is replaced.
-func (ci cursorInformation) mustWithOutgoingSection(name string, values ...string) cursorInformation {
+func (ci cursorInformation) withOutgoingSection(name string, values ...string) (cursorInformation, error) {
 	hasSection, err := ci.hasHeadSection(name)
 	if err != nil {
-		panic(err)
+		return cursorInformation{}, spiceerrors.MustBugf("mismatch on expected head section of the cursor: %s", name)
 	}
 
 	ocs := slices.Clone(ci.outgoingCursorSections)
@@ -122,7 +122,7 @@ func (ci cursorInformation) mustWithOutgoingSection(name string, values ...strin
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
 			revision:               ci.revision,
-		}
+		}, nil
 	}
 
 	return cursorInformation{
@@ -130,7 +130,7 @@ func (ci cursorInformation) mustWithOutgoingSection(name string, values ...strin
 		outgoingCursorSections: ocs,
 		limits:                 ci.limits,
 		revision:               ci.revision,
-	}
+	}, nil
 }
 
 func (ci cursorInformation) clearIncoming() cursorInformation {
@@ -174,12 +174,16 @@ func withIterableInCursor[T any](
 
 		// Invoke the handler with the current item's index in the outgoing cursor, indicating that
 		// subsequent invocations should jump right to this item.
-		currentCursor := ci.mustWithOutgoingSection(name, strconv.Itoa(index))
+		currentCursor, err := ci.withOutgoingSection(name, strconv.Itoa(index))
+		if err != nil {
+			return err
+		}
+
 		if !isFirstIteration {
 			currentCursor = currentCursor.clearIncoming()
 		}
 
-		err := handler(currentCursor, item)
+		err = handler(currentCursor, item)
 		if err != nil {
 			return err
 		}
@@ -216,7 +220,11 @@ func withDatastoreCursorInCursor(
 			return nil
 		}
 
-		currentCursor := ci.mustWithOutgoingSection(name, tuple.MustString(datastoreCursor))
+		currentCursor, err := ci.withOutgoingSection(name, tuple.MustString(datastoreCursor))
+		if err != nil {
+			return err
+		}
+
 		if !isFirstIteration {
 			currentCursor = currentCursor.clearIncoming()
 		}
@@ -254,11 +262,21 @@ func withSubsetInCursor(
 	}
 
 	if afterIndex >= 0 {
+		var foundCerr error
 		err = handler(afterIndex, func(nextOffset int) *v1.Cursor {
-			return ci.mustWithOutgoingSection(name, strconv.Itoa(nextOffset)).responsePartialCursor()
+			cursor, cerr := ci.withOutgoingSection(name, strconv.Itoa(nextOffset))
+			foundCerr = cerr
+			if cerr != nil {
+				return nil
+			}
+
+			return cursor.responsePartialCursor()
 		})
 		if err != nil {
 			return err
+		}
+		if foundCerr != nil {
+			return foundCerr
 		}
 	}
 
@@ -267,7 +285,11 @@ func withSubsetInCursor(
 	}
 
 	// -1 means that the handler has been completed.
-	return next(ci.mustWithOutgoingSection(name, "-1"))
+	uci, err := ci.withOutgoingSection(name, "-1")
+	if err != nil {
+		return err
+	}
+	return next(uci)
 }
 
 // combineCursors combines the given cursors into one resulting cursor.
