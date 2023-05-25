@@ -270,21 +270,21 @@ func withSubsetInCursor(
 	return next(ci.mustWithOutgoingSection(name, "-1"))
 }
 
-// mustCombineCursors combines the given cursors into one resulting cursor.
-func mustCombineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) *v1.Cursor {
+// combineCursors combines the given cursors into one resulting cursor.
+func combineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) (*v1.Cursor, error) {
 	if toAdd == nil {
-		panic("toAdd cannot be nil")
+		return nil, spiceerrors.MustBugf("supplied toAdd cursor was nil")
 	}
 
 	if cursor == nil {
 		return &v1.Cursor{
 			AtRevision: toAdd.AtRevision,
 			Sections:   toAdd.Sections,
-		}
+		}, nil
 	}
 
 	return &v1.Cursor{
 		AtRevision: cursor.AtRevision,
 		Sections:   append(slices.Clone(cursor.Sections), toAdd.Sections...),
-	}
+	}, nil
 }

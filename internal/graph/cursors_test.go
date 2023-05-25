@@ -183,7 +183,7 @@ func TestWithSubsetInCursor(t *testing.T) {
 	require.True(t, nextCalled)
 }
 
-func TestMustCombineCursors(t *testing.T) {
+func TestCombineCursors(t *testing.T) {
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 	cursor1 := &v1.Cursor{
 		AtRevision: revision.String(),
@@ -194,19 +194,21 @@ func TestMustCombineCursors(t *testing.T) {
 		Sections:   []string{"d", "e", "f"},
 	}
 
-	combined := mustCombineCursors(cursor1, cursor2)
+	combined, err := combineCursors(cursor1, cursor2)
+	require.NoError(t, err)
 	require.Equal(t, combined.AtRevision, revision.String())
 	require.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, combined.Sections)
 }
 
-func TestMustCombineCursorsWithNil(t *testing.T) {
+func TestCombineCursorsWithNil(t *testing.T) {
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 	cursor2 := &v1.Cursor{
 		AtRevision: revision.String(),
 		Sections:   []string{"d", "e", "f"},
 	}
 
-	combined := mustCombineCursors(nil, cursor2)
+	combined, err := combineCursors(nil, cursor2)
+	require.NoError(t, err)
 	require.Equal(t, combined.AtRevision, revision.String())
 	require.Equal(t, []string{"d", "e", "f"}, combined.Sections)
 }
