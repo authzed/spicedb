@@ -429,10 +429,13 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 					}
 
 					// The cursor for the response is that of the parent response + the cursor from the result itself.
-					afterResponseCursor := mustCombineCursors(
+					afterResponseCursor, err := combineCursors(
 						ci.responsePartialCursor(),
 						result.AfterResponseCursor,
 					)
+					if err != nil {
+						return nil, false, err
+					}
 
 					resp := &v1.DispatchReachableResourcesResponse{
 						Resource:            mappedResource,
