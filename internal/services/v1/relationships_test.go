@@ -1255,6 +1255,40 @@ func TestWriteRelationshipsUpdatesOverLimit(t *testing.T) {
 	require.Contains(err.Error(), "update count of 2 is greater than maximum allowed of 1")
 }
 
+func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxRelationshipContextSize: 1,
+		},
+		tf.StandardDatastoreWithCaveatedData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	rel := relWithCaveat("document", "newdoc", "parent", "folder", "afolder", "", "test")
+	strct, err := structpb.NewStruct(map[string]any{"key": "value"})
+	require.NoError(err)
+	rel.OptionalCaveat.Context = strct
+
+	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: rel,
+			},
+		},
+	})
+
+	require.Error(err)
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.ErrorContains(err, "exceeded maximum allowed size of 1")
+}
+
 func TestReadRelationshipsWithTimeout(t *testing.T) {
 	require := require.New(t)
 

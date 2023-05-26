@@ -199,6 +199,7 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 				Network: util.BufferedNetwork,
 				Enabled: true,
 			}),
+			server.WithMaxRelationshipContextSize(25000),
 			server.WithSchemaPrefixesRequired(false),
 			server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
 				return ctx, nil

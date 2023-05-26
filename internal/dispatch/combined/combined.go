@@ -3,7 +3,6 @@
 package combined
 
 import (
-	"os"
 	"time"
 
 	"github.com/authzed/grpcutil"
@@ -125,15 +124,11 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
 		if opts.upstreamCAPath != "" {
-			// Ensure that the CA path exists.
-			if _, err := os.Stat(opts.upstreamCAPath); err != nil {
-				return nil, err
-			}
-			certsOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
+			customCertOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
 			if err != nil {
 				return nil, err
 			}
-			opts.grpcDialOpts = append(opts.grpcDialOpts, certsOpt)
+			opts.grpcDialOpts = append(opts.grpcDialOpts, customCertOpt)
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
 		} else {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))

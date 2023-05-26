@@ -39,6 +39,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
+		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
 	}
 }
 
@@ -53,6 +54,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaximumUpdatesPerWrite"] = helpers.DebugValue(c.MaximumUpdatesPerWrite, false)
 	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
 	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
+	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
 	return debugMap
 }
 
@@ -132,5 +134,12 @@ func WithMaximumPreconditionCount(maximumPreconditionCount uint16) ConfigOption 
 func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
 	return func(c *Config) {
 		c.MaxCaveatContextSize = maxCaveatContextSize
+	}
+}
+
+// WithMaxRelationshipContextSize returns an option that can set MaxRelationshipContextSize on a Config
+func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption {
+	return func(c *Config) {
+		c.MaxRelationshipContextSize = maxRelationshipContextSize
 	}
 }

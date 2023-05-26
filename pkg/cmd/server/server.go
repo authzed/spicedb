@@ -72,7 +72,8 @@ type Config struct {
 	Datastore       datastore.Datastore `debugmap:"visible"`
 
 	// Datastore usage
-	MaxCaveatContextSize int `debugmap:"visible"`
+	MaxCaveatContextSize       int `debugmap:"visible"`
+	MaxRelationshipContextSize int `debugmap:"visible"`
 
 	// Namespace cache
 	NamespaceCacheConfig CacheConfig `debugmap:"visible"`
@@ -345,12 +346,13 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	permSysConfig := v1svc.PermissionsServerConfig{
-		MaxPreconditionsCount:    c.MaximumPreconditionCount,
-		MaxUpdatesPerWrite:       c.MaximumUpdatesPerWrite,
-		MaximumAPIDepth:          c.DispatchMaxDepth,
-		MaxCaveatContextSize:     c.MaxCaveatContextSize,
-		MaxDatastoreReadPageSize: c.MaxDatastoreReadPageSize,
-		StreamingAPITimeout:      c.StreamingAPITimeout,
+		MaxPreconditionsCount:      c.MaximumPreconditionCount,
+		MaxUpdatesPerWrite:         c.MaximumUpdatesPerWrite,
+		MaximumAPIDepth:            c.DispatchMaxDepth,
+		MaxCaveatContextSize:       c.MaxCaveatContextSize,
+		MaxRelationshipContextSize: c.MaxRelationshipContextSize,
+		MaxDatastoreReadPageSize:   c.MaxDatastoreReadPageSize,
+		StreamingAPITimeout:        c.StreamingAPITimeout,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)
