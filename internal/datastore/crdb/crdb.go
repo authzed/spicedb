@@ -370,10 +370,10 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 	if writeTotal < writeMin || readTotal < readMin {
 		return datastore.ReadyState{
 			Message: fmt.Sprintf(
-				"spicedb does have the required minimum connection count to the datastore. Read: %d/%d, Write: %d/%d",
-				writeTotal,
-				readMin,
+				"spicedb does not have the required minimum connection count to the datastore. Read: %d/%d, Write: %d/%d",
 				readTotal,
+				readMin,
+				writeTotal,
 				writeMin,
 			),
 			IsReady: false,
