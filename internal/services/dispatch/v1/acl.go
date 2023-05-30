@@ -89,13 +89,15 @@ func rewriteGraphError(ctx context.Context, err error) error {
 		return status.Errorf(codes.DeadlineExceeded, "%s", err)
 	case errors.Is(err, context.Canceled):
 		return status.Errorf(codes.Canceled, "%s", err)
+	case status.Code(err) == codes.Canceled:
+		return err
 	case err == nil:
 		return nil
 
 	case errors.As(err, &graph.ErrAlwaysFail{}):
 		fallthrough
 	default:
-		log.Ctx(ctx).Err(err).Msg("unexpected graph error")
+		log.Ctx(ctx).Err(err).Msg("unexpected dispatch graph error")
 		return err
 	}
 }
