@@ -246,6 +246,54 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 	}
 }
 
+func TestLookupResourcesCursorStability(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	require := require.New(t)
+	ctx, dispatcher, revision := newLocalDispatcher(t)
+	defer dispatcher.Close()
+
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+
+	// Make the first first request.
+	err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+		ObjectRelation: RR("document", "view"),
+		Subject:        ONR("user", "owner", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+		OptionalLimit: 2,
+	}, stream)
+
+	require.NoError(err)
+	require.Equal(2, len(stream.Results()))
+
+	cursor := stream.Results()[1].AfterResponseCursor
+	require.NotNil(cursor)
+
+	// Make the same request and ensure the cursor has not changed.
+	stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+		ObjectRelation: RR("document", "view"),
+		Subject:        ONR("user", "owner", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+		OptionalLimit: 2,
+	}, stream)
+
+	require.NoError(err)
+
+	require.NoError(err)
+	require.Equal(2, len(stream.Results()))
+
+	cursorAgain := stream.Results()[1].AfterResponseCursor
+	require.NotNil(cursor)
+	require.Equal(cursor, cursorAgain)
+}
+
 func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResourcesResponse]) ([]*v1.ResolvedResource, uint32, uint32, uint32) {
 	foundResources := []*v1.ResolvedResource{}
 	var maxDepthRequired uint32
