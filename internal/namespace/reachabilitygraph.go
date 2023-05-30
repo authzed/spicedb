@@ -65,6 +65,10 @@ func (re ReachabilityEntrypoint) IsDirectResult() bool {
 	return re.re.ResultStatus == core.ReachabilityEntrypoint_DIRECT_OPERATION_RESULT
 }
 
+func (re ReachabilityEntrypoint) String() string {
+	return re.MustDebugString()
+}
+
 func (re ReachabilityEntrypoint) MustDebugString() string {
 	switch re.EntrypointKind() {
 	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:

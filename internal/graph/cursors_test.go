@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -10,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -211,4 +213,143 @@ func TestCombineCursorsWithNil(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, combined.AtRevision, revision.String())
 	require.Equal(t, []string{"d", "e", "f"}, combined.Sections)
+}
+
+func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
+	limits, _ := newLimitTracker(context.Background(), 50)
+	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		AtRevision: revision.String(),
+		Sections:   []string{},
+	}, revision, limits)
+	require.NoError(t, err)
+
+	items := []int{10, 20, 30, 40, 50}
+	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	err = withParallelizedStreamingIterableInCursor[int, int](
+		context.Background(),
+		ci,
+		"iter",
+		items,
+		parentStream,
+		2,
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			err := stream.Publish(item * 10)
+			if err != nil {
+				return err
+			}
+
+			return stream.Publish((item * 10) + 1)
+		})
+
+	require.NoError(t, err)
+	require.Equal(t, []int{100, 101, 200, 201, 300, 301, 400, 401, 500, 501}, parentStream.Results())
+}
+
+func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.T) {
+	limits, _ := newLimitTracker(context.Background(), 50)
+	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		AtRevision: revision.String(),
+		Sections:   []string{"iter", "2"},
+	}, revision, limits)
+	require.NoError(t, err)
+
+	items := []int{10, 20, 30, 40, 50}
+	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	err = withParallelizedStreamingIterableInCursor[int, int](
+		context.Background(),
+		ci,
+		"iter",
+		items,
+		parentStream,
+		2,
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			err := stream.Publish(item * 10)
+			if err != nil {
+				return err
+			}
+
+			return stream.Publish((item * 10) + 1)
+		})
+
+	require.NoError(t, err)
+	require.Equal(t, []int{300, 301, 400, 401, 500, 501}, parentStream.Results())
+}
+
+func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
+	limits, _ := newLimitTracker(context.Background(), 5)
+	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		AtRevision: revision.String(),
+		Sections:   []string{},
+	}, revision, limits)
+	require.NoError(t, err)
+
+	items := []int{10, 20, 30, 40, 50}
+	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	err = withParallelizedStreamingIterableInCursor[int, int](
+		context.Background(),
+		ci,
+		"iter",
+		items,
+		parentStream,
+		2,
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			err := stream.Publish(item * 10)
+			if err != nil {
+				return err
+			}
+
+			return stream.Publish((item * 10) + 1)
+		})
+
+	require.NoError(t, err)
+	require.Equal(t, []int{100, 101, 200, 201, 300}, parentStream.Results())
+}
+
+func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T) {
+	limits, _ := newLimitTracker(context.Background(), 500)
+	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		AtRevision: revision.String(),
+		Sections:   []string{},
+	}, revision, limits)
+	require.NoError(t, err)
+
+	items := []int{}
+	expected := []int{}
+	for i := 0; i < 500; i++ {
+		items = append(items, i)
+		expected = append(expected, i*10)
+	}
+
+	encountered := []int{}
+	lock := sync.Mutex{}
+
+	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	err = withParallelizedStreamingIterableInCursor[int, int](
+		context.Background(),
+		ci,
+		"iter",
+		items,
+		parentStream,
+		5,
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			lock.Lock()
+			encountered = append(encountered, item)
+			lock.Unlock()
+
+			return stream.Publish(item * 10)
+		})
+
+	require.Equal(t, len(expected), len(encountered))
+	require.NotEqual(t, encountered, expected)
+
+	require.NoError(t, err)
+	require.Equal(t, expected, parentStream.Results())
 }

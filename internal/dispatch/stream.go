@@ -3,6 +3,7 @@ package dispatch
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	grpc "google.golang.org/grpc"
 )
@@ -146,8 +147,41 @@ func (s *HandlingDispatchStream[T]) Context() context.Context {
 	return s.ctx
 }
 
+// CountingDispatchStream is a dispatch stream that counts the number of items published.
+// It uses an internal atomic int to ensure it is thread safe.
+type CountingDispatchStream[T any] struct {
+	Stream Stream[T]
+	count  *atomic.Uint64
+}
+
+func NewCountingDispatchStream[T any](wrapped Stream[T]) *CountingDispatchStream[T] {
+	return &CountingDispatchStream[T]{
+		Stream: wrapped,
+		count:  &atomic.Uint64{},
+	}
+}
+
+func (s *CountingDispatchStream[T]) PublishedCount() uint64 {
+	return s.count.Load()
+}
+
+func (s *CountingDispatchStream[T]) Publish(result T) error {
+	err := s.Stream.Publish(result)
+	if err != nil {
+		return err
+	}
+
+	s.count.Add(1)
+	return nil
+}
+
+func (s *CountingDispatchStream[T]) Context() context.Context {
+	return s.Stream.Context()
+}
+
 // Ensure the streams implement the interface.
 var (
 	_ Stream[any] = &CollectingDispatchStream[any]{}
 	_ Stream[any] = &WrappedDispatchStream[any]{}
+	_ Stream[any] = &CountingDispatchStream[any]{}
 )

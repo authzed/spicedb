@@ -37,6 +37,10 @@ type TaskFunc func(ctx context.Context) error
 // started after that point will also be canceled and the error returned. If
 // a task returns an error, the context provided to all tasks is also canceled.
 func NewTaskRunner(ctx context.Context, concurrencyLimit uint16) *TaskRunner {
+	if concurrencyLimit < 1 {
+		concurrencyLimit = 1
+	}
+
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	return &TaskRunner{
 		ctx:    ctxWithCancel,

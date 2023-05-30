@@ -57,7 +57,7 @@ func (cl *CursoredLookupResources) LookupResources(
 
 		// Create a new handling stream that consumes the reachable resources results and publishes them
 		// as found resources if they are properly checked.
-		rrStream := dispatch.NewHandlingDispatchStream(ctx, func(result *v1.DispatchReachableResourcesResponse) error {
+		rrStream := dispatch.NewHandlingDispatchStream(withCancel, func(result *v1.DispatchReachableResourcesResponse) error {
 			reachableResourcesCursor = result.AfterResponseCursor
 			reachableResourcesFound++
 

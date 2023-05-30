@@ -896,8 +896,9 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 				defer cancel()
 
 				newFound := 0
+				existingCursor := cursor
 				for _, result := range stream.Results() {
-					require.True(t, foundResources.Add(result.Resource.ResourceId))
+					require.True(t, foundResources.Add(result.Resource.ResourceId), "found duplicate %s for iteration %d with cursor %s", result.Resource.ResourceId, i, existingCursor)
 					newFound++
 
 					cursor = result.AfterResponseCursor
