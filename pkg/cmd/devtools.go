@@ -29,6 +29,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 )
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
@@ -51,7 +52,7 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 		Short:   "runs the developer tools service",
 		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE:    runfunc,
+		RunE:    termination.PublishError(runfunc),
 		Args:    cobra.ExactArgs(0),
 	}
 }

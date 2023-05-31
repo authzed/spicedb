@@ -13,6 +13,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 )
 
@@ -79,6 +80,10 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
+		}
+		var termErr termination.Error
+		if errors.As(err, &termErr) {
+			os.Exit(termErr.ExitCode())
 		}
 		os.Exit(1)
 	}

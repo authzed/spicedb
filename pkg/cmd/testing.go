@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
@@ -31,7 +32,7 @@ func NewTestingCommand(programName string, config *testserver.Config) *cobra.Com
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
 			signalctx := SignalContextWithGracePeriod(
 				context.Background(),
 				0,
@@ -41,6 +42,6 @@ func NewTestingCommand(programName string, config *testserver.Config) *cobra.Com
 				return err
 			}
 			return srv.Run(signalctx)
-		},
+		}),
 	}
 }

@@ -15,6 +15,7 @@ import (
 	spannermigrations "github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -35,7 +36,7 @@ func NewMigrateCommand(programName string) *cobra.Command {
 		Short:   "execute datastore schema migrations",
 		Long:    fmt.Sprintf("Executes datastore schema migrations for the datastore.\nThe special value \"%s\" can be used to migrate to the latest revision.", color.YellowString(migrate.Head)),
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE:    migrateRun,
+		RunE:    termination.PublishError(migrateRun),
 		Args:    cobra.ExactArgs(1),
 	}
 }

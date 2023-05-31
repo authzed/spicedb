@@ -11,6 +11,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 	dspkg "github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -45,7 +46,7 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 		Short:   "executes garbage collection",
 		Long:    "Executes garbage collection against the datastore",
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 
 			// Disable background GC and hedging.
@@ -77,6 +78,6 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 			}
 			log.Ctx(ctx).Info().Msg("Garbage collection completed")
 			return nil
-		},
+		}),
 	}
 }
