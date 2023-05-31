@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
@@ -88,6 +89,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	return &v1.ReadSchemaResponse{
 		SchemaText: schemaText,
+		ReadAt:     zedtoken.MustNewFromRevision(headRevision),
 	}, nil
 }
 
@@ -114,7 +116,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 
 	// Update the schema.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, validated)
 		if err != nil {
 			return err
@@ -128,5 +130,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, shared.RewriteError(ctx, err)
 	}
 
-	return &v1.WriteSchemaResponse{}, nil
+	return &v1.WriteSchemaResponse{
+		WrittenAt: zedtoken.MustNewFromRevision(revision),
+	}, nil
 }

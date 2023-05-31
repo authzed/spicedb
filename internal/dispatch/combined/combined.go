@@ -129,7 +129,11 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			if _, err := os.Stat(opts.upstreamCAPath); err != nil {
 				return nil, err
 			}
-			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithCustomCerts(opts.upstreamCAPath, grpcutil.VerifyCA))
+			certsOpt, err := grpcutil.WithCustomCerts(grpcutil.VerifyCA, opts.upstreamCAPath)
+			if err != nil {
+				return nil, err
+			}
+			opts.grpcDialOpts = append(opts.grpcDialOpts, certsOpt)
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithBearerToken(opts.grpcPresharedKey))
 		} else {
 			opts.grpcDialOpts = append(opts.grpcDialOpts, grpcutil.WithInsecureBearerToken(opts.grpcPresharedKey))
