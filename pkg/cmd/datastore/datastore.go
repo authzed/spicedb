@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -167,8 +168,19 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	var legacyConnPool ConnPoolConfig
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultReadConnPool(), &legacyConnPool)
 	deprecateUnifiedConnFlags(flagSet)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-read", &legacyConnPool, &opts.ReadConnPool)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-read", &legacyConnPool, &opts.ReadConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
+
+	normalizeFunc := flagSet.GetNormalizeFunc()
+	flagSet.SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
+		if normalizeFunc != nil {
+			name = string(normalizeFunc(f, name))
+		}
+		if strings.HasPrefix(name, "datastore-connpool") {
+			return pflag.NormalizedName(strings.ReplaceAll(name, "connpool", "conn-pool"))
+		}
+		return pflag.NormalizedName(name)
+	})
 
 	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), defaults.GCWindow, "amount of time before revisions are garbage collected")
 	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
