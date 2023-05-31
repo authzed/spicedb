@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
+	"github.com/sean-/sysexits"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -41,6 +42,7 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -203,7 +205,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		var err error
 		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption())
 		if err != nil {
-			return nil, fmt.Errorf("failed to create datastore: %w", err)
+			return nil, termination.New(fmt.Errorf("failed to create datastore: %w", err)).
+				Component("datastore").
+				ExitCode(sysexits.Config).
+				Error()
 		}
 	}
 	closeables.AddWithError(ds.Close)
