@@ -168,7 +168,7 @@ func (err ErrDuplicateRelationshipError) GRPCStatus() *status.Status {
 		err,
 		codes.InvalidArgument,
 		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_INVALID_SUBJECT_TYPE,
+			v1.ErrorReason_ERROR_REASON_UPDATES_ON_SAME_RELATIONSHIP,
 			map[string]string{
 				"definition_name": err.update.Relationship.Resource.ObjectType,
 				"relationship":    tuple.MustRelString(err.update.Relationship),
