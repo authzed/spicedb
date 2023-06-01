@@ -7,6 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
@@ -172,6 +173,43 @@ func (err ErrDuplicateRelationshipError) GRPCStatus() *status.Status {
 			map[string]string{
 				"definition_name": err.update.Relationship.Resource.ObjectType,
 				"relationship":    tuple.MustRelString(err.update.Relationship),
+			},
+		),
+	)
+}
+
+// ErrMaxRelationshipContextError indicates an attempt to write a relationship that exceeded the maximum
+// configured context size.
+type ErrMaxRelationshipContextError struct {
+	error
+	update         *v1.RelationshipUpdate
+	maxAllowedSize int
+}
+
+// NewMaxRelationshipContextError constructs a new max relationship context error.
+func NewMaxRelationshipContextError(update *v1.RelationshipUpdate, maxAllowedSize int) ErrMaxRelationshipContextError {
+	return ErrMaxRelationshipContextError{
+		error: fmt.Errorf(
+			"provided relationship `%s` exceeded maximum allowed size of %d",
+			tuple.StringRelationshipWithoutCaveat(update.Relationship),
+			maxAllowedSize,
+		),
+		update:         update,
+		maxAllowedSize: maxAllowedSize,
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrMaxRelationshipContextError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_MAX_RELATIONSHIP_CONTEXT_SIZE,
+			map[string]string{
+				"relationship":     tuple.StringRelationshipWithoutCaveat(err.update.Relationship),
+				"max_allowed_size": strconv.Itoa(err.maxAllowedSize),
+				"context_size":     strconv.Itoa(proto.Size(err.update.Relationship)),
 			},
 		),
 	)

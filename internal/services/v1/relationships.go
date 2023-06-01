@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/samber/lo"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -62,6 +63,9 @@ type PermissionsServerConfig struct {
 	// MaxCaveatContextSize defines the maximum length of the request caveat context in bytes
 	MaxCaveatContextSize int
 
+	// MaxRelationshipContextSize defines the maximum length of a relationship's context in bytes
+	MaxRelationshipContextSize int
+
 	// MaxDatastoreReadPageSize defines the maximum number of relationships loaded from the
 	// datastore in one query.
 	MaxDatastoreReadPageSize uint64
@@ -73,12 +77,13 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount:    defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:       defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:          defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:      defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:     config.MaxCaveatContextSize,
-		MaxDatastoreReadPageSize: defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxPreconditionsCount:      defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:         defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:            defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:        defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:       config.MaxCaveatContextSize,
+		MaxRelationshipContextSize: config.MaxRelationshipContextSize,
+		MaxDatastoreReadPageSize:   defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
 	}
 
 	return &permissionServer{
@@ -267,6 +272,12 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return nil, shared.RewriteError(
 				ctx,
 				NewDuplicateRelationshipErr(update),
+			)
+		}
+		if proto.Size(update.Relationship.OptionalCaveat) > ps.config.MaxRelationshipContextSize {
+			return nil, shared.RewriteError(
+				ctx,
+				NewMaxRelationshipContextError(update, ps.config.MaxRelationshipContextSize),
 			)
 		}
 	}

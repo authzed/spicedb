@@ -51,6 +51,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DatastoreConfig = c.DatastoreConfig
 		to.Datastore = c.Datastore
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
+		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -103,6 +104,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["DatastoreConfig"] = helpers.DebugValue(c.DatastoreConfig, false)
 	debugMap["Datastore"] = helpers.DebugValue(c.Datastore, false)
 	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
+	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
 	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
 	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
 	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
@@ -254,6 +256,13 @@ func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
 	return func(c *Config) {
 		c.MaxCaveatContextSize = maxCaveatContextSize
+	}
+}
+
+// WithMaxRelationshipContextSize returns an option that can set MaxRelationshipContextSize on a Config
+func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption {
+	return func(c *Config) {
+		c.MaxRelationshipContextSize = maxRelationshipContextSize
 	}
 }
 

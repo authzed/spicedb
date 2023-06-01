@@ -21,9 +21,10 @@ import (
 
 // ServerConfig is configuration for the test server.
 type ServerConfig struct {
-	MaxUpdatesPerWrite    uint16
-	MaxPreconditionsCount uint16
-	StreamingAPITimeout   time.Duration
+	MaxUpdatesPerWrite         uint16
+	MaxPreconditionsCount      uint16
+	MaxRelationshipContextSize int
+	StreamingAPITimeout        time.Duration
 }
 
 // NewTestServer creates a new test server, using defaults for the config.
@@ -35,9 +36,10 @@ func NewTestServer(require *require.Assertions,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
 		ServerConfig{
-			MaxUpdatesPerWrite:    1000,
-			MaxPreconditionsCount: 1000,
-			StreamingAPITimeout:   30 * time.Second,
+			MaxUpdatesPerWrite:         1000,
+			MaxPreconditionsCount:      1000,
+			StreamingAPITimeout:        30 * time.Second,
+			MaxRelationshipContextSize: 25000,
 		},
 		dsInitFunc)
 }
@@ -62,6 +64,7 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
 		server.WithStreamingAPITimeout(config.StreamingAPITimeout),
 		server.WithMaxCaveatContextSize(4096),
+		server.WithMaxRelationshipContextSize(config.MaxRelationshipContextSize),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 			Enabled: true,
