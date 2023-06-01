@@ -10,16 +10,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/authzed/grpcutil"
 	"github.com/cespare/xxhash/v2"
 	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/go-multierror"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 	"github.com/rs/zerolog"
+	"github.com/sean-/sysexits"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -43,6 +43,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // ConsistentHashringBuilder is a balancer Builder that uses xxhash as the
@@ -203,7 +204,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		var err error
 		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption())
 		if err != nil {
-			return nil, fmt.Errorf("failed to create datastore: %w", err)
+			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
+				Component("datastore").
+				ExitCode(sysexits.Config).
+				Error()
 		}
 	}
 	closeables.AddWithError(ds.Close)

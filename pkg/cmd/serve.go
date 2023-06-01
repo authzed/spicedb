@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/internal/telemetry"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
@@ -142,7 +143,7 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 		Short:   "serve the permissions database",
 		Long:    "A database that stores, computes, and validates application permissions",
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
 			server, err := config.Complete(cmd.Context())
 			if err != nil {
 				return err
@@ -152,7 +153,7 @@ func NewServeCommand(programName string, config *server.Config) *cobra.Command {
 				config.ShutdownGracePeriod,
 			)
 			return server.Run(signalctx)
-		},
+		}),
 		Example: server.ServeExample(programName),
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var errParsing = errors.New("parsing error")
@@ -79,6 +80,10 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
+		}
+		var termErr spiceerrors.TerminationError
+		if errors.As(err, &termErr) {
+			os.Exit(termErr.ExitCode())
 		}
 		os.Exit(1)
 	}
