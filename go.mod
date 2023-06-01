@@ -5,7 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/spanner v1.45.1
 	github.com/IBM/pgxpoolprometheus v1.1.1
-	github.com/Masterminds/squirrel v1.5.3
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/agnivade/wasmbrowsertest v0.7.0
 	github.com/authzed/authzed-go v0.8.1-0.20230601141426-d411c3f66256
 	github.com/authzed/grpcutil v0.0.0-20230509155820-7a6fedb71dbc
@@ -63,6 +63,7 @@ require (
 	github.com/rs/zerolog v1.29.0
 	github.com/samber/lo v1.38.1
 	github.com/scylladb/go-set v1.0.2
+	github.com/sean-/sysexits v1.0.0
 	github.com/sercand/kuberesolver/v4 v4.0.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.7.0
@@ -289,7 +290,6 @@ require (
 	github.com/sanposhiho/wastedassign/v2 v2.0.7 // indirect
 	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
 	github.com/sashamelentyev/usestdlibvars v1.23.0 // indirect
-	github.com/sean-/sysexits v1.0.0 // indirect
 	github.com/securego/gosec/v2 v2.15.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c // indirect
