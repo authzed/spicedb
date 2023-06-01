@@ -73,8 +73,8 @@ type Config struct {
 	Datastore       datastore.Datastore `debugmap:"visible"`
 
 	// Datastore usage
-	MaxCaveatContextSize       int `debugmap:"visible"`
-	MaxRelationshipContextSize int `debugmap:"visible"`
+	MaxCaveatContextSize       int `debugmap:"visible" default:"4096"`
+	MaxRelationshipContextSize int `debugmap:"visible" default:"25_000"`
 
 	// Namespace cache
 	NamespaceCacheConfig CacheConfig `debugmap:"visible"`

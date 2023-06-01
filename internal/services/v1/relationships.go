@@ -81,8 +81,8 @@ func NewPermissionsServer(
 		MaxUpdatesPerWrite:         defaultIfZero(config.MaxUpdatesPerWrite, 1000),
 		MaximumAPIDepth:            defaultIfZero(config.MaximumAPIDepth, 50),
 		StreamingAPITimeout:        defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:       config.MaxCaveatContextSize,
-		MaxRelationshipContextSize: config.MaxRelationshipContextSize,
+		MaxCaveatContextSize:       defaultIfZero(config.MaxCaveatContextSize, 4096),
+		MaxRelationshipContextSize: defaultIfZero(config.MaxRelationshipContextSize, 25_000),
 		MaxDatastoreReadPageSize:   defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
 	}
 
