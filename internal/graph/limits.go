@@ -2,6 +2,8 @@ package graph
 
 import (
 	"context"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // limitTracker is a helper struct for tracking the limit requested by a caller and decrementing
@@ -19,6 +21,16 @@ func newLimitTracker(ctx context.Context, optionalLimit uint32) (*limitTracker, 
 	return &limitTracker{
 		currentLimit: optionalLimit,
 		hasLimit:     optionalLimit > 0,
+		cancel:       cancel,
+	}, withCancel
+}
+
+// clone creates a copy of the limitTracker, inheriting the current limit.
+func (lt *limitTracker) clone(ctx context.Context) (*limitTracker, context.Context) {
+	withCancel, cancel := context.WithCancel(ctx)
+	return &limitTracker{
+		currentLimit: lt.currentLimit,
+		hasLimit:     lt.hasLimit,
 		cancel:       cancel,
 	}, withCancel
 }
@@ -54,6 +66,25 @@ func (lt *limitTracker) prepareForPublishing() (bool, func()) {
 	// otherwise, remove the element from the limit.
 	lt.currentLimit--
 	return true, func() {}
+}
+
+// markAlreadyPublished marks that the given count of results has already been published. If the count is
+// greater than the limit, returns a spiceerror.
+func (lt *limitTracker) markAlreadyPublished(count uint32) (func(), error) {
+	if !lt.hasLimit {
+		return func() {}, nil
+	}
+
+	if count > lt.currentLimit {
+		return func() {}, spiceerrors.MustBugf("given published count of %d exceeds the remaining limit of %d", count, lt.currentLimit)
+	}
+
+	lt.currentLimit -= count
+	if lt.currentLimit == 0 {
+		return lt.cancel, nil
+	}
+
+	return func() {}, nil
 }
 
 // hasExhaustedLimit returns true if the limit has been reached and all items allowable have been

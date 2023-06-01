@@ -18,6 +18,8 @@ type preloadedTaskRunner struct {
 	// not exceed the concurrencyLimit with spawned goroutines.
 	sem chan token
 
+	wg    sync.WaitGroup
+	err   error
 	lock  sync.Mutex
 	tasks []TaskFunc
 }
@@ -40,6 +42,7 @@ func newPreloadedTaskRunner(ctx context.Context, concurrencyLimit uint16, initia
 // add adds the given task function to be run.
 func (tr *preloadedTaskRunner) add(f TaskFunc) {
 	tr.tasks = append(tr.tasks, f)
+	tr.wg.Add(1)
 }
 
 // start starts running the tasks in the task runner. This does *not* wait for the tasks
@@ -48,6 +51,17 @@ func (tr *preloadedTaskRunner) start() {
 	for range tr.tasks {
 		tr.spawnIfAvailable()
 	}
+}
+
+// startAndWait starts running the tasks in the task runner and waits for them to complete.
+func (tr *preloadedTaskRunner) startAndWait() error {
+	tr.start()
+	tr.wg.Wait()
+
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	return tr.err
 }
 
 func (tr *preloadedTaskRunner) spawnIfAvailable() {
@@ -72,6 +86,7 @@ func (tr *preloadedTaskRunner) runner() {
 		select {
 		case <-tr.ctx.Done():
 			// If the context was canceled, nothing more to do.
+			tr.emptyForCancel()
 			return
 
 		default:
@@ -84,8 +99,9 @@ func (tr *preloadedTaskRunner) runner() {
 			// Run the task. If an error occurs, store it and cancel any further tasks.
 			err := task(tr.ctx)
 			if err != nil {
-				tr.cancel()
+				tr.storeErrorAndCancel(err)
 			}
+			tr.wg.Done()
 		}
 	}
 }
@@ -98,7 +114,37 @@ func (tr *preloadedTaskRunner) selectTask() TaskFunc {
 		return nil
 	}
 
-	var task TaskFunc
-	task, tr.tasks = tr.tasks[0], tr.tasks[1:]
+	task := tr.tasks[0]
+	tr.tasks[0] = nil // to free the reference once the task completes.
+	tr.tasks = tr.tasks[1:]
 	return task
+}
+
+func (tr *preloadedTaskRunner) storeErrorAndCancel(err error) {
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	if tr.err == nil {
+		tr.err = err
+		tr.cancel()
+	}
+}
+
+func (tr *preloadedTaskRunner) emptyForCancel() {
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
+
+	if tr.err == nil {
+		tr.err = tr.ctx.Err()
+	}
+
+	for {
+		if len(tr.tasks) == 0 {
+			break
+		}
+
+		tr.tasks[0] = nil // to free the reference
+		tr.tasks = tr.tasks[1:]
+		tr.wg.Done()
+	}
 }

@@ -95,7 +95,7 @@ func (crr *CursoredReachableResources) afterSameType(
 	ctx context.Context,
 	ci cursorInformation,
 	req ValidatedReachableResourcesRequest,
-	stream dispatch.ReachableResourcesStream,
+	parentStream dispatch.ReachableResourcesStream,
 ) error {
 	dispatched := &syncONRSet{}
 
@@ -117,8 +117,8 @@ func (crr *CursoredReachableResources) afterSameType(
 	}
 
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
-	return withIterableInCursor(ci, "entrypoint", entrypoints,
-		func(ci cursorInformation, entrypoint namespace.ReachabilityEntrypoint) error {
+	return withParallelizedStreamingIterableInCursor(ctx, ci, "entrypoint", entrypoints, parentStream, crr.concurrencyLimit,
+		func(ctx context.Context, ci cursorInformation, entrypoint namespace.ReachabilityEntrypoint, stream dispatch.ReachableResourcesStream) error {
 			switch entrypoint.EntrypointKind() {
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
 				err := crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)

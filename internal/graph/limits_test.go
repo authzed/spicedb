@@ -27,3 +27,17 @@ func TestLimitsPrepareForPublishing(t *testing.T) {
 
 	require.False(t, result)
 }
+
+func TestLimitsMarkAlreadyPublished(t *testing.T) {
+	limits, _ := newLimitTracker(context.Background(), 10)
+
+	_, err := limits.markAlreadyPublished(5)
+	require.Nil(t, err)
+
+	_, err = limits.markAlreadyPublished(5)
+	require.Nil(t, err)
+
+	require.Panics(t, func() {
+		_, _ = limits.markAlreadyPublished(1)
+	})
+}
