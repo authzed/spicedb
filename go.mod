@@ -47,7 +47,7 @@ require (
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jzelinskie/cobrautil/v2 v2.0.0-20230403163312-3593f31d8fe1
 	github.com/jzelinskie/stringz v0.0.1
-	github.com/lib/pq v1.10.7
+	github.com/lib/pq v1.10.9
 	github.com/lthibault/jitterbug v2.0.0+incompatible
 	github.com/magefile/mage v1.15.0
 	github.com/mostynb/go-grpc-compression v1.1.17
@@ -63,6 +63,7 @@ require (
 	github.com/rs/zerolog v1.29.0
 	github.com/samber/lo v1.38.1
 	github.com/scylladb/go-set v1.0.2
+	github.com/sean-/sysexits v1.0.0
 	github.com/sercand/kuberesolver/v4 v4.0.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/spf13/cobra v1.7.0
@@ -289,7 +290,6 @@ require (
 	github.com/sanposhiho/wastedassign/v2 v2.0.7 // indirect
 	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
 	github.com/sashamelentyev/usestdlibvars v1.23.0 // indirect
-	github.com/sean-/sysexits v1.0.0 // indirect
 	github.com/securego/gosec/v2 v2.15.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c // indirect
