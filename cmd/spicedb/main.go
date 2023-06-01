@@ -62,9 +62,9 @@ func main() {
 	rootCmd.AddCommand(headCmd)
 
 	// Add server commands
-	var serverConfig cmdutil.Config
-	serveCmd := cmd.NewServeCommand(rootCmd.Use, &serverConfig)
-	if err := cmd.RegisterServeFlags(serveCmd, &serverConfig); err != nil {
+	serverConfig := cmdutil.NewConfigWithOptionsAndDefaults()
+	serveCmd := cmd.NewServeCommand(rootCmd.Use, serverConfig)
+	if err := cmd.RegisterServeFlags(serveCmd, serverConfig); err != nil {
 		log.Fatal().Err(err).Msg("failed to register server flags")
 	}
 	rootCmd.AddCommand(serveCmd)

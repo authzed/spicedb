@@ -190,7 +190,7 @@ type ErrMaxRelationshipContextError struct {
 func NewMaxRelationshipContextError(update *v1.RelationshipUpdate, maxAllowedSize int) ErrMaxRelationshipContextError {
 	return ErrMaxRelationshipContextError{
 		error: fmt.Errorf(
-			"provided relationship `%s` exceeded maximum allowed size of %d",
+			"provided relationship `%s` exceeded maximum allowed caveat size of %d",
 			tuple.StringRelationshipWithoutCaveat(update.Relationship),
 			maxAllowedSize,
 		),

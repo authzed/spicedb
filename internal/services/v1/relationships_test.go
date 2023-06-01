@@ -1286,7 +1286,7 @@ func TestWriteRelationshipsCaveatExceedsMaxSize(t *testing.T) {
 
 	require.Error(err)
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-	require.ErrorContains(err, "exceeded maximum allowed size of 1")
+	require.ErrorContains(err, "exceeded maximum allowed caveat size of 1")
 }
 
 func TestReadRelationshipsWithTimeout(t *testing.T) {
