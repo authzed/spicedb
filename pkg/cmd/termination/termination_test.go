@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -19,16 +21,16 @@ func TestPublishError(t *testing.T) {
 	require.NoError(t, err)
 	filePath := f.Name()
 	cmd.Flag(terminationLogFlagName).Value = newStringValue(filePath, &filePath)
-	publishedError := New(errors.New("hi")).Metadata("k", "v").Component("test").Error()
+	publishedError := spiceerrors.NewTerminationErrorBuilder(errors.New("hi")).Metadata("k", "v").Component("test").Error()
 	err = PublishError(func(cmd *cobra.Command, args []string) error {
 		return publishedError
 	})(&cmd, nil)
-	var termErr Error
+	var termErr spiceerrors.TerminationError
 	require.ErrorAs(t, err, &termErr)
 
 	jsonBytes, err := os.ReadFile(f.Name())
 	require.NoError(t, err)
-	var readErr Error
+	var readErr spiceerrors.TerminationError
 	err = json.Unmarshal(jsonBytes, &readErr)
 	require.NoError(t, err)
 

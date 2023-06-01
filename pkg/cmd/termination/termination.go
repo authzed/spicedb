@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"time"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
@@ -22,75 +22,12 @@ const (
 	kubeTerminationLogLimit   = 4096
 )
 
-// Error represents an error that captures contextual information to make
-// available on process termination. The error will be marshalled as JSON and
-// serialized into a file-path specified via CLI arguments
-type Error struct {
-	error
-	Component   string            `json:"component"`
-	Timestamp   time.Time         `json:"timestamp"`
-	ErrorString string            `json:"error"`
-	Metadata    map[string]string `json:"metadata"`
-	exitCode    int
-}
-
-// ExitCode returns the exit code to be returned on process termination
-func (e Error) ExitCode() int {
-	return e.exitCode
-}
-
-// ErrorBuilder is a fluent-style builder for Error
-type ErrorBuilder struct {
-	terminationErr Error
-}
-
-// Error returns the built termination Error
-func (eb *ErrorBuilder) Error() Error {
-	return eb.terminationErr
-}
-
-// Component specifies the component in SpiceDB that
-func (eb *ErrorBuilder) Component(component string) *ErrorBuilder {
-	eb.terminationErr.Component = component
-	return eb
-}
-
-// Metadata adds a new key-value pair of metadata to the termination Error being built
-func (eb *ErrorBuilder) Metadata(key, value string) *ErrorBuilder {
-	eb.terminationErr.Metadata[key] = value
-	return eb
-}
-
-// ExitCode defines the ExitCode to be used upon process termination. Defaults to 1 if not specified.
-func (eb *ErrorBuilder) ExitCode(exitCode int) *ErrorBuilder {
-	eb.terminationErr.exitCode = exitCode
-	return eb
-}
-
-// Timestamp defines the time of the error. Defaults to time.Now().UTC() if not specified.
-func (eb *ErrorBuilder) Timestamp(timestamp time.Time) *ErrorBuilder {
-	eb.terminationErr.Timestamp = timestamp
-	return eb
-}
-
-// New returns a new ErrorBuilder for a termination.Error.
-func New(err error) *ErrorBuilder {
-	return &ErrorBuilder{terminationErr: Error{
-		error:       err,
-		Component:   "unspecified",
-		Timestamp:   time.Now().UTC(),
-		ErrorString: err.Error(),
-		Metadata:    make(map[string]string, 0),
-		exitCode:    1,
-	}}
-}
-
 // PublishError returns a new wrapping cobra run function that executes the provided argument runFunc, and
-// writes to disk an error returned by the latter if it is of type termination.Error.
+// writes to disk an error returned by the latter if it is of type termination.TerminationError.
 func PublishError(runFunc cobrautil.CobraRunFunc) cobrautil.CobraRunFunc {
 	return func(cmd *cobra.Command, args []string) error {
 		runFuncErr := runFunc(cmd, args)
-		var termErr Error
+		var termErr spiceerrors.TerminationError
 		if runFuncErr != nil && errors.As(runFuncErr, &termErr) {
 			ctx := context.Background()
 			if cmd.Context() != nil {

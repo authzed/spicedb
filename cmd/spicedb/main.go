@@ -13,8 +13,8 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
-	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var errParsing = errors.New("parsing error")
@@ -81,7 +81,7 @@ func main() {
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
 		}
-		var termErr termination.Error
+		var termErr spiceerrors.TerminationError
 		if errors.As(err, &termErr) {
 			os.Exit(termErr.ExitCode())
 		}
