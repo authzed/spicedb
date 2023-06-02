@@ -5,11 +5,10 @@ import (
 	"errors"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/graph/computed"
+	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -39,98 +38,31 @@ const reachableResourcesLimit = 1000
 
 func (cl *CursoredLookupResources) LookupResources(
 	req ValidatedLookupResourcesRequest,
-	stream dispatch.LookupResourcesStream,
+	parentStream dispatch.LookupResourcesStream,
 ) error {
 	if req.Subject.ObjectId == tuple.PublicWildcard {
 		return NewErrInvalidArgument(errors.New("cannot perform lookup resources on wildcard"))
 	}
 
-	withCancel, cancelReachable := context.WithCancel(stream.Context())
+	lookupContext := parentStream.Context()
+
+	// Create a new context for just the reachable resources. This is necessary because we don't want the cancelation
+	// of the reachable resources to cancel the lookup resources. We manually cancel the reachable resources context
+	// ourselves once the lookup resources operation has completed.
+	ds := datastoremw.MustFromContext(lookupContext)
+
+	newContextForReachable := datastoremw.ContextWithDatastore(context.Background(), ds)
+	reachableContext, cancelReachable := context.WithCancel(newContextForReachable)
 	defer cancelReachable()
 
-	limits, ctx := newLimitTracker(withCancel, req.OptionalLimit)
+	limits, lCtx := newLimitTracker(lookupContext, req.OptionalLimit)
 	reachableResourcesCursor := req.OptionalCursor
 
 	// Loop until the limit has been exhausted or no additional reachable resources are found (see below)
 	for !limits.hasExhaustedLimit() {
-		reachableResourcesFound := 0
-
 		// Create a new handling stream that consumes the reachable resources results and publishes them
-		// as found resources if they are properly checked.
-		rrStream := dispatch.NewHandlingDispatchStream(withCancel, func(result *v1.DispatchReachableResourcesResponse) error {
-			reachableResourcesCursor = result.AfterResponseCursor
-			reachableResourcesFound++
-
-			if limits.hasExhaustedLimit() {
-				return nil
-			}
-
-			reachableResource := result.Resource
-			metadata := addCallToResponseMetadata(result.Metadata)
-
-			// See if a check is required.
-			var checkResult *v1.ResourceCheckResult
-			if reachableResource.ResultStatus == v1.ReachableResource_REQUIRES_CHECK {
-				results, resultsMeta, err := computed.ComputeBulkCheck(
-					ctx,
-					cl.c,
-					computed.CheckParameters{
-						ResourceType:  req.ObjectRelation,
-						Subject:       req.Subject,
-						CaveatContext: req.Context.AsMap(),
-						AtRevision:    req.Revision,
-						MaximumDepth:  req.Metadata.DepthRemaining,
-						DebugOption:   computed.NoDebugging,
-					},
-					[]string{reachableResource.ResourceId},
-				)
-				if err != nil {
-					return err
-				}
-
-				checkResult = results[reachableResource.ResourceId]
-				metadata = combineResponseMetadata(resultsMeta, metadata)
-			}
-
-			// Publish the resource, if applicable.
-			var permissionship v1.ResolvedResource_Permissionship
-			var missingFields []string
-
-			switch {
-			case reachableResource.ResultStatus == v1.ReachableResource_HAS_PERMISSION:
-				permissionship = v1.ResolvedResource_HAS_PERMISSION
-
-			case checkResult == nil || checkResult.Membership == v1.ResourceCheckResult_NOT_MEMBER:
-				return nil
-
-			case checkResult != nil && checkResult.Membership == v1.ResourceCheckResult_MEMBER:
-				permissionship = v1.ResolvedResource_HAS_PERMISSION
-
-			case checkResult != nil && checkResult.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER:
-				permissionship = v1.ResolvedResource_CONDITIONALLY_HAS_PERMISSION
-				missingFields = checkResult.MissingExprFields
-
-			default:
-				return spiceerrors.MustBugf("unknown check result status for reachable resources")
-			}
-
-			okay, done := limits.prepareForPublishing()
-			defer done()
-
-			if !okay {
-				return nil
-			}
-
-			return stream.Publish(&v1.DispatchLookupResourcesResponse{
-				ResolvedResource: &v1.ResolvedResource{
-					ResourceId:             reachableResource.ResourceId,
-					Permissionship:         permissionship,
-					MissingRequiredContext: missingFields,
-				},
-				Metadata:            metadata,
-				AfterResponseCursor: result.AfterResponseCursor,
-			})
-		})
+		// to the parent stream, as found resources if they are properly checked.
+		checkingStream := newCheckingResourceStream(lCtx, reachableContext, req, cl.c, parentStream, limits, cl.concurrencyLimit)
 
 		err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 			ResourceRelation: req.ObjectRelation,
@@ -142,16 +74,19 @@ func (cl *CursoredLookupResources) LookupResources(
 			Metadata:       req.Metadata,
 			OptionalCursor: reachableResourcesCursor,
 			OptionalLimit:  reachableResourcesLimit,
-		}, rrStream)
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return nil
-			}
-
+		}, checkingStream)
+		if err != nil && !errors.Is(err, context.Canceled) {
 			return err
 		}
 
-		if reachableResourcesFound < reachableResourcesLimit {
+		reachableCount, newCursor, err := checkingStream.waitForPublishing()
+		if err != nil {
+			return err
+		}
+
+		reachableResourcesCursor = newCursor
+
+		if reachableCount < reachableResourcesLimit {
 			return nil
 		}
 	}

@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/util"
-
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -20,6 +18,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 const veryLargeLimit = 1000000000
@@ -351,3 +350,272 @@ func (a OrderedResolved) Less(i, j int) bool {
 }
 
 func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func joinTuples(first []*core.RelationTuple, second []*core.RelationTuple) []*core.RelationTuple {
+	return append(first, second...)
+}
+
+func genTuplesWithOffset(resourceName string, relation string, subjectName string, subjectID string, offset int, number int) []*core.RelationTuple {
+	return genTuplesWithCaveat(resourceName, relation, subjectName, subjectID, "", nil, offset, number)
+}
+
+func genTuples(resourceName string, relation string, subjectName string, subjectID string, number int) []*core.RelationTuple {
+	return genTuplesWithOffset(resourceName, relation, subjectName, subjectID, 0, number)
+}
+
+func genTuplesWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
+	tuples := make([]*core.RelationTuple, 0, number)
+	for i := 0; i < number; i++ {
+		tpl := &core.RelationTuple{
+			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
+			Subject:             ONR(subjectName, subjectID, "..."),
+		}
+		if caveatName != "" {
+			tpl = tuple.MustWithCaveat(tpl, caveatName, context)
+		}
+		tuples = append(tuples, tpl)
+	}
+	return tuples
+}
+
+func genResourceIds(resourceName string, number int) []string {
+	resourceIDs := make([]string, 0, number)
+	for i := 0; i < number; i++ {
+		resourceIDs = append(resourceIDs, fmt.Sprintf("%s-%d", resourceName, i))
+	}
+	return resourceIDs
+}
+
+func TestLookupResourcesOverSchema(t *testing.T) {
+	testCases := []struct {
+		name                string
+		schema              string
+		relationships       []*core.RelationTuple
+		permission          *core.RelationReference
+		subject             *core.ObjectAndRelation
+		expectedResourceIDs []string
+	}{
+		{
+			"basic union",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1510),
+				genTuples("document", "editor", "user", "tom", 1510),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1510),
+		},
+		{
+			"basic exclusion",
+			`definition user {}
+		
+		 	 definition document {
+				relation banned: user
+				relation viewer: user
+				permission view = viewer - banned
+  			 }`,
+			genTuples("document", "viewer", "user", "tom", 1010),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1010),
+		},
+		{
+			"basic intersection",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer & editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 510),
+				genTuples("document", "editor", "user", "tom", 510),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 510),
+		},
+		{
+			"union and exclused union",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				relation banned: user
+				permission can_view = viewer - banned
+				permission view = can_view + editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1310),
+				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2450),
+		},
+		{
+			"basic caveats",
+			`definition user {}
+
+ 			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+		
+		 	 definition document {
+				relation viewer: user with somecaveat
+				permission view = viewer
+  			 }`,
+			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2450),
+		},
+		{
+			"excluded items",
+			`definition user {}
+		
+		 	 definition document {
+				relation banned: user
+				relation viewer: user
+				permission view = viewer - banned
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1310),
+				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1210),
+		},
+		{
+			"basic caveats with missing field",
+			`definition user {}
+
+ 			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+		
+		 	 definition document {
+				relation viewer: user with somecaveat
+				permission view = viewer
+  			 }`,
+			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2450),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			dispatcher := NewLocalOnlyDispatcher(10)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+
+			ctx := datastoremw.ContextWithHandle(context.Background())
+			require.NoError(datastoremw.SetInContext(ctx, ds))
+
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+			err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+				ObjectRelation: tc.permission,
+				Subject:        tc.subject,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+			}, stream)
+			require.NoError(err)
+
+			foundResourceIDs := util.NewSet[string]()
+			for _, result := range stream.Results() {
+				foundResourceIDs.Add(result.ResolvedResource.ResourceId)
+			}
+
+			foundResourceIDsSlice := foundResourceIDs.AsSlice()
+			sort.Strings(foundResourceIDsSlice)
+			sort.Strings(tc.expectedResourceIDs)
+
+			require.Equal(tc.expectedResourceIDs, foundResourceIDsSlice)
+		})
+	}
+}
+
+func TestLookupResourcesImmediateTimeout(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	require := require.New(t)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	dispatcher := NewLocalOnlyDispatcher(10)
+	defer dispatcher.Close()
+
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
+
+	require.NoError(datastoremw.SetInContext(cctx, ds))
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](cctx)
+
+	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+		ObjectRelation: RR("document", "view"),
+		Subject:        ONR("user", "legal", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 10,
+		},
+	}, stream)
+
+	require.NoError(err)
+	require.Empty(stream.Results())
+}
+
+func TestLookupResourcesWithError(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	require := require.New(t)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
+
+	dispatcher := NewLocalOnlyDispatcher(10)
+	defer dispatcher.Close()
+
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	cctx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
+
+	require.NoError(datastoremw.SetInContext(cctx, ds))
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](cctx)
+
+	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+		ObjectRelation: RR("document", "view"),
+		Subject:        ONR("user", "legal", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 1, // Set depth 1 to cause an error within reachable resources
+		},
+	}, stream)
+
+	require.Error(err)
+}
