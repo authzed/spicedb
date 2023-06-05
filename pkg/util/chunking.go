@@ -6,6 +6,13 @@ import (
 
 // ForEachChunk executes the given handler for each chunk of items in the slice.
 func ForEachChunk[T any](data []T, chunkSize uint16, handler func(items []T)) {
+	_, _ = ForEachChunkUntil[T](data, chunkSize, func(items []T) (bool, error) {
+		handler(items)
+		return true, nil
+	})
+}
+
+func ForEachChunkUntil[T any](data []T, chunkSize uint16, handler func(items []T) (bool, error)) (bool, error) {
 	if chunkSize == 0 {
 		logging.Warn().Int("invalid-chunk-size", int(chunkSize)).Msg("ForEachChunk got an invalid chunk size; defaulting to 1")
 		chunkSize = 1
@@ -22,7 +29,14 @@ func ForEachChunk[T any](data []T, chunkSize uint16, handler func(items []T)) {
 
 		chunk := data[chunkStart:chunkEnd]
 		if len(chunk) > 0 {
-			handler(chunk)
+			ok, err := handler(chunk)
+			if err != nil {
+				return false, err
+			}
+			if !ok {
+				return ok, nil
+			}
 		}
 	}
+	return true, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/util"
 )
 
 // DebugOption defines the various debug level options for Checks.
@@ -54,11 +55,11 @@ func ComputeCheck(
 	params CheckParameters,
 	resourceID string,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID})
+	resultsMap, metas, err := computeCheck(ctx, d, params, []string{resourceID})
 	if err != nil {
-		return nil, meta, err
+		return nil, metas[resourceID], err
 	}
-	return resultsMap[resourceID], meta, err
+	return resultsMap[resourceID], metas[resourceID], err
 }
 
 // ComputeBulkCheck computes a check result for the given resources and subject, computing any
@@ -68,7 +69,7 @@ func ComputeBulkCheck(
 	d dispatch.Check,
 	params CheckParameters,
 	resourceIDs []string,
-) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
+) (map[string]*v1.ResourceCheckResult, map[string]*v1.ResponseMeta, error) {
 	return computeCheck(ctx, d, params, resourceIDs)
 }
 
@@ -76,7 +77,7 @@ func computeCheck(ctx context.Context,
 	d dispatch.Check,
 	params CheckParameters,
 	resourceIDs []string,
-) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
+) (map[string]*v1.ResourceCheckResult, map[string]*v1.ResponseMeta, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	if params.DebugOption == BasicDebuggingEnabled {
 		debugging = v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING
@@ -89,30 +90,42 @@ func computeCheck(ctx context.Context,
 		setting = v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT
 	}
 
-	checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceRelation: params.ResourceType,
-		ResourceIds:      resourceIDs,
-		ResultsSetting:   setting,
-		Subject:          params.Subject,
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     params.AtRevision.String(),
-			DepthRemaining: params.MaximumDepth,
-		},
-		Debug: debugging,
-	})
-	if err != nil {
-		return nil, checkResult.Metadata, err
-	}
-
+	// Ensure that the number of resources IDs given to each dispatch call is not in excess of the maximum.
 	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
-	for _, resourceID := range resourceIDs {
-		computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
-		if err != nil {
-			return nil, checkResult.Metadata, err
+	resultMetadatas := make(map[string]*v1.ResponseMeta, len(resourceIDs))
+
+	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
+	_, err := util.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
+		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+			ResourceRelation: params.ResourceType,
+			ResourceIds:      resourceIDsToCheck,
+			ResultsSetting:   setting,
+			Subject:          params.Subject,
+			Metadata: &v1.ResolverMeta{
+				AtRevision:     params.AtRevision.String(),
+				DepthRemaining: params.MaximumDepth,
+			},
+			Debug: debugging,
+		})
+		for _, resourceID := range resourceIDsToCheck {
+			resultMetadatas[resourceID] = checkResult.Metadata
 		}
-		results[resourceID] = computed
-	}
-	return results, checkResult.Metadata, nil
+
+		if err != nil {
+			return false, err
+		}
+
+		for _, resourceID := range resourceIDsToCheck {
+			computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
+			if err != nil {
+				return false, err
+			}
+			results[resourceID] = computed
+		}
+
+		return true, nil
+	})
+	return results, resultMetadatas, err
 }
 
 func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
