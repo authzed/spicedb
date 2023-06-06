@@ -245,7 +245,7 @@ func (crr *CursoredReachableResources) chunkedRedispatch(
 					Namespace: resourceType.Namespace,
 					Relation:  resourceType.Relation,
 				}),
-				options.WithSortForReverse(options.ByResource),
+				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
 				options.WithLimitForReverse(&queryLimit),
 			)

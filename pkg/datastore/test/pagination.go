@@ -163,7 +163,7 @@ func reverseIterator(subjectType string, _ options.SortOrder) iterator {
 	return func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error) {
 		return reader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 			SubjectType: subjectType,
-		}, options.WithSortForReverse(options.ByResource), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
+		}, options.WithSortForReverse(options.BySubject), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
 	}
 }
 
