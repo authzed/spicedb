@@ -297,7 +297,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
 		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
-			log.Ctx(ctx).Info().Msg("initializing datastore from bootstrap files")
+			log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
 
 			if len(opts.BootstrapFiles) > 0 {
 				_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
@@ -312,6 +312,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 					return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
 				}
 			}
+			log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
 		} else {
 			return nil, errors.New("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
 		}

@@ -144,18 +144,22 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return err
 	})
 
-	util.ForEachChunk(tuples, 500, func(tuples []*core.RelationTuple) {
+	util.ForEachChunk(updates, 500, func(chunked []*core.RelationTupleUpdate) {
 		if err != nil {
 			return
 		}
 
+		chunkedTuples := make([]*core.RelationTuple, 0, len(chunked))
+		for _, update := range chunked {
+			chunkedTuples = append(chunkedTuples, update.Tuple)
+		}
 		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationships(ctx, rwt, tuples)
+			err = relationships.ValidateRelationships(ctx, rwt, chunkedTuples)
 			if err != nil {
 				return err
 			}
 
-			return rwt.WriteRelationships(ctx, updates)
+			return rwt.WriteRelationships(ctx, chunked)
 		})
 	})
 
