@@ -45,7 +45,7 @@ const (
 
 	defaultEnablePrometheusStats     = false
 	defaultEnableConnectionBalancing = true
-	defaultConnectRate               = 1 * time.Second
+	defaultConnectRate               = 100 * time.Millisecond
 )
 
 // Option provides the facility to configure how clients within the CRDB
