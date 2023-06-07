@@ -371,7 +371,7 @@ func makeCursorFilterFn(after *core.RelationTuple, order options.SortOrder) func
 				return less(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) ||
 					(eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) &&
 						(less(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation) ||
-							eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject)))
+							eq(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation)))
 			}
 		}
 	}

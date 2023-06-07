@@ -212,12 +212,20 @@ func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 	}
 
 	// Lookup the subjects and then redispatch/report results.
+	relationFilter := datastore.SubjectRelationFilter{
+		NonEllipsisRelation: req.SubjectRelation.Relation,
+	}
+
+	if req.SubjectRelation.Relation == tuple.Ellipsis {
+		relationFilter = datastore.SubjectRelationFilter{
+			IncludeEllipsisRelation: true,
+		}
+	}
+
 	subjectsFilter := datastore.SubjectsFilter{
 		SubjectType:        req.SubjectRelation.Namespace,
 		OptionalSubjectIds: subjectIds,
-		RelationFilter: datastore.SubjectRelationFilter{
-			NonEllipsisRelation: req.SubjectRelation.Relation,
-		},
+		RelationFilter:     relationFilter,
 	}
 
 	return crr.chunkedRedispatch(ctx, ci, reader, subjectsFilter, relationReference,
@@ -245,7 +253,7 @@ func (crr *CursoredReachableResources) chunkedRedispatch(
 					Namespace: resourceType.Namespace,
 					Relation:  resourceType.Relation,
 				}),
-				options.WithSortForReverse(options.ByResource),
+				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
 				options.WithLimitForReverse(&queryLimit),
 			)
