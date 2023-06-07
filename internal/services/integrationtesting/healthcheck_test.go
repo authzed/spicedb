@@ -64,7 +64,7 @@ func runHealthChecks(require *require.Assertions, conn *grpc.ClientConn) {
 
 	require.Eventually(func() bool {
 		resp, err := hclient.Check(context.Background(), &healthpb.HealthCheckRequest{Service: v1.PermissionsService_ServiceDesc.ServiceName})
-		require.NoError(err)
+		require.NoErrorf(err, err.Error())
 		return healthpb.HealthCheckResponse_SERVING == resp.GetStatus()
 	}, 60*time.Second, 100*time.Millisecond)
 }
