@@ -363,6 +363,18 @@ func genTuples(resourceName string, relation string, subjectName string, subject
 	return genTuplesWithOffset(resourceName, relation, subjectName, subjectID, 0, number)
 }
 
+func genSubjectTuples(resourceName string, relation string, subjectName string, subjectRelation string, number int) []*core.RelationTuple {
+	tuples := make([]*core.RelationTuple, 0, number)
+	for i := 0; i < number; i++ {
+		tpl := &core.RelationTuple{
+			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
+			Subject:             ONR(subjectName, fmt.Sprintf("%s-%d", subjectName, i), subjectRelation),
+		}
+		tuples = append(tuples, tpl)
+	}
+	return tuples
+}
+
 func genTuplesWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
 	tuples := make([]*core.RelationTuple, 0, number)
 	for i := 0; i < number; i++ {
@@ -512,6 +524,26 @@ func TestLookupResourcesOverSchema(t *testing.T) {
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
+		},
+		{
+			"larger arrow dispatch",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder->viewer
+  			 }`,
+			joinTuples(
+				genTuples("folder", "viewer", "user", "tom", 150),
+				genSubjectTuples("document", "folder", "folder", "...", 150),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 150),
 		},
 	}
 

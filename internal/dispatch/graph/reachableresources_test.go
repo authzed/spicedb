@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/authzed/spicedb/pkg/datastore/options"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -16,6 +18,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -916,4 +919,83 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReachableResourcesWithQueryError(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	testRels := make([]*core.RelationTuple, 0)
+
+	for i := 0; i < 410; i++ {
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
+	}
+
+	baseds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
+		rawDS,
+		`
+			definition user {}
+
+			definition resource {
+				relation editor: user
+				relation viewer: user
+				permission edit = editor
+				permission view = viewer + edit
+			}
+		`,
+		testRels,
+		require.New(t),
+	)
+
+	dispatcher := NewLocalOnlyDispatcher(2)
+
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+
+	bds := breakingDatastore{baseds}
+	require.NoError(t, datastoremw.SetInContext(ctx, bds))
+
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
+	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+		ResourceRelation: RR("resource", "view"),
+		SubjectRelation: &core.RelationReference{
+			Namespace: "user",
+			Relation:  "...",
+		},
+		SubjectIds: []string{"tom"},
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+	}, stream)
+	require.Error(t, err)
+	defer cancel()
+}
+
+type breakingDatastore struct {
+	datastore.Datastore
+}
+
+func (bds breakingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	delegate := bds.Datastore.SnapshotReader(rev)
+	return &breakingReader{delegate, 0}
+}
+
+type breakingReader struct {
+	datastore.Reader
+	counter int
+}
+
+func (br *breakingReader) ReverseQueryRelationships(
+	ctx context.Context,
+	subjectsFilter datastore.SubjectsFilter,
+	options ...options.ReverseQueryOptionsOption,
+) (datastore.RelationshipIterator, error) {
+	br.counter++
+	if br.counter > 1 {
+		return nil, fmt.Errorf("some sort of error")
+	}
+	return br.Reader.ReverseQueryRelationships(ctx, subjectsFilter, options...)
 }
