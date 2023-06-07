@@ -355,26 +355,16 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		}, nil
 	}
 
-	// Wait for either minconns or maxconns/2 connections to be available,
-	// whichever is smaller.
-	writeMin := cds.writePool.MinConns()
-	if halfMax := cds.writePool.MaxConns() / 2; halfMax < writeMin {
-		writeMin = halfMax
-	}
-	readMin := cds.readPool.MinConns()
-	if halfMax := cds.readPool.MaxConns() / 2; halfMax < readMin {
-		readMin = halfMax
-	}
 	writeTotal := uint32(cds.writePool.Stat().TotalConns())
 	readTotal := uint32(cds.readPool.Stat().TotalConns())
-	if writeTotal < writeMin || readTotal < readMin {
+	if writeTotal < cds.writePool.MinConns() || readTotal < cds.readPool.MinConns() {
 		return datastore.ReadyState{
 			Message: fmt.Sprintf(
 				"spicedb does not have the required minimum connection count to the datastore. Read: %d/%d, Write: %d/%d",
 				readTotal,
-				readMin,
+				cds.readPool.MinConns(),
 				writeTotal,
-				writeMin,
+				cds.writePool.MinConns(),
 			),
 			IsReady: false,
 		}, nil
