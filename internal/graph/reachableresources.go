@@ -121,10 +121,7 @@ func (crr *CursoredReachableResources) afterSameType(
 		func(ctx context.Context, ci cursorInformation, entrypoint namespace.ReachabilityEntrypoint, stream dispatch.ReachableResourcesStream) error {
 			switch entrypoint.EntrypointKind() {
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-				err := crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
-				if err != nil {
-					return err
-				}
+				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
 
 			case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
 				containingRelation := entrypoint.ContainingRelationOrPermission()
@@ -136,7 +133,7 @@ func (crr *CursoredReachableResources) afterSameType(
 				rsm := subjectIDsToResourcesMap(rewrittenSubjectRelation, req.SubjectIds)
 				drsm := rsm.asReadOnly()
 
-				err := crr.redispatchOrReport(
+				return crr.redispatchOrReport(
 					ctx,
 					ci,
 					rewrittenSubjectRelation,
@@ -147,21 +144,13 @@ func (crr *CursoredReachableResources) afterSameType(
 					req,
 					dispatched,
 				)
-				if err != nil {
-					return err
-				}
 
 			case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-				err := crr.lookupTTUEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
-				if err != nil {
-					return err
-				}
+				return crr.lookupTTUEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
 
 			default:
 				return spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind())
 			}
-
-			return nil
 		})
 }
 
@@ -234,7 +223,7 @@ func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 		})
 }
 
-var queryLimit uint64 = 100
+var queryLimit uint64 = uint64(datastore.FilterMaximumIDCount)
 
 func (crr *CursoredReachableResources) chunkedRedispatch(
 	ctx context.Context,

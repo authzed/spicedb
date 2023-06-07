@@ -74,6 +74,8 @@ func (tr *preloadedTaskRunner) spawnIfAvailable() {
 		go tr.runner()
 
 	case <-tr.ctx.Done():
+		// If the context was canceled, nothing more to do.
+		tr.emptyForCancel()
 		return
 
 	default:

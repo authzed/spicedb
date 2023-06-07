@@ -388,6 +388,9 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 
 			err = handler(ictx, icursor, item, istream)
 			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return nil
+				}
 				return err
 			}
 
@@ -396,7 +399,8 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 	}
 
 	// NOTE: since branches can be canceled if they have reached limits, the context Canceled error is ignored here.
-	if err := tr.startAndWait(); !errors.Is(err, context.Canceled) {
+	err = tr.startAndWait()
+	if err != nil && !errors.Is(err, context.Canceled) {
 		return err
 	}
 
@@ -491,11 +495,10 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 		if ls.toPublishTaskIndex == 0 {
 			// Remove the already emitted data from the overall limits.
 			done, err := ls.ci.limits.markAlreadyPublished(uint32(ls.countingStream.PublishedCount()))
+			defer done()
 			if err != nil {
 				return err
 			}
-
-			defer done()
 		} else {
 			// Publish, to the parent stream, the results produced by the task and stored in the child stream.
 			childStream := ls.childStreams[ls.toPublishTaskIndex]
