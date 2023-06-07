@@ -1517,3 +1517,51 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 		})
 	}
 }
+
+func TestLookupResourcesDeduplication(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+		func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(ds, `
+				definition user {}
+
+				definition document {
+					relation viewer: user
+					relation editor: user
+					permission view = viewer + editor
+				}
+			`, []*core.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.MustParse("document:first#editor@user:tom"),
+			}, require)
+		})
+
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+		ResourceObjectType: "document",
+		Permission:         "view",
+		Subject:            sub("user", "tom", ""),
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+
+	foundObjectIds := util.NewSet[string]()
+	for {
+		resp, err := lookupClient.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		require.NoError(t, err)
+		require.True(t, foundObjectIds.Add(resp.ResourceObjectId))
+	}
+
+	require.Equal(t, []string{"first"}, foundObjectIds.AsSlice())
+}

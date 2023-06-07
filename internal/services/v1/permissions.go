@@ -371,11 +371,16 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		limit = int(req.OptionalLimit)
 	}
 
+	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
+
 	for {
 		countResourcesFound := 0
 		stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResourcesResponse) error {
 			found := result.ResolvedResource
 			countResourcesFound++
+
+			dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+			currentCursor = result.AfterResponseCursor
 
 			var partial *v1.PartialCaveatInfo
 			permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
@@ -384,6 +389,13 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 				partial = &v1.PartialCaveatInfo{
 					MissingRequiredContext: found.MissingRequiredContext,
 				}
+			} else if req.OptionalLimit == 0 {
+				if _, ok := alreadyPublishedPermissionedResourceIds[found.ResourceId]; ok {
+					// Skip publishing the duplicate.
+					return nil
+				}
+
+				alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 			}
 
 			encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash)
@@ -401,9 +413,6 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			if err != nil {
 				return err
 			}
-
-			dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
-			currentCursor = result.AfterResponseCursor
 			return nil
 		})
 
