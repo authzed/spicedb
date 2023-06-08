@@ -15,6 +15,7 @@ There are three transaction overlap strategies:
 
 - `insecure`, which does not protect against the new enemy problem
 - `static`, which protects all writes from the new enemy problem
+- `request`, which protects all writes with the same [request metadata key](https://github.com/authzed/authzed-go/blob/d97cfb41027742d347391f583dd9c6d1d03ae32b/pkg/requestmeta/requestmeta.go#L26-L30).
 - `prefix`, which protects all writes with the same object prefix from the new enemy problem
 
 Depending on your application, `insecure` may be acceptable, and it avoids the performance cost associated with the `static` and `prefix` options.
