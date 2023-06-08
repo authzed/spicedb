@@ -355,15 +355,13 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		}, nil
 	}
 
-	// Wait for either minconns or maxconns/2 connections to be available,
-	// whichever is smaller.
-	writeMin := cds.writePool.MinConns()
-	if halfMax := cds.writePool.MaxConns() / 2; halfMax < writeMin {
-		writeMin = halfMax
-	}
 	readMin := cds.readPool.MinConns()
-	if halfMax := cds.readPool.MaxConns() / 2; halfMax < readMin {
-		readMin = halfMax
+	if readMin > 0 {
+		readMin--
+	}
+	writeMin := cds.writePool.MinConns()
+	if writeMin > 0 {
+		writeMin--
 	}
 	writeTotal := uint32(cds.writePool.Stat().TotalConns())
 	readTotal := uint32(cds.readPool.Stat().TotalConns())
