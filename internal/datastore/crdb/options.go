@@ -29,6 +29,7 @@ type crdbOptions struct {
 const (
 	errQuantizationTooLarge = "revision quantization (%s) must be less than GC window (%s)"
 
+	overlapStrategyRequest  = "request"
 	overlapStrategyPrefix   = "prefix"
 	overlapStrategyStatic   = "static"
 	overlapStrategyInsecure = "insecure"

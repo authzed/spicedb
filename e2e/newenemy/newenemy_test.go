@@ -15,10 +15,12 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -153,17 +155,32 @@ func TestNoNewEnemy(t *testing.T) {
 	})
 
 	t.Log("start protected spicedb cluster")
-	protectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
+	requestProtectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
 		spice.WithGrpcPort(50061),
 		spice.WithDispatchPort(50062),
 		spice.WithHTTPPort(8444),
 		spice.WithMetricsPort(9100),
 		spice.WithDashboardPort(8100),
 		spice.WithDBName(dbName))
-	require.NoError(t, protectedSpiceDB.Start(ctx, tlog, "protected"))
-	require.NoError(t, protectedSpiceDB.Connect(ctx, tlog))
+	require.NoError(t, requestProtectedSpiceDB.Start(ctx, tlog, "reqprotected",
+		"--datastore-tx-overlap-strategy=request"))
+	require.NoError(t, requestProtectedSpiceDB.Connect(ctx, tlog))
 	t.Cleanup(func() {
-		require.NoError(t, protectedSpiceDB.Stop(tlog))
+		require.NoError(t, requestProtectedSpiceDB.Stop(tlog))
+	})
+
+	standardProtectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
+		spice.WithGrpcPort(50071),
+		spice.WithDispatchPort(50072),
+		spice.WithHTTPPort(8454),
+		spice.WithMetricsPort(9200),
+		spice.WithDashboardPort(8200),
+		spice.WithDBName(dbName))
+	require.NoError(t, standardProtectedSpiceDB.Start(ctx, tlog, "stdprotected",
+		"--datastore-tx-overlap-strategy=static"))
+	require.NoError(t, standardProtectedSpiceDB.Connect(ctx, tlog))
+	t.Cleanup(func() {
+		require.NoError(t, standardProtectedSpiceDB.Stop(tlog))
 	})
 
 	t.Log("configure small ranges, single replicas, short ttl")
@@ -193,12 +210,23 @@ func TestNoNewEnemy(t *testing.T) {
 		sampleSize      int
 	}{
 		{
-			name: "protected from data newenemy",
+			name: "protected from data newenemy with standard overlap",
 			vulnerableProbe: func(count int) (bool, int) {
 				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, vulnerableSpiceDB, count, true)
 			},
 			protectedProbe: func(count int) (bool, int) {
-				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, protectedSpiceDB, count, false)
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, standardProtectedSpiceDB, count, false)
+			},
+			vulnerableMax: 20,
+			sampleSize:    5,
+		},
+		{
+			name: "protected from data newenemy per request",
+			vulnerableProbe: func(count int) (bool, int) {
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, vulnerableSpiceDB, count, true)
+			},
+			protectedProbe: func(count int) (bool, int) {
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, requestProtectedSpiceDB, count, false)
 			},
 			vulnerableMax: 20,
 			sampleSize:    5,
@@ -325,6 +353,10 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 	time.Sleep(500 * time.Millisecond)
 
 	for i := 0; i < maxAttempts; i++ {
+		ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
+			string(requestmeta.RequestOverlapKey): fmt.Sprintf("test-%d", i),
+		}))
+
 		// exclude user by connecting user to blocklist
 		r1, err := spicedb[0].Client().V1().Permissions().WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
 			Updates: []*v1.RelationshipUpdate{blockusers[i]},

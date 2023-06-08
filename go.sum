@@ -447,8 +447,8 @@ github.com/ashanbrown/forbidigo v1.5.1 h1:WXhzLjOlnuDYPYQo/eFlcFMi8X/kLfvWLYu6CS
 github.com/ashanbrown/forbidigo v1.5.1/go.mod h1:Y8j9jy9ZYAEHXdu723cUlraTqbzjKF1MUyfOKL+AjcU=
 github.com/ashanbrown/makezero v1.1.1 h1:iCQ87C0V0vSyO+M9E/FZYbu65auqH0lnsOkf5FcB28s=
 github.com/ashanbrown/makezero v1.1.1/go.mod h1:i1bJLCRSCHOcOa9Y6MyF2FTfMZMFdHvxKHxgO5Z1axI=
-github.com/authzed/authzed-go v0.8.1-0.20230601141426-d411c3f66256 h1:fu0vsI/+dxpQpdWihrI219piaL2GbXOTrLAMM8ZjanM=
-github.com/authzed/authzed-go v0.8.1-0.20230601141426-d411c3f66256/go.mod h1:qn4HCG0DQcLybaRePpVFW/Gvgz9UgkvobzyBoA5a49c=
+github.com/authzed/authzed-go v0.8.1-0.20230601170210-d97cfb410277 h1:NKwiHNkS5UYymzADmrrJ/dfMRrN4kKpWpP9Fwx9Nids=
+github.com/authzed/authzed-go v0.8.1-0.20230601170210-d97cfb410277/go.mod h1:qn4HCG0DQcLybaRePpVFW/Gvgz9UgkvobzyBoA5a49c=
 github.com/authzed/grpcutil v0.0.0-20230509155820-7a6fedb71dbc h1:FzQP1mljgX15vawHVHlPXQrB6F6wnR/6CftpED+2cvg=
 github.com/authzed/grpcutil v0.0.0-20230509155820-7a6fedb71dbc/go.mod h1:erPFLN0tntt2V4PAxoUTwqtinm3UhFGzJrcxYKKzGUM=
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=

@@ -7,7 +7,7 @@ require (
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/agnivade/wasmbrowsertest v0.7.0
-	github.com/authzed/authzed-go v0.8.1-0.20230601141426-d411c3f66256
+	github.com/authzed/authzed-go v0.8.1-0.20230601170210-d97cfb410277
 	github.com/authzed/grpcutil v0.0.0-20230509155820-7a6fedb71dbc
 	github.com/aws/aws-sdk-go v1.44.110
 	github.com/benbjohnson/clock v1.3.3
