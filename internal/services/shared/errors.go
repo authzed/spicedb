@@ -129,6 +129,13 @@ func RewriteError(ctx context.Context, err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Errorf(codes.DeadlineExceeded, "%s", err)
 	case errors.Is(err, context.Canceled):
+		err := context.Cause(ctx)
+		if err != nil {
+			if _, ok := status.FromError(err); ok {
+				return err
+			}
+		}
+
 		return status.Errorf(codes.Canceled, "%s", err)
 	default:
 		log.Ctx(ctx).Err(err).Msg("received unexpected error")
