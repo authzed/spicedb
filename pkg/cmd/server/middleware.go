@@ -11,21 +11,21 @@ import (
 // MiddlewareChain describes an ordered sequence of middlewares that can be modified
 // with one or more MiddlewareModification. This struct is used to facilitate the
 // creation and modification of gRPC middleware chains
-type MiddlewareChain struct {
-	chain []ReferenceableMiddleware
+type MiddlewareChain[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor] struct {
+	chain []ReferenceableMiddleware[T]
 }
 
 // NewMiddlewareChain creates a new middleware chain given zero or more named middlewares.
 // An error will be returned in case validation of the NamedMiddlewares fail.
-func NewMiddlewareChain(mw ...ReferenceableMiddleware) (MiddlewareChain, error) {
+func NewMiddlewareChain[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor](mw ...ReferenceableMiddleware[T]) (MiddlewareChain[T], error) {
 	if err := validate(mw); err != nil {
-		return MiddlewareChain{}, err
+		return MiddlewareChain[T]{}, err
 	}
-	return MiddlewareChain{chain: mw}, nil
+	return MiddlewareChain[T]{chain: mw}, nil
 }
 
 // MiddlewareModification describes an operation to modify a MiddlewareChain
-type MiddlewareModification struct {
+type MiddlewareModification[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor] struct {
 	// DependencyMiddlewareName is used to define with respect to which middleware an operation is performed.
 	// Dependency is not required for ReplaceAll operation
 	DependencyMiddlewareName string
@@ -34,17 +34,17 @@ type MiddlewareModification struct {
 	Operation MiddlewareOperation
 
 	// Middlewares are the named middlewares that will be part of this modification
-	Middlewares []ReferenceableMiddleware
+	Middlewares []ReferenceableMiddleware[T]
 }
 
-func (mm MiddlewareModification) validate() error {
+func (mm MiddlewareModification[T]) validate() error {
 	if mm.Operation != OperationReplaceAllUnsafe && mm.DependencyMiddlewareName == "" {
 		return fmt.Errorf("cannot perform middleware modification without a dependency: %v", mm)
 	}
 	return validate(mm.Middlewares)
 }
 
-func validate(mws []ReferenceableMiddleware) error {
+func validate[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor](mws []ReferenceableMiddleware[T]) error {
 	names := util.NewSet[string]()
 	for _, mw := range mws {
 		if mw.Name == "" {
@@ -61,11 +61,10 @@ func validate(mws []ReferenceableMiddleware) error {
 // be referenced by name in MiddlewareModification, for example "append after middleware abc".
 // Internal middlewares can also be referenced for operations like append or prepend, but cannot
 // be referenced for replace operations. Middlewares must always be named.
-type ReferenceableMiddleware struct {
-	Name                string
-	Internal            bool
-	UnaryMiddleware     grpc.UnaryServerInterceptor
-	StreamingMiddleware grpc.StreamServerInterceptor
+type ReferenceableMiddleware[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor] struct {
+	Name       string
+	Internal   bool
+	Middleware T
 }
 
 // MiddlewareOperation describes the type of operation that will be performed in a MiddlewareModification
@@ -88,7 +87,7 @@ const (
 )
 
 // Names returns the names of the middlewares in a chain
-func (mc *MiddlewareChain) Names() *util.Set[string] {
+func (mc *MiddlewareChain[T]) Names() *util.Set[string] {
 	names := util.NewSet[string]()
 	for _, mw := range mc.chain {
 		names.Add(mw.Name)
@@ -97,22 +96,20 @@ func (mc *MiddlewareChain) Names() *util.Set[string] {
 }
 
 // ToGRPCInterceptors generates slices of gRPC interceptors ready to be installed in a server
-func (mc *MiddlewareChain) ToGRPCInterceptors() ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	unaryInterceptors := make([]grpc.UnaryServerInterceptor, 0, len(mc.chain))
-	streamingInterceptors := make([]grpc.StreamServerInterceptor, 0, len(mc.chain))
+func (mc *MiddlewareChain[T]) ToGRPCInterceptors() []T {
+	interceptors := make([]T, 0, len(mc.chain))
 	for _, mw := range mc.chain {
-		unaryInterceptors = append(unaryInterceptors, mw.UnaryMiddleware)
-		streamingInterceptors = append(streamingInterceptors, mw.StreamingMiddleware)
+		interceptors = append(interceptors, mw.Middleware)
 	}
-	return unaryInterceptors, streamingInterceptors
+	return interceptors
 }
 
-func (mc *MiddlewareChain) prepend(mod MiddlewareModification) error {
+func (mc *MiddlewareChain[T]) prepend(mod MiddlewareModification[T]) error {
 	if err := mc.validate(mod); err != nil {
 		return err
 	}
 
-	newChain := make([]ReferenceableMiddleware, 0, len(mc.chain))
+	newChain := make([]ReferenceableMiddleware[T], 0, len(mc.chain))
 	for _, mw := range mc.chain {
 		if mw.Name == mod.DependencyMiddlewareName {
 			newChain = append(newChain, mod.Middlewares...)
@@ -123,11 +120,11 @@ func (mc *MiddlewareChain) prepend(mod MiddlewareModification) error {
 	return nil
 }
 
-func (mc *MiddlewareChain) replace(mod MiddlewareModification) error {
+func (mc *MiddlewareChain[T]) replace(mod MiddlewareModification[T]) error {
 	if err := mc.validate(mod); err != nil {
 		return err
 	}
-	newChain := make([]ReferenceableMiddleware, 0, len(mc.chain))
+	newChain := make([]ReferenceableMiddleware[T], 0, len(mc.chain))
 	for _, mw := range mc.chain {
 		if mw.Name == mod.DependencyMiddlewareName {
 			newChain = append(newChain, mod.Middlewares...)
@@ -139,12 +136,12 @@ func (mc *MiddlewareChain) replace(mod MiddlewareModification) error {
 	return nil
 }
 
-func (mc *MiddlewareChain) append(mod MiddlewareModification) error {
+func (mc *MiddlewareChain[T]) append(mod MiddlewareModification[T]) error {
 	if err := mc.validate(mod); err != nil {
 		return err
 	}
 
-	newChain := make([]ReferenceableMiddleware, 0, len(mc.chain))
+	newChain := make([]ReferenceableMiddleware[T], 0, len(mc.chain))
 	for _, mw := range mc.chain {
 		newChain = append(newChain, mw)
 		if mw.Name == mod.DependencyMiddlewareName {
@@ -155,7 +152,7 @@ func (mc *MiddlewareChain) append(mod MiddlewareModification) error {
 	return nil
 }
 
-func (mc *MiddlewareChain) replaceAll(mod MiddlewareModification) error {
+func (mc *MiddlewareChain[T]) replaceAll(mod MiddlewareModification[T]) error {
 	if err := mod.validate(); err != nil {
 		return err
 	}
@@ -163,7 +160,7 @@ func (mc *MiddlewareChain) replaceAll(mod MiddlewareModification) error {
 	return nil
 }
 
-func (mc *MiddlewareChain) validate(mod MiddlewareModification) error {
+func (mc *MiddlewareChain[T]) validate(mod MiddlewareModification[T]) error {
 	if err := mod.validate(); err != nil {
 		return err
 	}
@@ -190,7 +187,7 @@ func (mc *MiddlewareChain) validate(mod MiddlewareModification) error {
 	return nil
 }
 
-func (mc *MiddlewareChain) modify(modifications ...MiddlewareModification) error {
+func (mc *MiddlewareChain[T]) modify(modifications ...MiddlewareModification[T]) error {
 	for _, mod := range modifications {
 		switch mod.Operation {
 		case OperationPrepend:

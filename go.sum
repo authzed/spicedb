@@ -580,8 +580,8 @@ github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/ecordell/optgen v0.0.9 h1:kmRMqOkbNsWayOnZSk2m5SeGaOTOc7amfi+MAnaMOeI=
-github.com/ecordell/optgen v0.0.9/go.mod h1:+YZ4tk5pNGMoeH+Y4F4HeDDj0SLOlIgMMNae7az4h5g=
+github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698 h1:Ms2IoxhBTljF7ItN1Oj4yy9DVJHn5L4A8sydRkrxoUE=
+github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698/go.mod h1:+YZ4tk5pNGMoeH+Y4F4HeDDj0SLOlIgMMNae7az4h5g=
 github.com/edsrzf/mmap-go v1.0.0 h1:CEBF7HpRnUCSJgGUb5h1Gm7e3VkmVDrR8lvWVLtrOFw=
 github.com/edsrzf/mmap-go v1.0.0/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
 github.com/emicklei/go-restful/v3 v3.9.0 h1:XwGDlfxEnQZzuopoqxwSEllNcCOM9DhhFyhFIIGKwxE=

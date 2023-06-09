@@ -77,29 +77,48 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-		server.SetMiddlewareModification([]server.MiddlewareModification{
+		server.SetUnaryMiddlewareModification([]server.MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation: server.OperationReplaceAllUnsafe,
-				Middlewares: []server.ReferenceableMiddleware{
+				Middlewares: []server.ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "logging",
-						UnaryMiddleware:     logging.UnaryServerInterceptor(),
-						StreamingMiddleware: logging.StreamServerInterceptor(),
+						Name:       "logging",
+						Middleware: logging.UnaryServerInterceptor(),
 					},
 					{
-						Name:                "datastore",
-						UnaryMiddleware:     datastoremw.UnaryServerInterceptor(ds),
-						StreamingMiddleware: datastoremw.StreamServerInterceptor(ds),
+						Name:       "datastore",
+						Middleware: datastoremw.UnaryServerInterceptor(ds),
 					},
 					{
-						Name:                "consistency",
-						UnaryMiddleware:     consistency.UnaryServerInterceptor(),
-						StreamingMiddleware: consistency.StreamServerInterceptor(),
+						Name:       "consistency",
+						Middleware: consistency.UnaryServerInterceptor(),
 					},
 					{
-						Name:                "servicespecific",
-						UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
-						StreamingMiddleware: servicespecific.StreamServerInterceptor,
+						Name:       "servicespecific",
+						Middleware: servicespecific.UnaryServerInterceptor,
+					},
+				},
+			},
+		}),
+		server.SetStreamingMiddlewareModification([]server.MiddlewareModification[grpc.StreamServerInterceptor]{
+			{
+				Operation: server.OperationReplaceAllUnsafe,
+				Middlewares: []server.ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+					{
+						Name:       "logging",
+						Middleware: logging.StreamServerInterceptor(),
+					},
+					{
+						Name:       "datastore",
+						Middleware: datastoremw.StreamServerInterceptor(ds),
+					},
+					{
+						Name:       "consistency",
+						Middleware: consistency.StreamServerInterceptor(),
+					},
+					{
+						Name:       "servicespecific",
+						Middleware: servicespecific.StreamServerInterceptor,
 					},
 				},
 			},

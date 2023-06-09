@@ -114,7 +114,8 @@ type Config struct {
 	MetricsAPI   util.HTTPServerConfig `debugmap:"visible"`
 
 	// Middleware for grpc API
-	MiddlewareModification []MiddlewareModification `debugmap:"hidden"`
+	UnaryMiddlewareModification     []MiddlewareModification[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
+	StreamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor] `debugmap:"hidden"`
 
 	// Middleware for internal dispatch API
 	DispatchUnaryMiddleware     []grpc.UnaryServerInterceptor  `debugmap:"hidden"`
@@ -339,14 +340,24 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
-	defaultMiddlewareChain, err := DefaultMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	if err != nil {
-		return nil, fmt.Errorf("error building default middleware: %w", err)
+		return nil, fmt.Errorf("error building default middlewares: %w", err)
 	}
 
-	unaryMiddleware, streamingMiddleware, err := c.buildMiddleware(defaultMiddlewareChain)
+	defaultStreamingMiddlewareChain, err := DefaultStreamingMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
 	if err != nil {
-		return nil, fmt.Errorf("error building Middlewares: %w", err)
+		return nil, fmt.Errorf("error building default middlewares: %w", err)
+	}
+
+	unaryMiddleware, err := c.buildUnaryMiddleware(defaultUnaryMiddlewareChain)
+	if err != nil {
+		return nil, fmt.Errorf("error building unary middlewares: %w", err)
+	}
+
+	streamingMiddleware, err := c.buildStreamingMiddleware(defaultStreamingMiddlewareChain)
+	if err != nil {
+		return nil, fmt.Errorf("error building streaming middlewares: %w", err)
 	}
 
 	permSysConfig := v1svc.PermissionsServerConfig{
@@ -439,16 +450,30 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}, nil
 }
 
-func (c *Config) buildMiddleware(defaultMiddleware *MiddlewareChain) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor, error) {
-	chain := MiddlewareChain{}
+func (c *Config) buildUnaryMiddleware(defaultMiddleware *MiddlewareChain[grpc.UnaryServerInterceptor]) ([]grpc.UnaryServerInterceptor, error) {
+	chain := MiddlewareChain[grpc.UnaryServerInterceptor]{}
 	if defaultMiddleware != nil {
 		chain.chain = append(chain.chain, defaultMiddleware.chain...)
 	}
-	if err := chain.modify(c.MiddlewareModification...); err != nil {
-		return nil, nil, err
+
+	if err := chain.modify(c.UnaryMiddlewareModification...); err != nil {
+		return nil, err
 	}
-	unaryOutput, streamingOutput := chain.ToGRPCInterceptors()
-	return unaryOutput, streamingOutput, nil
+
+	return chain.ToGRPCInterceptors(), nil
+}
+
+func (c *Config) buildStreamingMiddleware(defaultMiddleware *MiddlewareChain[grpc.StreamServerInterceptor]) ([]grpc.StreamServerInterceptor, error) {
+	chain := MiddlewareChain[grpc.StreamServerInterceptor]{}
+	if defaultMiddleware != nil {
+		chain.chain = append(chain.chain, defaultMiddleware.chain...)
+	}
+
+	if err := chain.modify(c.StreamingMiddlewareModification...); err != nil {
+		return nil, err
+	}
+
+	return chain.ToGRPCInterceptors(), nil
 }
 
 // initializeGateway Configures the gateway to serve HTTP
