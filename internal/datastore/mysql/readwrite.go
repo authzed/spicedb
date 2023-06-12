@@ -35,7 +35,10 @@ const (
 	bulkInsertRowsLimit = 1_000
 )
 
-var duplicateEntryRegx = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'uq_relation_tuple_living'$`)
+var (
+	duplicateEntryRegex          = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'uq_relation_tuple_living'$`)
+	duplicateEntryFullIndexRegex = regexp.MustCompile(`^Duplicate entry '(.+)' for key 'relation_tuple.uq_relation_tuple_living'$`)
+)
 
 type mysqlReadWriteTXN struct {
 	*mysqlReader
@@ -415,7 +418,26 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 func convertToWriteConstraintError(err error) error {
 	var mysqlErr *mysql.MySQLError
 	if errors.As(err, &mysqlErr) && mysqlErr.Number == errMysqlDuplicateEntry {
-		found := duplicateEntryRegx.FindStringSubmatch(mysqlErr.Message)
+		found := duplicateEntryRegex.FindStringSubmatch(mysqlErr.Message)
+		if found != nil {
+			parts := strings.Split(found[1], "-")
+			if len(parts) == 7 {
+				return common.NewCreateRelationshipExistsError(&core.RelationTuple{
+					ResourceAndRelation: &core.ObjectAndRelation{
+						Namespace: parts[0],
+						ObjectId:  parts[1],
+						Relation:  parts[2],
+					},
+					Subject: &core.ObjectAndRelation{
+						Namespace: parts[3],
+						ObjectId:  parts[4],
+						Relation:  parts[5],
+					},
+				})
+			}
+		}
+
+		found = duplicateEntryFullIndexRegex.FindStringSubmatch(mysqlErr.Message)
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {

@@ -12,6 +12,9 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -635,7 +638,8 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1)
 	require.ErrorAs(err, &common.CreateRelationshipExistsError{})
-	require.Contains(err.Error(), "could not CREATE")
+	require.Contains(err.Error(), "could not CREATE relationship ")
+	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
 // TouchAlreadyExistingTest tests touching a relationship twice.

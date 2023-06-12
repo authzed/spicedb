@@ -127,7 +127,12 @@ func BeginTxFunc(ctx context.Context, db *sql.DB, txOptions *sql.TxOptions, f fu
 	}
 
 	if err := f(tx); err != nil {
-		return errors.Join(err, tx.Rollback())
+		rerr := tx.Rollback()
+		if rerr != nil {
+			return errors.Join(err, rerr)
+		}
+
+		return err
 	}
 
 	return tx.Commit()
