@@ -16,7 +16,10 @@ const (
 	pgSerializationFailure      = "40001"
 )
 
-var createConflictDetailsRegex = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
+var (
+	createConflictDetailsRegex              = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
+	createConflictDetailsRegexWithoutCaveat = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
+)
 
 // ConvertToWriteConstraintError converts the given Postgres error into a CreateRelationshipExistsError
 // if applicable. If not applicable, returns nils.
@@ -24,6 +27,22 @@ func ConvertToWriteConstraintError(livingTupleConstraint string, err error) erro
 	var pgerr *pgconn.PgError
 	if errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation && pgerr.ConstraintName == livingTupleConstraint {
 		found := createConflictDetailsRegex.FindStringSubmatch(pgerr.Detail)
+		if found != nil {
+			return dscommon.NewCreateRelationshipExistsError(&core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: strings.TrimSpace(found[2]),
+					ObjectId:  strings.TrimSpace(found[3]),
+					Relation:  strings.TrimSpace(found[4]),
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: strings.TrimSpace(found[5]),
+					ObjectId:  strings.TrimSpace(found[6]),
+					Relation:  strings.TrimSpace(found[7]),
+				},
+			})
+		}
+
+		found = createConflictDetailsRegexWithoutCaveat.FindStringSubmatch(pgerr.Detail)
 		if found != nil {
 			return dscommon.NewCreateRelationshipExistsError(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{
