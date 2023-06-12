@@ -58,6 +58,20 @@ func TestPublishError(t *testing.T) {
 	require.Len(t, readErr.Metadata, 0)
 }
 
+func TestPublishDisabled(t *testing.T) {
+	cmd := cobra.Command{}
+	RegisterFlags(cmd.Flags())
+
+	filePath := ""
+	cmd.Flag(terminationLogFlagName).Value = newStringValue(filePath, &filePath)
+	publishedError := spiceerrors.NewTerminationErrorBuilder(errors.New("hi")).Metadata("k", "v").Component("test").Error()
+	err := PublishError(func(cmd *cobra.Command, args []string) error {
+		return publishedError
+	})(&cmd, nil)
+	var termErr spiceerrors.TerminationError
+	require.ErrorAs(t, err, &termErr)
+}
+
 type testValue string
 
 func newStringValue(val string, p *string) *testValue {

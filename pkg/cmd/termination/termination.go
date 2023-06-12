@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	defaultTerminationLogPath = "/dev/termination-log"
-	terminationLogFlagName    = "termination-log-path"
-	kubeTerminationLogLimit   = 4096
+	terminationLogFlagName  = "termination-log-path"
+	kubeTerminationLogLimit = 4096
 )
 
 // PublishError returns a new wrapping cobra run function that executes the provided argument runFunc, and
@@ -34,6 +33,9 @@ func PublishError(runFunc cobrautil.CobraRunFunc) cobrautil.CobraRunFunc {
 				ctx = cmd.Context()
 			}
 			terminationLogPath := cobrautil.MustGetString(cmd, terminationLogFlagName)
+			if terminationLogPath == "" {
+				return runFuncErr
+			}
 			bytes, err := json.Marshal(termErr)
 			if err != nil {
 				log.Ctx(ctx).Error().Err(fmt.Errorf("unable to marshall termination log: %w", err)).Msg("failed to report termination log")
@@ -67,7 +69,7 @@ func PublishError(runFunc cobrautil.CobraRunFunc) cobrautil.CobraRunFunc {
 // RegisterFlags registers the termination log flag
 func RegisterFlags(flagset *flag.FlagSet) {
 	flagset.String(terminationLogFlagName,
-		defaultTerminationLogPath,
-		"define the path to the termination log file, which contains a JSON payload to surface as reason for termination",
+		"",
+		"define the path to the termination log file, which contains a JSON payload to surface as reason for termination - disabled by default",
 	)
 }
