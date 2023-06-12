@@ -616,8 +616,8 @@ func TestLookupResourcesImmediateTimeout(t *testing.T) {
 		},
 	}, stream)
 
-	require.NoError(err)
-	require.Empty(stream.Results())
+	require.ErrorIs(err, context.DeadlineExceeded)
+	require.ErrorContains(err, "context deadline exceeded")
 }
 
 func TestLookupResourcesWithError(t *testing.T) {

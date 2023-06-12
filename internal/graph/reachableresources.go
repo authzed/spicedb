@@ -270,6 +270,12 @@ func (crr *CursoredReachableResources) chunkedRedispatch(
 				return nil, nil
 			}
 
+			// If the number of results returned was less than the limit specified, then this is
+			// the final iteration and no cursor should be returned for the next iteration.
+			if rsm.len() < int(queryLimit) {
+				lastTpl = nil
+			}
+
 			return lastTpl, handler(ctx, ci, rsm.asReadOnly())
 		})
 }

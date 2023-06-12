@@ -192,6 +192,12 @@ func newCheckingResourceStream(
 		concurrencyLimit = 1
 	}
 
+	// Since one goroutine is used for publishing, allocate one less processing goroutine.
+	processingConcurrencyLimit := concurrencyLimit - 1
+	if processingConcurrencyLimit == 0 {
+		processingConcurrencyLimit = 1
+	}
+
 	cancelCtx, cancel := context.WithCancel(lookupContext)
 
 	crs := &checkingResourceStream{
@@ -206,7 +212,7 @@ func newCheckingResourceStream(
 		parentStream: parentStream,
 		limits:       limits,
 
-		sem: make(chan token, concurrencyLimit),
+		sem: make(chan token, processingConcurrencyLimit),
 
 		rq: &resourceQueue{
 			ctx:            lookupContext,
@@ -246,7 +252,14 @@ func (crs *checkingResourceStream) waitForPublishing() (uint64, *v1.Cursor, erro
 	crs.processingWaitGroup.Wait()
 
 	// Mark publishing as ready for final publishing.
-	crs.availableForPublishing <- false
+	select {
+	case crs.availableForPublishing <- false:
+		break
+
+	case <-crs.ctx.Done():
+		crs.setError(crs.ctx.Err())
+		break
+	}
 
 	// Wait for any remaining publishing to complete.
 	crs.publishingWaitGroup.Wait()
@@ -262,6 +275,7 @@ func (crs *checkingResourceStream) resourcePublisher() {
 	for {
 		select {
 		case <-crs.ctx.Done():
+			crs.setError(crs.ctx.Err())
 			return
 
 		case isStillRunning := <-crs.availableForPublishing:
@@ -342,6 +356,7 @@ func (crs *checkingResourceStream) process() {
 	for {
 		select {
 		case <-crs.ctx.Done():
+			crs.setError(crs.ctx.Err())
 			return
 
 		case <-crs.reachableResourcesCompleted:
@@ -464,8 +479,14 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		crs.rq.updateToBePublished(rai)
 	}
 
-	crs.availableForPublishing <- true
-	return true, nil
+	select {
+	case crs.availableForPublishing <- true:
+		return true, nil
+
+	case <-crs.ctx.Done():
+		crs.setError(crs.ctx.Err())
+		return false, nil
+	}
 }
 
 // spawnIfAvailable spawns a processing working, if the concurrency limit has not been reached.
@@ -480,6 +501,7 @@ func (crs *checkingResourceStream) spawnIfAvailable() {
 		go crs.process()
 
 	case <-crs.ctx.Done():
+		crs.setError(crs.ctx.Err())
 		return
 
 	default:
@@ -496,8 +518,15 @@ func (crs *checkingResourceStream) queue(result *v1.DispatchReachableResourcesRe
 	})
 	crs.reachableResourcesCount++
 	crs.lastResourceCursor = result.AfterResponseCursor
-	crs.reachableResourceAvailable <- struct{}{}
-	return true
+
+	select {
+	case crs.reachableResourceAvailable <- struct{}{}:
+		return true
+
+	case <-crs.ctx.Done():
+		crs.setError(crs.ctx.Err())
+		return false
+	}
 }
 
 // Publish implements the Stream interface and is invoked by the ReachableResources call.

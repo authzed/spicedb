@@ -1344,8 +1344,8 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 			continue
 		}
 
-		require.ErrorContains(err, "context canceled")
-		grpcutil.RequireStatus(t, codes.Canceled, err)
+		require.ErrorContains(err, "operation took longer than allowed 1ns to complete")
+		grpcutil.RequireStatus(t, codes.DeadlineExceeded, err)
 	}
 }
 

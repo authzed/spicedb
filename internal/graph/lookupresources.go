@@ -55,14 +55,14 @@ func (cl *CursoredLookupResources) LookupResources(
 	reachableContext, cancelReachable := context.WithCancel(newContextForReachable)
 	defer cancelReachable()
 
-	limits, lCtx := newLimitTracker(lookupContext, req.OptionalLimit)
+	limits, _ := newLimitTracker(lookupContext, req.OptionalLimit)
 	reachableResourcesCursor := req.OptionalCursor
 
 	// Loop until the limit has been exhausted or no additional reachable resources are found (see below)
 	for !limits.hasExhaustedLimit() {
 		// Create a new handling stream that consumes the reachable resources results and publishes them
 		// to the parent stream, as found resources if they are properly checked.
-		checkingStream := newCheckingResourceStream(lCtx, reachableContext, req, cl.c, parentStream, limits, cl.concurrencyLimit)
+		checkingStream := newCheckingResourceStream(lookupContext, reachableContext, req, cl.c, parentStream, limits, cl.concurrencyLimit)
 
 		err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 			ResourceRelation: req.ObjectRelation,
