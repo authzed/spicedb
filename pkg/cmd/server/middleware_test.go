@@ -3,7 +3,12 @@ package server
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/util"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -344,4 +349,169 @@ type mockStreamInterceptor struct {
 
 func (m mockStreamInterceptor) streamIntercept(_ interface{}, _ grpc.ServerStream, _ *grpc.StreamServerInfo, _ grpc.StreamHandler) error {
 	return m.val
+}
+
+func TestMiddlewareOrdering(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.DefaultDatastoreConfig().ToOption(),
+		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
+		datastore.WithRequestHedgingEnabled(false),
+	)
+	require.NoError(t, err)
+
+	c := ConfigWithOptions(
+		&Config{},
+		WithPresharedSecureKey("psk"),
+		WithDatastore(ds),
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+	)
+	rs, err := c.Complete(ctx)
+	require.NoError(t, err)
+
+	clientConn, err := rs.GRPCDialContext(ctx)
+	require.NoError(t, err)
+
+	psc := v1.NewPermissionsServiceClient(clientConn)
+
+	go func() {
+		_ = rs.Run(ctx)
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	req := &v1.CheckPermissionRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: "resource",
+			ObjectId:   "resource1",
+		},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+
+	_, err = psc.CheckPermission(ctx, req)
+	require.NoError(t, err)
+
+	lrreq := &v1.LookupResourcesRequest{
+		ResourceObjectType: "resource",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+	lrc, err := psc.LookupResources(ctx, lrreq)
+	require.NoError(t, err)
+
+	_, err = lrc.Recv()
+	require.NoError(t, err)
+}
+
+func TestIncorrectOrderAssertionFails(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.DefaultDatastoreConfig().ToOption(),
+		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
+		datastore.WithRequestHedgingEnabled(false),
+	)
+	require.NoError(t, err)
+	noopUnary := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		return nil, nil
+	}
+	noopStreaming := func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		return handler(srv, ss)
+	}
+
+	c := ConfigWithOptions(
+		&Config{},
+		WithPresharedSecureKey("psk"),
+		WithDatastore(ds),
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
+			{
+				Operation: OperationReplaceAllUnsafe,
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+					NewUnaryMiddleware().
+						WithName("test").
+						WithInterceptor(noopUnary).
+						EnsureAlreadyExecuted("does-not-exist").
+						Done(),
+				},
+			},
+		}),
+		SetStreamingMiddlewareModification([]MiddlewareModification[grpc.StreamServerInterceptor]{
+			{
+				Operation: OperationReplaceAllUnsafe,
+				Middlewares: []ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+					NewStreamMiddleware().
+						WithName("test").
+						WithInterceptor(noopStreaming).
+						EnsureAlreadyExecuted("does-not-exist").
+						Done(),
+				},
+			},
+		}),
+	)
+	rs, err := c.Complete(ctx)
+	require.NoError(t, err)
+
+	clientConn, err := rs.GRPCDialContext(ctx)
+	require.NoError(t, err)
+
+	psc := v1.NewPermissionsServiceClient(clientConn)
+
+	go func() {
+		_ = rs.Run(ctx)
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	req := &v1.CheckPermissionRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: "resource",
+			ObjectId:   "resource1",
+		},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+
+	_, err = psc.CheckPermission(ctx, req)
+	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
+
+	lrreq := &v1.LookupResourcesRequest{
+		ResourceObjectType: "resource",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+
+	lrc, err := psc.LookupResources(ctx, lrreq)
+	require.NoError(t, err)
+
+	_, err = lrc.Recv()
+	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
 }

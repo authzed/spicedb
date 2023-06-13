@@ -139,54 +139,85 @@ const (
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
-		{
-			Name:       DefaultMiddlewareRequestID,
-			Middleware: requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-		},
-		{
-			Name:       DefaultMiddlewareLog,
-			Middleware: logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-		},
-		{
-			Name:       DefaultMiddlewareGRPCLog,
-			Middleware: grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
-		},
-		{
-			Name:       DefaultMiddlewareOTelGRPC,
-			Middleware: otelgrpc.UnaryServerInterceptor(),
-		},
-		{
-			Name:       DefaultMiddlewareGRPCProm,
-			Middleware: grpcprom.UnaryServerInterceptor,
-		},
-		{
-			Name:       DefaultMiddlewareGRPCAuth,
-			Middleware: grpcauth.UnaryServerInterceptor(authFunc),
-		},
-		{
-			Name:       DefaultMiddlewareServerVersion,
-			Middleware: serverversion.UnaryServerInterceptor(enableVersionResponse),
-		},
-		{
-			Name:       DefaultInternalMiddlewareDispatch,
-			Internal:   true,
-			Middleware: dispatchmw.UnaryServerInterceptor(dispatcher),
-		},
-		{
-			Name:       DefaultInternalMiddlewareDatastore,
-			Internal:   true,
-			Middleware: datastoremw.UnaryServerInterceptor(ds),
-		},
-		{
-			Name:       DefaultInternalMiddlewareConsistency,
-			Internal:   true,
-			Middleware: consistencymw.UnaryServerInterceptor(),
-		},
-		{
-			Name:       DefaultInternalMiddlewareServerSpecific,
-			Internal:   true,
-			Middleware: servicespecific.UnaryServerInterceptor,
-		},
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareRequestID).
+			WithInterceptor(requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true))).
+			EnsureAlreadyExecuted(none).
+			EnsureNotExecuted(DefaultMiddlewareLog).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareLog).
+			WithInterceptor(logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID"))).
+			EnsureAlreadyExecuted(DefaultMiddlewareRequestID).
+			EnsureNotExecuted(DefaultMiddlewareGRPCLog).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareGRPCLog).
+			WithInterceptor(grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			EnsureAlreadyExecuted(DefaultMiddlewareLog).
+			EnsureNotExecuted(DefaultMiddlewareOTelGRPC).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareOTelGRPC).
+			WithInterceptor(otelgrpc.UnaryServerInterceptor()).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCLog).
+			EnsureNotExecuted(DefaultMiddlewareGRPCProm).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareGRPCProm).
+			WithInterceptor(grpcprom.UnaryServerInterceptor).
+			EnsureAlreadyExecuted(DefaultMiddlewareOTelGRPC).
+			EnsureNotExecuted(DefaultMiddlewareGRPCAuth).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareGRPCAuth).
+			WithInterceptor(grpcauth.UnaryServerInterceptor(authFunc)).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm).
+			EnsureNotExecuted(DefaultMiddlewareServerVersion).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareServerVersion).
+			WithInterceptor(serverversion.UnaryServerInterceptor(enableVersionResponse)).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCAuth).
+			EnsureNotExecuted(DefaultInternalMiddlewareDispatch).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultInternalMiddlewareDispatch).
+			WithInternal(true).
+			WithInterceptor(dispatchmw.UnaryServerInterceptor(dispatcher)).
+			EnsureAlreadyExecuted(DefaultMiddlewareServerVersion).
+			EnsureNotExecuted(DefaultInternalMiddlewareDatastore).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultInternalMiddlewareDatastore).
+			WithInternal(true).
+			WithInterceptor(datastoremw.UnaryServerInterceptor(ds)).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareDispatch).
+			EnsureNotExecuted(DefaultInternalMiddlewareConsistency).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultInternalMiddlewareConsistency).
+			WithInternal(true).
+			WithInterceptor(consistencymw.UnaryServerInterceptor()).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareDatastore).
+			EnsureNotExecuted(DefaultInternalMiddlewareServerSpecific).
+			Done(),
+
+		NewUnaryMiddleware().
+			WithName(DefaultInternalMiddlewareServerSpecific).
+			WithInternal(true).
+			WithInterceptor(servicespecific.UnaryServerInterceptor).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareConsistency).
+			Done(),
 	}...)
 	return &chain, err
 }
@@ -194,54 +225,85 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
 func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
-		{
-			Name:       DefaultMiddlewareRequestID,
-			Middleware: requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-		},
-		{
-			Name:       DefaultMiddlewareLog,
-			Middleware: logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-		},
-		{
-			Name:       DefaultMiddlewareGRPCLog,
-			Middleware: grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
-		},
-		{
-			Name:       DefaultMiddlewareOTelGRPC,
-			Middleware: otelgrpc.StreamServerInterceptor(),
-		},
-		{
-			Name:       DefaultMiddlewareGRPCProm,
-			Middleware: grpcprom.StreamServerInterceptor,
-		},
-		{
-			Name:       DefaultMiddlewareGRPCAuth,
-			Middleware: grpcauth.StreamServerInterceptor(authFunc),
-		},
-		{
-			Name:       DefaultMiddlewareServerVersion,
-			Middleware: serverversion.StreamServerInterceptor(enableVersionResponse),
-		},
-		{
-			Name:       DefaultInternalMiddlewareDispatch,
-			Internal:   true,
-			Middleware: dispatchmw.StreamServerInterceptor(dispatcher),
-		},
-		{
-			Name:       DefaultInternalMiddlewareDatastore,
-			Internal:   true,
-			Middleware: datastoremw.StreamServerInterceptor(ds),
-		},
-		{
-			Name:       DefaultInternalMiddlewareConsistency,
-			Internal:   true,
-			Middleware: consistencymw.StreamServerInterceptor(),
-		},
-		{
-			Name:       DefaultInternalMiddlewareServerSpecific,
-			Internal:   true,
-			Middleware: servicespecific.StreamServerInterceptor,
-		},
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareRequestID).
+			WithInterceptor(requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true))).
+			EnsureAlreadyExecuted(DefaultMiddlewareLog).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareLog).
+			WithInterceptor(logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID"))).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCLog).
+			EnsureNotExecuted(DefaultMiddlewareRequestID).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareGRPCLog).
+			WithInterceptor(grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			EnsureAlreadyExecuted(DefaultMiddlewareOTelGRPC).
+			EnsureNotExecuted(DefaultMiddlewareLog).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareOTelGRPC).
+			WithInterceptor(grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm).
+			EnsureNotExecuted(DefaultMiddlewareGRPCLog).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareGRPCProm).
+			WithInterceptor(grpcprom.StreamServerInterceptor).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCAuth).
+			EnsureNotExecuted(DefaultMiddlewareOTelGRPC).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareGRPCAuth).
+			WithInterceptor(grpcauth.StreamServerInterceptor(authFunc)).
+			EnsureAlreadyExecuted(DefaultMiddlewareServerVersion).
+			EnsureNotExecuted(DefaultMiddlewareGRPCProm).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareServerVersion).
+			WithInterceptor(serverversion.StreamServerInterceptor(enableVersionResponse)).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareDispatch).
+			EnsureNotExecuted(DefaultMiddlewareGRPCAuth).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultInternalMiddlewareDispatch).
+			WithInternal(true).
+			WithInterceptor(dispatchmw.StreamServerInterceptor(dispatcher)).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareDatastore).
+			EnsureNotExecuted(DefaultMiddlewareServerVersion).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultInternalMiddlewareDatastore).
+			WithInternal(true).
+			WithInterceptor(datastoremw.StreamServerInterceptor(ds)).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareConsistency).
+			EnsureNotExecuted(DefaultInternalMiddlewareDispatch).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultInternalMiddlewareConsistency).
+			WithInternal(true).
+			WithInterceptor(consistencymw.StreamServerInterceptor()).
+			EnsureAlreadyExecuted(DefaultInternalMiddlewareServerSpecific).
+			EnsureNotExecuted(DefaultInternalMiddlewareDatastore).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultInternalMiddlewareServerSpecific).
+			WithInternal(true).
+			WithInterceptor(servicespecific.StreamServerInterceptor).
+			EnsureAlreadyExecuted(none).
+			EnsureNotExecuted(DefaultInternalMiddlewareConsistency).
+			Done(),
 	}...)
 	return &chain, err
 }
