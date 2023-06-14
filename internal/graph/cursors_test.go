@@ -2,23 +2,23 @@ package graph
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 
+	"github.com/authzed/spicedb/pkg/datastore/options"
+
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 func TestCursorWithWrongRevision(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
+	limits := newLimitTracker(10)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	require.Panics(t, func() {
@@ -27,7 +27,7 @@ func TestCursorWithWrongRevision(t *testing.T) {
 }
 
 func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
+	limits := newLimitTracker(10)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -42,7 +42,7 @@ func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
 }
 
 func TestCursorSections(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
+	limits := newLimitTracker(10)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -65,7 +65,7 @@ func TestCursorSections(t *testing.T) {
 }
 
 func TestCursorNonIntSection(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
+	limits := newLimitTracker(10)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -86,80 +86,8 @@ func TestCursorNonIntSection(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestWithIterableInCursor(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
-
-	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{},
-	}, revision, limits)
-	require.NoError(t, err)
-
-	i := 0
-	items := []string{"one", "two", "three", "four"}
-	err = withIterableInCursor(ci, "iter", items,
-		func(cc cursorInformation, item string) error {
-			require.Equal(t, items[i], item)
-			require.Equal(t, []string{"iter", strconv.Itoa(i)}, cc.outgoingCursorSections)
-			i++
-			return nil
-		})
-
-	require.NoError(t, err)
-	require.Equal(t, 4, i)
-
-	ci, err = newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"iter", "3"},
-	}, revision, limits)
-	require.NoError(t, err)
-
-	j := 3
-	err = withIterableInCursor(ci, "iter", items,
-		func(cc cursorInformation, item string) error {
-			require.Equal(t, items[j], item)
-			require.Equal(t, []string{"iter", strconv.Itoa(j)}, cc.outgoingCursorSections)
-			j++
-			return nil
-		})
-
-	require.NoError(t, err)
-}
-
-func TestWithDatastoreCursorInCursor(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
-
-	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"dsc", "document:firstdoc#viewer@user:tom"},
-	}, revision, limits)
-	require.NoError(t, err)
-
-	i := 0
-	cursors := []string{
-		"document:firstdoc#viewer@user:tom",
-		"document:seconddoc#viewer@user:tom",
-		"document:thirddoc#viewer@user:tom",
-	}
-
-	err = withDatastoreCursorInCursor(ci, "dsc",
-		func(queryCursor options.Cursor, ci cursorInformation) (options.Cursor, error) {
-			require.Equal(t, cursors[i], tuple.MustString(queryCursor))
-			i++
-			if i >= len(cursors) {
-				return nil, nil
-			}
-
-			return options.Cursor(tuple.MustParse(cursors[i])), nil
-		})
-	require.NoError(t, err)
-	require.Equal(t, i, 3)
-}
-
 func TestWithSubsetInCursor(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 10)
+	limits := newLimitTracker(10)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -216,7 +144,7 @@ func TestCombineCursorsWithNil(t *testing.T) {
 }
 
 func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 50)
+	limits := newLimitTracker(50)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -248,7 +176,7 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 }
 
 func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 50)
+	limits := newLimitTracker(50)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -280,7 +208,7 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 }
 
 func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 5)
+	limits := newLimitTracker(5)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -312,7 +240,7 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 }
 
 func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T) {
-	limits, _ := newLimitTracker(context.Background(), 500)
+	limits := newLimitTracker(500)
 	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
@@ -351,5 +279,97 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	require.NotEqual(t, encountered, expected)
 
 	require.NoError(t, err)
+	require.Equal(t, expected, parentStream.Results())
+}
+
+func TestWithDatastoreCursorInCursor(t *testing.T) {
+	limits := newLimitTracker(500)
+	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		AtRevision: revision.String(),
+		Sections:   []string{},
+	}, revision, limits)
+	require.NoError(t, err)
+
+	encountered := []int{}
+	lock := sync.Mutex{}
+
+	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	err = withDatastoreCursorInCursor[int, int](
+		context.Background(),
+		ci,
+		"db",
+		parentStream,
+		5,
+		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
+			return []itemAndPostCursor[int]{
+				{1, tuple.MustParse("document:foo#viewer@user:tom")},
+				{2, tuple.MustParse("document:foo#viewer@user:sarah")},
+				{3, tuple.MustParse("document:foo#viewer@user:fred")},
+			}, nil
+		},
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			lock.Lock()
+			encountered = append(encountered, item)
+			lock.Unlock()
+
+			return stream.Publish(item * 10)
+		})
+
+	expected := []int{10, 20, 30}
+
+	require.Equal(t, len(expected), len(encountered))
+	require.NotEqual(t, encountered, expected)
+
+	require.NoError(t, err)
+	require.Equal(t, expected, parentStream.Results())
+}
+
+func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
+	limits := newLimitTracker(500)
+	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		AtRevision: revision.String(),
+		Sections:   []string{"db", "", "somesection", "42"},
+	}, revision, limits)
+	require.NoError(t, err)
+
+	encountered := []int{}
+	lock := sync.Mutex{}
+
+	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
+	err = withDatastoreCursorInCursor[int, int](
+		context.Background(),
+		ci,
+		"db",
+		parentStream,
+		5,
+		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
+			require.Equal(t, "", tuple.MustString(queryCursor))
+
+			return []itemAndPostCursor[int]{
+				{2, tuple.MustParse("document:foo#viewer@user:sarah")},
+				{3, tuple.MustParse("document:foo#viewer@user:fred")},
+			}, nil
+		},
+		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
+			lock.Lock()
+			encountered = append(encountered, item)
+			lock.Unlock()
+
+			if ok, _ := cc.hasHeadSection("somesection"); ok {
+				value, _ := cc.integerSectionValue("somesection")
+				item = item + value
+			}
+
+			return stream.Publish(item * 10)
+		})
+
+	require.NoError(t, err)
+
+	expected := []int{440, 30}
+	require.Equal(t, len(expected), len(encountered))
 	require.Equal(t, expected, parentStream.Results())
 }

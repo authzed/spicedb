@@ -31,10 +31,6 @@ type ValidatedLookupResourcesRequest struct {
 	Revision datastore.Revision
 }
 
-// reachableResourcesLimit is a limit set on the reachable resources calls to ensure caching
-// stores smaller chunks.
-const reachableResourcesLimit = 1000
-
 func (cl *CursoredLookupResources) LookupResources(
 	req ValidatedLookupResourcesRequest,
 	parentStream dispatch.LookupResourcesStream,
@@ -44,21 +40,23 @@ func (cl *CursoredLookupResources) LookupResources(
 	}
 
 	lookupContext := parentStream.Context()
-
-	// Create a new context for just the reachable resources. This is necessary because we don't want the cancelation
-	// of the reachable resources to cancel the lookup resources. We manually cancel the reachable resources context
-	// ourselves once the lookup resources operation has completed.
-	reachableContext, cancelReachable := branchContext(lookupContext)
-	defer cancelReachable()
-
 	limits := newLimitTracker(req.OptionalLimit)
 	reachableResourcesCursor := req.OptionalCursor
 
 	// Loop until the limit has been exhausted or no additional reachable resources are found (see below)
 	for !limits.hasExhaustedLimit() {
+		errCanceledBecauseNoAdditionalResourcesNeeded := errors.New("canceled because no additional reachable resources are needed")
+
+		// Create a new context for just the reachable resources. This is necessary because we don't want the cancelation
+		// of the reachable resources to cancel the lookup resources. The checking stream manually cancels the reachable
+		// resources context once the expected number of results has been reached.
+		reachableContext, cancelReachable := branchContext(lookupContext)
+
 		// Create a new handling stream that consumes the reachable resources results and publishes them
 		// to the parent stream, as found resources if they are properly checked.
-		checkingStream := newCheckingResourceStream(lookupContext, reachableContext, req, cl.c, parentStream, limits, cl.concurrencyLimit)
+		checkingStream := newCheckingResourceStream(lookupContext, reachableContext, func() {
+			cancelReachable(errCanceledBecauseNoAdditionalResourcesNeeded)
+		}, req, cl.c, parentStream, limits, cl.concurrencyLimit)
 
 		err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 			ResourceRelation: req.ObjectRelation,
@@ -69,10 +67,14 @@ func (cl *CursoredLookupResources) LookupResources(
 			SubjectIds:     []string{req.Subject.ObjectId},
 			Metadata:       req.Metadata,
 			OptionalCursor: reachableResourcesCursor,
-			OptionalLimit:  reachableResourcesLimit,
 		}, checkingStream)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			return err
+		if err != nil {
+			// If the reachable resources was canceled explicitly by the checking stream because the limit has been
+			// reached, then this error can safely be ignored. Otherwise, it must be returned.
+			isAllowedCancelErr := errors.Is(context.Cause(reachableContext), errCanceledBecauseNoAdditionalResourcesNeeded)
+			if !isAllowedCancelErr {
+				return err
+			}
 		}
 
 		reachableCount, newCursor, err := checkingStream.waitForPublishing()
@@ -81,8 +83,7 @@ func (cl *CursoredLookupResources) LookupResources(
 		}
 
 		reachableResourcesCursor = newCursor
-
-		if reachableCount < reachableResourcesLimit {
+		if reachableCount == 0 {
 			return nil
 		}
 	}

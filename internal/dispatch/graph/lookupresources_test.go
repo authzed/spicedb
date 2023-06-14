@@ -398,7 +398,7 @@ func genResourceIds(resourceName string, number int) []string {
 	return resourceIDs
 }
 
-func TestLookupResourcesOverSchema(t *testing.T) {
+func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 	testCases := []struct {
 		name                string
 		schema              string
@@ -545,44 +545,80 @@ func TestLookupResourcesOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 150),
 		},
+		{
+			"big",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 15100),
+				genTuples("document", "editor", "user", "tom", 15100),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 15100),
+		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			require := require.New(t)
+			for _, pageSize := range []int{0, 104, 1023} {
+				pageSize := pageSize
+				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
+					require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+					dispatcher := NewLocalOnlyDispatcher(10)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
-			require.NoError(err)
+					ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+					require.NoError(err)
 
-			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
 
-			ctx := datastoremw.ContextWithHandle(context.Background())
-			require.NoError(datastoremw.SetInContext(ctx, ds))
+					ctx := datastoremw.ContextWithHandle(context.Background())
+					require.NoError(datastoremw.SetInContext(ctx, ds))
 
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
-			err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-				ObjectRelation: tc.permission,
-				Subject:        tc.subject,
-				Metadata: &v1.ResolverMeta{
-					AtRevision:     revision.String(),
-					DepthRemaining: 50,
-				},
-			}, stream)
-			require.NoError(err)
+					var currentCursor *v1.Cursor
+					foundResourceIDs := util.NewSet[string]()
+					for {
+						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
+						err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
+							ObjectRelation: tc.permission,
+							Subject:        tc.subject,
+							Metadata: &v1.ResolverMeta{
+								AtRevision:     revision.String(),
+								DepthRemaining: 50,
+							},
+							OptionalLimit:  uint32(pageSize),
+							OptionalCursor: currentCursor,
+						}, stream)
+						require.NoError(err)
 
-			foundResourceIDs := util.NewSet[string]()
-			for _, result := range stream.Results() {
-				foundResourceIDs.Add(result.ResolvedResource.ResourceId)
+						if pageSize > 0 {
+							require.LessOrEqual(len(stream.Results()), pageSize)
+						}
+
+						for _, result := range stream.Results() {
+							foundResourceIDs.Add(result.ResolvedResource.ResourceId)
+							currentCursor = result.AfterResponseCursor
+						}
+
+						if pageSize == 0 || len(stream.Results()) < pageSize {
+							break
+						}
+					}
+
+					foundResourceIDsSlice := foundResourceIDs.AsSlice()
+					sort.Strings(foundResourceIDsSlice)
+					sort.Strings(tc.expectedResourceIDs)
+
+					require.Equal(tc.expectedResourceIDs, foundResourceIDsSlice)
+				})
 			}
-
-			foundResourceIDsSlice := foundResourceIDs.AsSlice()
-			sort.Strings(foundResourceIDsSlice)
-			sort.Strings(tc.expectedResourceIDs)
-
-			require.Equal(tc.expectedResourceIDs, foundResourceIDsSlice)
 		})
 	}
 }

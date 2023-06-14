@@ -49,12 +49,17 @@ type resourceQueue struct {
 	beingProcessed map[uint64]possibleResource
 }
 
-// addPossibleResource queues a resource for processing.
+// addPossibleResource queues a resource for processing (if a check is required) or for
+// immediate publishing (if a check is not required).
 func (rq *resourceQueue) addPossibleResource(pr possibleResource) {
 	rq.lock.Lock()
 	defer rq.lock.Unlock()
 
-	rq.toProcess[pr.orderingIndex] = pr
+	if pr.lookupResult != nil {
+		rq.toPublish[pr.orderingIndex] = pr
+	} else {
+		rq.toProcess[pr.orderingIndex] = pr
+	}
 }
 
 // updateToBePublished marks a resource as ready for publishing.
@@ -130,6 +135,11 @@ type checkingResourceStream struct {
 	// disconnected from the overall context.
 	reachableContext context.Context
 
+	// cancelReachable cancels the reachable resources request once the limit has been reached. Should only
+	// be called from the publishing goroutine, to indicate that there is absolutely no need for further
+	// reachable resources.
+	cancelReachable func()
+
 	// concurrencyLimit is the limit on the number on concurrency processing workers.
 	concurrencyLimit uint16
 
@@ -182,6 +192,7 @@ type checkingResourceStream struct {
 func newCheckingResourceStream(
 	lookupContext context.Context,
 	reachableContext context.Context,
+	cancelReachable func(),
 	req ValidatedLookupResourcesRequest,
 	checker dispatch.Check,
 	parentStream dispatch.Stream[*v1.DispatchLookupResourcesResponse],
@@ -205,6 +216,7 @@ func newCheckingResourceStream(
 		cancel: cancel,
 
 		reachableContext: reachableContext,
+		cancelReachable:  cancelReachable,
 		concurrencyLimit: concurrencyLimit,
 
 		req:          req,
@@ -324,6 +336,7 @@ func (crs *checkingResourceStream) publishResourcesIfPossible() error {
 			// on the parent stream.
 			if current.lookupResult != nil {
 				if !crs.limits.prepareForPublishing() {
+					crs.cancelReachable()
 					return nil
 				}
 
@@ -344,6 +357,7 @@ func (crs *checkingResourceStream) setError(err error) {
 	crs.errSetter.Do(func() {
 		crs.err = err
 		crs.cancel()
+		crs.cancelReachable()
 	})
 }
 
@@ -397,16 +411,7 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 
 	for _, current := range toProcess {
 		if current.reachableResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
-			current.lookupResult = &v1.DispatchLookupResourcesResponse{
-				ResolvedResource: &v1.ResolvedResource{
-					ResourceId:     current.reachableResult.Resource.ResourceId,
-					Permissionship: v1.ResolvedResource_HAS_PERMISSION,
-				},
-				Metadata:            addCallToResponseMetadata(current.reachableResult.Metadata),
-				AfterResponseCursor: current.reachableResult.AfterResponseCursor,
-			}
-			crs.rq.updateToBePublished(current)
-			continue
+			return false, spiceerrors.MustBugf("process received a resolved resource")
 		}
 
 		toCheck.Add(current.reachableResult.Resource.ResourceId, current)
@@ -481,6 +486,9 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 	case crs.availableForPublishing <- true:
 		return true, nil
 
+	case <-crs.reachableContext.Done():
+		return false, nil
+
 	case <-crs.ctx.Done():
 		crs.setError(crs.ctx.Err())
 		return false, nil
@@ -498,6 +506,9 @@ func (crs *checkingResourceStream) spawnIfAvailable() {
 		crs.processingWaitGroup.Add(1)
 		go crs.process()
 
+	case <-crs.reachableContext.Done():
+		return
+
 	case <-crs.ctx.Done():
 		crs.setError(crs.ctx.Err())
 		return
@@ -509,21 +520,56 @@ func (crs *checkingResourceStream) spawnIfAvailable() {
 
 // queue queues a reachable resources result to be processed by one of the processing worker(s), before publishing.
 func (crs *checkingResourceStream) queue(result *v1.DispatchReachableResourcesResponse) bool {
-	crs.rq.addPossibleResource(possibleResource{
+	currentResource := possibleResource{
 		reachableResult: result,
 		lookupResult:    nil,
 		orderingIndex:   crs.reachableResourcesCount,
-	})
+	}
+
+	// If the resource found already has permission (i.e. a check is not required), simply set
+	// the lookup result on the resource now.
+	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+		currentResource.lookupResult = &v1.DispatchLookupResourcesResponse{
+			ResolvedResource: &v1.ResolvedResource{
+				ResourceId:     result.Resource.ResourceId,
+				Permissionship: v1.ResolvedResource_HAS_PERMISSION,
+			},
+			Metadata:            addCallToResponseMetadata(result.Metadata),
+			AfterResponseCursor: result.AfterResponseCursor,
+		}
+	}
+
+	crs.rq.addPossibleResource(currentResource)
 	crs.reachableResourcesCount++
 	crs.lastResourceCursor = result.AfterResponseCursor
 
-	select {
-	case crs.reachableResourceAvailable <- struct{}{}:
-		return true
+	// If the resource found already has permission (i.e. a check is not required), immediately
+	// publish it, rather than going through a processing worker. This saves a step for better
+	// performance.
+	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+		select {
+		case crs.availableForPublishing <- true:
+			return true
 
-	case <-crs.ctx.Done():
-		crs.setError(crs.ctx.Err())
-		return false
+		case <-crs.reachableContext.Done():
+			return false
+
+		case <-crs.ctx.Done():
+			crs.setError(crs.ctx.Err())
+			return false
+		}
+	} else {
+		select {
+		case crs.reachableResourceAvailable <- struct{}{}:
+			return true
+
+		case <-crs.reachableContext.Done():
+			return false
+
+		case <-crs.ctx.Done():
+			crs.setError(crs.ctx.Err())
+			return false
+		}
 	}
 }
 

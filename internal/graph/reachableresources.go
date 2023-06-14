@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -215,42 +216,70 @@ func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 		RelationFilter:     relationFilter,
 	}
 
-	return crr.chunkedRedispatch(ctx, ci, reader, subjectsFilter, relationReference,
-		func(ctx context.Context, ci cursorInformation, drsm dispatchableResourcesSubjectMap) error {
-			return crr.redispatchOrReport(ctx, ci, relationReference, drsm, rg, entrypoint, stream, req, dispatched)
-		})
+	return crr.redispatchOrReportOverDatabaseQuery(
+		ctx,
+		redispatchOverDatabaseConfig{
+			ci:                 ci,
+			reader:             reader,
+			subjectsFilter:     subjectsFilter,
+			sourceResourceType: relationReference,
+			foundResourceType:  relationReference,
+			entrypoint:         entrypoint,
+			rg:                 rg,
+			concurrencyLimit:   crr.concurrencyLimit,
+			parentStream:       stream,
+			parentRequest:      req,
+			dispatched:         dispatched,
+		},
+	)
 }
 
-var queryLimit uint64 = uint64(datastore.FilterMaximumIDCount)
+type redispatchOverDatabaseConfig struct {
+	ci cursorInformation
 
-func (crr *CursoredReachableResources) chunkedRedispatch(
+	reader datastore.Reader
+
+	subjectsFilter     datastore.SubjectsFilter
+	sourceResourceType *core.RelationReference
+	foundResourceType  *core.RelationReference
+
+	entrypoint namespace.ReachabilityEntrypoint
+	rg         *namespace.ReachabilityGraph
+
+	concurrencyLimit uint16
+	parentStream     dispatch.ReachableResourcesStream
+	parentRequest    ValidatedReachableResourcesRequest
+	dispatched       *syncONRSet
+}
+
+func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 	ctx context.Context,
-	ci cursorInformation,
-	reader datastore.Reader,
-	subjectsFilter datastore.SubjectsFilter,
-	resourceType *core.RelationReference,
-	handler func(ctx context.Context, ci cursorInformation, resources dispatchableResourcesSubjectMap) error,
+	config redispatchOverDatabaseConfig,
 ) error {
-	return withDatastoreCursorInCursor(ci, "query-rels",
-		func(queryCursor options.Cursor, ci cursorInformation) (options.Cursor, error) {
-			it, err := reader.ReverseQueryRelationships(
+	return withDatastoreCursorInCursor(ctx, config.ci, "query-rels", config.parentStream, config.concurrencyLimit,
+		// Find the target resources for the subject.
+		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap], error) {
+			it, err := config.reader.ReverseQueryRelationships(
 				ctx,
-				subjectsFilter,
+				config.subjectsFilter,
 				options.WithResRelation(&options.ResourceRelation{
-					Namespace: resourceType.Namespace,
-					Relation:  resourceType.Relation,
+					Namespace: config.sourceResourceType.Namespace,
+					Relation:  config.sourceResourceType.Relation,
 				}),
 				options.WithSortForReverse(options.BySubject),
 				options.WithAfterForReverse(queryCursor),
-				options.WithLimitForReverse(&queryLimit),
 			)
 			if err != nil {
 				return nil, err
 			}
 			defer it.Close()
 
-			rsm := newResourcesSubjectMap(resourceType)
-			var lastTpl options.Cursor
+			// Chunk based on the FilterMaximumIDCount, to ensure we never send more than that amount of
+			// results to a downstream dispatch.
+			rsm := newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
+			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap], 0)
+			currentCursor := queryCursor
+
 			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 				if it.Err() != nil {
 					return nil, it.Err()
@@ -260,22 +289,47 @@ func (crr *CursoredReachableResources) chunkedRedispatch(
 					return nil, err
 				}
 
-				lastTpl = tpl
+				if rsm.len() == int(datastore.FilterMaximumIDCount) {
+					toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{
+						item:   rsm.asReadOnly(),
+						cursor: currentCursor,
+					})
+					rsm = newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
+					currentCursor = tpl
+				}
 			}
 			it.Close()
 
-			if rsm.len() == 0 {
-				return nil, nil
+			if rsm.len() > 0 {
+				toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{
+					item:   rsm.asReadOnly(),
+					cursor: currentCursor,
+				})
 			}
 
-			// If the number of results returned was less than the limit specified, then this is
-			// the final iteration and no cursor should be returned for the next iteration.
-			if rsm.len() < int(queryLimit) {
-				lastTpl = nil
-			}
+			return toBeHandled, nil
+		},
 
-			return lastTpl, handler(ctx, ci, rsm.asReadOnly())
-		})
+		// Redispatch or report the results.
+		func(
+			ctx context.Context,
+			ci cursorInformation,
+			drsm dispatchableResourcesSubjectMap,
+			currentStream dispatch.ReachableResourcesStream,
+		) error {
+			return crr.redispatchOrReport(
+				ctx,
+				ci,
+				config.foundResourceType,
+				drsm,
+				config.rg,
+				config.entrypoint,
+				currentStream,
+				config.parentRequest,
+				config.dispatched,
+			)
+		},
+	)
 }
 
 func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
@@ -322,11 +376,24 @@ func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 		Relation:  tuplesetRelation,
 	}
 
-	return crr.chunkedRedispatch(ctx, ci, reader, subjectsFilter, tuplesetRelationReference,
-		func(ctx context.Context, ci cursorInformation, drsm dispatchableResourcesSubjectMap) error {
-			return crr.redispatchOrReport(ctx, ci, containingRelation, drsm, rg, entrypoint, stream, req, dispatched)
-		})
+	return crr.redispatchOrReportOverDatabaseQuery(
+		ctx,
+		redispatchOverDatabaseConfig{
+			ci:                 ci,
+			reader:             reader,
+			subjectsFilter:     subjectsFilter,
+			sourceResourceType: tuplesetRelationReference,
+			foundResourceType:  containingRelation,
+			entrypoint:         entrypoint,
+			rg:                 rg,
+			parentStream:       stream,
+			parentRequest:      req,
+			dispatched:         dispatched,
+		},
+	)
 }
+
+var errCanceledBecauseLimitReached = errors.New("canceled because the specified limit was reached")
 
 // redispatchOrReport checks if further redispatching is necessary for the found resource
 // type. If not, and the found resource type+relation matches the target resource type+relation,
@@ -413,7 +480,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 
 					// If we've exhausted the limit of resources to be returned, nothing more to do.
 					if ci.limits.hasExhaustedLimit() {
-						cancelDispatch()
+						cancelDispatch(errCanceledBecauseLimitReached)
 						return nil, false, nil
 					}
 
@@ -425,7 +492,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 					}
 
 					if !ci.limits.prepareForPublishing() {
-						cancelDispatch()
+						cancelDispatch(errCanceledBecauseLimitReached)
 						return nil, false, nil
 					}
 
@@ -470,10 +537,4 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 				OptionalLimit:  ci.limits.currentLimit,
 			}, stream)
 		})
-}
-
-func branchContext(ctx context.Context) (context.Context, func()) {
-	ds := datastoremw.MustFromContext(ctx)
-	newContextForReachable := datastoremw.ContextWithDatastore(context.Background(), ds)
-	return context.WithCancel(newContextForReachable)
 }

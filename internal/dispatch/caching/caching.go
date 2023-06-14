@@ -16,7 +16,6 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -224,10 +223,6 @@ func (cd *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpand
 func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
 	cd.reachableResourcesTotalCounter.Inc()
 
-	if req.OptionalLimit == 0 {
-		return spiceerrors.MustBugf("a limit must be specified on reachable resources to use with the caching dispatcher")
-	}
-
 	requestKey, err := cd.keyHandler.ReachableResourcesCacheKey(stream.Context(), req)
 	if err != nil {
 		return err
@@ -295,10 +290,6 @@ func sliceSize(xs []byte) int64 {
 // DispatchLookupResources implements dispatch.LookupResources interface.
 func (cd *Dispatcher) DispatchLookupResources(req *v1.DispatchLookupResourcesRequest, stream dispatch.LookupResourcesStream) error {
 	cd.lookupResourcesTotalCounter.Inc()
-
-	if req.OptionalLimit == 0 {
-		return spiceerrors.MustBugf("a limit must be specified on lookup resources to use with the caching dispatcher")
-	}
 
 	requestKey, err := cd.keyHandler.LookupResourcesCacheKey(stream.Context(), req)
 	if err != nil {
