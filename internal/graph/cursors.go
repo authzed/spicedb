@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"sync"
 
@@ -60,14 +59,13 @@ func (ci cursorInformation) responsePartialCursor() *v1.Cursor {
 	}
 }
 
-func (ci cursorInformation) withClonedLimits(ctx context.Context) (cursorInformation, context.Context) {
-	cloned, ctx := ci.limits.clone(ctx)
+func (ci cursorInformation) withClonedLimits() cursorInformation {
 	return cursorInformation{
 		currentCursor:          ci.currentCursor,
 		outgoingCursorSections: ci.outgoingCursorSections,
-		limits:                 cloned,
+		limits:                 ci.limits.clone(),
 		revision:               ci.revision,
-	}, ctx
+	}
 }
 
 // hasHeadSection returns true if the current cursor has the given name as the prefix of the cursor.
@@ -388,9 +386,6 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 
 			err = handler(ictx, icursor, item, istream)
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return nil
-				}
 				return err
 			}
 
@@ -398,12 +393,10 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 		})
 	}
 
-	// NOTE: since branches can be canceled if they have reached limits, the context Canceled error is ignored here.
 	err = tr.startAndWait()
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -422,6 +415,7 @@ type parallelLimitedIndexedStream[Q any] struct {
 	toPublishTaskIndex   int
 	countingStream       *dispatch.CountingDispatchStream[Q]
 	childStreams         map[int]*dispatch.CollectingDispatchStream[Q]
+	childContextCancels  map[int]func()
 	completedTaskIndexes map[int]bool
 }
 
@@ -441,6 +435,7 @@ func newParallelLimitedIndexedStream[Q any](
 		parentStream:         parentStream,
 		countingStream:       nil,
 		childStreams:         map[int]*dispatch.CollectingDispatchStream[Q]{},
+		childContextCancels:  map[int]func(){},
 		completedTaskIndexes: map[int]bool{},
 		toPublishTaskIndex:   0,
 		streamCount:          streamCount,
@@ -449,26 +444,36 @@ func newParallelLimitedIndexedStream[Q any](
 
 // forTaskIndex returns a new context, stream and cursor for invoking the task at the specific index and publishing its results.
 func (ls *parallelLimitedIndexedStream[Q]) forTaskIndex(ctx context.Context, index int, currentCursor cursorInformation) (context.Context, dispatch.Stream[Q], cursorInformation) {
+	ls.lock.Lock()
+	defer ls.lock.Unlock()
+
 	// Create a new cursor with cloned limits, because each child task which executes (in parallel) will need its own
 	// limit tracking. The overall limit on the original cursor is managed in completedTaskIndex.
-	childCI, cctx := currentCursor.withClonedLimits(ctx)
+	childCI := currentCursor.withClonedLimits()
+	childContext, cancelDispatch := branchContext(ctx)
+
+	ls.childContextCancels[index] = cancelDispatch
 
 	// If executing for the first index, it can stream directly to the parent stream, but we need to count the number
 	// of items streamed to adjust the overall limits.
 	if index == 0 {
 		countingStream := dispatch.NewCountingDispatchStream[Q](ls.parentStream)
 		ls.countingStream = countingStream
-		return cctx, countingStream, childCI
+		return childContext, countingStream, childCI
 	}
 
 	// Otherwise, create a child stream with an adjusted limits on the cursor. We have to clone the cursor's
 	// limits here to ensure that the child's publishing doesn't affect the first branch.
-	ls.lock.Lock()
-	defer ls.lock.Unlock()
-
 	childStream := dispatch.NewCollectingDispatchStream[Q](ctx)
 	ls.childStreams[index] = childStream
-	return cctx, childStream, childCI
+
+	return childContext, childStream, childCI
+}
+
+func (ls *parallelLimitedIndexedStream[Q]) cancelRemainingDispatches() {
+	for _, cancel := range ls.childContextCancels {
+		cancel()
+	}
 }
 
 // completedTaskIndex indicates the the task at the specific index has completed successfully and that its collected
@@ -482,6 +487,7 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 
 	// If the overall limit has been reached, nothing more to do.
 	if ls.ci.limits.hasExhaustedLimit() {
+		ls.cancelRemainingDispatches()
 		return nil
 	}
 
@@ -494,19 +500,19 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 
 		if ls.toPublishTaskIndex == 0 {
 			// Remove the already emitted data from the overall limits.
-			done, err := ls.ci.limits.markAlreadyPublished(uint32(ls.countingStream.PublishedCount()))
-			defer done()
-			if err != nil {
+			if err := ls.ci.limits.markAlreadyPublished(uint32(ls.countingStream.PublishedCount())); err != nil {
 				return err
+			}
+
+			if ls.ci.limits.hasExhaustedLimit() {
+				ls.cancelRemainingDispatches()
 			}
 		} else {
 			// Publish, to the parent stream, the results produced by the task and stored in the child stream.
 			childStream := ls.childStreams[ls.toPublishTaskIndex]
 			for _, result := range childStream.Results() {
-				ok, done := ls.ci.limits.prepareForPublishing()
-				defer done()
-
-				if !ok {
+				if !ls.ci.limits.prepareForPublishing() {
+					ls.cancelRemainingDispatches()
 					return nil
 				}
 

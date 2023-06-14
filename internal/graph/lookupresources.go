@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -49,13 +48,10 @@ func (cl *CursoredLookupResources) LookupResources(
 	// Create a new context for just the reachable resources. This is necessary because we don't want the cancelation
 	// of the reachable resources to cancel the lookup resources. We manually cancel the reachable resources context
 	// ourselves once the lookup resources operation has completed.
-	ds := datastoremw.MustFromContext(lookupContext)
-
-	newContextForReachable := datastoremw.ContextWithDatastore(context.Background(), ds)
-	reachableContext, cancelReachable := context.WithCancel(newContextForReachable)
+	reachableContext, cancelReachable := branchContext(lookupContext)
 	defer cancelReachable()
 
-	limits, _ := newLimitTracker(lookupContext, req.OptionalLimit)
+	limits := newLimitTracker(req.OptionalLimit)
 	reachableResourcesCursor := req.OptionalCursor
 
 	// Loop until the limit has been exhausted or no additional reachable resources are found (see below)

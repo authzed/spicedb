@@ -46,7 +46,8 @@ func (crr *CursoredReachableResources) ReachableResources(
 	// Sort for stability.
 	sort.Strings(req.SubjectIds)
 
-	limits, ctx := newLimitTracker(stream.Context(), req.OptionalLimit)
+	ctx := stream.Context()
+	limits := newLimitTracker(req.OptionalLimit)
 	ci, err := newCursorInformation(req.OptionalCursor, req.Revision, limits)
 	if err != nil {
 		return err
@@ -63,10 +64,7 @@ func (crr *CursoredReachableResources) ReachableResources(
 						continue
 					}
 
-					okay, done := ci.limits.prepareForPublishing()
-					defer done()
-
-					if !okay {
+					if !ci.limits.prepareForPublishing() {
 						return nil
 					}
 
@@ -375,10 +373,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 					}
 
 					for index, resource := range offsetted {
-						okay, done := ci.limits.prepareForPublishing()
-						defer done()
-
-						if !okay {
+						if !ci.limits.prepareForPublishing() {
 							return nil
 						}
 
@@ -400,11 +395,15 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 				return nil
 			}
 
+			// Branch the context so that the dispatch can be canceled without canceling the parent
+			// call.
+			sctx, cancelDispatch := branchContext(ctx)
+
 			stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 				Stream: parentStream,
-				Ctx:    ctx,
+				Ctx:    sctx,
 				Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
-					// If the context has been closed, nothing more to do.
+					// If the parent context has been closed, nothing more to do.
 					select {
 					case <-ctx.Done():
 						return nil, false, ctx.Err()
@@ -414,6 +413,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 
 					// If we've exhausted the limit of resources to be returned, nothing more to do.
 					if ci.limits.hasExhaustedLimit() {
+						cancelDispatch()
 						return nil, false, nil
 					}
 
@@ -424,10 +424,8 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 						return nil, false, err
 					}
 
-					okay, done := ci.limits.prepareForPublishing()
-					defer done()
-
-					if !okay {
+					if !ci.limits.prepareForPublishing() {
+						cancelDispatch()
 						return nil, false, nil
 					}
 
@@ -472,4 +470,10 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 				OptionalLimit:  ci.limits.currentLimit,
 			}, stream)
 		})
+}
+
+func branchContext(ctx context.Context) (context.Context, func()) {
+	ds := datastoremw.MustFromContext(ctx)
+	newContextForReachable := datastoremw.ContextWithDatastore(context.Background(), ds)
+	return context.WithCancel(newContextForReachable)
 }

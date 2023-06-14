@@ -323,9 +323,7 @@ func (crs *checkingResourceStream) publishResourcesIfPossible() error {
 			// not actually accessible. The entry is kept in `toPublish` to ensure proper ordering is maintained
 			// on the parent stream.
 			if current.lookupResult != nil {
-				ok, done := crs.limits.prepareForPublishing()
-				defer done()
-				if !ok {
+				if !crs.limits.prepareForPublishing() {
 					return nil
 				}
 
