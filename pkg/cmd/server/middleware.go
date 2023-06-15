@@ -8,16 +8,20 @@ import (
 	"google.golang.org/grpc"
 )
 
+type middlewareTypes interface {
+	grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor
+}
+
 // MiddlewareChain describes an ordered sequence of middlewares that can be modified
 // with one or more MiddlewareModification. This struct is used to facilitate the
 // creation and modification of gRPC middleware chains
-type MiddlewareChain[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor] struct {
+type MiddlewareChain[T middlewareTypes] struct {
 	chain []ReferenceableMiddleware[T]
 }
 
 // NewMiddlewareChain creates a new middleware chain given zero or more named middlewares.
 // An error will be returned in case validation of the NamedMiddlewares fail.
-func NewMiddlewareChain[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor](mw ...ReferenceableMiddleware[T]) (MiddlewareChain[T], error) {
+func NewMiddlewareChain[T middlewareTypes](mw ...ReferenceableMiddleware[T]) (MiddlewareChain[T], error) {
 	if err := validate(mw); err != nil {
 		return MiddlewareChain[T]{}, err
 	}
@@ -25,7 +29,7 @@ func NewMiddlewareChain[T grpc.UnaryServerInterceptor | grpc.StreamServerInterce
 }
 
 // MiddlewareModification describes an operation to modify a MiddlewareChain
-type MiddlewareModification[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor] struct {
+type MiddlewareModification[T middlewareTypes] struct {
 	// DependencyMiddlewareName is used to define with respect to which middleware an operation is performed.
 	// Dependency is not required for ReplaceAll operation
 	DependencyMiddlewareName string
@@ -44,7 +48,7 @@ func (mm MiddlewareModification[T]) validate() error {
 	return validate(mm.Middlewares)
 }
 
-func validate[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor](mws []ReferenceableMiddleware[T]) error {
+func validate[T middlewareTypes](mws []ReferenceableMiddleware[T]) error {
 	names := util.NewSet[string]()
 	for _, mw := range mws {
 		if mw.Name == "" {
@@ -61,7 +65,7 @@ func validate[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor](mws 
 // be referenced by name in MiddlewareModification, for example "append after middleware abc".
 // Internal middlewares can also be referenced for operations like append or prepend, but cannot
 // be referenced for replace operations. Middlewares must always be named.
-type ReferenceableMiddleware[T grpc.UnaryServerInterceptor | grpc.StreamServerInterceptor] struct {
+type ReferenceableMiddleware[T middlewareTypes] struct {
 	Name       string
 	Internal   bool
 	Middleware T
