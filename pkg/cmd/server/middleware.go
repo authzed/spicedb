@@ -5,9 +5,9 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/util"
 
-	"github.com/google/uuid"
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
 )
@@ -215,8 +215,6 @@ func (mc *MiddlewareChain[T]) modify(modifications ...MiddlewareModification[T])
 	return nil
 }
 
-var none = uuid.NewString()
-
 func inTest() bool {
 	return flag.Lookup("test.v") != nil
 }
@@ -406,14 +404,10 @@ func mustHaveExecuted(ctx context.Context, expectedExecuted string) error {
 
 	val := ctx.Value(interceptorsExecuted)
 	if val == nil {
-		panic("interception order validation bookkeeping not present in context")
+		return spiceerrors.MustBugf("interception order validation bookkeeping not present in context")
 	}
 
 	handle := val.(*executedHandle)
-	if expectedExecuted == none && len(handle.executed) == 0 {
-		return nil
-	}
-
 	if _, ok := handle.executed[expectedExecuted]; ok {
 		return nil
 	}
