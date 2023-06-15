@@ -98,6 +98,21 @@ func (s *Set[T]) Intersect(other *Set[T]) *Set[T] {
 	return cpy
 }
 
+// Equal returns true if both sets have the same elements
+func (s *Set[T]) Equal(other *Set[T]) bool {
+	for value := range s.values {
+		if !other.Has(value) {
+			return false
+		}
+	}
+	for value := range other.values {
+		if !s.Has(value) {
+			return false
+		}
+	}
+	return true
+}
+
 // IsEmpty returns true if the set is empty.
 func (s *Set[T]) IsEmpty() bool {
 	return len(s.values) == 0

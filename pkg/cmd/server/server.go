@@ -350,6 +350,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		return nil, fmt.Errorf("error building default middlewares: %w", err)
 	}
 
+	sameMiddlewares := defaultUnaryMiddlewareChain.Names().Equal(defaultStreamingMiddlewareChain.Names())
+	if !sameMiddlewares {
+		return nil, fmt.Errorf("unary and streaming middlewares differ: %v / %v",
+			defaultUnaryMiddlewareChain.Names().AsSlice(),
+			defaultStreamingMiddlewareChain.Names().AsSlice(),
+		)
+	}
+
 	unaryMiddleware, err := c.buildUnaryMiddleware(defaultUnaryMiddlewareChain)
 	if err != nil {
 		return nil, fmt.Errorf("error building unary middlewares: %w", err)
