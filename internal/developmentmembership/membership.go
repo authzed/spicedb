@@ -157,6 +157,8 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 
 			fs.relationships.Add(resource)
 		}
+
+		toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)
 		return toReturn, nil
 
 	default:
