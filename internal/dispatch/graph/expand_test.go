@@ -632,6 +632,95 @@ func TestCaveatedExpand(t *testing.T) {
 			}
 			`,
 		},
+		{
+			"recursive caveated indirect arrow",
+			`definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+		  
+			definition folder {
+				relation container: folder with somecaveat
+				relation member: user
+				permission view = container->member
+			}
+		  
+			definition resource {
+				relation folder: folder
+				permission view = folder->view
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("resource:someresource#folder@folder:first"),
+				tuple.MustParse("folder:first#container@folder:second[somecaveat]"),
+				tuple.MustParse("folder:first#member@user:notreachable"),
+				tuple.MustParse("folder:second#member@user:tom"),
+			},
+			tuple.ParseONR("resource:someresource#view"),
+			v1.DispatchExpandRequest_RECURSIVE,
+			`
+			intermediate_node: {
+				operation: UNION
+				child_nodes: {
+				  intermediate_node: {
+					operation: UNION
+					child_nodes: {
+					  intermediate_node: {
+						operation: UNION
+						child_nodes: {
+						  intermediate_node: {
+							operation: UNION
+							child_nodes: {
+							  leaf_node: {
+								subjects: {
+								  subject: {
+									namespace: "user"
+									object_id: "tom"
+									relation: "..."
+								  }
+								}
+							  }
+							  expanded: {
+								namespace: "folder"
+								object_id: "second"
+								relation: "member"
+							  }
+							  caveat_expression: {
+								caveat: {
+								  caveat_name: "somecaveat"
+								  context: {}
+								}
+							  }
+							}
+						  }
+						  expanded: {
+							namespace: "folder"
+							object_id: "first"
+							relation: "view"
+						  }
+						}
+					  }
+					  expanded: {
+						namespace: "folder"
+						object_id: "first"
+						relation: "view"
+					  }
+					}
+				  }
+				  expanded: {
+					namespace: "resource"
+					object_id: "someresource"
+					relation: "view"
+				  }
+				}
+			  }
+			  expanded: {
+				namespace: "resource"
+				object_id: "someresource"
+				relation: "view"
+			  }
+			`,
+		},
 	}
 
 	for _, tc := range testCases {
