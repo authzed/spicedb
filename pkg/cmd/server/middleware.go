@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"flag"
 	"fmt"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -215,10 +214,6 @@ func (mc *MiddlewareChain[T]) modify(modifications ...MiddlewareModification[T])
 	return nil
 }
 
-func inTest() bool {
-	return flag.Lookup("test.v") != nil
-}
-
 type streamOrderAssertion struct {
 	grpc.ServerStream
 	name            string
@@ -282,7 +277,7 @@ func (soeb *StreamOrderEnforcerBuilder) EnsureNotExecuted(name string) *StreamOr
 }
 
 func (soeb *StreamOrderEnforcerBuilder) Done() ReferenceableMiddleware[grpc.StreamServerInterceptor] {
-	if !inTest() {
+	if !spiceerrors.IsInTests() {
 		return ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 			Name:       soeb.name,
 			Internal:   soeb.internal,
@@ -348,7 +343,7 @@ func (soeb *UnaryOrderEnforcerBuilder) EnsureNotExecuted(name string) *UnaryOrde
 }
 
 func (soeb *UnaryOrderEnforcerBuilder) Done() ReferenceableMiddleware[grpc.UnaryServerInterceptor] {
-	if !inTest() {
+	if !spiceerrors.IsInTests() {
 		return ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			Name:       soeb.name,
 			Internal:   soeb.internal,
