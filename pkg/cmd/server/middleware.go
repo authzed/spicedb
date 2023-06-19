@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/util"
 
+	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
 )
 
@@ -176,9 +179,9 @@ func (mc *MiddlewareChain[T]) validate(mod MiddlewareModification[T]) error {
 	}
 
 	// prevent appending/prepending a duplicate middleware
-	for _, middleware := range mod.Middlewares {
-		if existingNames.Has(middleware.Name) && mod.DependencyMiddlewareName == middleware.Name && mod.Operation != OperationReplace {
-			return fmt.Errorf("modification will cause a duplicate in chain: %s", middleware.Name)
+	for _, mw := range mod.Middlewares {
+		if existingNames.Has(mw.Name) && mod.DependencyMiddlewareName == mw.Name && mod.Operation != OperationReplace {
+			return fmt.Errorf("modification will cause a duplicate in chain: %s", mw.Name)
 		}
 	}
 
@@ -214,3 +217,215 @@ func (mc *MiddlewareChain[T]) modify(modifications ...MiddlewareModification[T])
 	}
 	return nil
 }
+
+type streamOrderAssertion struct {
+	grpc.ServerStream
+	name            string
+	alreadyExecuted string
+	notExecuted     string
+}
+
+func (o streamOrderAssertion) RecvMsg(m any) error {
+	if err := mustHaveExecuted(o.Context(), o.alreadyExecuted); err != nil {
+		return err
+	}
+
+	if err := mustHaveNotExecuted(o.Context(), o.notExecuted); err != nil {
+		return err
+	}
+
+	mustMarkAsExecuted(o.Context(), o.name)
+	err := o.ServerStream.RecvMsg(m)
+	return err
+}
+
+func (o streamOrderAssertion) SendMsg(m any) error {
+	return o.ServerStream.SendMsg(m)
+}
+
+func NewStreamMiddleware() *StreamOrderEnforcerBuilder {
+	return &StreamOrderEnforcerBuilder{}
+}
+
+type StreamOrderEnforcerBuilder struct {
+	name              string
+	streamInterceptor grpc.StreamServerInterceptor
+	internal          bool
+	executed          string
+	notExecuted       string
+}
+
+func (soeb *StreamOrderEnforcerBuilder) WithName(name string) *StreamOrderEnforcerBuilder {
+	soeb.name = name
+	return soeb
+}
+
+func (soeb *StreamOrderEnforcerBuilder) WithInterceptor(interceptor grpc.StreamServerInterceptor) *StreamOrderEnforcerBuilder {
+	soeb.streamInterceptor = interceptor
+	return soeb
+}
+
+func (soeb *StreamOrderEnforcerBuilder) WithInternal(internal bool) *StreamOrderEnforcerBuilder {
+	soeb.internal = internal
+	return soeb
+}
+
+func (soeb *StreamOrderEnforcerBuilder) EnsureAlreadyExecuted(name string) *StreamOrderEnforcerBuilder {
+	soeb.executed = name
+	return soeb
+}
+
+func (soeb *StreamOrderEnforcerBuilder) EnsureNotExecuted(name string) *StreamOrderEnforcerBuilder {
+	soeb.notExecuted = name
+	return soeb
+}
+
+func (soeb *StreamOrderEnforcerBuilder) Done() ReferenceableMiddleware[grpc.StreamServerInterceptor] {
+	if !spiceerrors.IsInTests() {
+		return ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+			Name:       soeb.name,
+			Internal:   soeb.internal,
+			Middleware: soeb.streamInterceptor,
+		}
+	}
+
+	return ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+		Name:     soeb.name,
+		Internal: soeb.internal,
+		Middleware: func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+			wss := middleware.WrapServerStream(ss)
+			if wss.WrappedContext.Value(interceptorsExecuted) == nil {
+				handle := executedHandle{executed: make(map[string]struct{}, 0)}
+				wss.WrappedContext = context.WithValue(wss.WrappedContext, interceptorsExecuted, &handle)
+			}
+			wrappedStream := streamOrderAssertion{
+				ServerStream:    wss,
+				name:            soeb.name,
+				alreadyExecuted: soeb.executed,
+				notExecuted:     soeb.notExecuted,
+			}
+			return soeb.streamInterceptor(srv, wrappedStream, info, handler)
+		},
+	}
+}
+
+func NewUnaryMiddleware() *UnaryOrderEnforcerBuilder {
+	return &UnaryOrderEnforcerBuilder{}
+}
+
+type UnaryOrderEnforcerBuilder struct {
+	name            string
+	interceptor     grpc.UnaryServerInterceptor
+	internal        bool
+	alreadyExecuted string
+	notExecuted     string
+}
+
+func (soeb *UnaryOrderEnforcerBuilder) WithName(name string) *UnaryOrderEnforcerBuilder {
+	soeb.name = name
+	return soeb
+}
+
+func (soeb *UnaryOrderEnforcerBuilder) WithInterceptor(interceptor grpc.UnaryServerInterceptor) *UnaryOrderEnforcerBuilder {
+	soeb.interceptor = interceptor
+	return soeb
+}
+
+func (soeb *UnaryOrderEnforcerBuilder) WithInternal(internal bool) *UnaryOrderEnforcerBuilder {
+	soeb.internal = internal
+	return soeb
+}
+
+func (soeb *UnaryOrderEnforcerBuilder) EnsureAlreadyExecuted(name string) *UnaryOrderEnforcerBuilder {
+	soeb.alreadyExecuted = name
+	return soeb
+}
+
+func (soeb *UnaryOrderEnforcerBuilder) EnsureNotExecuted(name string) *UnaryOrderEnforcerBuilder {
+	soeb.notExecuted = name
+	return soeb
+}
+
+func (soeb *UnaryOrderEnforcerBuilder) Done() ReferenceableMiddleware[grpc.UnaryServerInterceptor] {
+	if !spiceerrors.IsInTests() {
+		return ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+			Name:       soeb.name,
+			Internal:   soeb.internal,
+			Middleware: soeb.interceptor,
+		}
+	}
+
+	return ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+		Name:     soeb.name,
+		Internal: soeb.internal,
+		Middleware: func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+			if ctx.Value(interceptorsExecuted) == nil {
+				handle := executedHandle{executed: make(map[string]struct{}, 0)}
+				ctx = context.WithValue(ctx, interceptorsExecuted, &handle)
+			}
+
+			if err := mustHaveExecuted(ctx, soeb.alreadyExecuted); err != nil {
+				return nil, err
+			}
+
+			if err := mustHaveNotExecuted(ctx, soeb.notExecuted); err != nil {
+				return nil, err
+			}
+
+			mustMarkAsExecuted(ctx, soeb.name)
+			return soeb.interceptor(ctx, req, info, handler)
+		},
+	}
+}
+
+func mustHaveNotExecuted(ctx context.Context, notExecuted string) error {
+	if notExecuted == "" {
+		return nil
+	}
+
+	val := ctx.Value(interceptorsExecuted)
+	if val == nil {
+		return fmt.Errorf("interception order validation bookkeeping not present in context")
+	}
+
+	handle := val.(*executedHandle)
+	if _, ok := handle.executed[notExecuted]; ok {
+		return fmt.Errorf("expected interceptor %s to be not already executed", notExecuted)
+	}
+
+	return nil
+}
+
+func mustHaveExecuted(ctx context.Context, expectedExecuted string) error {
+	if expectedExecuted == "" {
+		return nil
+	}
+
+	val := ctx.Value(interceptorsExecuted)
+	if val == nil {
+		return spiceerrors.MustBugf("interception order validation bookkeeping not present in context")
+	}
+
+	handle := val.(*executedHandle)
+	if _, ok := handle.executed[expectedExecuted]; ok {
+		return nil
+	}
+
+	return fmt.Errorf("expected interceptor %s to be already executed", expectedExecuted)
+}
+
+func mustMarkAsExecuted(ctx context.Context, name string) {
+	val := ctx.Value(interceptorsExecuted)
+	if val == nil {
+		panic("handle should exist")
+	} else {
+		handle := val.(*executedHandle)
+		handle.executed[name] = struct{}{}
+	}
+}
+
+type executedHandle struct {
+	executed map[string]struct{}
+}
+
+var interceptorsExecuted = struct{}{}

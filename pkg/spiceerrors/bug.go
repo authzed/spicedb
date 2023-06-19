@@ -6,8 +6,9 @@ import (
 	"strings"
 )
 
+// IsInTests returns true if go test is running
 // Based on: https://stackoverflow.com/a/58945030
-func isInTests() bool {
+func IsInTests() bool {
 	for _, arg := range os.Args {
 		if strings.HasPrefix(arg, "-test.") {
 			return true
@@ -23,7 +24,7 @@ func MustPanic(format string, args ...any) {
 
 // MustBugf returns an error representing a bug in the system. Will panic if run under testing.
 func MustBugf(format string, args ...any) error {
-	if isInTests() {
+	if IsInTests() {
 		panic(fmt.Sprintf(format, args...))
 	}
 
