@@ -42,6 +42,13 @@ func newResourcesSubjectMap(resourceType *core.RelationReference) resourcesSubje
 	}
 }
 
+func newResourcesSubjectMapWithCapacity(resourceType *core.RelationReference, capacity uint32) resourcesSubjectMap {
+	return resourcesSubjectMap{
+		resourceType:         resourceType,
+		resourcesAndSubjects: util.NewMultiMapWithCapacity[string, subjectInfo](capacity),
+	}
+}
+
 func subjectIDsToResourcesMap(resourceType *core.RelationReference, subjectIDs []string) resourcesSubjectMap {
 	rsm := newResourcesSubjectMap(resourceType)
 	for _, subjectID := range subjectIDs {

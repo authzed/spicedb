@@ -60,14 +60,13 @@ func (ci cursorInformation) responsePartialCursor() *v1.Cursor {
 	}
 }
 
-func (ci cursorInformation) withClonedLimits(ctx context.Context) (cursorInformation, context.Context) {
-	cloned, ctx := ci.limits.clone(ctx)
+func (ci cursorInformation) withClonedLimits() cursorInformation {
 	return cursorInformation{
 		currentCursor:          ci.currentCursor,
 		outgoingCursorSections: ci.outgoingCursorSections,
-		limits:                 cloned,
+		limits:                 ci.limits.clone(),
 		revision:               ci.revision,
-	}, ctx
+	}
 }
 
 // hasHeadSection returns true if the current cursor has the given name as the prefix of the cursor.
@@ -158,62 +157,23 @@ func (ci cursorInformation) clearIncoming() cursorInformation {
 
 type cursorHandler func(c cursorInformation) error
 
-// withIterableInCursor executes the given handler for each item in the items list, skipping any
-// items marked as completed at the head of the cursor and injecting a cursor representing the current
-// item.
-//
-// For example, if items contains 3 items, and the cursor returned was within the handler for item
-// index #1, then item index #0 will be skipped on subsequent invocation.
-func withIterableInCursor[T any](
-	ci cursorInformation,
-	name string,
-	items []T,
-	handler func(ci cursorInformation, item T) error,
-) error {
-	// Check the index for the section in the cursor. If found, we skip any items before that index.
-	afterIndex, err := ci.integerSectionValue(name)
-	if err != nil {
-		return err
-	}
-
-	isFirstIteration := true
-	for index, item := range items {
-		if index < afterIndex {
-			continue
-		}
-
-		if ci.limits.hasExhaustedLimit() {
-			return nil
-		}
-
-		// Invoke the handler with the current item's index in the outgoing cursor, indicating that
-		// subsequent invocations should jump right to this item.
-		currentCursor, err := ci.withOutgoingSection(name, strconv.Itoa(index))
-		if err != nil {
-			return err
-		}
-
-		if !isFirstIteration {
-			currentCursor = currentCursor.clearIncoming()
-		}
-
-		err = handler(currentCursor, item)
-		if err != nil {
-			return err
-		}
-
-		isFirstIteration = false
-	}
-
-	return nil
+// itemAndPostCursor represents an item and the cursor to be used for all items after it.
+type itemAndPostCursor[T any] struct {
+	item   T
+	cursor options.Cursor
 }
 
-// withDatastoreCursorInCursor executes the given handler until it returns an empty "next" datastore cursor,
-// starting at the datastore cursor found in the cursor information (if any).
-func withDatastoreCursorInCursor(
+// withDatastoreCursorInCursor executes the given lookup function to retrieve items from the datastore,
+// and then executes the handler on each of the produced items *in parallel*, streaming the results
+// in the correct order to the parent stream.
+func withDatastoreCursorInCursor[T any, Q any](
+	ctx context.Context,
 	ci cursorInformation,
 	name string,
-	handler func(queryCursor options.Cursor, ci cursorInformation) (options.Cursor, error),
+	parentStream dispatch.Stream[Q],
+	concurrencyLimit uint16,
+	lookup func(queryCursor options.Cursor) ([]itemAndPostCursor[T], error),
+	handler func(ctx context.Context, ci cursorInformation, item T, stream dispatch.Stream[Q]) error,
 ) error {
 	// Retrieve the *datastore* cursor, if one is found at the head of the incoming cursor.
 	var datastoreCursor options.Cursor
@@ -226,33 +186,50 @@ func withDatastoreCursorInCursor(
 		datastoreCursor = tuple.MustParse(datastoreCursorString)
 	}
 
-	// Execute the loop, starting at the datastore's cursor (if any), until there is no additional
-	// datastore cursor returned.
-	isFirstIteration := true
-	for {
-		if ci.limits.hasExhaustedLimit() {
-			return nil
-		}
+	if ci.limits.hasExhaustedLimit() {
+		return nil
+	}
 
-		currentCursor, err := ci.withOutgoingSection(name, tuple.MustString(datastoreCursor))
+	// Execute the lookup to call the database and find items for processing.
+	itemsToBeProcessed, err := lookup(datastoreCursor)
+	if err != nil {
+		return err
+	}
+
+	if len(itemsToBeProcessed) == 0 {
+		return nil
+	}
+
+	itemsToRun := make([]T, 0, len(itemsToBeProcessed))
+	for _, itemAndCursor := range itemsToBeProcessed {
+		itemsToRun = append(itemsToRun, itemAndCursor.item)
+	}
+
+	getItemCursor := func(taskIndex int) (cursorInformation, error) {
+		// Create an updated cursor referencing the current item's cursor, so that any items returned know to resume from this point.
+		currentCursor, err := ci.withOutgoingSection(name, tuple.StringWithoutCaveat(itemsToBeProcessed[taskIndex].cursor))
 		if err != nil {
-			return err
+			return currentCursor, err
 		}
 
-		if !isFirstIteration {
+		// If not the first iteration, we need to clear incoming sections to ensure the iteration starts at the top
+		// of the cursor.
+		if taskIndex > 0 {
 			currentCursor = currentCursor.clearIncoming()
 		}
 
-		nextDCCursor, err := handler(datastoreCursor, currentCursor)
-		if err != nil {
-			return err
-		}
-		if nextDCCursor == nil {
-			return nil
-		}
-		datastoreCursor = nextDCCursor
-		isFirstIteration = false
+		return currentCursor, nil
 	}
+
+	return withInternalParallelizedStreamingIterableInCursor[T, Q](
+		ctx,
+		ci,
+		itemsToRun,
+		parentStream,
+		concurrencyLimit,
+		getItemCursor,
+		handler,
+	)
 }
 
 type afterResponseCursor func(nextOffset int) *v1.Cursor
@@ -354,6 +331,42 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 		return nil
 	}
 
+	getItemCursor := func(taskIndex int) (cursorInformation, error) {
+		// Create an updated cursor referencing the current item's index, so that any items returned know to resume from this point.
+		currentCursor, err := ci.withOutgoingSection(name, strconv.Itoa(taskIndex+startingIndex))
+		if err != nil {
+			return currentCursor, err
+		}
+
+		// If not the first iteration, we need to clear incoming sections to ensure the iteration starts at the top
+		// of the cursor.
+		if taskIndex > 0 {
+			currentCursor = currentCursor.clearIncoming()
+		}
+
+		return currentCursor, nil
+	}
+
+	return withInternalParallelizedStreamingIterableInCursor[T, Q](
+		ctx,
+		ci,
+		itemsToRun,
+		parentStream,
+		concurrencyLimit,
+		getItemCursor,
+		handler,
+	)
+}
+
+func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
+	ctx context.Context,
+	ci cursorInformation,
+	itemsToRun []T,
+	parentStream dispatch.Stream[Q],
+	concurrencyLimit uint16,
+	getItemCursor func(taskIndex int) (cursorInformation, error),
+	handler func(ctx context.Context, ci cursorInformation, item T, stream dispatch.Stream[Q]) error,
+) error {
 	// Queue up each iteration's worth of items to be run by the task runner.
 	tr := newPreloadedTaskRunner(ctx, concurrencyLimit, len(itemsToRun))
 	stream, err := newParallelLimitedIndexedStream[Q](ctx, ci, parentStream, len(itemsToRun))
@@ -370,25 +383,20 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 				return nil
 			}
 
-			// Create an updated cursor referencing the current item's index, so that any items returned know to resume from this point.
-			currentCursor, err := ci.withOutgoingSection(name, strconv.Itoa(taskIndex+startingIndex))
+			ici, err := getItemCursor(taskIndex)
 			if err != nil {
 				return err
 			}
 
-			// If not the first iteration, we need to clear incoming sections to ensure the iteration starts at the top
-			// of the cursor.
-			if taskIndex > 0 {
-				currentCursor = currentCursor.clearIncoming()
-			}
-
 			// Invoke the handler with the current item's index in the outgoing cursor, indicating that
 			// subsequent invocations should jump right to this item.
-			ictx, istream, icursor := stream.forTaskIndex(ctx, taskIndex, currentCursor)
+			ictx, istream, icursor := stream.forTaskIndex(ctx, taskIndex, ici)
 
 			err = handler(ictx, icursor, item, istream)
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
+				// If the branch was canceled explicitly by *this* streaming iterable because other branches have fulfilled
+				// the configured limit, then we can safely ignore this error.
+				if errors.Is(context.Cause(ictx), stream.errCanceledBecauseFulfilled) {
 					return nil
 				}
 				return err
@@ -398,12 +406,10 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 		})
 	}
 
-	// NOTE: since branches can be canceled if they have reached limits, the context Canceled error is ignored here.
 	err = tr.startAndWait()
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -418,11 +424,13 @@ type parallelLimitedIndexedStream[Q any] struct {
 	ci           cursorInformation
 	parentStream dispatch.Stream[Q]
 
-	streamCount          int
-	toPublishTaskIndex   int
-	countingStream       *dispatch.CountingDispatchStream[Q]
-	childStreams         map[int]*dispatch.CollectingDispatchStream[Q]
-	completedTaskIndexes map[int]bool
+	streamCount                 int
+	toPublishTaskIndex          int
+	countingStream              *dispatch.CountingDispatchStream[Q]
+	childStreams                map[int]*dispatch.CollectingDispatchStream[Q]
+	childContextCancels         map[int]func(cause error)
+	completedTaskIndexes        map[int]bool
+	errCanceledBecauseFulfilled error
 }
 
 func newParallelLimitedIndexedStream[Q any](
@@ -441,34 +449,50 @@ func newParallelLimitedIndexedStream[Q any](
 		parentStream:         parentStream,
 		countingStream:       nil,
 		childStreams:         map[int]*dispatch.CollectingDispatchStream[Q]{},
+		childContextCancels:  map[int]func(cause error){},
 		completedTaskIndexes: map[int]bool{},
 		toPublishTaskIndex:   0,
 		streamCount:          streamCount,
+
+		// NOTE: we mint a new error here to ensure that we only skip cancelations from this very instance.
+		errCanceledBecauseFulfilled: errors.New("canceled because other branches fulfilled limit"),
 	}, nil
 }
 
 // forTaskIndex returns a new context, stream and cursor for invoking the task at the specific index and publishing its results.
 func (ls *parallelLimitedIndexedStream[Q]) forTaskIndex(ctx context.Context, index int, currentCursor cursorInformation) (context.Context, dispatch.Stream[Q], cursorInformation) {
+	ls.lock.Lock()
+	defer ls.lock.Unlock()
+
 	// Create a new cursor with cloned limits, because each child task which executes (in parallel) will need its own
 	// limit tracking. The overall limit on the original cursor is managed in completedTaskIndex.
-	childCI, cctx := currentCursor.withClonedLimits(ctx)
+	childCI := currentCursor.withClonedLimits()
+	childContext, cancelDispatch := branchContext(ctx)
+
+	ls.childContextCancels[index] = cancelDispatch
 
 	// If executing for the first index, it can stream directly to the parent stream, but we need to count the number
 	// of items streamed to adjust the overall limits.
 	if index == 0 {
 		countingStream := dispatch.NewCountingDispatchStream[Q](ls.parentStream)
 		ls.countingStream = countingStream
-		return cctx, countingStream, childCI
+		return childContext, countingStream, childCI
 	}
 
 	// Otherwise, create a child stream with an adjusted limits on the cursor. We have to clone the cursor's
 	// limits here to ensure that the child's publishing doesn't affect the first branch.
-	ls.lock.Lock()
-	defer ls.lock.Unlock()
-
-	childStream := dispatch.NewCollectingDispatchStream[Q](ctx)
+	childStream := dispatch.NewCollectingDispatchStream[Q](childContext)
 	ls.childStreams[index] = childStream
-	return cctx, childStream, childCI
+
+	return childContext, childStream, childCI
+}
+
+// cancelRemainingDispatches cancels the contexts for each dispatched branch, indicating that no additional results
+// are necessary.
+func (ls *parallelLimitedIndexedStream[Q]) cancelRemainingDispatches() {
+	for _, cancel := range ls.childContextCancels {
+		cancel(ls.errCanceledBecauseFulfilled)
+	}
 }
 
 // completedTaskIndex indicates the the task at the specific index has completed successfully and that its collected
@@ -482,6 +506,7 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 
 	// If the overall limit has been reached, nothing more to do.
 	if ls.ci.limits.hasExhaustedLimit() {
+		ls.cancelRemainingDispatches()
 		return nil
 	}
 
@@ -494,19 +519,19 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 
 		if ls.toPublishTaskIndex == 0 {
 			// Remove the already emitted data from the overall limits.
-			done, err := ls.ci.limits.markAlreadyPublished(uint32(ls.countingStream.PublishedCount()))
-			defer done()
-			if err != nil {
+			if err := ls.ci.limits.markAlreadyPublished(uint32(ls.countingStream.PublishedCount())); err != nil {
 				return err
+			}
+
+			if ls.ci.limits.hasExhaustedLimit() {
+				ls.cancelRemainingDispatches()
 			}
 		} else {
 			// Publish, to the parent stream, the results produced by the task and stored in the child stream.
 			childStream := ls.childStreams[ls.toPublishTaskIndex]
 			for _, result := range childStream.Results() {
-				ok, done := ls.ci.limits.prepareForPublishing()
-				defer done()
-
-				if !ok {
+				if !ls.ci.limits.prepareForPublishing() {
+					ls.cancelRemainingDispatches()
 					return nil
 				}
 

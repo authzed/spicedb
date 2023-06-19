@@ -33,6 +33,13 @@ func NewMultiMap[T comparable, Q any]() *MultiMap[T, Q] {
 	}
 }
 
+// NewMultiMapWithCapacity creates and returns a new MultiMap from keys of type T to values of type Q.
+func NewMultiMapWithCapacity[T comparable, Q any](capacity uint32) *MultiMap[T, Q] {
+	return &MultiMap[T, Q]{
+		items: make(map[T][]Q, capacity),
+	}
+}
+
 // MultiMap represents a map that can contain 1 or more values for each key.
 type MultiMap[T comparable, Q any] struct {
 	items map[T][]Q

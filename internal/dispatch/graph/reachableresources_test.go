@@ -8,17 +8,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/datastore/options"
-
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/caching"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -998,4 +1000,501 @@ func (br *breakingReader) ReverseQueryRelationships(
 		return nil, fmt.Errorf("some sort of error")
 	}
 	return br.Reader.ReverseQueryRelationships(ctx, subjectsFilter, options...)
+}
+
+func TestReachableResourcesOverSchema(t *testing.T) {
+	testCases := []struct {
+		name                string
+		schema              string
+		relationships       []*core.RelationTuple
+		permission          *core.RelationReference
+		subject             *core.ObjectAndRelation
+		expectedResourceIDs []string
+	}{
+		{
+			"basic union",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1510),
+				genTuples("document", "editor", "user", "tom", 1510),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1510),
+		},
+		{
+			"basic exclusion",
+			`definition user {}
+		
+		 	 definition document {
+				relation banned: user
+				relation viewer: user
+				permission view = viewer - banned
+  			 }`,
+			genTuples("document", "viewer", "user", "tom", 1010),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1010),
+		},
+		{
+			"basic intersection",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer & editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 510),
+				genTuples("document", "editor", "user", "tom", 510),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 510),
+		},
+		{
+			"union and exclused union",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				relation banned: user
+				permission can_view = viewer - banned
+				permission view = can_view + editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1310),
+				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2450),
+		},
+		{
+			"basic caveats",
+			`definition user {}
+
+ 			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+		
+		 	 definition document {
+				relation viewer: user with somecaveat
+				permission view = viewer
+  			 }`,
+			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2450),
+		},
+		{
+			"excluded items",
+			`definition user {}
+		
+		 	 definition document {
+				relation banned: user
+				relation viewer: user
+				permission view = viewer - banned
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1310),
+				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1310),
+		},
+		{
+			"basic caveats with missing field",
+			`definition user {}
+
+ 			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+		
+		 	 definition document {
+				relation viewer: user with somecaveat
+				permission view = viewer
+  			 }`,
+			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2450),
+		},
+		{
+			"larger arrow dispatch",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder->viewer
+  			 }`,
+			joinTuples(
+				genTuples("folder", "viewer", "user", "tom", 150),
+				genSubjectTuples("document", "folder", "folder", "...", 150),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 150),
+		},
+		{
+			"big",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 15100),
+				genTuples("document", "editor", "user", "tom", 15100),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 15100),
+		},
+		{
+			"chunked arrow with chunked redispatch",
+			`definition user {}
+		
+			 definition folder {
+			 	relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation parent: folder
+				permission view = parent->view
+  			 }`,
+			(func() []*core.RelationTuple {
+				// Generate 200 folders with tom as a viewer
+				tuples := make([]*core.RelationTuple, 0, 200*200)
+				for folderID := 0; folderID < 200; folderID++ {
+					tpl := &core.RelationTuple{
+						ResourceAndRelation: ONR("folder", fmt.Sprintf("folder-%d", folderID), "viewer"),
+						Subject:             ONR("user", "tom", "..."),
+					}
+					tuples = append(tuples, tpl)
+
+					// Generate 200 documents for each folder.
+					for documentID := 0; documentID < 200; documentID++ {
+						docID := fmt.Sprintf("doc-%d-%d", folderID, documentID)
+						tpl := &core.RelationTuple{
+							ResourceAndRelation: ONR("document", docID, "parent"),
+							Subject:             ONR("folder", fmt.Sprintf("folder-%d", folderID), "..."),
+						}
+						tuples = append(tuples, tpl)
+					}
+				}
+
+				return tuples
+			})(),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			(func() []string {
+				docIDs := make([]string, 0, 200*200)
+				for folderID := 0; folderID < 200; folderID++ {
+					for documentID := 0; documentID < 200; documentID++ {
+						docID := fmt.Sprintf("doc-%d-%d", folderID, documentID)
+						docIDs = append(docIDs, docID)
+					}
+				}
+				return docIDs
+			})(),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			for _, pageSize := range []int{0, 100, 1000} {
+				pageSize := pageSize
+				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
+					require := require.New(t)
+
+					dispatcher := NewLocalOnlyDispatcher(10)
+
+					ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+					require.NoError(err)
+
+					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+
+					ctx := datastoremw.ContextWithHandle(context.Background())
+					require.NoError(datastoremw.SetInContext(ctx, ds))
+
+					foundResourceIDs := util.NewSet[string]()
+
+					var currentCursor *v1.Cursor
+					for {
+						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
+						err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+							ResourceRelation: tc.permission,
+							SubjectRelation: &core.RelationReference{
+								Namespace: tc.subject.Namespace,
+								Relation:  tc.subject.Relation,
+							},
+							SubjectIds: []string{tc.subject.ObjectId},
+							Metadata: &v1.ResolverMeta{
+								AtRevision:     revision.String(),
+								DepthRemaining: 50,
+							},
+							OptionalCursor: currentCursor,
+							OptionalLimit:  uint32(pageSize),
+						}, stream)
+						require.NoError(err)
+
+						if pageSize > 0 {
+							require.LessOrEqual(len(stream.Results()), pageSize)
+						}
+
+						for _, result := range stream.Results() {
+							foundResourceIDs.Add(result.Resource.ResourceId)
+							currentCursor = result.AfterResponseCursor
+						}
+
+						if pageSize == 0 || len(stream.Results()) < pageSize {
+							break
+						}
+					}
+
+					foundResourceIDsSlice := foundResourceIDs.AsSlice()
+					sort.Strings(foundResourceIDsSlice)
+					sort.Strings(tc.expectedResourceIDs)
+
+					require.Equal(tc.expectedResourceIDs, foundResourceIDsSlice)
+				})
+			}
+		})
+	}
+}
+
+func TestReachableResourcesWithPreCancelation(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	testRels := make([]*core.RelationTuple, 0)
+
+	for i := 0; i < 410; i++ {
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
+	}
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
+		rawDS,
+		`
+			definition user {}
+
+			definition resource {
+				relation editor: user
+				relation viewer: user
+				permission edit = editor
+				permission view = viewer + edit
+			}
+		`,
+		testRels,
+		require.New(t),
+	)
+
+	dispatcher := NewLocalOnlyDispatcher(2)
+
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+	require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+
+	// Cancel now
+	cancel()
+
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
+	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+		ResourceRelation: RR("resource", "view"),
+		SubjectRelation: &core.RelationReference{
+			Namespace: "user",
+			Relation:  "...",
+		},
+		SubjectIds: []string{"tom"},
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+	}, stream)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestReachableResourcesWithUnexpectedContextCancelation(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	testRels := make([]*core.RelationTuple, 0)
+
+	for i := 0; i < 410; i++ {
+		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
+	}
+
+	baseds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
+		rawDS,
+		`
+			definition user {}
+
+			definition resource {
+				relation editor: user
+				relation viewer: user
+				permission edit = editor
+				permission view = viewer + edit
+			}
+		`,
+		testRels,
+		require.New(t),
+	)
+
+	dispatcher := NewLocalOnlyDispatcher(2)
+
+	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+
+	cds := cancelingDatastore{baseds}
+	require.NoError(t, datastoremw.SetInContext(ctx, cds))
+
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
+	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+		ResourceRelation: RR("resource", "view"),
+		SubjectRelation: &core.RelationReference{
+			Namespace: "user",
+			Relation:  "...",
+		},
+		SubjectIds: []string{"tom"},
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+	}, stream)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	defer cancel()
+}
+
+type cancelingDatastore struct {
+	datastore.Datastore
+}
+
+func (cds cancelingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
+	delegate := cds.Datastore.SnapshotReader(rev)
+	return &cancelingReader{delegate, 0}
+}
+
+type cancelingReader struct {
+	datastore.Reader
+	counter int
+}
+
+func (cr *cancelingReader) ReverseQueryRelationships(
+	ctx context.Context,
+	subjectsFilter datastore.SubjectsFilter,
+	options ...options.ReverseQueryOptionsOption,
+) (datastore.RelationshipIterator, error) {
+	cr.counter++
+	if cr.counter > 1 {
+		return nil, context.Canceled
+	}
+	return cr.Reader.ReverseQueryRelationships(ctx, subjectsFilter, options...)
+}
+
+func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
+	defer goleak.VerifyNone(t, goleakIgnores...)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(t, err)
+
+	testRels := make([]*core.RelationTuple, 0)
+	expectedResources := util.NewSet[string]()
+
+	for i := 0; i < 410; i++ {
+		if i < 250 {
+			expectedResources.Add(fmt.Sprintf("res%03d", i))
+			testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
+		}
+
+		if i > 200 {
+			expectedResources.Add(fmt.Sprintf("res%03d", i))
+			testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#editor@user:tom", i)))
+		}
+	}
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(
+		rawDS,
+		`
+			definition user {}
+
+			definition resource {
+				relation editor: user
+				relation viewer: user
+				permission edit = editor
+				permission view = viewer + edit
+			}
+		`,
+		testRels,
+		require.New(t),
+	)
+
+	dispatcher := NewLocalOnlyDispatcher(50)
+	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+	require.NoError(t, err)
+
+	cachingDispatcher.SetDelegate(dispatcher)
+
+	g := errgroup.Group{}
+	for i := 0; i < 100; i++ {
+		g.Go(func() error {
+			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
+			require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
+			err = cachingDispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+				ResourceRelation: RR("resource", "view"),
+				SubjectRelation: &core.RelationReference{
+					Namespace: "user",
+					Relation:  "...",
+				},
+				SubjectIds: []string{"tom"},
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+			}, stream)
+			require.NoError(t, err)
+
+			foundResources := util.NewSet[string]()
+			for _, result := range stream.Results() {
+				foundResources.Add(result.Resource.ResourceId)
+			}
+
+			expectedResourcesSlice := expectedResources.AsSlice()
+			foundResourcesSlice := foundResources.AsSlice()
+
+			sort.Strings(expectedResourcesSlice)
+			sort.Strings(foundResourcesSlice)
+
+			require.Equal(t, expectedResourcesSlice, foundResourcesSlice)
+			return nil
+		})
+	}
+
+	require.NoError(t, g.Wait())
 }
