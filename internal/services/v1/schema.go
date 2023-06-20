@@ -45,24 +45,28 @@ type schemaServer struct {
 	additiveOnly bool
 }
 
+func (ss *schemaServer) rewriteError(ctx context.Context, err error) error {
+	return shared.RewriteError(ctx, err, nil)
+}
+
 func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
 	// Schema is always read from the head revision.
 	ds := datastoremw.MustFromContext(ctx)
 	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	reader := ds.SnapshotReader(headRevision)
 
 	nsDefs, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	caveatDefs, err := reader.ListAllCaveats(ctx)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	if len(nsDefs) == 0 {
@@ -80,7 +84,7 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -105,14 +109,14 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		SchemaString: in.GetSchema(),
 	}, &emptyDefaultPrefix)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
 	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.additiveOnly)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	// Update the schema.
@@ -127,7 +131,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil
 	})
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	return &v1.WriteSchemaResponse{

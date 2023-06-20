@@ -31,17 +31,23 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func (ps *permissionServer) rewriteError(ctx context.Context, err error) error {
+	return shared.RewriteError(ctx, err, &shared.ConfigForErrors{
+		MaximumAPIDepth: ps.config.MaximumAPIDepth,
+	})
+}
+
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	if err := namespace.CheckNamespaceAndRelations(ctx,
@@ -57,7 +63,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	debugOption := computed.NoDebugging
@@ -93,24 +99,24 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		// the footer.
 		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata, ds)
 		if cerr != nil {
-			return nil, shared.RewriteError(ctx, cerr)
+			return nil, ps.rewriteError(ctx, cerr)
 		}
 
 		marshaled, merr := protojson.Marshal(converted)
 		if merr != nil {
-			return nil, shared.RewriteError(ctx, merr)
+			return nil, ps.rewriteError(ctx, merr)
 		}
 
 		serr := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
 			responsemeta.DebugInformation: string(marshaled),
 		})
 		if serr != nil {
-			return nil, shared.RewriteError(ctx, serr)
+			return nil, ps.rewriteError(ctx, serr)
 		}
 	}
 
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	var partialCaveat *v1.PartialCaveatInfo
@@ -134,14 +140,14 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	err = namespace.CheckNamespaceAndRelation(ctx, req.Resource.ObjectType, req.Permission, false, ds)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
@@ -158,7 +164,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 	})
 	usagemetrics.SetInContext(ctx, resp.Metadata)
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	// TODO(jschorr): Change to either using shared interfaces for nodes, or switch the internal
@@ -318,7 +324,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
@@ -336,7 +342,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	respMetadata := &dispatch.ResponseMeta{
@@ -351,13 +357,13 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 
 	lrRequestHash, err := computeLRRequestHash(req)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	if req.OptionalCursor != nil {
 		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
 		if err != nil {
-			return shared.RewriteError(ctx, err)
+			return ps.rewriteError(ctx, err)
 		}
 		currentCursor = decodedCursor
 	}
@@ -388,7 +394,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 
 		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash)
 		if err != nil {
-			return err
+			return ps.rewriteError(ctx, err)
 		}
 
 		err = resp.Send(&v1.LookupResourcesResponse{
@@ -426,7 +432,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		stream)
 
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	return nil
@@ -436,14 +442,14 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	caveatContext, err := GetCaveatContext(ctx, req.Context, ps.config.MaxCaveatContextSize)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	if err := namespace.CheckNamespaceAndRelations(ctx,
@@ -459,7 +465,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 				AllowEllipsis: true,
 			},
 		}, ds); err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	respMetadata := &dispatch.ResponseMeta{
@@ -540,7 +546,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		},
 		stream)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	return nil
@@ -603,6 +609,7 @@ func GetCaveatContext(ctx context.Context, caveatCtx *structpb.Struct, maxCaveat
 					maxCaveatContextSize,
 					size,
 				),
+				nil,
 			)
 		}
 		caveatContext = caveatCtx.AsMap()

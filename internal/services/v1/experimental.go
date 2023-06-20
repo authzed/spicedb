@@ -178,6 +178,10 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 	return lo.Keys(newNamespaces), lo.Keys(newCaveats)
 }
 
+func (es *experimentalServer) rewriteError(ctx context.Context, err error) error {
+	return shared.RewriteError(ctx, err, nil)
+}
+
 func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
 	ds := datastoremw.MustFromContext(stream.Context())
 
@@ -236,7 +240,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 
 		return err
 	}, dsoptions.WithDisableRetries(true)); err != nil {
-		return shared.RewriteError(stream.Context(), err)
+		return es.rewriteError(stream.Context(), err)
 	}
 
 	usagemetrics.SetInContext(stream.Context(), &dispatchv1.ResponseMeta{
@@ -263,13 +267,13 @@ func (es *experimentalServer) BulkExportRelationships(
 		var err error
 		atRevision, cur, err = decodeCursor(ds, req.OptionalCursor)
 		if err != nil {
-			return shared.RewriteError(ctx, err)
+			return es.rewriteError(ctx, err)
 		}
 	} else {
 		var err error
 		atRevision, _, err = consistency.RevisionFromContext(ctx)
 		if err != nil {
-			return shared.RewriteError(ctx, err)
+			return es.rewriteError(ctx, err)
 		}
 	}
 
@@ -277,7 +281,7 @@ func (es *experimentalServer) BulkExportRelationships(
 
 	namespaces, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return es.rewriteError(ctx, err)
 	}
 
 	// Make sure the namespaces are always in a stable order
@@ -343,7 +347,7 @@ func (es *experimentalServer) BulkExportRelationships(
 				dsoptions.WithSort(dsoptions.ByResource),
 			)
 			if err != nil {
-				return shared.RewriteError(ctx, err)
+				return es.rewriteError(ctx, err)
 			}
 
 			if len(rels) == 0 {
@@ -361,14 +365,14 @@ func (es *experimentalServer) BulkExportRelationships(
 				},
 			})
 			if err != nil {
-				return shared.RewriteError(ctx, err)
+				return es.rewriteError(ctx, err)
 			}
 
 			if err := resp.Send(&v1.BulkExportRelationshipsResponse{
 				AfterResultCursor: encoded,
 				Relationships:     rels,
 			}); err != nil {
-				return shared.RewriteError(ctx, err)
+				return es.rewriteError(ctx, err)
 			}
 		}
 

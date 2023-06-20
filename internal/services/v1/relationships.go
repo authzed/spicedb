@@ -141,13 +141,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
 	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, ds); err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -159,22 +159,22 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	rrRequestHash, err := computeReadRelationshipsRequestHash(req)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 
 	if req.OptionalCursor != nil {
 		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, rrRequestHash)
 		if err != nil {
-			return shared.RewriteError(ctx, err)
+			return ps.rewriteError(ctx, err)
 		}
 
 		if len(decodedCursor.Sections) != 1 {
-			return shared.RewriteError(ctx, NewInvalidCursorErr("did not find expected resume relationship"))
+			return ps.rewriteError(ctx, NewInvalidCursorErr("did not find expected resume relationship"))
 		}
 
 		parsed := tuple.Parse(decodedCursor.Sections[0])
 		if parsed == nil {
-			return shared.RewriteError(ctx, NewInvalidCursorErr("could not parse resume relationship"))
+			return ps.rewriteError(ctx, NewInvalidCursorErr("could not parse resume relationship"))
 		}
 
 		startCursor = options.Cursor(parsed)
@@ -197,7 +197,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		startCursor,
 	)
 	if err != nil {
-		return shared.RewriteError(ctx, err)
+		return ps.rewriteError(ctx, err)
 	}
 	defer tupleIterator.Close()
 
@@ -219,13 +219,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 
 		if tupleIterator.Err() != nil {
-			return shared.RewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
+			return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 		}
 
 		dispatchCursor.Sections[0] = tuple.StringWithoutCaveat(tpl)
 		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash)
 		if err != nil {
-			return shared.RewriteError(ctx, err)
+			return ps.rewriteError(ctx, err)
 		}
 
 		tuple.MustToRelationshipMutating(tpl, targetRel, targetCaveat)
@@ -233,13 +233,13 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		response.AfterResultCursor = encodedCursor
 		err = resp.Send(response)
 		if err != nil {
-			return shared.RewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
+			return ps.rewriteError(ctx, fmt.Errorf("error when streaming tuple: %w", err))
 		}
 		returnedCount++
 	}
 
 	if tupleIterator.Err() != nil {
-		return shared.RewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
+		return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", tupleIterator.Err()))
 	}
 
 	tupleIterator.Close()
@@ -251,14 +251,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
-		return nil, shared.RewriteError(
+		return nil, ps.rewriteError(
 			ctx,
 			NewExceedsMaximumUpdatesErr(uint16(len(req.Updates)), ps.config.MaxUpdatesPerWrite),
 		)
 	}
 
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
-		return nil, shared.RewriteError(
+		return nil, ps.rewriteError(
 			ctx,
 			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
 		)
@@ -269,13 +269,13 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	for _, update := range req.Updates {
 		tupleStr := tuple.StringRelationshipWithoutCaveat(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
-			return nil, shared.RewriteError(
+			return nil, ps.rewriteError(
 				ctx,
 				NewDuplicateRelationshipErr(update),
 			)
 		}
 		if proto.Size(update.Relationship.OptionalCaveat) > ps.config.MaxRelationshipContextSize {
-			return nil, shared.RewriteError(
+			return nil, ps.rewriteError(
 				ctx,
 				NewMaxRelationshipContextError(update, ps.config.MaxRelationshipContextSize),
 			)
@@ -299,7 +299,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		// Validate the updates.
 		err := relationships.ValidateRelationships(ctx, rwt, tuples)
 		if err != nil {
-			return shared.RewriteError(ctx, err)
+			return ps.rewriteError(ctx, err)
 		}
 
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
@@ -314,7 +314,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		return rwt.WriteRelationships(ctx, tupleUpdates)
 	})
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	// Log a metric of the counts of the different kinds of update operations.
@@ -334,7 +334,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
-		return nil, shared.RewriteError(
+		return nil, ps.rewriteError(
 			ctx,
 			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
 		)
@@ -359,19 +359,19 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 
 			iter, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne))
 			if err != nil {
-				return shared.RewriteError(ctx, err)
+				return ps.rewriteError(ctx, err)
 			}
 			defer iter.Close()
 
 			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
 				if iter.Err() != nil {
-					return shared.RewriteError(ctx, err)
+					return ps.rewriteError(ctx, err)
 				}
 
 				if len(deleteMutations) == int(limit) {
 					deletionProgress = v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL
 					if !req.OptionalAllowPartialDeletions {
-						return shared.RewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
+						return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
 					}
 
 					break
@@ -398,7 +398,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 	})
 	if err != nil {
-		return nil, shared.RewriteError(ctx, err)
+		return nil, ps.rewriteError(ctx, err)
 	}
 
 	return &v1.DeleteRelationshipsResponse{
