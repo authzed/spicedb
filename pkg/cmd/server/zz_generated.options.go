@@ -78,7 +78,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.StreamingAPITimeout = c.StreamingAPITimeout
 		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
-		to.MiddlewareModification = c.MiddlewareModification
+		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
+		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
@@ -448,17 +449,31 @@ func WithMetricsAPI(metricsAPI util.HTTPServerConfig) ConfigOption {
 	}
 }
 
-// WithMiddlewareModification returns an option that can append MiddlewareModifications to Config.MiddlewareModification
-func WithMiddlewareModification(middlewareModification MiddlewareModification) ConfigOption {
+// WithUnaryMiddlewareModification returns an option that can append UnaryMiddlewareModifications to Config.UnaryMiddlewareModification
+func WithUnaryMiddlewareModification(unaryMiddlewareModification MiddlewareModification[grpc.UnaryServerInterceptor]) ConfigOption {
 	return func(c *Config) {
-		c.MiddlewareModification = append(c.MiddlewareModification, middlewareModification)
+		c.UnaryMiddlewareModification = append(c.UnaryMiddlewareModification, unaryMiddlewareModification)
 	}
 }
 
-// SetMiddlewareModification returns an option that can set MiddlewareModification on a Config
-func SetMiddlewareModification(middlewareModification []MiddlewareModification) ConfigOption {
+// SetUnaryMiddlewareModification returns an option that can set UnaryMiddlewareModification on a Config
+func SetUnaryMiddlewareModification(unaryMiddlewareModification []MiddlewareModification[grpc.UnaryServerInterceptor]) ConfigOption {
 	return func(c *Config) {
-		c.MiddlewareModification = middlewareModification
+		c.UnaryMiddlewareModification = unaryMiddlewareModification
+	}
+}
+
+// WithStreamingMiddlewareModification returns an option that can append StreamingMiddlewareModifications to Config.StreamingMiddlewareModification
+func WithStreamingMiddlewareModification(streamingMiddlewareModification MiddlewareModification[grpc.StreamServerInterceptor]) ConfigOption {
+	return func(c *Config) {
+		c.StreamingMiddlewareModification = append(c.StreamingMiddlewareModification, streamingMiddlewareModification)
+	}
+}
+
+// SetStreamingMiddlewareModification returns an option that can set StreamingMiddlewareModification on a Config
+func SetStreamingMiddlewareModification(streamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor]) ConfigOption {
+	return func(c *Config) {
+		c.StreamingMiddlewareModification = streamingMiddlewareModification
 	}
 }
 

@@ -117,6 +117,12 @@ func TestSetSubtract(t *testing.T) {
 	require.Equal(t, []string{"1", "2", "3", "4"}, slice)
 }
 
+func TestEqual(t *testing.T) {
+	require.True(t, NewSet[string]().Equal(NewSet[string]()))
+	require.True(t, NewSet[string]("2").Equal(NewSet[string]("2")))
+	require.False(t, NewSet[string]("1", "2").Equal(NewSet[string]("1", "3")))
+}
+
 func TestSetIntersectionDifference(t *testing.T) {
 	tcs := []struct {
 		first    []int
