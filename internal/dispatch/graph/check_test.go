@@ -396,6 +396,7 @@ func TestCheckDebugging(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(checkResult.Metadata.DebugInfo)
 			require.NotNil(checkResult.Metadata.DebugInfo.Check)
+			require.NotNil(checkResult.Metadata.DebugInfo.Check.Duration)
 
 			expectedFrames := util.NewSet[string]()
 			for _, expectedFrame := range tc.expectedFrames {

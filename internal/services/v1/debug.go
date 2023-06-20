@@ -168,6 +168,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 					Traces: subProblems,
 				},
 			},
+			Duration: ct.Duration,
 		}, nil
 	}
 
@@ -190,6 +191,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		Resolution: &v1.CheckDebugTrace_WasCachedResult{
 			WasCachedResult: ct.IsCachedResult,
 		},
+		Duration: ct.Duration,
 	}, nil
 }
 
