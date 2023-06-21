@@ -162,13 +162,12 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
 			WithInterceptor(grpcprom.UnaryServerInterceptor).
-			EnsureNotExecuted(DefaultMiddlewareGRPCAuth).
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
 			WithInterceptor(grpcauth.UnaryServerInterceptor(authFunc)).
-			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm).
+			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
 			Done(),
 
 		NewUnaryMiddleware().
@@ -229,13 +228,12 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
 			WithInterceptor(grpcprom.StreamServerInterceptor).
-			EnsureAlreadyExecuted(DefaultMiddlewareGRPCAuth).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
 			WithInterceptor(grpcauth.StreamServerInterceptor(authFunc)).
-			EnsureNotExecuted(DefaultMiddlewareGRPCProm).
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
 			Done(),
 
 		NewStreamMiddleware().
