@@ -9,7 +9,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -32,31 +31,22 @@ type cursorInformation struct {
 
 	// limits is the limits tracker for the call over which the cursor is being used.
 	limits *limitTracker
-
-	// revision is the revision at which cursors are being created.
-	revision datastore.Revision
 }
 
 // newCursorInformation constructs a new cursorInformation struct from the incoming cursor (which
 // may be nil)
-func newCursorInformation(incomingCursor *v1.Cursor, revision datastore.Revision, limits *limitTracker) (cursorInformation, error) {
-	if incomingCursor != nil && incomingCursor.AtRevision != revision.String() {
-		return cursorInformation{}, spiceerrors.MustBugf("revision mismatch when creating cursor information. expected: %s, found: %s", revision.String(), incomingCursor.AtRevision)
-	}
-
+func newCursorInformation(incomingCursor *v1.Cursor, limits *limitTracker) (cursorInformation, error) {
 	return cursorInformation{
 		currentCursor:          incomingCursor,
 		outgoingCursorSections: nil,
 		limits:                 limits,
-		revision:               revision,
 	}, nil
 }
 
 // responsePartialCursor is the *partial* cursor to return in a response.
 func (ci cursorInformation) responsePartialCursor() *v1.Cursor {
 	return &v1.Cursor{
-		AtRevision: ci.revision.String(),
-		Sections:   ci.outgoingCursorSections,
+		Sections: ci.outgoingCursorSections,
 	}
 }
 
@@ -65,7 +55,6 @@ func (ci cursorInformation) withClonedLimits() cursorInformation {
 		currentCursor:          ci.currentCursor,
 		outgoingCursorSections: ci.outgoingCursorSections,
 		limits:                 ci.limits.clone(),
-		revision:               ci.revision,
 	}
 }
 
@@ -129,12 +118,10 @@ func (ci cursorInformation) withOutgoingSection(name string, values ...string) (
 		// If the section already exists, remove it and its values in the cursor.
 		return cursorInformation{
 			currentCursor: &v1.Cursor{
-				AtRevision: ci.revision.String(),
-				Sections:   slices.Clone(ci.currentCursor.Sections[len(values)+1:]),
+				Sections: slices.Clone(ci.currentCursor.Sections[len(values)+1:]),
 			},
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
-			revision:               ci.revision,
 		}, nil
 	}
 
@@ -142,7 +129,6 @@ func (ci cursorInformation) withOutgoingSection(name string, values ...string) (
 		currentCursor:          nil,
 		outgoingCursorSections: ocs,
 		limits:                 ci.limits,
-		revision:               ci.revision,
 	}, nil
 }
 
@@ -151,7 +137,6 @@ func (ci cursorInformation) clearIncoming() cursorInformation {
 		currentCursor:          nil,
 		outgoingCursorSections: ci.outgoingCursorSections,
 		limits:                 ci.limits,
-		revision:               ci.revision,
 	}
 }
 
@@ -221,7 +206,7 @@ func withDatastoreCursorInCursor[T any, Q any](
 		return currentCursor, nil
 	}
 
-	return withInternalParallelizedStreamingIterableInCursor[T, Q](
+	return withInternalParallelizedStreamingIterableInCursor(
 		ctx,
 		ci,
 		itemsToRun,
@@ -285,20 +270,16 @@ func withSubsetInCursor(
 
 // combineCursors combines the given cursors into one resulting cursor.
 func combineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) (*v1.Cursor, error) {
-	if toAdd == nil {
-		return nil, spiceerrors.MustBugf("supplied toAdd cursor was nil")
+	if toAdd == nil || len(toAdd.Sections) == 0 {
+		return nil, spiceerrors.MustBugf("supplied toAdd cursor was nil or empty")
 	}
 
-	if cursor == nil {
-		return &v1.Cursor{
-			AtRevision: toAdd.AtRevision,
-			Sections:   toAdd.Sections,
-		}, nil
+	if cursor == nil || len(cursor.Sections) == 0 {
+		return toAdd, nil
 	}
 
 	return &v1.Cursor{
-		AtRevision: cursor.AtRevision,
-		Sections:   append(slices.Clone(cursor.Sections), toAdd.Sections...),
+		Sections: append(slices.Clone(cursor.Sections), toAdd.Sections...),
 	}, nil
 }
 
@@ -347,7 +328,7 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 		return currentCursor, nil
 	}
 
-	return withInternalParallelizedStreamingIterableInCursor[T, Q](
+	return withInternalParallelizedStreamingIterableInCursor(
 		ctx,
 		ci,
 		itemsToRun,
@@ -369,7 +350,7 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 ) error {
 	// Queue up each iteration's worth of items to be run by the task runner.
 	tr := newPreloadedTaskRunner(ctx, concurrencyLimit, len(itemsToRun))
-	stream, err := newParallelLimitedIndexedStream[Q](ctx, ci, parentStream, len(itemsToRun))
+	stream, err := newParallelLimitedIndexedStream(ctx, ci, parentStream, len(itemsToRun))
 	if err != nil {
 		return err
 	}
@@ -474,7 +455,7 @@ func (ls *parallelLimitedIndexedStream[Q]) forTaskIndex(ctx context.Context, ind
 	// If executing for the first index, it can stream directly to the parent stream, but we need to count the number
 	// of items streamed to adjust the overall limits.
 	if index == 0 {
-		countingStream := dispatch.NewCountingDispatchStream[Q](ls.parentStream)
+		countingStream := dispatch.NewCountingDispatchStream(ls.parentStream)
 		ls.countingStream = countingStream
 		return childContext, countingStream, childCI
 	}

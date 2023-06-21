@@ -49,7 +49,7 @@ func (crr *CursoredReachableResources) ReachableResources(
 
 	ctx := stream.Context()
 	limits := newLimitTracker(req.OptionalLimit)
-	ci, err := newCursorInformation(req.OptionalCursor, req.Revision, limits)
+	ci, err := newCursorInformation(req.OptionalCursor, limits)
 	if err != nil {
 		return err
 	}

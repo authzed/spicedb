@@ -58,7 +58,7 @@ func Decode(encoded *v1.Cursor) (*impl.DecodedCursor, error) {
 // consumption, including the provided call context to ensure the API cursor reflects the calling
 // API method. The call hash should contain all the parameters of the calling API function,
 // as well as its revision and name.
-func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string) (*v1.Cursor, error) {
+func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string, revision datastore.Revision) (*v1.Cursor, error) {
 	if dispatchCursor == nil {
 		return nil, spiceerrors.MustBugf("got nil dispatch cursor")
 	}
@@ -66,7 +66,7 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 	return Encode(&impl.DecodedCursor{
 		VersionOneof: &impl.DecodedCursor_V1{
 			V1: &impl.V1Cursor{
-				Revision:              dispatchCursor.AtRevision,
+				Revision:              revision.String(),
 				Sections:              dispatchCursor.Sections,
 				CallAndParametersHash: callAndParameterHash,
 			},
@@ -94,8 +94,7 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 	}
 
 	return &dispatch.Cursor{
-		AtRevision: v1decoded.Revision,
-		Sections:   v1decoded.Sections,
+		Sections: v1decoded.Sections,
 	}, nil
 }
 

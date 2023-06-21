@@ -392,7 +392,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
