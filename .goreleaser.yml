@@ -1,4 +1,7 @@
 ---
+git:
+  tag_sort: "-version:creatordate"
+  prerelease_suffix: "-"
 builds:
   - main: "./cmd/spicedb"
     env:
@@ -28,6 +31,7 @@ nfpms:
 furies:
   - account: "authzed"
     secret_name: "GEMFURY_PUSH_TOKEN"
+    skip: "{{ gt (len .Prerelease) 0 }}"
 brews:
   - tap:
       owner: "authzed"
@@ -45,6 +49,7 @@ brews:
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache-2.0"
     folder: "Formula"
+    skip_upload: "auto"
     custom_block: |
       head "https://github.com/authzed/spicedb.git", :branch => "main"
     dependencies:
@@ -151,7 +156,7 @@ changelog:
 nightly:
   name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
 release:
-  draft: true
+  draft: false
   prerelease: "auto"
   mode: "replace"
   footer: |
