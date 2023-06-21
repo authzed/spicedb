@@ -57,7 +57,7 @@ func ServeExample(programName string) string {
 // command.
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
-		cobrautil.SyncViperPreRunE(programName),
+		cobrautil.SyncViperDotEnvPreRunE(programName, "spicedb.env", zerologr.New(&logging.Logger)),
 		cobrazerolog.New(
 			cobrazerolog.WithTarget(func(logger zerolog.Logger) {
 				logging.SetGlobalLogger(logger)
