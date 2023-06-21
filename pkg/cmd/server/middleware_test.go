@@ -462,7 +462,7 @@ func TestIncorrectOrderAssertionFails(t *testing.T) {
 					NewStreamMiddleware().
 						WithName("test").
 						WithInterceptor(noopStreaming).
-						EnsureAlreadyExecuted("does-not-exist").
+						EnsureWrapperAlreadyExecuted("does-not-exist").
 						Done(),
 				},
 			},
