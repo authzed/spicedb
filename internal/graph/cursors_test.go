@@ -5,14 +5,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
-	"github.com/authzed/spicedb/pkg/datastore/options"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
@@ -23,28 +21,24 @@ func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
 	}, limits)
 	require.NoError(t, err)
 
-	hasFirst, err := ci.hasHeadSection("first")
-	require.False(t, hasFirst)
-	require.NoError(t, err)
+	value, ok := ci.headSectionValue()
+	require.False(t, ok)
+	require.Equal(t, "", value)
 }
 
 func TestCursorSections(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"first", "1", "second", "two"},
+		Sections: []string{"1", "two"},
 	}, limits)
 	require.NoError(t, err)
 
-	hasFirst, err := ci.hasHeadSection("first")
-	require.True(t, hasFirst)
-	require.NoError(t, err)
-
-	value, err := ci.sectionValue("first")
-	require.NoError(t, err)
+	value, ok := ci.headSectionValue()
+	require.True(t, ok)
 	require.Equal(t, value, "1")
 
-	ivalue, err := ci.integerSectionValue("first")
+	ivalue, err := ci.integerSectionValue()
 	require.NoError(t, err)
 	require.Equal(t, ivalue, 1)
 }
@@ -53,19 +47,15 @@ func TestCursorNonIntSection(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"first", "one", "second", "two"},
+		Sections: []string{"one", "two"},
 	}, limits)
 	require.NoError(t, err)
 
-	hasFirst, err := ci.hasHeadSection("first")
-	require.True(t, hasFirst)
-	require.NoError(t, err)
-
-	value, err := ci.sectionValue("first")
-	require.NoError(t, err)
+	value, ok := ci.headSectionValue()
+	require.True(t, ok)
 	require.Equal(t, value, "one")
 
-	_, err = ci.integerSectionValue("first")
+	_, err = ci.integerSectionValue()
 	require.Error(t, err)
 }
 
@@ -73,13 +63,13 @@ func TestWithSubsetInCursor(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"current", "100"},
+		Sections: []string{"100"},
 	}, limits)
 	require.NoError(t, err)
 
 	handlerCalled := false
 	nextCalled := false
-	err = withSubsetInCursor(ci, "current",
+	err = withSubsetInCursor(ci,
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			require.Equal(t, 100, currentOffset)
 			handlerCalled = true
@@ -95,7 +85,6 @@ func TestWithSubsetInCursor(t *testing.T) {
 }
 
 func TestCombineCursors(t *testing.T) {
-
 	cursor1 := &v1.Cursor{
 		Sections: []string{"a", "b", "c"},
 	}
@@ -122,7 +111,6 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 	limits := newLimitTracker(50)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-
 		Sections: []string{},
 	}, limits)
 	require.NoError(t, err)
@@ -132,7 +120,6 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		2,
@@ -153,8 +140,7 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 	limits := newLimitTracker(50)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-
-		Sections: []string{"iter", "2"},
+		Sections: []string{"2"},
 	}, limits)
 	require.NoError(t, err)
 
@@ -163,7 +149,6 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		2,
@@ -184,7 +169,6 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 	limits := newLimitTracker(5)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-
 		Sections: []string{},
 	}, limits)
 	require.NoError(t, err)
@@ -194,7 +178,6 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		2,
@@ -215,7 +198,6 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	limits := newLimitTracker(500)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-
 		Sections: []string{},
 	}, limits)
 	require.NoError(t, err)
@@ -234,7 +216,6 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		5,
@@ -257,7 +238,6 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 	limits := newLimitTracker(500)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-
 		Sections: []string{},
 	}, limits)
 	require.NoError(t, err)
@@ -269,7 +249,6 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 	err = withDatastoreCursorInCursor[int, int](
 		context.Background(),
 		ci,
-		"db",
 		parentStream,
 		5,
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
@@ -300,8 +279,7 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	limits := newLimitTracker(500)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-
-		Sections: []string{"db", "", "somesection", "42"},
+		Sections: []string{"", "42"},
 	}, limits)
 	require.NoError(t, err)
 
@@ -312,7 +290,6 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	err = withDatastoreCursorInCursor[int, int](
 		context.Background(),
 		ci,
-		"db",
 		parentStream,
 		5,
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
@@ -328,8 +305,8 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 			encountered = append(encountered, item)
 			lock.Unlock()
 
-			if ok, _ := cc.hasHeadSection("somesection"); ok {
-				value, _ := cc.integerSectionValue("somesection")
+			if v, _ := cc.headSectionValue(); v != "" {
+				value, _ := cc.integerSectionValue()
 				item = item + value
 			}
 

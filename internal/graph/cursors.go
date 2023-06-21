@@ -25,7 +25,7 @@ type cursorInformation struct {
 	// It is the responsibility of the *caller* to append together the incoming cursors to form
 	// the final cursor.
 	//
-	// A `section` is a named portion of the cursor, representing a section of code that was
+	// A `section` is a portion of the cursor, representing a section of code that was
 	// executed to produce the section of the cursor.
 	outgoingCursorSections []string
 
@@ -58,67 +58,44 @@ func (ci cursorInformation) withClonedLimits() cursorInformation {
 	}
 }
 
-// hasHeadSection returns true if the current cursor has the given name as the prefix of the cursor.
-func (ci cursorInformation) hasHeadSection(name string) (bool, error) {
-	if ci.currentCursor == nil || len(ci.currentCursor.Sections) == 0 {
-		return false, nil
+// headSectionValue returns the string value found at the head of the incoming cursor.
+// If the incoming cursor is empty, returns empty.
+func (ci cursorInformation) headSectionValue() (string, bool) {
+	if ci.currentCursor == nil || len(ci.currentCursor.Sections) < 1 {
+		return "", false
 	}
 
-	if ci.currentCursor.Sections[0] != name {
-		return false, spiceerrors.MustBugf("expected cursor section %s in %v", name, ci.currentCursor.Sections)
-	}
-
-	return true, nil
+	return ci.currentCursor.Sections[0], true
 }
 
-// sectionValue returns the string value found after the `name` at the head of the incoming cursor.
-// If the incoming cursor is empty, returns empty. If the incoming cursor does not start with the name,
-// fails with an error.
-func (ci cursorInformation) sectionValue(name string) (string, error) {
-	if ci.currentCursor == nil || len(ci.currentCursor.Sections) < 2 {
-		return "", nil
+// integerSectionValue returns the *integer* found  at the head of the incoming cursor.
+// If the incoming cursor is empty, returns 0. If the incoming cursor does not start with an
+// int value, fails with an error.
+func (ci cursorInformation) integerSectionValue() (int, error) {
+	valueStr, hasValue := ci.headSectionValue()
+	if !hasValue {
+		return 0, nil
 	}
 
-	if ci.currentCursor.Sections[0] != name {
-		return "", spiceerrors.MustBugf("expected cursor section %s in %v", name, ci.currentCursor.Sections)
-	}
-
-	return ci.currentCursor.Sections[1], nil
-}
-
-// integerSectionValue returns the *integer* found after the `name` at the head of the incoming cursor.
-// If the incoming cursor is empty, returns 0. If the incoming cursor does not start with the name,
-// fails with an error.
-func (ci cursorInformation) integerSectionValue(name string) (int, error) {
-	valueStr, err := ci.sectionValue(name)
-	if err != nil {
-		return 0, err
-	}
 	if valueStr == "" {
-		return 0, err
+		return 0, nil
 	}
 
 	return strconv.Atoi(valueStr)
 }
 
-// withOutgoingSection returns cursorInformation updated with the given name and optional
+// withOutgoingSection returns cursorInformation updated with the given optional
 // value(s) appended to the outgoingCursorSections for the current cursor. If the current
-// cursor already begins with the given name, its value is replaced.
-func (ci cursorInformation) withOutgoingSection(name string, values ...string) (cursorInformation, error) {
-	hasSection, err := ci.hasHeadSection(name)
-	if err != nil {
-		return cursorInformation{}, spiceerrors.MustBugf("mismatch on expected head section of the cursor: %s", name)
-	}
-
+// cursor already begins with any values, those values are replaced.
+func (ci cursorInformation) withOutgoingSection(values ...string) (cursorInformation, error) {
 	ocs := slices.Clone(ci.outgoingCursorSections)
-	ocs = append(ocs, name)
 	ocs = append(ocs, values...)
 
-	if hasSection {
-		// If the section already exists, remove it and its values in the cursor.
+	if ci.currentCursor != nil && len(ci.currentCursor.Sections) > 0 {
+		// If the cursor already has values, replace them with those specified.
 		return cursorInformation{
 			currentCursor: &v1.Cursor{
-				Sections: slices.Clone(ci.currentCursor.Sections[len(values)+1:]),
+				Sections: slices.Clone(ci.currentCursor.Sections[len(values):]),
 			},
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
@@ -154,7 +131,6 @@ type itemAndPostCursor[T any] struct {
 func withDatastoreCursorInCursor[T any, Q any](
 	ctx context.Context,
 	ci cursorInformation,
-	name string,
 	parentStream dispatch.Stream[Q],
 	concurrencyLimit uint16,
 	lookup func(queryCursor options.Cursor) ([]itemAndPostCursor[T], error),
@@ -162,11 +138,7 @@ func withDatastoreCursorInCursor[T any, Q any](
 ) error {
 	// Retrieve the *datastore* cursor, if one is found at the head of the incoming cursor.
 	var datastoreCursor options.Cursor
-	datastoreCursorString, err := ci.sectionValue(name)
-	if err != nil {
-		return err
-	}
-
+	datastoreCursorString, _ := ci.headSectionValue()
 	if datastoreCursorString != "" {
 		datastoreCursor = tuple.MustParse(datastoreCursorString)
 	}
@@ -192,7 +164,7 @@ func withDatastoreCursorInCursor[T any, Q any](
 
 	getItemCursor := func(taskIndex int) (cursorInformation, error) {
 		// Create an updated cursor referencing the current item's cursor, so that any items returned know to resume from this point.
-		currentCursor, err := ci.withOutgoingSection(name, tuple.StringWithoutCaveat(itemsToBeProcessed[taskIndex].cursor))
+		currentCursor, err := ci.withOutgoingSection(tuple.StringWithoutCaveat(itemsToBeProcessed[taskIndex].cursor))
 		if err != nil {
 			return currentCursor, err
 		}
@@ -224,7 +196,6 @@ type afterResponseCursor func(nextOffset int) *v1.Cursor
 // well as a callback to mint the cursor with the next offset.
 func withSubsetInCursor(
 	ci cursorInformation,
-	name string,
 	handler func(currentOffset int, nextCursorWith afterResponseCursor) error,
 	next cursorHandler,
 ) error {
@@ -232,7 +203,7 @@ func withSubsetInCursor(
 		return nil
 	}
 
-	afterIndex, err := ci.integerSectionValue(name)
+	afterIndex, err := ci.integerSectionValue()
 	if err != nil {
 		return err
 	}
@@ -240,7 +211,7 @@ func withSubsetInCursor(
 	if afterIndex >= 0 {
 		var foundCerr error
 		err = handler(afterIndex, func(nextOffset int) *v1.Cursor {
-			cursor, cerr := ci.withOutgoingSection(name, strconv.Itoa(nextOffset))
+			cursor, cerr := ci.withOutgoingSection(strconv.Itoa(nextOffset))
 			foundCerr = cerr
 			if cerr != nil {
 				return nil
@@ -261,7 +232,7 @@ func withSubsetInCursor(
 	}
 
 	// -1 means that the handler has been completed.
-	uci, err := ci.withOutgoingSection(name, "-1")
+	uci, err := ci.withOutgoingSection("-1")
 	if err != nil {
 		return err
 	}
@@ -295,14 +266,13 @@ func combineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) (*v1.Cursor, error) {
 func withParallelizedStreamingIterableInCursor[T any, Q any](
 	ctx context.Context,
 	ci cursorInformation,
-	name string,
 	items []T,
 	parentStream dispatch.Stream[Q],
 	concurrencyLimit uint16,
 	handler func(ctx context.Context, ci cursorInformation, item T, stream dispatch.Stream[Q]) error,
 ) error {
 	// Check the cursor for a starting index, before which any items will be skipped.
-	startingIndex, err := ci.integerSectionValue(name)
+	startingIndex, err := ci.integerSectionValue()
 	if err != nil {
 		return err
 	}
@@ -314,7 +284,7 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 
 	getItemCursor := func(taskIndex int) (cursorInformation, error) {
 		// Create an updated cursor referencing the current item's index, so that any items returned know to resume from this point.
-		currentCursor, err := ci.withOutgoingSection(name, strconv.Itoa(taskIndex+startingIndex))
+		currentCursor, err := ci.withOutgoingSection(strconv.Itoa(taskIndex + startingIndex))
 		if err != nil {
 			return currentCursor, err
 		}
