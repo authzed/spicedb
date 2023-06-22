@@ -5,100 +5,133 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/tuple"
-
-	"github.com/authzed/spicedb/pkg/datastore/options"
-
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestCursorWithWrongRevision(t *testing.T) {
+func TestCursorProduction(t *testing.T) {
 	limits := newLimitTracker(10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
-	require.Panics(t, func() {
-		_, _ = newCursorInformation(&v1.Cursor{}, revision, limits)
-	})
+	ci, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 42,
+		Sections:        []string{"1", "2", "3"},
+	}, limits, 42)
+	require.NoError(t, err)
+
+	cursor := ci.responsePartialCursor()
+	require.Equal(t, uint32(42), cursor.DispatchVersion)
+	require.Empty(t, cursor.Sections)
+
+	cci, err := ci.withOutgoingSection("4")
+	require.NoError(t, err)
+
+	ccursor := cci.responsePartialCursor()
+
+	require.Equal(t, uint32(42), ccursor.DispatchVersion)
+	require.Equal(t, []string{"4"}, ccursor.Sections)
+}
+
+func TestCursorDifferentDispatchVersion(t *testing.T) {
+	limits := newLimitTracker(10)
+
+	_, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 2,
+		Sections:        []string{},
+	}, limits, 1)
+	require.Error(t, err)
 }
 
 func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
 	limits := newLimitTracker(10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
-	hasFirst, err := ci.hasHeadSection("first")
-	require.False(t, hasFirst)
+	value, ok := ci.headSectionValue()
+	require.False(t, ok)
+	require.Equal(t, "", value)
+}
+
+func TestCursorWithClonedLimits(t *testing.T) {
+	limits := newLimitTracker(10)
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
+
+	require.Equal(t, uint32(10), ci.limits.currentLimit)
+	require.Equal(t, uint32(1), ci.dispatchCursorVersion)
+
+	cloned := ci.withClonedLimits()
+	require.Equal(t, uint32(10), cloned.limits.currentLimit)
+	require.Equal(t, uint32(1), cloned.dispatchCursorVersion)
+
+	require.True(t, limits.prepareForPublishing())
+
+	require.Equal(t, uint32(9), ci.limits.currentLimit)
+	require.Equal(t, uint32(1), ci.dispatchCursorVersion)
+
+	require.Equal(t, uint32(10), cloned.limits.currentLimit)
+	require.Equal(t, uint32(1), cloned.dispatchCursorVersion)
 }
 
 func TestCursorSections(t *testing.T) {
 	limits := newLimitTracker(10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"first", "1", "second", "two"},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"1", "two"},
+	}, limits, 1)
 	require.NoError(t, err)
+	require.Equal(t, uint32(1), ci.dispatchCursorVersion)
 
-	hasFirst, err := ci.hasHeadSection("first")
-	require.True(t, hasFirst)
-	require.NoError(t, err)
-
-	value, err := ci.sectionValue("first")
-	require.NoError(t, err)
+	value, ok := ci.headSectionValue()
+	require.True(t, ok)
 	require.Equal(t, value, "1")
 
-	ivalue, err := ci.integerSectionValue("first")
+	ivalue, err := ci.integerSectionValue()
 	require.NoError(t, err)
 	require.Equal(t, ivalue, 1)
 }
 
 func TestCursorNonIntSection(t *testing.T) {
 	limits := newLimitTracker(10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"first", "one", "second", "two"},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"one", "two"},
+	}, limits, 1)
 	require.NoError(t, err)
 
-	hasFirst, err := ci.hasHeadSection("first")
-	require.True(t, hasFirst)
-	require.NoError(t, err)
-
-	value, err := ci.sectionValue("first")
-	require.NoError(t, err)
+	value, ok := ci.headSectionValue()
+	require.True(t, ok)
 	require.Equal(t, value, "one")
 
-	_, err = ci.integerSectionValue("first")
+	_, err = ci.integerSectionValue()
 	require.Error(t, err)
 }
 
 func TestWithSubsetInCursor(t *testing.T) {
 	limits := newLimitTracker(10)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"current", "100"},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"100"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	handlerCalled := false
 	nextCalled := false
-	err = withSubsetInCursor(ci, "current",
+	err = withSubsetInCursor(ci,
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			require.Equal(t, 100, currentOffset)
 			handlerCalled = true
@@ -114,43 +147,38 @@ func TestWithSubsetInCursor(t *testing.T) {
 }
 
 func TestCombineCursors(t *testing.T) {
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 	cursor1 := &v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"a", "b", "c"},
+		DispatchVersion: 1,
+		Sections:        []string{"a", "b", "c"},
 	}
 	cursor2 := &v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"d", "e", "f"},
+		DispatchVersion: 1,
+		Sections:        []string{"d", "e", "f"},
 	}
 
 	combined, err := combineCursors(cursor1, cursor2)
 	require.NoError(t, err)
-	require.Equal(t, combined.AtRevision, revision.String())
 	require.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, combined.Sections)
 }
 
 func TestCombineCursorsWithNil(t *testing.T) {
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 	cursor2 := &v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"d", "e", "f"},
+		DispatchVersion: 1,
+		Sections:        []string{"d", "e", "f"},
 	}
 
 	combined, err := combineCursors(nil, cursor2)
 	require.NoError(t, err)
-	require.Equal(t, combined.AtRevision, revision.String())
 	require.Equal(t, []string{"d", "e", "f"}, combined.Sections)
 }
 
 func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 	limits := newLimitTracker(50)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
@@ -158,7 +186,6 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		2,
@@ -177,12 +204,11 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 
 func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.T) {
 	limits := newLimitTracker(50)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"iter", "2"},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"2"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
@@ -190,7 +216,6 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		2,
@@ -209,12 +234,11 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 
 func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 	limits := newLimitTracker(5)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
@@ -222,7 +246,6 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		2,
@@ -241,12 +264,11 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 
 func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T) {
 	limits := newLimitTracker(500)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{}
@@ -263,7 +285,6 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	err = withParallelizedStreamingIterableInCursor[int, int](
 		context.Background(),
 		ci,
-		"iter",
 		items,
 		parentStream,
 		5,
@@ -284,12 +305,11 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 
 func TestWithDatastoreCursorInCursor(t *testing.T) {
 	limits := newLimitTracker(500)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	encountered := []int{}
@@ -299,7 +319,6 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 	err = withDatastoreCursorInCursor[int, int](
 		context.Background(),
 		ci,
-		"db",
 		parentStream,
 		5,
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
@@ -328,12 +347,11 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 
 func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	limits := newLimitTracker(500)
-	revision := revision.NewFromDecimal(decimal.NewFromInt(1))
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		AtRevision: revision.String(),
-		Sections:   []string{"db", "", "somesection", "42"},
-	}, revision, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"", "42"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	encountered := []int{}
@@ -343,7 +361,6 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	err = withDatastoreCursorInCursor[int, int](
 		context.Background(),
 		ci,
-		"db",
 		parentStream,
 		5,
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
@@ -359,8 +376,8 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 			encountered = append(encountered, item)
 			lock.Unlock()
 
-			if ok, _ := cc.hasHeadSection("somesection"); ok {
-				value, _ := cc.integerSectionValue("somesection")
+			if v, _ := cc.headSectionValue(); v != "" {
+				value, _ := cc.integerSectionValue()
 				item = item + value
 			}
 

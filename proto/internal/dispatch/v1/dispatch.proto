@@ -81,10 +81,9 @@ message DispatchExpandResponse {
 }
 
 message Cursor {
-  string at_revision = 1 [ (validate.rules).string = {
-    max_bytes: 1024,
-  } ];
+  reserved 1;
   repeated string sections = 2;
+  uint32 dispatch_version = 3;
 }
 
 message DispatchReachableResourcesRequest {

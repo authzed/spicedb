@@ -209,8 +209,8 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	returnedCount := 0
 
 	dispatchCursor := &dispatchv1.Cursor{
-		AtRevision: atRevision.String(),
-		Sections:   []string{""},
+		DispatchVersion: 1,
+		Sections:        []string{""},
 	}
 
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {
@@ -223,7 +223,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 
 		dispatchCursor.Sections[0] = tuple.StringWithoutCaveat(tpl)
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rrRequestHash, atRevision)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}

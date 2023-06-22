@@ -17,6 +17,11 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// dispatchVersion defines the "version" of this dispatcher. Must be incremented
+// anytime an incompatible change is made to the dispatcher itself or its cursor
+// production.
+const dispatchVersion = 1
+
 // NewCursoredReachableResources creates an instance of CursoredReachableResources.
 func NewCursoredReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *CursoredReachableResources {
 	return &CursoredReachableResources{d, concurrencyLimit}
@@ -49,12 +54,12 @@ func (crr *CursoredReachableResources) ReachableResources(
 
 	ctx := stream.Context()
 	limits := newLimitTracker(req.OptionalLimit)
-	ci, err := newCursorInformation(req.OptionalCursor, req.Revision, limits)
+	ci, err := newCursorInformation(req.OptionalCursor, limits, dispatchVersion)
 	if err != nil {
 		return err
 	}
 
-	return withSubsetInCursor(ci, "same-type",
+	return withSubsetInCursor(ci,
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			// If the resource type matches the subject type, yield directly as a one-to-one result
 			// for each subjectID.
@@ -116,7 +121,7 @@ func (crr *CursoredReachableResources) afterSameType(
 	}
 
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
-	return withParallelizedStreamingIterableInCursor(ctx, ci, "entrypoint", entrypoints, parentStream, crr.concurrencyLimit,
+	return withParallelizedStreamingIterableInCursor(ctx, ci, entrypoints, parentStream, crr.concurrencyLimit,
 		func(ctx context.Context, ci cursorInformation, entrypoint namespace.ReachabilityEntrypoint, stream dispatch.ReachableResourcesStream) error {
 			switch entrypoint.EntrypointKind() {
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
@@ -256,7 +261,7 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 	ctx context.Context,
 	config redispatchOverDatabaseConfig,
 ) error {
-	return withDatastoreCursorInCursor(ctx, config.ci, "query-rels", config.parentStream, config.concurrencyLimit,
+	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
 		// Find the target resources for the subject.
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap], error) {
 			it, err := config.reader.ReverseQueryRelationships(
@@ -420,7 +425,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 		return err
 	}
 
-	return withSubsetInCursor(ci, "matching",
+	return withSubsetInCursor(ci,
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			if !hasResourceEntrypoints {
 				// If the found resource matches the target resource type and relation, yield the resource.

@@ -252,6 +252,7 @@ func (m *V1Cursor) CloneVT() *V1Cursor {
 	r := &V1Cursor{
 		Revision:              m.Revision,
 		CallAndParametersHash: m.CallAndParametersHash,
+		DispatchVersion:       m.DispatchVersion,
 	}
 	if rhs := m.Sections; rhs != nil {
 		tmpContainer := make([]string, len(rhs))
@@ -716,6 +717,9 @@ func (this *V1Cursor) EqualVT(that *V1Cursor) bool {
 		}
 	}
 	if this.CallAndParametersHash != that.CallAndParametersHash {
+		return false
+	}
+	if this.DispatchVersion != that.DispatchVersion {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1313,6 +1317,11 @@ func (m *V1Cursor) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.DispatchVersion != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.DispatchVersion))
+		i--
+		dAtA[i] = 0x20
+	}
 	if len(m.CallAndParametersHash) > 0 {
 		i -= len(m.CallAndParametersHash)
 		copy(dAtA[i:], m.CallAndParametersHash)
@@ -1730,6 +1739,9 @@ func (m *V1Cursor) SizeVT() (n int) {
 	l = len(m.CallAndParametersHash)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
+	}
+	if m.DispatchVersion != 0 {
+		n += 1 + sov(uint64(m.DispatchVersion))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2750,6 +2762,25 @@ func (m *V1Cursor) UnmarshalVT(dAtA []byte) error {
 			}
 			m.CallAndParametersHash = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DispatchVersion", wireType)
+			}
+			m.DispatchVersion = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DispatchVersion |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

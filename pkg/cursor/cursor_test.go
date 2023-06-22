@@ -47,9 +47,8 @@ func TestEncodeDecode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			encoded, err := EncodeFromDispatchCursor(&dispatch.Cursor{
-				Sections:   tc.sections,
-				AtRevision: revision.NewFromDecimal(tc.revision).String(),
-			}, tc.hash)
+				Sections: tc.sections,
+			}, tc.hash, revision.NewFromDecimal(tc.revision))
 			require.NoError(err)
 			require.NotNil(encoded)
 
@@ -58,7 +57,11 @@ func TestEncodeDecode(t *testing.T) {
 			require.NotNil(decoded)
 
 			require.Equal(tc.sections, decoded.Sections)
-			require.Equal(revision.NewFromDecimal(tc.revision).String(), decoded.AtRevision)
+
+			decodedRev, err := DecodeToDispatchRevision(encoded, revision.DecimalDecoder{})
+			require.NoError(err)
+			require.NotNil(decodedRev)
+			require.Equal(revision.NewFromDecimal(tc.revision), decodedRev)
 		})
 	}
 }
