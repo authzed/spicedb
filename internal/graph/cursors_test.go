@@ -26,13 +26,13 @@ func TestCursorProduction(t *testing.T) {
 	require.Equal(t, uint32(42), cursor.DispatchVersion)
 	require.Empty(t, cursor.Sections)
 
-	cci, err := ci.withOutgoingSection("4", "5")
+	cci, err := ci.withOutgoingSection("4")
 	require.NoError(t, err)
 
 	ccursor := cci.responsePartialCursor()
 
 	require.Equal(t, uint32(42), ccursor.DispatchVersion)
-	require.Equal(t, []string{"4", "5"}, ccursor.Sections)
+	require.Equal(t, []string{"4"}, ccursor.Sections)
 }
 
 func TestCursorDifferentDispatchVersion(t *testing.T) {

@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"sync"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -100,18 +98,19 @@ func (ci cursorInformation) integerSectionValue() (int, error) {
 }
 
 // withOutgoingSection returns cursorInformation updated with the given optional
-// value(s) appended to the outgoingCursorSections for the current cursor. If the current
+// value appended to the outgoingCursorSections for the current cursor. If the current
 // cursor already begins with any values, those values are replaced.
-func (ci cursorInformation) withOutgoingSection(values ...string) (cursorInformation, error) {
-	ocs := slices.Clone(ci.outgoingCursorSections)
-	ocs = append(ocs, values...)
+func (ci cursorInformation) withOutgoingSection(value string) (cursorInformation, error) {
+	ocs := make([]string, 0, len(ci.outgoingCursorSections)+1)
+	ocs = append(ocs, ci.outgoingCursorSections...)
+	ocs = append(ocs, value)
 
 	if ci.currentCursor != nil && len(ci.currentCursor.Sections) > 0 {
 		// If the cursor already has values, replace them with those specified.
 		return cursorInformation{
 			currentCursor: &v1.Cursor{
 				DispatchVersion: ci.dispatchCursorVersion,
-				Sections:        slices.Clone(ci.currentCursor.Sections[len(values):]),
+				Sections:        ci.currentCursor.Sections[1:],
 			},
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
@@ -268,9 +267,13 @@ func combineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) (*v1.Cursor, error) {
 		return toAdd, nil
 	}
 
+	sections := make([]string, 0, len(cursor.Sections)+len(toAdd.Sections))
+	sections = append(sections, cursor.Sections...)
+	sections = append(sections, toAdd.Sections...)
+
 	return &v1.Cursor{
 		DispatchVersion: toAdd.DispatchVersion,
-		Sections:        append(slices.Clone(cursor.Sections), toAdd.Sections...),
+		Sections:        sections,
 	}, nil
 }
 
