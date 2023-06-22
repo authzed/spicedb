@@ -17,6 +17,11 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// dispatchVersion defines the "version" of this dispatcher. Must be incremented
+// anytime an incompatible change is made to the dispatcher itself or its cursor
+// production.
+const dispatchVersion = 1
+
 // NewCursoredReachableResources creates an instance of CursoredReachableResources.
 func NewCursoredReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *CursoredReachableResources {
 	return &CursoredReachableResources{d, concurrencyLimit}
@@ -49,7 +54,7 @@ func (crr *CursoredReachableResources) ReachableResources(
 
 	ctx := stream.Context()
 	limits := newLimitTracker(req.OptionalLimit)
-	ci, err := newCursorInformation(req.OptionalCursor, limits)
+	ci, err := newCursorInformation(req.OptionalCursor, limits, dispatchVersion)
 	if err != nil {
 		return err
 	}

@@ -209,7 +209,8 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	returnedCount := 0
 
 	dispatchCursor := &dispatchv1.Cursor{
-		Sections: []string{""},
+		DispatchVersion: 1,
+		Sections:        []string{""},
 	}
 
 	for tpl := tupleIterator.Next(); tpl != nil; tpl = tupleIterator.Next() {

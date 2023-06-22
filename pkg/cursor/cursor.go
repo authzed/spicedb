@@ -67,6 +67,7 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 		VersionOneof: &impl.DecodedCursor_V1{
 			V1: &impl.V1Cursor{
 				Revision:              revision.String(),
+				DispatchVersion:       dispatchCursor.DispatchVersion,
 				Sections:              dispatchCursor.Sections,
 				CallAndParametersHash: callAndParameterHash,
 			},
@@ -94,7 +95,8 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 	}
 
 	return &dispatch.Cursor{
-		Sections: v1decoded.Sections,
+		DispatchVersion: v1decoded.DispatchVersion,
+		Sections:        v1decoded.Sections,
 	}, nil
 }
 

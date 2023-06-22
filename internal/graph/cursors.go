@@ -31,30 +31,45 @@ type cursorInformation struct {
 
 	// limits is the limits tracker for the call over which the cursor is being used.
 	limits *limitTracker
+
+	// dispatchCursorVersion is the version of the dispatch to be stored in the cursor.
+	dispatchCursorVersion uint32
 }
 
 // newCursorInformation constructs a new cursorInformation struct from the incoming cursor (which
 // may be nil)
-func newCursorInformation(incomingCursor *v1.Cursor, limits *limitTracker) (cursorInformation, error) {
+func newCursorInformation(incomingCursor *v1.Cursor, limits *limitTracker, dispatchCursorVersion uint32) (cursorInformation, error) {
+	if incomingCursor != nil && incomingCursor.DispatchVersion != dispatchCursorVersion {
+		return cursorInformation{}, NewInvalidCursorErr(dispatchCursorVersion, incomingCursor)
+	}
+
+	if dispatchCursorVersion == 0 {
+		return cursorInformation{}, spiceerrors.MustBugf("invalid dispatch cursor version")
+	}
+
 	return cursorInformation{
 		currentCursor:          incomingCursor,
 		outgoingCursorSections: nil,
 		limits:                 limits,
+		dispatchCursorVersion:  dispatchCursorVersion,
 	}, nil
 }
 
 // responsePartialCursor is the *partial* cursor to return in a response.
 func (ci cursorInformation) responsePartialCursor() *v1.Cursor {
 	return &v1.Cursor{
-		Sections: ci.outgoingCursorSections,
+		DispatchVersion: ci.dispatchCursorVersion,
+		Sections:        ci.outgoingCursorSections,
 	}
 }
 
+// withClonedLimits returns the cursor, but with its limits tracker cloned.
 func (ci cursorInformation) withClonedLimits() cursorInformation {
 	return cursorInformation{
 		currentCursor:          ci.currentCursor,
 		outgoingCursorSections: ci.outgoingCursorSections,
 		limits:                 ci.limits.clone(),
+		dispatchCursorVersion:  ci.dispatchCursorVersion,
 	}
 }
 
@@ -95,10 +110,12 @@ func (ci cursorInformation) withOutgoingSection(values ...string) (cursorInforma
 		// If the cursor already has values, replace them with those specified.
 		return cursorInformation{
 			currentCursor: &v1.Cursor{
-				Sections: slices.Clone(ci.currentCursor.Sections[len(values):]),
+				DispatchVersion: ci.dispatchCursorVersion,
+				Sections:        slices.Clone(ci.currentCursor.Sections[len(values):]),
 			},
 			outgoingCursorSections: ocs,
 			limits:                 ci.limits,
+			dispatchCursorVersion:  ci.dispatchCursorVersion,
 		}, nil
 	}
 
@@ -106,6 +123,7 @@ func (ci cursorInformation) withOutgoingSection(values ...string) (cursorInforma
 		currentCursor:          nil,
 		outgoingCursorSections: ocs,
 		limits:                 ci.limits,
+		dispatchCursorVersion:  ci.dispatchCursorVersion,
 	}, nil
 }
 
@@ -114,6 +132,7 @@ func (ci cursorInformation) clearIncoming() cursorInformation {
 		currentCursor:          nil,
 		outgoingCursorSections: ci.outgoingCursorSections,
 		limits:                 ci.limits,
+		dispatchCursorVersion:  ci.dispatchCursorVersion,
 	}
 }
 
@@ -250,7 +269,8 @@ func combineCursors(cursor *v1.Cursor, toAdd *v1.Cursor) (*v1.Cursor, error) {
 	}
 
 	return &v1.Cursor{
-		Sections: append(slices.Clone(cursor.Sections), toAdd.Sections...),
+		DispatchVersion: toAdd.DispatchVersion,
+		Sections:        append(slices.Clone(cursor.Sections), toAdd.Sections...),
 	}, nil
 }
 

@@ -936,6 +936,8 @@ func (m *Cursor) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for DispatchVersion
+
 	if len(errors) > 0 {
 		return CursorMultiError(errors)
 	}

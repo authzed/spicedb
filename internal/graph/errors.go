@@ -5,8 +5,14 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/sharederrors"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // ErrRequestCanceled occurs when a request has been canceled.
@@ -161,4 +167,30 @@ func NewUnimplementedErr(baseErr error) error {
 	return ErrUnimplemented{
 		error: baseErr,
 	}
+}
+
+// ErrInvalidCursor is returned when a cursor is no longer valid.
+type ErrInvalidCursor struct {
+	error
+}
+
+// NewInvalidCursorErr constructs a new unimplemented error.
+func NewInvalidCursorErr(dispatchCursorVersion uint32, cursor *dispatch.Cursor) error {
+	return ErrInvalidCursor{
+		error: fmt.Errorf("the supplied cursor is no longer valid: found version %d, expected version %d", cursor.DispatchVersion, dispatchCursorVersion),
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrInvalidCursor) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_INVALID_CURSOR,
+			map[string]string{
+				"details": "cursor was used against an incompatible version of SpiceDB",
+			},
+		),
+	)
 }

@@ -49,6 +49,9 @@ message V1Cursor {
   // call_and_parameters_hash is a hash of the call that manufactured this cursor and all its
   // parameters, including limits and zedtoken, to ensure no inputs changed when using this cursor.
   string call_and_parameters_hash = 3;
+
+  // dispatch_version is the version of the dispatcher which created the cursor.
+  uint32 dispatch_version = 4;
 }
 
 message DocComment { string comment = 1; }

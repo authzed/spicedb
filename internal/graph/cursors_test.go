@@ -13,12 +13,45 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func TestCursorProduction(t *testing.T) {
+	limits := newLimitTracker(10)
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 42,
+		Sections:        []string{"1", "2", "3"},
+	}, limits, 42)
+	require.NoError(t, err)
+
+	cursor := ci.responsePartialCursor()
+	require.Equal(t, uint32(42), cursor.DispatchVersion)
+	require.Empty(t, cursor.Sections)
+
+	cci, err := ci.withOutgoingSection("4", "5")
+	require.NoError(t, err)
+
+	ccursor := cci.responsePartialCursor()
+
+	require.Equal(t, uint32(42), ccursor.DispatchVersion)
+	require.Equal(t, []string{"4", "5"}, ccursor.Sections)
+}
+
+func TestCursorDifferentDispatchVersion(t *testing.T) {
+	limits := newLimitTracker(10)
+
+	_, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 2,
+		Sections:        []string{},
+	}, limits, 1)
+	require.Error(t, err)
+}
+
 func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	value, ok := ci.headSectionValue()
@@ -26,13 +59,40 @@ func TestCursorHasHeadSectionOnEmpty(t *testing.T) {
 	require.Equal(t, "", value)
 }
 
+func TestCursorWithClonedLimits(t *testing.T) {
+	limits := newLimitTracker(10)
+
+	ci, err := newCursorInformation(&v1.Cursor{
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
+	require.NoError(t, err)
+
+	require.Equal(t, uint32(10), ci.limits.currentLimit)
+	require.Equal(t, uint32(1), ci.dispatchCursorVersion)
+
+	cloned := ci.withClonedLimits()
+	require.Equal(t, uint32(10), cloned.limits.currentLimit)
+	require.Equal(t, uint32(1), cloned.dispatchCursorVersion)
+
+	require.True(t, limits.prepareForPublishing())
+
+	require.Equal(t, uint32(9), ci.limits.currentLimit)
+	require.Equal(t, uint32(1), ci.dispatchCursorVersion)
+
+	require.Equal(t, uint32(10), cloned.limits.currentLimit)
+	require.Equal(t, uint32(1), cloned.dispatchCursorVersion)
+}
+
 func TestCursorSections(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"1", "two"},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"1", "two"},
+	}, limits, 1)
 	require.NoError(t, err)
+	require.Equal(t, uint32(1), ci.dispatchCursorVersion)
 
 	value, ok := ci.headSectionValue()
 	require.True(t, ok)
@@ -47,8 +107,9 @@ func TestCursorNonIntSection(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"one", "two"},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"one", "two"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	value, ok := ci.headSectionValue()
@@ -63,8 +124,9 @@ func TestWithSubsetInCursor(t *testing.T) {
 	limits := newLimitTracker(10)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"100"},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"100"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	handlerCalled := false
@@ -86,10 +148,12 @@ func TestWithSubsetInCursor(t *testing.T) {
 
 func TestCombineCursors(t *testing.T) {
 	cursor1 := &v1.Cursor{
-		Sections: []string{"a", "b", "c"},
+		DispatchVersion: 1,
+		Sections:        []string{"a", "b", "c"},
 	}
 	cursor2 := &v1.Cursor{
-		Sections: []string{"d", "e", "f"},
+		DispatchVersion: 1,
+		Sections:        []string{"d", "e", "f"},
 	}
 
 	combined, err := combineCursors(cursor1, cursor2)
@@ -99,7 +163,8 @@ func TestCombineCursors(t *testing.T) {
 
 func TestCombineCursorsWithNil(t *testing.T) {
 	cursor2 := &v1.Cursor{
-		Sections: []string{"d", "e", "f"},
+		DispatchVersion: 1,
+		Sections:        []string{"d", "e", "f"},
 	}
 
 	combined, err := combineCursors(nil, cursor2)
@@ -111,8 +176,9 @@ func TestWithParallelizedStreamingIterableInCursor(t *testing.T) {
 	limits := newLimitTracker(50)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
@@ -140,8 +206,9 @@ func TestWithParallelizedStreamingIterableInCursorWithExistingCursor(t *testing.
 	limits := newLimitTracker(50)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"2"},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"2"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
@@ -169,8 +236,9 @@ func TestWithParallelizedStreamingIterableInCursorWithLimit(t *testing.T) {
 	limits := newLimitTracker(5)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{10, 20, 30, 40, 50}
@@ -198,8 +266,9 @@ func TestWithParallelizedStreamingIterableInCursorEnsureParallelism(t *testing.T
 	limits := newLimitTracker(500)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	items := []int{}
@@ -238,8 +307,9 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 	limits := newLimitTracker(500)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	encountered := []int{}
@@ -279,8 +349,9 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	limits := newLimitTracker(500)
 
 	ci, err := newCursorInformation(&v1.Cursor{
-		Sections: []string{"", "42"},
-	}, limits)
+		DispatchVersion: 1,
+		Sections:        []string{"", "42"},
+	}, limits, 1)
 	require.NoError(t, err)
 
 	encountered := []int{}

@@ -83,6 +83,7 @@ message DispatchExpandResponse {
 message Cursor {
   reserved 1;
   repeated string sections = 2;
+  uint32 dispatch_version = 3;
 }
 
 message DispatchReachableResourcesRequest {
