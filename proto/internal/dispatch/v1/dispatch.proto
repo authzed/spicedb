@@ -6,6 +6,7 @@ option go_package = "github.com/authzed/spicedb/pkg/proto/dispatch/v1";
 import "validate/validate.proto";
 import "core/v1/core.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/duration.proto";
 
 service DispatchService {
   rpc DispatchCheck(DispatchCheckRequest) returns (DispatchCheckResponse) {}
@@ -223,4 +224,5 @@ message CheckDebugTrace {
   map<string, ResourceCheckResult> results = 3;
   bool is_cached_result = 4;
   repeated CheckDebugTrace sub_problems = 5;
+  google.protobuf.Duration duration = 6;
 }

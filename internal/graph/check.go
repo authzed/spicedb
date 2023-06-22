@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -85,6 +87,12 @@ type currentRequestContext struct {
 
 // Check performs a check request with the provided request and context
 func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) (*v1.DispatchCheckResponse, error) {
+	var startTime *time.Time
+	if req.Debug != v1.DispatchCheckRequest_NO_DEBUG {
+		now := time.Now()
+		startTime = &now
+	}
+
 	resolved := cc.checkInternal(ctx, req, relation)
 	resolved.Resp.Metadata = addCallToResponseMetadata(resolved.Resp.Metadata)
 	if req.Debug == v1.DispatchCheckRequest_NO_DEBUG {
@@ -100,6 +108,7 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	}
 
 	debugInfo.Check.Request = req.DispatchCheckRequest
+	debugInfo.Check.Duration = durationpb.New(time.Since(*startTime))
 
 	if nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION {
 		debugInfo.Check.ResourceRelationType = v1.CheckDebugTrace_PERMISSION

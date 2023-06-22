@@ -288,6 +288,7 @@ func TestCheckPermissions(t *testing.T) {
 									err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
 									require.NoError(err)
 									require.NotNil(debugInfo.Check)
+									require.NotNil(debugInfo.Check.Duration)
 									require.Equal(tuple.StringObjectRef(tc.resource), tuple.StringObjectRef(debugInfo.Check.Resource))
 									require.Equal(tc.permission, debugInfo.Check.Permission)
 									require.Equal(tuple.StringSubjectRef(tc.subject), tuple.StringSubjectRef(debugInfo.Check.Subject))
