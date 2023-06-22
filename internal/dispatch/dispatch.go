@@ -2,7 +2,6 @@ package dispatch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -10,9 +9,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
-
-// ErrMaxDepth is returned from CheckDepth when the max depth is exceeded.
-var ErrMaxDepth = errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency")
 
 // ReadyState represents the ready state of the dispatcher.
 type ReadyState struct {
@@ -86,15 +82,15 @@ type LookupSubjects interface {
 	) error
 }
 
-// HasMetadata is an interface for requests containing resolver metadata.
-type HasMetadata interface {
+// DispatchableRequest is an interface for requests.
+type DispatchableRequest interface {
 	zerolog.LogObjectMarshaler
 
 	GetMetadata() *v1.ResolverMeta
 }
 
 // CheckDepth returns ErrMaxDepth if there is insufficient depth remaining to dispatch.
-func CheckDepth(ctx context.Context, req HasMetadata) error {
+func CheckDepth(ctx context.Context, req DispatchableRequest) error {
 	metadata := req.GetMetadata()
 	if metadata == nil {
 		log.Ctx(ctx).Warn().Object("request", req).Msg("request missing metadata")
@@ -102,7 +98,7 @@ func CheckDepth(ctx context.Context, req HasMetadata) error {
 	}
 
 	if metadata.DepthRemaining == 0 {
-		return ErrMaxDepth
+		return NewMaxDepthExceededError(req)
 	}
 
 	return nil

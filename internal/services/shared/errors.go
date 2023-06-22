@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -12,12 +13,14 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -66,6 +69,43 @@ func (err ErrSchemaWriteDataValidation) GRPCStatus() *status.Status {
 	)
 }
 
+// MaxDepthExceededError is an error returned when the maximum depth for dispatching has been exceeded.
+type MaxDepthExceededError struct {
+	error
+
+	// AllowedMaximumDepth is the configured allowed maximum depth.
+	AllowedMaximumDepth uint32
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err MaxDepthExceededError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.ResourceExhausted,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED,
+			map[string]string{
+				"maximum_depth_allowed": strconv.Itoa(int(err.AllowedMaximumDepth)),
+			},
+		),
+	)
+}
+
+// NewMaxDepthExceededError creates a new MaxDepthExceededError.
+func NewMaxDepthExceededError(allowedMaximumDepth uint32, isCheckRequest bool) error {
+	if isCheckRequest {
+		return MaxDepthExceededError{
+			fmt.Errorf("the check request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. Try running zed with --explain to see the dependency. See: https://spicedb.dev/d/debug-max-depth-check", allowedMaximumDepth),
+			allowedMaximumDepth,
+		}
+	}
+
+	return MaxDepthExceededError{
+		fmt.Errorf("the request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth", allowedMaximumDepth),
+		allowedMaximumDepth,
+	}
+}
+
 func AsValidationError(err error) *ErrSchemaWriteDataValidation {
 	var validationErr ErrSchemaWriteDataValidation
 	if errors.As(err, &validationErr) {
@@ -74,7 +114,11 @@ func AsValidationError(err error) *ErrSchemaWriteDataValidation {
 	return nil
 }
 
-func RewriteError(ctx context.Context, err error) error {
+type ConfigForErrors struct {
+	MaximumAPIDepth uint32
+}
+
+func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error {
 	// Check if the error can be directly used.
 	if _, ok := status.FromError(err); ok {
 		return err
@@ -87,6 +131,7 @@ func RewriteError(ctx context.Context, err error) error {
 	var compilerError compiler.BaseCompilerError
 	var sourceError spiceerrors.ErrorWithSource
 	var typeError namespace.TypeError
+	var maxDepthError dispatch.MaxDepthExceededError
 
 	switch {
 	case errors.As(err, &typeError):
@@ -103,6 +148,14 @@ func RewriteError(ctx context.Context, err error) error {
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_DEFINITION)
 	case errors.As(err, &relationNotFoundError):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_RELATION_OR_PERMISSION)
+
+	case errors.As(err, &maxDepthError):
+		if config == nil {
+			return spiceerrors.MustBugf("missing config for API error")
+		}
+
+		_, isCheckRequest := maxDepthError.Request.(*dispatchv1.DispatchCheckRequest)
+		return NewMaxDepthExceededError(config.MaximumAPIDepth, isCheckRequest)
 
 	case errors.As(err, &datastore.ErrReadOnly{}):
 		return ErrServiceReadOnly

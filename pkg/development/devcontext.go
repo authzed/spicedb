@@ -326,8 +326,9 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source devi
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 	var invalidRelError relationships.ErrInvalidSubjectType
+	var maxDepthErr dispatch.MaxDepthExceededError
 
-	if errors.Is(dispatchError, dispatch.ErrMaxDepth) {
+	if errors.As(dispatchError, &maxDepthErr) {
 		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
 			Source:  source,
