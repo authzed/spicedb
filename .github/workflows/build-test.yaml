@@ -232,7 +232,9 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
       - name: "Benchmark"
-        run: "go run mage.go test:bench | tee benchmarks.txt"
+        run: |
+          set -o pipefail  # Don't let tee replace the exit-code
+          go run mage.go test:bench | tee benchmarks.txt
       - name: "Download previous benchmark data"
         uses: "actions/cache@v1"
         with:
