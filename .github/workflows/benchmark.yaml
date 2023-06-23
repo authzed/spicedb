@@ -1,0 +1,41 @@
+---
+name: "Benchmarks"
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "*"
+  merge_group:
+    types:
+      - "checks_requested"
+env:
+  GO_VERSION: "~1.20.5"
+jobs:
+  go-bench:
+    name: "Go Benchmark"
+    runs-on: ["self-hosted", "benchmarks"]
+    needs: "unit"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "authzed/actions/setup-go@main"
+        with:
+          go-version: "${{ env.GO_VERSION }}"
+      - name: "Benchmark"
+        run: "go run mage.go test:bench | tee benchmarks.txt"
+      - name: "Download previous benchmark data"
+        uses: "actions/cache@v1"
+        with:
+          path: "./cache"
+          key: "${{ runner.os }}-benchmark"
+      - uses: "benchmark-action/github-action-benchmark@v1"
+        with:
+          tool: "go"
+          output-file-path: "benchmarks.txt"
+          save-data-file: "${{ github.ref_name == 'main' }}"
+          external-data-json-path: "./cache/benchmark-data.json"
+          github-token: "${{ github.token }}"
+          auto-push: false
+          comment-on-alert: true
+          summary-always: true
