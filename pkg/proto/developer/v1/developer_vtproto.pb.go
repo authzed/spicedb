@@ -179,6 +179,20 @@ func (m *DeveloperError) CloneVT() *DeveloperError {
 		copy(tmpContainer, rhs)
 		r.Path = tmpContainer
 	}
+	if rhs := m.CheckDebugInformation; rhs != nil {
+		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v11.DebugInformation }); ok {
+			r.CheckDebugInformation = vtpb.CloneVT()
+		} else {
+			r.CheckDebugInformation = proto.Clone(rhs).(*v11.DebugInformation)
+		}
+	}
+	if rhs := m.CheckResolvedDebugInformation; rhs != nil {
+		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v12.DebugInformation }); ok {
+			r.CheckResolvedDebugInformation = vtpb.CloneVT()
+		} else {
+			r.CheckResolvedDebugInformation = proto.Clone(rhs).(*v12.DebugInformation)
+		}
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -650,6 +664,24 @@ func (this *DeveloperError) EqualVT(that *DeveloperError) bool {
 		}
 	}
 	if this.Context != that.Context {
+		return false
+	}
+	if equal, ok := interface{}(this.CheckDebugInformation).(interface {
+		EqualVT(*v11.DebugInformation) bool
+	}); ok {
+		if !equal.EqualVT(that.CheckDebugInformation) {
+			return false
+		}
+	} else if !proto.Equal(this.CheckDebugInformation, that.CheckDebugInformation) {
+		return false
+	}
+	if equal, ok := interface{}(this.CheckResolvedDebugInformation).(interface {
+		EqualVT(*v12.DebugInformation) bool
+	}); ok {
+		if !equal.EqualVT(that.CheckResolvedDebugInformation) {
+			return false
+		}
+	} else if !proto.Equal(this.CheckResolvedDebugInformation, that.CheckResolvedDebugInformation) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1359,6 +1391,50 @@ func (m *DeveloperError) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.CheckResolvedDebugInformation != nil {
+		if vtmsg, ok := interface{}(m.CheckResolvedDebugInformation).(interface {
+			MarshalToSizedBufferVT([]byte) (int, error)
+		}); ok {
+			size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+		} else {
+			encoded, err := proto.Marshal(m.CheckResolvedDebugInformation)
+			if err != nil {
+				return 0, err
+			}
+			i -= len(encoded)
+			copy(dAtA[i:], encoded)
+			i = encodeVarint(dAtA, i, uint64(len(encoded)))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	if m.CheckDebugInformation != nil {
+		if vtmsg, ok := interface{}(m.CheckDebugInformation).(interface {
+			MarshalToSizedBufferVT([]byte) (int, error)
+		}); ok {
+			size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+		} else {
+			encoded, err := proto.Marshal(m.CheckDebugInformation)
+			if err != nil {
+				return 0, err
+			}
+			i -= len(encoded)
+			copy(dAtA[i:], encoded)
+			i = encodeVarint(dAtA, i, uint64(len(encoded)))
+		}
+		i--
+		dAtA[i] = 0x42
 	}
 	if len(m.Context) > 0 {
 		i -= len(m.Context)
@@ -2148,6 +2224,26 @@ func (m *DeveloperError) SizeVT() (n int) {
 	}
 	l = len(m.Context)
 	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.CheckDebugInformation != nil {
+		if size, ok := interface{}(m.CheckDebugInformation).(interface {
+			SizeVT() int
+		}); ok {
+			l = size.SizeVT()
+		} else {
+			l = proto.Size(m.CheckDebugInformation)
+		}
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.CheckResolvedDebugInformation != nil {
+		if size, ok := interface{}(m.CheckResolvedDebugInformation).(interface {
+			SizeVT() int
+		}); ok {
+			l = size.SizeVT()
+		} else {
+			l = proto.Size(m.CheckResolvedDebugInformation)
+		}
 		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -3526,6 +3622,94 @@ func (m *DeveloperError) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Context = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CheckDebugInformation", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.CheckDebugInformation == nil {
+				m.CheckDebugInformation = &v11.DebugInformation{}
+			}
+			if unmarshal, ok := interface{}(m.CheckDebugInformation).(interface {
+				UnmarshalVT([]byte) error
+			}); ok {
+				if err := unmarshal.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.CheckDebugInformation); err != nil {
+					return err
+				}
+			}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CheckResolvedDebugInformation", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.CheckResolvedDebugInformation == nil {
+				m.CheckResolvedDebugInformation = &v12.DebugInformation{}
+			}
+			if unmarshal, ok := interface{}(m.CheckResolvedDebugInformation).(interface {
+				UnmarshalVT([]byte) error
+			}); ok {
+				if err := unmarshal.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.CheckResolvedDebugInformation); err != nil {
+					return err
+				}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

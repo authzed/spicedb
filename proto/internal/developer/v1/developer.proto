@@ -99,6 +99,14 @@ message DeveloperError {
   // context holds the context for the error. For schema issues, this will be the
   // name of the object type. For relationship issues, the full relationship string.
   string context = 7;
+
+  // debug_information is the debug information for the check, if this error was raised
+  // due to an assertion failure.
+  dispatch.v1.DebugInformation check_debug_information = 8;
+
+  // resolved_debug_information is the V1 API debug information for the check, if this error was raised
+  // due to an assertion failure.
+  authzed.api.v1.DebugInformation check_resolved_debug_information = 9;
 }
 
 // DeveloperErrors represents the developer error(s) found after the run has completed.

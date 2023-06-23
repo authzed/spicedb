@@ -414,6 +414,7 @@ func TestRunAssertionsAndValidationOperations(t *testing.T) {
 		validationYaml         string
 		assertionsYaml         string
 		expectedError          *devinterface.DeveloperError
+		expectCheckTraces      bool
 		expectedValidationYaml string
 	}
 
@@ -425,6 +426,7 @@ func TestRunAssertionsAndValidationOperations(t *testing.T) {
 			"",
 			"",
 			nil,
+			false,
 			"{}\n",
 		},
 		{
@@ -440,6 +442,7 @@ func TestRunAssertionsAndValidationOperations(t *testing.T) {
 				Context: "asdkjhg",
 				Line:    1,
 			},
+			false,
 			"",
 		},
 		{
@@ -455,6 +458,7 @@ func TestRunAssertionsAndValidationOperations(t *testing.T) {
 				Context: "asdhasj",
 				Line:    1,
 			},
+			false,
 			"",
 		},
 		{
@@ -474,6 +478,7 @@ assertFalse: garbage
 				Source:  devinterface.DeveloperError_ASSERTION,
 				Line:    5,
 			},
+			false,
 			"",
 		},
 		{
@@ -495,6 +500,7 @@ assertFalse: garbage
 				Column:  0,
 				Context: "garbage",
 			},
+			false,
 			"",
 		},
 		{
@@ -512,6 +518,7 @@ assertFalse: garbage
 				Column:  3,
 				Context: "something",
 			},
+			false,
 			"",
 		},
 		{
@@ -534,6 +541,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			true,
 			"{}\n",
 		},
 		{
@@ -556,6 +564,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			true,
 			"{}\n",
 		},
 		{
@@ -576,6 +585,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			"{}\n",
 		},
 		{
@@ -596,6 +606,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			"{}\n",
 		},
 		{
@@ -620,6 +631,7 @@ assertFalse: garbage
 				Line:    1,
 				Column:  1,
 			},
+			false,
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#writer>'
 `,
@@ -648,6 +660,7 @@ assertFalse: garbage
 				Line:    3,
 				Column:  3,
 			},
+			false,
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#writer>'
 `,
@@ -675,6 +688,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			``,
 		},
 		{
@@ -700,6 +714,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			``,
 		},
 		{
@@ -725,6 +740,7 @@ assertFalse: garbage
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#writer>'
 `,
@@ -773,6 +789,7 @@ assertFalse:
 - 'document:somedoc#viewer@user:sarah with {"somecondition": "45"}'
 `,
 			nil,
+			false,
 			`document:somedoc#view:
 - '[user:fred[...]] is <document:somedoc#viewer>'
 - '[user:jake] is <document:somedoc#viewer>'
@@ -801,6 +818,7 @@ assertFalse:
 - document:somedoc#writer@user:jimmy
 `,
 			nil,
+			false,
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
 `,
@@ -832,6 +850,7 @@ assertFalse:
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			`document:somedoc#view:
 - '[user:jimmy] is <document:somedoc#viewer>/<document:somedoc#writer>'
 `,
@@ -850,6 +869,7 @@ assertFalse:
 				Source:  devinterface.DeveloperError_RELATIONSHIP,
 				Context: `document:somedoc#writer@user:jimmy`,
 			},
+			false,
 			``,
 		},
 		{
@@ -867,6 +887,7 @@ assertFalse:
 				Source:  devinterface.DeveloperError_RELATIONSHIP,
 				Context: `document:somedoc#writer@user:jimmy`,
 			},
+			false,
 			``,
 		},
 		{
@@ -893,6 +914,7 @@ assertFalse:
 assertFalse:
 - document:somedoc#writer@user:somegal`,
 			nil,
+			false,
 			`document:somedoc#view:
 - '[user:*] is <document:somedoc#viewer>'
 - '[user:jimmy] is <document:somedoc#writer>'
@@ -919,6 +941,7 @@ assertFalse:
 assertFalse:
 - document:somedoc#view@user:jimmy`,
 			nil,
+			false,
 			`document:somedoc#view:
 - '[user:* - {user:jimmy}] is <document:somedoc#viewer>'
 `,
@@ -947,6 +970,7 @@ assertFalse:
 - document:somedoc#view@user:jimmy
 - document:somedoc#view@user:sarah`,
 			nil,
+			false,
 			`document:somedoc#view:
 - '[user:* - {user:jimmy, user:sarah}] is <document:somedoc#viewer>'
 `,
@@ -976,6 +1000,7 @@ assertFalse:
 - document:somedoc#empty@user:jill
 - document:somedoc#empty@user:tom`,
 			nil,
+			false,
 			"document:somedoc#empty: []\ndocument:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
 		},
 		{
@@ -1005,6 +1030,7 @@ assertFalse:
 				Line:    2,
 				Column:  3,
 			},
+			false,
 			"document:somedoc#view:\n- '[user:jill] is <document:somedoc#viewer>'\n- '[user:tom] is <document:somedoc#viewer>'\n",
 		},
 
@@ -1043,6 +1069,7 @@ assertFalse:
 				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: "[user:sarah] is <document:somedoc#viewer>",
 			},
+			false,
 			`document:somedoc#view:
 - '[user:sarah[...]] is <document:somedoc#viewer>'
 `,
@@ -1097,6 +1124,15 @@ assertFalse:
 						errors = append(errors, response.GetOperationsResults().Results[1].GetValidationResult().ValidationErrors...)
 					}
 				}
+
+				if tc.expectCheckTraces {
+					require.NotNil(t, errors[0].CheckDebugInformation)
+					require.NotNil(t, errors[0].CheckResolvedDebugInformation)
+
+					errors[0].CheckDebugInformation = nil
+					errors[0].CheckResolvedDebugInformation = nil
+				}
+
 				testutil.RequireProtoEqual(t, tc.expectedError, errors[0], "mismatch on errors")
 			} else {
 				require.Equal(0, len(response.GetOperationsResults().Results[0].GetAssertionsResult().ValidationErrors), "Failed assertion", response.GetOperationsResults().Results[0].GetAssertionsResult().ValidationErrors)
