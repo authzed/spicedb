@@ -53,6 +53,11 @@ func (Test) Analyzers() error {
 	return goDirTest("./tools/analyzers", "./...")
 }
 
+// Bench Runs benchmarks
+func (Test) Bench() error {
+	return goTest("-bench=.", "-benchmem", "-run=^$", "-tags=ci,docker,skipintegrationtests", "-timeout=10m", "./...")
+}
+
 // Wasm Run wasm browser tests
 func (Test) Wasm() error {
 	// build the test binary
