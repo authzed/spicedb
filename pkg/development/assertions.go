@@ -72,12 +72,14 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			}
 		} else if cr.Permissionship != expected {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf(fmtString, assertion.RelationshipWithContextString),
-				Source:  devinterface.DeveloperError_ASSERTION,
-				Kind:    devinterface.DeveloperError_ASSERTION_FAILED,
-				Context: assertion.RelationshipWithContextString,
-				Line:    uint32(assertion.SourcePosition.LineNumber),
-				Column:  uint32(assertion.SourcePosition.ColumnPosition),
+				Message:                       fmt.Sprintf(fmtString, assertion.RelationshipWithContextString),
+				Source:                        devinterface.DeveloperError_ASSERTION,
+				Kind:                          devinterface.DeveloperError_ASSERTION_FAILED,
+				Context:                       assertion.RelationshipWithContextString,
+				Line:                          uint32(assertion.SourcePosition.LineNumber),
+				Column:                        uint32(assertion.SourcePosition.ColumnPosition),
+				CheckDebugInformation:         cr.DispatchDebugInfo,
+				CheckResolvedDebugInformation: cr.V1DebugInfo,
 			})
 		}
 	}
