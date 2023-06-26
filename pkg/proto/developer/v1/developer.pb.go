@@ -601,7 +601,7 @@ type DeveloperError struct {
 	// context holds the context for the error. For schema issues, this will be the
 	// name of the object type. For relationship issues, the full relationship string.
 	Context string `protobuf:"bytes,7,opt,name=context,proto3" json:"context,omitempty"`
-	// debug_information is the debug information for the check, if this error was raised
+	// debug_information is the debug information for the dispatched check, if this error was raised
 	// due to an assertion failure.
 	CheckDebugInformation *v11.DebugInformation `protobuf:"bytes,8,opt,name=check_debug_information,json=checkDebugInformation,proto3" json:"check_debug_information,omitempty"`
 	// resolved_debug_information is the V1 API debug information for the check, if this error was raised

@@ -100,7 +100,7 @@ message DeveloperError {
   // name of the object type. For relationship issues, the full relationship string.
   string context = 7;
 
-  // debug_information is the debug information for the check, if this error was raised
+  // debug_information is the debug information for the dispatched check, if this error was raised
   // due to an assertion failure.
   dispatch.v1.DebugInformation check_debug_information = 8;
 

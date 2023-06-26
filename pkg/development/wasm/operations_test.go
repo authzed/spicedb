@@ -1129,6 +1129,10 @@ assertFalse:
 					require.NotNil(t, errors[0].CheckDebugInformation)
 					require.NotNil(t, errors[0].CheckResolvedDebugInformation)
 
+					// Unset these values to avoid the need to specify above
+					// in the test data. This is necessary because the debug
+					// information contains the revision timestamp, which changes
+					// on every call.
 					errors[0].CheckDebugInformation = nil
 					errors[0].CheckResolvedDebugInformation = nil
 				}
