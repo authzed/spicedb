@@ -27,7 +27,7 @@ type watchServer struct {
 func NewWatchServer() v1.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
-			Stream: grpcvalidate.StreamServerInterceptor(true),
+			Stream: grpcvalidate.StreamServerInterceptor(),
 		},
 	}
 	return s

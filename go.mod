@@ -34,8 +34,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-github/v43 v43.0.0
 	github.com/google/uuid v1.3.0
-	github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2 v2.0.0-rc.3
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.3
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.5
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.2
 	github.com/hashicorp/go-memdb v1.3.4

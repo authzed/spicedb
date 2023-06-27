@@ -34,9 +34,9 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchSer
 	return &dispatchServer{
 		localDispatch: localDispatch,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary: grpcvalidate.UnaryServerInterceptor(true),
+			Unary: grpcvalidate.UnaryServerInterceptor(),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(true),
+				grpcvalidate.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(streamAPITimeout),
 			),
 		},

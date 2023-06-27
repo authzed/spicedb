@@ -91,12 +91,12 @@ func NewPermissionsServer(
 		config:   configWithDefaults,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(true),
+				grpcvalidate.UnaryServerInterceptor(),
 				handwrittenvalidation.UnaryServerInterceptor,
 				usagemetrics.UnaryServerInterceptor(),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(true),
+				grpcvalidate.StreamServerInterceptor(),
 				handwrittenvalidation.StreamServerInterceptor,
 				usagemetrics.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
