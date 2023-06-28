@@ -126,9 +126,9 @@ func (rwt spannerReadWriteTXN) DeleteCaveats(_ context.Context, names []string) 
 }
 
 func ContextualizedCaveatFrom(name spanner.NullString, context spanner.NullJSON) (*core.ContextualizedCaveat, error) {
-	if name.Valid {
+	if name.Valid && name.StringVal != "" {
 		var cctx map[string]any
-		if context.Valid {
+		if context.Valid && context.Value != nil {
 			cctx = context.Value.(map[string]any)
 		}
 		return common.ContextualizedCaveatFrom(name.StringVal, cctx)
