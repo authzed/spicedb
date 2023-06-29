@@ -3,14 +3,20 @@ package server
 import (
 	"context"
 	"errors"
+	"log"
 	"testing"
 	"time"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/goleak"
 	"google.golang.org/grpc"
 )
@@ -51,6 +57,108 @@ func TestServerGracefulTermination(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	cancel()
 	<-ch
+}
+
+func TestOTelReporting(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.DefaultDatastoreConfig().ToOption(),
+		datastore.WithRequestHedgingEnabled(false),
+	)
+	if err != nil {
+		log.Fatalf("unable to start memdb datastore: %s", err)
+	}
+
+	configOpts := []ConfigOption{
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+		WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
+			return ctx, nil
+		}),
+		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithClusterDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
+		WithDatastore(ds),
+	}
+
+	srv, err := NewConfigWithOptionsAndDefaults(configOpts...).Complete(ctx)
+	require.NoError(t, err)
+
+	conn, err := srv.GRPCDialContext(ctx)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	schemaSrv := v1.NewSchemaServiceClient(conn)
+
+	go func() {
+		require.NoError(t, srv.Run(ctx))
+	}()
+
+	spanrecorder, restoreOtel := setupSpanRecorder()
+	defer restoreOtel()
+
+	// test unary OTel middleware
+	_, err = schemaSrv.WriteSchema(ctx, &v1.WriteSchemaRequest{
+		Schema: `definition user {}`,
+	})
+	require.NoError(t, err)
+	requireSpanExists(t, spanrecorder, "authzed.api.v1.SchemaService/WriteSchema")
+
+	// test streaming OTel middleware
+	permSrv := v1.NewPermissionsServiceClient(conn)
+	rrCli, err := permSrv.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{})
+	require.NoError(t, err)
+
+	_, err = rrCli.Recv()
+	require.Error(t, err)
+
+	requireSpanExists(t, spanrecorder, "authzed.api.v1.PermissionsService/ReadRelationships")
+
+	lrCli, err := permSrv.LookupResources(ctx, &v1.LookupResourcesRequest{})
+	require.NoError(t, err)
+
+	_, err = lrCli.Recv()
+	require.Error(t, err)
+
+	requireSpanExists(t, spanrecorder, "authzed.api.v1.PermissionsService/LookupResources")
+}
+
+func requireSpanExists(t *testing.T, spanrecorder *tracetest.SpanRecorder, spanName string) {
+	t.Helper()
+
+	ended := spanrecorder.Ended()
+	var present bool
+	for _, span := range ended {
+		if span.Name() == spanName {
+			present = true
+		}
+	}
+
+	require.True(t, present, "missing trace for Streaming gRPC call")
+}
+
+func setupSpanRecorder() (*tracetest.SpanRecorder, func()) {
+	defaultProvider := otel.GetTracerProvider()
+
+	provider := trace.NewTracerProvider(
+		trace.WithSampler(trace.AlwaysSample()),
+	)
+	spanrecorder := tracetest.NewSpanRecorder()
+	provider.RegisterSpanProcessor(spanrecorder)
+	otel.SetTracerProvider(provider)
+
+	return spanrecorder, func() {
+		otel.SetTracerProvider(defaultProvider)
+	}
 }
 
 func TestServerGracefulTerminationOnError(t *testing.T) {

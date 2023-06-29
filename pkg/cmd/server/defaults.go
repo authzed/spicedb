@@ -220,7 +220,7 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(otelgrpc.StreamServerInterceptor()).
 			Done(),
 
 		NewStreamMiddleware().
