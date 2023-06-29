@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
+	"github.com/authzed/grpcutil"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -35,7 +36,7 @@ var (
 type reporter struct{}
 
 func (r *reporter) ServerReporter(ctx context.Context, callMeta interceptors.CallMeta) (interceptors.Reporter, context.Context) {
-	_, methodName := interceptors.SplitMethodName(callMeta.FullMethod())
+	_, methodName := grpcutil.SplitMethodName(callMeta.FullMethod())
 	ctx = ContextWithHandle(ctx)
 	return &serverReporter{ctx: ctx, methodName: methodName}, ctx
 }

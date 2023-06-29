@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/go-logr/zerologr"
-	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -111,14 +111,12 @@ var defaultGRPCLogOptions = []grpclog.Option{
 	// this makes sure we don't log them as errors
 	grpclog.WithLevels(func(code codes.Code) grpclog.Level {
 		if code == codes.DeadlineExceeded {
-			return grpclog.INFO
+			return grpclog.LevelInfo
 		}
 		return grpclog.DefaultServerCodeToLevel(code)
 	}),
 	// changes default logging behaviour to only log finish call message
-	grpclog.WithDecider(func(_ string, _ error) grpclog.Decision {
-		return grpclog.LogFinishCall
-	}),
+	grpclog.WithLogOnEvents(grpclog.FinishCall),
 }
 
 const (
@@ -151,7 +149,7 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -217,12 +215,12 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
 			Done(),
 
 		NewStreamMiddleware().
@@ -273,7 +271,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
+			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcprom.UnaryServerInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
@@ -282,11 +280,31 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(grpczerolog.InterceptorLogger(logger), defaultGRPCLogOptions...),
+			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.StreamServerInterceptor(),
 			grpcprom.StreamServerInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
 		}
+}
+
+func InterceptorLogger(l zerolog.Logger) grpclog.Logger {
+	return grpclog.LoggerFunc(func(ctx context.Context, lvl grpclog.Level, msg string, fields ...any) {
+		l := l.With().Fields(fields).Logger()
+
+		switch lvl {
+		case grpclog.LevelDebug:
+			l.Debug().Msg(msg)
+		case grpclog.LevelInfo:
+			l.Info().Msg(msg)
+		case grpclog.LevelWarn:
+			l.Warn().Msg(msg)
+		case grpclog.LevelError:
+			l.Error().Msg(msg)
+		default:
+			l.Error().Int("level", int(lvl)).Msg("unknown error level - falling back to info level")
+			l.Info().Msg(msg)
+		}
+	})
 }

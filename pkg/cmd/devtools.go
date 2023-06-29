@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/go-logr/zerologr"
-	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil/v2"
@@ -61,7 +60,7 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 	grpcBuilder := grpcServiceBuilder()
 	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
 		grpc.ChainUnaryInterceptor(
-			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
+			grpclog.UnaryServerInterceptor(server.InterceptorLogger(log.Logger)),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcprom.UnaryServerInterceptor,
 		))

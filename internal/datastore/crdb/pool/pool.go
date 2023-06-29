@@ -324,7 +324,7 @@ func (p *RetryPool) GC(conn *pgx.Conn) {
 }
 
 func sleepOnErr(ctx context.Context, err error, retries uint8) {
-	after := retry.BackoffExponentialWithJitter(100*time.Millisecond, 0.5)(uint(retries + 1)) // add one so we always wait at least a little bit
+	after := retry.BackoffExponentialWithJitter(100*time.Millisecond, 0.5)(ctx, uint(retries+1)) // add one so we always wait at least a little bit
 	log.Ctx(ctx).Warn().Err(err).Dur("after", after).Msg("retrying on database error")
 	time.Sleep(after)
 }

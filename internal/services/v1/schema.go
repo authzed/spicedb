@@ -26,11 +26,11 @@ func NewSchemaServer(additiveOnly bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(true),
+				grpcvalidate.UnaryServerInterceptor(),
 				usagemetrics.UnaryServerInterceptor(),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(true),
+				grpcvalidate.StreamServerInterceptor(),
 				usagemetrics.StreamServerInterceptor(),
 			),
 		},
