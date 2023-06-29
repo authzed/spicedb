@@ -152,13 +152,16 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		return checkResultError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")), emptyMetadata)
 	}
 
+	// Deduplicate any incoming resource IDs.
+	resourceIds := util.UniqueSlice(req.ResourceIds)
+
 	// Filter the incoming resource IDs for any which match the subject directly. For example, if we receive
 	// a check for resource `user:{tom, fred, sarah}#...` and a subject of `user:sarah#...`, then we know
 	// that `user:sarah#...` is a valid "member" of the resource, as it matches exactly.
 	//
 	// If the filtering results in no further resource IDs to check, or a result is found and a single
 	// result is allowed, we terminate early.
-	membershipSet, filteredResourcesIds := filterForFoundMemberResource(req.ResourceRelation, req.ResourceIds, req.Subject)
+	membershipSet, filteredResourcesIds := filterForFoundMemberResource(req.ResourceRelation, resourceIds, req.Subject)
 	if membershipSet.HasDeterminedMember() && req.DispatchCheckRequest.ResultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT {
 		return checkResultsForMembership(membershipSet, emptyMetadata)
 	}
