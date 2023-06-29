@@ -7,21 +7,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/fatih/color"
-	"github.com/go-logr/zerologr"
-	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jzelinskie/cobrautil/v2"
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
-	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
@@ -33,6 +18,21 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/middleware/serverversion"
 	"github.com/authzed/spicedb/pkg/releases"
+
+	"github.com/fatih/color"
+	"github.com/go-logr/zerologr"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
+	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/jzelinskie/cobrautil/v2"
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
+	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
 )
 
 var DisableTelemetryHandler *prometheus.Registry
@@ -106,19 +106,6 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Hand
 	return mux
 }
 
-var defaultGRPCLogOptions = []grpclog.Option{
-	// the server has a deadline set, so we consider it a normal condition
-	// this makes sure we don't log them as errors
-	grpclog.WithLevels(func(code codes.Code) grpclog.Level {
-		if code == codes.DeadlineExceeded {
-			return grpclog.LevelInfo
-		}
-		return grpclog.DefaultServerCodeToLevel(code)
-	}),
-	// changes default logging behaviour to only log finish call message
-	grpclog.WithLogOnEvents(grpclog.FinishCall),
-}
-
 const (
 	DefaultMiddlewareRequestID     = "requestid"
 	DefaultMiddlewareLog           = "log"
@@ -149,7 +136,7 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(interceptors.UnaryServerInterceptor(newReporter(logger, nil, nil, nil))).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -215,7 +202,7 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(interceptors.StreamServerInterceptor(newReporter(logger, nil, nil, nil))).
 			Done(),
 
 		NewStreamMiddleware().
@@ -271,7 +258,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
+			interceptors.UnaryServerInterceptor(newReporter(logger, nil, nil, nil)),
 			otelgrpc.UnaryServerInterceptor(),
 			grpcprom.UnaryServerInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
@@ -280,7 +267,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
-			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
+			interceptors.StreamServerInterceptor(newReporter(logger, nil, nil, nil)),
 			otelgrpc.StreamServerInterceptor(),
 			grpcprom.StreamServerInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
