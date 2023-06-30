@@ -913,8 +913,8 @@ github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a h1:bbPeKD0xmW/
 github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
 github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb h1:pSv+zRVeAYjbXRFjyytFIMRBSKWVowCi7KbXSMR/+ug=
 github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb/go.mod h1:CRUuPsmIajLt3dZIlJ5+O8IDSib6y8yrst8DkCthTa4=
-github.com/jackc/pgx/v5 v5.3.2-0.20230516120255-eab316e200b1 h1:D4pUuZ7lcoyZKket8etOvXOVNsasWJFpZ3CmO+pK5Sw=
-github.com/jackc/pgx/v5 v5.3.2-0.20230516120255-eab316e200b1/go.mod h1:sU+RaYl9qnhD3Ce+mwnFii6YEPx70mCYghBzKvqq4qo=
+github.com/jackc/pgx/v5 v5.4.1 h1:oKfB/FhuVtit1bBM3zNRRsZ925ZkMN3HXL+LgLUM9lE=
+github.com/jackc/pgx/v5 v5.4.1/go.mod h1:q6iHT8uDNXWiFNOlRqJzBTaSH3+2xCXkokxHZC5qWFY=
 github.com/jackc/puddle/v2 v2.2.0 h1:RdcDk92EJBuBS55nQMMYFXTxwstHug4jkhT5pq8VxPk=
 github.com/jackc/puddle/v2 v2.2.0/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/jdxcode/netrc v0.0.0-20221124155335-4616370d1a84 h1:2uT3aivO7NVpUPGcQX7RbHijHMyWix/yCnIrCWc+5co=
