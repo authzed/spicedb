@@ -14,10 +14,10 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ValidatedLookupSubjectsRequest represents a request after it has been validated and parsed for internal
@@ -417,7 +417,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		}
 
 		// Dispatch the found subjects as the resources of the next step.
-		util.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,

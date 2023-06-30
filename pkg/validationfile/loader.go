@@ -12,9 +12,9 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
@@ -144,7 +144,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return err
 	})
 
-	util.ForEachChunk(updates, 500, func(chunked []*core.RelationTupleUpdate) {
+	slicez.ForEachChunk(updates, 500, func(chunked []*core.RelationTupleUpdate) {
 		if err != nil {
 			return
 		}

@@ -22,7 +22,6 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -378,7 +377,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
@@ -581,7 +580,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,

@@ -1,4 +1,4 @@
-package util
+package slicez
 
 import (
 	"github.com/authzed/spicedb/internal/logging"
@@ -6,7 +6,7 @@ import (
 
 // ForEachChunk executes the given handler for each chunk of items in the slice.
 func ForEachChunk[T any](data []T, chunkSize uint16, handler func(items []T)) {
-	_, _ = ForEachChunkUntil[T](data, chunkSize, func(items []T) (bool, error) {
+	_, _ = ForEachChunkUntil(data, chunkSize, func(items []T) (bool, error) {
 		handler(items)
 		return true, nil
 	})
