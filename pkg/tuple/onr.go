@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
+	"golang.org/x/exp/slices"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -37,14 +37,14 @@ func ParseSubjectONR(subjectOnr string) *core.ObjectAndRelation {
 	}
 
 	relation := Ellipsis
-	subjectRelIndex := stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectRel")
+	subjectRelIndex := slices.Index(subjectRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		relation = groups[subjectRelIndex]
 	}
 
 	return &core.ObjectAndRelation{
-		Namespace: groups[stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectType")],
-		ObjectId:  groups[stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectID")],
+		Namespace: groups[slices.Index(subjectRegex.SubexpNames(), "subjectType")],
+		ObjectId:  groups[slices.Index(subjectRegex.SubexpNames(), "subjectID")],
 		Relation:  relation,
 	}
 }
@@ -58,9 +58,9 @@ func ParseONR(onr string) *core.ObjectAndRelation {
 	}
 
 	return &core.ObjectAndRelation{
-		Namespace: groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceType")],
-		ObjectId:  groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceID")],
-		Relation:  groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceRel")],
+		Namespace: groups[slices.Index(onrRegex.SubexpNames(), "resourceType")],
+		ObjectId:  groups[slices.Index(onrRegex.SubexpNames(), "resourceID")],
+		Relation:  groups[slices.Index(onrRegex.SubexpNames(), "resourceRel")],
 	}
 }
 

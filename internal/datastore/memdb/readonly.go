@@ -9,7 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/jzelinskie/stringz"
+	"golang.org/x/exp/slices"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -293,7 +293,7 @@ func filterFuncForFilters(
 		switch {
 		case optionalResourceType != "" && optionalResourceType != tuple.namespace:
 			return true
-		case len(optionalResourceIds) > 0 && !stringz.SliceContains(optionalResourceIds, tuple.resourceID):
+		case len(optionalResourceIds) > 0 && !slices.Contains(optionalResourceIds, tuple.resourceID):
 			return true
 		case optionalRelation != "" && optionalRelation != tuple.relation:
 			return true
@@ -305,7 +305,7 @@ func filterFuncForFilters(
 			switch {
 			case len(selector.OptionalSubjectType) > 0 && selector.OptionalSubjectType != tuple.subjectNamespace:
 				return false
-			case len(selector.OptionalSubjectIds) > 0 && !stringz.SliceContains(selector.OptionalSubjectIds, tuple.subjectObjectID):
+			case len(selector.OptionalSubjectIds) > 0 && !slices.Contains(selector.OptionalSubjectIds, tuple.subjectObjectID):
 				return false
 			}
 
@@ -322,7 +322,7 @@ func filterFuncForFilters(
 				relations = append(relations, selector.RelationFilter.NonEllipsisRelation)
 			}
 
-			return len(relations) == 0 || stringz.SliceContains(relations, tuple.subjectRelation)
+			return len(relations) == 0 || slices.Contains(relations, tuple.subjectRelation)
 		}
 
 		if len(optionalSubjectsSelectors) > 0 {
