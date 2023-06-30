@@ -4,6 +4,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -26,7 +27,7 @@ func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
 // is conditional due to the use of a caveat on the relationship which formed the mapping.
 type resourcesSubjectMap struct {
 	resourceType         *core.RelationReference
-	resourcesAndSubjects *util.MultiMap[string, subjectInfo]
+	resourcesAndSubjects *mapz.MultiMap[string, subjectInfo]
 }
 
 // subjectInfo is the information about a subject contained in a resourcesSubjectMap.
@@ -38,14 +39,14 @@ type subjectInfo struct {
 func newResourcesSubjectMap(resourceType *core.RelationReference) resourcesSubjectMap {
 	return resourcesSubjectMap{
 		resourceType:         resourceType,
-		resourcesAndSubjects: util.NewMultiMap[string, subjectInfo](),
+		resourcesAndSubjects: mapz.NewMultiMap[string, subjectInfo](),
 	}
 }
 
 func newResourcesSubjectMapWithCapacity(resourceType *core.RelationReference, capacity uint32) resourcesSubjectMap {
 	return resourcesSubjectMap{
 		resourceType:         resourceType,
-		resourcesAndSubjects: util.NewMultiMapWithCapacity[string, subjectInfo](capacity),
+		resourcesAndSubjects: mapz.NewMultiMapWithCap[string, subjectInfo](capacity),
 	}
 }
 
@@ -90,7 +91,7 @@ func (rsm resourcesSubjectMap) len() int {
 // its use by concurrent callers.
 type dispatchableResourcesSubjectMap struct {
 	resourceType         *core.RelationReference
-	resourcesAndSubjects util.ReadOnlyMultimap[string, subjectInfo]
+	resourcesAndSubjects mapz.ReadOnlyMultimap[string, subjectInfo]
 }
 
 func (rsm dispatchableResourcesSubjectMap) isEmpty() bool {

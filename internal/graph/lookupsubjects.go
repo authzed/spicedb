@@ -13,6 +13,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -111,7 +112,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 
 	toDispatchByType := datasets.NewSubjectByTypeSet()
 	foundSubjectsByResourceID := datasets.NewSubjectSetByResourceID()
-	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return it.Err()
