@@ -206,7 +206,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 	defer it.Close()
 
 	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
-	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return it.Err()
@@ -326,7 +326,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
 	toDispatchByType *datasets.SubjectByTypeSet,
-	relationshipsBySubjectONR *util.MultiMap[string, *core.RelationTuple],
+	relationshipsBySubjectONR *mapz.MultiMap[string, *core.RelationTuple],
 	parentStream dispatch.LookupSubjectsStream,
 ) error {
 	if toDispatchByType.IsEmpty() {

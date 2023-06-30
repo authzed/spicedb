@@ -21,10 +21,10 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 type reachableResource struct {
@@ -791,7 +791,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 			require.NoError(t, err)
 			defer cancel()
 
-			foundResources := util.NewSet[string]()
+			foundResources := mapz.NewSet[string]()
 			var cursor *v1.Cursor
 
 			for index, result := range stream.Results() {
@@ -875,7 +875,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 		t.Run(fmt.Sprintf("limit-%d", limit), func(t *testing.T) {
 			dispatcher := NewLocalOnlyDispatcher(2)
 			var cursor *v1.Cursor
-			foundResources := util.NewSet[string]()
+			foundResources := mapz.NewSet[string]()
 
 			for i := 0; i < (410/int(limit))+1; i++ {
 				ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
@@ -1235,7 +1235,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 					ctx := datastoremw.ContextWithHandle(context.Background())
 					require.NoError(datastoremw.SetInContext(ctx, ds))
 
-					foundResourceIDs := util.NewSet[string]()
+					foundResourceIDs := mapz.NewSet[string]()
 
 					var currentCursor *v1.Cursor
 					for {
@@ -1423,7 +1423,7 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 	require.NoError(t, err)
 
 	testRels := make([]*core.RelationTuple, 0)
-	expectedResources := util.NewSet[string]()
+	expectedResources := mapz.NewSet[string]()
 
 	for i := 0; i < 410; i++ {
 		if i < 250 {
@@ -1480,7 +1480,7 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 			}, stream)
 			require.NoError(t, err)
 
-			foundResources := util.NewSet[string]()
+			foundResources := mapz.NewSet[string]()
 			for _, result := range stream.Results() {
 				foundResources.Add(result.Resource.ResourceId)
 			}

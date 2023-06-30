@@ -19,10 +19,10 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 var ONR = tuple.ObjectAndRelation
@@ -292,7 +292,7 @@ func TestCheckMetadata(t *testing.T) {
 	}
 }
 
-func addFrame(trace *v1.CheckDebugTrace, foundFrames *util.Set[string]) {
+func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
 	foundFrames.Add(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
 	for _, subTrace := range trace.SubProblems {
 		addFrame(subTrace, foundFrames)
@@ -398,12 +398,12 @@ func TestCheckDebugging(t *testing.T) {
 			require.NotNil(checkResult.Metadata.DebugInfo.Check)
 			require.NotNil(checkResult.Metadata.DebugInfo.Check.Duration)
 
-			expectedFrames := util.NewSet[string]()
+			expectedFrames := mapz.NewSet[string]()
 			for _, expectedFrame := range tc.expectedFrames {
 				expectedFrames.Add(fmt.Sprintf("%s:%s#%s", expectedFrame.resourceType.Namespace, strings.Join(expectedFrame.resourceIDs, ","), expectedFrame.resourceType.Relation))
 			}
 
-			foundFrames := util.NewSet[string]()
+			foundFrames := mapz.NewSet[string]()
 			addFrame(checkResult.Metadata.DebugInfo.Check, foundFrames)
 
 			require.Empty(expectedFrames.Subtract(foundFrames).AsSlice(), "missing expected frames: %v", expectedFrames.Subtract(foundFrames).AsSlice())

@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/util"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 
@@ -156,7 +156,7 @@ func listAndCache[T schemaDefinition](
 	}
 
 	// Check the cache for each entry.
-	remainingToLoad := util.NewSet[string]()
+	remainingToLoad := mapz.NewSet[string]()
 	remainingToLoad.Extend(names)
 
 	foundDefs := make([]datastore.RevisionedDefinition[T], 0, len(names))

@@ -4,10 +4,10 @@ import (
 	"github.com/scylladb/go-set/strset"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // DeltaType defines the type of namespace deltas.
@@ -214,8 +214,8 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 			updatedTypeInfo = &core.TypeInformation{}
 		}
 
-		existingAllowedRels := util.NewSet[string]()
-		updatedAllowedRels := util.NewSet[string]()
+		existingAllowedRels := mapz.NewSet[string]()
+		updatedAllowedRels := mapz.NewSet[string]()
 		allowedRelsBySource := map[string]*core.AllowedRelation{}
 
 		for _, existingAllowed := range existingTypeInfo.AllowedDirectRelations {

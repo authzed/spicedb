@@ -3,9 +3,8 @@ package namespace
 import (
 	"context"
 
-	"github.com/authzed/spicedb/pkg/util"
-
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -53,7 +52,7 @@ type TypeAndRelationToCheck struct {
 // Returns ErrRelationNotFound if the relation was not found in the namespace.
 // Returns the direct downstream error for all other unknown error.
 func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToCheck, ds datastore.Reader) error {
-	nsNames := util.NewSet[string]()
+	nsNames := mapz.NewSet[string]()
 	for _, toCheck := range checks {
 		nsNames.Add(toCheck.NamespaceName)
 	}
@@ -148,7 +147,7 @@ func ReadNamespaceAndTypes(
 // given namespace definitions. This includes the namespaces themselves, as well as
 // any found in type information on relations.
 func ListReferencedNamespaces(nsdefs []*core.NamespaceDefinition) []string {
-	referencedNamespaceNamesSet := util.NewSet[string]()
+	referencedNamespaceNamesSet := mapz.NewSet[string]()
 	for _, nsdef := range nsdefs {
 		referencedNamespaceNamesSet.Add(nsdef.Name)
 

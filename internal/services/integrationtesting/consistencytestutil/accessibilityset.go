@@ -15,7 +15,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ObjectAndPermission contains an object ID and whether it is a caveated result.
@@ -84,7 +83,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	relsByResourceNamespace := mapz.NewMultiMap[string, *core.RelationTuple]()
 	resourcesByNamespace := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
 	subjectsByNamespace := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
-	allObjectIds := util.NewSet[string]()
+	allObjectIds := mapz.NewSet[string]()
 
 	for _, tpl := range ccd.Populated.Tuples {
 		relsByResourceNamespace.Add(tpl.ResourceAndRelation.Namespace, tpl)
@@ -305,7 +304,7 @@ func (as *AccessibilitySet) SubjectTypes() []*core.RelationReference {
 // AllSubjectsNoWildcards returns all *defined*, non-wildcard subjects found.
 func (as *AccessibilitySet) AllSubjectsNoWildcards() []*core.ObjectAndRelation {
 	subjects := make([]*core.ObjectAndRelation, 0)
-	seenSubjects := util.NewSet[string]()
+	seenSubjects := mapz.NewSet[string]()
 	for _, subject := range as.SubjectsByNamespace.Values() {
 		if subject.ObjectId == tuple.PublicWildcard {
 			continue

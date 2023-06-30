@@ -19,10 +19,10 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 var (
@@ -490,7 +490,7 @@ func TestMixedCaching(t *testing.T) {
 			require.NoError(err)
 			require.Equal(2, len(found))
 
-			names := util.NewSet[string]()
+			names := mapz.NewSet[string]()
 			for _, d := range found {
 				names.Add(d.GetName())
 			}
@@ -503,7 +503,7 @@ func TestMixedCaching(t *testing.T) {
 			require.NoError(err)
 			require.Equal(2, len(foundAgain))
 
-			namesAgain := util.NewSet[string]()
+			namesAgain := mapz.NewSet[string]()
 			for _, d := range foundAgain {
 				namesAgain.Add(d.GetName())
 			}

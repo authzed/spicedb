@@ -24,11 +24,11 @@ import (
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/development"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
@@ -249,7 +249,7 @@ func validateRelationshipReads(t *testing.T, vctx validationContext) {
 		)
 		require.NoError(t, err)
 
-		foundRelationshipsSet := util.NewSet[string]()
+		foundRelationshipsSet := mapz.NewSet[string]()
 		for _, rel := range foundRelationships {
 			foundRelationshipsSet.Add(tuple.MustString(rel))
 		}
@@ -320,8 +320,8 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 }
 
 func requireSameSets(t *testing.T, expected []string, found []string) {
-	expectedSet := util.NewSet(expected...)
-	foundSet := util.NewSet(found...)
+	expectedSet := mapz.NewSet(expected...)
+	foundSet := mapz.NewSet(found...)
 
 	orderedExpected := expectedSet.AsSlice()
 	orderedFound := foundSet.AsSlice()
@@ -337,7 +337,7 @@ func requireSubsetOf(t *testing.T, found []string, expected []string) {
 		return
 	}
 
-	foundSet := util.NewSet(found...)
+	foundSet := mapz.NewSet(found...)
 	for _, expectedObjectID := range expected {
 		require.True(t, foundSet.Has(expectedObjectID), "missing expected object ID %s", expectedObjectID)
 	}

@@ -28,12 +28,12 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	pgraph "github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -1467,7 +1467,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 							t.Cleanup(cleanup)
 
 							var currentCursor *v1.Cursor
-							foundObjectIds := util.NewSet[string]()
+							foundObjectIds := mapz.NewSet[string]()
 
 							for i := 0; i < 5; i++ {
 								var trailer metadata.MD
@@ -1553,7 +1553,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 
 	require.NoError(t, err)
 
-	foundObjectIds := util.NewSet[string]()
+	foundObjectIds := mapz.NewSet[string]()
 	for {
 		resp, err := lookupClient.Recv()
 		if errors.Is(err, io.EOF) {

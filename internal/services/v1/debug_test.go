@@ -20,9 +20,9 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -45,7 +45,7 @@ type debugCheckInfo struct {
 
 func expectDebugFrames(permissionNames ...string) rda {
 	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
-		found := util.NewSet[string]()
+		found := mapz.NewSet[string]()
 		for _, sp := range debugInfo.Check.GetSubProblems().Traces {
 			for _, permissionName := range permissionNames {
 				if sp.Permission == permissionName {

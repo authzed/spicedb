@@ -9,9 +9,9 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 type validatingDatastore struct {
@@ -198,7 +198,7 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	}
 
 	// Ensure there are no duplicate mutations.
-	tupleSet := util.NewSet[string]()
+	tupleSet := mapz.NewSet[string]()
 	for _, mutation := range mutations {
 		if err := mutation.Validate(); err != nil {
 			return err

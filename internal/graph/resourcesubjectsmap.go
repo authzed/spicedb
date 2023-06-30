@@ -9,7 +9,6 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 type syncONRSet struct {
@@ -187,8 +186,8 @@ func (rsm dispatchableResourcesSubjectMap) mapFoundResource(foundResource *v1.Re
 		status = v1.ReachableResource_REQUIRES_CHECK
 	}
 
-	forSubjectIDs := util.NewSet[string]()
-	nonCaveatedSubjectIDs := util.NewSet[string]()
+	forSubjectIDs := mapz.NewSet[string]()
+	nonCaveatedSubjectIDs := mapz.NewSet[string]()
 	for _, forSubjectID := range foundResource.ForSubjectIds {
 		// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
 		infos, ok := rsm.resourcesAndSubjects.Get(forSubjectID)

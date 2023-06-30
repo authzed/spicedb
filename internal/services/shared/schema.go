@@ -8,17 +8,17 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
 	compiled          *compiler.CompiledSchema
-	newCaveatDefNames *util.Set[string]
-	newObjectDefNames *util.Set[string]
+	newCaveatDefNames *mapz.Set[string]
+	newObjectDefNames *mapz.Set[string]
 	additiveOnly      bool
 }
 
@@ -26,7 +26,7 @@ type ValidatedSchemaChanges struct {
 // ValidatedSchemaChanges, if fully validated.
 func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchema, additiveOnly bool) (*ValidatedSchemaChanges, error) {
 	// 1) Validate the caveats defined.
-	newCaveatDefNames := util.NewSet[string]()
+	newCaveatDefNames := mapz.NewSet[string]()
 	for _, caveatDef := range compiled.CaveatDefinitions {
 		if err := namespace.ValidateCaveatDefinition(caveatDef); err != nil {
 			return nil, err
@@ -36,7 +36,7 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 	}
 
 	// 2) Validate the namespaces defined.
-	newObjectDefNames := util.NewSet[string]()
+	newObjectDefNames := mapz.NewSet[string]()
 	for _, nsdef := range compiled.ObjectDefinitions {
 		ts, err := namespace.NewNamespaceTypeSystem(nsdef,
 			namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
@@ -113,7 +113,7 @@ func ApplySchemaChangesOverExisting(
 ) (*AppliedSchemaChanges, error) {
 	// Build a map of existing caveats to determine those being removed, if any.
 	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
-	existingCaveatDefNames := util.NewSet[string]()
+	existingCaveatDefNames := mapz.NewSet[string]()
 
 	for _, existingCaveat := range existingCaveats {
 		existingCaveatDefMap[existingCaveat.Name] = existingCaveat
@@ -137,7 +137,7 @@ func ApplySchemaChangesOverExisting(
 
 	// Build a map of existing definitions to determine those being removed, if any.
 	existingObjectDefMap := make(map[string]*core.NamespaceDefinition, len(existingObjectDefs))
-	existingObjectDefNames := util.NewSet[string]()
+	existingObjectDefNames := mapz.NewSet[string]()
 	for _, existingDef := range existingObjectDefs {
 		existingObjectDefMap[existingDef.Name] = existingDef
 		existingObjectDefNames.Add(existingDef.Name)
@@ -209,10 +209,10 @@ func ApplySchemaChangesOverExisting(
 	log.Ctx(ctx).Trace().
 		Interface("objectDefinitions", validated.compiled.ObjectDefinitions).
 		Interface("caveatDefinitions", validated.compiled.CaveatDefinitions).
-		Object("addedOrChangedObjectDefinitions", util.StringSet(validated.newObjectDefNames)).
-		Object("removedObjectDefinitions", util.StringSet(removedObjectDefNames)).
-		Object("addedOrChangedCaveatDefinitions", util.StringSet(validated.newCaveatDefNames)).
-		Object("removedCaveatDefinitions", util.StringSet(removedCaveatDefNames)).
+		Object("addedOrChangedObjectDefinitions", validated.newObjectDefNames).
+		Object("removedObjectDefinitions", removedObjectDefNames).
+		Object("addedOrChangedCaveatDefinitions", validated.newCaveatDefNames).
+		Object("removedCaveatDefinitions", removedCaveatDefNames).
 		Msg("completed schema update")
 
 	return &AppliedSchemaChanges{
