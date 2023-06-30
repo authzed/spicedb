@@ -1,4 +1,4 @@
-package util
+package slicez
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ func TestUniqueSlice(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(fmt.Sprintf("%v", tc.input), func(t *testing.T) {
-			require.Equal(t, tc.output, UniqueSlice(tc.input))
+			require.Equal(t, tc.output, Unique(tc.input))
 		})
 	}
 }

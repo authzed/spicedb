@@ -14,6 +14,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -153,7 +154,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	// Deduplicate any incoming resource IDs.
-	resourceIds := util.UniqueSlice(req.ResourceIds)
+	resourceIds := slicez.Unique(req.ResourceIds)
 
 	// Filter the incoming resource IDs for any which match the subject directly. For example, if we receive
 	// a check for resource `user:{tom, fred, sarah}#...` and a subject of `user:sarah#...`, then we know
