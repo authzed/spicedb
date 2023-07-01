@@ -49,7 +49,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/lthibault/jitterbug v2.0.0+incompatible
 	github.com/magefile/mage v1.15.0
-	github.com/mostynb/go-grpc-compression v1.1.17
+	github.com/mostynb/go-grpc-compression v1.2.0
 	github.com/ngrok/sqlmw v0.0.0-20211220175533-9d16fdc47b31
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/outcaste-io/ristretto v0.2.0
@@ -82,8 +82,9 @@ require (
 	golang.org/x/tools v0.9.1
 	golang.org/x/vuln v0.1.0
 	google.golang.org/api v0.114.0
-	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
-	google.golang.org/grpc v1.54.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20230525234020-1aefcd67740a
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc
+	google.golang.org/grpc v1.55.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -350,6 +351,7 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/genproto v0.0.0-20230525234025-438c736192d0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	honnef.co/go/tools v0.4.3 // indirect
