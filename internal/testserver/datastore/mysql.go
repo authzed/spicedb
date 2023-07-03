@@ -22,6 +22,7 @@ import (
 
 const (
 	mysqlPort    = 3306
+	mysqlPortStr = "3306/tcp"
 	defaultCreds = "root:secret"
 	testDBPrefix = "spicedb_test_"
 )
@@ -61,6 +62,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		Repository: "mysql",
 		Tag:        containerImageTag,
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+		ExposedPorts: []string{mysqlPortStr},
 		// increase max connections (default 151) to accommodate tests using the same docker container
 		Cmd:       []string{"--max-connections=500"},
 		NetworkID: bridgeNetworkName,
@@ -75,7 +77,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		require.NoError(t, pool.Purge(resource))
 	})
 
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", mysqlPort))
+	port := resource.GetPort(mysqlPortStr)
 	if bridgeNetworkName != "" {
 		builder.hostname = name
 		builder.port = fmt.Sprintf("%d", mysqlPort)
