@@ -42,7 +42,7 @@ require (
 	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgio v1.0.0
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
-	github.com/jackc/pgx/v5 v5.3.2-0.20230516120255-eab316e200b1
+	github.com/jackc/pgx/v5 v5.4.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20220314170512-33c13122505e
 	github.com/jzelinskie/cobrautil/v2 v2.0.0-20230403163312-3593f31d8fe1
 	github.com/jzelinskie/stringz v0.0.1

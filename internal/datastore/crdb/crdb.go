@@ -90,26 +90,27 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
-	initCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer initCancel()
 
 	healthChecker, err := pool.NewNodeHealthChecker(url)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	writePool, err := pool.NewRetryPool(initCtx, "write", writePoolConfig.Copy(), healthChecker, config.maxRetries, config.connectRate)
+	// The initPool is a 1-connection pool that is only used for setup tasks.
+	// The actual pools are not given the initCtx, since cancellation can
+	// interfere with pool setup.
+	initPoolConfig := readPoolConfig.Copy()
+	initPoolConfig.MinConns = 1
+	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
-
-	readPool, err := pool.NewRetryPool(initCtx, "read", readPoolConfig.Copy(), healthChecker, config.maxRetries, config.connectRate)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
-	}
+	defer initPool.Close()
 
 	var version crdbVersion
-	if err := queryServerVersion(initCtx, readPool, &version); err != nil {
+	if err := queryServerVersion(initCtx, initPool, &version); err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
@@ -119,23 +120,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		changefeedQuery = queryChangefeedPreV22
 	}
 
-	if config.enablePrometheusStats {
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
-			"db_name":    "spicedb",
-			"pool_usage": "write",
-		})); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
-
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
-			"db_name":    "spicedb",
-			"pool_usage": "read",
-		})); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
-	}
-
-	clusterTTLNanos, err := readClusterTTLNanos(initCtx, readPool)
+	clusterTTLNanos, err := readClusterTTLNanos(initCtx, initPool)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read cluster gc window: %w", err)
 	}
@@ -184,8 +169,6 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		),
 		DecimalDecoder:       revision.DecimalDecoder{},
 		dburl:                url,
-		readPool:             readPool,
-		writePool:            writePool,
 		watchBufferLength:    config.watchBufferLength,
 		writeOverlapKeyer:    keyer,
 		overlapKeyInit:       keySetInit,
@@ -193,8 +176,38 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		disableStats:         config.disableStats,
 		beginChangefeedQuery: changefeedQuery,
 	}
-
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
+
+	// this ctx and cancel is tied to the lifetime of the datastore
+	ds.ctx, ds.cancel = context.WithCancel(context.Background())
+	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	if err != nil {
+		ds.cancel()
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
+	if err != nil {
+		ds.cancel()
+		return nil, fmt.Errorf(errUnableToInstantiate, err)
+	}
+
+	if config.enablePrometheusStats {
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(ds.writePool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "write",
+		})); err != nil {
+			ds.cancel()
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+
+		if err := prometheus.Register(pgxpoolprometheus.NewCollector(ds.readPool, map[string]string{
+			"db_name":    "spicedb",
+			"pool_usage": "read",
+		})); err != nil {
+			ds.cancel()
+			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		}
+	}
 
 	// TODO: this (and the GC startup that it's based on for mysql/pg) should
 	// be removed and have the lifetimes tied to server start/stop.
@@ -202,20 +215,19 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	// Start goroutines for pruning
 	if config.enableConnectionBalancing {
 		log.Ctx(initCtx).Info().Msg("starting cockroach connection balancer")
-		ds.pruneCtx, ds.cancelPrune = context.WithCancel(context.Background())
-		ds.pruneGroup, ds.pruneCtx = errgroup.WithContext(ds.pruneCtx)
+		ds.pruneGroup, ds.ctx = errgroup.WithContext(ds.ctx)
 		writePoolBalancer := pool.NewNodeConnectionBalancer(ds.writePool, healthChecker, 5*time.Second)
 		readPoolBalancer := pool.NewNodeConnectionBalancer(ds.readPool, healthChecker, 5*time.Second)
 		ds.pruneGroup.Go(func() error {
-			writePoolBalancer.Prune(ds.pruneCtx)
+			writePoolBalancer.Prune(ds.ctx)
 			return nil
 		})
 		ds.pruneGroup.Go(func() error {
-			readPoolBalancer.Prune(ds.pruneCtx)
+			readPoolBalancer.Prune(ds.ctx)
 			return nil
 		})
 		ds.pruneGroup.Go(func() error {
-			healthChecker.Poll(ds.pruneCtx, 5*time.Second)
+			healthChecker.Poll(ds.ctx, 5*time.Second)
 			return nil
 		})
 	}
@@ -247,9 +259,9 @@ type crdbDatastore struct {
 
 	beginChangefeedQuery string
 
-	pruneGroup  *errgroup.Group
-	pruneCtx    context.Context
-	cancelPrune context.CancelFunc
+	pruneGroup *errgroup.Group
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -388,7 +400,7 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 }
 
 func (cds *crdbDatastore) Close() error {
-	cds.cancelPrune()
+	cds.cancel()
 	cds.readPool.Close()
 	cds.writePool.Close()
 	return nil
