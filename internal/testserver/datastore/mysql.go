@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	mysqlPort    = 3306
-	mysqlPortStr = "3306/tcp"
+	mysqlPort     = "3306"
+	mysqlPortPair = mysqlPort + "/tcp"
 	defaultCreds = "root:secret"
 	testDBPrefix = "spicedb_test_"
 )
@@ -62,30 +62,29 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		Repository: "mysql",
 		Tag:        containerImageTag,
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
-		ExposedPorts: []string{mysqlPortStr},
-		// increase max connections (default 151) to accommodate tests using the same docker container
-		Cmd:       []string{"--max-connections=500"},
-		NetworkID: bridgeNetworkName,
+		ExposedPorts: []string{mysqlPortPair},
+		Cmd:          []string{"--max-connections=500"}, // accommodate tests using the same container
+		NetworkID:    bridgeNetworkName,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, pool.Purge(resource))
+	})
 
 	builder := &mysqlTester{
 		creds:   defaultCreds,
 		options: options,
 	}
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(resource))
-	})
 
-	port := resource.GetPort(mysqlPortStr)
 	if bridgeNetworkName != "" {
 		builder.hostname = name
-		builder.port = fmt.Sprintf("%d", mysqlPort)
+		builder.port = mysqlPort
 	} else {
-		builder.port = port
+		builder.hostname = "localhost"
+		builder.port = resource.GetPort(mysqlPortPair)
 	}
 
-	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, port)
+	dsn := fmt.Sprintf("%s@(localhost:%s)/mysql?parseTime=true", builder.creds, builder.port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
 		builder.db, err = sql.Open("mysql", dsn)
