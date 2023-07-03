@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -17,7 +18,6 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 func TestTypeSystem(t *testing.T) {
@@ -397,12 +397,12 @@ func noError[T any](result T, err error) T {
 }
 
 func requireSameAllowedRelations(t *testing.T, found []*core.AllowedRelation, expected ...*core.AllowedRelation) {
-	foundSet := util.NewSet[string]()
+	foundSet := mapz.NewSet[string]()
 	for _, f := range found {
 		foundSet.Add(SourceForAllowedRelation(f))
 	}
 
-	expectSet := util.NewSet[string]()
+	expectSet := mapz.NewSet[string]()
 	for _, e := range expected {
 		expectSet.Add(SourceForAllowedRelation(e))
 	}
@@ -417,12 +417,12 @@ func requireSameAllowedRelations(t *testing.T, found []*core.AllowedRelation, ex
 }
 
 func requireSameSubjectRelations(t *testing.T, found []*core.RelationReference, expected ...*core.RelationReference) {
-	foundSet := util.NewSet[string]()
+	foundSet := mapz.NewSet[string]()
 	for _, f := range found {
 		foundSet.Add(tuple.StringRR(f))
 	}
 
-	expectSet := util.NewSet[string]()
+	expectSet := mapz.NewSet[string]()
 	for _, e := range expected {
 		expectSet.Add(tuple.StringRR(e))
 	}

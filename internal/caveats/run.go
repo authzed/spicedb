@@ -11,9 +11,9 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
@@ -100,7 +100,7 @@ func runExpression(
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
 	// Collect all referenced caveat definitions in the expression.
-	caveatNames := util.NewSet[string]()
+	caveatNames := mapz.NewSet[string]()
 	collectCaveatNames(expr, caveatNames)
 
 	if caveatNames.IsEmpty() {
@@ -317,7 +317,7 @@ func combineMaps(first map[string]any, second map[string]any) map[string]any {
 	return cloned
 }
 
-func collectCaveatNames(expr *core.CaveatExpression, caveatNames *util.Set[string]) {
+func collectCaveatNames(expr *core.CaveatExpression, caveatNames *mapz.Set[string]) {
 	if expr.GetCaveat() != nil {
 		caveatNames.Add(expr.GetCaveat().CaveatName)
 		return

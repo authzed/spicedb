@@ -1,16 +1,17 @@
-package util
+package mapz
 
 import (
 	"golang.org/x/exp/maps"
 )
 
-// ReadOnlyMultimap is a read-only version of the multimap.
+// ReadOnlyMultimap is a read-only multimap.
 type ReadOnlyMultimap[T comparable, Q any] interface {
 	// Has returns true if the key is found in the map.
 	Has(key T) bool
 
-	// Get returns the values for the given key in the map and whether the key existed. If the key
-	// does not exist, an empty slice is returned.
+	// Get returns the values for the given key in the map and whether the key
+	// existed.
+	// If the key does not exist, an empty slice is returned.
 	Get(key T) ([]Q, bool)
 
 	// IsEmpty returns true if the map is currently empty.
@@ -26,18 +27,15 @@ type ReadOnlyMultimap[T comparable, Q any] interface {
 	Values() []Q
 }
 
-// NewMultiMap creates and returns a new MultiMap from keys of type T to values of type Q.
+// NewMultiMap initializes a new MultiMap.
 func NewMultiMap[T comparable, Q any]() *MultiMap[T, Q] {
-	return &MultiMap[T, Q]{
-		items: map[T][]Q{},
-	}
+	return &MultiMap[T, Q]{items: map[T][]Q{}}
 }
 
-// NewMultiMapWithCapacity creates and returns a new MultiMap from keys of type T to values of type Q.
-func NewMultiMapWithCapacity[T comparable, Q any](capacity uint32) *MultiMap[T, Q] {
-	return &MultiMap[T, Q]{
-		items: make(map[T][]Q, capacity),
-	}
+// NewMultiMapWithCap initializes with the provided capacity for the top-level
+// map.
+func NewMultiMapWithCap[T comparable, Q any](capacity uint32) *MultiMap[T, Q] {
+	return &MultiMap[T, Q]{items: make(map[T][]Q, capacity)}
 }
 
 // MultiMap represents a map that can contain 1 or more values for each key.
@@ -50,9 +48,11 @@ func (mm *MultiMap[T, Q]) Clear() {
 	mm.items = map[T][]Q{}
 }
 
-// Add adds the value to the map for the given key. If there exists an existing value, then this
-// value is added to those already present *without comparison*. This means a value can be added
-// twice, if this method is called again for the same value.
+// Add inserts the value into the map at the given key.
+//
+// If there exists an existing value, then this value is appended
+// *without comparison*. Put another way, a value can be added twice, if this
+// method is called twice for the same value.
 func (mm *MultiMap[T, Q]) Add(key T, item Q) {
 	if _, ok := mm.items[key]; !ok {
 		mm.items[key] = []Q{}
@@ -72,8 +72,10 @@ func (mm *MultiMap[T, Q]) Has(key T) bool {
 	return ok
 }
 
-// Get returns the values for the given key in the map and whether the key existed. If the key
-// does not exist, an empty slice is returned.
+// Get returns the values stored in the map for the provided key and whether
+// the key existed.
+//
+// If the key does not exist, an empty slice is returned.
 func (mm *MultiMap[T, Q]) Get(key T) ([]Q, bool) {
 	found, ok := mm.items[key]
 	if !ok {
@@ -84,19 +86,13 @@ func (mm *MultiMap[T, Q]) Get(key T) ([]Q, bool) {
 }
 
 // IsEmpty returns true if the map is currently empty.
-func (mm *MultiMap[T, Q]) IsEmpty() bool {
-	return len(mm.items) == 0
-}
+func (mm *MultiMap[T, Q]) IsEmpty() bool { return len(mm.items) == 0 }
 
 // Len returns the length of the map, e.g. the number of *keys* present.
-func (mm *MultiMap[T, Q]) Len() int {
-	return len(mm.items)
-}
+func (mm *MultiMap[T, Q]) Len() int { return len(mm.items) }
 
 // Keys returns the keys of the map.
-func (mm *MultiMap[T, Q]) Keys() []T {
-	return maps.Keys(mm.items)
-}
+func (mm *MultiMap[T, Q]) Keys() []T { return maps.Keys(mm.items) }
 
 // Values returns all values in the map.
 func (mm MultiMap[T, Q]) Values() []Q {
@@ -136,19 +132,13 @@ func (mm readOnlyMultimap[T, Q]) Get(key T) ([]Q, bool) {
 }
 
 // IsEmpty returns true if the map is currently empty.
-func (mm readOnlyMultimap[T, Q]) IsEmpty() bool {
-	return len(mm.items) == 0
-}
+func (mm readOnlyMultimap[T, Q]) IsEmpty() bool { return len(mm.items) == 0 }
 
 // Len returns the length of the map, e.g. the number of *keys* present.
-func (mm readOnlyMultimap[T, Q]) Len() int {
-	return len(mm.items)
-}
+func (mm readOnlyMultimap[T, Q]) Len() int { return len(mm.items) }
 
 // Keys returns the keys of the map.
-func (mm readOnlyMultimap[T, Q]) Keys() []T {
-	return maps.Keys(mm.items)
-}
+func (mm readOnlyMultimap[T, Q]) Keys() []T { return maps.Keys(mm.items) }
 
 // Values returns all values in the map.
 func (mm readOnlyMultimap[T, Q]) Values() []Q {

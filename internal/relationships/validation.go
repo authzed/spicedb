@@ -6,10 +6,10 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ValidateRelationships performs validation on the given relationships, ensuring that
@@ -19,8 +19,8 @@ func ValidateRelationships(
 	reader datastore.Reader,
 	rels []*core.RelationTuple,
 ) error {
-	referencedNamespaceNames := util.NewSet[string]()
-	referencedCaveatNamesWithContext := util.NewSet[string]()
+	referencedNamespaceNames := mapz.NewSet[string]()
+	referencedCaveatNamesWithContext := mapz.NewSet[string]()
 	for _, rel := range rels {
 		referencedNamespaceNames.Add(rel.ResourceAndRelation.Namespace)
 		referencedNamespaceNames.Add(rel.Subject.Namespace)

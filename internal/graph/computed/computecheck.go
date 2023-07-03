@@ -7,9 +7,9 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // DebugOption defines the various debug level options for Checks.
@@ -95,7 +95,7 @@ func computeCheck(ctx context.Context,
 	resultMetadatas := make(map[string]*v1.ResponseMeta, len(resourceIDs))
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
-	_, err := util.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
+	_, err := slicez.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
 		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: params.ResourceType,
 			ResourceIds:      resourceIDsToCheck,

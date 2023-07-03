@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/caveats"
-
-	"github.com/authzed/spicedb/pkg/util"
-
 	"github.com/jzelinskie/stringz"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -49,7 +46,7 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
-	names := util.NewSet[string]()
+	names := mapz.NewSet[string]()
 
 	for _, definitionNode := range root.GetChildren() {
 		var definition SchemaDefinition

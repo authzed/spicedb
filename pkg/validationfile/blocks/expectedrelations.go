@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
+	"golang.org/x/exp/slices"
 
 	yamlv3 "gopkg.in/yaml.v3"
 
@@ -179,13 +179,13 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 	}
 
-	subjectONRString := groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
+	subjectONRString := groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
 	subjectONR := tuple.ParseSubjectONR(subjectONRString)
 	if subjectONR == nil {
 		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectONRString), subjectONRString, 0, 0)
 	}
 
-	exceptionsString := strings.TrimSpace(groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
+	exceptionsString := strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
 	var exceptions []SubjectAndCaveat
 
 	if len(exceptionsString) > 0 {
@@ -207,7 +207,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 		}
 	}
 
-	isCaveated := len(strings.TrimSpace(groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "caveat")])) > 0
+	isCaveated := len(strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "caveat")])) > 0
 	return &SubjectWithExceptions{SubjectAndCaveat{subjectONR, isCaveated}, exceptions}, nil
 }
 

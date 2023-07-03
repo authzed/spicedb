@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 const tableCaveats = "caveats"
@@ -96,7 +96,7 @@ func (r *memdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []
 		return nil, err
 	}
 
-	allowedCaveatNames := util.NewSet[string]()
+	allowedCaveatNames := mapz.NewSet[string]()
 	allowedCaveatNames.Extend(caveatNames)
 
 	toReturn := make([]datastore.RevisionedCaveat, 0, len(caveatNames))
@@ -119,7 +119,7 @@ func (rwt *memdbReadWriteTx) WriteCaveats(_ context.Context, caveats []*core.Cav
 }
 
 func (rwt *memdbReadWriteTx) writeCaveat(tx *memdb.Txn, caveats []*core.CaveatDefinition) error {
-	caveatNames := util.NewSet[string]()
+	caveatNames := mapz.NewSet[string]()
 	for _, coreCaveat := range caveats {
 		if !caveatNames.Add(coreCaveat.Name) {
 			return fmt.Errorf("duplicate caveat %s", coreCaveat.Name)

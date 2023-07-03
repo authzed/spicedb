@@ -26,11 +26,11 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/pagination"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -265,7 +265,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	// Check for duplicate updates and create the set of caveat names to load.
-	updateRelationshipSet := util.NewSet[string]()
+	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
 		tupleStr := tuple.StringRelationshipWithoutCaveat(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {

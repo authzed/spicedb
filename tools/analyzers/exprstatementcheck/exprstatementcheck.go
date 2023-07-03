@@ -6,8 +6,7 @@ import (
 	"go/ast"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
-
+	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -99,7 +98,7 @@ func Analyzer() *analysis.Analyzer {
 						if len(config.ignoredMethodNames) > 0 {
 							for _, parent := range stack {
 								if funcDecl, ok := parent.(*ast.FuncDecl); ok {
-									if stringz.SliceContains(config.ignoredMethodNames, funcDecl.Name.Name) {
+									if slices.Contains(config.ignoredMethodNames, funcDecl.Name.Name) {
 										break switchStatement
 									}
 								}

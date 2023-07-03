@@ -6,8 +6,8 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 const anonymousCaveat = ""
@@ -52,9 +52,9 @@ func (cc CompiledCaveat) Serialize() ([]byte, error) {
 }
 
 // ReferencedParameters returns the names of the parameters referenced in the expression.
-func (cc CompiledCaveat) ReferencedParameters(parameters []string) *util.Set[string] {
-	referencedParams := util.NewSet[string]()
-	definedParameters := util.NewSet[string]()
+func (cc CompiledCaveat) ReferencedParameters(parameters []string) *mapz.Set[string] {
+	referencedParams := mapz.NewSet[string]()
+	definedParameters := mapz.NewSet[string]()
 	definedParameters.Extend(parameters)
 
 	referencedParameters(definedParameters, cc.ast.Expr(), referencedParams)

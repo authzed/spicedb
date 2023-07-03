@@ -9,6 +9,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -179,19 +180,19 @@ func Parse(tpl string) *core.RelationTuple {
 	}
 
 	subjectRelation := Ellipsis
-	subjectRelIndex := stringz.SliceIndex(parserRegex.SubexpNames(), "subjectRel")
+	subjectRelIndex := slices.Index(parserRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		subjectRelation = groups[subjectRelIndex]
 	}
 
-	caveatName := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "caveatName")]
+	caveatName := groups[slices.Index(parserRegex.SubexpNames(), "caveatName")]
 	var optionalCaveat *core.ContextualizedCaveat
 	if caveatName != "" {
 		optionalCaveat = &core.ContextualizedCaveat{
 			CaveatName: caveatName,
 		}
 
-		caveatContextString := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "caveatContext")]
+		caveatContextString := groups[slices.Index(parserRegex.SubexpNames(), "caveatContext")]
 		if len(caveatContextString) > 0 {
 			contextMap := make(map[string]any, 1)
 			err := json.Unmarshal([]byte(caveatContextString), &contextMap)
@@ -208,24 +209,24 @@ func Parse(tpl string) *core.RelationTuple {
 		}
 	}
 
-	resourceID := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")]
+	resourceID := groups[slices.Index(parserRegex.SubexpNames(), "resourceID")]
 	if err := ValidateResourceID(resourceID); err != nil {
 		return nil
 	}
 
-	subjectID := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")]
+	subjectID := groups[slices.Index(parserRegex.SubexpNames(), "subjectID")]
 	if err := ValidateSubjectID(subjectID); err != nil {
 		return nil
 	}
 
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
+			Namespace: groups[slices.Index(parserRegex.SubexpNames(), "resourceType")],
 			ObjectId:  resourceID,
-			Relation:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceRel")],
+			Relation:  groups[slices.Index(parserRegex.SubexpNames(), "resourceRel")],
 		},
 		Subject: &core.ObjectAndRelation{
-			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectType")],
+			Namespace: groups[slices.Index(parserRegex.SubexpNames(), "subjectType")],
 			ObjectId:  subjectID,
 			Relation:  subjectRelation,
 		},

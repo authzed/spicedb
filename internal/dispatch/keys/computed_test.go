@@ -6,12 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/authzed/spicedb/pkg/util"
-
-	"github.com/stretchr/testify/require"
-
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -560,9 +558,9 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 
 	revisions := []string{"1234", "4567", "1235"}
 
-	dataCombinationSeen := util.NewSet[string]()
-	stableCacheKeysSeen := util.NewSet[string]()
-	unstableCacheKeysSeen := util.NewSet[uint64]()
+	dataCombinationSeen := mapz.NewSet[string]()
+	stableCacheKeysSeen := mapz.NewSet[string]()
+	unstableCacheKeysSeen := mapz.NewSet[uint64]()
 
 	// Ensure all key functions are generated.
 	require.Equal(t, len(generatorFuncs), len(cachePrefixes))

@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/graph"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // AllowedDirectRelation indicates whether a relation is allowed on the right side of another relation.
@@ -474,7 +473,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 		// 2) that they exist within the referenced namespace
 		// 3) that they are not duplicated in any way
 		// 4) that if they have a caveat reference, the caveat is valid
-		encountered := util.NewSet[string]()
+		encountered := mapz.NewSet[string]()
 
 		for _, allowedRelation := range allowedDirectRelations {
 			source := SourceForAllowedRelation(allowedRelation)

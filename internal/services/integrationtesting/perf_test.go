@@ -10,8 +10,8 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -30,7 +30,7 @@ func TestBurst(t *testing.T) {
 	}
 
 	for _, engine := range datastore.Engines {
-		if stringz.SliceContains(blacklist, engine) {
+		if slices.Contains(blacklist, engine) {
 			continue
 		}
 		b := testdatastore.RunDatastoreEngine(t, engine)

@@ -14,13 +14,14 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -153,7 +154,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	// Deduplicate any incoming resource IDs.
-	resourceIds := util.UniqueSlice(req.ResourceIds)
+	resourceIds := slicez.Unique(req.ResourceIds)
 
 	// Filter the incoming resource IDs for any which match the subject directly. For example, if we receive
 	// a check for resource `user:{tom, fred, sarah}#...` and a subject of `user:sarah#...`, then we know
@@ -355,7 +356,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 	// Find the subjects over which to dispatch.
 	subjectsToDispatch := tuple.NewONRByTypeSet()
-	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
 
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
@@ -376,7 +377,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
@@ -410,7 +411,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	return combineResultWithFoundResources(result, foundResources)
 }
 
-func mapFoundResources(result CheckResult, resourceType *core.RelationReference, relationshipsBySubjectONR *util.MultiMap[string, *core.RelationTuple]) CheckResult {
+func mapFoundResources(result CheckResult, resourceType *core.RelationReference, relationshipsBySubjectONR *mapz.MultiMap[string, *core.RelationTuple]) CheckResult {
 	// Map any resources found to the parent resource IDs.
 	membershipSet := NewMembershipSet()
 	for foundResourceID, result := range result.Resp.ResultsByResourceId {
@@ -564,7 +565,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	defer it.Close()
 
 	subjectsToDispatch := tuple.NewONRByTypeSet()
-	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
@@ -579,7 +580,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		util.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,

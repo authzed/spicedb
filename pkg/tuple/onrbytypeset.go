@@ -1,8 +1,8 @@
 package tuple
 
 import (
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ONRByTypeSet is a set of ObjectAndRelation's, grouped by namespace+relation.
@@ -35,7 +35,7 @@ func (s *ONRByTypeSet) ForEachType(handler func(rr *core.RelationReference, obje
 		handler(&core.RelationReference{
 			Namespace: ns,
 			Relation:  rel,
-		}, util.UniqueSlice(objectIds))
+		}, slicez.Unique(objectIds))
 	}
 }
 
@@ -55,7 +55,7 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 		if updatedType == nil {
 			continue
 		}
-		mapped.byType[JoinRelRef(updatedType.Namespace, updatedType.Relation)] = util.UniqueSlice(objectIds)
+		mapped.byType[JoinRelRef(updatedType.Namespace, updatedType.Relation)] = slicez.Unique(objectIds)
 	}
 	return mapped, nil
 }

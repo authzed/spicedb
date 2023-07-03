@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jzelinskie/stringz"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -38,7 +38,7 @@ func TestMigrate(t *testing.T) {
 	})
 
 	for _, engineKey := range datastore.Engines {
-		if stringz.SliceContains(toSkip, engineKey) {
+		if slices.Contains(toSkip, engineKey) {
 			continue
 		}
 

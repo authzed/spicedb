@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // WrapFoundSubject wraps the given subject into a pointer to it, unless nil, in which case this method returns
@@ -210,7 +210,7 @@ func checkEquivalentCaveatExprs(expected *core.CaveatExpression, found *core.Cav
 	// so we compare by building a boolean table for each referenced caveat name and then checking all combinations
 	// of boolean inputs to ensure the expressions produce the same output. Note that while this isn't the most
 	// efficient means of comparison, it is logically correct.
-	referencedNamesSet := util.NewSet[string]()
+	referencedNamesSet := mapz.NewSet[string]()
 	collectReferencedNames(expected, referencedNamesSet)
 	collectReferencedNames(found, referencedNamesSet)
 
@@ -321,7 +321,7 @@ func combinatorialValues(names []string) []map[string]bool {
 }
 
 // collectReferencedNames collects all referenced caveat names into the given set.
-func collectReferencedNames(expr *core.CaveatExpression, nameSet *util.Set[string]) {
+func collectReferencedNames(expr *core.CaveatExpression, nameSet *mapz.Set[string]) {
 	if expr.GetCaveat() != nil {
 		nameSet.Add(expr.GetCaveat().CaveatName)
 		return

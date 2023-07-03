@@ -6,8 +6,7 @@ import (
 	"go/token"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
-
+	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
@@ -49,7 +48,7 @@ func Analyzer() *analysis.Analyzer {
 
 			typePaths := sliceMap(strings.Split(*disallowedPaths, ","), strings.TrimSpace)
 			hasTypePath := func(path string) bool {
-				return stringz.SliceContains(typePaths, path)
+				return slices.Contains(typePaths, path)
 			}
 
 			inspect.WithStack(nodeFilter, func(n ast.Node, push bool, stack []ast.Node) bool {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/util"
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
@@ -52,7 +52,7 @@ func (mm MiddlewareModification[T]) validate() error {
 }
 
 func validate[T middlewareTypes](mws []ReferenceableMiddleware[T]) error {
-	names := util.NewSet[string]()
+	names := mapz.NewSet[string]()
 	for _, mw := range mws {
 		if mw.Name == "" {
 			return fmt.Errorf("unnamed middleware found: %v", mw)
@@ -94,8 +94,8 @@ const (
 )
 
 // Names returns the names of the middlewares in a chain
-func (mc *MiddlewareChain[T]) Names() *util.Set[string] {
-	names := util.NewSet[string]()
+func (mc *MiddlewareChain[T]) Names() *mapz.Set[string] {
+	names := mapz.NewSet[string]()
 	for _, mw := range mc.chain {
 		names.Add(mw.Name)
 	}

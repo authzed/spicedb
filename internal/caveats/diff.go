@@ -6,8 +6,8 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // DeltaType defines the type of caveat deltas.
@@ -95,8 +95,8 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 	}
 
 	deltas := make([]Delta, 0, len(existing.ParameterTypes)+len(updated.ParameterTypes))
-	existingParameterNames := util.NewSet[string](maps.Keys(existing.ParameterTypes)...)
-	updatedParameterNames := util.NewSet[string](maps.Keys(updated.ParameterTypes)...)
+	existingParameterNames := mapz.NewSet(maps.Keys(existing.ParameterTypes)...)
+	updatedParameterNames := mapz.NewSet(maps.Keys(updated.ParameterTypes)...)
 
 	for _, removed := range existingParameterNames.Subtract(updatedParameterNames).AsSlice() {
 		deltas = append(deltas, Delta{

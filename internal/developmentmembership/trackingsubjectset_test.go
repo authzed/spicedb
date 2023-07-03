@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 func set(subjects ...*core.DirectSubject) *TrackingSubjectSet {
@@ -335,8 +335,8 @@ func TestTrackingSubjectSet(t *testing.T) {
 					found, ok := tc.set.Get(fs.subject)
 					require.True(ok, "missing expected subject %s", fs.subject)
 
-					expectedExcluded := util.NewSet[string](fs.excludedSubjectStrings()...)
-					foundExcluded := util.NewSet[string](found.excludedSubjectStrings()...)
+					expectedExcluded := mapz.NewSet[string](fs.excludedSubjectStrings()...)
+					foundExcluded := mapz.NewSet[string](found.excludedSubjectStrings()...)
 					require.Len(expectedExcluded.Subtract(foundExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 					require.Len(foundExcluded.Subtract(expectedExcluded).AsSlice(), 0, "mismatch on excluded subjects on %s: expected: %s, found: %s", fs.subject, expectedExcluded, foundExcluded)
 				} else {

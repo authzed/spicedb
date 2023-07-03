@@ -10,9 +10,9 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // possibleResource is a resource that was returned by reachable resources and, after processing,
@@ -403,7 +403,7 @@ func (crs *checkingResourceStream) process() {
 func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) {
 	// Collect any resources that need to be checked, up to the configured limit, and issue a check.
 	// If a resource does not require a check, simply place on the toPublish queue.
-	toCheck := util.NewMultiMap[string, possibleResource]()
+	toCheck := mapz.NewMultiMap[string, possibleResource]()
 	toProcess := crs.rq.selectResourcesToProcess(alwaysProcess)
 	if len(toProcess) == 0 {
 		return false, nil

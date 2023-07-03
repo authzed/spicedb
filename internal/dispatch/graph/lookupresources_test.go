@@ -15,10 +15,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 const veryLargeLimit = 1000000000
@@ -196,7 +196,7 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 			ctx, dispatcher, revision := newLocalDispatcher(t)
 			defer dispatcher.Close()
 
-			found := util.NewSet[string]()
+			found := mapz.NewSet[string]()
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
@@ -583,7 +583,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 					require.NoError(datastoremw.SetInContext(ctx, ds))
 
 					var currentCursor *v1.Cursor
-					foundResourceIDs := util.NewSet[string]()
+					foundResourceIDs := mapz.NewSet[string]()
 					for {
 						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 						err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{

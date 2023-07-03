@@ -1,4 +1,4 @@
-package util
+package mapz
 
 import (
 	"github.com/rs/zerolog"
@@ -83,7 +83,7 @@ func (s *Set[T]) Subtract(other *Set[T]) *Set[T] {
 
 // Copy returns a copy of this set.
 func (s *Set[T]) Copy() *Set[T] {
-	return NewSet[T](s.AsSlice()...)
+	return NewSet(s.AsSlice()...)
 }
 
 // Intersect removes any values from this set that
@@ -147,17 +147,10 @@ func (s *Set[T]) ForEach(callback func(value T) error) error {
 	return nil
 }
 
-// StringSetWrapper wraps a set of strings and provides marshalling for zerolog.
-type StringSetWrapper struct {
-	StrSet *Set[string]
-}
-
-// MarshalZerologObject implements zerolog object marshalling.
-func (s StringSetWrapper) MarshalZerologObject(e *zerolog.Event) {
-	e.Strs("values", s.StrSet.AsSlice())
-}
-
-// StringSet wraps a Set of strings and provides automatic log marshalling.
-func StringSet(set *Set[string]) StringSetWrapper {
-	return StringSetWrapper{set}
+func (s *Set[T]) MarshalZerologObject(e *zerolog.Event) {
+	xs := zerolog.Arr()
+	for _, value := range s.values {
+		xs.Interface(value)
+	}
+	e.Array("values", xs)
 }
