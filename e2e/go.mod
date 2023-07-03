@@ -4,14 +4,14 @@ go 1.19
 
 require (
 	github.com/authzed/authzed-go v0.8.1-0.20230620170737-8257e7bd388e
-	github.com/authzed/grpcutil v0.0.0-20230509155820-7a6fedb71dbc
+	github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5
 	github.com/authzed/spicedb v1.21.0
 	github.com/brianvoe/gofakeit/v6 v6.15.0
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/jackc/pgx/v5 v5.4.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/tools v0.9.3
-	google.golang.org/grpc v1.54.0
+	google.golang.org/grpc v1.56.1
 	mvdan.cc/gofumpt v0.5.0
 )
 
@@ -46,7 +46,7 @@ require (
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
