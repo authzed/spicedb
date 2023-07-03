@@ -444,10 +444,8 @@ func TestReachabilityGraph(t *testing.T) {
 			rr("document", "viewer"),
 			[]rrtStruct{
 				rrt("document", "view", true),
-				rrt("document", "view", true),
 			},
 			[]rrtStruct{
-				rrt("document", "view", true),
 				rrt("document", "view", true),
 			},
 		},

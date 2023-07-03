@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/cespare/xxhash/v2"
 	"golang.org/x/exp/maps"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -27,6 +28,36 @@ type ReachabilityGraph struct {
 type ReachabilityEntrypoint struct {
 	re             *core.ReachabilityEntrypoint
 	parentRelation *core.RelationReference
+}
+
+// Hash returns a hash representing the data in the entrypoint, for comparison to other entrypoints.
+// This is ONLY stable within a single version of SpiceDB and should NEVER be stored for later
+// comparison outside of the process.
+func (re ReachabilityEntrypoint) Hash() (uint64, error) {
+	size := re.re.SizeVT()
+	if re.parentRelation != nil {
+		size += re.parentRelation.SizeVT()
+	}
+
+	hashData := make([]byte, 0, size)
+
+	data, err := re.re.MarshalVT()
+	if err != nil {
+		return 0, err
+	}
+
+	hashData = append(hashData, data...)
+
+	if re.parentRelation != nil {
+		data, err := re.parentRelation.MarshalVT()
+		if err != nil {
+			return 0, err
+		}
+
+		hashData = append(hashData, data...)
+	}
+
+	return xxhash.Sum64(hashData), nil
 }
 
 // EntrypointKind is the kind of the entrypoint.
@@ -160,7 +191,34 @@ func (rg *ReachabilityGraph) entrypointsForSubjectToResource(
 
 	collected := &[]ReachabilityEntrypoint{}
 	err := rg.collectEntrypoints(ctx, subjectType, resourceType, collected, map[string]struct{}{}, reachabilityOption, entrypointLookupOption)
-	return *collected, err
+	if err != nil {
+		return nil, err
+	}
+
+	collectedEntrypoints := *collected
+
+	// Deduplicate any entrypoints found. An example that can cause a duplicate is a relation which references
+	// the same subject type multiple times due to caveats:
+	//
+	// relation somerel: user | user with somecaveat
+	//
+	// This will produce two entrypoints (one per user reference), but as entrypoints themselves are not caveated,
+	// one is spurious.
+	entrypointMap := make(map[uint64]ReachabilityEntrypoint, len(collectedEntrypoints))
+	uniqueEntrypoints := make([]ReachabilityEntrypoint, 0, len(collectedEntrypoints))
+	for _, entrypoint := range collectedEntrypoints {
+		hash, err := entrypoint.Hash()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := entrypointMap[hash]; !ok {
+			entrypointMap[hash] = entrypoint
+			uniqueEntrypoints = append(uniqueEntrypoints, entrypoint)
+		}
+	}
+
+	return uniqueEntrypoints, nil
 }
 
 func (rg *ReachabilityGraph) getOrBuildGraph(ctx context.Context, resourceType *core.RelationReference, reachabilityOption reachabilityOption) (*core.ReachabilityGraph, error) {

@@ -300,6 +300,10 @@ func withParallelizedStreamingIterableInCursor[T any, Q any](
 		return err
 	}
 
+	if startingIndex < 0 || startingIndex > len(items) {
+		return spiceerrors.MustBugf("invalid cursor in withParallelizedStreamingIterableInCursor: found starting index %d for items %v", startingIndex, items)
+	}
+
 	itemsToRun := items[startingIndex:]
 	if len(itemsToRun) == 0 {
 		return nil

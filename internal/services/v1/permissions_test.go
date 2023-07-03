@@ -1032,7 +1032,10 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 
 	sort.Sort(byIDAndPermission(responses))
 
-	require.Equal(t, 2, len(responses))
+	// NOTE: due to the order of the deduplication of dispatching in reachable resources, this can return the conditional
+	// result more than once, as per cursored LR. Therefore, filter in that case.
+	require.GreaterOrEqual(t, 3, len(responses))
+	require.LessOrEqual(t, 2, len(responses))
 
 	require.Equal(t, "first", responses[0].ResourceObjectId)
 	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship)
