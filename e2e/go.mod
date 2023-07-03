@@ -9,8 +9,8 @@ require (
 	github.com/brianvoe/gofakeit/v6 v6.15.0
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/jackc/pgx/v5 v5.4.1
-	github.com/stretchr/testify v1.8.3
-	golang.org/x/tools v0.9.1
+	github.com/stretchr/testify v1.8.4
+	golang.org/x/tools v0.9.3
 	google.golang.org/grpc v1.54.0
 	mvdan.cc/gofumpt v0.5.0
 )
