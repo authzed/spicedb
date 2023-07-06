@@ -201,7 +201,7 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 			continue
 		}
 
-		err = relationships.ValidateRelationships(ctx, rwt, []*core.RelationTuple{tpl})
+		err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, []*core.RelationTuple{tpl})
 		if err != nil {
 			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tplString)
 			if devErr != nil {

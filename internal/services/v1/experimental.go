@@ -146,6 +146,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
 		&a.current,
+		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
 		return nil, err
 	}

@@ -405,44 +405,78 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 }
 
 func TestWriteCaveatedRelationships(t *testing.T) {
-	req := require.New(t)
+	for _, deleteWithCaveat := range []bool{true, false} {
+		t.Run(fmt.Sprintf("with-caveat-%v", deleteWithCaveat), func(t *testing.T) {
+			req := require.New(t)
 
-	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
-	client := v1.NewPermissionsServiceClient(conn)
-	t.Cleanup(cleanup)
+			conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+			client := v1.NewPermissionsServiceClient(conn)
+			t.Cleanup(cleanup)
 
-	toWrite := tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...")
-	caveatCtx, err := structpb.NewStruct(map[string]any{"expectedSecret": "hi"})
-	req.NoError(err)
+			toWrite := tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...")
+			caveatCtx, err := structpb.NewStruct(map[string]any{"expectedSecret": "hi"})
+			req.NoError(err)
 
-	toWrite.Caveat = &core.ContextualizedCaveat{
-		CaveatName: "doesnotexist",
-		Context:    caveatCtx,
+			toWrite.Caveat = &core.ContextualizedCaveat{
+				CaveatName: "doesnotexist",
+				Context:    caveatCtx,
+			}
+			toWrite.Caveat.Context = caveatCtx
+			relWritten := tuple.MustToRelationship(toWrite)
+			writeReq := &v1.WriteRelationshipsRequest{
+				Updates: []*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: relWritten,
+				}},
+			}
+
+			// Should fail due to non-existing caveat
+			ctx := context.Background()
+			_, err = client.WriteRelationships(ctx, writeReq)
+			grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+
+			req.Contains(err.Error(), "subjects of type `user with doesnotexist` are not allowed on relation `document#caveated_viewer`")
+
+			// should succeed
+			relWritten.OptionalCaveat.CaveatName = "test"
+			resp, err := client.WriteRelationships(context.Background(), writeReq)
+			req.NoError(err)
+
+			// read relationship back
+			relRead := readFirst(req, client, resp.WrittenAt, relWritten)
+			req.True(proto.Equal(relWritten, relRead))
+
+			// issue the deletion
+			relToDelete := tuple.MustToRelationship(tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#..."))
+			if deleteWithCaveat {
+				relToDelete = tuple.MustToRelationship(tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...[test]"))
+			}
+
+			deleteReq := &v1.WriteRelationshipsRequest{
+				Updates: []*v1.RelationshipUpdate{{
+					Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
+					Relationship: relToDelete,
+				}},
+			}
+
+			resp, err = client.WriteRelationships(context.Background(), deleteReq)
+			req.NoError(err)
+
+			// ensure the relationship is no longer present.
+			stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_AtExactSnapshot{
+						AtExactSnapshot: resp.WrittenAt,
+					},
+				},
+				RelationshipFilter: tuple.RelToFilter(relWritten),
+			})
+			require.NoError(t, err)
+
+			_, err = stream.Recv()
+			require.True(t, errors.Is(err, io.EOF))
+		})
 	}
-	toWrite.Caveat.Context = caveatCtx
-	relWritten := tuple.MustToRelationship(toWrite)
-	writeReq := &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{{
-			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: relWritten,
-		}},
-	}
-
-	// Should fail due to non-existing caveat
-	ctx := context.Background()
-	_, err = client.WriteRelationships(ctx, writeReq)
-	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
-
-	req.Contains(err.Error(), "subjects of type `user with doesnotexist` are not allowed on relation `document#caveated_viewer`")
-
-	// should succeed
-	relWritten.OptionalCaveat.CaveatName = "test"
-	resp, err := client.WriteRelationships(context.Background(), writeReq)
-	req.NoError(err)
-
-	// read relationship back
-	relRead := readFirst(req, client, resp.WrittenAt, relWritten)
-	req.True(proto.Equal(relWritten, relRead))
 }
 
 func readFirst(require *require.Assertions, client v1.PermissionsServiceClient, token *v1.ZedToken, rel *v1.Relationship) *v1.Relationship {
