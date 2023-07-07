@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -61,6 +62,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		Name:       name,
 		Repository: "mysql",
 		Tag:        containerImageTag,
+		Platform:     "linux/amd64", // mysql:5 image does not have arm support
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 		ExposedPorts: []string{mysqlPortPair},
 		Cmd:          []string{"--max-connections=500"}, // accommodate tests using the same container
