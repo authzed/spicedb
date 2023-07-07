@@ -26,7 +26,7 @@ const (
 
 var (
 	queryReadUniqueID         = psql.Select(colUniqueID).From(tableMetadata)
-	queryRelationshipEstimate = fmt.Sprintf("SELECT COALESCE(SUM(%s), 0) FROM %s", colCount, tableCounters)
+	queryRelationshipEstimate = fmt.Sprintf("SELECT COALESCE(SUM(%s), 0) FROM %s AS OF SYSTEM TIME follower_read_timestamp()", colCount, tableCounters)
 
 	upsertCounterQuery = psql.Insert(tableCounters).Columns(
 		colID,
@@ -34,34 +34,43 @@ var (
 	).Suffix(fmt.Sprintf("ON CONFLICT (%[1]s) DO UPDATE SET %[2]s = %[3]s.%[2]s + EXCLUDED.%[2]s RETURNING cluster_logical_timestamp()", colID, colCount, tableCounters))
 
 	rng = rand.NewSource(time.Now().UnixNano())
+
+	uniqueID string
 )
 
 func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	sql, args, err := queryReadUniqueID.ToSql()
-	if err != nil {
-		return datastore.Stats{}, fmt.Errorf("unable to prepare unique ID sql: %w", err)
+	if len(uniqueID) == 0 {
+		sql, args, err := queryReadUniqueID.ToSql()
+		if err != nil {
+			return datastore.Stats{}, fmt.Errorf("unable to prepare unique ID sql: %w", err)
+		}
+		if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+			return row.Scan(&uniqueID)
+		}, sql, args...); err != nil {
+			return datastore.Stats{}, fmt.Errorf("unable to query unique ID: %w", err)
+		}
 	}
 
-	var uniqueID string
 	var nsDefs []datastore.RevisionedNamespace
 	var relCount uint64
 
+	if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&relCount)
+	}, queryRelationshipEstimate); err != nil {
+		return datastore.Stats{}, fmt.Errorf("unable to read relationship count: %w", err)
+	}
+
 	if err := cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx, sql, args...).Scan(&uniqueID); err != nil {
-			return fmt.Errorf("unable to query unique ID: %w", err)
+		_, err := tx.Exec(ctx, "SET TRANSACTION AS OF SYSTEM TIME follower_read_timestamp()")
+		if err != nil {
+			return fmt.Errorf("unable to read namespaces: %w", err)
 		}
-
-		if err := tx.QueryRow(ctx, queryRelationshipEstimate).Scan(&relCount); err != nil {
-			return fmt.Errorf("unable to read relationship count: %w", err)
-		}
-
 		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
 			return sb.From(fromStr)
 		})
 		if err != nil {
 			return fmt.Errorf("unable to read namespaces: %w", err)
 		}
-
 		return nil
 	}); err != nil {
 		return datastore.Stats{}, err
