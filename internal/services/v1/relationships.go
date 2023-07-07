@@ -10,7 +10,6 @@ import (
 	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -292,12 +291,8 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			}
 		}
 
-		tuples := lo.Map(tupleUpdates, func(item *core.RelationTupleUpdate, _ int) *core.RelationTuple {
-			return item.Tuple
-		})
-
 		// Validate the updates.
-		err := relationships.ValidateRelationships(ctx, rwt, tuples)
+		err := relationships.ValidateRelationshipUpdates(ctx, rwt, tupleUpdates)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}

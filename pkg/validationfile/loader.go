@@ -154,7 +154,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 			chunkedTuples = append(chunkedTuples, update.Tuple)
 		}
 		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationships(ctx, rwt, chunkedTuples)
+			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, chunkedTuples)
 			if err != nil {
 				return err
 			}
