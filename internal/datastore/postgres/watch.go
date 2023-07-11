@@ -196,6 +196,8 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
 	}
 
+	defer changes.Close()
+
 	tracked := common.NewChanges(revisionKeyFunc)
 	for changes.Next() {
 		nextTuple := &core.RelationTuple{
