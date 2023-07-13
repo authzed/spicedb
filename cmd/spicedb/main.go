@@ -47,7 +47,7 @@ func main() {
 	cmd.RegisterMigrateFlags(migrateCmd)
 	rootCmd.AddCommand(migrateCmd)
 
-	// Add migration commands
+	// Add datastore commands
 	datastoreCmd, err := cmd.NewDatastoreCommand(rootCmd.Use)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to register datastore command")
