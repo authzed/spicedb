@@ -60,7 +60,6 @@ func (r *memdbReader) QueryRelationships(
 		filter.OptionalResourceRelation,
 		filter.OptionalSubjectsSelectors,
 		filter.OptionalCaveatName,
-		queryOpts.Usersets,
 		makeCursorFilterFn(queryOpts.After, queryOpts.Sort),
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
@@ -128,7 +127,6 @@ func (r *memdbReader) ReverseQueryRelationships(
 		filterRelation,
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		"",
-		nil,
 		makeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
@@ -284,7 +282,6 @@ func filterFuncForFilters(
 	optionalRelation string,
 	optionalSubjectsSelectors []datastore.SubjectsSelector,
 	optionalCaveatFilter string,
-	usersets []*core.ObjectAndRelation,
 	cursorFilter func(*relationship) bool,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
@@ -337,19 +334,6 @@ func filterFuncForFilters(
 			if !hasMatchingSelector {
 				return true
 			}
-		}
-
-		if len(usersets) > 0 {
-			found := false
-			for _, filter := range usersets {
-				if filter.Namespace == tuple.subjectNamespace &&
-					filter.ObjectId == tuple.subjectObjectID &&
-					filter.Relation == tuple.subjectRelation {
-					found = true
-					break
-				}
-			}
-			return !found
 		}
 
 		return cursorFilter(tuple)

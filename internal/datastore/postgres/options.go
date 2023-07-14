@@ -17,7 +17,6 @@ type postgresOptions struct {
 	gcWindow             time.Duration
 	gcInterval           time.Duration
 	gcMaxOperationTime   time.Duration
-	splitAtUsersetCount  uint16
 	maxRetries           uint8
 
 	enablePrometheusStats   bool
@@ -52,7 +51,6 @@ const (
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
-	defaultUsersetBatchSize                  = 1024
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
@@ -70,7 +68,6 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		gcInterval:                  defaultGarbageCollectionInterval,
 		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
 		watchBufferLength:           defaultWatchBufferLength,
-		splitAtUsersetCount:         defaultUsersetBatchSize,
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
@@ -97,14 +94,6 @@ func generateConfig(options []Option) (postgresOptions, error) {
 	}
 
 	return computed, nil
-}
-
-// SplitAtUsersetCount is the batch size for which userset queries will be
-// split into smaller queries.
-//
-// This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
-	return func(po *postgresOptions) { po.splitAtUsersetCount = splitAtUsersetCount }
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max

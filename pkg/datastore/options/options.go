@@ -27,10 +27,9 @@ type Cursor *core.RelationTuple
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
-	Limit    *uint64                   `debugmap:"visible"`
-	Usersets []*core.ObjectAndRelation `debugmap:"visible"`
-	Sort     SortOrder                 `debugmap:"visible"`
-	After    Cursor                    `debugmap:"visible"`
+	Limit *uint64   `debugmap:"visible"`
+	Sort  SortOrder `debugmap:"visible"`
+	After Cursor    `debugmap:"visible"`
 }
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.

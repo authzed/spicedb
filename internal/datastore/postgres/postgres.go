@@ -251,7 +251,6 @@ func newPostgresDatastore(
 		gcInterval:              config.gcInterval,
 		gcTimeout:               config.gcMaxOperationTime,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
-		usersetBatchSize:        config.splitAtUsersetCount,
 		watchEnabled:            watchEnabled,
 		gcCtx:                   gcCtx,
 		cancelGc:                cancelGc,
@@ -291,7 +290,6 @@ type pgDatastore struct {
 	gcWindow                time.Duration
 	gcInterval              time.Duration
 	gcTimeout               time.Duration
-	usersetBatchSize        uint16
 	analyzeBeforeStatistics bool
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
@@ -306,14 +304,13 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	rev := revRaw.(postgresRevision)
 
 	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(queryFuncs),
-		UsersetBatchSize: pgd.usersetBatchSize,
+	executor := common.QueryExecutor{
+		Executor: pgxcommon.NewPGXExecutor(queryFuncs),
 	}
 
 	return &pgReader{
 		queryFuncs,
-		querySplitter,
+		executor,
 		buildLivingObjectFilterForRevision(rev),
 	}
 }
@@ -339,15 +336,14 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
-			querySplitter := common.TupleQuerySplitter{
-				Executor:         pgxcommon.NewPGXExecutor(queryFuncs),
-				UsersetBatchSize: pgd.usersetBatchSize,
+			executor := common.QueryExecutor{
+				Executor: pgxcommon.NewPGXExecutor(queryFuncs),
 			}
 
 			rwt := &pgReadWriteTXN{
 				&pgReader{
 					queryFuncs,
-					querySplitter,
+					executor,
 					currentlyLivingObjects,
 				},
 				tx,

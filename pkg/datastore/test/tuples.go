@@ -90,37 +90,10 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType: tupleToFind.ResourceAndRelation.Namespace,
-				}, options.WithUsersets(tupleSubject))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter, tupleToFind)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
 					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
 					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				})
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter, tupleToFind)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:        tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceIds: []string{tupleToFind.ResourceAndRelation.ObjectId},
-				}, options.WithUsersets(tupleSubject))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter, tupleToFind)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
-				}, options.WithUsersets(tupleSubject))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter, tupleToFind)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
-				}, options.WithUsersets(tupleSubject), options.WithLimit(options.LimitOne))
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
@@ -161,43 +134,6 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 					ObjectId:  tupleSubject.ObjectId,
 					Relation:  "fake",
 				}
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType: tupleToFind.ResourceAndRelation.Namespace,
-				}, options.WithUsersets(incorrectUserset))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
-					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
-				}, options.WithUsersets(incorrectUserset))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
-					OptionalResourceRelation: "fake",
-				}, options.WithUsersets(tupleSubject))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceIds:      []string{"fake"},
-					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
-				}, options.WithUsersets(tupleSubject))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter)
-
-				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
-					OptionalResourceIds:      []string{"fake"},
-					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
-				}, options.WithUsersets(tupleSubject), options.WithLimit(options.LimitOne))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter)
 
 				iter, err = dsReader.ReverseQueryRelationships(
 					ctx,
@@ -268,16 +204,6 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 				ResourceType:        testTuples[0].ResourceAndRelation.Namespace,
 				OptionalResourceIds: []string{"fakeobectid"},
 			})
-			require.NoError(err)
-			tRequire.VerifyIteratorResults(iter)
-
-			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: testTuples[0].ResourceAndRelation.Namespace,
-			}, options.WithUsersets(&core.ObjectAndRelation{
-				Namespace: "test/user",
-				ObjectId:  "fakeuser",
-				Relation:  ellipsis,
-			}))
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter)
 
@@ -696,61 +622,6 @@ func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ensureTuples(ctx, require, ds, tpl2, tpl3, ctpl1)
-}
-
-// UsersetsTest tests whether or not the requirements for reading usersets hold
-// for a particular datastore.
-func UsersetsTest(t *testing.T, tester DatastoreTester) {
-	testCases := []int{1, 2, 4, 32, 1024}
-
-	t.Run("multiple usersets tuple query", func(t *testing.T) {
-		for _, numTuples := range testCases {
-			numTuples := numTuples
-			t.Run(strconv.Itoa(numTuples), func(t *testing.T) {
-				require := require.New(t)
-
-				ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
-				require.NoError(err)
-				defer ds.Close()
-
-				setupDatastore(ds, require)
-
-				tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
-
-				var testTuples []*core.RelationTuple
-
-				ctx := context.Background()
-
-				// Add test tuples on the same resource but with different users.
-				lastRevision := datastore.NoRevision
-
-				usersets := []*core.ObjectAndRelation{}
-				for i := 0; i < numTuples; i++ {
-					resourceName := "theresource"
-					userName := fmt.Sprintf("user%d", i)
-
-					newTuple := makeTestTuple(resourceName, userName)
-					testTuples = append(testTuples, newTuple)
-					usersets = append(usersets, newTuple.Subject)
-
-					writtenAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, newTuple)
-					require.NoError(err)
-					require.True(writtenAt.GreaterThan(lastRevision), "%s must be greater than %s, but isn't", writtenAt, lastRevision)
-
-					tRequire.TupleExists(ctx, newTuple, writtenAt)
-
-					lastRevision = writtenAt
-				}
-
-				// Query for the tuples as a single query.
-				iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType: testResourceNamespace,
-				}, options.SetUsersets(usersets))
-				require.NoError(err)
-				tRequire.VerifyIteratorResults(iter, testTuples...)
-			})
-		}
-	})
 }
 
 func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {

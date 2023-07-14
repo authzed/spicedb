@@ -2,7 +2,6 @@
 package options
 
 import (
-	v1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
 )
@@ -32,7 +31,6 @@ func NewQueryOptionsWithOptionsAndDefaults(opts ...QueryOptionsOption) *QueryOpt
 func (q *QueryOptions) ToOption() QueryOptionsOption {
 	return func(to *QueryOptions) {
 		to.Limit = q.Limit
-		to.Usersets = q.Usersets
 		to.Sort = q.Sort
 		to.After = q.After
 	}
@@ -42,7 +40,6 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 func (q QueryOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["Limit"] = helpers.DebugValue(q.Limit, false)
-	debugMap["Usersets"] = helpers.DebugValue(q.Usersets, false)
 	debugMap["Sort"] = helpers.DebugValue(q.Sort, false)
 	debugMap["After"] = helpers.DebugValue(q.After, false)
 	return debugMap
@@ -68,20 +65,6 @@ func (q *QueryOptions) WithOptions(opts ...QueryOptionsOption) *QueryOptions {
 func WithLimit(limit *uint64) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.Limit = limit
-	}
-}
-
-// WithUsersets returns an option that can append Usersetss to QueryOptions.Usersets
-func WithUsersets(usersets *v1.ObjectAndRelation) QueryOptionsOption {
-	return func(q *QueryOptions) {
-		q.Usersets = append(q.Usersets, usersets)
-	}
-}
-
-// SetUsersets returns an option that can set Usersets on a QueryOptions
-func SetUsersets(usersets []*v1.ObjectAndRelation) QueryOptionsOption {
-	return func(q *QueryOptions) {
-		q.Usersets = usersets
 	}
 }
 

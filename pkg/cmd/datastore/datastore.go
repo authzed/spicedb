@@ -103,7 +103,6 @@ type Config struct {
 	// Options
 	ReadConnPool           ConnPoolConfig `debugmap:"visible"`
 	WriteConnPool          ConnPoolConfig `debugmap:"visible"`
-	SplitQueryCount        uint16         `debugmap:"visible"`
 	ReadOnly               bool           `debugmap:"visible"`
 	EnableDatastoreMetrics bool           `debugmap:"visible"`
 	DisableStats           bool           `debugmap:"visible"`
@@ -182,6 +181,8 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return pflag.NormalizedName(name)
 	})
 
+	var unusedSplitQueryCount uint16
+
 	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), defaults.GCWindow, "amount of time before revisions are garbage collected")
 	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
 	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), defaults.GCMaxOperationTime, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
@@ -198,7 +199,6 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled prometheus metrics from the datastore")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
-	flagSet.Uint16Var(&opts.SplitQueryCount, flagName("datastore-query-userset-batch-size"), 1024, "number of usersets after which a relationship query will be split into multiple queries")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (cockroach driver only - see https://spicedb.dev/d/crdb-overlap for details)"`)
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
@@ -221,6 +221,12 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 
+	// TODO(jschorr): Remove this flag after a few versions.
+	flagSet.Uint16Var(&unusedSplitQueryCount, flagName("datastore-query-userset-batch-size"), 1024, "number of usersets after which a relationship query will be split into multiple queries")
+	if err := flagSet.MarkDeprecated(flagName("datastore-query-userset-batch-size"), "no longer has any effect"); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
+
 	return nil
 }
 
@@ -233,7 +239,6 @@ func DefaultDatastoreConfig() *Config {
 		MaxRevisionStalenessPercent:    .1, // 10%
 		ReadConnPool:                   *DefaultReadConnPool(),
 		WriteConnPool:                  *DefaultWriteConnPool(),
-		SplitQueryCount:                1024,
 		ReadOnly:                       false,
 		MaxRetries:                     10,
 		OverlapKey:                     "key",
@@ -362,7 +367,6 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
 		crdb.WriteConnMaxLifetimeJitter(opts.WriteConnPool.MaxLifetimeJitter),
 		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
-		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
 		crdb.MaxRetries(uint8(opts.MaxRetries)),
 		crdb.OverlapKey(opts.OverlapKey),
@@ -393,7 +397,6 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
 		postgres.WriteConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
-		postgres.SplitAtUsersetCount(opts.SplitQueryCount),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.EnableTracing(),
@@ -439,7 +442,6 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		mysql.MaxRetries(uint8(opts.MaxRetries)),
 		mysql.OverrideLockWaitTimeout(1),
-		mysql.SplitAtUsersetCount(opts.SplitQueryCount),
 	}
 	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
 }

@@ -65,27 +65,6 @@ func TestPostgresDatastore(t *testing.T) {
 				return ds, nil
 			}))
 
-			t.Run("WithSplit", func(t *testing.T) {
-				// Set the split at a VERY small size, to ensure any WithUsersets queries are split.
-				test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-					ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-						ds, err := newPostgresDatastore(uri,
-							RevisionQuantization(revisionQuantization),
-							GCWindow(gcWindow),
-							GCInterval(gcInterval),
-							WatchBufferLength(watchBufferLength),
-							DebugAnalyzeBeforeStatistics(),
-							SplitAtUsersetCount(1), // 1 userset
-							MigrationPhase(config.migrationPhase),
-						)
-						require.NoError(t, err)
-						return ds
-					})
-
-					return ds, nil
-				}))
-			})
-
 			t.Run("GarbageCollection", createDatastoreTest(
 				b,
 				GarbageCollectionTest,

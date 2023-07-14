@@ -15,7 +15,6 @@ const (
 	defaultConnMaxIdleTime                   = 30 * time.Minute
 	defaultConnMaxLifetime                   = 30 * time.Minute
 	defaultWatchBufferLength                 = 128
-	defaultUsersetBatchSize                  = 1024
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
@@ -35,7 +34,6 @@ type mysqlOptions struct {
 	maxOpenConns                int
 	connMaxIdleTime             time.Duration
 	connMaxLifetime             time.Duration
-	splitAtUsersetCount         uint16
 	analyzeBeforeStats          bool
 	maxRetries                  uint8
 	lockWaitTimeoutSeconds      *uint8
@@ -55,7 +53,6 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		maxOpenConns:                defaultMaxOpenConns,
 		connMaxIdleTime:             defaultConnMaxIdleTime,
 		connMaxLifetime:             defaultConnMaxLifetime,
-		splitAtUsersetCount:         defaultUsersetBatchSize,
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
@@ -145,16 +142,6 @@ func MaxRetries(maxRetries uint8) Option {
 func TablePrefix(prefix string) Option {
 	return func(mo *mysqlOptions) {
 		mo.tablePrefix = prefix
-	}
-}
-
-// SplitAtUsersetCount is the batch size for which userset queries will be
-// split into smaller queries.
-//
-// This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
-	return func(mo *mysqlOptions) {
-		mo.splitAtUsersetCount = splitAtUsersetCount
 	}
 }
 
