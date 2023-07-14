@@ -28,12 +28,16 @@ type fakeDispatchSvc struct {
 
 func (fds *fakeDispatchSvc) DispatchCheck(context.Context, *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	time.Sleep(fds.sleepTime)
-	return &v1.DispatchCheckResponse{}, nil
+	return &v1.DispatchCheckResponse{
+		Metadata: emptyMetadata,
+	}, nil
 }
 
 func (fds *fakeDispatchSvc) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, srv v1.DispatchService_DispatchLookupSubjectsServer) error {
 	time.Sleep(fds.sleepTime)
-	return srv.Send(&v1.DispatchLookupSubjectsResponse{})
+	return srv.Send(&v1.DispatchLookupSubjectsResponse{
+		Metadata: emptyMetadata,
+	})
 }
 
 func TestDispatchTimeout(t *testing.T) {
@@ -103,6 +107,7 @@ func TestDispatchTimeout(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
+				require.GreaterOrEqual(t, resp.Metadata.DispatchCount, uint32(1))
 			}
 
 			// Invoke a dispatched "LookupSubjects" and test as well.
@@ -119,6 +124,7 @@ func TestDispatchTimeout(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotEmpty(t, stream.Results())
+				require.GreaterOrEqual(t, stream.Results()[0].Metadata.DispatchCount, uint32(1))
 			}
 		})
 	}

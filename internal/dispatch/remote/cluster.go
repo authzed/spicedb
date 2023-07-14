@@ -15,6 +15,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/balancer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type clusterClient interface {
@@ -82,7 +83,22 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
 	}
 
-	return resp, nil
+	err = adjustMetadataForDispatch(resp.Metadata)
+	return resp, err
+}
+
+func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {
+	if metadata == nil {
+		return spiceerrors.MustBugf("received a nil metadata")
+	}
+
+	// NOTE: We only add 1 to the dispatch count if it was not already handled by the downstream dispatch,
+	// which will only be the case in a fully cached or further undispatched call.
+	if metadata.DispatchCount == 0 {
+		metadata.DispatchCount++
+	}
+
+	return nil
 }
 
 func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
@@ -105,7 +121,8 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 		return &v1.DispatchExpandResponse{Metadata: requestFailureMetadata}, err
 	}
 
-	return resp, nil
+	err = adjustMetadataForDispatch(resp.Metadata)
+	return resp, err
 }
 
 func (cr *clusterDispatcher) DispatchReachableResources(
@@ -143,6 +160,11 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 				return nil
 			} else if err != nil {
 				return err
+			}
+
+			merr := adjustMetadataForDispatch(result.Metadata)
+			if merr != nil {
+				return merr
 			}
 
 			serr := stream.Publish(result)
@@ -190,6 +212,11 @@ func (cr *clusterDispatcher) DispatchLookupResources(
 				return err
 			}
 
+			merr := adjustMetadataForDispatch(result.Metadata)
+			if merr != nil {
+				return merr
+			}
+
 			serr := stream.Publish(result)
 			if serr != nil {
 				return serr
@@ -233,6 +260,11 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 				return nil
 			} else if err != nil {
 				return err
+			}
+
+			merr := adjustMetadataForDispatch(result.Metadata)
+			if merr != nil {
+				return merr
 			}
 
 			serr := stream.Publish(result)
