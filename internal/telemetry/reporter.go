@@ -175,7 +175,8 @@ func RemoteReporter(
 
 		backoffInterval := backoff.NewExponentialBackOff()
 		backoffInterval.InitialInterval = interval
-		backoffInterval.MaxElapsedTime = MaxElapsedTimeBetweenReports
+		backoffInterval.MaxInterval = MaxElapsedTimeBetweenReports
+		backoffInterval.MaxElapsedTime = 0
 
 		// Must reset the backoff object after changing parameters
 		backoffInterval.Reset()

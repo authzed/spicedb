@@ -43,12 +43,13 @@ var (
 		Help:      "The number of stale namespaces deleted by the datastore garbage collection.",
 	})
 
-	gcFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcFailureCounterConfig = prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_failure_total",
 		Help:      "The number of failed runs of the datastore garbage collection.",
-	})
+	}
+	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
 )
 
 // RegisterGCMetrics registers garbage collection metrics to the default
@@ -98,13 +99,18 @@ var MaxGCInterval = 60 * time.Minute
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
+	return startGarbageCollectorWithMaxElapsedTime(ctx, gc, interval, window, 0, timeout)
+}
+
+func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration) error {
 	log.Ctx(ctx).Info().
 		Dur("interval", interval).
 		Msg("datastore garbage collection worker started")
 
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
-	backoffInterval.MaxElapsedTime = maxDuration(MaxGCInterval, interval)
+	backoffInterval.MaxInterval = maxDuration(MaxGCInterval, interval)
+	backoffInterval.MaxElapsedTime = maxElapsedTime
 
 	nextInterval := interval
 
