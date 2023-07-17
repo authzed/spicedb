@@ -55,19 +55,44 @@ jobs:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/codeql@main"
 
-  trivy:
-    name: "Analyze with Trivy"
+  trivy-fs:
+    name: "Analyze FS with Trivy"
     runs-on: "ubuntu-latest"
     steps:
       - uses: "actions/checkout@v3"
-      - uses: "aquasecurity/trivy-action@0.9.0"
+      - uses: "aquasecurity/trivy-action@master"
         with:
           scan-type: "fs"
           ignore-unfixed: true
-          format: "sarif"
-          output: "trivy-results.sarif"
-          severity: "CRITICAL"
-      - name: "Upload Trivy scan results to GitHub Security tab"
-        uses: "github/codeql-action/upload-sarif@v2"
+          format: 'table'
+          exit-code: '1'
+          severity: "CRITICAL,HIGH,MEDIUM"
+
+  trivy-image:
+    name: "Analyze Release Image with Trivy"
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "authzed/actions/setup-go@main"
         with:
-          sarif_file: "trivy-results.sarif"
+          go-version: "${{ env.GO_VERSION }}"
+      # Workaround until goreleaser release supports --single-target
+      # makes the build faster by not building everything
+      - name: "modify goreleaser config to skip building all targets"
+        run: |
+          echo "partial:
+            by: target" >> .goreleaser.yml
+      - uses: "goreleaser/goreleaser-action@v4"
+        id: "goreleaser"
+        with:
+          distribution: "goreleaser-pro"
+          version: "latest"
+          args: "release --clean --split --snapshot"
+        env:
+          GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
+      - name: "Obtain container image to scan"
+        run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64/metadata.json --raw-output)" >> $GITHUB_ENV'
+      - name: "run trivy on release image"
+        run: 'docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64'
+      - name: "run trivy on debug image"
+        run: 'docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64-debug'

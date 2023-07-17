@@ -33,7 +33,7 @@ furies:
     secret_name: "GEMFURY_PUSH_TOKEN"
     skip: "{{ gt (len .Prerelease) 0 }}"
 brews:
-  - tap:
+  - repository:
       owner: "authzed"
       name: "homebrew-tap"
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
