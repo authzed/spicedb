@@ -12,19 +12,25 @@ import (
 
 type Lint mg.Namespace
 
-// Run all linters
+// All Run all linters
 func (l Lint) All() error {
 	mg.Deps(l.Go, l.Extra)
 	return nil
 }
 
-// Lint everything that's not code
+// Scan Run all security scanning tools
+func (l Lint) Scan() error {
+	mg.Deps(l.Vulncheck, l.Trivy)
+	return nil
+}
+
+// Extra Lint everything that's not code
 func (l Lint) Extra() error {
 	mg.Deps(l.Markdown, l.Yaml)
 	return nil
 }
 
-// Lint yaml
+// Yaml Lint yaml
 func (Lint) Yaml() error {
 	mg.Deps(checkDocker)
 	cwd, err := os.Getwd()
@@ -36,7 +42,7 @@ func (Lint) Yaml() error {
 		"cytopia/yamllint:1", "-c", "/src/.yamllint", "/src")
 }
 
-// Lint markdown
+// Markdown Lint markdown
 func (Lint) Markdown() error {
 	mg.Deps(checkDocker)
 	cwd, err := os.Getwd()
@@ -48,7 +54,7 @@ func (Lint) Markdown() error {
 		"ghcr.io/igorshubovych/markdownlint-cli:v0.34.0", "--config", "/src/.markdownlint.yaml", "/src")
 }
 
-// Run all go linters
+// Go Run all go linters
 func (l Lint) Go() error {
 	err := Gen{}.All()
 	if err != nil {
@@ -58,19 +64,19 @@ func (l Lint) Go() error {
 	return nil
 }
 
-// Run gofumpt
+// Gofumpt Run gofumpt
 func (Lint) Gofumpt() error {
 	fmt.Println("formatting go")
 	return sh.RunV("go", "run", "mvdan.cc/gofumpt", "-l", "-w", ".")
 }
 
-// Run golangci-lint
+// Golangcilint Run golangci-lint
 func (Lint) Golangcilint() error {
 	fmt.Println("running golangci-lint")
 	return sh.RunV("go", "run", "github.com/golangci/golangci-lint/cmd/golangci-lint", "run", "--fix")
 }
 
-// Run all analyzers
+// Analyzers Run all analyzers
 func (Lint) Analyzers() error {
 	fmt.Println("running analyzers")
 	return runDirV("tools/analyzers", "go", "run", "./cmd/analyzers/main.go",
@@ -88,8 +94,15 @@ func (Lint) Analyzers() error {
 	)
 }
 
-// Run vulncheck
+// Vulncheck Run vulncheck
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
 	return sh.RunV("go", "run", "golang.org/x/vuln/cmd/govulncheck", "./...")
+}
+
+// Trivy Run Trivy
+func (l Lint) Trivy() error {
+	mg.Deps(Build{}.Testimage)
+	fmt.Println("running Trivy container scan")
+	return sh.RunV("docker", "run", "-v", "/var/run/docker.sock:/var/run/docker.sock", "aquasec/trivy:latest", "image", "--format", "table", "--exit-code", "1", "--ignore-unfixed", "--vuln-type", "os,library", "--no-progress", "--severity", "CRITICAL,HIGH,MEDIUM", "authzed/spicedb:ci")
 }

@@ -10,7 +10,7 @@ var goModules = []string{
 
 type Deps mg.Namespace
 
-// go mod tidy all go modules
+// Tidy go mod tidy all go modules
 func (Deps) Tidy() error {
 	for _, mod := range goModules {
 		if err := runDirV(mod, "go", "mod", "tidy"); err != nil {
@@ -21,7 +21,7 @@ func (Deps) Tidy() error {
 	return nil
 }
 
-// go get -u all go dependencies
+// Update go get -u all go dependencies
 func (Deps) Update() error {
 	for _, mod := range goModules {
 		if err := runDirV(mod, "go", "get", "-u", "-t", "-tags", "ci,tools", "./..."); err != nil {
