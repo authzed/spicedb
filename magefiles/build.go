@@ -9,13 +9,13 @@ import (
 
 type Build mg.Namespace
 
-// Build the wasm bundle
+// Wasm Build the wasm bundle
 func (Build) Wasm() error {
 	return sh.RunWithV(map[string]string{"GOOS": "js", "GOARCH": "wasm"},
 		"go", "build", "-o", "dist/development.wasm", "./pkg/development/wasm/...")
 }
 
-// Build the spicedb image for tests
+// Testimage Build the spicedb image for tests
 func (Build) Testimage() error {
 	mg.Deps(checkDocker)
 	return sh.RunWithV(map[string]string{"DOCKER_BUILDKIT": "1"}, "docker",

@@ -12,7 +12,7 @@ import (
 
 type Test mg.Namespace
 
-// Runs all test suites
+// All Runs all test suites
 func (t Test) All() error {
 	ds := Testds{}
 	c := Testcons{}
@@ -22,30 +22,30 @@ func (t Test) All() error {
 	return nil
 }
 
-// Runs the unit tests
+// Unit Runs the unit tests
 func (Test) Unit() error {
 	fmt.Println("running unit tests")
 	return goTest("./...", "-tags", "ci,skipintegrationtests", "-timeout", "10m")
 }
 
-// Run tests that run the built image
+// Image Run tests that run the built image
 func (Test) Image() error {
 	mg.Deps(Build{}.Testimage)
 	return goDirTest("./cmd/spicedb", "./...", "-tags", "docker,image")
 }
 
-// Run integration tests
+// Integration Run integration tests
 func (Test) Integration() error {
 	mg.Deps(checkDocker)
 	return goTest("./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "15m")
 }
 
-// Run the analyzer unit tests
+// Analyzers Run the analyzer unit tests
 func (Test) Analyzers() error {
 	return goDirTest("./tools/analyzers", "./...")
 }
 
-// Run wasm browser tests
+// Wasm Run wasm browser tests
 func (Test) Wasm() error {
 	// build the test binary
 	if err := sh.RunWithV(map[string]string{"GOOS": "js", "GOARCH": "wasm"}, goCmdForTests(),
@@ -60,22 +60,22 @@ func (Test) Wasm() error {
 
 type Testds mg.Namespace
 
-// Run datastore tests for crdb
+// Crdb Run datastore tests for crdb
 func (Testds) Crdb() error {
 	return datastoreTest("crdb")
 }
 
-// Run datastore tests for spanner
+// Spanner Run datastore tests for spanner
 func (Testds) Spanner() error {
 	return datastoreTest("spanner")
 }
 
-// Run datastore tests for postgres
+// Postgres Run datastore tests for postgres
 func (Testds) Postgres() error {
 	return datastoreTest("postgres")
 }
 
-// Run datastore tests for mysql
+// Mysql Run datastore tests for mysql
 func (Testds) Mysql() error {
 	return datastoreTest("mysql")
 }
@@ -87,22 +87,22 @@ func datastoreTest(datastore string) error {
 
 type Testcons mg.Namespace
 
-// Run consistency tests for crdb
+// Crdb Run consistency tests for crdb
 func (Testcons) Crdb() error {
 	return consistencyTest("cockroachdb")
 }
 
-// Run consistency tests for spanner
+// Spanner Run consistency tests for spanner
 func (Testcons) Spanner() error {
 	return consistencyTest("spanner")
 }
 
-// Run consistency tests for postgres
+// Postgres Run consistency tests for postgres
 func (Testcons) Postgres() error {
 	return consistencyTest("postgres")
 }
 
-// Run consistency tests for mysql
+// Mysql Run consistency tests for mysql
 func (Testcons) Mysql() error {
 	return consistencyTest("mysql")
 }

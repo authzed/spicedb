@@ -11,19 +11,19 @@ import (
 
 type Gen mg.Namespace
 
-// Run all generators in parallel
+// All Run all generators in parallel
 func (g Gen) All() error {
 	mg.Deps(g.Go, g.Proto)
 	return nil
 }
 
-// Run go codegen
+// Go Run go codegen
 func (Gen) Go() error {
 	fmt.Println("generating go")
 	return sh.RunV("go", "generate", "./...")
 }
 
-// Run proto codegen
+// Proto Run proto codegen
 func (Gen) Proto() error {
 	fmt.Println("generating buf")
 	return sh.RunV("go", "run", "github.com/bufbuild/buf/cmd/buf",
