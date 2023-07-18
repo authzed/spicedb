@@ -17,7 +17,6 @@ type crdbOptions struct {
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
 	maxRetries                  uint8
-	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
 	disableStats                bool
@@ -60,7 +59,6 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		splitAtUsersetCount:         defaultSplitSize,
 		maxRetries:                  defaultMaxRetries,
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
@@ -84,16 +82,6 @@ func generateConfig(options []Option) (crdbOptions, error) {
 	}
 
 	return computed, nil
-}
-
-// SplitAtUsersetCount is the batch size for which userset queries will be
-// split into smaller queries.
-//
-// This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
-	return func(po *crdbOptions) {
-		po.splitAtUsersetCount = splitAtUsersetCount
-	}
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max

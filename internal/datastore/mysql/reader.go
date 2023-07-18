@@ -23,9 +23,9 @@ type txFactory func(context.Context) (*sql.Tx, txCleanupFunc, error)
 type mysqlReader struct {
 	*QueryBuilder
 
-	txSource      txFactory
-	querySplitter common.TupleQuerySplitter
-	filterer      queryFilterer
+	txSource txFactory
+	executor common.QueryExecutor
+	filterer queryFilterer
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -59,7 +59,7 @@ func (mr *mysqlReader) QueryRelationships(
 		return nil, err
 	}
 
-	return mr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+	return mr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (mr *mysqlReader) ReverseQueryRelationships(
@@ -82,7 +82,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return mr.querySplitter.SplitAndExecuteQuery(
+	return mr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),

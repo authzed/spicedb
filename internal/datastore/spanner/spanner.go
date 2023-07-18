@@ -48,12 +48,6 @@ const (
 	errUnableToWriteCaveat  = "unable to write caveat: %w"
 	errUnableToListCaveats  = "unable to list caveats: %w"
 	errUnableToDeleteCaveat = "unable to delete caveat: %w"
-
-	// Spanner requires a much smaller userset batch size than other datastores because of the
-	// limitation on the maximum number of function calls.
-	// https://cloud.google.com/spanner/quotas
-	// We can't share a default or config option with other datastore implementations.
-	usersetBatchsize = 100
 )
 
 var (
@@ -131,12 +125,10 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	txSource := func() readTX {
 		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision)))
 	}
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         queryExecutor(txSource),
-		UsersetBatchSize: usersetBatchsize,
+	executor := common.QueryExecutor{
+		Executor: queryExecutor(txSource),
 	}
-
-	return spannerReader{querySplitter, txSource}
+	return spannerReader{executor, txSource}
 }
 
 func (sd spannerDatastore) ReadWriteTx(
@@ -152,12 +144,11 @@ func (sd spannerDatastore) ReadWriteTx(
 			return spannerRWT
 		}
 
-		querySplitter := common.TupleQuerySplitter{
-			Executor:         queryExecutor(txSource),
-			UsersetBatchSize: usersetBatchsize,
+		executor := common.QueryExecutor{
+			Executor: queryExecutor(txSource),
 		}
 		rwt := spannerReadWriteTXN{
-			spannerReader{querySplitter, txSource},
+			spannerReader{executor, txSource},
 			spannerRWT,
 			sd.config.disableStats,
 			migrationPhases[sd.config.migrationPhase],

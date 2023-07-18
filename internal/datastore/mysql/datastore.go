@@ -207,7 +207,6 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 		gcCtx:                  gcCtx,
 		cancelGc:               cancelGc,
 		watchBufferLength:      config.watchBufferLength,
-		usersetBatchSize:       config.splitAtUsersetCount,
 		optimizedRevisionQuery: revisionQuery,
 		validTransactionQuery:  validTransactionQuery,
 		createTxn:              createTxn,
@@ -262,15 +261,14 @@ func (mds *Datastore) SnapshotReader(revisionRaw datastore.Revision) datastore.R
 		return tx, tx.Rollback, nil
 	}
 
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         newMySQLExecutor(mds.db),
-		UsersetBatchSize: mds.usersetBatchSize,
+	executor := common.QueryExecutor{
+		Executor: newMySQLExecutor(mds.db),
 	}
 
 	return &mysqlReader{
 		mds.QueryBuilder,
 		createTxFunc,
-		querySplitter,
+		executor,
 		buildLivingObjectFilterForRevision(rev),
 	}
 }
@@ -300,16 +298,15 @@ func (mds *Datastore) ReadWriteTx(
 				return tx, noCleanup, nil
 			}
 
-			querySplitter := common.TupleQuerySplitter{
-				Executor:         newMySQLExecutor(tx),
-				UsersetBatchSize: mds.usersetBatchSize,
+			executor := common.QueryExecutor{
+				Executor: newMySQLExecutor(tx),
 			}
 
 			rwt := &mysqlReadWriteTXN{
 				&mysqlReader{
 					mds.QueryBuilder,
 					longLivedTx,
-					querySplitter,
+					executor,
 					currentlyLivingObjects,
 				},
 				mds.driver.RelationTuple(),
@@ -426,7 +423,6 @@ type Datastore struct {
 	gcInterval           time.Duration
 	gcTimeout            time.Duration
 	watchBufferLength    uint16
-	usersetBatchSize     uint16
 	maxRetries           uint8
 
 	optimizedRevisionQuery string

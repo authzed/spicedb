@@ -60,7 +60,6 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestTouchAlreadyExisting", func(t *testing.T) { TouchAlreadyExistingTest(t, tester) })
 	t.Run("TestTouchAlreadyExistingCaveated", func(t *testing.T) { TouchAlreadyExistingCaveatedTest(t, tester) })
 
-	t.Run("TestUsersets", func(t *testing.T) { UsersetsTest(t, tester) })
 	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
 

@@ -16,9 +16,9 @@ import (
 )
 
 type pgReader struct {
-	query         pgxcommon.DBFuncQuerier
-	querySplitter common.TupleQuerySplitter
-	filterer      queryFilterer
+	query    pgxcommon.DBFuncQuerier
+	executor common.QueryExecutor
+	filterer queryFilterer
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -66,7 +66,7 @@ func (r *pgReader) QueryRelationships(
 		return nil, err
 	}
 
-	return r.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (r *pgReader) ReverseQueryRelationships(
@@ -88,7 +88,7 @@ func (r *pgReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return r.querySplitter.SplitAndExecuteQuery(ctx,
+	return r.executor.ExecuteQuery(ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),

@@ -39,7 +39,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxRevisionStalenessPercent = c.MaxRevisionStalenessPercent
 		to.ReadConnPool = c.ReadConnPool
 		to.WriteConnPool = c.WriteConnPool
-		to.SplitQueryCount = c.SplitQueryCount
 		to.ReadOnly = c.ReadOnly
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 		to.DisableStats = c.DisableStats
@@ -78,7 +77,6 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxRevisionStalenessPercent"] = helpers.DebugValue(c.MaxRevisionStalenessPercent, false)
 	debugMap["ReadConnPool"] = helpers.DebugValue(c.ReadConnPool, false)
 	debugMap["WriteConnPool"] = helpers.DebugValue(c.WriteConnPool, false)
-	debugMap["SplitQueryCount"] = helpers.DebugValue(c.SplitQueryCount, false)
 	debugMap["ReadOnly"] = helpers.DebugValue(c.ReadOnly, false)
 	debugMap["EnableDatastoreMetrics"] = helpers.DebugValue(c.EnableDatastoreMetrics, false)
 	debugMap["DisableStats"] = helpers.DebugValue(c.DisableStats, false)
@@ -175,13 +173,6 @@ func WithReadConnPool(readConnPool ConnPoolConfig) ConfigOption {
 func WithWriteConnPool(writeConnPool ConnPoolConfig) ConfigOption {
 	return func(c *Config) {
 		c.WriteConnPool = writeConnPool
-	}
-}
-
-// WithSplitQueryCount returns an option that can set SplitQueryCount on a Config
-func WithSplitQueryCount(splitQueryCount uint16) ConfigOption {
-	return func(c *Config) {
-		c.SplitQueryCount = splitQueryCount
 	}
 }
 

@@ -478,30 +478,6 @@ func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQue
 	return sqf
 }
 
-// FilterToUsersets returns a new SchemaQueryFilterer that is limited to resources with subjects
-// in the specified list of usersets. Nil or empty usersets parameter does not affect the underlying
-// query.
-func (sqf SchemaQueryFilterer) filterToUsersets(usersets []*core.ObjectAndRelation) SchemaQueryFilterer {
-	if len(usersets) == 0 {
-		return sqf
-	}
-
-	orClause := sq.Or{}
-	for _, userset := range usersets {
-		orClause = append(orClause, sq.Eq{
-			sqf.schema.colUsersetNamespace: userset.Namespace,
-			sqf.schema.colUsersetObjectID:  userset.ObjectId,
-			sqf.schema.colUsersetRelation:  userset.Relation,
-		})
-		sqf.recordColumnValue(sqf.schema.colUsersetNamespace)
-		sqf.recordColumnValue(sqf.schema.colUsersetObjectID)
-		sqf.recordColumnValue(sqf.schema.colUsersetRelation)
-	}
-
-	sqf.queryBuilder = sqf.queryBuilder.Where(orClause)
-	return sqf
-}
-
 // Limit returns a new SchemaQueryFilterer which is limited to the specified number of results.
 func (sqf SchemaQueryFilterer) limit(limit uint64) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Limit(limit)
@@ -509,20 +485,18 @@ func (sqf SchemaQueryFilterer) limit(limit uint64) SchemaQueryFilterer {
 	return sqf
 }
 
-// TupleQuerySplitter is a tuple query runner shared by SQL implementations of the datastore.
-type TupleQuerySplitter struct {
-	Executor         ExecuteQueryFunc
-	UsersetBatchSize uint16
+// QueryExecutor is a tuple query runner shared by SQL implementations of the datastore.
+type QueryExecutor struct {
+	Executor ExecuteQueryFunc
 }
 
-// SplitAndExecuteQuery is used to split up the usersets in a very large query and execute
-// them as separate queries.
-func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
+// ExecuteQuery executes the query.
+func (tqs QueryExecutor) ExecuteQuery(
 	ctx context.Context,
 	query SchemaQueryFilterer,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	ctx, span := tracer.Start(ctx, "SplitAndExecuteQuery")
+	ctx, span := tracer.Start(ctx, "ExecuteQuery")
 	defer span.End()
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
@@ -536,41 +510,27 @@ func (tqs TupleQuerySplitter) SplitAndExecuteQuery(
 		query = query.After(queryOpts.After, queryOpts.Sort)
 	}
 
-	var tuples []*core.RelationTuple
-	remainingLimit := math.MaxInt
+	limit := math.MaxInt
 	if queryOpts.Limit != nil {
-		remainingLimit = int(*queryOpts.Limit)
+		limit = int(*queryOpts.Limit)
 	}
 
-	remainingUsersets := queryOpts.Usersets
-	for remaining := 1; remaining > 0; remaining = len(remainingUsersets) {
-		upperBound := uint16(len(remainingUsersets))
-		if upperBound > tqs.UsersetBatchSize {
-			upperBound = tqs.UsersetBatchSize
-		}
-
-		batch := remainingUsersets[:upperBound]
-		toExecute := query.limit(uint64(remainingLimit)).filterToUsersets(batch)
-
-		sql, args, err := toExecute.queryBuilder.ToSql()
-		if err != nil {
-			return nil, err
-		}
-
-		queryTuples, err := tqs.Executor(ctx, sql, args)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(queryTuples) > remainingLimit {
-			queryTuples = queryTuples[:remainingLimit]
-		}
-
-		tuples = append(tuples, queryTuples...)
-		remainingUsersets = remainingUsersets[upperBound:]
+	toExecute := query.limit(uint64(limit))
+	sql, args, err := toExecute.queryBuilder.ToSql()
+	if err != nil {
+		return nil, err
 	}
 
-	return NewSliceRelationshipIterator(tuples, queryOpts.Sort), nil
+	queryTuples, err := tqs.Executor(ctx, sql, args)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(queryTuples) > limit {
+		queryTuples = queryTuples[:limit]
+	}
+
+	return NewSliceRelationshipIterator(queryTuples, queryOpts.Sort), nil
 }
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.

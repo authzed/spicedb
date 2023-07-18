@@ -49,7 +49,7 @@ var (
 
 type crdbReader struct {
 	query         pgxcommon.DBFuncQuerier
-	querySplitter common.TupleQuerySplitter
+	executor      common.QueryExecutor
 	keyer         overlapKeyer
 	overlapKeySet keySet
 	fromBuilder   func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
@@ -100,7 +100,7 @@ func (cr *crdbReader) QueryRelationships(
 		return nil, err
 	}
 
-	return cr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+	return cr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (cr *crdbReader) ReverseQueryRelationships(
@@ -123,7 +123,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return cr.querySplitter.SplitAndExecuteQuery(
+	return cr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),

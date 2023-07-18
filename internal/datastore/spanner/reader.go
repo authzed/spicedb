@@ -28,8 +28,8 @@ type readTX interface {
 type txFactory func() readTX
 
 type spannerReader struct {
-	querySplitter common.TupleQuerySplitter
-	txSource      txFactory
+	executor common.QueryExecutor
+	txSource txFactory
 }
 
 func (sr spannerReader) QueryRelationships(
@@ -42,7 +42,7 @@ func (sr spannerReader) QueryRelationships(
 		return nil, err
 	}
 
-	return sr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+	return sr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (sr spannerReader) ReverseQueryRelationships(
@@ -64,7 +64,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return sr.querySplitter.SplitAndExecuteQuery(ctx,
+	return sr.executor.ExecuteQuery(ctx,
 		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),

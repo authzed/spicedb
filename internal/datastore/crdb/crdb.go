@@ -172,7 +172,6 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 		watchBufferLength:    config.watchBufferLength,
 		writeOverlapKeyer:    keyer,
 		overlapKeyInit:       keySetInit,
-		usersetBatchSize:     config.splitAtUsersetCount,
 		disableStats:         config.disableStats,
 		beginChangefeedQuery: changefeedQuery,
 	}
@@ -254,7 +253,6 @@ type crdbDatastore struct {
 	watchBufferLength   uint16
 	writeOverlapKeyer   overlapKeyer
 	overlapKeyInit      func(ctx context.Context) keySet
-	usersetBatchSize    uint16
 	disableStats        bool
 
 	beginChangefeedQuery string
@@ -265,16 +263,15 @@ type crdbDatastore struct {
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         pgxcommon.NewPGXExecutor(cds.readPool),
-		UsersetBatchSize: cds.usersetBatchSize,
+	executor := common.QueryExecutor{
+		Executor: pgxcommon.NewPGXExecutor(cds.readPool),
 	}
 
 	fromBuilder := func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
 		return query.From(fromStr + " AS OF SYSTEM TIME " + rev.String())
 	}
 
-	return &crdbReader{cds.readPool, querySplitter, noOverlapKeyer, nil, fromBuilder}
+	return &crdbReader{cds.readPool, executor, noOverlapKeyer, nil, fromBuilder}
 }
 
 func (cds *crdbDatastore) ReadWriteTx(
@@ -291,15 +288,14 @@ func (cds *crdbDatastore) ReadWriteTx(
 
 	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		querier := pgxcommon.QuerierFuncsFor(tx)
-		querySplitter := common.TupleQuerySplitter{
-			Executor:         pgxcommon.NewPGXExecutor(querier),
-			UsersetBatchSize: cds.usersetBatchSize,
+		executor := common.QueryExecutor{
+			Executor: pgxcommon.NewPGXExecutor(querier),
 		}
 
 		rwt := &crdbReadWriteTXN{
 			&crdbReader{
 				querier,
-				querySplitter,
+				executor,
 				cds.writeOverlapKeyer,
 				cds.overlapKeyInit(ctx),
 				func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {

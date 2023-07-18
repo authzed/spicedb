@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestSchemaQueryFilterer(t *testing.T) {
@@ -401,31 +400,6 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"subject_ns":        1,
 				"subject_object_id": 1,
 				"subject_relation":  1,
-			},
-		},
-		{
-			"empty filterToUsersets",
-			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.filterToUsersets(nil)
-			},
-			"SELECT *",
-			nil,
-			map[string]int{},
-		},
-		{
-			"filterToUsersets",
-			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.filterToUsersets([]*core.ObjectAndRelation{
-					tuple.ParseONR("document:foo#somerel"),
-					tuple.ParseONR("team:bar#member"),
-				})
-			},
-			"SELECT * WHERE (subject_ns = ? AND subject_object_id = ? AND subject_relation = ? OR subject_ns = ? AND subject_object_id = ? AND subject_relation = ?)",
-			[]any{"document", "foo", "somerel", "team", "bar", "member"},
-			map[string]int{
-				"subject_ns":        2,
-				"subject_object_id": 2,
-				"subject_relation":  2,
 			},
 		},
 		{
