@@ -20,6 +20,7 @@ require (
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/emirpasic/gods v1.18.1
 	github.com/envoyproxy/protoc-gen-validate v1.0.2
+	github.com/exaring/otelpgx v0.5.0
 	github.com/fatih/color v1.15.0
 	github.com/go-co-op/gocron v1.30.1
 	github.com/go-logr/zerologr v1.2.3

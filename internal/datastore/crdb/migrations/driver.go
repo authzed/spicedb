@@ -35,6 +35,7 @@ func NewCRDBDriver(url string) (*CRDBDriver, error) {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 	pgxcommon.ConfigurePGXLogger(connConfig)
+	pgxcommon.ConfigureOTELTracer(connConfig)
 
 	db, err := pgx.ConnectConfig(context.Background(), connConfig)
 	if err != nil {
