@@ -111,6 +111,10 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 
 	val, details, err := prg.Eval(activation)
 
+	if err != nil {
+		return nil, EvaluationErr{err}
+	}
+
 	// If the value produced has Unknown type, then it means required context was missing.
 	if types.IsUnknown(val) {
 		unknownVal := val.(*types.Unknown)
@@ -119,7 +123,7 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 			trails, ok := unknownVal.GetAttributeTrails(id)
 			if ok {
 				for _, attributeTrail := range trails {
-					missingVarNames = append(missingVarNames, attributeTrail.Variable())
+					missingVarNames = append(missingVarNames, attributeTrail.String())
 				}
 			}
 		}
@@ -132,10 +136,6 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 			missingVarNames: missingVarNames,
 			isPartial:       true,
 		}, nil
-	}
-
-	if err != nil {
-		return nil, EvaluationErr{err}
 	}
 
 	return &CaveatResult{
