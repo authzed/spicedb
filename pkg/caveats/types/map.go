@@ -7,9 +7,9 @@ import (
 )
 
 func init() {
-	registerMethodOnDefinedType(cel.MapType(cel.StringType, cel.AnyType),
+	registerMethodOnDefinedType(cel.MapType(cel.StringType, cel.DynType),
 		"isSubtreeOf",
-		[]*cel.Type{cel.MapType(cel.StringType, cel.AnyType)},
+		[]*cel.Type{cel.MapType(cel.StringType, cel.DynType)},
 		cel.BoolType,
 		func(arg ...ref.Val) ref.Val {
 			map0 := arg[0].Value().(map[string]any)
