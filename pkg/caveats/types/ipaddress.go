@@ -26,7 +26,7 @@ func MustParseIPAddress(ip string) IPAddress {
 	return ipAddress
 }
 
-var ipaddressCelType = types.NewTypeValue("IPAddress", traits.ReceiverType)
+var ipaddressCelType = cel.ObjectType("IPAddress", traits.ReceiverType)
 
 // IPAddress defines a custom type for representing an IP Address in caveats.
 type IPAddress struct {
