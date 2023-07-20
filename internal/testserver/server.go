@@ -74,7 +74,6 @@ func NewTestServerWithConfig(require *require.Assertions,
 			return ctx, nil
 		}),
 		server.WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
-		server.WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
 		server.SetUnaryMiddlewareModification([]server.MiddlewareModification[grpc.UnaryServerInterceptor]{

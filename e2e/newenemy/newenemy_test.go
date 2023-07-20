@@ -160,7 +160,6 @@ func TestNoNewEnemy(t *testing.T) {
 		spice.WithDispatchPort(50062),
 		spice.WithHTTPPort(8444),
 		spice.WithMetricsPort(9100),
-		spice.WithDashboardPort(8100),
 		spice.WithDBName(dbName))
 	require.NoError(t, requestProtectedSpiceDB.Start(ctx, tlog, "reqprotected",
 		"--datastore-tx-overlap-strategy=request"))
@@ -174,7 +173,6 @@ func TestNoNewEnemy(t *testing.T) {
 		spice.WithDispatchPort(50072),
 		spice.WithHTTPPort(8454),
 		spice.WithMetricsPort(9200),
-		spice.WithDashboardPort(8200),
 		spice.WithDBName(dbName))
 	require.NoError(t, standardProtectedSpiceDB.Start(ctx, tlog, "stdprotected",
 		"--datastore-tx-overlap-strategy=static"))

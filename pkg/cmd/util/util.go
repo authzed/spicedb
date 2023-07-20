@@ -14,6 +14,7 @@ import (
 
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -408,6 +409,35 @@ func RegisterHTTPServerFlags(flags *pflag.FlagSet, config *HTTPServerConfig, fla
 	flags.StringVar(&config.HTTPTLSCertPath, flagPrefix+"-tls-cert-path", "", "local path to the TLS certificate used to serve "+serviceName)
 	flags.StringVar(&config.HTTPTLSKeyPath, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
 	flags.BoolVar(&config.HTTPEnabled, flagPrefix+"-enabled", defaultEnabled, "enable http "+serviceName+" server")
+}
+
+// RegisterDeprecatedHTTPServerFlags registers a set of HTTP server flags as fully deprecated, for a removed HTTP service.
+func RegisterDeprecatedHTTPServerFlags(cmd *cobra.Command, flagPrefix, serviceName string) error {
+	ignored1 := ""
+	ignored2 := ""
+	ignored3 := ""
+	ignored4 := false
+	flags := cmd.Flags()
+
+	flags.StringVar(&ignored1, flagPrefix+"-addr", "", "address to listen on to serve "+serviceName)
+	flags.StringVar(&ignored2, flagPrefix+"-tls-cert-path", "", "local path to the TLS certificate used to serve "+serviceName)
+	flags.StringVar(&ignored3, flagPrefix+"-tls-key-path", "", "local path to the TLS key used to serve "+serviceName)
+	flags.BoolVar(&ignored4, flagPrefix+"-enabled", false, "enable http "+serviceName+" server")
+
+	if err := cmd.Flags().MarkDeprecated(flagPrefix+"-addr", "service has been removed; flag is a no-op"); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
+	if err := cmd.Flags().MarkDeprecated(flagPrefix+"-tls-cert-path", "service has been removed; flag is a no-op"); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
+	if err := cmd.Flags().MarkDeprecated(flagPrefix+"-tls-key-path", "service has been removed; flag is a no-op"); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
+	if err := cmd.Flags().MarkDeprecated(flagPrefix+"-enabled", "service has been removed; flag is a no-op"); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
+
+	return nil
 }
 
 type disabledHTTPServer struct{}
