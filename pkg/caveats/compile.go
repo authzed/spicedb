@@ -6,6 +6,7 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common"
 
+	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
@@ -100,18 +101,23 @@ func compileCaveat(env *Environment, exprString string) (*CompiledCaveat, error)
 }
 
 // DeserializeCaveat deserializes a byte-serialized caveat back into a CompiledCaveat.
-func DeserializeCaveat(serialized []byte) (*CompiledCaveat, error) {
+func DeserializeCaveat(serialized []byte, parameterTypes map[string]types.VariableType) (*CompiledCaveat, error) {
 	if len(serialized) == 0 {
 		return nil, fmt.Errorf("given empty serialized")
 	}
 
-	celEnv, err := NewEnvironment().asCelEnvironment()
+	caveat := &impl.DecodedCaveat{}
+	err := caveat.UnmarshalVT(serialized)
 	if err != nil {
 		return nil, err
 	}
 
-	caveat := &impl.DecodedCaveat{}
-	err = caveat.UnmarshalVT(serialized)
+	env, err := EnvForVariables(parameterTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	celEnv, err := env.asCelEnvironment()
 	if err != nil {
 		return nil, err
 	}

@@ -202,6 +202,33 @@ func TestEvaluateCaveat(t *testing.T) {
 			noMissingVars,
 		},
 		{
+			"missing map for evaluation",
+			MustEnvForVariables(map[string]types.VariableType{
+				"m":   types.MustMapType(types.BooleanType),
+				"idx": types.StringType,
+			}),
+			"m[idx]",
+			map[string]any{
+				"idx": "1",
+			},
+			"",
+			false,
+			"m[idx]",
+			[]string{"m"},
+		},
+		{
+			"missing map for attribute evaluation",
+			MustEnvForVariables(map[string]types.VariableType{
+				"m": types.MustMapType(types.BooleanType),
+			}),
+			"m.first",
+			map[string]any{},
+			"",
+			false,
+			"m.first",
+			[]string{"m"},
+		},
+		{
 			"nested evaluation",
 			MustEnvForVariables(map[string]types.VariableType{
 				"metadata.l":   types.MustListType(types.StringType),

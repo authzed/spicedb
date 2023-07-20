@@ -2,6 +2,7 @@ package computed_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -66,7 +67,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			}
 
 			caveat anothercaveat(anothercondition uint) {
-				int(anothercondition) == 15
+				anothercondition == 15
 			}
 			`,
 			[]caveatedUpdate{
@@ -105,7 +106,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						"anothercondition": "15",
 					},
 					v1.ResourceCheckResult_CAVEATED_MEMBER,
-					[]string{"somecondition"},
+					[]string{"somecondition", "somebool"},
 					"",
 				},
 				{
@@ -815,7 +816,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 
 			for _, r := range tt.checks {
 				r := r
-				t.Run(r.check, func(t *testing.T) {
+				t.Run(fmt.Sprintf("%s::%v", r.check, r.context), func(t *testing.T) {
 					rel := tuple.MustParse(r.check)
 
 					result, _, err := computed.ComputeCheck(ctx, dispatch,

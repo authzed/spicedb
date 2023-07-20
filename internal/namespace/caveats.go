@@ -14,7 +14,16 @@ import (
 // definition, including usage of the parameters.
 func ValidateCaveatDefinition(caveat *core.CaveatDefinition) error {
 	// Ensure all parameters are used by the caveat expression itself.
-	deserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	if err != nil {
+		return newTypeErrorWithSource(
+			fmt.Errorf("could not decode caveat parameters `%s`: %w", caveat.Name, err),
+			caveat,
+			caveat.Name,
+		)
+	}
+
+	deserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return newTypeErrorWithSource(
 			fmt.Errorf("could not decode caveat `%s`: %w", caveat.Name, err),

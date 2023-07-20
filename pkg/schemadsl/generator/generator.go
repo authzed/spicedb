@@ -120,7 +120,12 @@ func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.indent()
 	sg.markNewScope()
 
-	deserializedExpression, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	if err != nil {
+		return fmt.Errorf("invalid caveat parameters: %w", err)
+	}
+
+	deserializedExpression, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return fmt.Errorf("invalid caveat expression bytes: %w", err)
 	}

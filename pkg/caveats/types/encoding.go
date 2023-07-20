@@ -56,3 +56,17 @@ func DecodeParameterType(parameterType *core.CaveatTypeReference) (*VariableType
 
 	return typeDef.asVariableType(childTypes)
 }
+
+// DecodeParameterTypes decodes the core caveat parameter types into internal caveat types.
+func DecodeParameterTypes(parameters map[string]*core.CaveatTypeReference) (map[string]VariableType, error) {
+	parameterTypes := make(map[string]VariableType, len(parameters))
+	for paramName, paramType := range parameters {
+		decodedType, err := DecodeParameterType(paramType)
+		if err != nil {
+			return nil, err
+		}
+
+		parameterTypes[paramName] = *decodedType
+	}
+	return parameterTypes, nil
+}

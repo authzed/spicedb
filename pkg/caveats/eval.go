@@ -2,7 +2,6 @@ package caveats
 
 import (
 	"fmt"
-	"regexp"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/interpreter"
 )
-
-var noSuchAttributeErrMessage = regexp.MustCompile(`^no such attribute: id: (.+), names: \[(.+)\]$`)
 
 // EvaluationConfig is configuration given to an EvaluateCaveatWithConfig call.
 type EvaluationConfig struct {
