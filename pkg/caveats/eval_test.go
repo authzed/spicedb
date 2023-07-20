@@ -107,7 +107,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
-			[]string{"b"},
+			noMissingVars,
 		},
 		{
 			"missing variables for left side of boolean expression",
@@ -122,7 +122,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			true,
 			"",
-			[]string{"a"},
+			noMissingVars,
 		},
 		{
 			"missing variables for both sides of boolean expression",
@@ -135,7 +135,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			false,
 			"a == 2 || b == 6",
-			[]string{"a"}, // second part of OR expression is not evaluated
+			[]string{"a", "b"},
 		},
 		{
 			"missing variable for left side of and boolean expression",
@@ -149,7 +149,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			},
 			"",
 			false,
-			"a == 2 && true",
+			"a == 2",
 			[]string{"a"},
 		},
 		{
@@ -164,7 +164,7 @@ func TestEvaluateCaveat(t *testing.T) {
 			},
 			"",
 			false,
-			"true && b == 6",
+			"b == 6",
 			[]string{"b"},
 		},
 		{
@@ -329,6 +329,8 @@ func TestEvaluateCaveat(t *testing.T) {
 					require.False(t, result.IsPartial())
 					_, partialErr := result.PartialValue()
 					require.Error(t, partialErr)
+					require.Nil(t, tc.missingVars)
+					require.Nil(t, result.missingVarNames)
 				}
 			}
 		})
