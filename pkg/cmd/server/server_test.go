@@ -40,7 +40,6 @@ func TestServerGracefulTermination(t *testing.T) {
 		WithDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithClusterDispatchCacheConfig(CacheConfig{Enabled: true}),
 		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
-		WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
 		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: true, HTTPAddress: ":"}),
 	)
 	rs, err := c.Complete(ctx)
@@ -82,7 +81,6 @@ func TestOTelReporting(t *testing.T) {
 			return ctx, nil
 		}),
 		WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
-		WithDashboardAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		WithDispatchCacheConfig(CacheConfig{Enabled: false, Metrics: false}),
 		WithNamespaceCacheConfig(CacheConfig{Enabled: false, Metrics: false}),

@@ -26,7 +26,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip" // enable gzip compression on all derivative servers
 
 	"github.com/authzed/spicedb/internal/auth"
-	"github.com/authzed/spicedb/internal/dashboard"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch"
 	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
@@ -110,8 +109,7 @@ type Config struct {
 	StreamingAPITimeout      time.Duration `debugmap:"visible"`
 
 	// Additional Services
-	DashboardAPI util.HTTPServerConfig `debugmap:"visible"`
-	MetricsAPI   util.HTTPServerConfig `debugmap:"visible"`
+	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
 
 	// Middleware for grpc API
 	UnaryMiddlewareModification     []MiddlewareModification[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
@@ -403,17 +401,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	closeables.AddCloser(gatewayCloser)
 	closeables.AddWithoutError(gatewayServer.Close)
 
-	dashboardServer, err := c.DashboardAPI.Complete(zerolog.InfoLevel, dashboard.NewHandler(
-		c.GRPCServer.Address,
-		c.GRPCServer.TLSKeyPath != "" || c.GRPCServer.TLSCertPath != "",
-		c.DatastoreConfig.Engine,
-		ds,
-	))
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize dashboard server: %w", err)
-	}
-	closeables.AddWithoutError(dashboardServer.Close)
-
 	var telemetryRegistry *prometheus.Registry
 
 	reporter := telemetry.DisabledReporter
@@ -448,7 +435,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dispatchGRPCServer:  dispatchGrpcServer,
 		gatewayServer:       gatewayServer,
 		metricsServer:       metricsServer,
-		dashboardServer:     dashboardServer,
 		unaryMiddleware:     unaryMiddleware,
 		streamingMiddleware: streamingMiddleware,
 		presharedKeys:       c.PresharedSecureKey,
@@ -547,7 +533,6 @@ type completedServerConfig struct {
 	dispatchGRPCServer util.RunnableGRPCServer
 	gatewayServer      util.RunnableHTTPServer
 	metricsServer      util.RunnableHTTPServer
-	dashboardServer    util.RunnableHTTPServer
 	telemetryReporter  telemetry.Reporter
 	healthManager      health.Manager
 
@@ -589,7 +574,6 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	g.Go(c.dispatchGRPCServer.Listen(ctx))
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(c.metricsServer.ListenAndServe)
-	g.Go(c.dashboardServer.ListenAndServe)
 	g.Go(func() error { return c.telemetryReporter(ctx) })
 
 	g.Go(stopOnCancelWithErr(c.closeFunc))

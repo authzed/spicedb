@@ -76,7 +76,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
 		to.StreamingAPITimeout = c.StreamingAPITimeout
-		to.DashboardAPI = c.DashboardAPI
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -130,7 +129,6 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
 	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
 	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
-	debugMap["DashboardAPI"] = helpers.DebugValue(c.DashboardAPI, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -432,13 +430,6 @@ func WithMaxDatastoreReadPageSize(maxDatastoreReadPageSize uint64) ConfigOption 
 func WithStreamingAPITimeout(streamingAPITimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.StreamingAPITimeout = streamingAPITimeout
-	}
-}
-
-// WithDashboardAPI returns an option that can set DashboardAPI on a Config
-func WithDashboardAPI(dashboardAPI util.HTTPServerConfig) ConfigOption {
-	return func(c *Config) {
-		c.DashboardAPI = dashboardAPI
 	}
 }
 
