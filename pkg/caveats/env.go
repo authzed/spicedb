@@ -72,6 +72,10 @@ func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC
 	opts = append(opts, cel.DefaultUTCTimeZone(true))
 
+	// OptionalTypes: enable optional typing syntax, e.g. `sometype?.foo`
+	// See: https://github.com/google/cel-spec/wiki/proposal-246
+	opts = append(opts, cel.OptionalTypes(cel.OptionalTypesVersion(0)))
+
 	// EnableMacroCallTracking: enables tracking of call macros so when we call AstToString we get
 	// back out the expected expressions.
 	// See: https://github.com/google/cel-go/issues/474

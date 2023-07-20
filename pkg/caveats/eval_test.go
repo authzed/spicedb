@@ -320,6 +320,38 @@ func TestEvaluateCaveat(t *testing.T) {
 			"",
 			noMissingVars,
 		},
+		{
+			"optional types not found",
+			MustEnvForVariables(map[string]types.VariableType{
+				"m":   types.MustMapType(types.BooleanType),
+				"key": types.StringType,
+			}),
+			"m[?key].orValue(true)",
+			map[string]any{
+				"m":   map[string]bool{"foo": true, "bar": false},
+				"key": "baz",
+			},
+			"",
+			true,
+			"",
+			noMissingVars,
+		},
+		{
+			"optional types found",
+			MustEnvForVariables(map[string]types.VariableType{
+				"m":   types.MustMapType(types.BooleanType),
+				"key": types.StringType,
+			}),
+			"m[?key].orValue(true)",
+			map[string]any{
+				"m":   map[string]bool{"foo": true, "bar": false},
+				"key": "bar",
+			},
+			"",
+			false,
+			"",
+			noMissingVars,
+		},
 	}
 
 	for _, tc := range tcs {
