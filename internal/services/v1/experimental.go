@@ -3,16 +3,24 @@ package v1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog/log"
 	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/middleware"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/handwrittenvalidation"
@@ -22,6 +30,7 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/services/v1/options"
+	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -39,7 +48,7 @@ const (
 )
 
 // NewExperimentalServer creates a ExperimentalServiceServer instance.
-func NewExperimentalServer(opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
+func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig PermissionsServerConfig, opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
 	config := options.NewExperimentalServerOptionsWithOptionsAndDefaults(opts...)
 
 	if config.DefaultExportBatchSize == 0 {
@@ -81,8 +90,12 @@ func NewExperimentalServer(opts ...options.ExperimentalServerOptionsOption) v1.E
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
 			),
 		},
-		defaultBatchSize: uint64(config.DefaultExportBatchSize),
-		maxBatchSize:     uint64(config.MaxExportBatchSize),
+		defaultBatchSize:        uint64(config.DefaultExportBatchSize),
+		maxBatchSize:            uint64(config.MaxExportBatchSize),
+		dispatch:                dispatch,
+		maximumAPIDepth:         permServerConfig.MaximumAPIDepth,
+		maxCaveatContextSize:    permServerConfig.MaxCaveatContextSize,
+		bulkCheckMaxConcurrency: config.BulkCheckMaxConcurrency,
 	}
 }
 
@@ -92,6 +105,12 @@ type experimentalServer struct {
 
 	defaultBatchSize uint64
 	maxBatchSize     uint64
+
+	// PermissionServer config specific
+	dispatch                dispatch.Dispatcher
+	maximumAPIDepth         uint32
+	maxCaveatContextSize    int
+	bulkCheckMaxConcurrency uint16
 }
 
 type bulkLoadAdapter struct {
@@ -384,6 +403,138 @@ func (es *experimentalServer) BulkExportRelationships(
 	}
 
 	return nil
+}
+
+func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.BulkCheckPermissionRequest) (*v1.BulkCheckPermissionResponse, error) {
+	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, es.rewriteError(ctx, err)
+	}
+
+	// identifies checks with same permission and caveats over different resources and cluster them
+	clusteringParams := clusteringParameters{
+		atRevision:           atRevision,
+		maxCaveatContextSize: es.maxCaveatContextSize,
+		maximumAPIDepth:      es.maximumAPIDepth,
+	}
+	clusteredItems, err := clusterItems(ctx, clusteringParams, req.Items)
+	if err != nil {
+		return nil, es.rewriteError(ctx, err)
+	}
+
+	bulkResponseMutex := sync.Mutex{}
+	resp := &v1.BulkCheckPermissionResponse{CheckedAt: checkedAt}
+	tr := taskrunner.NewPreloadedTaskRunner(ctx, es.bulkCheckMaxConcurrency, len(clusteredItems))
+
+	for _, item := range clusteredItems {
+		item := item
+		for _, chunk := range item.chunkedResourceIDs {
+			chunk := chunk
+			tr.Add(func(ctx context.Context) error {
+				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+				err := namespace.CheckNamespaceAndRelations(ctx,
+					[]namespace.TypeAndRelationToCheck{
+						{
+							NamespaceName: item.params.ResourceType.Namespace,
+							RelationName:  item.params.ResourceType.Relation,
+							AllowEllipsis: false,
+						},
+						{
+							NamespaceName: item.params.Subject.Namespace,
+							RelationName:  stringz.DefaultEmpty(item.params.Subject.Relation, graph.Ellipsis),
+							AllowEllipsis: true,
+						},
+					}, ds)
+
+				var pairs []*v1.BulkCheckPermissionPair
+				var rcr map[string]*dispatchv1.ResourceCheckResult
+				if err == nil {
+					rcr, _, err = computed.ComputeBulkCheck(ctx, es.dispatch, item.params, chunk)
+				}
+
+				if err != nil {
+					rewritten := es.rewriteError(ctx, err)
+					statusResp, ok := status.FromError(rewritten)
+					if !ok {
+						// if error is not a gRPC Status, fail the entire bulk check request
+						return err
+					}
+
+					for _, resourceID := range chunk {
+						reqItem, err := requestItemFromResourceAndParameters(item, resourceID)
+						if err != nil {
+							return es.rewriteError(ctx, err)
+						}
+						pairs = append(pairs, &v1.BulkCheckPermissionPair{
+							Request: reqItem,
+							Response: &v1.BulkCheckPermissionPair_Error{
+								Error: statusResp.Proto(),
+							},
+						})
+					}
+				} else {
+					for resourceID, checkResult := range rcr {
+						reqItem, err := requestItemFromResourceAndParameters(item, resourceID)
+						if err != nil {
+							return es.rewriteError(ctx, err)
+						}
+						pairs = append(pairs, &v1.BulkCheckPermissionPair{
+							Request:  reqItem,
+							Response: pairItemFromCheckResult(checkResult),
+						})
+					}
+				}
+
+				bulkResponseMutex.Lock()
+				resp.Pairs = append(resp.Pairs, pairs...)
+				bulkResponseMutex.Unlock()
+
+				return nil
+			})
+		}
+	}
+
+	if err := tr.StartAndWait(); err != nil {
+		return nil, es.rewriteError(ctx, err)
+	}
+
+	return resp, nil
+}
+
+func pairItemFromCheckResult(checkResult *dispatchv1.ResourceCheckResult) *v1.BulkCheckPermissionPair_Item {
+	permissionship, partialCaveat := checkResultToAPITypes(checkResult)
+	return &v1.BulkCheckPermissionPair_Item{
+		Item: &v1.BulkCheckPermissionResponseItem{
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partialCaveat,
+		},
+	}
+}
+
+func requestItemFromResourceAndParameters(params clusteredCheckParameters, resourceID string) (*v1.BulkCheckPermissionRequestItem, error) {
+	item := &v1.BulkCheckPermissionRequestItem{
+		Resource: &v1.ObjectReference{
+			ObjectType: params.params.ResourceType.Namespace,
+			ObjectId:   resourceID,
+		},
+		Permission: params.params.ResourceType.Relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: params.params.Subject.Namespace,
+				ObjectId:   params.params.Subject.ObjectId,
+			},
+			OptionalRelation: denormalizeSubjectRelation(params.params.Subject.Relation),
+		},
+	}
+	if len(params.params.CaveatContext) > 0 {
+		var err error
+		item.Context, err = structpb.NewStruct(params.params.CaveatContext)
+		if err != nil {
+			return nil, fmt.Errorf("caveat context wasn't properly validated: %w", err)
+		}
+	}
+	return item, nil
 }
 
 func queryForEach(

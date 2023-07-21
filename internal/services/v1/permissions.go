@@ -119,6 +119,16 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	permissionship, partialCaveat := checkResultToAPITypes(cr)
+
+	return &v1.CheckPermissionResponse{
+		CheckedAt:         checkedAt,
+		Permissionship:    permissionship,
+		PartialCaveatInfo: partialCaveat,
+	}, nil
+}
+
+func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermissionResponse_Permissionship, *v1.PartialCaveatInfo) {
 	var partialCaveat *v1.PartialCaveatInfo
 	permissionship := v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
 	if cr.Membership == dispatch.ResourceCheckResult_MEMBER {
@@ -129,12 +139,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			MissingRequiredContext: cr.MissingExprFields,
 		}
 	}
-
-	return &v1.CheckPermissionResponse{
-		CheckedAt:         checkedAt,
-		Permissionship:    permissionship,
-		PartialCaveatInfo: partialCaveat,
-	}, nil
+	return permissionship, partialCaveat
 }
 
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {

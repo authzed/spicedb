@@ -13,6 +13,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
@@ -804,17 +805,17 @@ func dispatchAllAsync[T any](
 	resultChan chan<- CheckResult,
 	concurrencyLimit uint16,
 ) {
-	tr := newPreloadedTaskRunner(ctx, concurrencyLimit, len(children))
+	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, len(children))
 	for _, currentChild := range children {
 		currentChild := currentChild
-		tr.add(func(ctx context.Context) error {
+		tr.Add(func(ctx context.Context) error {
 			result := handler(ctx, crc, currentChild)
 			resultChan <- result
 			return result.Err
 		})
 	}
 
-	tr.start()
+	tr.Start()
 }
 
 func noMembers() CheckResult {
