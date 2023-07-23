@@ -26,6 +26,6 @@ func (Gen) Go() error {
 // Proto Run proto codegen
 func (Gen) Proto() error {
 	fmt.Println("generating buf")
-	return sh.RunV("go", "run", "github.com/bufbuild/buf/cmd/buf",
-		"generate", "-o", "pkg/proto", "proto/internal", "--template", "buf.gen.yaml")
+	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf",
+		"generate", "-o", "../pkg/proto", "../proto/internal", "--template", "../buf.gen.yaml")
 }

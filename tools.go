@@ -3,16 +3,15 @@
 
 package tools
 
+// Most tools are managed in the magefiles module. These tools are just
+// the ones that can't run from a submodule at the moment.
 import (
-	_ "github.com/agnivade/wasmbrowsertest"
-	_ "github.com/bufbuild/buf/cmd/buf"
+	// support running mage with go run mage.go
+	_ "github.com/magefile/mage/mage"
+	// optgen is used directly in go:generate directives.
 	_ "github.com/ecordell/optgen"
-	_ "github.com/envoyproxy/protoc-gen-validate"
+	// golangci-lint always uses the current directory's go.mod.
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
-	_ "github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto"
-	_ "golang.org/x/tools/cmd/stringer"
+	// vulncheck always uses the current directory's go.mod.
 	_ "golang.org/x/vuln/cmd/govulncheck"
-	_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
-	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
-	_ "mvdan.cc/gofumpt"
 )

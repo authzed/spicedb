@@ -67,19 +67,19 @@ func (l Lint) Go() error {
 // Gofumpt Run gofumpt
 func (Lint) Gofumpt() error {
 	fmt.Println("formatting go")
-	return sh.RunV("go", "run", "mvdan.cc/gofumpt", "-l", "-w", ".")
+	return RunSh("go", Tool())("run", "mvdan.cc/gofumpt", "-l", "-w", "..")
 }
 
 // Golangcilint Run golangci-lint
 func (Lint) Golangcilint() error {
 	fmt.Println("running golangci-lint")
-	return sh.RunV("go", "run", "github.com/golangci/golangci-lint/cmd/golangci-lint", "run", "--fix")
+	return RunSh("go", WithV())("run", "github.com/golangci/golangci-lint/cmd/golangci-lint", "run", "--fix")
 }
 
 // Analyzers Run all analyzers
 func (Lint) Analyzers() error {
 	fmt.Println("running analyzers")
-	return runDirV("tools/analyzers", "go", "run", "./cmd/analyzers/main.go",
+	return RunSh("go", WithDir("tools/analyzers"), WithV())("run", "./cmd/analyzers/main.go",
 		"-nilvaluecheck",
 		"-nilvaluecheck.skip-pkg=github.com/authzed/spicedb/pkg/proto/dispatch/v1",
 		"-nilvaluecheck.disallowed-nil-return-type-paths=*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse",
@@ -97,7 +97,7 @@ func (Lint) Analyzers() error {
 // Vulncheck Run vulncheck
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
-	return sh.RunV("go", "run", "golang.org/x/vuln/cmd/govulncheck", "./...")
+	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "./...")
 }
 
 // Trivy Run Trivy
