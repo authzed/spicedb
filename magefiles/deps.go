@@ -5,7 +5,7 @@ package main
 import "github.com/magefile/mage/mg"
 
 var goModules = []string{
-	".", "e2e", "tools/analyzers",
+	".", "e2e", "tools/analyzers", "magefiles",
 }
 
 type Deps mg.Namespace
@@ -13,7 +13,7 @@ type Deps mg.Namespace
 // Tidy go mod tidy all go modules
 func (Deps) Tidy() error {
 	for _, mod := range goModules {
-		if err := runDirV(mod, "go", "mod", "tidy"); err != nil {
+		if err := RunSh("go", WithDir(mod))("mod", "tidy"); err != nil {
 			return err
 		}
 	}
@@ -24,11 +24,11 @@ func (Deps) Tidy() error {
 // Update go get -u all go dependencies
 func (Deps) Update() error {
 	for _, mod := range goModules {
-		if err := runDirV(mod, "go", "get", "-u", "-t", "-tags", "ci,tools", "./..."); err != nil {
+		if err := RunSh("go", WithDir(mod))("get", "-u", "-t", "-tags", "ci,tools", "./..."); err != nil {
 			return err
 		}
 
-		if err := runDirV(mod, "go", "mod", "tidy"); err != nil {
+		if err := RunSh("go", WithDir(mod))("mod", "tidy"); err != nil {
 			return err
 		}
 	}
