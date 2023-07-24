@@ -1,4 +1,4 @@
-package proxy
+package schemacaching
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 	// Load all consistency and benchmark YAMLs to get a set of sample namespace
 	// definitions for testing.
 	_, filename, _, _ := runtime.Caller(0)
-	integrationTestDirectoryPath := path.Join(path.Dir(filename), "../../services/integrationtesting")
+	integrationTestDirectoryPath := path.Join(path.Dir(filename), "../../../services/integrationtesting")
 
 	consistencyTestFiles := []string{}
 	err := filepath.Walk(integrationTestDirectoryPath, func(path string, info os.FileInfo, err error) error {

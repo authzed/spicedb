@@ -171,6 +171,10 @@ func newHedgingProxyWithTimeSource(
 	}, nil
 }
 
+func (hp hedgingProxy) Unwrap() datastore.Datastore {
+	return hp.Datastore
+}
+
 func (hp hedgingProxy) OptimizedRevision(ctx context.Context) (rev datastore.Revision, err error) {
 	var once sync.Once
 	subreq := func(ctx context.Context, responseReady chan<- struct{}) {

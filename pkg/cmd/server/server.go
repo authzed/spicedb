@@ -28,6 +28,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/auth"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/proxy/schemacaching"
 	"github.com/authzed/spicedb/internal/dispatch"
 	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
@@ -74,7 +75,8 @@ type Config struct {
 	MaxRelationshipContextSize int `debugmap:"visible" default:"25_000"`
 
 	// Namespace cache
-	NamespaceCacheConfig CacheConfig `debugmap:"visible"`
+	DisableWatchableSchemaCache bool        `debugmap:"visible"`
+	NamespaceCacheConfig        CacheConfig `debugmap:"visible"`
 
 	// Schema options
 	SchemaPrefixesRequired bool `debugmap:"visible"`
@@ -216,7 +218,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
-	ds = proxy.NewCachingDatastoreProxy(ds, nscc)
+	cachingMode := schemacaching.WatchIfSupported
+	if c.DisableWatchableSchemaCache {
+		cachingMode = schemacaching.JustInTimeCaching
+	}
+
+	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode)
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	closeables.AddWithError(ds.Close)
 
@@ -429,6 +436,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	closeables.AddWithoutError(metricsServer.Close)
 
 	return &completedServerConfig{
+		ds:                  ds,
 		gRPCServer:          grpcServer,
 		dispatchGRPCServer:  dispatchGrpcServer,
 		gatewayServer:       gatewayServer,
@@ -531,6 +539,8 @@ type RunnableServer interface {
 // but is assumed have already been validated via `Complete()` on Config.
 // It offers limited options for mutation before Run() starts the services.
 type completedServerConfig struct {
+	ds datastore.Datastore
+
 	gRPCServer         util.RunnableGRPCServer
 	dispatchGRPCServer util.RunnableGRPCServer
 	gatewayServer      util.RunnableHTTPServer
@@ -561,6 +571,18 @@ func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s st
 }
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
+	log.Ctx(ctx).Info().Type("datastore", c.ds).Msg("running server")
+	if unwrappableDS, ok := c.ds.(datastore.UnwrappableDatastore); ok {
+		log.Ctx(ctx).Info().Msg("checking for startable datastore")
+		if startableDS, ok := unwrappableDS.Unwrap().(datastore.StartableDatastore); ok {
+			log.Ctx(ctx).Info().Msg("Start-ing datastore")
+			err := startableDS.Start(ctx)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 
 	stopOnCancelWithErr := func(stopFn func() error) func() error {

@@ -1,66 +1,24 @@
-package proxy
+package schemacaching
 
 import (
 	"context"
 	"errors"
 	"sync"
-	"testing"
 	"unsafe"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-
-	"github.com/dustin/go-humanize"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/singleflight"
 
+	internaldatastore "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-// *DefinitionSizeVTMultiplier are the mulitipliers to be used for
-// estimating the in-memory cost of a SchemaDefinition based on its
-// on-wire size, as returned by SizeVT. This was determined by testing
-// all existing definitions found in consistency tests and is
-// enforced via the estimatedsize_test.
-const (
-	namespaceDefinitionSizeVTMultiplier = 10
-	namespaceDefinitionMinimumSize      = 150
-
-	caveatDefinitionSizeVTMultiplier = 10
-	caveatDefinitionMinimumSize      = 150
-)
-
-// DatastoreProxyTestCache returns a cache used for testing.
-func DatastoreProxyTestCache(t testing.TB) cache.Cache {
-	cache, err := cache.NewCache(&cache.Config{
-		NumCounters: 1000,
-		MaxCost:     1 * humanize.MiByte,
-	})
-	require.Nil(t, err)
-	return cache
-}
-
-// NewCachingDatastoreProxy creates a new datastore proxy which caches definitions that
-// are loaded at specific datastore revisions.
-func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache) datastore.Datastore {
-	if c == nil {
-		c = cache.NoopCache()
-	}
-	return &definitionCachingProxy{
-		Datastore: delegate,
-		c:         c,
-	}
-}
-
-type schemaDefinition interface {
-	compiler.SchemaDefinition
-	SizeVT() int
-}
-
+// definitionCachingProxy is a datastore proxy that caches schema (namespaces and caveat definitions)
+// via the supplied cache.
 type definitionCachingProxy struct {
 	datastore.Datastore
 	c         cache.Cache
@@ -216,7 +174,7 @@ func readAndCache[T schemaDefinition](
 		loadedRaw, err, _ = r.p.readGroup.Do(cacheRevisionKey, func() (any, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
-			loaded, updatedRev, err := reader(SeparateContextWithTracing(ctx), name)
+			loaded, updatedRev, err := reader(internaldatastore.SeparateContextWithTracing(ctx), name)
 			if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) && !errors.Is(err, &datastore.ErrCaveatNameNotFound{}) {
 				// Propagate this error to the caller
 				return nil, err
@@ -246,7 +204,7 @@ type definitionCachingRWT struct {
 	definitionCache *sync.Map
 }
 
-type rwtCacheEntry struct {
+type definitionEntry struct {
 	loaded   schemaDefinition
 	updated  datastore.Revision
 	notFound error
@@ -282,9 +240,9 @@ func readAndCacheInTransaction[T schemaDefinition](
 	key := prefix + ":" + name
 	untypedEntry, ok := rwt.definitionCache.Load(key)
 
-	var entry rwtCacheEntry
+	var entry definitionEntry
 	if ok {
-		entry = untypedEntry.(rwtCacheEntry)
+		entry = untypedEntry.(definitionEntry)
 	} else {
 		loaded, updatedRev, err := reader(ctx, name)
 		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
@@ -292,7 +250,7 @@ func readAndCacheInTransaction[T schemaDefinition](
 			return *new(T), datastore.NoRevision, err
 		}
 
-		entry = rwtCacheEntry{loaded, updatedRev, err}
+		entry = definitionEntry{loaded, updatedRev, err}
 		rwt.definitionCache.Store(key, entry)
 	}
 

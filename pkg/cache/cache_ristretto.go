@@ -41,13 +41,13 @@ func NewCacheWithMetrics(name string, config *Config) (Cache, error) {
 
 	cache := wrapped{name, config, config.DefaultTTL, rcache}
 	mustRegisterCache(name, cache)
-	return cache, nil
+	return &cache, nil
 }
 
 // NewCache creates a new ristretto cache from the given config.
 func NewCache(config *Config) (Cache, error) {
 	rcache, err := ristretto.NewCache(ristrettoConfig(config))
-	return wrapped{"", config, config.DefaultTTL, rcache}, err
+	return &wrapped{"", config, config.DefaultTTL, rcache}, err
 }
 
 type wrapped struct {

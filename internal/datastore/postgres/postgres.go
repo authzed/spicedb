@@ -18,11 +18,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
+	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
-	"github.com/authzed/spicedb/internal/datastore/proxy"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -119,7 +119,7 @@ func NewPostgresDatastore(
 		return nil, err
 	}
 
-	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 func newPostgresDatastore(

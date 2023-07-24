@@ -1,4 +1,4 @@
-package proxy
+package schemacaching
 
 import (
 	"context"
@@ -162,7 +162,7 @@ func TestSnapshotCaching(t *testing.T) {
 			twoReader.On(tester.readSingleFunctionName, nsB).Return(nil, one, nil).Once()
 
 			require := require.New(t)
-			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t))
+			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching)
 
 			_, updatedOneA, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsA)
 			require.NoError(err)
@@ -217,7 +217,7 @@ func TestRWTCaching(t *testing.T) {
 
 			ctx := context.Background()
 
-			ds := NewCachingDatastoreProxy(dsMock, nil)
+			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching)
 
 			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 				_, updatedA, err := tester.readSingleFunc(ctx, rwt, nsA)
@@ -254,7 +254,7 @@ func TestRWTCacheWithWrites(t *testing.T) {
 
 			ctx := context.Background()
 
-			ds := NewCachingDatastoreProxy(dsMock, nil)
+			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching)
 
 			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 				// Cache the 404
@@ -305,7 +305,7 @@ func TestSingleFlight(t *testing.T) {
 
 			require := require.New(t)
 
-			ds := NewCachingDatastoreProxy(dsMock, nil)
+			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching)
 
 			readNamespace := func() error {
 				_, updatedAt, err := tester.readSingleFunc(context.Background(), ds.SnapshotReader(one), nsA)
@@ -371,7 +371,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			ds := NewCachingDatastoreProxy(rawDS, nil)
+			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching)
 
 			if tc.nsDef != nil {
 				_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
@@ -436,7 +436,7 @@ func TestSingleFlightCancelled(t *testing.T) {
 
 			dsMock.On("SnapshotReader", one).Return(&reader{MockReader: proxy_test.MockReader{}})
 
-			ds := NewCachingDatastoreProxy(dsMock, nil)
+			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching)
 
 			g := sync.WaitGroup{}
 			var d2 datastore.SchemaDefinition
@@ -477,7 +477,7 @@ func TestMixedCaching(t *testing.T) {
 			dsMock.On("SnapshotReader", one).Return(reader)
 
 			require := require.New(t)
-			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t))
+			ds := NewCachingDatastoreProxy(dsMock, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching)
 
 			dsReader := ds.SnapshotReader(one)
 
