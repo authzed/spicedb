@@ -117,7 +117,7 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 	// If the value produced has Unknown type, then it means required context was missing.
 	if types.IsUnknown(val) {
 		unknownVal := val.(*types.Unknown)
-		missingVarNames := make([]string, 0, len(contextValues))
+		missingVarNames := make([]string, 0, len(unknownVal.IDs()))
 		for _, id := range unknownVal.IDs() {
 			trails, ok := unknownVal.GetAttributeTrails(id)
 			if ok {
