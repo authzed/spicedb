@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -20,7 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
-	options "github.com/authzed/spicedb/internal/services/v1/options"
+	"github.com/authzed/spicedb/internal/services/v1/options"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
@@ -289,8 +290,8 @@ func (es *experimentalServer) BulkExportRelationships(
 	slices.SortFunc(namespaces, func(
 		lhs datastore.RevisionedDefinition[*core.NamespaceDefinition],
 		rhs datastore.RevisionedDefinition[*core.NamespaceDefinition],
-	) bool {
-		return lhs.Definition.Name < rhs.Definition.Name
+	) int {
+		return strings.Compare(lhs.Definition.Name, rhs.Definition.Name)
 	})
 
 	// Skip the namespaces that are already fully returned

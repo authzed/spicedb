@@ -110,7 +110,6 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 	}
 
 	val, details, err := prg.Eval(activation)
-
 	if err != nil {
 		return nil, EvaluationErr{err}
 	}
