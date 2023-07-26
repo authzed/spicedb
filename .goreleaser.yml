@@ -33,12 +33,42 @@ furies:
     secret_name: "GEMFURY_PUSH_TOKEN"
     skip: "{{ gt (len .Prerelease) 0 }}"
 brews:
-  - repository:
+  - name: "{{.ProjectName}}"
+    repository:
       owner: "authzed"
       name: "homebrew-tap"
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-      pull_request:
-        enabled: true
+    url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    download_strategy: "CurlDownloadStrategy"
+    commit_author:
+      name: "authzedbot"
+      email: "infrastructure@authzed.com"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    homepage: "https://authzed.com/"
+    description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
+    license: "Apache-2.0"
+    folder: "Formula"
+    skip_upload: "auto"
+    custom_block: |
+      head "https://github.com/authzed/spicedb.git", :branch => "main"
+    dependencies:
+      - name: "go"
+        type: "build"
+    test: |
+      system "#{bin}/spicedb version"
+    install: |
+      if !File.exists? "spicedb"
+        system "go build --ldflags \"-s -w -X github.com/jzelinskie/cobrautil/v2.Version=$(git describe --always --abbrev=7 --dirty --tags)\" ./cmd/spicedb"
+      end
+      bin.install "spicedb"
+      (bash_completion/"spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "bash")
+      (zsh_completion/"_spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "zsh")
+      (fish_completion/"spicedb.fish").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "fish")
+  - name: "{{.ProjectName}}@{{.Version}}"
+    repository:
+      owner: "authzed"
+      name: "homebrew-tap"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     download_strategy: "CurlDownloadStrategy"
     commit_author:
