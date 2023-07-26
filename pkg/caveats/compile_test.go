@@ -210,7 +210,7 @@ func TestCompile(t *testing.T) {
 }
 
 func TestDeserializeEmpty(t *testing.T) {
-	_, err := DeserializeCaveat([]byte{})
+	_, err := DeserializeCaveat([]byte{}, nil)
 	require.NotNil(t, err)
 }
 
@@ -220,18 +220,20 @@ func TestSerialization(t *testing.T) {
 	for _, expr := range exprs {
 		expr := expr
 		t.Run(expr, func(t *testing.T) {
-			env := MustEnvForVariables(map[string]types.VariableType{
+			vars := map[string]types.VariableType{
 				"a": types.IntType,
 				"b": types.IntType,
 				"l": types.MustListType(types.IntType),
-			})
+			}
+
+			env := MustEnvForVariables(vars)
 			compiled, err := compileCaveat(env, expr)
 			require.NoError(t, err)
 
 			serialized, err := compiled.Serialize()
 			require.NoError(t, err)
 
-			deserialized, err := DeserializeCaveat(serialized)
+			deserialized, err := DeserializeCaveat(serialized, vars)
 			require.NoError(t, err)
 
 			astExpr, err := deserialized.ExprString()
@@ -242,17 +244,19 @@ func TestSerialization(t *testing.T) {
 }
 
 func TestSerializeName(t *testing.T) {
-	env := MustEnvForVariables(map[string]types.VariableType{
+	vars := map[string]types.VariableType{
 		"a": types.IntType,
 		"b": types.IntType,
-	})
+	}
+
+	env := MustEnvForVariables(vars)
 	compiled, err := CompileCaveatWithName(env, "a == 1", "hi")
 	require.NoError(t, err)
 
 	serialized, err := compiled.Serialize()
 	require.NoError(t, err)
 
-	deserialized, err := DeserializeCaveat(serialized)
+	deserialized, err := DeserializeCaveat(serialized, vars)
 	require.NoError(t, err)
 
 	require.Equal(t, "hi", deserialized.name)

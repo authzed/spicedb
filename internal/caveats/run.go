@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
+	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -141,13 +142,18 @@ func (lc loadedCaveats) Get(caveatDefName string) (*core.CaveatDefinition, *cave
 		return caveat, deserialized, nil
 	}
 
-	deserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression)
+	parameterTypes, err := caveattypes.DecodeParameterTypes(caveat.ParameterTypes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	justDeserialized, err := caveats.DeserializeCaveat(caveat.SerializedExpression, parameterTypes)
 	if err != nil {
 		return caveat, nil, err
 	}
 
-	lc.deserializedCaveats[caveatDefName] = deserialized
-	return caveat, deserialized, nil
+	lc.deserializedCaveats[caveatDefName] = justDeserialized
+	return caveat, justDeserialized, nil
 }
 
 func runExpressionWithCaveats(

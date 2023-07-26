@@ -73,7 +73,7 @@ func convertNumericType[T int64 | uint64 | float64](value any) (any, error) {
 }
 
 var (
-	AnyType     = registerBasicType("any", cel.AnyType, func(value any) (any, error) { return value, nil })
+	AnyType     = registerBasicType("any", cel.DynType, func(value any) (any, error) { return value, nil })
 	BooleanType = registerBasicType("bool", cel.BoolType, requireType[bool])
 	StringType  = registerBasicType("string", cel.StringType, requireType[string])
 	IntType     = registerBasicType("int", cel.IntType, convertNumericType[int64])

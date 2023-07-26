@@ -910,10 +910,13 @@ func TestCompile(t *testing.T) {
 							testutil.RequireProtoEqual(t, expectedParam, foundParam, "mismatch type for parameter %s", expectedParamName)
 						}
 
-						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression)
+						parameterTypes, err := caveattypes.DecodeParameterTypes(caveatDef.ParameterTypes)
 						require.NoError(err)
 
-						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression)
+						expectedDecoded, err := caveats.DeserializeCaveat(expectedCaveatDef.SerializedExpression, parameterTypes)
+						require.NoError(err)
+
+						foundDecoded, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
 						require.NoError(err)
 
 						expectedExprString, err := expectedDecoded.ExprString()
