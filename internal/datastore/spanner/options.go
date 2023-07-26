@@ -10,41 +10,20 @@ type spannerOptions struct {
 	revisionQuantization        time.Duration
 	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
-	gcWindow                    time.Duration
-	gcInterval                  time.Duration
-	gcEnabled                   bool
 	credentialsFilePath         string
 	emulatorHost                string
 	disableStats                bool
-
-	migrationPhase string
-}
-
-type migrationPhase uint8
-
-const (
-	writeChangelogReadChangelog migrationPhase = iota
-	writeChangelogReadStream
-	complete
-)
-
-var migrationPhases = map[string]migrationPhase{
-	"write-changelog-read-changelog": writeChangelogReadChangelog,
-	"write-changelog-read-stream":    writeChangelogReadStream,
-	"":                               complete,
 }
 
 const (
-	errQuantizationTooLarge = "revision quantization (%s) must be less than GC window (%s)"
+	errQuantizationTooLarge = "revision quantization (%s) must be less than (%s)"
 
 	defaultRevisionQuantization        = 5 * time.Second
 	defaultFollowerReadDelay           = 0 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
 	defaultWatchBufferLength           = 128
-	defaultGCWindow                    = 60 * time.Minute
-	defaultGCInterval                  = 3 * time.Minute
-	defaultGCEnabled                   = true
 	defaultDisableStats                = false
+	maxRevisionQuantization            = 24 * time.Hour
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -53,9 +32,6 @@ type Option func(*spannerOptions)
 
 func generateConfig(options []Option) (spannerOptions, error) {
 	computed := spannerOptions{
-		gcWindow:                    defaultGCWindow,
-		gcInterval:                  defaultGCInterval,
-		gcEnabled:                   defaultGCEnabled,
 		watchBufferLength:           defaultWatchBufferLength,
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
@@ -68,16 +44,13 @@ func generateConfig(options []Option) (spannerOptions, error) {
 	}
 
 	// Run any checks on the config that need to be done
-	if computed.revisionQuantization >= computed.gcWindow {
+	// TODO set a limit to revision quantization?
+	if computed.revisionQuantization >= maxRevisionQuantization {
 		return computed, fmt.Errorf(
 			errQuantizationTooLarge,
 			computed.revisionQuantization,
-			computed.gcWindow,
+			maxRevisionQuantization,
 		)
-	}
-
-	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
-		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
 	return computed, nil
@@ -123,25 +96,6 @@ func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
 	}
 }
 
-// GCWindow is the maximum age of a passed revision that will be considered
-// valid.
-//
-// This value defaults to 1 hour.
-func GCWindow(window time.Duration) Option {
-	return func(so *spannerOptions) {
-		so.gcWindow = window
-	}
-}
-
-// GCInterval is the the interval at which garbage collection will occur.
-//
-// This value defaults to 3 minutes.
-func GCInterval(interval time.Duration) Option {
-	return func(so *spannerOptions) {
-		so.gcInterval = interval
-	}
-}
-
 // CredentialsFile is the path to a file containing credentials for a service
 // account that can access the cloud spanner instance
 func CredentialsFile(path string) Option {
@@ -158,26 +112,9 @@ func EmulatorHost(uri string) Option {
 	}
 }
 
-// GCEnabled indicates whether garbage collection is enabled.
-//
-// GC is enabled by default.
-func GCEnabled(isGCEnabled bool) Option {
-	return func(so *spannerOptions) {
-		so.gcEnabled = isGCEnabled
-	}
-}
-
 // DisableStats disables recording counts to the stats table
 func DisableStats(disable bool) Option {
 	return func(po *spannerOptions) {
 		po.disableStats = disable
 	}
-}
-
-// MigrationPhase configures the postgres driver to the proper state of a
-// multi-phase migration.
-//
-// Steady-state configuration (e.g. fully migrated) by default
-func MigrationPhase(phase string) Option {
-	return func(po *spannerOptions) { po.migrationPhase = phase }
 }

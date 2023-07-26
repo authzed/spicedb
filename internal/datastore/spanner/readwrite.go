@@ -7,7 +7,6 @@ import (
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/google/uuid"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/proto"
 
@@ -18,30 +17,21 @@ import (
 
 type spannerReadWriteTXN struct {
 	spannerReader
-	spannerRWT     *spanner.ReadWriteTransaction
-	disableStats   bool
-	migrationPhase migrationPhase
+	spannerRWT   *spanner.ReadWriteTransaction
+	disableStats bool
 }
 
 func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	changeUUID := uuid.New().String()
-
 	var rowCountChange int64
 	for _, mutation := range mutations {
-		txnMut, changelogMut, countChange, err := spannerMutation(ctx, changeUUID, mutation.Operation, mutation.Tuple)
+		txnMut, countChange, err := spannerMutation(ctx, mutation.Operation, mutation.Tuple)
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 		rowCountChange += countChange
 
-		if rwt.migrationPhase != complete {
-			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
-		} else {
-			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
+		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
@@ -56,39 +46,33 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 
 func spannerMutation(
 	ctx context.Context,
-	changeUUID string,
 	operation core.RelationTupleUpdate_Operation,
 	tpl *core.RelationTuple,
-) (txnMut *spanner.Mutation, changelogMut *spanner.Mutation, countChange int64, err error) {
-	var op int64
+) (txnMut *spanner.Mutation, countChange int64, err error) {
 	switch operation {
 	case core.RelationTupleUpdate_TOUCH:
 		countChange = 1
 		txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(tpl))
-		op = colChangeOpTouch
 	case core.RelationTupleUpdate_CREATE:
 		countChange = 1
 		txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(tpl))
-		op = colChangeOpCreate
 	case core.RelationTupleUpdate_DELETE:
 		countChange = -1
 		txnMut = spanner.Delete(tableRelationship, keyFromRelationship(tpl))
-		op = colChangeOpDelete
 	default:
 		log.Ctx(ctx).Error().Stringer("operation", operation).Msg("unknown operation type")
 		err = fmt.Errorf("unknown mutation operation: %s", operation)
 		return
 	}
 
-	changelogMut = spanner.Insert(tableChangelog, allChangelogCols, changeVals(changeUUID, op, tpl))
 	return
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.migrationPhase, rwt.disableStats)
-	if err != nil {
+	if err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.disableStats); err != nil {
 		return fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
+
 	return nil
 }
 
@@ -103,7 +87,7 @@ func (snd selectAndDelete) Where(pred interface{}, args ...interface{}) selectAn
 	return snd
 }
 
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, migrationPhase migrationPhase, disableStats bool) error {
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) error {
 	queries := selectAndDelete{queryTuples, sql.Delete(tableRelationship)}
 
 	// Add clauses for the ResourceFilter
@@ -123,59 +107,6 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		}
 		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
 			queries = queries.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
-		}
-	}
-
-	if migrationPhase != complete {
-		ssql, sargs, err := queries.sel.ToSql()
-		if err != nil {
-			return err
-		}
-
-		toDelete := rwt.Query(ctx, statementFromSQL(ssql, sargs))
-
-		changeUUID := uuid.NewString()
-
-		// Pre-allocate a single relationship
-		rel := core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
-		var caveatName spanner.NullString
-		var caveatCtx spanner.NullJSON
-
-		var changelogMutations []*spanner.Mutation
-		if err := toDelete.Do(func(row *spanner.Row) error {
-			err := row.Columns(
-				&rel.ResourceAndRelation.Namespace,
-				&rel.ResourceAndRelation.ObjectId,
-				&rel.ResourceAndRelation.Relation,
-				&rel.Subject.Namespace,
-				&rel.Subject.ObjectId,
-				&rel.Subject.Relation,
-				&caveatName,
-				&caveatCtx,
-			)
-			if err != nil {
-				return err
-			}
-			rel.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
-			if err != nil {
-				return err
-			}
-
-			changelogMutations = append(changelogMutations, spanner.Insert(
-				tableChangelog,
-				allChangelogCols,
-				changeVals(changeUUID, colChangeOpDelete, &rel),
-			))
-			return nil
-		}); err != nil {
-			return err
-		}
-
-		if err := rwt.BufferWrite(changelogMutations); err != nil {
-			return err
 		}
 	}
 
@@ -216,22 +147,6 @@ func keyFromRelationship(r *core.RelationTuple) spanner.Key {
 	}
 }
 
-func changeVals(changeUUID string, op int64, r *core.RelationTuple) []any {
-	vals := []any{
-		spanner.CommitTimestamp,
-		changeUUID,
-		op,
-		r.ResourceAndRelation.Namespace,
-		r.ResourceAndRelation.ObjectId,
-		r.ResourceAndRelation.Relation,
-		r.Subject.Namespace,
-		r.Subject.ObjectId,
-		r.Subject.Relation,
-	}
-	vals = append(vals, caveatVals(r)...)
-	return vals
-}
-
 func caveatVals(r *core.RelationTuple) []any {
 	if r.Caveat == nil {
 		return []any{"", nil}
@@ -265,9 +180,8 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 
 func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	for _, nsName := range nsNames {
-		if err := deleteWithFilter(ctx, rwt.spannerRWT, &v1.RelationshipFilter{
-			ResourceType: nsName,
-		}, rwt.migrationPhase, rwt.disableStats); err != nil {
+		relFilter := &v1.RelationshipFilter{ResourceType: nsName}
+		if err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter, rwt.disableStats); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 
@@ -283,33 +197,21 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 }
 
 func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
-	changeUUID := uuid.New().String()
-
 	var numLoaded uint64
 	var tpl *core.RelationTuple
 	var err error
 	for tpl, err = iter.Next(ctx); err == nil && tpl != nil; tpl, err = iter.Next(ctx) {
-		txnMut, changelogMut, _, err := spannerMutation(
-			ctx,
-			changeUUID,
-			core.RelationTupleUpdate_CREATE,
-			tpl,
-		)
+		txnMut, _, err := spannerMutation(ctx, core.RelationTupleUpdate_CREATE, tpl)
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 		}
 		numLoaded++
 
-		if rwt.migrationPhase != complete {
-			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut, changelogMut}); err != nil {
-				return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
-			}
-		} else {
-			if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
-				return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
-			}
+		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
+			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 		}
 	}
+
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 	}
