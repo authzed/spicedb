@@ -16,6 +16,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -150,6 +153,15 @@ func TestPostgresDatastore(t *testing.T) {
 					MigrationPhase(config.migrationPhase),
 				))
 			}
+
+			t.Run("OTelTracing", createDatastoreTest(
+				b,
+				OTelTracingTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				WatchBufferLength(1),
+				MigrationPhase(config.migrationPhase),
+			))
 		})
 	}
 }
@@ -1052,6 +1064,43 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(g.Wait())
 	require.False(commitFirstRev.GreaterThan(commitLastRev))
 	require.False(commitFirstRev.Equal(commitLastRev))
+}
+
+func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	r, err := ds.ReadyState(ctx)
+	require.NoError(err)
+	require.True(r.IsReady)
+
+	// Setup OTel recording
+	defaultProvider := otel.GetTracerProvider()
+
+	provider := trace.NewTracerProvider(
+		trace.WithSampler(trace.AlwaysSample()),
+	)
+	spanrecorder := tracetest.NewSpanRecorder()
+	provider.RegisterSpanProcessor(spanrecorder)
+	otel.SetTracerProvider(provider)
+	defer func() {
+		otel.SetTracerProvider(defaultProvider)
+	}()
+
+	// Perform basic operation
+	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, namespace.Namespace("resource"))
+	})
+	require.NoError(err)
+
+	ended := spanrecorder.Ended()
+	var present bool
+	for _, span := range ended {
+		if span.Name() == "query INSERT" {
+			present = true
+		}
+	}
+	require.True(present, "missing trace for Streaming gRPC call")
 }
 
 func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	zerologadapter "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -105,7 +106,52 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 	}
 
 	l := zerologadapter.NewLogger(log.Logger, zerologadapter.WithSubDictionary("pgx"))
-	connConfig.Tracer = &tracelog.TraceLog{Logger: levelMappingFn(l), LogLevel: tracelog.LogLevelInfo}
+	addTracer(connConfig, &tracelog.TraceLog{Logger: levelMappingFn(l), LogLevel: tracelog.LogLevelInfo})
+}
+
+// ConfigureOTELTracer adds OTEL tracing to a pgx.ConnConfig
+func ConfigureOTELTracer(connConfig *pgx.ConnConfig) {
+	addTracer(connConfig, otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName()))
+}
+
+func addTracer(connConfig *pgx.ConnConfig, tracer pgx.QueryTracer) {
+	composedTracer := addComposedTracer(connConfig)
+	composedTracer.Tracers = append(composedTracer.Tracers, tracer)
+}
+
+func addComposedTracer(connConfig *pgx.ConnConfig) *ComposedTracer {
+	var composedTracer *ComposedTracer
+	if connConfig.Tracer == nil {
+		composedTracer = &ComposedTracer{}
+		connConfig.Tracer = composedTracer
+	} else {
+		var ok bool
+		composedTracer, ok = connConfig.Tracer.(*ComposedTracer)
+		if !ok {
+			composedTracer.Tracers = append(composedTracer.Tracers, connConfig.Tracer)
+			connConfig.Tracer = composedTracer
+		}
+	}
+	return composedTracer
+}
+
+// ComposedTracer allows adding multiple tracers to a pgx.ConnConfig
+type ComposedTracer struct {
+	Tracers []pgx.QueryTracer
+}
+
+func (m *ComposedTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	for _, t := range m.Tracers {
+		ctx = t.TraceQueryStart(ctx, conn, data)
+	}
+
+	return ctx
+}
+
+func (m *ComposedTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {
+	for _, t := range m.Tracers {
+		t.TraceQueryEnd(ctx, conn, data)
+	}
 }
 
 // DBFuncQuerier is satisfied by RetryPool and QuerierFuncs (which can wrap a pgxpool or transaction)
@@ -159,6 +205,7 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
 	}
 
 	ConfigurePGXLogger(pgxConfig.ConnConfig)
+	ConfigureOTELTracer(pgxConfig.ConnConfig)
 }
 
 type QuerierFuncs struct {
