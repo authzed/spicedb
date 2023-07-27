@@ -2,6 +2,10 @@
 4d63.com/gocheckcompilerdirectives v1.2.1/go.mod h1:yjDJSxmDTtIHHCqX0ufRYZDL6vQtMG7tJdKVeWwsqvs=
 4d63.com/gochecknoglobals v0.2.1 h1:1eiorGsgHOFOuoOiJDy2psSrQbRdIHrlge0IJIkUgDc=
 4d63.com/gochecknoglobals v0.2.1/go.mod h1:KRE8wtJB3CXCsb1xy421JfTHIIbmT3U5ruxw2Qu8fSU=
+buf.build/gen/go/gogo/protobuf/protocolbuffers/go v1.31.0-20210810001428-4df00b267f94.1 h1:IpfoSUtXcmtXmL672yCeHx96evE7Z4AyWo8R2lVBU3o=
+buf.build/gen/go/gogo/protobuf/protocolbuffers/go v1.31.0-20210810001428-4df00b267f94.1/go.mod h1:Az9fvKFYQGtiDa7cPW9T3Nbw8u3hpmD6wG15RsbQlA0=
+buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.31.0-20230726221845-41588ce133c8.1 h1:mRyuf+GC3pVl1ZT99Gil177yCFqkXq0F+fJMD3duLXE=
+buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.31.0-20230726221845-41588ce133c8.1/go.mod h1:iqW5nSujn3ZJ9ISZQX3K/uWwjckAp8hz0J4/wNgFBZo=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
@@ -1244,11 +1248,6 @@ github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5t
 gitlab.com/bosi/decorder v0.4.0 h1:HWuxAhSxIvsITcXeP+iIRg9d1cVfvVkmlF7M68GaoDY=
 gitlab.com/bosi/decorder v0.4.0/go.mod h1:xarnteyUoJiOTEldDysquWKTVDCKo2TOIOIibSuWqOg=
 go-simpler.org/assert v0.5.0 h1:+5L/lajuQtzmbtEfh69sr5cRf2/xZzyJhFjoOz/PPqs=
-go.buf.build/protocolbuffers/go/gogo/protobuf v1.3.9/go.mod h1:i2gBbO3BPCoVRjhpYl5wkyH+sQ8aZyE+ELx44rJm2/E=
-go.buf.build/protocolbuffers/go/gogo/protobuf v1.3.10 h1:WIITdO4om/vLH2Cgiwz//zJfKiBqefAfze0lCjv+rxk=
-go.buf.build/protocolbuffers/go/gogo/protobuf v1.3.10/go.mod h1:i2gBbO3BPCoVRjhpYl5wkyH+sQ8aZyE+ELx44rJm2/E=
-go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.9 h1:rvgxIDVC6JD6uoKKWwEdPi/Dkxwm+0nq6iSKpOeiuDA=
-go.buf.build/protocolbuffers/go/prometheus/prometheus v1.3.9/go.mod h1:MscLIBPVmRlS3Z4XijKkiqzOiBQaRFi1PqWt7KAzf9o=
 go.etcd.io/bbolt v1.3.5/go.mod h1:G5EMThwa9y8QZGBClrRx5EY+Yw9kAhnjy3bSjsnlVTQ=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=

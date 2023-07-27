@@ -16,13 +16,13 @@ import (
 	"net/url"
 	"time"
 
+	prompb "buf.build/gen/go/prometheus/prometheus/protocolbuffers/go"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	prompb "go.buf.build/protocolbuffers/go/prometheus/prometheus"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
