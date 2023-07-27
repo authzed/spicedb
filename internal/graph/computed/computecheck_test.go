@@ -921,7 +921,7 @@ func TestComputeBulkCheck(t *testing.T) {
 			CaveatContext: nil,
 			AtRevision:    revision,
 			MaximumDepth:  50,
-			DebugOption:   computed.BasicDebuggingEnabled,
+			DebugOption:   computed.NoDebugging,
 		},
 		[]string{"direct", "first", "second", "third"},
 	)

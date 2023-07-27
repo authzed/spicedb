@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	"go.uber.org/atomic"
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -181,6 +182,14 @@ type checkingResourceStream struct {
 	// lastResourceCursor is the cursor from the last received reachable resource result. Should *only* be accessed from queue()
 	// and waitForPublishing() (after reachable resources has completed).
 	lastResourceCursor *v1.Cursor
+
+	// dispatchesToBeReported is the number of dispatches that were skipped from being reported due
+	// to a resource being filtered, and whose count has to be attached to the next outgoing result.
+	dispatchesToBeReported atomic.Uint32
+
+	// cachedDispatchesToBeReported is the number of cached dispatches that were skipped from being reported due
+	// to a resource being filtered, and whose count has to be attached to the next outgoing result.
+	cachedDispatchesToBeReported atomic.Uint32
 
 	errSetter sync.Once
 	err       error
@@ -423,7 +432,7 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 	}
 
 	// Issue the bulk check over all the resources.
-	results, resultsMetas, err := computed.ComputeBulkCheck(
+	results, checkResultMetadata, err := computed.ComputeBulkCheck(
 		crs.ctx,
 		crs.checker,
 		computed.CheckParameters{
@@ -439,6 +448,9 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 	if err != nil {
 		return true, err
 	}
+
+	crs.dispatchesToBeReported.Add(checkResultMetadata.DispatchCount)
+	crs.cachedDispatchesToBeReported.Add(checkResultMetadata.CachedDispatchCount)
 
 	for _, rai := range toCheck.Values() {
 		checkResult := results[rai.reachableResult.Resource.ResourceId]
@@ -466,7 +478,10 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		// Set the lookupResult iff the permissionship was a valid permission.
 		var lookupResult *v1.DispatchLookupResourcesResponse
 		if permissionship != v1.ResolvedResource_UNKNOWN {
-			metadata := combineResponseMetadata(rai.reachableResult.Metadata, resultsMetas[rai.reachableResult.Resource.ResourceId])
+			metadata := rai.reachableResult.Metadata
+			metadata = crs.addSkippedDispatchCountToBePublished(metadata)
+			metadata.DepthRequired = max(metadata.DepthRequired, checkResultMetadata.DepthRequired)
+
 			lookupResult = &v1.DispatchLookupResourcesResponse{
 				ResolvedResource: &v1.ResolvedResource{
 					ResourceId:             rai.reachableResult.Resource.ResourceId,
@@ -475,6 +490,14 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 				},
 				Metadata:            metadata,
 				AfterResponseCursor: rai.reachableResult.AfterResponseCursor,
+			}
+		} else {
+			if rai.reachableResult.Metadata.DispatchCount > 0 {
+				crs.dispatchesToBeReported.Add(rai.reachableResult.Metadata.DispatchCount)
+			}
+
+			if rai.reachableResult.Metadata.CachedDispatchCount > 0 {
+				crs.cachedDispatchesToBeReported.Add(rai.reachableResult.Metadata.CachedDispatchCount)
 			}
 		}
 
@@ -493,6 +516,16 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		crs.setError(crs.ctx.Err())
 		return false, nil
 	}
+}
+
+// addSkippedDispatchCountToBePublished adds any dispatch counts that were skipped due to a resource being filtered,
+// to the metadata to be published.
+func (crs *checkingResourceStream) addSkippedDispatchCountToBePublished(metadata *v1.ResponseMeta) *v1.ResponseMeta {
+	dispatchCount := crs.dispatchesToBeReported.Swap(0)
+	cachedDispatchCount := crs.cachedDispatchesToBeReported.Swap(0)
+	metadata.DispatchCount += dispatchCount
+	metadata.CachedDispatchCount += cachedDispatchCount
+	return metadata
 }
 
 // spawnIfAvailable spawns a processing working, if the concurrency limit has not been reached.
@@ -529,12 +562,13 @@ func (crs *checkingResourceStream) queue(result *v1.DispatchReachableResourcesRe
 	// If the resource found already has permission (i.e. a check is not required), simply set
 	// the lookup result on the resource now.
 	if result.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION {
+		metadata := crs.addSkippedDispatchCountToBePublished(result.Metadata)
 		currentResource.lookupResult = &v1.DispatchLookupResourcesResponse{
 			ResolvedResource: &v1.ResolvedResource{
 				ResourceId:     result.Resource.ResourceId,
 				Permissionship: v1.ResolvedResource_HAS_PERMISSION,
 			},
-			Metadata:            addCallToResponseMetadata(result.Metadata),
+			Metadata:            metadata,
 			AfterResponseCursor: result.AfterResponseCursor,
 		}
 	}

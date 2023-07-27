@@ -61,7 +61,7 @@ func TestSimpleLookupResources(t *testing.T) {
 				resolvedRes("masterplan"),
 			},
 			2,
-			2,
+			1,
 		},
 		{
 			RR("document", "owner"),
@@ -70,7 +70,7 @@ func TestSimpleLookupResources(t *testing.T) {
 				resolvedRes("masterplan"),
 			},
 			2,
-			1,
+			0,
 		},
 		{
 			RR("document", "view"),
@@ -80,7 +80,7 @@ func TestSimpleLookupResources(t *testing.T) {
 				resolvedRes("masterplan"),
 			},
 			6,
-			4,
+			3,
 		},
 		{
 			RR("document", "view_and_edit"),
@@ -99,7 +99,7 @@ func TestSimpleLookupResources(t *testing.T) {
 				resolvedRes("company"),
 			},
 			8,
-			5,
+			4,
 		},
 	}
 

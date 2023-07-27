@@ -354,114 +354,138 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 
 func TestLookupResources(t *testing.T) {
 	testCases := []struct {
-		objectType        string
-		permission        string
-		subject           *v1.SubjectReference
-		expectedObjectIds []string
-		expectedErrorCode codes.Code
+		objectType            string
+		permission            string
+		subject               *v1.SubjectReference
+		expectedObjectIds     []string
+		expectedErrorCode     codes.Code
+		expectedDispatchCount int
 	}{
+		{
+			"document", "viewer",
+			sub("user", "eng_lead", ""),
+			[]string{"masterplan"},
+			codes.OK,
+			1,
+		},
 		{
 			"document", "view",
 			sub("user", "eng_lead", ""),
 			[]string{"masterplan"},
 			codes.OK,
+			2,
 		},
 		{
 			"document", "view",
 			sub("user", "product_manager", ""),
 			[]string{"masterplan"},
 			codes.OK,
+			3,
 		},
 		{
 			"document", "view",
 			sub("user", "chief_financial_officer", ""),
 			[]string{"masterplan", "healthplan"},
 			codes.OK,
+			3,
 		},
 		{
 			"document", "view",
 			sub("user", "auditor", ""),
 			[]string{"masterplan", "companyplan"},
 			codes.OK,
+			5,
 		},
 		{
 			"document", "view",
 			sub("user", "vp_product", ""),
 			[]string{"masterplan"},
 			codes.OK,
+			4,
 		},
 		{
 			"document", "view",
 			sub("user", "legal", ""),
 			[]string{"masterplan", "companyplan"},
 			codes.OK,
+			4,
 		},
 		{
 			"document", "view",
 			sub("user", "owner", ""),
 			[]string{"masterplan", "companyplan", "ownerplan"},
 			codes.OK,
+			6,
 		},
 		{
 			"document", "view",
 			sub("user", "villain", ""),
 			nil,
 			codes.OK,
+			1,
 		},
 		{
 			"document", "view",
 			sub("user", "unknowngal", ""),
 			nil,
 			codes.OK,
+			1,
 		},
-
 		{
 			"document", "view_and_edit",
 			sub("user", "eng_lead", ""),
 			nil,
 			codes.OK,
+			1,
 		},
 		{
 			"document", "view_and_edit",
 			sub("user", "multiroleguy", ""),
 			[]string{"specialplan"},
 			codes.OK,
+			7,
 		},
 		{
 			"document", "view_and_edit",
 			sub("user", "missingrolegal", ""),
 			nil,
 			codes.OK,
+			1,
 		},
 		{
 			"document", "invalidrelation",
 			sub("user", "missingrolegal", ""),
 			[]string{},
 			codes.FailedPrecondition,
+			1,
 		},
 		{
 			"document", "view_and_edit",
 			sub("user", "someuser", "invalidrelation"),
 			[]string{},
 			codes.FailedPrecondition,
+			0,
 		},
 		{
 			"invalidnamespace", "view_and_edit",
 			sub("user", "someuser", ""),
 			[]string{},
 			codes.FailedPrecondition,
+			0,
 		},
 		{
 			"document", "view_and_edit",
 			sub("invalidnamespace", "someuser", ""),
 			[]string{},
 			codes.FailedPrecondition,
+			0,
 		},
 		{
 			"document", "view_and_edit",
 			sub("user", "*", ""),
 			[]string{},
 			codes.InvalidArgument,
+			0,
 		},
 	}
 
@@ -513,6 +537,7 @@ func TestLookupResources(t *testing.T) {
 						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
 						require.NoError(err)
 						require.GreaterOrEqual(dispatchCount, 0)
+						require.Equal(tc.expectedDispatchCount, dispatchCount)
 					} else {
 						_, err := lookupClient.Recv()
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
