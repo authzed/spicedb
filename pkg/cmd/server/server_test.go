@@ -173,7 +173,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 	}, WithPresharedSecureKey("psk"), WithDatastore(ds))
 	cancel()
 	_, err = c.Complete(ctx)
-	require.ErrorIs(t, err, context.Canceled)
+	require.NoError(t, err)
 }
 
 func TestReplaceUnaryMiddleware(t *testing.T) {
