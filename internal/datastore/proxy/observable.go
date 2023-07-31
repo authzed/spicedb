@@ -23,7 +23,7 @@ var (
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "loaded_relationships_count",
-		Buckets:   []float64{1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
+		Buckets:   []float64{0, 1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
 		Help:      "total number of relationships loaded for a query",
 	})
 
