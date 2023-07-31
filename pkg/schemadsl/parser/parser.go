@@ -2,6 +2,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
@@ -392,22 +394,23 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 }
 
 func (p *sourceParser) consumeTypePath() (string, bool) {
-	typeNameOrNamespace, ok := p.consumeIdentifier()
-	if !ok {
-		return "", false
+	var segments []string
+
+	for {
+		segment, ok := p.consumeIdentifier()
+		if !ok {
+			return "", false
+		}
+
+		segments = append(segments, segment)
+
+		_, ok = p.tryConsume(lexer.TokenTypeDiv)
+		if !ok {
+			break
+		}
 	}
 
-	_, ok = p.tryConsume(lexer.TokenTypeDiv)
-	if !ok {
-		return typeNameOrNamespace, true
-	}
-
-	typeName, ok := p.consumeIdentifier()
-	if !ok {
-		return "", false
-	}
-
-	return typeNameOrNamespace + "/" + typeName, true
+	return strings.Join(segments, "/"), true
 }
 
 // consumePermission consumes a permission.

@@ -70,7 +70,7 @@ message CaveatTypeReference {
 message ObjectAndRelation {
   /** namespace is the full namespace path for the referenced object */
   string namespace = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$",
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
     max_bytes: 128,
   }];
 
@@ -90,7 +90,7 @@ message ObjectAndRelation {
 message RelationReference {
   /** namespace is the full namespace path */
   string namespace = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$",
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
     max_bytes: 128,
   }];
 
@@ -174,7 +174,7 @@ message Metadata {
 message NamespaceDefinition {
   /** name is the unique for the namespace, including prefixes (which are optional) */
   string name = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$",
+    pattern: "^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
     max_bytes: 128,
   }];
 
@@ -369,7 +369,7 @@ message AllowedRelation {
 
   /** namespace is the full namespace path of the allowed object type */
   string namespace = 1 [(validate.rules).string = {
-    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$",
+    pattern: "^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$",
     max_bytes: 128,
   }];
 

@@ -120,6 +120,15 @@ var testCases = []struct {
 		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", "somerel"),
 	},
 	{
+		input:          "org/division/team/testns:testobj#testrel@org/division/identity_team/user:testusr#somerel",
+		expectedOutput: "org/division/team/testns:testobj#testrel@org/division/identity_team/user:testusr#somerel",
+		tupleFormat: makeTuple(
+			ObjectAndRelation("org/division/team/testns", "testobj", "testrel"),
+			ObjectAndRelation("org/division/identity_team/user", "testusr", "somerel"),
+		),
+		relFormat: rel("org/division/team/testns", "testobj", "testrel", "org/division/identity_team/user", "testusr", "somerel"),
+	},
+	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:testusr something",
 		expectedOutput: "tenant/testns:testobj#testrel@tenant/user:testusr",
 		tupleFormat:    nil,
@@ -193,6 +202,18 @@ var testCases = []struct {
 			"tenant/somecaveat",
 		),
 		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "tenant/somecaveat", nil),
+	},
+	{
+		input:          "document:foo#viewer@user:tom[tenant/division/somecaveat]",
+		expectedOutput: "document:foo#viewer@user:tom[tenant/division/somecaveat]",
+		tupleFormat: MustWithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"tenant/division/somecaveat",
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "tenant/division/somecaveat", nil),
 	},
 	{
 		input:          "document:foo#viewer@user:tom[somecaveat",

@@ -1,0 +1,61 @@
+NodeTypeFile
+  end-rune = 202
+  input-source = multiple slashes in object type
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = org/team/user
+      end-rune = 26
+      input-source = multiple slashes in object type
+      start-rune = 0
+    NodeTypeDefinition
+      definition-name = foo/bar/baz
+      end-rune = 118
+      input-source = multiple slashes in object type
+      start-rune = 29
+      child-node =>
+        NodeTypeRelation
+          end-rune = 116
+          input-source = multiple slashes in object type
+          relation-name = viewer
+          start-rune = 58
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 116
+              input-source = multiple slashes in object type
+              start-rune = 75
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 87
+                  input-source = multiple slashes in object type
+                  start-rune = 75
+                  type-name = org/team/user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = foo/bar/only_on_tuesday
+                      end-rune = 116
+                      input-source = multiple slashes in object type
+                      start-rune = 89
+    NodeTypeCaveatDefinition
+      caveat-definition-name = foo/bar/only_on_tuesday
+      end-rune = 201
+      input-source = multiple slashes in object type
+      start-rune = 121
+      caveat-definition-expression =>
+        NodeTypeCaveatExpession
+          caveat-expression-expressionstr = day_of_week == 'tuesday'
+          end-rune = 199
+          input-source = multiple slashes in object type
+          start-rune = 176
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = day_of_week
+          end-rune = 169
+          input-source = multiple slashes in object type
+          start-rune = 152
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 169
+              input-source = multiple slashes in object type
+              start-rune = 164
+              type-name = string

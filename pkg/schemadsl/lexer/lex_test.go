@@ -66,6 +66,19 @@ var lexerTests = []lexerTest{
 		tEOF,
 	}},
 
+	{"multiple slash path", "foo/bar/baz/bang/zoom", []Lexeme{
+		{TokenTypeIdentifier, 0, "foo", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "bar", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "baz", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "bang", ""},
+		{TokenTypeDiv, 0, "/", ""},
+		{TokenTypeIdentifier, 0, "zoom", ""},
+		tEOF,
+	}},
+
 	{"type star", "foo:*", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
 		{TokenTypeColon, 0, ":", ""},

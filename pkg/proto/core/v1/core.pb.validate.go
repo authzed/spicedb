@@ -834,7 +834,7 @@ func (m *ObjectAndRelation) validate(all bool) error {
 	if !_ObjectAndRelation_Namespace_Pattern.MatchString(m.GetNamespace()) {
 		err := ObjectAndRelationValidationError{
 			field:  "Namespace",
-			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 		}
 		if !all {
 			return err
@@ -966,7 +966,7 @@ var _ interface {
 	ErrorName() string
 } = ObjectAndRelationValidationError{}
 
-var _ObjectAndRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+var _ObjectAndRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
 var _ObjectAndRelation_ObjectId_Pattern = regexp.MustCompile("^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)$")
 
@@ -1008,7 +1008,7 @@ func (m *RelationReference) validate(all bool) error {
 	if !_RelationReference_Namespace_Pattern.MatchString(m.GetNamespace()) {
 		err := RelationReferenceValidationError{
 			field:  "Namespace",
-			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 		}
 		if !all {
 			return err
@@ -1118,7 +1118,7 @@ var _ interface {
 	ErrorName() string
 } = RelationReferenceValidationError{}
 
-var _RelationReference_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+var _RelationReference_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
 var _RelationReference_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$")
 
@@ -2243,7 +2243,7 @@ func (m *NamespaceDefinition) validate(all bool) error {
 	if !_NamespaceDefinition_Name_Pattern.MatchString(m.GetName()) {
 		err := NamespaceDefinitionValidationError{
 			field:  "Name",
-			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 		}
 		if !all {
 			return err
@@ -2423,7 +2423,7 @@ var _ interface {
 	ErrorName() string
 } = NamespaceDefinitionValidationError{}
 
-var _NamespaceDefinition_Name_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+var _NamespaceDefinition_Name_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
 // Validate checks the field values on Relation with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
@@ -3336,7 +3336,7 @@ func (m *AllowedRelation) validate(all bool) error {
 	if !_AllowedRelation_Namespace_Pattern.MatchString(m.GetNamespace()) {
 		err := AllowedRelationValidationError{
 			field:  "Namespace",
-			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 		}
 		if !all {
 			return err
@@ -3560,7 +3560,7 @@ var _ interface {
 	ErrorName() string
 } = AllowedRelationValidationError{}
 
-var _AllowedRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+var _AllowedRelation_Namespace_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$")
 
 var _AllowedRelation_Relation_Pattern = regexp.MustCompile("^(\\.\\.\\.|[a-z][a-z0-9_]{1,62}[a-z0-9])$")
 

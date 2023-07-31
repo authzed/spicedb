@@ -104,6 +104,7 @@ func TestParser(t *testing.T) {
 		{"indented comments test", "indentedcomments"},
 		{"parens test", "parens"},
 		{"multiple parens test", "multiparen"},
+		{"multiple slashes in object type", "multipleslashes"},
 		{"wildcard test", "wildcard"},
 		{"broken wildcard test", "brokenwildcard"},
 		{"nil test", "nil"},
