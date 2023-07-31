@@ -48,6 +48,10 @@ const (
 	errUnableToWriteCaveat  = "unable to write caveat: %w"
 	errUnableToListCaveats  = "unable to list caveats: %w"
 	errUnableToDeleteCaveat = "unable to delete caveat: %w"
+
+	// See https://cloud.google.com/spanner/docs/change-streams#data-retention
+	// See https://github.com/authzed/spicedb/issues/1457
+	defaultChangeStreamRetention = 24 * time.Hour
 )
 
 var (
@@ -63,7 +67,6 @@ type spannerDatastore struct {
 
 	client   *spanner.Client
 	config   spannerOptions
-	stopGC   context.CancelFunc
 	database string
 }
 
@@ -75,14 +78,13 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	}
 
 	if len(config.emulatorHost) > 0 {
-		os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost)
+		if err := os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost); err != nil {
+			log.Error().Err(err).Msg("failed to set SPANNER_EMULATOR_HOST env variable")
+		}
 	}
 	if len(os.Getenv("SPANNER_EMULATOR_HOST")) > 0 {
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
-
-	config.gcInterval = common.WithJitter(0.2, config.gcInterval)
-	log.Info().Float64("factor", 0.2).Msg("gc configured with jitter")
 
 	client, err := spanner.NewClient(context.Background(), database, option.WithCredentialsFile(config.credentialsFilePath))
 	if err != nil {
@@ -94,7 +96,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 
 	ds := spannerDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
-			config.gcWindow,
+			defaultChangeStreamRetention,
 			maxRevisionStaleness,
 			config.followerReadDelay,
 			config.revisionQuantization,
@@ -105,25 +107,14 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
-	if config.gcInterval > 0*time.Minute && config.gcEnabled {
-		ctx, cancel := context.WithCancel(context.Background())
-		if err := ds.runGC(ctx); err != nil {
-			cancel()
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
-		}
-		ds.stopGC = cancel
-	} else {
-		log.Warn().Msg("datastore background garbage collection disabled")
-	}
-
 	return ds, nil
 }
 
 func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	revision := revisionRaw.(revision.Decimal)
+	r := revisionRaw.(revision.Decimal)
 
 	txSource := func() readTX {
-		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(revision)))
+		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))
 	}
 	executor := common.QueryExecutor{
 		Executor: queryExecutor(txSource),
@@ -151,7 +142,6 @@ func (sd spannerDatastore) ReadWriteTx(
 			spannerReader{executor, txSource},
 			spannerRWT,
 			sd.config.disableStats,
-			migrationPhases[sd.config.migrationPhase],
 		}
 		if err := fn(rwt); err != nil {
 			if config.DisableRetries {
@@ -182,7 +172,11 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}
-	defer currentRevision.Close(ctx)
+	defer func() {
+		if err := currentRevision.Close(ctx); err != nil {
+			log.Error().Err(err).Msg("failed to close current revision in Datastore.ReadyState")
+		}
+	}()
 
 	version, err := currentRevision.Version(ctx)
 	if err != nil {
@@ -209,7 +203,6 @@ func (sd spannerDatastore) Features(_ context.Context) (*datastore.Features, err
 }
 
 func (sd spannerDatastore) Close() error {
-	sd.stopGC()
 	sd.client.Close()
 	return nil
 }

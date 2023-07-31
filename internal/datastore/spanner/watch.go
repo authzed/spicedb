@@ -35,11 +35,6 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 }
 
 func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	// TODO(jschorr): Remove once changelog multi-phase migration is removed.
-	if migrationPhases[sd.config.migrationPhase] == writeChangelogReadChangelog {
-		return sd.watchViaChangelog(ctx, afterRevisionRaw)
-	}
-
 	updates := make(chan *datastore.RevisionChanges, 10)
 	errs := make(chan error, 1)
 

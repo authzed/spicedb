@@ -39,9 +39,36 @@ type TestableDatastore interface {
 	ExampleRetryableError() error
 }
 
-// AllExceptWatch runs all generic datastore tests on a DatastoreTester, except
-// those invoking the watch API.
-func AllExceptWatch(t *testing.T, tester DatastoreTester) {
+type Categories map[string]struct{}
+
+func (c Categories) GC() bool {
+	_, ok := c[GCCategory]
+	return ok
+}
+
+func (c Categories) Watch() bool {
+	_, ok := c[WatchCategory]
+	return ok
+}
+
+var noException = Categories{}
+
+const (
+	GCCategory    = "GC"
+	WatchCategory = "Watch"
+)
+
+func WithCategories(cats ...string) Categories {
+	c := Categories{}
+	for _, cat := range cats {
+		c[cat] = struct{}{}
+	}
+	return c
+}
+
+// AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
+// those specified test categories
+func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
 	t.Run("TestNamespaceNotFound", func(t *testing.T) { NamespaceNotFoundTest(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
@@ -52,7 +79,6 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
 	t.Run("TestObjectIDs", func(t *testing.T) { ObjectIDsTest(t, tester) })
 	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
-	t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
 	t.Run("TestDeleteNonExistant", func(t *testing.T) { DeleteNotExistantTest(t, tester) })
 	t.Run("TestDeleteAlreadyDeleted", func(t *testing.T) { DeleteAlreadyDeletedTest(t, tester) })
 	t.Run("TestWriteDeleteWrite", func(t *testing.T) { WriteDeleteWriteTest(t, tester) })
@@ -71,7 +97,11 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
-	t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
+
+	if !except.GC() {
+		t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
+		t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
+	}
 
 	t.Run("TestBulkUpload", func(t *testing.T) { BulkUploadTest(t, tester) })
 	t.Run("TestBulkUploadErrors", func(t *testing.T) { BulkUploadErrorsTest(t, tester) })
@@ -85,16 +115,18 @@ func AllExceptWatch(t *testing.T, tester DatastoreTester) {
 	t.Run("TestWriteCaveatedRelationship", func(t *testing.T) { WriteCaveatedRelationshipTest(t, tester) })
 	t.Run("TestCaveatedRelationshipFilter", func(t *testing.T) { CaveatedRelationshipFilterTest(t, tester) })
 	t.Run("TestCaveatSnapshotReads", func(t *testing.T) { CaveatSnapshotReadsTest(t, tester) })
+
+	if !except.Watch() {
+		t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
+		t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
+		t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
+		t.Run("TestWatchWithTouch", func(t *testing.T) { WatchWithTouchTest(t, tester) })
+	}
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
 func All(t *testing.T, tester DatastoreTester) {
-	AllExceptWatch(t, tester)
-
-	t.Run("TestWatch", func(t *testing.T) { WatchTest(t, tester) })
-	t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
-	t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
-	t.Run("TestWatchWithTouch", func(t *testing.T) { WatchWithTouchTest(t, tester) })
+	AllWithExceptions(t, tester, noException)
 }
 
 var testResourceNS = namespace.Namespace(

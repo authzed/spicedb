@@ -414,14 +414,10 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.FollowerReadDelay(opts.FollowerReadDelay),
 		spanner.RevisionQuantization(opts.RevisionQuantization),
 		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
-		spanner.GCInterval(opts.GCInterval),
-		spanner.GCWindow(opts.GCWindow),
-		spanner.GCEnabled(!opts.ReadOnly),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
-		spanner.MigrationPhase(opts.MigrationPhase),
 	)
 }
 
