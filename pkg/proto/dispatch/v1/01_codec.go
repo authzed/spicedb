@@ -2,14 +2,12 @@
 // with one that attempts to use protobuf codecs in the following order:
 // - vtprotobuf
 // - google.golang.org/encoding/proto
-// - github.com/golang/protobuf/proto
 
 package dispatchv1
 
 import (
 	"fmt"
 
-	protolegacy "github.com/golang/protobuf/proto" //nolint
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/protobuf/proto"
 
@@ -39,10 +37,6 @@ func (vtprotoCodec) Marshal(v any) ([]byte, error) {
 		return proto.Marshal(m)
 	}
 
-	if m, ok := v.(protolegacy.Message); ok {
-		return protolegacy.Marshal(m)
-	}
-
 	return nil, fmt.Errorf("failed to marshal, message is %T, want proto.Message", v)
 }
 
@@ -53,10 +47,6 @@ func (vtprotoCodec) Unmarshal(data []byte, v any) error {
 
 	if m, ok := v.(proto.Message); ok {
 		return proto.Unmarshal(data, m)
-	}
-
-	if m, ok := v.(protolegacy.Message); ok {
-		return protolegacy.Unmarshal(data, m)
 	}
 
 	return fmt.Errorf("failed to unmarshal, message is %T, want proto.Message", v)
