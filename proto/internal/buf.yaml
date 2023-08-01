@@ -3,6 +3,7 @@ version: "v1"
 deps:
   - "buf.build/envoyproxy/protoc-gen-validate:bb405eae115246f0b5ccf8997136e3d8"
   - "buf.build/authzed/api:53f3e981ed3346bab8c050c597f74602"
+  - "buf.build/googleapis/googleapis:4d230ddc6b6d28ad7d2503926a97c6f7fa15483d"
 lint:
   except:
     - "ENUM_VALUE_PREFIX"
