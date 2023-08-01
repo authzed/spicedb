@@ -23,7 +23,6 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.0.2
 	github.com/exaring/otelpgx v0.5.0
 	github.com/fatih/color v1.15.0
-	github.com/go-co-op/gocron v1.30.1
 	github.com/go-logr/zerologr v1.2.3
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gogo/protobuf v1.3.2
@@ -78,7 +77,7 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/time v0.3.0
 	golang.org/x/vuln v1.0.0
-	google.golang.org/api v0.133.0
+	google.golang.org/api v0.134.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20230724170836-66ad5b6ff146
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230724170836-66ad5b6ff146
 	google.golang.org/grpc v1.56.2
@@ -258,7 +257,6 @@ require (
 	github.com/quasilyte/regex/syntax v0.0.0-20210819130434-b3f0c404a727 // indirect
 	github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/ryancurrah/gomodguard v1.3.0 // indirect
 	github.com/ryanrolds/sqlclosecheck v0.4.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
