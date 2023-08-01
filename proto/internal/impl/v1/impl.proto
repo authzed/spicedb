@@ -1,9 +1,9 @@
 syntax = "proto3";
 package impl.v1;
 
-option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
-
 import "google/api/expr/v1alpha1/checked.proto";
+
+option go_package = "github.com/authzed/spicedb/pkg/proto/impl/v1";
 
 message DecodedCaveat {
   // we do kind_oneof in case we decide to have non-CEL expressions
@@ -15,8 +15,12 @@ message DecodedCaveat {
 
 message DecodedZookie {
   uint32 version = 1;
-  message V1Zookie { uint64 revision = 1; }
-  message V2Zookie { string revision = 1; }
+  message V1Zookie {
+    uint64 revision = 1;
+  }
+  message V2Zookie {
+    string revision = 1;
+  }
   oneof version_oneof {
     V1Zookie v1 = 2;
     V2Zookie v2 = 3;
@@ -24,8 +28,12 @@ message DecodedZookie {
 }
 
 message DecodedZedToken {
-  message V1Zookie { uint64 revision = 1; }
-  message V1ZedToken { string revision = 1; }
+  message V1Zookie {
+    uint64 revision = 1;
+  }
+  message V1ZedToken {
+    string revision = 1;
+  }
   oneof version_oneof {
     V1Zookie deprecated_v1_zookie = 2;
     V1ZedToken v1 = 3;
@@ -54,7 +62,9 @@ message V1Cursor {
   uint32 dispatch_version = 4;
 }
 
-message DocComment { string comment = 1; }
+message DocComment {
+  string comment = 1;
+}
 
 message RelationMetadata {
   enum RelationKind {

@@ -1,12 +1,12 @@
 syntax = "proto3";
 package dispatch.v1;
 
-option go_package = "github.com/authzed/spicedb/pkg/proto/dispatch/v1";
-
-import "validate/validate.proto";
 import "core/v1/core.proto";
-import "google/protobuf/struct.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/authzed/spicedb/pkg/proto/dispatch/v1";
 
 service DispatchService {
   rpc DispatchCheck(DispatchCheckRequest) returns (DispatchCheckResponse) {}
@@ -30,14 +30,12 @@ message DispatchCheckRequest {
     ALLOW_SINGLE_RESULT = 1;
   }
 
-  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
 
-  core.v1.RelationReference resource_relation = 2
-      [ (validate.rules).message.required = true ];
+  core.v1.RelationReference resource_relation = 2 [(validate.rules).message.required = true];
   repeated string resource_ids = 3;
 
-  core.v1.ObjectAndRelation subject = 4
-      [ (validate.rules).message.required = true ];
+  core.v1.ObjectAndRelation subject = 4 [(validate.rules).message.required = true];
 
   ResultsSetting results_setting = 5;
 
@@ -68,10 +66,9 @@ message DispatchExpandRequest {
     RECURSIVE = 1;
   }
 
-  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
 
-  core.v1.ObjectAndRelation resource_and_relation = 2
-      [ (validate.rules).message.required = true ];
+  core.v1.ObjectAndRelation resource_and_relation = 2 [(validate.rules).message.required = true];
   ExpansionMode expansion_mode = 3;
 }
 
@@ -87,18 +84,16 @@ message Cursor {
 }
 
 message DispatchReachableResourcesRequest {
-  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
 
-  core.v1.RelationReference resource_relation = 2
-      [ (validate.rules).message.required = true ];
-  core.v1.RelationReference subject_relation = 3
-      [ (validate.rules).message.required = true ];
+  core.v1.RelationReference resource_relation = 2 [(validate.rules).message.required = true];
+  core.v1.RelationReference subject_relation = 3 [(validate.rules).message.required = true];
   repeated string subject_ids = 4;
 
   // optional_cursor, if the specified, is the cursor at which to resume returning results. Note
   // that reachableresources can return duplicates.
   Cursor optional_cursor = 5;
-  
+
   // optional_limit, if given, specifies a limit on the number of resources returned.
   uint32 optional_limit = 6;
 }
@@ -130,12 +125,10 @@ message DispatchReachableResourcesResponse {
 }
 
 message DispatchLookupResourcesRequest {
-  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
 
-  core.v1.RelationReference object_relation = 2
-      [ (validate.rules).message.required = true ];
-  core.v1.ObjectAndRelation subject = 3
-      [ (validate.rules).message.required = true ];
+  core.v1.RelationReference object_relation = 2 [(validate.rules).message.required = true];
+  core.v1.ObjectAndRelation subject = 3 [(validate.rules).message.required = true];
   google.protobuf.Struct context = 5;
 
   // optional_limit, if given, specifies a limit on the number of resources returned.
@@ -165,14 +158,12 @@ message DispatchLookupResourcesResponse {
 }
 
 message DispatchLookupSubjectsRequest {
-  ResolverMeta metadata = 1 [ (validate.rules).message.required = true ];
+  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
 
-  core.v1.RelationReference resource_relation = 2
-      [ (validate.rules).message.required = true ];
+  core.v1.RelationReference resource_relation = 2 [(validate.rules).message.required = true];
   repeated string resource_ids = 3;
 
-  core.v1.RelationReference subject_relation = 4
-      [ (validate.rules).message.required = true ];
+  core.v1.RelationReference subject_relation = 4 [(validate.rules).message.required = true];
 }
 
 message FoundSubject {
@@ -191,10 +182,8 @@ message DispatchLookupSubjectsResponse {
 }
 
 message ResolverMeta {
-  string at_revision = 1 [ (validate.rules).string = {
-    max_bytes: 1024,
-  } ];
-  uint32 depth_remaining = 2 [ (validate.rules).uint32.gt = 0 ];
+  string at_revision = 1 [(validate.rules).string = {max_bytes: 1024}];
+  uint32 depth_remaining = 2 [(validate.rules).uint32.gt = 0];
 }
 
 message ResponseMeta {
@@ -202,7 +191,7 @@ message ResponseMeta {
   uint32 depth_required = 2;
   uint32 cached_dispatch_count = 3;
 
-  reserved 4,5;
+  reserved 4, 5;
 
   DebugInformation debug_info = 6;
 }

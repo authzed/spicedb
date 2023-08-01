@@ -26,7 +26,7 @@ func (l Lint) Scan() error {
 
 // Extra Lint everything that's not code
 func (l Lint) Extra() error {
-	mg.Deps(l.Markdown, l.Yaml)
+	mg.Deps(l.Markdown, l.Yaml, l.BufFormat)
 	return nil
 }
 
@@ -98,6 +98,11 @@ func (Lint) Analyzers() error {
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
 	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "./...")
+}
+
+// Buf Format
+func (l Lint) BufFormat() error {
+	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write")
 }
 
 // Trivy Run Trivy
