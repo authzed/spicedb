@@ -57,7 +57,7 @@ jobs:
 
   image-build:
     name: "Build Container Image"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-latest-4-cores"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -71,7 +71,7 @@ jobs:
 
   unit:
     name: "Unit"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-latest-4-cores"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -85,7 +85,7 @@ jobs:
 
   integration:
     name: "Integration Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-latest-4-cores"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -99,7 +99,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-latest-4-cores"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -117,7 +117,7 @@ jobs:
 
   datastoreconsistency:
     name: "Datastore Consistency Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-latest-4-cores"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
