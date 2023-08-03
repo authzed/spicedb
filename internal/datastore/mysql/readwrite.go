@@ -102,7 +102,10 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	}
 
 	if len(clauses) > 0 {
-		query, args, err := selectForUpdateQuery.Where(clauses).ToSql()
+		query, args, err := selectForUpdateQuery.
+			Where(clauses).
+			Where(sq.GtOrEq{colDeletedTxn: rwt.newTxnID}).
+			ToSql()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
