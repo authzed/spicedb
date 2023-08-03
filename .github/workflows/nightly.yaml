@@ -1,6 +1,6 @@
 ---
 name: "Devel (nightly) Release"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -8,7 +8,7 @@ permissions:
   contents: "write"
   packages: "write"
 env:
-  GO_VERSION: "~1.20.6"
+  GO_VERSION: "~1.20.7"
 jobs:
   goreleaser:
     runs-on: "ubuntu-latest"
