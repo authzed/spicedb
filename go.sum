@@ -458,8 +458,8 @@ github.com/authzed/authzed-go v0.9.0/go.mod h1:9Pl5jDQJHrjbMDuCrsa+Q6Tqmi1f2pDdI
 github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5 h1:Fg92G8sNNODbNe2ckJoLeMEPeDqSfygmXnpEXDnVifU=
 github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5/go.mod h1:qx105brQubHFYLRja6wlHA+JB8DSK+yhb8uc8aFA5NQ=
 github.com/aws/aws-sdk-go v1.44.256/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
-github.com/aws/aws-sdk-go v1.44.307 h1:2R0/EPgpZcFSUwZhYImq/srjaOrOfLv5MNRzrFyAM38=
-github.com/aws/aws-sdk-go v1.44.307/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
+github.com/aws/aws-sdk-go v1.44.314 h1:d/5Jyk/Fb+PBd/4nzQg0JuC2W4A0knrDIzBgK/ggAow=
+github.com/aws/aws-sdk-go v1.44.314/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
