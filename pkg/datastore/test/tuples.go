@@ -598,6 +598,35 @@ func TouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	ensureTuples(ctx, require, ds, tpl1, tpl2, tpl3)
 }
 
+// WriteDeleteTouchTest tests writing a relationship, deleting it, and then touching it.
+func WriteDeleteTouchTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := makeTestTuple("foo", "tom")
+	tpl2 := makeTestTuple("foo", "sarah")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1, tpl2)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl1, tpl2)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tpl1, tpl2)
+	require.NoError(err)
+
+	ensureNotTuples(ctx, require, ds, tpl1, tpl2)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1, tpl2)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds, tpl1, tpl2)
+}
+
 // TouchAlreadyExistingCaveatedTest tests touching a relationship twice.
 func TouchAlreadyExistingCaveatedTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
