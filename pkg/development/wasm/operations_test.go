@@ -35,6 +35,24 @@ func TestCheckOperation(t *testing.T) {
 
 	tests := []testCase{
 		{
+			"invalid keyword",
+			`def foo {
+				relation bar:
+			}`,
+			[]*core.RelationTuple{},
+			tuple.MustParse("somenamespace:someobj#anotherrel@user:foo"),
+			nil,
+			&devinterface.DeveloperError{
+				Message: "Unexpected token at root level: TokenTypeIdentifier",
+				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
+				Source:  devinterface.DeveloperError_SCHEMA,
+				Line:    1,
+				Column:  1,
+				Context: "def",
+			},
+			nil,
+		},
+		{
 			"invalid namespace",
 			`definition foo {
 				relation bar:

@@ -592,12 +592,15 @@ type DeveloperError struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Message string                   `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	Line    uint32                   `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
-	Column  uint32                   `protobuf:"varint,3,opt,name=column,proto3" json:"column,omitempty"`
-	Source  DeveloperError_Source    `protobuf:"varint,4,opt,name=source,proto3,enum=developer.v1.DeveloperError_Source" json:"source,omitempty"`
-	Kind    DeveloperError_ErrorKind `protobuf:"varint,5,opt,name=kind,proto3,enum=developer.v1.DeveloperError_ErrorKind" json:"kind,omitempty"`
-	Path    []string                 `protobuf:"bytes,6,rep,name=path,proto3" json:"path,omitempty"`
+	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	// line is the 1-indexed line for the developer error.
+	Line uint32 `protobuf:"varint,2,opt,name=line,proto3" json:"line,omitempty"`
+	// column is the 1-indexed column on the line for the developer error.
+	Column uint32 `protobuf:"varint,3,opt,name=column,proto3" json:"column,omitempty"`
+	// source is the source location of the error.
+	Source DeveloperError_Source    `protobuf:"varint,4,opt,name=source,proto3,enum=developer.v1.DeveloperError_Source" json:"source,omitempty"`
+	Kind   DeveloperError_ErrorKind `protobuf:"varint,5,opt,name=kind,proto3,enum=developer.v1.DeveloperError_ErrorKind" json:"kind,omitempty"`
+	Path   []string                 `protobuf:"bytes,6,rep,name=path,proto3" json:"path,omitempty"`
 	// context holds the context for the error. For schema issues, this will be the
 	// name of the object type. For relationship issues, the full relationship string.
 	Context string `protobuf:"bytes,7,opt,name=context,proto3" json:"context,omitempty"`
