@@ -89,8 +89,14 @@ message DeveloperError {
   }
 
   string message = 1;
+
+  // line is the 1-indexed line for the developer error.
   uint32 line = 2;
+
+  // column is the 1-indexed column on the line for the developer error.
   uint32 column = 3;
+
+  // source is the source location of the error.
   Source source = 4;
   ErrorKind kind = 5;
 
