@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // DebugOption defines the various debug level options for Checks.
@@ -55,11 +56,11 @@ func ComputeCheck(
 	params CheckParameters,
 	resourceID string,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	resultsMap, metas, err := computeCheck(ctx, d, params, []string{resourceID})
+	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID})
 	if err != nil {
-		return nil, metas[resourceID], err
+		return nil, meta, err
 	}
-	return resultsMap[resourceID], metas[resourceID], err
+	return resultsMap[resourceID], meta, err
 }
 
 // ComputeBulkCheck computes a check result for the given resources and subject, computing any
@@ -69,7 +70,7 @@ func ComputeBulkCheck(
 	d dispatch.Check,
 	params CheckParameters,
 	resourceIDs []string,
-) (map[string]*v1.ResourceCheckResult, map[string]*v1.ResponseMeta, error) {
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
 	return computeCheck(ctx, d, params, resourceIDs)
 }
 
@@ -77,12 +78,18 @@ func computeCheck(ctx context.Context,
 	d dispatch.Check,
 	params CheckParameters,
 	resourceIDs []string,
-) (map[string]*v1.ResourceCheckResult, map[string]*v1.ResponseMeta, error) {
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	if params.DebugOption == BasicDebuggingEnabled {
 		debugging = v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING
+		if len(resourceIDs) > 1 {
+			return nil, nil, spiceerrors.MustBugf("debugging can only be enabled for a single resource ID")
+		}
 	} else if params.DebugOption == TraceDebuggingEnabled {
 		debugging = v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING
+		if len(resourceIDs) > 1 {
+			return nil, nil, spiceerrors.MustBugf("debugging can only be enabled for a single resource ID")
+		}
 	}
 
 	setting := v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
@@ -92,7 +99,7 @@ func computeCheck(ctx context.Context,
 
 	// Ensure that the number of resources IDs given to each dispatch call is not in excess of the maximum.
 	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
-	resultMetadatas := make(map[string]*v1.ResponseMeta, len(resourceIDs))
+	metadata := &v1.ResponseMeta{}
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
 	_, err := slicez.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
@@ -107,8 +114,15 @@ func computeCheck(ctx context.Context,
 			},
 			Debug: debugging,
 		})
-		for _, resourceID := range resourceIDsToCheck {
-			resultMetadatas[resourceID] = checkResult.Metadata
+
+		if len(resourceIDs) == 1 {
+			metadata = checkResult.Metadata
+		} else {
+			metadata = &v1.ResponseMeta{
+				DispatchCount:       metadata.DispatchCount + checkResult.Metadata.DispatchCount,
+				DepthRequired:       max(metadata.DepthRequired, checkResult.Metadata.DepthRequired),
+				CachedDispatchCount: metadata.CachedDispatchCount + checkResult.Metadata.CachedDispatchCount,
+			}
 		}
 
 		if err != nil {
@@ -125,7 +139,14 @@ func computeCheck(ctx context.Context,
 
 		return true, nil
 	})
-	return results, resultMetadatas, err
+	return results, metadata, err
+}
+
+func max(x, y uint32) uint32 {
+	if x < y {
+		return y
+	}
+	return x
 }
 
 func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {

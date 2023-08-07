@@ -471,6 +471,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 			// call.
 			sctx, cancelDispatch := branchContext(ctx)
 
+			needsCallAddedToMetadata := true
 			stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
 				Stream: parentStream,
 				Ctx:    sctx,
@@ -510,9 +511,19 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 						return nil, false, err
 					}
 
+					// Only the first dispatched result gets the call added to it. This is to prevent overcounting
+					// of the batched dispatch.
+					var metadata *v1.ResponseMeta
+					if needsCallAddedToMetadata {
+						metadata = addCallToResponseMetadata(result.Metadata)
+						needsCallAddedToMetadata = false
+					} else {
+						metadata = addAdditionalDepthRequired(result.Metadata)
+					}
+
 					resp := &v1.DispatchReachableResourcesResponse{
 						Resource:            mappedResource,
-						Metadata:            addCallToResponseMetadata(result.Metadata),
+						Metadata:            metadata,
 						AfterResponseCursor: afterResponseCursor,
 					}
 					return resp, true, nil

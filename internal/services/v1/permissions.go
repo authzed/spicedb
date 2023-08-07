@@ -348,7 +348,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 	respMetadata := &dispatch.ResponseMeta{
 		DispatchCount:       1,
 		CachedDispatchCount: 0,
-		DepthRequired:       0,
+		DepthRequired:       1,
 		DebugInfo:           nil,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)

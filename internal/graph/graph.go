@@ -97,3 +97,12 @@ func addCallToResponseMetadata(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 		DebugInfo:           metadata.DebugInfo,
 	}
 }
+
+func addAdditionalDepthRequired(metadata *v1.ResponseMeta) *v1.ResponseMeta {
+	return &v1.ResponseMeta{
+		DispatchCount:       metadata.DispatchCount,
+		DepthRequired:       metadata.DepthRequired + 1,
+		CachedDispatchCount: metadata.CachedDispatchCount,
+		DebugInfo:           metadata.DebugInfo,
+	}
+}
