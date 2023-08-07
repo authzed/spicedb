@@ -22,7 +22,7 @@ func goTest(path string, args ...string) error {
 // run go test in a directory
 func goDirTest(dir string, path string, args ...string) error {
 	testArgs := append([]string{"test", "-failfast", "-count=1"}, args...)
-	return RunSh(goCmdForTests(), WithDir(dir), WithArgs(testArgs...))(path)
+	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
 // check if docker is installed and running
