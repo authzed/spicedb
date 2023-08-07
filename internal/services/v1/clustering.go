@@ -7,7 +7,6 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/graph/computed"
-	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -25,18 +24,25 @@ type clusteringParameters struct {
 	maxCaveatContextSize int
 }
 
-// clusterItems takes a slice of BulkCheckPermissionRequestItem and cluster them based
-// on using the same resource type, subject type, subject id, and caveat.
-func clusterItems(ctx context.Context, params clusteringParameters, items []*v1.BulkCheckPermissionRequestItem) ([]clusteredCheckParameters, error) {
+// clusterItems takes a slice of BulkCheckPermissionRequestItem and clusters them based
+// on using the same permission, subject type, subject id, and caveat.
+func clusterItems(ctx context.Context, params clusteringParameters, items []*v1.BulkCheckPermissionRequestItem, maxBatchSize uint16) ([]clusteredCheckParameters, error) {
 	clustered := make(map[string]clusteredCheckParameters, len(items))
 	for _, item := range items {
-		hash := bulkItemHash(item)
+		hash, err := computeBulkCheckPermissionItemHashWithoutResourceID(item)
+		if err != nil {
+			return nil, err
+		}
+
 		cluster, ok := clustered[hash]
 		if ok {
 			lastChunkIdx := len(cluster.chunkedResourceIDs) - 1
 			lastChunk := cluster.chunkedResourceIDs[lastChunkIdx]
-			if len(lastChunk) == int(MaxBulkCheckDispatchChunkSize) {
-				cluster.chunkedResourceIDs = append(cluster.chunkedResourceIDs, []string{item.Resource.ObjectId})
+			if len(lastChunk) == int(maxBatchSize) {
+				resourceIDs := make([]string, 0, maxBatchSize)
+				resourceIDs = append(resourceIDs, item.Resource.ObjectId)
+
+				cluster.chunkedResourceIDs = append(cluster.chunkedResourceIDs, resourceIDs)
 				clustered[hash] = cluster
 			} else {
 				cluster.chunkedResourceIDs[lastChunkIdx] = append(lastChunk, item.Resource.ObjectId)
@@ -46,6 +52,10 @@ func clusterItems(ctx context.Context, params clusteringParameters, items []*v1.
 			if err != nil {
 				return nil, err
 			}
+
+			resourceIDs := make([]string, 0, maxBatchSize)
+			resourceIDs = append(resourceIDs, item.Resource.ObjectId)
+
 			clustered[hash] = clusteredCheckParameters{
 				params: computed.CheckParameters{
 					ResourceType: &core.RelationReference{
@@ -62,16 +72,10 @@ func clusterItems(ctx context.Context, params clusteringParameters, items []*v1.
 					MaximumDepth:  params.maximumAPIDepth,
 					DebugOption:   computed.NoDebugging,
 				},
-				chunkedResourceIDs: [][]string{{item.Resource.ObjectId}},
+				chunkedResourceIDs: [][]string{resourceIDs},
 			}
 		}
 	}
 
 	return maps.Values(clustered), nil
-}
-
-func bulkItemHash(item *v1.BulkCheckPermissionRequestItem) string {
-	contextHash := caveats.StableContextStringForHashing(item.Context)
-	key := item.Resource.ObjectType + item.Permission + item.Subject.Object.ObjectType + item.Subject.Object.ObjectId + normalizeSubjectRelation(item.Subject) + contextHash
-	return key
 }

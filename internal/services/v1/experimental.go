@@ -411,13 +411,14 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		return nil, es.rewriteError(ctx, err)
 	}
 
-	// identifies checks with same permission and caveats over different resources and cluster them
+	// Identify checks with same permission+subject over different resources and cluster them. This is doable because
+	// the dispatching system already internally supports this kind of batching for performance.
 	clusteringParams := clusteringParameters{
 		atRevision:           atRevision,
 		maxCaveatContextSize: es.maxCaveatContextSize,
 		maximumAPIDepth:      es.maximumAPIDepth,
 	}
-	clusteredItems, err := clusterItems(ctx, clusteringParams, req.Items)
+	clusteredItems, err := clusterItems(ctx, clusteringParams, req.Items, MaxBulkCheckDispatchChunkSize)
 	if err != nil {
 		return nil, es.rewriteError(ctx, err)
 	}

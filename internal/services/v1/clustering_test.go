@@ -224,18 +224,20 @@ func TestClusterItems(t *testing.T) {
 				maxCaveatContextSize: math.MaxInt,
 				maximumAPIDepth:      1,
 			}
-			originalChunkSize := MaxBulkCheckDispatchChunkSize
+
+			maxChunkSize := MaxBulkCheckDispatchChunkSize
 			if tt.chunkSize > 0 {
-				MaxBulkCheckDispatchChunkSize = tt.chunkSize
+				maxChunkSize = tt.chunkSize
 			}
-			ccp, err := clusterItems(context.Background(), cp, items)
-			MaxBulkCheckDispatchChunkSize = originalChunkSize
+
+			ccp, err := clusterItems(context.Background(), cp, items, maxChunkSize)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, len(tt.response), len(ccp))
 				sort.Slice(ccp, func(first, second int) bool {
+					// NOTE: This sorting is solely for testing, so it does not need to be secure
 					firstParams := ccp[first].params
 					secondParams := ccp[second].params
 					firstKey := firstParams.ResourceType.Namespace + firstParams.ResourceType.Relation +
@@ -283,6 +285,6 @@ func TestCaveatContextSizeLimitIsEnforced(t *testing.T) {
 			Context:    rel.OptionalCaveat.Context,
 		},
 	}
-	_, err := clusterItems(context.Background(), cp, items)
+	_, err := clusterItems(context.Background(), cp, items, MaxBulkCheckDispatchChunkSize)
 	require.ErrorContains(t, err, "request caveat context should have less than 1 bytes but had 14")
 }
