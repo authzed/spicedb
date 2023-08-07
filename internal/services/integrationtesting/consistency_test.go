@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
+	"google.golang.org/protobuf/types/known/structpb"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -382,6 +384,9 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							requireSameSets(t, maps.Keys(accessibleResources), maps.Keys(resolvedResources))
 
 							// Ensure that every returned concrete object Checks directly.
+							bulkCheckItems := make([]*v1.BulkCheckPermissionRequestItem, 0, len(resolvedResources))
+							expectedBulkPermissions := map[string]v1.CheckPermissionResponse_Permissionship{}
+
 							for _, resolvedResource := range resolvedResources {
 								permissionship, err := vctx.serviceTester.Check(context.Background(),
 									&core.ObjectAndRelation{
@@ -399,6 +404,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 									expectedPermissionship = v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 								}
 
+								expectedBulkPermissions[resolvedResource.ResourceObjectId] = expectedPermissionship
+
 								require.NoError(t, err)
 								require.Equal(t,
 									expectedPermissionship,
@@ -411,6 +418,31 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 									expectedPermissionship,
 									permissionship,
 								)
+
+								bulkCheckItems = append(bulkCheckItems, &v1.BulkCheckPermissionRequestItem{
+									Resource: &v1.ObjectReference{
+										ObjectType: resourceRelation.Namespace,
+										ObjectId:   resolvedResource.ResourceObjectId,
+									},
+									Permission: resourceRelation.Relation,
+									Subject: &v1.SubjectReference{
+										Object: &v1.ObjectReference{
+											ObjectType: subject.Namespace,
+											ObjectId:   subject.ObjectId,
+										},
+										OptionalRelation: stringz.Default(subject.Relation, "", tuple.Ellipsis),
+									},
+								})
+							}
+
+							// Ensure they are all found via bulk check as well.
+							results, err := vctx.serviceTester.BulkCheck(context.Background(),
+								bulkCheckItems,
+								vctx.revision,
+							)
+							require.NoError(t, err)
+							for _, result := range results {
+								require.Equal(t, expectedBulkPermissions[result.Request.Resource.ObjectId], result.GetItem().Permissionship)
 							}
 						})
 					}
@@ -607,7 +639,24 @@ func runAssertions(t *testing.T, vctx validationContext) {
 			} {
 				entry := entry
 				t.Run(entry.name, func(t *testing.T) {
+					bulkCheckItems := make([]*v1.BulkCheckPermissionRequestItem, 0, len(entry.assertions))
+
 					for _, assertion := range entry.assertions {
+						var caveatContext *structpb.Struct
+						if assertion.CaveatContext != nil {
+							built, err := structpb.NewStruct(assertion.CaveatContext)
+							require.NoError(t, err)
+							caveatContext = built
+						}
+
+						bulkCheckItems = append(bulkCheckItems, &v1.BulkCheckPermissionRequestItem{
+							Resource:   assertion.Relationship.Resource,
+							Permission: assertion.Relationship.Relation,
+							Subject:    assertion.Relationship.Subject,
+							Context:    caveatContext,
+						})
+
+						// Run each individual assertion.
 						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
 							rel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
@@ -659,6 +708,14 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								panic("unknown permissionship")
 							}
 						})
+
+						// Run all assertions under bulk check and ensure they match as well.
+						results, err := vctx.serviceTester.BulkCheck(context.Background(), bulkCheckItems, vctx.revision)
+						require.NoError(t, err)
+
+						for _, result := range results {
+							require.Equal(t, entry.expectedPermissionship, result.GetItem().Permissionship, "Bulk check for assertion request `%s` returned %s; expected %s", result.GetRequest(), result.GetItem().Permissionship, entry.expectedPermissionship)
+						}
 					}
 				})
 			}

@@ -18,7 +18,7 @@ import (
 
 func ServiceTesters(conn *grpc.ClientConn) []ServiceTester {
 	return []ServiceTester{
-		v1ServiceTester{v1.NewPermissionsServiceClient(conn)},
+		v1ServiceTester{v1.NewPermissionsServiceClient(conn), v1.NewExperimentalServiceClient(conn)},
 	}
 }
 
@@ -30,6 +30,7 @@ type ServiceTester interface {
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
 	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
 	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
+	BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error)
 }
 
 func optionalizeRelation(relation string) string {
@@ -43,6 +44,7 @@ func optionalizeRelation(relation string) string {
 // v1ServiceTester tests the V1 API.
 type v1ServiceTester struct {
 	permClient v1.PermissionsServiceClient
+	expClient  v1.ExperimentalServiceClient
 }
 
 func (v1st v1ServiceTester) Name() string {
@@ -233,4 +235,20 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.Obj
 		found[resp.Subject.SubjectObjectId] = resp
 	}
 	return found, nil
+}
+
+func (v1st v1ServiceTester) BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error) {
+	result, err := v1st.expClient.BulkCheckPermission(ctx, &v1.BulkCheckPermissionRequest{
+		Items: items,
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Pairs, nil
 }
