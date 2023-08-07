@@ -103,16 +103,16 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 }
 
 func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration) error {
-	log.Ctx(ctx).Info().
-		Dur("interval", interval).
-		Msg("datastore garbage collection worker started")
-
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = maxDuration(MaxGCInterval, interval)
 	backoffInterval.MaxElapsedTime = maxElapsedTime
 
 	nextInterval := interval
+
+	log.Ctx(ctx).Info().
+		Dur("interval", nextInterval).
+		Msg("datastore garbage collection worker started")
 
 	for {
 		select {
@@ -122,6 +122,9 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 			return ctx.Err()
 
 		case <-time.After(nextInterval):
+			log.Ctx(ctx).Info().
+				Msg("running garbage collection worker")
+
 			err := RunGarbageCollection(gc, window, timeout)
 			if err != nil {
 				gcFailureCounter.Inc()
