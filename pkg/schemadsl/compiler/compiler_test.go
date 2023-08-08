@@ -485,7 +485,7 @@ func TestCompile(t *testing.T) {
 			"invalid definition name",
 			nil,
 			`definition someTenant/fo {}`,
-			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]SchemaDefinition{},
 		},
 		{
@@ -795,6 +795,46 @@ func TestCompile(t *testing.T) {
 									namespace.ComputedUserset("third"),
 								),
 							),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"wrong tenant is not translated",
+			&someTenant,
+			`definition someothertenant/simple {
+				permission foos = (first + second) + (third + fourth)
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("someothertenant/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.ComputedUserset("third"),
+							namespace.ComputedUserset("fourth"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"multiple-segment tenant",
+			&someTenant,
+			`definition sometenant/some_team/simple {
+				permission foos = (first + second) + (third + fourth)
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/some_team/simple",
+					namespace.MustRelation("foos",
+						namespace.Union(
+							namespace.ComputedUserset("first"),
+							namespace.ComputedUserset("second"),
+							namespace.ComputedUserset("third"),
 							namespace.ComputedUserset("fourth"),
 						),
 					),

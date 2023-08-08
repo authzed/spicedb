@@ -24,7 +24,7 @@ type translationContext struct {
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
 	var prefix, name string
-	if err := stringz.SplitExact(definitionName, "/", &prefix, &name); err != nil {
+	if err := stringz.SplitInto(definitionName, "/", &prefix, &name); err != nil {
 		if tctx.objectTypePrefix == nil {
 			return "", fmt.Errorf("found reference `%s` without prefix", definitionName)
 		}

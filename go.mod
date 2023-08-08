@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.47.0
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v0.9.0
+	github.com/authzed/authzed-go v0.9.1-0.20230808160157-67ca5a9f8322
 	github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5
 	github.com/aws/aws-sdk-go v1.44.314
 	github.com/benbjohnson/clock v1.3.5
@@ -44,7 +44,7 @@ require (
 	github.com/jackc/pgx/v5 v5.4.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20230506070712-04da935ef877
 	github.com/jzelinskie/cobrautil/v2 v2.0.0-20230714172849-80717639cec5
-	github.com/jzelinskie/stringz v0.0.1
+	github.com/jzelinskie/stringz v0.0.2
 	github.com/lib/pq v1.10.9
 	github.com/lthibault/jitterbug v2.0.0+incompatible
 	github.com/magefile/mage v1.15.0
