@@ -3,7 +3,7 @@ module github.com/authzed/spicedb/e2e
 go 1.19
 
 require (
-	github.com/authzed/authzed-go v0.9.0
+	github.com/authzed/authzed-go v0.9.1-0.20230808160157-67ca5a9f8322
 	github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5
 	github.com/authzed/spicedb v1.23.1
 	github.com/brianvoe/gofakeit/v6 v6.23.0
@@ -31,7 +31,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jzelinskie/stringz v0.0.1 // indirect
+	github.com/jzelinskie/stringz v0.0.2 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
