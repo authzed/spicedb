@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	structpb "github.com/golang/protobuf/ptypes/struct"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
