@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/authzed/consistent"
 	"github.com/authzed/grpcutil"
 	"github.com/cespare/xxhash/v2"
 	"github.com/ecordell/optgen/helpers"
@@ -38,7 +39,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/telemetry"
-	"github.com/authzed/spicedb/pkg/balancer"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -47,9 +47,7 @@ import (
 
 // ConsistentHashringBuilder is a balancer Builder that uses xxhash as the
 // underlying hash for the ConsistentHashringBalancers it creates.
-var ConsistentHashringBuilder = balancer.NewConsistentHashringBuilder(
-	xxhash.Sum64,
-)
+var ConsistentHashringBuilder = consistent.NewBuilder(xxhash.Sum64)
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
@@ -245,12 +243,12 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		specificConcurrencyLimits := c.DispatchConcurrencyLimits
 		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
-		hashringConfigJSON, err := (&balancer.ConsistentHashringBalancerConfig{
+		hashringConfigJSON, err := (&consistent.BalancerConfig{
 			ReplicationFactor: c.DispatchHashringReplicationFactor,
 			Spread:            c.DispatchHashringSpread,
-		}).ToServiceConfigJSON()
+		}).ServiceConfigJSON()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create hashring balancer config: %w", err)
+			return nil, fmt.Errorf("failed to create gRPC hashring balancer config: %w", err)
 		}
 
 		dispatcher, err = combineddispatch.NewDispatcher(

@@ -7,13 +7,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/authzed/consistent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/balancer"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -73,7 +73,7 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
 	}
 
-	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
+	ctx = context.WithValue(ctx, consistent.CtxKey, requestKey)
 
 	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
@@ -111,7 +111,7 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 		return &v1.DispatchExpandResponse{Metadata: emptyMetadata}, err
 	}
 
-	ctx = context.WithValue(ctx, balancer.CtxKey, requestKey)
+	ctx = context.WithValue(ctx, consistent.CtxKey, requestKey)
 
 	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
 	defer cancelFn()
@@ -134,7 +134,7 @@ func (cr *clusterDispatcher) DispatchReachableResources(
 		return err
 	}
 
-	ctx := context.WithValue(stream.Context(), balancer.CtxKey, requestKey)
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
 	stream = dispatch.StreamWithContext(ctx, stream)
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
@@ -184,7 +184,7 @@ func (cr *clusterDispatcher) DispatchLookupResources(
 		return err
 	}
 
-	ctx := context.WithValue(stream.Context(), balancer.CtxKey, requestKey)
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
 	stream = dispatch.StreamWithContext(ctx, stream)
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {
@@ -234,7 +234,7 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		return err
 	}
 
-	ctx := context.WithValue(stream.Context(), balancer.CtxKey, requestKey)
+	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
 	stream = dispatch.StreamWithContext(ctx, stream)
 
 	if err := dispatch.CheckDepth(ctx, req); err != nil {

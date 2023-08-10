@@ -455,6 +455,8 @@ github.com/ashanbrown/makezero v1.1.1 h1:iCQ87C0V0vSyO+M9E/FZYbu65auqH0lnsOkf5Fc
 github.com/ashanbrown/makezero v1.1.1/go.mod h1:i1bJLCRSCHOcOa9Y6MyF2FTfMZMFdHvxKHxgO5Z1axI=
 github.com/authzed/authzed-go v0.9.1-0.20230808160157-67ca5a9f8322 h1:xRXaLKkAQGF6aZv7KeoYCrxsHh1y9os6wFUUQ0TnMuE=
 github.com/authzed/authzed-go v0.9.1-0.20230808160157-67ca5a9f8322/go.mod h1:9Pl5jDQJHrjbMDuCrsa+Q6Tqmi1f2pDdIn/qNGI++vA=
+github.com/authzed/consistent v0.1.0 h1:tlh1wvKoRbjRhMm2P+X5WQQyR54SRoS4MyjLOg17Mp8=
+github.com/authzed/consistent v0.1.0/go.mod h1:plwHlrN/EJUCwQ+Bca0MhM1KnisPs7HEkZI5giCXrcc=
 github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5 h1:Fg92G8sNNODbNe2ckJoLeMEPeDqSfygmXnpEXDnVifU=
 github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5/go.mod h1:qx105brQubHFYLRja6wlHA+JB8DSK+yhb8uc8aFA5NQ=
 github.com/aws/aws-sdk-go v1.44.256/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
@@ -1321,8 +1323,8 @@ golang.org/x/exp v0.0.0-20191227195350-da58074b4299/go.mod h1:2RIsYlXP63K8oxa1u0
 golang.org/x/exp v0.0.0-20200119233911-0405dc783f0a/go.mod h1:2RIsYlXP63K8oxa1u096TMicItID8zy7Y6sNkU49FU4=
 golang.org/x/exp v0.0.0-20200207192155-f17229e696bd/go.mod h1:J/WKrq2StrnmMY6+EHIKF9dgMWnmCNThgcyBT1FY9mM=
 golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6/go.mod h1:3jZMyOhIsHpP37uCMkUooju7aAi5cS1Q23tOzKc+0MU=
-golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 h1:Di6/M8l0O2lCLc6VVRWhgCiApHV8MnQurBnFSHsQtNY=
-golang.org/x/exp v0.0.0-20230725093048-515e97ebf090/go.mod h1:FXUEEKJgO7OQYeo8N01OfiKP8RXMtf6e8aTskBGqWdc=
+golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b h1:r+vk0EmXNmekl0S0BascoeeoHk/L7wmaW2QF90K+kYI=
+golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b/go.mod h1:FXUEEKJgO7OQYeo8N01OfiKP8RXMtf6e8aTskBGqWdc=
 golang.org/x/exp/typeparams v0.0.0-20220428152302-39d4317da171/go.mod h1:AbB0pIl9nAr9wVwH+Z2ZpaocVmF5I4GyWCDIsVjR0bk=
 golang.org/x/exp/typeparams v0.0.0-20230203172020-98cc5a0785f9/go.mod h1:AbB0pIl9nAr9wVwH+Z2ZpaocVmF5I4GyWCDIsVjR0bk=
 golang.org/x/exp/typeparams v0.0.0-20230725093048-515e97ebf090 h1:qOYhjyK9OeXREdh7Zrta8JRvnmnFIzhkosQpp+852Ag=

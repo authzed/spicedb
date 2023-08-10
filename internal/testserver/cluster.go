@@ -10,16 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/grpc/backoff"
-
+	"github.com/authzed/consistent"
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/resolver"
 
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
-	hashbalancer "github.com/authzed/spicedb/pkg/balancer"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -59,7 +58,7 @@ var testResolverBuilder = &SafeManualResolverBuilder{}
 
 func init() {
 	// register hashring balancer
-	balancer.Register(hashbalancer.NewConsistentHashringBuilder(xxhash.Sum64))
+	balancer.Register(consistent.NewBuilder(xxhash.Sum64))
 
 	// Register a manual resolver.Builder  that we can feed addresses for tests
 	// Registration is not thread safe, so we register a single resolver.Builder
@@ -166,10 +165,11 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 			combineddispatch.UpstreamAddr("test://" + prefix),
 			combineddispatch.PrometheusSubsystem(fmt.Sprintf("%s_%d_client_dispatch", prefix, i)),
 			combineddispatch.GrpcDialOpts(
-				grpc.WithDefaultServiceConfig((&hashbalancer.ConsistentHashringBalancerConfig{
-					ReplicationFactor: 1500,
-					Spread:            1,
-				}).MustToServiceConfigJSON()),
+				grpc.WithDefaultServiceConfig(
+					(&consistent.BalancerConfig{
+						ReplicationFactor: 1500,
+						Spread:            1,
+					}).MustServiceConfigJSON()),
 				grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 					// it's possible grpc tries to dial before we have set the
 					// buffconn dialers, we have to return a "TempError" so that
