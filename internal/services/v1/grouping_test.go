@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sort"
+	"strings"
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -24,10 +25,10 @@ type expectedGroupedRequest struct {
 
 func TestGroupItems(t *testing.T) {
 	testCases := []struct {
-		name     string
-		requests []string
-		response []expectedGroupedRequest
-		err      string
+		name      string
+		requests  []string
+		groupings []expectedGroupedRequest
+		err       string
 	}{
 		{
 			name: "different subjects cannot be grouped",
@@ -36,7 +37,7 @@ func TestGroupItems(t *testing.T) {
 				"document:1#view@user:2",
 				"document:1#view@user:3",
 			},
-			response: []expectedGroupedRequest{
+			groupings: []expectedGroupedRequest{
 				{
 					resourceType: "document",
 					resourceRel:  "view",
@@ -64,7 +65,7 @@ func TestGroupItems(t *testing.T) {
 				"document:1#write@user:1",
 				"document:1#admin@user:1",
 			},
-			response: []expectedGroupedRequest{
+			groupings: []expectedGroupedRequest{
 				{
 					resourceType: "document",
 					resourceRel:  "admin",
@@ -92,7 +93,7 @@ func TestGroupItems(t *testing.T) {
 				"folder:1#view@user:1",
 				"organization:1#view@user:1",
 			},
-			response: []expectedGroupedRequest{
+			groupings: []expectedGroupedRequest{
 				{
 					resourceType: "document",
 					resourceRel:  "view",
@@ -122,7 +123,7 @@ func TestGroupItems(t *testing.T) {
 				"document:2#view@user:1",
 				"document:5#view@user:2",
 			},
-			response: []expectedGroupedRequest{
+			groupings: []expectedGroupedRequest{
 				{
 					resourceType: "document",
 					resourceRel:  "view",
@@ -143,7 +144,7 @@ func TestGroupItems(t *testing.T) {
 				`document:1#view@user:1[somecaveat:{"hey": "bud"}]`,
 				`document:2#view@user:1[somecaveat:{"hi": "there"}]`,
 			},
-			response: []expectedGroupedRequest{
+			groupings: []expectedGroupedRequest{
 				{
 					resourceType: "document",
 					resourceRel:  "view",
@@ -164,7 +165,7 @@ func TestGroupItems(t *testing.T) {
 				`document:1#view@user:1[somecaveat:{"hey": "bud"}]`,
 				`document:2#view@user:1[somecaveat:{"hey": "bud"}]`,
 			},
-			response: []expectedGroupedRequest{
+			groupings: []expectedGroupedRequest{
 				{
 					resourceType: "document",
 					resourceRel:  "view",
@@ -202,18 +203,30 @@ func TestGroupItems(t *testing.T) {
 				require.ErrorContains(t, err, tt.err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, len(tt.response), len(ccp))
+				require.Equal(t, len(tt.groupings), len(ccp))
+
+				sort.Slice(tt.groupings, func(first, second int) bool {
+					// NOTE: This sorting is solely for testing, so it does not need to be secure
+					firstParams := tt.groupings[first]
+					secondParams := tt.groupings[second]
+					firstKey := firstParams.resourceType + firstParams.resourceRel + firstParams.subject
+					secondKey := secondParams.resourceType + secondParams.resourceRel + secondParams.subject
+					return firstKey < secondKey
+				})
+
 				sort.Slice(ccp, func(first, second int) bool {
 					// NOTE: This sorting is solely for testing, so it does not need to be secure
 					firstParams := ccp[first].params
 					secondParams := ccp[second].params
+
 					firstKey := firstParams.ResourceType.Namespace + firstParams.ResourceType.Relation +
-						firstParams.Subject.Namespace + firstParams.Subject.ObjectId + firstParams.Subject.Relation
+						firstParams.Subject.Namespace + firstParams.Subject.ObjectId + firstParams.Subject.Relation + strings.Join(ccp[first].resourceIDs, ",")
 					secondKey := secondParams.ResourceType.Namespace + secondParams.ResourceType.Relation +
-						secondParams.Subject.Namespace + secondParams.Subject.ObjectId + secondParams.Subject.Relation
+						secondParams.Subject.Namespace + secondParams.Subject.ObjectId + secondParams.Subject.Relation + strings.Join(ccp[second].resourceIDs, ",")
 					return firstKey < secondKey
 				})
-				for i, expected := range tt.response {
+
+				for i, expected := range tt.groupings {
 					sort.Strings(expected.resourceIDs)
 					sort.Strings(ccp[i].resourceIDs)
 
