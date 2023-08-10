@@ -496,7 +496,6 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 							AllowEllipsis: true,
 						},
 					}, ds)
-
 				if err != nil {
 					return appendResultsForError(group, err)
 				}
