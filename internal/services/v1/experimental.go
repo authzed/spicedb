@@ -34,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -411,89 +412,104 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		return nil, es.rewriteError(ctx, err)
 	}
 
-	// Identify checks with same permission+subject over different resources and cluster them. This is doable because
+	// Identify checks with same permission+subject over different resources and group them. This is doable because
 	// the dispatching system already internally supports this kind of batching for performance.
-	clusteringParams := clusteringParameters{
+	groupingParams := groupingParameters{
 		atRevision:           atRevision,
 		maxCaveatContextSize: es.maxCaveatContextSize,
 		maximumAPIDepth:      es.maximumAPIDepth,
 	}
-	clusteredItems, err := clusterItems(ctx, clusteringParams, req.Items, MaxBulkCheckDispatchChunkSize)
+	groupedItems, err := groupItems(ctx, groupingParams, req.Items)
 	if err != nil {
 		return nil, es.rewriteError(ctx, err)
 	}
 
 	bulkResponseMutex := sync.Mutex{}
 	resp := &v1.BulkCheckPermissionResponse{CheckedAt: checkedAt}
-	tr := taskrunner.NewPreloadedTaskRunner(ctx, es.bulkCheckMaxConcurrency, len(clusteredItems))
+	tr := taskrunner.NewPreloadedTaskRunner(ctx, es.bulkCheckMaxConcurrency, len(groupedItems))
 
-	for _, item := range clusteredItems {
-		item := item
-		for _, chunk := range item.chunkedResourceIDs {
-			chunk := chunk
+	appendResultsForError := func(group groupedCheckParameters, err error) error {
+		bulkResponseMutex.Lock()
+		defer bulkResponseMutex.Unlock()
+
+		rewritten := es.rewriteError(ctx, err)
+		statusResp, ok := status.FromError(rewritten)
+		if !ok {
+			// If error is not a gRPC Status, fail the entire bulk check request.
+			return err
+		}
+
+		for _, resourceID := range group.resourceIDs {
+			reqItem, err := requestItemFromResourceAndParameters(group.params, resourceID)
+			if err != nil {
+				return es.rewriteError(ctx, err)
+			}
+
+			resp.Pairs = append(resp.Pairs, &v1.BulkCheckPermissionPair{
+				Request: reqItem,
+				Response: &v1.BulkCheckPermissionPair_Error{
+					Error: statusResp.Proto(),
+				},
+			})
+		}
+
+		return nil
+	}
+
+	appendResultsForCheck := func(params computed.CheckParameters, resourceIDs []string, metadata *dispatchv1.ResponseMeta, results map[string]*dispatchv1.ResourceCheckResult) error {
+		bulkResponseMutex.Lock()
+		defer bulkResponseMutex.Unlock()
+
+		for _, resourceID := range resourceIDs {
+			reqItem, err := requestItemFromResourceAndParameters(params, resourceID)
+			if err != nil {
+				return es.rewriteError(ctx, err)
+			}
+
+			resp.Pairs = append(resp.Pairs, &v1.BulkCheckPermissionPair{
+				Request:  reqItem,
+				Response: pairItemFromCheckResult(results[resourceID]),
+			})
+		}
+
+		return nil
+	}
+
+	for _, group := range groupedItems {
+		group := group
+
+		slicez.ForEachChunk(group.resourceIDs, MaxBulkCheckDispatchChunkSize, func(resourceIDs []string) {
 			tr.Add(func(ctx context.Context) error {
 				ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
+				// Ensure the check namespaces and relations are valid.
 				err := namespace.CheckNamespaceAndRelations(ctx,
 					[]namespace.TypeAndRelationToCheck{
 						{
-							NamespaceName: item.params.ResourceType.Namespace,
-							RelationName:  item.params.ResourceType.Relation,
+							NamespaceName: group.params.ResourceType.Namespace,
+							RelationName:  group.params.ResourceType.Relation,
 							AllowEllipsis: false,
 						},
 						{
-							NamespaceName: item.params.Subject.Namespace,
-							RelationName:  stringz.DefaultEmpty(item.params.Subject.Relation, graph.Ellipsis),
+							NamespaceName: group.params.Subject.Namespace,
+							RelationName:  stringz.DefaultEmpty(group.params.Subject.Relation, graph.Ellipsis),
 							AllowEllipsis: true,
 						},
 					}, ds)
 
-				var pairs []*v1.BulkCheckPermissionPair
-				var rcr map[string]*dispatchv1.ResourceCheckResult
-				if err == nil {
-					rcr, _, err = computed.ComputeBulkCheck(ctx, es.dispatch, item.params, chunk)
-				}
-
 				if err != nil {
-					rewritten := es.rewriteError(ctx, err)
-					statusResp, ok := status.FromError(rewritten)
-					if !ok {
-						// if error is not a gRPC Status, fail the entire bulk check request
-						return err
-					}
-
-					for _, resourceID := range chunk {
-						reqItem, err := requestItemFromResourceAndParameters(item, resourceID)
-						if err != nil {
-							return es.rewriteError(ctx, err)
-						}
-						pairs = append(pairs, &v1.BulkCheckPermissionPair{
-							Request: reqItem,
-							Response: &v1.BulkCheckPermissionPair_Error{
-								Error: statusResp.Proto(),
-							},
-						})
-					}
-				} else {
-					for resourceID, checkResult := range rcr {
-						reqItem, err := requestItemFromResourceAndParameters(item, resourceID)
-						if err != nil {
-							return es.rewriteError(ctx, err)
-						}
-						pairs = append(pairs, &v1.BulkCheckPermissionPair{
-							Request:  reqItem,
-							Response: pairItemFromCheckResult(checkResult),
-						})
-					}
+					return appendResultsForError(group, err)
 				}
 
-				bulkResponseMutex.Lock()
-				resp.Pairs = append(resp.Pairs, pairs...)
-				bulkResponseMutex.Unlock()
+				// Call bulk check to compute the check result(s) for the resource ID(s).
+				rcr, metadata, err := computed.ComputeBulkCheck(ctx, es.dispatch, group.params, resourceIDs)
+				if err != nil {
+					return appendResultsForError(group, err)
+				}
 
-				return nil
+				return appendResultsForCheck(group.params, resourceIDs, metadata, rcr)
 			})
-		}
+		})
 	}
 
 	if err := tr.StartAndWait(); err != nil {
@@ -513,24 +529,24 @@ func pairItemFromCheckResult(checkResult *dispatchv1.ResourceCheckResult) *v1.Bu
 	}
 }
 
-func requestItemFromResourceAndParameters(params clusteredCheckParameters, resourceID string) (*v1.BulkCheckPermissionRequestItem, error) {
+func requestItemFromResourceAndParameters(params computed.CheckParameters, resourceID string) (*v1.BulkCheckPermissionRequestItem, error) {
 	item := &v1.BulkCheckPermissionRequestItem{
 		Resource: &v1.ObjectReference{
-			ObjectType: params.params.ResourceType.Namespace,
+			ObjectType: params.ResourceType.Namespace,
 			ObjectId:   resourceID,
 		},
-		Permission: params.params.ResourceType.Relation,
+		Permission: params.ResourceType.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: params.params.Subject.Namespace,
-				ObjectId:   params.params.Subject.ObjectId,
+				ObjectType: params.Subject.Namespace,
+				ObjectId:   params.Subject.ObjectId,
 			},
-			OptionalRelation: denormalizeSubjectRelation(params.params.Subject.Relation),
+			OptionalRelation: denormalizeSubjectRelation(params.Subject.Relation),
 		},
 	}
-	if len(params.params.CaveatContext) > 0 {
+	if len(params.CaveatContext) > 0 {
 		var err error
-		item.Context, err = structpb.NewStruct(params.params.CaveatContext)
+		item.Context, err = structpb.NewStruct(params.CaveatContext)
 		if err != nil {
 			return nil, fmt.Errorf("caveat context wasn't properly validated: %w", err)
 		}
