@@ -38,7 +38,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "gcr.io/cloud-spanner-emulator/emulator",
-		Tag:          "latest",
+		Tag:          "1.5.8",
 		ExposedPorts: []string{"9010/tcp"},
 		NetworkID:    bridgeNetworkName,
 	})

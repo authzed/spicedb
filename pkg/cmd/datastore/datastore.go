@@ -253,7 +253,7 @@ func DefaultDatastoreConfig() *Config {
 		BootstrapFiles:                 []string{},
 		BootstrapTimeout:               10 * time.Second,
 		BootstrapOverwrite:             false,
-		RequestHedgingEnabled:          true,
+		RequestHedgingEnabled:          false,
 		RequestHedgingInitialSlowValue: 10000000,
 		RequestHedgingMaxRequests:      1_000_000,
 		RequestHedgingQuantile:         0.95,
