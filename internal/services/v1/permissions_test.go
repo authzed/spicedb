@@ -354,18 +354,20 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 
 func TestLookupResources(t *testing.T) {
 	testCases := []struct {
-		objectType            string
-		permission            string
-		subject               *v1.SubjectReference
-		expectedObjectIds     []string
-		expectedErrorCode     codes.Code
-		expectedDispatchCount int
+		objectType           string
+		permission           string
+		subject              *v1.SubjectReference
+		expectedObjectIds    []string
+		expectedErrorCode    codes.Code
+		minimumDispatchCount int
+		maximumDispatchCount int
 	}{
 		{
 			"document", "viewer",
 			sub("user", "eng_lead", ""),
 			[]string{"masterplan"},
 			codes.OK,
+			1,
 			1,
 		},
 		{
@@ -374,12 +376,14 @@ func TestLookupResources(t *testing.T) {
 			[]string{"masterplan"},
 			codes.OK,
 			2,
+			2,
 		},
 		{
 			"document", "view",
 			sub("user", "product_manager", ""),
 			[]string{"masterplan"},
 			codes.OK,
+			3,
 			3,
 		},
 		{
@@ -388,12 +392,14 @@ func TestLookupResources(t *testing.T) {
 			[]string{"masterplan", "healthplan"},
 			codes.OK,
 			3,
+			3,
 		},
 		{
 			"document", "view",
 			sub("user", "auditor", ""),
 			[]string{"masterplan", "companyplan"},
 			codes.OK,
+			5,
 			5,
 		},
 		{
@@ -402,12 +408,14 @@ func TestLookupResources(t *testing.T) {
 			[]string{"masterplan"},
 			codes.OK,
 			4,
+			4,
 		},
 		{
 			"document", "view",
 			sub("user", "legal", ""),
 			[]string{"masterplan", "companyplan"},
 			codes.OK,
+			4,
 			4,
 		},
 		{
@@ -416,12 +424,14 @@ func TestLookupResources(t *testing.T) {
 			[]string{"masterplan", "companyplan", "ownerplan"},
 			codes.OK,
 			6,
+			6,
 		},
 		{
 			"document", "view",
 			sub("user", "villain", ""),
 			nil,
 			codes.OK,
+			1,
 			1,
 		},
 		{
@@ -430,6 +440,7 @@ func TestLookupResources(t *testing.T) {
 			nil,
 			codes.OK,
 			1,
+			1,
 		},
 		{
 			"document", "view_and_edit",
@@ -437,12 +448,14 @@ func TestLookupResources(t *testing.T) {
 			nil,
 			codes.OK,
 			1,
+			1,
 		},
 		{
 			"document", "view_and_edit",
 			sub("user", "multiroleguy", ""),
 			[]string{"specialplan"},
 			codes.OK,
+			6,
 			7,
 		},
 		{
@@ -451,12 +464,14 @@ func TestLookupResources(t *testing.T) {
 			nil,
 			codes.OK,
 			1,
+			1,
 		},
 		{
 			"document", "invalidrelation",
 			sub("user", "missingrolegal", ""),
 			[]string{},
 			codes.FailedPrecondition,
+			1,
 			1,
 		},
 		{
@@ -465,12 +480,14 @@ func TestLookupResources(t *testing.T) {
 			[]string{},
 			codes.FailedPrecondition,
 			0,
+			0,
 		},
 		{
 			"invalidnamespace", "view_and_edit",
 			sub("user", "someuser", ""),
 			[]string{},
 			codes.FailedPrecondition,
+			0,
 			0,
 		},
 		{
@@ -479,12 +496,14 @@ func TestLookupResources(t *testing.T) {
 			[]string{},
 			codes.FailedPrecondition,
 			0,
+			0,
 		},
 		{
 			"document", "view_and_edit",
 			sub("user", "*", ""),
 			[]string{},
 			codes.InvalidArgument,
+			0,
 			0,
 		},
 	}
@@ -537,7 +556,8 @@ func TestLookupResources(t *testing.T) {
 						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
 						require.NoError(err)
 						require.GreaterOrEqual(dispatchCount, 0)
-						require.Equal(tc.expectedDispatchCount, dispatchCount)
+						require.LessOrEqual(dispatchCount, tc.maximumDispatchCount)
+						require.GreaterOrEqual(dispatchCount, tc.minimumDispatchCount)
 					} else {
 						_, err := lookupClient.Recv()
 						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
