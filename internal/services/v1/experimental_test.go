@@ -11,16 +11,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/shared"
-	services "github.com/authzed/spicedb/internal/services/v1"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -236,10 +238,10 @@ func TestBulkCheckPermission(t *testing.T) {
 	defer cleanup()
 
 	testCases := []struct {
-		name      string
-		chunkSize uint16
-		requests  []string
-		response  []bulkCheckTest
+		name                  string
+		requests              []string
+		response              []bulkCheckTest
+		expectedDispatchCount int
 	}{
 		{
 			name: "same resource and permission, different subjects",
@@ -262,6 +264,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			},
+			expectedDispatchCount: 49,
 		},
 		{
 			name: "different resources, same permission and subject",
@@ -284,10 +287,10 @@ func TestBulkCheckPermission(t *testing.T) {
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			},
+			expectedDispatchCount: 18,
 		},
 		{
-			name:      "chunking does not affect end result",
-			chunkSize: 1,
+			name: "chunking does not affect end result",
 			requests: []string{
 				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
 				`document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
@@ -307,6 +310,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			},
+			expectedDispatchCount: 18,
 		},
 		{
 			name: "some items fail",
@@ -329,6 +333,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					err: namespace.NewNamespaceNotFoundErr("superfake"),
 				},
 			},
+			expectedDispatchCount: 17,
 		},
 		{
 			name: "different caveat context is not clustered",
@@ -357,6 +362,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					partial: []string{"secret"},
 				},
 			},
+			expectedDispatchCount: 50,
 		},
 		{
 			name: "namespace validation",
@@ -374,6 +380,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					err: namespace.NewNamespaceNotFoundErr("fake"),
 				},
 			},
+			expectedDispatchCount: 1,
 		},
 	}
 
@@ -427,14 +434,14 @@ func TestBulkCheckPermission(t *testing.T) {
 				expected = append(expected, pair)
 			}
 
-			originalChunkSize := services.MaxBulkCheckDispatchChunkSize
-			if tt.chunkSize > 0 {
-				services.MaxBulkCheckDispatchChunkSize = tt.chunkSize
-			}
-			actual, err := client.BulkCheckPermission(context.Background(), &req)
-			services.MaxBulkCheckDispatchChunkSize = originalChunkSize
-
+			var trailer metadata.MD
+			actual, err := client.BulkCheckPermission(context.Background(), &req, grpc.Trailer(&trailer))
 			require.NoError(t, err)
+
+			dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedDispatchCount, dispatchCount)
+
 			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, sortByResource, "response bulk check pairs did not match")
 		})
 	}

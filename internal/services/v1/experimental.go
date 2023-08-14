@@ -414,12 +414,11 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 
 	// Identify checks with same permission+subject over different resources and group them. This is doable because
 	// the dispatching system already internally supports this kind of batching for performance.
-	groupingParams := groupingParameters{
+	groupedItems, err := groupItems(ctx, groupingParameters{
 		atRevision:           atRevision,
 		maxCaveatContextSize: es.maxCaveatContextSize,
 		maximumAPIDepth:      es.maximumAPIDepth,
-	}
-	groupedItems, err := groupItems(ctx, groupingParams, req.Items)
+	}, req.Items)
 	if err != nil {
 		return nil, es.rewriteError(ctx, err)
 	}
@@ -428,16 +427,24 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	resp := &v1.BulkCheckPermissionResponse{CheckedAt: checkedAt}
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, es.bulkCheckMaxConcurrency, len(groupedItems))
 
-	appendResultsForError := func(group groupedCheckParameters, err error) error {
-		bulkResponseMutex.Lock()
-		defer bulkResponseMutex.Unlock()
+	respMetadata := &dispatchv1.ResponseMeta{
+		DispatchCount:       1,
+		CachedDispatchCount: 0,
+		DepthRequired:       1,
+		DebugInfo:           nil,
+	}
+	usagemetrics.SetInContext(ctx, respMetadata)
 
+	appendResultsForError := func(group groupedCheckParameters, err error) error {
 		rewritten := es.rewriteError(ctx, err)
 		statusResp, ok := status.FromError(rewritten)
 		if !ok {
 			// If error is not a gRPC Status, fail the entire bulk check request.
 			return err
 		}
+
+		bulkResponseMutex.Lock()
+		defer bulkResponseMutex.Unlock()
 
 		for _, resourceID := range group.resourceIDs {
 			reqItem, err := requestItemFromResourceAndParameters(group.params, resourceID)
@@ -472,6 +479,8 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 			})
 		}
 
+		respMetadata.DispatchCount += metadata.DispatchCount
+		respMetadata.CachedDispatchCount += metadata.CachedDispatchCount
 		return nil
 	}
 
