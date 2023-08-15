@@ -26,6 +26,7 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/caveats"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -290,29 +291,6 @@ func TestBulkCheckPermission(t *testing.T) {
 			expectedDispatchCount: 18,
 		},
 		{
-			name: "chunking does not affect end result",
-			requests: []string{
-				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-				`document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-				`document:healthplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-			},
-			response: []bulkCheckTest{
-				{
-					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
-				},
-				{
-					req:  `document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
-				},
-				{
-					req:  `document:healthplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
-				},
-			},
-			expectedDispatchCount: 18,
-		},
-		{
 			name: "some items fail",
 			requests: []string{
 				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
@@ -381,6 +359,59 @@ func TestBulkCheckPermission(t *testing.T) {
 				},
 			},
 			expectedDispatchCount: 1,
+		},
+		{
+			name: "chunking test",
+			requests: (func() []string {
+				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+5)
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
+				}
+
+				return toReturn
+			})(),
+			response: (func() []bulkCheckTest {
+				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+5)
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, bulkCheckTest{
+						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
+						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+					})
+				}
+
+				return toReturn
+			})(),
+			expectedDispatchCount: 11,
+		},
+		{
+			name: "chunking test with errors",
+			requests: (func() []string {
+				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+6)
+				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
+
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
+				}
+
+				return toReturn
+			})(),
+			response: (func() []bulkCheckTest {
+				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+6)
+				toReturn = append(toReturn, bulkCheckTest{
+					req: `nondoc:masterplan#view@user:eng_lead`,
+					err: namespace.NewNamespaceNotFoundErr("nondoc"),
+				})
+
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, bulkCheckTest{
+						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
+						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+					})
+				}
+
+				return toReturn
+			})(),
+			expectedDispatchCount: 11,
 		},
 	}
 

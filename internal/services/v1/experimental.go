@@ -435,7 +435,7 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
-	appendResultsForError := func(group groupedCheckParameters, err error) error {
+	appendResultsForError := func(params computed.CheckParameters, resourceIDs []string, err error) error {
 		rewritten := es.rewriteError(ctx, err)
 		statusResp, ok := status.FromError(rewritten)
 		if !ok {
@@ -446,8 +446,8 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		bulkResponseMutex.Lock()
 		defer bulkResponseMutex.Unlock()
 
-		for _, resourceID := range group.resourceIDs {
-			reqItem, err := requestItemFromResourceAndParameters(group.params, resourceID)
+		for _, resourceID := range resourceIDs {
+			reqItem, err := requestItemFromResourceAndParameters(params, resourceID)
 			if err != nil {
 				return es.rewriteError(ctx, err)
 			}
@@ -506,13 +506,13 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 						},
 					}, ds)
 				if err != nil {
-					return appendResultsForError(group, err)
+					return appendResultsForError(group.params, resourceIDs, err)
 				}
 
 				// Call bulk check to compute the check result(s) for the resource ID(s).
 				rcr, metadata, err := computed.ComputeBulkCheck(ctx, es.dispatch, group.params, resourceIDs)
 				if err != nil {
-					return appendResultsForError(group, err)
+					return appendResultsForError(group.params, resourceIDs, err)
 				}
 
 				return appendResultsForCheck(group.params, resourceIDs, metadata, rcr)
