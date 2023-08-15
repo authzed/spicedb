@@ -397,3 +397,211 @@ func TestLRHashStability(t *testing.T) {
 		})
 	}
 }
+
+func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
+	tcs := []struct {
+		name         string
+		request      *v1.BulkCheckPermissionRequestItem
+		expectedHash string
+	}{
+		{
+			"basic bulk check item",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+				},
+			},
+			"4fe0404757f60c7b",
+		},
+		{
+			"different resource ID, should still be the same hash",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid2",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+				},
+			},
+			"4fe0404757f60c7b",
+		},
+		{
+			"basic bulk check item - transcribed letter",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resourc",
+					ObjectId:   "esomeid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+				},
+			},
+			"9aa5ad05571cf7aa",
+		},
+		{
+			"different resource type",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource2",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+				},
+			},
+			"7e48b1946d209d19",
+		},
+		{
+			"different permission",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view2",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+				},
+			},
+			"55001a108b0e1857",
+		},
+		{
+			"different subject type",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user2",
+						ObjectId:   "tom",
+					},
+				},
+			},
+			"f913ec03a38259ff",
+		},
+		{
+			"different subject id",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom2",
+					},
+				},
+			},
+			"70ff03c2e3f8598c",
+		},
+		{
+			"different subject relation",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+					OptionalRelation: "foo",
+				},
+			},
+			"0bd57e3aa9d48e1e",
+		},
+		{
+			"with context",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+					OptionalRelation: "foo",
+				},
+				Context: func() *structpb.Struct {
+					s, _ := structpb.NewStruct(map[string]any{
+						"somecondition":    42,
+						"anothercondition": "hello world",
+					})
+					return s
+				}(),
+			},
+			"f7ae307d940c4984",
+		},
+		{
+			"with different context",
+			&v1.BulkCheckPermissionRequestItem{
+				Resource: &v1.ObjectReference{
+					ObjectType: "resource",
+					ObjectId:   "someid",
+				},
+				Permission: "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{
+						ObjectType: "user",
+						ObjectId:   "tom",
+					},
+					OptionalRelation: "foo",
+				},
+				Context: func() *structpb.Struct {
+					s, _ := structpb.NewStruct(map[string]any{
+						"somecondition":    42,
+						"anothercondition": "hi there",
+					})
+					return s
+				}(),
+			},
+			"d0ce3e8b8a7b8b5a",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			verr := tc.request.Validate()
+			require.NoError(t, verr)
+
+			hash, err := computeBulkCheckPermissionItemHashWithoutResourceID(tc.request)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedHash, hash)
+		})
+	}
+}

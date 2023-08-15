@@ -1,4 +1,4 @@
-package graph
+package taskrunner
 
 import (
 	"context"
@@ -17,20 +17,20 @@ import (
 func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	tr := newPreloadedTaskRunner(context.Background(), 2, 5)
+	tr := NewPreloadedTaskRunner(context.Background(), 2, 5)
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		i := i
-		tr.add(func(ctx context.Context) error {
+		tr.Add(func(ctx context.Context) error {
 			time.Sleep(time.Duration(i*10) * time.Millisecond)
 			wg.Done()
 			return nil
 		})
 	}
 
-	tr.start()
+	tr.Start()
 
 	testutil.RequireWithin(t, func(t *testing.T) {
 		wg.Wait()
@@ -44,12 +44,12 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tr := newPreloadedTaskRunner(ctx, 3, 10)
+	tr := NewPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
 	for i := 0; i < 10; i++ {
 		i := i
-		tr.add(func(ctx context.Context) error {
+		tr.Add(func(ctx context.Context) error {
 			if i == 1 {
 				return fmt.Errorf("some error")
 			}
@@ -60,7 +60,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 		})
 	}
 
-	tr.start()
+	tr.Start()
 
 	time.Sleep(1 * time.Second)
 
@@ -82,12 +82,12 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tr := newPreloadedTaskRunner(ctx, 3, 10)
+	tr := NewPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
 	for i := 0; i < 10; i++ {
 		i := i
-		tr.add(func(ctx context.Context) error {
+		tr.Add(func(ctx context.Context) error {
 			if i == 1 {
 				cancel()
 				return nil
@@ -99,7 +99,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 		})
 	}
 
-	tr.start()
+	tr.Start()
 
 	time.Sleep(1 * time.Second)
 
@@ -121,12 +121,12 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tr := newPreloadedTaskRunner(ctx, 3, 10)
+	tr := NewPreloadedTaskRunner(ctx, 3, 10)
 	completed := sync.Map{}
 
 	for i := 0; i < 10; i++ {
 		i := i
-		tr.add(func(ctx context.Context) error {
+		tr.Add(func(ctx context.Context) error {
 			if i == 1 {
 				return fmt.Errorf("some error")
 			}
@@ -139,7 +139,7 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	err := tr.startAndWait()
+	err := tr.StartAndWait()
 	require.ErrorContains(t, err, "some error")
 
 	count := 0

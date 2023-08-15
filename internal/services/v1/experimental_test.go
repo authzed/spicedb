@@ -8,15 +8,26 @@ import (
 	"math"
 	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/services/shared"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/caveats"
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -211,4 +222,284 @@ func TestBulkExportRelationships(t *testing.T) {
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
 		})
 	}
+}
+
+type bulkCheckTest struct {
+	req     string
+	resp    v1.CheckPermissionResponse_Permissionship
+	partial []string
+	err     error
+}
+
+func TestBulkCheckPermission(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
+	client := v1.NewExperimentalServiceClient(conn)
+	defer cleanup()
+
+	testCases := []struct {
+		name                  string
+		requests              []string
+		response              []bulkCheckTest
+		expectedDispatchCount int
+	}{
+		{
+			name: "same resource and permission, different subjects",
+			requests: []string{
+				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				`document:masterplan#view@user:product_manager[test:{"secret": "1234"}]`,
+				`document:masterplan#view@user:villain[test:{"secret": "1234"}]`,
+			},
+			response: []bulkCheckTest{
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					req:  `document:masterplan#view@user:product_manager[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					req:  `document:masterplan#view@user:villain[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+				},
+			},
+			expectedDispatchCount: 49,
+		},
+		{
+			name: "different resources, same permission and subject",
+			requests: []string{
+				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				`document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				`document:healthplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+			},
+			response: []bulkCheckTest{
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					req:  `document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+				},
+				{
+					req:  `document:healthplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+				},
+			},
+			expectedDispatchCount: 18,
+		},
+		{
+			name: "some items fail",
+			requests: []string{
+				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				"fake:fake#fake@fake:fake",
+				"superfake:plan#view@user:eng_lead",
+			},
+			response: []bulkCheckTest{
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					req: "fake:fake#fake@fake:fake",
+					err: namespace.NewNamespaceNotFoundErr("fake"),
+				},
+				{
+					req: "superfake:plan#view@user:eng_lead",
+					err: namespace.NewNamespaceNotFoundErr("superfake"),
+				},
+			},
+			expectedDispatchCount: 17,
+		},
+		{
+			name: "different caveat context is not clustered",
+			requests: []string{
+				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				`document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				`document:masterplan#view@user:eng_lead[test:{"secret": "4321"}]`,
+				`document:masterplan#view@user:eng_lead`,
+			},
+			response: []bulkCheckTest{
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					req:  `document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+				},
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "4321"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+				},
+				{
+					req:     `document:masterplan#view@user:eng_lead`,
+					resp:    v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+					partial: []string{"secret"},
+				},
+			},
+			expectedDispatchCount: 50,
+		},
+		{
+			name: "namespace validation",
+			requests: []string{
+				"document:masterplan#view@fake:fake",
+				"fake:fake#fake@user:eng_lead",
+			},
+			response: []bulkCheckTest{
+				{
+					req: "fake:fake#fake@user:eng_lead",
+					err: namespace.NewNamespaceNotFoundErr("fake"),
+				},
+				{
+					req: "document:masterplan#view@fake:fake",
+					err: namespace.NewNamespaceNotFoundErr("fake"),
+				},
+			},
+			expectedDispatchCount: 1,
+		},
+		{
+			name: "chunking test",
+			requests: (func() []string {
+				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+5)
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
+				}
+
+				return toReturn
+			})(),
+			response: (func() []bulkCheckTest {
+				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+5)
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, bulkCheckTest{
+						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
+						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+					})
+				}
+
+				return toReturn
+			})(),
+			expectedDispatchCount: 11,
+		},
+		{
+			name: "chunking test with errors",
+			requests: (func() []string {
+				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+6)
+				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
+
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
+				}
+
+				return toReturn
+			})(),
+			response: (func() []bulkCheckTest {
+				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+6)
+				toReturn = append(toReturn, bulkCheckTest{
+					req: `nondoc:masterplan#view@user:eng_lead`,
+					err: namespace.NewNamespaceNotFoundErr("nondoc"),
+				})
+
+				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+					toReturn = append(toReturn, bulkCheckTest{
+						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
+						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+					})
+				}
+
+				return toReturn
+			})(),
+			expectedDispatchCount: 11,
+		},
+	}
+
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			req := v1.BulkCheckPermissionRequest{
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+				},
+				Items: make([]*v1.BulkCheckPermissionRequestItem, 0, len(tt.requests)),
+			}
+
+			for _, r := range tt.requests {
+				req.Items = append(req.Items, relToBulkRequestItem(r))
+			}
+
+			expected := make([]*v1.BulkCheckPermissionPair, 0, len(tt.response))
+			for _, r := range tt.response {
+				reqRel := tuple.ParseRel(r.req)
+				resp := &v1.BulkCheckPermissionPair_Item{
+					Item: &v1.BulkCheckPermissionResponseItem{
+						Permissionship: r.resp,
+					},
+				}
+				pair := &v1.BulkCheckPermissionPair{
+					Request: &v1.BulkCheckPermissionRequestItem{
+						Resource:   reqRel.Resource,
+						Permission: reqRel.Relation,
+						Subject:    reqRel.Subject,
+					},
+					Response: resp,
+				}
+				if reqRel.OptionalCaveat != nil {
+					pair.Request.Context = reqRel.OptionalCaveat.Context
+				}
+				if len(r.partial) > 0 {
+					resp.Item.PartialCaveatInfo = &v1.PartialCaveatInfo{
+						MissingRequiredContext: r.partial,
+					}
+				}
+
+				if r.err != nil {
+					rewritten := shared.RewriteError(context.Background(), r.err, &shared.ConfigForErrors{})
+					s, ok := status.FromError(rewritten)
+					require.True(t, ok, "expected provided error to be status")
+					pair.Response = &v1.BulkCheckPermissionPair_Error{
+						Error: s.Proto(),
+					}
+				}
+				expected = append(expected, pair)
+			}
+
+			var trailer metadata.MD
+			actual, err := client.BulkCheckPermission(context.Background(), &req, grpc.Trailer(&trailer))
+			require.NoError(t, err)
+
+			dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedDispatchCount, dispatchCount)
+
+			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, sortByResource, "response bulk check pairs did not match")
+		})
+	}
+}
+
+func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
+	r := tuple.ParseRel(rel)
+	item := &v1.BulkCheckPermissionRequestItem{
+		Resource:   r.Resource,
+		Permission: r.Relation,
+		Subject:    r.Subject,
+	}
+	if r.OptionalCaveat != nil {
+		item.Context = r.OptionalCaveat.Context
+	}
+	return item
+}
+
+func sortByResource(first *v1.BulkCheckPermissionPair, second *v1.BulkCheckPermissionPair) int {
+	if res := strings.Compare(first.Request.Resource.ObjectId, second.Request.Resource.ObjectId); res != 0 {
+		return res
+	}
+	if res := strings.Compare(first.Request.Permission, second.Request.Permission); res != 0 {
+		return res
+	}
+	if res := strings.Compare(first.Request.Subject.Object.ObjectId, second.Request.Subject.Object.ObjectId); res != 0 {
+		return res
+	}
+	return strings.Compare(caveats.StableContextStringForHashing(first.Request.Context), caveats.StableContextStringForHashing(second.Request.Context))
 }

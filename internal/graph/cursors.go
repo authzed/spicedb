@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -346,7 +347,7 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 	handler func(ctx context.Context, ci cursorInformation, item T, stream dispatch.Stream[Q]) error,
 ) error {
 	// Queue up each iteration's worth of items to be run by the task runner.
-	tr := newPreloadedTaskRunner(ctx, concurrencyLimit, len(itemsToRun))
+	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, len(itemsToRun))
 	stream, err := newParallelLimitedIndexedStream(ctx, ci, parentStream, len(itemsToRun))
 	if err != nil {
 		return err
@@ -356,7 +357,7 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 	for taskIndex, item := range itemsToRun {
 		taskIndex := taskIndex
 		item := item
-		tr.add(func(ctx context.Context) error {
+		tr.Add(func(ctx context.Context) error {
 			if ci.limits.hasExhaustedLimit() {
 				return nil
 			}
@@ -384,7 +385,7 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 		})
 	}
 
-	err = tr.startAndWait()
+	err = tr.StartAndWait()
 	if err != nil {
 		return err
 	}

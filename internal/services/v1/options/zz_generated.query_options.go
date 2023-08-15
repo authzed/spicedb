@@ -34,6 +34,7 @@ func (e *ExperimentalServerOptions) ToOption() ExperimentalServerOptionsOption {
 		to.StreamReadTimeout = e.StreamReadTimeout
 		to.DefaultExportBatchSize = e.DefaultExportBatchSize
 		to.MaxExportBatchSize = e.MaxExportBatchSize
+		to.BulkCheckMaxConcurrency = e.BulkCheckMaxConcurrency
 	}
 }
 
@@ -43,6 +44,7 @@ func (e ExperimentalServerOptions) DebugMap() map[string]any {
 	debugMap["StreamReadTimeout"] = helpers.DebugValue(e.StreamReadTimeout, false)
 	debugMap["DefaultExportBatchSize"] = helpers.DebugValue(e.DefaultExportBatchSize, false)
 	debugMap["MaxExportBatchSize"] = helpers.DebugValue(e.MaxExportBatchSize, false)
+	debugMap["BulkCheckMaxConcurrency"] = helpers.DebugValue(e.BulkCheckMaxConcurrency, false)
 	return debugMap
 }
 
@@ -80,5 +82,12 @@ func WithDefaultExportBatchSize(defaultExportBatchSize uint32) ExperimentalServe
 func WithMaxExportBatchSize(maxExportBatchSize uint32) ExperimentalServerOptionsOption {
 	return func(e *ExperimentalServerOptions) {
 		e.MaxExportBatchSize = maxExportBatchSize
+	}
+}
+
+// WithBulkCheckMaxConcurrency returns an option that can set BulkCheckMaxConcurrency on a ExperimentalServerOptions
+func WithBulkCheckMaxConcurrency(bulkCheckMaxConcurrency uint16) ExperimentalServerOptionsOption {
+	return func(e *ExperimentalServerOptions) {
+		e.BulkCheckMaxConcurrency = bulkCheckMaxConcurrency
 	}
 }

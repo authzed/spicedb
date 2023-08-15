@@ -1,11 +1,9 @@
-package graph
+package taskrunner
 
 import (
 	"context"
 	"sync"
 )
-
-type token struct{}
 
 // TaskRunner is a helper which runs a series of scheduled tasks against a defined
 // limit of goroutines.
@@ -17,7 +15,7 @@ type TaskRunner struct {
 
 	// sem is a chan of length `concurrencyLimit` used to ensure the task runner does
 	// not exceed the concurrencyLimit with spawned goroutines.
-	sem chan token
+	sem chan struct{}
 
 	// err holds the error returned by any task, if any. If the context is canceled,
 	// this err will hold the cancelation error.
@@ -45,7 +43,7 @@ func NewTaskRunner(ctx context.Context, concurrencyLimit uint16) *TaskRunner {
 	return &TaskRunner{
 		ctx:    ctxWithCancel,
 		cancel: cancel,
-		sem:    make(chan token, concurrencyLimit),
+		sem:    make(chan struct{}, concurrencyLimit),
 		tasks:  make([]TaskFunc, 0),
 	}
 }
@@ -59,12 +57,12 @@ func (tr *TaskRunner) Schedule(f TaskFunc) {
 }
 
 func (tr *TaskRunner) spawnIfAvailable() {
-	// To spawn a runner, write a token to the sem channel. If the task runner
+	// To spawn a runner, write a struct{} to the sem channel. If the task runner
 	// is already at the concurrency limit, then this chan write will fail,
 	// and nothing will be spawned. This also checks if the context has already
 	// been canceled, in which case nothing needs to be done.
 	select {
-	case tr.sem <- token{}:
+	case tr.sem <- struct{}{}:
 		go tr.runner()
 
 	case <-tr.ctx.Done():
@@ -87,7 +85,7 @@ func (tr *TaskRunner) runner() {
 			// Select a task from the list, if any.
 			task := tr.selectTask()
 			if task == nil {
-				// If there are no further tasks, then "return" the token by reading
+				// If there are no further tasks, then "return" the struct{} by reading
 				// it from the channel (freeing a slot potentially for another worker
 				// to be spawned later).
 				<-tr.sem

@@ -164,7 +164,7 @@ type checkingResourceStream struct {
 
 	// sem is a chan of length `concurrencyLimit` used to ensure the task runner does
 	// not exceed the concurrencyLimit with spawned goroutines.
-	sem chan token
+	sem chan struct{}
 
 	// rq is the resourceQueue for managing the state of all resources returned by the reachable resources call.
 	rq *resourceQueue
@@ -247,7 +247,7 @@ func newCheckingResourceStream(
 		parentStream: parentStream,
 		limits:       limits,
 
-		sem: make(chan token, processingConcurrencyLimit),
+		sem: make(chan struct{}, processingConcurrencyLimit),
 
 		rq: &resourceQueue{
 			ctx:            lookupContext,
@@ -546,12 +546,12 @@ func (crs *checkingResourceStream) addSkippedDispatchCountToBePublished(metadata
 
 // spawnIfAvailable spawns a processing working, if the concurrency limit has not been reached.
 func (crs *checkingResourceStream) spawnIfAvailable() {
-	// To spawn a processor, write a token to the sem channel. If the checker
+	// To spawn a processor, write a struct{} to the sem channel. If the checker
 	// is already at the concurrency limit, then this chan write will fail,
 	// and nothing will be spawned. This also checks if the context has already
 	// been canceled, in which case nothing needs to be done.
 	select {
-	case crs.sem <- token{}:
+	case crs.sem <- struct{}{}:
 		crs.processingWaitGroup.Add(1)
 		go crs.process()
 
