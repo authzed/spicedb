@@ -78,6 +78,13 @@ func main() {
 	cmd.RegisterDevtoolsFlags(devtoolsCmd)
 	rootCmd.AddCommand(devtoolsCmd)
 
+	lspConfig := new(cmd.LSPConfig)
+	lspCmd := cmd.NewLSPCommand(rootCmd.Use, lspConfig)
+	if err := cmd.RegisterLSPFlags(lspCmd, lspConfig); err != nil {
+		log.Fatal().Err(err).Msg("failed to register lsp flags")
+	}
+	rootCmd.AddCommand(lspCmd)
+
 	var testServerConfig testserver.Config
 	testingCmd := cmd.NewTestingCommand(rootCmd.Use, &testServerConfig)
 	cmd.RegisterTestingFlags(testingCmd, &testServerConfig)
