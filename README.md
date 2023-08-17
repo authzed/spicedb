@@ -6,38 +6,41 @@
 [![Discord Server](https://img.shields.io/discord/844600078504951838?color=7289da&label=discord&logo=discord&logoColor=7289da "Discord Server")](https://authzed.com/discord)
 [![Twitter](https://img.shields.io/badge/twitter-%40authzed-1D8EEE?logo=twitter "@authzed on Twitter")](https://twitter.com/authzed)
 
-SpiceDB is an open source, [Google Zanzibar]-inspired, database system for creating and managing security-critical application permissions.
+SpiceDB is an open source, [Google Zanzibar]-inspired database for creating and managing security-critical application permissions.
 
-Developers create a schema that models their permissions requirements and use any of the official or community maintained [client libraries] to apply the schema to the database, insert data into the database, and query the data to efficiently check permissions in their applications.
+Developers create a [schema] and use [client libraries] to apply the schema to the database, insert [relationships] into the database, and query the database to efficiently check permissions in their applications.
+
+[Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
+[schema]: https://authzed.com/docs/guides/schema
+[client libraries]: https://github.com/authzed/awesome-spicedb#clients
+[relationships]: https://authzed.com/docs/reference/glossary#relationship
 
 Features that distinguish SpiceDB from other systems include:
 
 - Expressive [gRPC] and [HTTP/JSON] APIs for checking permissions, listing access, and powering devtools
 - A distributed, parallel graph-engine faithful to the architecture described in [Google's Zanzibar paper]
 - A flexible consistency model configurable [per-request] that includes resistance to the [New Enemy Problem]
-- An expressive [schema language] with tools for [rapid prototyping], [integration testing], and [validating designs] in CI/CD pipelines
-- Pluggable storage system supporting [in-memory], [PostgreSQL], [Cloud Spanner], [CockroachDB], and [MySQL]
+- An expressive [schema language] with a [playground] and CI/CD integrations for [validation] and [integration testing]
+- A pluggable [storage system] supporting [in-memory], [Spanner], [CockroachDB], [PostgreSQL] and [MySQL]
 - Deep observability with [Prometheus] metrics, [pprof] profiles, structured logging, and [OpenTelemetry] tracing
 
-[Google Zanzibar]: https://authzed.com/blog/what-is-zanzibar/
-[client libraries]: https://github.com/authzed/awesome-spicedb#clients
+Want to learn more about the inspiration for SpiceDB? We've annotated [Google's Zanzibar Paper] with our own commentary.
 
 [gRPC]: https://buf.build/authzed/api/docs/main:authzed.api.v1
 [HTTP/JSON]: https://app.swaggerhub.com/apis-docs/authzed/authzed/1.0
-
-[Google's Zanzibar paper]: https://authzed.com/zanzibar
 
 [per-request]: https://docs.authzed.com/reference/api-consistency
 [New Enemy Problem]: https://authzed.com/blog/new-enemies/
 
 [schema language]: https://docs.authzed.com/guides/schema
-[rapid prototyping]: https://play.authzed.com
+[playground]: https://play.authzed.com
+[validation]: https://github.com/authzed/action-spicedb-validate
 [integration testing]: https://github.com/authzed/action-spicedb
-[validating designs]: https://github.com/authzed/action-spicedb-validate
 
+[storage system]: https://authzed.com/docs/spicedb/selecting-a-datastore
 [in-memory]: https://github.com/hashicorp/go-memdb
 [PostgreSQL]: https://www.postgresql.org
-[Cloud Spanner]: https://cloud.google.com/spanner
+[Spanner]: https://cloud.google.com/spanner
 [CockroachDB]: https://github.com/cockroachdb/cockroach
 [MySQL]: https://www.mysql.com
 
@@ -45,23 +48,47 @@ Features that distinguish SpiceDB from other systems include:
 [pprof]: https://jvns.ca/blog/2017/09/24/profiling-go-with-pprof/
 [OpenTelemetry]: https://opentelemetry.io
 
-Have questions? Ask in our [Discord].
+[Google's Zanzibar paper]: https://authzed.com/zanzibar
 
-Want to learn more about the inspiration for SpiceDB? We've annotated [Google's Zanzibar Paper] with our own commentary.
+## Joining the Community
 
-Looking to contribute? See [CONTRIBUTING.md].
+SpiceDB is a community project where everyone is invited to participate and [feel welcomed].
+While the project has a technical goal, participation is not restricted to those with code contributions.
+
+[feel welcomed]: CODE-OF-CONDUCT.md
+
+### Learn
+
+- Ask questions via [GitHub Discussions] or our [Community Discord]
+- Read [blog posts] from the Authzed team describing the project and major announcements
+- Watch our [YouTube videos] about SpiceDB, modeling schemas, leveraging CNCF projects, and more
+- Explore the [SpiceDB Awesome List] that enumerates official and third-party projects built by the community
+- Reference [community examples] for demo environments, integration testing, CI pipelines, and writing schemas
+
+[GitHub Discussions]: https://github.com/orgs/authzed/discussions/new?category=q-a
+[Community Discord]: https://authzed.com/discord
+[blog posts]: https://authzed.com/blog
+[SpiceDB Awesome List]: https://github.com/authzed/awesome-spicedb
+[YouTube videos]: https://www.youtube.com/@authzed
+[community examples]: https://github.com/authzed/examples
+
+### Contribute
+
+[CONTRIBUTING.md] documents communication, contribution flow, legal requirements, and common tasks when contributing to the project.
 
 You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
 There are also [good first issues].
 
-[Discord]: https://authzed.com/discord
-[CONTRIBUTING.md]: https://github.com/authzed/spicedb/blob/main/CONTRIBUTING.md
+Our [documentation website] is also open source if you'd like to clarify anything you find confusing.
+
+[CONTRIBUTING.md]: CONTRIBUTING.md
 [Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
 [High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
 [Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
 [Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
 [Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
 [good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
+[documentation website]: https://github.com/authzed/docs
 
 ## Getting Started
 
@@ -145,7 +172,7 @@ kubectl apply -f https://raw.githubusercontent.com/authzed/examples/main/kuberne
 
 ### Developing your own schema
 
-You can try both SpiceDB and zed entirely in your browser on the [Playground] thanks to the power of WebAssembly.
+You can try both SpiceDB and zed entirely in your browser on the [playground] thanks to the power of WebAssembly.
 
 If you don't want to start with the examples loadable from the Playground, you can follow a guide for [developing a schema] or review the the schema language [design documentation].
 
@@ -153,7 +180,6 @@ To get a quick idea of schema development, you can watch the creators of SpiceDB
 
 [![Modeling GitHub YouTube Video Thumbnail](https://user-images.githubusercontent.com/343539/223837989-ead99ff9-ef35-4cf3-864d-d8d86ecdf9ce.png)](https://www.youtube.com/watch?v=x3-B9-ICj0w)
 
-[Playground]: https://play.authzed.com
 [developing a schema]: https://docs.authzed.com/guides/schema
 [design documentation]: https://docs.authzed.com/reference/schema-lang
 
