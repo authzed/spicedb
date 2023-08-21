@@ -3,8 +3,8 @@ package types
 import (
 	"fmt"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types/ref"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common/types/ref"
 )
 
 var definitions = map[string]typeDefinition{}
