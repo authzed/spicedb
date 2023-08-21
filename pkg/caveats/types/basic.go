@@ -8,7 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 
-	"github.com/google/cel-go/cel"
+	"github.com/authzed/cel-go/cel"
 )
 
 func requireType[T any](value any) (any, error) {
