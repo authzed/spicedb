@@ -154,7 +154,11 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
+	defer span.End()
+
 	// Before attempting anything, check if the datastore is ready.
+	startTime := time.Now()
 	ready, err := gc.ReadyState(ctx)
 	if err != nil {
 		return err
@@ -165,7 +169,6 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		return nil
 	}
 
-	startTime := time.Now()
 	now, err := gc.Now(ctx)
 	if err != nil {
 		return fmt.Errorf("error retrieving now: %w", err)
