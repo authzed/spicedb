@@ -60,7 +60,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		log.Ctx(cmd.Context()).Info().Msg("migrating postgres datastore")
 
 		var err error
-		migrationDriver, err := migrations.NewAlembicPostgresDriver(dbURL)
+		migrationDriver, err := migrations.NewAlembicPostgresDriver(cmd.Context(), dbURL)
 		if err != nil {
 			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}

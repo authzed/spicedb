@@ -107,7 +107,7 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	connectStr := b.NewDatabase(t)
 
-	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(connectStr)
+	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr)
 	require.NoError(t, err)
 	ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
 	require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
