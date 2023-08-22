@@ -3,8 +3,8 @@ package caveats
 import (
 	"fmt"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"

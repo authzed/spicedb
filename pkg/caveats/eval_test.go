@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/cel-go/cel"
+	"github.com/authzed/cel-go/cel"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"

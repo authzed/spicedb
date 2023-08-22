@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/google/cel-go/cel"
+	"github.com/authzed/cel-go/cel"
 )
 
 // VariableType defines the supported types of variables in caveats.

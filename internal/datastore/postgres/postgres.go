@@ -399,13 +399,13 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
-	currentRevision, err := migrations.NewAlembicPostgresDriver(pgd.dburl)
+	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}
-	defer currentRevision.Close(ctx)
+	defer pgDriver.Close(ctx)
 
-	version, err := currentRevision.Version(ctx)
+	version, err := pgDriver.Version(ctx)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}

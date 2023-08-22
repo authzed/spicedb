@@ -3,7 +3,7 @@ package caveats
 import (
 	"fmt"
 
-	"github.com/google/cel-go/cel"
+	"github.com/authzed/cel-go/cel"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"

@@ -3,7 +3,7 @@ package caveats
 import (
 	"strings"
 
-	"github.com/google/cel-go/common"
+	"github.com/authzed/cel-go/common"
 )
 
 // SourcePosition is an incoming source position.

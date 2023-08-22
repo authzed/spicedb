@@ -5,10 +5,10 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
-	"github.com/google/cel-go/interpreter"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common/types"
+	"github.com/authzed/cel-go/common/types/ref"
+	"github.com/authzed/cel-go/interpreter"
 )
 
 // EvaluationConfig is configuration given to an EvaluateCaveatWithConfig call.
