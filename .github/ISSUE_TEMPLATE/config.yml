@@ -1,0 +1,14 @@
+---
+blank_issues_enabled: true
+contact_links:
+  - name: "💬 Ask on GitHub Discussion"
+    url: "https://github.com/orgs/authzed/discussions"
+    about: "The best place for asking general purpose questions."
+
+  - name: "💬 Ask on SpiceDB Discord Server"
+    url: "https://authzed.com/discord"
+    about: "Get in touch with the whole community."
+
+  - name: "⚠️ Report a security vulnerability"
+    url: "https://github.com/authzed/spicedb/security/advisories/new"
+    about: "Report a security vulnerability."

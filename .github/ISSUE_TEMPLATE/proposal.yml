@@ -1,0 +1,23 @@
+---
+name: "💡 Proposal"
+description: "Tell us about a problem our software could solve but doesn't."
+labels: ["kind/proposal", "state/triage"]
+body:
+  - type: "textarea"
+    id: "problem"
+    attributes:
+      label: "Problem Statement"
+      description: "What problem could we solve that we don't?"
+      placeholder: |-
+        I want to make whirled peas, but you don't blend.
+    validations:
+      required: true
+  - type: "textarea"
+    id: "expected"
+    attributes:
+      label: "Solution Brainstorm"
+      description: "We know you have bright ideas to share ... share away, friend."
+      placeholder: |-
+        Add a blender.
+    validations:
+      required: false
