@@ -5,8 +5,8 @@ cloud.google.com/go/compute/metadata v0.2.3 h1:mg4jlk7mCAj6xXp9UJ4fjI9VUI5rubuGB
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df h1:7RFfzj4SSt6nnvCPbCqijJi1nWCd+TqAT3bYCStRC18=
 github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df/go.mod h1:pSwJ0fSY5KhvocuWSx4fz3BA8OrA1bQn+K1Eli3BRwM=
-github.com/authzed/authzed-go v0.9.1-0.20230810180432-2fb0fd4c66dd h1:BXbTDI5wLsdGpEzH9uuyChgb/I3zOaDwgR3eFiCl0po=
-github.com/authzed/authzed-go v0.9.1-0.20230810180432-2fb0fd4c66dd/go.mod h1:9Pl5jDQJHrjbMDuCrsa+Q6Tqmi1f2pDdIn/qNGI++vA=
+github.com/authzed/authzed-go v0.9.1-0.20230824135703-9d18e67bc8cf h1:tZabrS/E3Fi9hORM5tgvuI29kQIa6P7ZODHK51rX0Vw=
+github.com/authzed/authzed-go v0.9.1-0.20230824135703-9d18e67bc8cf/go.mod h1:9Pl5jDQJHrjbMDuCrsa+Q6Tqmi1f2pDdIn/qNGI++vA=
 github.com/authzed/cel-go v0.17.5 h1:lfpkNrR99B5QRHg5qdG9oLu/kguVlZC68VJuMk8tH9Y=
 github.com/authzed/cel-go v0.17.5/go.mod h1:XL/zEq5hKGVF8aOdMbG7w+BQPihLjY2W8N+UIygDA2I=
 github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5 h1:Fg92G8sNNODbNe2ckJoLeMEPeDqSfygmXnpEXDnVifU=

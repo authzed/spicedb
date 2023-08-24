@@ -22,7 +22,7 @@ var (
 		Enabled:     true,
 		Metrics:     true,
 		NumCounters: 1_000,
-		MaxCost:     "16MiB",
+		MaxCost:     "32MiB",
 	}
 
 	dispatchCacheDefaults = &server.CacheConfig{
