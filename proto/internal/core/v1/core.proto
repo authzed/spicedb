@@ -417,8 +417,13 @@ message UsersetRewrite {
 
 message SetOperation {
   message Child {
+    // NOTE: `this`` is fully deprecated and referred to the *relation* to allow
+    // for mixing of data and computation.
     message This {}
     message Nil {}
+
+    // `self` refers to the subject in a permission computation.
+    message Self {}
 
     oneof child_type {
       option (validate.required) = true;
@@ -428,6 +433,7 @@ message SetOperation {
       TupleToUserset tuple_to_userset = 3 [(validate.rules).message.required = true];
       UsersetRewrite userset_rewrite = 4 [(validate.rules).message.required = true];
       Nil _nil = 6;
+      Self _self = 8;
     }
 
     SourcePosition source_position = 5;
