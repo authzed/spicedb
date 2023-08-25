@@ -422,7 +422,7 @@ message SetOperation {
     message This {}
     message Nil {}
 
-    // `self` refers to the subject in a permission computation.
+    // `self` refers to the resource-as-a-subject in a permission computation.
     message Self {}
 
     oneof child_type {

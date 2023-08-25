@@ -2520,7 +2520,7 @@ func (*SetOperation_Child_Nil) Descriptor() ([]byte, []int) {
 	return file_core_v1_core_proto_rawDescGZIP(), []int{22, 0, 1}
 }
 
-// `self` refers to the subject in a permission computation.
+// `self` refers to the resource-as-a-subject in a permission computation.
 type SetOperation_Child_Self struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
