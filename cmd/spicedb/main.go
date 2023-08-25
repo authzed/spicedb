@@ -26,7 +26,7 @@ func main() {
 	// Enable consistent hashring gRPC load balancer
 	balancer.Register(cmdutil.ConsistentHashringBuilder)
 
-	log.SetGlobalLogger(zerolog.New(os.Stderr))
+	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
 
 	// Create a root command
 	rootCmd := cmd.NewRootCommand("spicedb")
