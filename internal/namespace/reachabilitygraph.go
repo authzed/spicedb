@@ -65,6 +65,15 @@ func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_Re
 	return re.re.Kind
 }
 
+// SelfRelation returns the relation for the type referenced by the self entrypoint.
+func (re ReachabilityEntrypoint) SelfRelation() (*core.RelationReference, error) {
+	if re.EntrypointKind() != core.ReachabilityEntrypoint_SELF_ENTRYPOINT {
+		return nil, fmt.Errorf("cannot call SelfRelation for kind %v", re.EntrypointKind())
+	}
+
+	return re.re.TargetRelation, nil
+}
+
 // TuplesetRelation returns the tupleset relation of the TTU, if a TUPLESET_TO_USERSET_ENTRYPOINT.
 func (re ReachabilityEntrypoint) TuplesetRelation() (string, error) {
 	if re.EntrypointKind() != core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT {
@@ -110,6 +119,9 @@ func (re ReachabilityEntrypoint) MustDebugString() string {
 
 	case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
 		return fmt.Sprintf("computed-entrypoint: %s#%s", re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+
+	case core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
+		return fmt.Sprintf("self: %s#...", re.re.TargetRelation.Namespace)
 
 	default:
 		panic("unknown relation entrypoint kind")

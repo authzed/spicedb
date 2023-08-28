@@ -155,7 +155,18 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 
 		case *core.SetOperation_Child_XNil:
 			// nil has no entrypoints.
-			return nil
+			continue
+
+		case *core.SetOperation_Child_XSelf:
+			// Self refers to the parent resource as the subject with relation `...`
+			err := addSubjectEntrypoint(graph, ts.nsDef.Name, tuple.Ellipsis, &core.ReachabilityEntrypoint{
+				Kind:           core.ReachabilityEntrypoint_SELF_ENTRYPOINT,
+				TargetRelation: rr,
+				ResultStatus:   operationResultState,
+			})
+			if err != nil {
+				return err
+			}
 
 		default:
 			return fmt.Errorf("unknown set operation child `%T` in reachability graph building", child)

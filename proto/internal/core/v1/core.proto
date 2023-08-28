@@ -308,6 +308,11 @@ message ReachabilityEntrypoint {
      * walked via a `tupleset_to_userset` in the target permission's operation node.
      */
     TUPLESET_TO_USERSET_ENTRYPOINT = 2;
+
+    /**
+     * SELF_ENTRYPOINT indicates an entrypoint where the resource is, itself, found.
+     */
+    SELF_ENTRYPOINT = 3;
   }
 
   enum EntrypointResultStatus {
