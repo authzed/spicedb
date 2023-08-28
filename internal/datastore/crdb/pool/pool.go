@@ -291,7 +291,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 				p.healthTracker.SetNodeHealth(nodeID, false)
 			}
 
-			sleepOnErr(ctx, err, retries)
+			SleepOnErr(ctx, err, retries)
 
 			conn, err = p.acquireFromDifferentNode(ctx, nodeID)
 			if err != nil {
@@ -301,7 +301,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 		}
 		if errors.As(err, &retryable) {
 			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("retryable error")
-			sleepOnErr(ctx, err, retries)
+			SleepOnErr(ctx, err, retries)
 			continue
 		}
 		conn.Release()
@@ -323,7 +323,8 @@ func (p *RetryPool) GC(conn *pgx.Conn) {
 	delete(p.nodeForConn, conn)
 }
 
-func sleepOnErr(ctx context.Context, err error, retries uint8) {
+// SleepOnErr sleeps for a short period of time after an error has occurred.
+func SleepOnErr(ctx context.Context, err error, retries uint8) {
 	after := retry.BackoffExponentialWithJitter(100*time.Millisecond, 0.5)(ctx, uint(retries+1)) // add one so we always wait at least a little bit
 	log.Ctx(ctx).Warn().Err(err).Dur("after", after).Msg("retrying on database error")
 	time.Sleep(after)
@@ -353,6 +354,51 @@ func (p *RetryPool) acquireFromDifferentNode(ctx context.Context, nodeID uint32)
 	}
 }
 
+// IsRetryableError returns whether the given CRDB error is a retryable error.
+func IsRetryableError(ctx context.Context, err error) bool {
+	sqlState := sqlErrorCode(err)
+	if sqlState == "" {
+		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+	}
+
+	// Retryable errors: the transaction should be retried but no new connection
+	// is needed.
+	if sqlState == CrdbRetryErrCode ||
+		// Error encountered when crdb nodes have large clock skew
+		(sqlState == CrdbUnknownSQLState && strings.Contains(err.Error(), CrdbClockSkewMessage)) {
+		return true
+	}
+
+	return false
+}
+
+// IsResettableError returns whether the given CRDB error is a resettable error.
+func IsResettableError(ctx context.Context, err error) bool {
+	// detect when an error is likely due to a node taken out of service
+	if strings.Contains(err.Error(), "broken pipe") ||
+		strings.Contains(err.Error(), "unexpected EOF") ||
+		strings.Contains(err.Error(), "conn closed") ||
+		strings.Contains(err.Error(), "connection refused") ||
+		strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
+	sqlState := sqlErrorCode(err)
+	if sqlState == "" {
+		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+	}
+
+	// Ambiguous result error includes connection closed errors
+	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
+	if sqlState == CrdbAmbiguousErrorCode ||
+		// Reset on node draining
+		sqlState == CrdbServerNotAcceptingClients {
+		return true
+	}
+
+	return false
+}
+
 func wrapRetryableError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
@@ -367,31 +413,11 @@ func wrapRetryableError(ctx context.Context, err error) error {
 		return err
 	}
 
-	// detect when an error is likely due to a node taken out of service
-	if strings.Contains(err.Error(), "broken pipe") ||
-		strings.Contains(err.Error(), "unexpected EOF") ||
-		strings.Contains(err.Error(), "conn closed") ||
-		strings.Contains(err.Error(), "connection reset by peer") {
+	if IsResettableError(ctx, err) {
 		return &ResettableError{Err: err}
 	}
 
-	sqlState := sqlErrorCode(err)
-	if sqlState == "" {
-		log.Ctx(ctx).Debug().Err(err).Msg("couldn't determine a sqlstate error code")
-	}
-	// Ambiguous result error includes connection closed errors
-	// https://www.cockroachlabs.com/docs/stable/common-errors.html#result-is-ambiguous
-	if sqlState == CrdbAmbiguousErrorCode ||
-		// Reset on node draining
-		sqlState == CrdbServerNotAcceptingClients {
-		return &ResettableError{Err: err}
-	}
-
-	// Retryable errors: the transaction should be retried but no new connection
-	// is needed.
-	if sqlState == CrdbRetryErrCode ||
-		// Error encountered when crdb nodes have large clock skew
-		(sqlState == CrdbUnknownSQLState && strings.Contains(err.Error(), CrdbClockSkewMessage)) {
+	if IsRetryableError(ctx, err) {
 		return &RetryableError{Err: err}
 	}
 	return err

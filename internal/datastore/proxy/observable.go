@@ -127,6 +127,10 @@ func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, erro
 	return p.delegate.Statistics(ctx)
 }
 
+func (p *observableProxy) Unwrap() datastore.Datastore {
+	return p.delegate
+}
+
 func (p *observableProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	ctx, closer := observe(ctx, "ReadyState")
 	defer closer()

@@ -52,6 +52,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.Datastore = c.Datastore
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
 		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
+		to.DisableWatchableSchemaCache = c.DisableWatchableSchemaCache
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -105,6 +106,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["Datastore"] = helpers.DebugValue(c.Datastore, false)
 	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
 	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
+	debugMap["DisableWatchableSchemaCache"] = helpers.DebugValue(c.DisableWatchableSchemaCache, false)
 	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
 	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
 	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
@@ -262,6 +264,13 @@ func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
 func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption {
 	return func(c *Config) {
 		c.MaxRelationshipContextSize = maxRelationshipContextSize
+	}
+}
+
+// WithDisableWatchableSchemaCache returns an option that can set DisableWatchableSchemaCache on a Config
+func WithDisableWatchableSchemaCache(disableWatchableSchemaCache bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableWatchableSchemaCache = disableWatchableSchemaCache
 	}
 }
 

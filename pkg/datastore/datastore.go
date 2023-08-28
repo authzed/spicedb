@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rs/zerolog"
+
 	"github.com/authzed/spicedb/pkg/tuple"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -210,6 +212,10 @@ type RevisionedDefinition[T SchemaDefinition] struct {
 	LastWrittenRevision Revision
 }
 
+func (rd RevisionedDefinition[T]) GetLastWrittenRevision() Revision {
+	return rd.LastWrittenRevision
+}
+
 // RevisionedNamespace is a revisioned version of a namespace definition.
 type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 
@@ -334,6 +340,74 @@ type Datastore interface {
 
 	// Close closes the data store.
 	Close() error
+}
+
+// SchemaState is the state of the schema at a point in time.
+type SchemaState struct {
+	// Revision is the timestamp at which this state was created.
+	Revision Revision
+
+	// ChangedDefinitions are any definitions that were added or changed at this revision.
+	ChangedDefinitions []SchemaDefinition
+
+	// DeletedNamespaces are any namespaces that were deleted.
+	DeletedNamespaces []string
+
+	// DeletedCaveats are any caveats that were deleted.
+	DeletedCaveats []string
+
+	// IsCheckpoint, if true, indicates that the datastore has reported all changes
+	// up until and including the Revision and that no additional schema updates can
+	// have occurred before this point.
+	IsCheckpoint bool
+}
+
+func (ss *SchemaState) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("revision", ss.Revision.String())
+	e.Bool("is-checkpoint", ss.IsCheckpoint)
+	e.Array("deleted-namespaces", strArray(ss.DeletedNamespaces))
+	e.Array("deleted-caveats", strArray(ss.DeletedCaveats))
+
+	changedNames := make([]string, 0, len(ss.ChangedDefinitions))
+	for _, cd := range ss.ChangedDefinitions {
+		changedNames = append(changedNames, fmt.Sprintf("%T:%s", cd, cd.GetName()))
+	}
+
+	e.Array("changed-definitions", strArray(changedNames))
+}
+
+type strArray []string
+
+// MarshalZerologArray implements zerolog array marshalling.
+func (strs strArray) MarshalZerologArray(a *zerolog.Array) {
+	for _, val := range strs {
+		a.Str(val)
+	}
+}
+
+// StartableDatastore is an optional extension to the datastore interface that, when implemented,
+// provides the ability for callers to start background operations on the datastore.
+type StartableDatastore interface {
+	Datastore
+
+	// Start starts any background operations on the datastore. The context provided, if canceled, will
+	// also cancel the background operation(s) on the datastore.
+	Start(ctx context.Context) error
+}
+
+// SchemaWatchableDatastore is an optional extension to the datastore interface that, when implemented,
+// provides the ability for callers to watch the datastore for schema (namespace and caveat) changes.
+type SchemaWatchableDatastore interface {
+	Datastore
+
+	// WatchSchema notifies the caller about all changes to schema, as well as when time has moved forward
+	// without any changes.
+	//
+	// All events following afterRevision will be sent to the caller.
+	//
+	// If the SchemaState received is a checkpoint, then *no additional changes to schema* can have occurred
+	// before that revision timestamp.
+	WatchSchema(ctx context.Context, afterRevision Revision) (<-chan *SchemaState, <-chan error)
 }
 
 // UnwrappableDatastore represents a datastore that can be unwrapped into the underlying
