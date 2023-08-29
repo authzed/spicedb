@@ -116,5 +116,7 @@ func (pi *paginatedIterator) Err() error {
 
 func (pi *paginatedIterator) Close() {
 	pi.closed = true
-	pi.delegate.Close()
+	if pi.delegate != nil {
+		pi.delegate.Close()
+	}
 }

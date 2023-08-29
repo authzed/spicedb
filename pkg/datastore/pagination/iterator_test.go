@@ -95,6 +95,35 @@ func TestDownstreamErrors(t *testing.T) {
 		require.True(iterMock.AssertExpectations(t))
 		require.True(ds.AssertExpectations(t))
 	})
+
+	t.Run("OnReaderAfterSuccess", func(t *testing.T) {
+		require := require.New(t)
+
+		iterMock := &mockedIterator{}
+		iterMock.On("Next").Return(&core.RelationTuple{}).Once()
+		iterMock.On("Next").Return(nil).Once()
+		iterMock.On("Err").Return(nil).Once()
+		iterMock.On("Cursor").Return(options.Cursor(nil), nil).Once()
+		iterMock.On("Close")
+
+		ds := &mockedReader{}
+		ds.
+			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, uint64(1)).
+			Return(iterMock, nil).Once().
+			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, uint64(1)).
+			Return(nil, defaultError).Once()
+
+		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, 1, defaultSortOrder, nil)
+		require.NoError(err)
+		require.NotNil(iter)
+
+		require.NotNil(iter.Next())
+		require.NoError(iter.Err())
+
+		require.Nil(iter.Next())
+		require.Error(iter.Err())
+		iter.Close()
+	})
 }
 
 func TestPaginatedIterator(t *testing.T) {
@@ -203,7 +232,11 @@ func (m *mockedReader) QueryRelationships(
 ) (datastore.RelationshipIterator, error) {
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 	args := m.Called(queryOpts.After, queryOpts.Sort, *queryOpts.Limit)
-	return args.Get(0).(datastore.RelationshipIterator), args.Error(1)
+	potentialRelIter := args.Get(0)
+	if potentialRelIter == nil {
+		return nil, args.Error(1)
+	}
+	return potentialRelIter.(datastore.RelationshipIterator), args.Error(1)
 }
 
 func (m *mockedReader) ReverseQueryRelationships(
@@ -246,12 +279,20 @@ var _ datastore.RelationshipIterator = &mockedIterator{}
 
 func (m *mockedIterator) Next() *core.RelationTuple {
 	args := m.Called()
-	return args.Get(0).(*core.RelationTuple)
+	potentialTuple := args.Get(0)
+	if potentialTuple == nil {
+		return nil
+	}
+	return potentialTuple.(*core.RelationTuple)
 }
 
 func (m *mockedIterator) Cursor() (options.Cursor, error) {
 	args := m.Called()
-	return args.Get(0).(options.Cursor), args.Error(1)
+	potentialCursor := args.Get(0)
+	if potentialCursor == nil {
+		return nil, args.Error(1)
+	}
+	return potentialCursor.(options.Cursor), args.Error(1)
 }
 
 func (m *mockedIterator) Err() error {
