@@ -400,6 +400,29 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"self expression permission",
+			&someTenant,
+			`definition expressioned {
+				permission foos = ((arel->brel) + self) - drel
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/expressioned",
+					namespace.MustRelation("foos",
+						namespace.Exclusion(
+							namespace.Rewrite(
+								namespace.Union(
+									namespace.TupleToUserset("arel", "brel"),
+									namespace.Self(),
+								),
+							),
+							namespace.ComputedUserset("drel"),
+						),
+					),
+				),
+			},
+		},
+		{
 			"multiple permission",
 			&someTenant,
 			`definition multiple {
