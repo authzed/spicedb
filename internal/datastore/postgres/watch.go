@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	watchSleep = 100 * time.Millisecond
+	watchSleep       = 100 * time.Millisecond
+	watchSelectLimit = 100
 )
 
 type revisionWithXid struct {
@@ -32,7 +33,7 @@ var (
 	SELECT %[1]s, %[2]s FROM %[3]s
 	WHERE %[1]s >= pg_snapshot_xmax($1) OR (
 		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
-	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, tableTransaction)
+	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s LIMIT $2;`, colXID, colSnapshot, tableTransaction)
 
 	queryChanged = psql.Select(
 		colNamespace,
@@ -131,7 +132,7 @@ func (pgd *pgDatastore) Watch(
 func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]revisionWithXid, error) {
 	var ids []revisionWithXid
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
+		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot, watchSelectLimit)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
 		}
