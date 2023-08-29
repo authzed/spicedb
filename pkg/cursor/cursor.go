@@ -13,25 +13,13 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// Public facing errors
-const (
-	errEncodeError = "error encoding cursor: %w"
-	errDecodeError = "error decoding cursor: %w"
-)
-
-// ErrNilCursor is returned as the base error when nil is provided as the
-// cursor argument to Decode
-var ErrNilCursor = errors.New("cursor pointer was nil")
-
-// ErrHashMismatch is returned as the base error when a mismatching hash was given to the decoder.
-var ErrHashMismatch = errors.New("the cursor provided does not have the same arguments as the original API call; please ensure you are making the same API call, with the exact same parameters (besides the cursor)")
-
 // Encode converts a decoded cursor to its opaque version.
 func Encode(decoded *impl.DecodedCursor) (*v1.Cursor, error) {
 	marshalled, err := decoded.MarshalVT()
 	if err != nil {
-		return nil, fmt.Errorf(errEncodeError, err)
+		return nil, NewInvalidCursorErr(fmt.Errorf(errEncodeError, err))
 	}
+
 	return &v1.Cursor{
 		Token: base64.StdEncoding.EncodeToString(marshalled),
 	}, nil
@@ -40,17 +28,19 @@ func Encode(decoded *impl.DecodedCursor) (*v1.Cursor, error) {
 // Decode converts an encoded cursor to its decoded version.
 func Decode(encoded *v1.Cursor) (*impl.DecodedCursor, error) {
 	if encoded == nil {
-		return nil, fmt.Errorf(errDecodeError, ErrNilCursor)
+		return nil, NewInvalidCursorErr(errors.New("cursor pointer was nil"))
 	}
 
 	decodedBytes, err := base64.StdEncoding.DecodeString(encoded.Token)
 	if err != nil {
-		return nil, fmt.Errorf(errDecodeError, err)
+		return nil, NewInvalidCursorErr(fmt.Errorf(errDecodeError, err))
 	}
+
 	decoded := &impl.DecodedCursor{}
 	if err := decoded.UnmarshalVT(decodedBytes); err != nil {
-		return nil, fmt.Errorf(errDecodeError, err)
+		return nil, NewInvalidCursorErr(fmt.Errorf(errDecodeError, err))
 	}
+
 	return decoded, nil
 }
 
@@ -87,11 +77,11 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 
 	v1decoded := decoded.GetV1()
 	if v1decoded == nil {
-		return nil, ErrNilCursor
+		return nil, NewInvalidCursorErr(ErrNilCursor)
 	}
 
 	if v1decoded.CallAndParametersHash != callAndParameterHash {
-		return nil, ErrHashMismatch
+		return nil, NewInvalidCursorErr(ErrHashMismatch)
 	}
 
 	return &dispatch.Cursor{

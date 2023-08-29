@@ -1383,6 +1383,39 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 	}
 }
 
+func TestReadRelationshipsInvalidCursor(t *testing.T) {
+	require := require.New(t)
+
+	conn, cleanup, _, revision := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+			},
+		},
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType:       "folder",
+			OptionalResourceId: "auditors",
+			OptionalRelation:   "viewer",
+			OptionalSubjectFilter: &v1.SubjectFilter{
+				SubjectType:       "user",
+				OptionalSubjectId: "jeshk",
+			},
+		},
+		OptionalLimit:  42,
+		OptionalCursor: &v1.Cursor{Token: "someinvalidtoken"},
+	})
+	require.NoError(err)
+
+	_, err = stream.Recv()
+	require.Error(err)
+	require.ErrorContains(err, "error decoding cursor")
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
+
 func readOfType(require *require.Assertions, resourceType string, client v1.PermissionsServiceClient, token *v1.ZedToken) map[string]struct{} {
 	got := make(map[string]struct{})
 	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
