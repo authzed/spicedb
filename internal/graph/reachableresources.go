@@ -152,27 +152,6 @@ func (crr *CursoredReachableResources) afterSameType(
 			case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
 				return crr.lookupTTUEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
 
-			case core.ReachabilityEntrypoint_SELF_ENTRYPOINT:
-				selfRelation, err := entrypoint.SelfRelation()
-				if err != nil {
-					return err
-				}
-
-				// Redispatch with the relation that used `self`.
-				rsm := subjectIDsToResourcesMap(selfRelation, req.SubjectIds)
-				drsm := rsm.asReadOnly()
-				return crr.redispatchOrReport(
-					ctx,
-					ci,
-					selfRelation,
-					drsm,
-					rg,
-					entrypoint,
-					stream,
-					req,
-					dispatched,
-				)
-
 			default:
 				return spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind())
 			}

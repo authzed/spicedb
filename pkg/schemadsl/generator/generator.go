@@ -284,9 +284,6 @@ func (sg *sourceGenerator) emitSetOpChild(setOpChild *core.SetOperation_Child) {
 	case *core.SetOperation_Child_XNil:
 		sg.append("nil")
 
-	case *core.SetOperation_Child_XSelf:
-		sg.append("self")
-
 	case *core.SetOperation_Child_ComputedUserset:
 		sg.append(child.ComputedUserset.Relation)
 

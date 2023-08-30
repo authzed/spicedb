@@ -26,13 +26,12 @@ func _() {
 	_ = x[NodeTypeArrowExpression-15]
 	_ = x[NodeTypeIdentifier-16]
 	_ = x[NodeTypeNilExpression-17]
-	_ = x[NodeTypeSelfExpression-18]
-	_ = x[NodeTypeCaveatTypeReference-19]
+	_ = x[NodeTypeCaveatTypeReference-18]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpessionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeSelfExpressionNodeTypeCaveatTypeReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpessionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 128, 144, 162, 183, 212, 235, 258, 285, 312, 335, 353, 374, 396, 423}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 128, 144, 162, 183, 212, 235, 258, 285, 312, 335, 353, 374, 401}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {
