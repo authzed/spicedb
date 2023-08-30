@@ -75,8 +75,8 @@ type Config struct {
 	MaxRelationshipContextSize int `debugmap:"visible" default:"25_000"`
 
 	// Namespace cache
-	DisableWatchableSchemaCache bool        `debugmap:"visible"`
-	NamespaceCacheConfig        CacheConfig `debugmap:"visible"`
+	EnableExperimentalWatchableSchemaCache bool        `debugmap:"visible"`
+	NamespaceCacheConfig                   CacheConfig `debugmap:"visible"`
 
 	// Schema options
 	SchemaPrefixesRequired bool `debugmap:"visible"`
@@ -218,9 +218,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	log.Ctx(ctx).Info().EmbedObject(nscc).Msg("configured namespace cache")
 
-	cachingMode := schemacaching.WatchIfSupported
-	if c.DisableWatchableSchemaCache {
-		cachingMode = schemacaching.JustInTimeCaching
+	cachingMode := schemacaching.JustInTimeCaching
+	if c.EnableExperimentalWatchableSchemaCache {
+		cachingMode = schemacaching.WatchIfSupported
 	}
 
 	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode)
