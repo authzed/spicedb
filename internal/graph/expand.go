@@ -15,7 +15,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewConcurrentExpander creates an instance of ConcurrentExpander
@@ -195,10 +194,8 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req Valida
 			requests = append(requests, ce.expandTupleToUserset(ctx, req, child.TupleToUserset))
 		case *core.SetOperation_Child_XNil:
 			requests = append(requests, emptyExpansion(req.ResourceAndRelation))
-		case *core.SetOperation_Child_XSelf:
-			requests = append(requests, selfExpansion(req.ResourceAndRelation))
 		default:
-			return expandError(fmt.Errorf("unknown set operation child `%T` in concurrent expand", child))
+			return expandError(fmt.Errorf("unknown set operation child `%T` in expand", child))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
@@ -343,29 +340,6 @@ func expandSetOperation(
 	}
 
 	return setResult(op, start, children, responseMetadata)
-}
-
-// selfExpansion returns a self expansion.
-func selfExpansion(start *core.ObjectAndRelation) ReduceableExpandFunc {
-	return func(ctx context.Context, resultChan chan<- ExpandResult) {
-		resultChan <- expandResult(&core.RelationTupleTreeNode{
-			NodeType: &core.RelationTupleTreeNode_LeafNode{
-				LeafNode: &core.DirectSubjects{
-					Subjects: []*core.DirectSubject{
-						{
-							// `self` expands into the resource itself, without any relation.
-							Subject: &core.ObjectAndRelation{
-								Namespace: start.Namespace,
-								ObjectId:  start.ObjectId,
-								Relation:  tuple.Ellipsis,
-							},
-						},
-					},
-				},
-			},
-			Expanded: start,
-		}, emptyMetadata)
-	}
 }
 
 // emptyExpansion returns an empty expansion.

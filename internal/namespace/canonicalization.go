@@ -54,9 +54,6 @@ const computedKeyPrefix = "%"
 // canonical representation of the binary expression. These hashes can then be used for caching,
 // representing the same *logical* expressions for a permission, even if the relations have
 // different names.
-//
-// NOTE: These keys are only guaranteed to be stable within a single annotation call and may change
-// over time.
 func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
 	varMap, err := buildBddVarMap(typeSystem.nsDef.Relation, aliasMap)
 	if err != nil {
@@ -160,9 +157,6 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 		case *core.SetOperation_Child_XNil:
 			values = append(values, builder(index, varMap.Nil()))
 
-		case *core.SetOperation_Child_XSelf:
-			values = append(values, builder(index, varMap.Self()))
-
 		default:
 			return nil, spiceerrors.MustBugf("unknown set operation child %T", child)
 		}
@@ -188,10 +182,6 @@ func (bvm bddVarMap) Nil() int {
 	return len(bvm.varMap)
 }
 
-func (bvm bddVarMap) Self() int {
-	return len(bvm.varMap) + 1
-}
-
 func (bvm bddVarMap) Get(relName string) (int, error) {
 	if alias, ok := bvm.aliasMap[relName]; ok {
 		return bvm.Get(alias)
@@ -205,7 +195,7 @@ func (bvm bddVarMap) Get(relName string) (int, error) {
 }
 
 func (bvm bddVarMap) Len() int {
-	return len(bvm.varMap) + 2 // +2 for `nil` and `self`
+	return len(bvm.varMap) + 1 // +1 for `nil`
 }
 
 func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) (bddVarMap, error) {
