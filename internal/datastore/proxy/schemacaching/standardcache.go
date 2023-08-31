@@ -175,7 +175,7 @@ func readAndCache[T schemaDefinition](
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
 			loaded, updatedRev, err := reader(internaldatastore.SeparateContextWithTracing(ctx), name)
-			if err != nil && !errors.Is(err, &datastore.ErrNamespaceNotFound{}) && !errors.Is(err, &datastore.ErrCaveatNameNotFound{}) {
+			if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 				// Propagate this error to the caller
 				return nil, err
 			}
@@ -187,7 +187,6 @@ func readAndCache[T schemaDefinition](
 			// We have to call wait here or else Ristretto may not have the key
 			// available to a subsequent caller.
 			r.p.c.Wait()
-
 			return entry, nil
 		})
 		if err != nil {
