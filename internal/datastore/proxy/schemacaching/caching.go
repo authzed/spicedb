@@ -69,5 +69,5 @@ func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 		}
 	}
 
-	return createWatchingCacheProxy(watchable, gcWindow)
+	return createWatchingCacheProxy(watchable, c, gcWindow)
 }
