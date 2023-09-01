@@ -106,9 +106,9 @@ brew install authzed/tap/spicedb authzed/tap/zed
 
 ```command
 sudo apt update && sudo apt install -y curl ca-certificates gpg
-curl https://apt.fury.io/authzed/gpg.key | sudo apt-key add -
-echo "deb https://apt.fury.io/authzed/ * *" > /etc/apt/sources.list.d/fury.list
-sudo apt update && sudo apt install -y spicedb
+curl https://pkg.authzed.com/apt/gpg.key | sudo apt-key add -
+sudo echo "deb https://pkg.authzed.com/apt/ * *" > /etc/apt/sources.list.d/fury.list
+sudo apt update && sudo apt install -y spicedb zed
 ```
 
 [RPM-based Linux] users can install SpiceDB packages by adding a new YUM repository:
@@ -117,11 +117,11 @@ sudo apt update && sudo apt install -y spicedb
 sudo cat << EOF >> /etc/yum.repos.d/Authzed-Fury.repo
 [authzed-fury]
 name=AuthZed Fury Repository
-baseurl=https://yum.fury.io/authzed/
+baseurl=https://pkg.authzed.com/yum/
 enabled=1
 gpgcheck=0
 EOF
-sudo dnf install -y spicedb
+sudo dnf install -y spicedb zed
 ```
 
 [zed]: https://github.com/authzed/zed
