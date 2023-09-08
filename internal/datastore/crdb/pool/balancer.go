@@ -4,6 +4,7 @@ import (
 	"context"
 	"hash/maphash"
 	"math/rand"
+	"slices"
 	"strconv"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"

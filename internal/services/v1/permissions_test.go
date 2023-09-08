@@ -1,12 +1,13 @@
 package v1_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -548,8 +549,8 @@ func TestLookupResources(t *testing.T) {
 							resolvedObjectIds = append(resolvedObjectIds, resp.ResourceObjectId)
 						}
 
-						sort.Strings(tc.expectedObjectIds)
-						sort.Strings(resolvedObjectIds)
+						slices.Sort(tc.expectedObjectIds)
+						slices.Sort(resolvedObjectIds)
 
 						require.Equal(tc.expectedObjectIds, resolvedObjectIds)
 
@@ -858,8 +859,8 @@ func TestLookupSubjects(t *testing.T) {
 							resolvedObjectIds = append(resolvedObjectIds, resp.Subject.SubjectObjectId)
 						}
 
-						sort.Strings(tc.expectedSubjectIds)
-						sort.Strings(resolvedObjectIds)
+						slices.Sort(tc.expectedSubjectIds)
+						slices.Sort(resolvedObjectIds)
 
 						require.Equal(tc.expectedSubjectIds, resolvedObjectIds)
 
@@ -1075,7 +1076,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 		responses = append(responses, res)
 	}
 
-	sort.Sort(byIDAndPermission(responses))
+	slices.SortFunc(responses, byIDAndPermission)
 
 	// NOTE: due to the order of the deduplication of dispatching in reachable resources, this can return the conditional
 	// result more than once, as per cursored LR. Therefore, filter in that case.
@@ -1121,9 +1122,8 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 		responses = append(responses, res)
 	}
 
-	sort.Sort(byIDAndPermission(responses))
-
 	require.Equal(t, 2, len(responses))
+	slices.SortFunc(responses, byIDAndPermission)
 
 	require.Equal(t, "first", responses[0].ResourceObjectId)
 	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship)
@@ -1132,16 +1132,12 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[1].Permissionship)
 }
 
-type byIDAndPermission []*v1.LookupResourcesResponse
-
-func (a byIDAndPermission) Len() int { return len(a) }
-func (a byIDAndPermission) Less(i, j int) bool {
+func byIDAndPermission(a, b *v1.LookupResourcesResponse) int {
 	return strings.Compare(
-		fmt.Sprintf("%s:%v", a[i].ResourceObjectId, a[i].Permissionship),
-		fmt.Sprintf("%s:%v", a[j].ResourceObjectId, a[j].Permissionship),
-	) < 0
+		fmt.Sprintf("%s:%v", a.ResourceObjectId, a.Permissionship),
+		fmt.Sprintf("%s:%v", b.ResourceObjectId, b.Permissionship),
+	)
 }
-func (a byIDAndPermission) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func TestLookupSubjectsWithCaveats(t *testing.T) {
 	req := require.New(t)
@@ -1207,8 +1203,8 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 		{"tom", false},
 	}
 
-	sort.Sort(sortByID(resolvedSubjects))
-	sort.Sort(sortByID(expectedSubjects))
+	slices.SortFunc(resolvedSubjects, bySubjectID)
+	slices.SortFunc(expectedSubjects, bySubjectID)
 
 	req.Equal(expectedSubjects, resolvedSubjects)
 
@@ -1252,8 +1248,8 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 		{"tom", false},
 	}
 
-	sort.Sort(sortByID(resolvedSubjects))
-	sort.Sort(sortByID(expectedSubjects))
+	slices.SortFunc(resolvedSubjects, bySubjectID)
+	slices.SortFunc(expectedSubjects, bySubjectID)
 
 	req.Equal(expectedSubjects, resolvedSubjects)
 
@@ -1296,8 +1292,8 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 		{"tom", false},
 	}
 
-	sort.Sort(sortByID(resolvedSubjects))
-	sort.Sort(sortByID(expectedSubjects))
+	slices.SortFunc(resolvedSubjects, bySubjectID)
+	slices.SortFunc(expectedSubjects, bySubjectID)
 
 	req.Equal(expectedSubjects, resolvedSubjects)
 }
@@ -1412,11 +1408,9 @@ type expectedSubject struct {
 	isConditional bool
 }
 
-type sortByID []expectedSubject
-
-func (a sortByID) Len() int           { return len(a) }
-func (a sortByID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a sortByID) Less(i, j int) bool { return strings.Compare(a[i].subjectID, a[j].subjectID) < 0 }
+func bySubjectID(a, b expectedSubject) int {
+	return cmp.Compare(a.subjectID, b.subjectID)
+}
 
 func generateMap(length int) map[string]any {
 	output := make(map[string]any, length)
@@ -1555,8 +1549,8 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 							}
 
 							resolvedObjectIds := foundObjectIds.AsSlice()
-							sort.Strings(tc.expectedObjectIds)
-							sort.Strings(resolvedObjectIds)
+							slices.Sort(tc.expectedObjectIds)
+							slices.Sort(resolvedObjectIds)
 
 							require.Equal(tc.expectedObjectIds, resolvedObjectIds)
 						})

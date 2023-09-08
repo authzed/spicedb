@@ -209,7 +209,7 @@ func (bss BaseSubjectSet[T]) IntersectionDifference(other BaseSubjectSet[T]) err
 		}
 	}
 
-	maps.Clear(bss.concrete)
+	clear(bss.concrete)
 	maps.Copy(bss.concrete, updatedConcretes)
 	return nil
 }

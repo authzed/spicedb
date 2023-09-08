@@ -3,9 +3,8 @@ package blocks
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/slices"
 
 	yamlv3 "gopkg.in/yaml.v3"
 

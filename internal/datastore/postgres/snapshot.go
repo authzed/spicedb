@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/exp/slices"
 )
 
 // RegisterTypes registers pgSnapshot and xid8 with a pgtype.ConnInfo.

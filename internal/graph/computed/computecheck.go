@@ -142,13 +142,6 @@ func computeCheck(ctx context.Context,
 	return results, metadata, err
 }
 
-func max(x, y uint32) uint32 {
-	if x < y {
-		return y
-	}
-	return x
-}
-
 func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
 	result, ok := checkResult.ResultsByResourceId[resourceID]
 	if !ok {

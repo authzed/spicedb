@@ -111,10 +111,3 @@ func AddResponseMetadata(existing *v1.ResponseMeta, incoming *v1.ResponseMeta) {
 	existing.CachedDispatchCount += incoming.CachedDispatchCount
 	existing.DepthRequired = max(existing.DepthRequired, incoming.DepthRequired)
 }
-
-func max(x, y uint32) uint32 {
-	if x < y {
-		return y
-	}
-	return x
-}

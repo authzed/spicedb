@@ -1,12 +1,12 @@
 package datasets
 
 import (
-	"sort"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/testutil"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -36,11 +36,11 @@ func TestSubjectSetByResourceIDBasicOperations(t *testing.T) {
 	}
 	asMap := ssr.AsMap()
 
-	sort.Sort(sortFoundSubjects(expected["firstdoc"].FoundSubjects))
-	sort.Sort(sortFoundSubjects(expected["seconddoc"].FoundSubjects))
+	slices.SortFunc(expected["firstdoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(expected["seconddoc"].FoundSubjects, testutil.CmpSubjects)
 
-	sort.Sort(sortFoundSubjects(asMap["firstdoc"].FoundSubjects))
-	sort.Sort(sortFoundSubjects(asMap["seconddoc"].FoundSubjects))
+	slices.SortFunc(asMap["firstdoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(asMap["seconddoc"].FoundSubjects, testutil.CmpSubjects)
 
 	require.Equal(t, expected, asMap)
 }
@@ -67,7 +67,7 @@ func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
 	require.NoError(t, err)
 
 	found := ssr.AsMap()
-	sort.Sort(sortFoundSubjects(found["firstdoc"].FoundSubjects))
+	slices.SortFunc(found["firstdoc"].FoundSubjects, testutil.CmpSubjects)
 
 	require.Equal(t, map[string]*v1.FoundSubjects{
 		"firstdoc": {
@@ -88,14 +88,6 @@ func TestSubjectSetByResourceIDUnionWith(t *testing.T) {
 			},
 		},
 	}, found)
-}
-
-type sortFoundSubjects []*v1.FoundSubject
-
-func (a sortFoundSubjects) Len() int      { return len(a) }
-func (a sortFoundSubjects) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a sortFoundSubjects) Less(i, j int) bool {
-	return strings.Compare(a[i].SubjectId, a[j].SubjectId) < 0
 }
 
 func TestSubjectSetByResourceIDIntersectionDifference(t *testing.T) {
@@ -224,8 +216,8 @@ func TestSubjectSetByResourceIDBasicCaveatedOperations(t *testing.T) {
 	}
 	asMap := ssr.AsMap()
 
-	sort.Sort(sortFoundSubjects(expected["firstdoc"].FoundSubjects))
-	sort.Sort(sortFoundSubjects(asMap["firstdoc"].FoundSubjects))
+	slices.SortFunc(expected["firstdoc"].FoundSubjects, testutil.CmpSubjects)
+	slices.SortFunc(asMap["firstdoc"].FoundSubjects, testutil.CmpSubjects)
 
 	require.Equal(t, expected, asMap)
 }
