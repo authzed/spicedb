@@ -1,17 +1,19 @@
 module github.com/authzed/spicedb/e2e
 
-go 1.19
+go 1.21
+
+toolchain go1.21.1
 
 require (
 	github.com/authzed/authzed-go v0.9.1-0.20230830212047-e1e7da6e877d
-	github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5
+	github.com/authzed/grpcutil v0.0.0-20230908193239-4286bb1d6403
 	github.com/authzed/spicedb v1.23.1
 	github.com/brianvoe/gofakeit/v6 v6.23.0
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/jackc/pgx/v5 v5.4.2
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/tools v0.11.0
-	google.golang.org/grpc v1.56.2
+	google.golang.org/grpc v1.57.0
 	mvdan.cc/gofumpt v0.5.0
 )
 
@@ -38,13 +40,13 @@ require (
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
+	golang.org/x/crypto v0.12.0 // indirect
 	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b // indirect
 	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/net v0.14.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	google.golang.org/genproto v0.0.0-20230724170836-66ad5b6ff146 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230724170836-66ad5b6ff146 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230724170836-66ad5b6ff146 // indirect
