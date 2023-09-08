@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb
 
-go 1.20
+go 1.21
 
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.31.0-20230726221845-41588ce133c8.1
@@ -10,7 +10,7 @@ require (
 	github.com/authzed/authzed-go v0.9.1-0.20230830212047-e1e7da6e877d
 	github.com/authzed/cel-go v0.17.5
 	github.com/authzed/consistent v0.1.0
-	github.com/authzed/grpcutil v0.0.0-20230703173955-bdd0ac3f16a5
+	github.com/authzed/grpcutil v0.0.0-20230908193239-4286bb1d6403
 	github.com/aws/aws-sdk-go v1.44.314
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.2.1
