@@ -105,7 +105,7 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
-	backoffInterval.MaxInterval = maxDuration(MaxGCInterval, interval)
+	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
 	backoffInterval.MaxElapsedTime = maxElapsedTime
 
 	nextInterval := interval
@@ -140,13 +140,6 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 				Msg("datastore garbage collection scheduled for next run")
 		}
 	}
-}
-
-func maxDuration(d1 time.Duration, d2 time.Duration) time.Duration {
-	if d1 > d2 {
-		return d1
-	}
-	return d2
 }
 
 // RunGarbageCollection runs garbage collection for the datastore.

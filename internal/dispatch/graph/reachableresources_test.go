@@ -1,11 +1,12 @@
 package graph
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -186,8 +187,8 @@ func TestSimpleReachableResources(t *testing.T) {
 			}
 			dispatcher.Close()
 
-			sort.Sort(byONRAndPermission(results))
-			sort.Sort(byONRAndPermission(tc.reachable))
+			slices.SortFunc(results, byONRAndPermission)
+			slices.SortFunc(tc.reachable, byONRAndPermission)
 
 			require.NoError(err)
 			require.Equal(tc.reachable, results, "Found: %v, Expected: %v", results, tc.reachable)
@@ -215,16 +216,12 @@ func TestMaxDepthreachableResources(t *testing.T) {
 	require.Error(err)
 }
 
-type byONRAndPermission []reachableResource
-
-func (a byONRAndPermission) Len() int { return len(a) }
-func (a byONRAndPermission) Less(i, j int) bool {
-	return strings.Compare(
-		fmt.Sprintf("%s:%v", a[i].onr, a[i].hasPermission),
-		fmt.Sprintf("%s:%v", a[j].onr, a[j].hasPermission),
-	) < 0
+func byONRAndPermission(a, b reachableResource) int {
+	return cmp.Compare(
+		fmt.Sprintf("%s:%v", a.onr, a.hasPermission),
+		fmt.Sprintf("%s:%v", b.onr, b.hasPermission),
+	)
 }
-func (a byONRAndPermission) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func BenchmarkReachableResources(b *testing.B) {
 	testCases := []struct {
@@ -608,8 +605,8 @@ func TestCaveatedReachableResources(t *testing.T) {
 					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
 				})
 			}
-			sort.Sort(byONRAndPermission(results))
-			sort.Sort(byONRAndPermission(tc.reachable))
+			slices.SortFunc(results, byONRAndPermission)
+			slices.SortFunc(tc.reachable, byONRAndPermission)
 
 			require.NoError(err)
 			require.Equal(tc.reachable, results, "Found: %v, Expected: %v", results, tc.reachable)

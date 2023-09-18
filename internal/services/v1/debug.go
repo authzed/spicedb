@@ -1,9 +1,10 @@
 package v1
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -145,7 +146,9 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 			subProblems = append(subProblems, converted)
 		}
 
-		sort.Sort(sortByResource(subProblems))
+		slices.SortFunc(subProblems, func(a, b *v1.CheckDebugTrace) int {
+			return cmp.Compare(tuple.StringObjectRef(a.Resource), tuple.StringObjectRef(a.Resource))
+		})
 
 		return &v1.CheckDebugTrace{
 			Resource: &v1.ObjectReference{
@@ -193,12 +196,4 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		},
 		Duration: ct.Duration,
 	}, nil
-}
-
-type sortByResource []*v1.CheckDebugTrace
-
-func (a sortByResource) Len() int      { return len(a) }
-func (a sortByResource) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a sortByResource) Less(i, j int) bool {
-	return strings.Compare(tuple.StringObjectRef(a[i].Resource), tuple.StringObjectRef(a[j].Resource)) < 0
 }

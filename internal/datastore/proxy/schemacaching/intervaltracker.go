@@ -1,10 +1,9 @@
 package schemacaching
 
 import (
+	"slices"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 )

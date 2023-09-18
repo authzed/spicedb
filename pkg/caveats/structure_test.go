@@ -4,9 +4,8 @@ import (
 	"sort"
 	"testing"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 )

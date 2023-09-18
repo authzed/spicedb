@@ -1,10 +1,9 @@
 package tuple
 
 import (
+	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/exp/slices"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )

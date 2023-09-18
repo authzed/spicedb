@@ -1,8 +1,9 @@
 package graph
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -348,7 +349,9 @@ func (crs *checkingResourceStream) publishResourcesIfPossible() error {
 			}
 
 			// Sort to ensure they are in the publishable order.
-			sort.Sort(byOrderingIndex(toPublish))
+			slices.SortFunc(toPublish, func(a, b possibleResource) int {
+				return cmp.Compare(a.orderingIndex, b.orderingIndex)
+			})
 
 			// Ensure that the next resource to be published is the next in the order. If not,
 			// we're still waiting on a resource to be checked.
@@ -644,18 +647,4 @@ func (crs *checkingResourceStream) Context() context.Context {
 	// NOTE: we return the reachable context here, because this is the stream to which the reachable resources
 	// call is publishing.
 	return crs.reachableContext
-}
-
-type byOrderingIndex []possibleResource
-
-func (u byOrderingIndex) Len() int {
-	return len(u)
-}
-
-func (u byOrderingIndex) Swap(i, j int) {
-	u[i], u[j] = u[j], u[i]
-}
-
-func (u byOrderingIndex) Less(i, j int) bool {
-	return u[i].orderingIndex < u[j].orderingIndex
 }

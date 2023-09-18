@@ -3,6 +3,7 @@ package caching
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"testing"
 	"unsafe"
@@ -10,7 +11,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"

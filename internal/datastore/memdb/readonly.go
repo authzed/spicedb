@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 
 	"github.com/hashicorp/go-memdb"
-	"golang.org/x/exp/slices"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"

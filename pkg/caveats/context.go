@@ -1,9 +1,9 @@
 package caveats
 
 import (
+	"maps"
 	"time"
 
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"

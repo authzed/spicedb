@@ -66,13 +66,6 @@ func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	}
 }
 
-func max(x, y uint32) uint32 {
-	if x < y {
-		return y
-	}
-	return x
-}
-
 var emptyMetadata = &v1.ResponseMeta{}
 
 func ensureMetadata(subProblemMetadata *v1.ResponseMeta) *v1.ResponseMeta {

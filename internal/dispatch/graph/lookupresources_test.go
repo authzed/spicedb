@@ -3,8 +3,7 @@ package graph
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
+	"slices"
 	"testing"
 	"time"
 
@@ -238,7 +237,7 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 			}
 
 			foundResults := found.AsSlice()
-			sort.Strings(foundResults)
+			slices.Sort(foundResults)
 
 			require.Equal(tc.expectedSecond, foundResults)
 		})
@@ -307,13 +306,6 @@ func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookup
 	return foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount
 }
 
-func max(a, b uint32) uint32 {
-	if b > a {
-		return b
-	}
-	return a
-}
-
 func TestMaxDepthLookup(t *testing.T) {
 	require := require.New(t)
 
@@ -340,16 +332,6 @@ func TestMaxDepthLookup(t *testing.T) {
 
 	require.Error(err)
 }
-
-type OrderedResolved []*v1.ResolvedResource
-
-func (a OrderedResolved) Len() int { return len(a) }
-
-func (a OrderedResolved) Less(i, j int) bool {
-	return strings.Compare(a[i].ResourceId, a[j].ResourceId) < 0
-}
-
-func (a OrderedResolved) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func joinTuples(first []*core.RelationTuple, second []*core.RelationTuple) []*core.RelationTuple {
 	return append(first, second...)
@@ -613,8 +595,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 					}
 
 					foundResourceIDsSlice := foundResourceIDs.AsSlice()
-					sort.Strings(foundResourceIDsSlice)
-					sort.Strings(tc.expectedResourceIDs)
+					slices.Sort(foundResourceIDsSlice)
+					slices.Sort(tc.expectedResourceIDs)
 
 					require.Equal(tc.expectedResourceIDs, foundResourceIDsSlice)
 				})

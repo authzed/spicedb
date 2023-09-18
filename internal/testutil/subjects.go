@@ -1,13 +1,14 @@
 package testutil
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -90,8 +91,8 @@ func CheckEquivalentSets(expected []*v1.FoundSubject, found []*v1.FoundSubject) 
 		return fmt.Errorf("found mismatch in number of elements:\n\texpected: %s\n\tfound: %s", FormatSubjects(expected), FormatSubjects(found))
 	}
 
-	sort.Sort(sortByID(expected))
-	sort.Sort(sortByID(found))
+	slices.SortFunc(expected, CmpSubjects)
+	slices.SortFunc(found, CmpSubjects)
 
 	for index := range expected {
 		err := CheckEquivalentSubjects(expected[index], found[index])
@@ -332,8 +333,7 @@ func collectReferencedNames(expr *core.CaveatExpression, nameSet *mapz.Set[strin
 	}
 }
 
-type sortByID []*v1.FoundSubject
-
-func (a sortByID) Len() int           { return len(a) }
-func (a sortByID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a sortByID) Less(i, j int) bool { return strings.Compare(a[i].SubjectId, a[j].SubjectId) < 0 }
+// CmpSubjects compares FoundSubjects such that they can be sorted.
+func CmpSubjects(a, b *v1.FoundSubject) int {
+	return cmp.Compare(a.SubjectId, b.SubjectId)
+}
