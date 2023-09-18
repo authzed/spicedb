@@ -309,7 +309,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 		log.Ctx(ctx).Warn().Err(err).Uint8("retries", retries).Msg("error is not resettable or retryable")
 		return err
 	}
-	return &MaxRetryError{MaxRetries: p.maxRetries, LastErr: err}
+	return &MaxRetryError{MaxRetries: maxRetries, LastErr: err}
 }
 
 // GC marks a connection for destruction on the next Acquire.

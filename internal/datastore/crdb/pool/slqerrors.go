@@ -2,7 +2,7 @@ package pool
 
 import (
 	"errors"
-	"strconv"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -27,8 +27,12 @@ type MaxRetryError struct {
 }
 
 func (e *MaxRetryError) Error() string {
-	return strconv.Itoa(int(e.MaxRetries)) + "max retries reached" + ": " + e.LastErr.Error()
+	if e.MaxRetries == 0 {
+		return "retries disabled: " + e.LastErr.Error()
+	}
+	return fmt.Sprintf("max retries reached (%d): %s", e.MaxRetries, e.LastErr.Error())
 }
+
 func (e *MaxRetryError) Unwrap() error { return e.LastErr }
 
 // ResettableError is an error that we think may succeed if retried against a new connection.
