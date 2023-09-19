@@ -162,6 +162,11 @@ func TestCombinedRevisionParsing(t *testing.T) {
 	}
 }
 
+func TestBrokenInvalidRevision(t *testing.T) {
+	_, err := parseRevision("1693540940373045727.0000000001")
+	require.Error(t, err)
+}
+
 func FuzzRevision(f *testing.F) {
 	// Attempt to find a decimal revision that is a valid base64 encoded proto revision
 	f.Add(uint64(0), -1)

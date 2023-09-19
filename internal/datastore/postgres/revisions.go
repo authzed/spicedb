@@ -169,6 +169,14 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 	}, nil
 }
 
+// MaxLegacyXIPDelta is the maximum allowed delta between the xmin and
+// xmax revisions IDs on a *legacy* revision stored as a revision decimal.
+// This is set to prevent a delta that is too large from blowing out the
+// memory usage of the allocated slice, or even causing a panic in the case
+// of a VERY large delta (which can be produced by, for example, a CRDB revision
+// being given to a Postgres datastore accidentally).
+const MaxLegacyXIPDelta = 1000
+
 // parseRevisionDecimal parses a deprecated decimal.Decimal encoding of the revision
 // with an optional xmin component, in the format of revision.xmin, e.g. 100.99.
 // Because we're encoding to a snapshot, we want the revision to be considered visible,
@@ -203,6 +211,13 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 
 	var xipList []uint64
 	if xmax > xmin {
+		// Ensure that the delta is not too large to cause memory issues or a panic.
+		if xmax-xmin > MaxLegacyXIPDelta {
+			return nil, fmt.Errorf("received revision delta in excess of that expected; are you sure you're not passing a ZedToken from an incompatible datastore?")
+		}
+
+		// TODO(jschorr): Remove this deprecated code path at some point and maybe look into
+		// a more memory-efficient encoding of the XIP list if necessary.
 		xipList = make([]uint64, 0, xmax-xmin)
 		for i := xmin; i < xid; i++ {
 			xipList = append(xipList, i)

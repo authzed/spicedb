@@ -113,6 +113,18 @@ var decodeTests = []struct {
 		expectedRevision: decimal.New(12345, -2),
 		expectError:      false,
 	},
+	{
+		format: "V1 ZedToken",
+		token:  "GiAKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMQ==",
+		expectedRevision: (func() decimal.Decimal {
+			v, err := decimal.NewFromString("1693540940373045727.0000000001")
+			if err != nil {
+				panic(err)
+			}
+			return v
+		})(),
+		expectError: false,
+	},
 }
 
 func TestDecode(t *testing.T) {
