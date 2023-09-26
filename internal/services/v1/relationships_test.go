@@ -12,6 +12,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -1461,4 +1462,39 @@ func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
 		out[t] = struct{}{}
 	}
 	return out
+}
+
+func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *testing.T) {
+	require := require.New(t)
+
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	// Kick off a number of writes to ensure at least one hits an error, as memdb's write throughput
+	// is limited.
+	g := errgroup.Group{}
+
+	for i := 0; i < 50; i++ {
+		i := i
+		g.Go(func() error {
+			updates := []*v1.RelationshipUpdate{}
+			for j := 0; j < 500; j++ {
+				updates = append(updates, &v1.RelationshipUpdate{
+					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+					Relationship: tuple.MustToRelationship(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))),
+				})
+			}
+
+			_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+				Updates: updates,
+			})
+			return err
+		})
+	}
+
+	werr := g.Wait()
+	require.Error(werr)
+	require.ErrorContains(werr, "serialization max retries exceeded")
+	grpcutil.RequireStatus(t, codes.DeadlineExceeded, werr)
 }

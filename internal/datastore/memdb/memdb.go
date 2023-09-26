@@ -248,7 +248,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		return newRevision, nil
 	}
 
-	return datastore.NoRevision, errors.New("serialization max retries exceeded")
+	return datastore.NoRevision, NewSerializationMaxRetriesReachedErr(errors.New("serialization max retries exceeded; please reduce your parallel writes"))
 }
 
 func (mdb *memdbDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {
