@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pgmigrations "github.com/authzed/spicedb/internal/datastore/postgres/migrations"
-	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
@@ -29,11 +28,11 @@ type postgresTester struct {
 }
 
 // RunPostgresForTesting returns a RunningEngineForTest for postgres
-func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
-	return RunPostgresForTestingWithCommitTimestamps(t, bridgeNetworkName, targetMigration, true)
+func RunPostgresForTesting(t testing.TB, bridgeNetworkName string, targetMigration string, pgVersion string) RunningEngineForTest {
+	return RunPostgresForTestingWithCommitTimestamps(t, bridgeNetworkName, targetMigration, true, pgVersion)
 }
 
-func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName string, targetMigration string, withCommitTimestamps bool) RunningEngineForTest {
+func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName string, targetMigration string, withCommitTimestamps bool, pgVersion string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -47,7 +46,7 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "postgres",
-		Tag:          pgversion.MinimumSupportedPostgresVersion,
+		Tag:          pgVersion,
 		Env:          []string{"POSTGRES_PASSWORD=secret", "POSTGRES_DB=defaultdb"},
 		ExposedPorts: []string{"5432/tcp"},
 		NetworkID:    bridgeNetworkName,

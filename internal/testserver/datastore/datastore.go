@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -62,7 +63,7 @@ func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName
 	case "cockroachdb":
 		return RunCRDBForTesting(t, bridgeNetworkName)
 	case "postgres":
-		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head)
+		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head, version.MinimumSupportedPostgresVersion)
 	case "mysql":
 		return RunMySQLForTesting(t, bridgeNetworkName)
 	case "spanner":

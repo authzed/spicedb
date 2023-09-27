@@ -23,6 +23,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -40,17 +41,36 @@ func (pgd *pgDatastore) ExampleRetryableError() error {
 	}
 }
 
+// the global OTel tracer is used everywhere, so we synchronize tests over a global test tracer
+var (
+	otelMutex         = sync.Mutex{}
+	testTraceProvider *trace.TracerProvider
+)
+
+func init() {
+	testTraceProvider = trace.NewTracerProvider(
+		trace.WithSampler(trace.AlwaysSample()),
+	)
+	otel.SetTracerProvider(testTraceProvider)
+}
+
 func TestPostgresDatastore(t *testing.T) {
+	t.Parallel()
+
 	for _, config := range []struct {
 		targetMigration string
 		migrationPhase  string
+		pgVersion       string
 	}{
-		{"head", ""},
+		{"head", "", pgversion.MinimumSupportedPostgresVersion},
+		{"head", "", "14"},
+		{"head", "", "15"},
+		{"head", "", "16"},
 	} {
 		config := config
-		t.Run(fmt.Sprintf("%s-%s", config.targetMigration, config.migrationPhase), func(t *testing.T) {
+		t.Run(fmt.Sprintf("postgres-%s-%s-%s", config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
 			t.Parallel()
-			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration)
+			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion)
 
 			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -109,11 +129,11 @@ func TestPostgresDatastore(t *testing.T) {
 			})
 
 			t.Run("WatchNotEnabled", func(t *testing.T) {
-				WatchNotEnabledTest(t, b)
+				WatchNotEnabledTest(t, b, config.pgVersion)
 			})
 
 			t.Run("GCQueriesServedByExpectedIndexes", func(t *testing.T) {
-				GCQueriesServedByExpectedIndexes(t, b)
+				GCQueriesServedByExpectedIndexes(t, b, config.pgVersion)
 			})
 
 			if config.migrationPhase == "" {
@@ -167,23 +187,32 @@ func TestPostgresDatastore(t *testing.T) {
 }
 
 func TestPostgresDatastoreWithoutCommitTimestamps(t *testing.T) {
-	b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false)
+	t.Parallel()
 
-	// NOTE: watch API requires the commit timestamps, so we skip those tests here.
-	test.AllWithExceptions(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := newPostgresDatastore(uri,
-				RevisionQuantization(revisionQuantization),
-				GCWindow(gcWindow),
-				GCInterval(gcInterval),
-				WatchBufferLength(watchBufferLength),
-				DebugAnalyzeBeforeStatistics(),
-			)
-			require.NoError(t, err)
-			return ds
+	for _, pgVersion := range []string{pgversion.MinimumSupportedPostgresVersion, "14", "15", "16"} {
+		pgVersion := pgVersion
+		t.Run(fmt.Sprintf("postgres-%s", pgVersion), func(t *testing.T) {
+			t.Parallel()
+
+			b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false, pgVersion)
+
+			// NOTE: watch API requires the commit timestamps, so we skip those tests here.
+			test.AllWithExceptions(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+					ds, err := newPostgresDatastore(uri,
+						RevisionQuantization(revisionQuantization),
+						GCWindow(gcWindow),
+						GCInterval(gcInterval),
+						WatchBufferLength(watchBufferLength),
+						DebugAnalyzeBeforeStatistics(),
+					)
+					require.NoError(t, err)
+					return ds
+				})
+				return ds, nil
+			}), test.WithCategories(test.WatchCategory))
 		})
-		return ds, nil
-	}), test.WithCategories(test.WatchCategory))
+	}
 }
 
 type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
@@ -1067,6 +1096,9 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
+	otelMutex.Lock()
+	defer otelMutex.Unlock()
+
 	require := require.New(t)
 
 	ctx := context.Background()
@@ -1074,18 +1106,8 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 
-	// Setup OTel recording
-	defaultProvider := otel.GetTracerProvider()
-
-	provider := trace.NewTracerProvider(
-		trace.WithSampler(trace.AlwaysSample()),
-	)
 	spanrecorder := tracetest.NewSpanRecorder()
-	provider.RegisterSpanProcessor(spanrecorder)
-	otel.SetTracerProvider(provider)
-	defer func() {
-		otel.SetTracerProvider(defaultProvider)
-	}()
+	testTraceProvider.RegisterSpanProcessor(spanrecorder)
 
 	// Perform basic operation
 	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
@@ -1103,10 +1125,10 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 	require.True(present, "missing trace for Streaming gRPC call")
 }
 
-func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest) {
+func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgVersion string) {
 	require := require.New(t)
 
-	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := newPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
@@ -1130,7 +1152,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest) {
 func BenchmarkPostgresQuery(b *testing.B) {
 	req := require.New(b)
 
-	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head).NewDatastore(b, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head, pgversion.MinimumSupportedPostgresVersion).NewDatastore(b, func(engine, uri string) datastore.Datastore {
 		ds, err := newPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
@@ -1161,10 +1183,10 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	})
 }
 
-func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.QueryInterceptor) datastore.Datastore {
+func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.QueryInterceptor, pgVersion string) datastore.Datastore {
 	require := require.New(t)
 
-	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
+	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ds, err := newPostgresDatastore(uri,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
@@ -1306,10 +1328,10 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	return ds
 }
 
-func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngineForTest) {
+func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngineForTest, pgVersion string) {
 	require := require.New(t)
 	interceptor := &withQueryInterceptor{explanations: make(map[string]string, 0)}
-	ds := datastoreWithInterceptorAndTestData(t, interceptor)
+	ds := datastoreWithInterceptorAndTestData(t, interceptor, pgVersion)
 
 	// Get the head revision.
 	ctx := context.Background()
