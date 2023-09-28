@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
+	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
@@ -291,7 +291,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 				p.healthTracker.SetNodeHealth(nodeID, false)
 			}
 
-			SleepOnErr(ctx, err, retries)
+			common.SleepOnErr(ctx, err, retries)
 
 			conn, err = p.acquireFromDifferentNode(ctx, nodeID)
 			if err != nil {
@@ -301,7 +301,7 @@ func (p *RetryPool) withRetries(ctx context.Context, fn func(conn *pgxpool.Conn)
 		}
 		if errors.As(err, &retryable) {
 			log.Ctx(ctx).Info().Err(err).Uint8("retries", retries).Msg("retryable error")
-			SleepOnErr(ctx, err, retries)
+			common.SleepOnErr(ctx, err, retries)
 			continue
 		}
 		conn.Release()
@@ -321,13 +321,6 @@ func (p *RetryPool) GC(conn *pgx.Conn) {
 	defer p.Unlock()
 	p.gc[conn] = struct{}{}
 	delete(p.nodeForConn, conn)
-}
-
-// SleepOnErr sleeps for a short period of time after an error has occurred.
-func SleepOnErr(ctx context.Context, err error, retries uint8) {
-	after := retry.BackoffExponentialWithJitter(100*time.Millisecond, 0.5)(ctx, uint(retries+1)) // add one so we always wait at least a little bit
-	log.Ctx(ctx).Warn().Err(err).Dur("after", after).Msg("retrying on database error")
-	time.Sleep(after)
 }
 
 func (p *RetryPool) acquireFromDifferentNode(ctx context.Context, nodeID uint32) (*pgxpool.Conn, error) {

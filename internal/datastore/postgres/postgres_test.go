@@ -34,6 +34,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const pgSerializationFailure = "40001"
+
 // Implement the TestableDatastore interface
 func (pgd *pgDatastore) ExampleRetryableError() error {
 	return &pgconn.PgError{

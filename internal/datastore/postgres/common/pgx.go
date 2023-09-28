@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	zerologadapter "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -87,16 +88,13 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 				level = tracelog.LogLevelDebug
 			}
 
-			// do not log cancelled queries as errors
-			// do not log serialization failues as errors
+			truncateLargeSQL(data)
+
+			// log cancellation and serialization errors at debug level
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
-				if ok && errors.Is(err, context.Canceled) {
-					return
-				}
-
-				var pgerr *pgconn.PgError
-				if errors.As(err, &pgerr) && pgerr.SQLState() == pgSerializationFailure {
+				if ok && (IsCancellationError(err) || IsSerializationError(err)) {
+					logger.Log(ctx, tracelog.LogLevelDebug, msg, data)
 					return
 				}
 			}
@@ -107,6 +105,52 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 
 	l := zerologadapter.NewLogger(log.Logger, zerologadapter.WithSubDictionary("pgx"))
 	addTracer(connConfig, &tracelog.TraceLog{Logger: levelMappingFn(l), LogLevel: tracelog.LogLevelInfo})
+}
+
+func truncateLargeSQL(data map[string]any) {
+	const (
+		maxSQLLen     = 350
+		maxSQLArgsLen = 50
+	)
+
+	if sqlData, ok := data["sql"]; ok {
+		sqlString, ok := sqlData.(string)
+		if ok && len(sqlString) > maxSQLLen {
+			data["sql"] = sqlString[:maxSQLLen] + "..."
+		}
+	}
+	if argsData, ok := data["args"]; ok {
+		argsSlice, ok := argsData.([]any)
+		if ok && len(argsSlice) > maxSQLArgsLen {
+			data["args"] = argsSlice[:maxSQLArgsLen]
+		}
+	}
+}
+
+func IsCancellationError(err error) bool {
+	if errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		err.Error() == "conn closed" { // conns are sometimes closed async upon cancellation
+		return true
+	}
+	return false
+}
+
+func IsSerializationError(err error) bool {
+	var pgerr *pgconn.PgError
+	if errors.As(err, &pgerr) &&
+		// We need to check unique constraint here because some versions of postgres have an error where
+		// unique constraint violations are raised instead of serialization errors.
+		// (e.g. https://www.postgresql.org/message-id/flat/CAGPCyEZG76zjv7S31v_xPeLNRuzj-m%3DY2GOY7PEzu7vhB%3DyQog%40mail.gmail.com)
+		(pgerr.SQLState() == pgSerializationFailure || pgerr.SQLState() == pgUniqueConstraintViolation || pgerr.SQLState() == pgTransactionAborted) {
+		return true
+	}
+
+	if errors.Is(err, pgx.ErrTxCommitRollback) {
+		return true
+	}
+
+	return false
 }
 
 // ConfigureOTELTracer adds OTEL tracing to a pgx.ConnConfig
@@ -232,4 +276,15 @@ func (t *QuerierFuncs) QueryRowFunc(ctx context.Context, rowFunc func(ctx contex
 
 func QuerierFuncsFor(d Querier) DBFuncQuerier {
 	return &QuerierFuncs{d: d}
+}
+
+// SleepOnErr sleeps for a short period of time after an error has occurred.
+func SleepOnErr(ctx context.Context, err error, retries uint8) {
+	after := retry.BackoffExponentialWithJitter(25*time.Millisecond, 0.5)(ctx, uint(retries+1)) // add one so we always wait at least a little bit
+	log.Ctx(ctx).Debug().Err(err).Dur("after", after).Uint8("retry", retries+1).Msg("retrying on database error")
+
+	select {
+	case <-time.After(after):
+	case <-ctx.Done():
+	}
 }

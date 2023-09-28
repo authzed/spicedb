@@ -13,6 +13,32 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// SerializationError is returned when there's been a serialization
+// error while performing a datastore operation
+type SerializationError struct {
+	error
+}
+
+func (err SerializationError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_WRITE_OR_DELETE_PRECONDITION_FAILURE,
+			map[string]string{},
+		),
+	)
+}
+
+func (err SerializationError) Unwrap() error {
+	return err.error
+}
+
+// NewSerializationError creates a new SerializationError
+func NewSerializationError(err error) error {
+	return SerializationError{err}
+}
+
 // CreateRelationshipExistsError is an error returned when attempting to CREATE an already-existing
 // relationship.
 type CreateRelationshipExistsError struct {
