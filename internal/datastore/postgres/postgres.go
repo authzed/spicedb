@@ -69,7 +69,7 @@ const (
 
 	tracingDriverName = "postgres-tracing"
 
-	batchDeleteSize = 1000
+	gcBatchDeleteSize = 1000
 
 	livingTupleConstraint = "uq_relation_tuple_living_xid"
 )
