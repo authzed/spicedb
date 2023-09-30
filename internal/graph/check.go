@@ -203,7 +203,7 @@ func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
 }
 
 func onrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
-	return onrEqual(tpl, target) || (tpl.Namespace == target.Namespace && tpl.ObjectId == tuple.PublicWildcard)
+	return onrEqual(tpl, target) || (tpl.ObjectId == tuple.PublicWildcard && tpl.Namespace == target.Namespace)
 }
 
 type directDispatch struct {
