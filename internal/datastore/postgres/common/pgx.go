@@ -107,6 +107,9 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 	addTracer(connConfig, &tracelog.TraceLog{Logger: levelMappingFn(l), LogLevel: tracelog.LogLevelInfo})
 }
 
+// truncateLargeSQL takes arguments of a SQL statement provided via pgx's tracelog.LoggerFunc and
+// truncates SQL statements and SQL arguments to placeholders that exceed a certain length. This helps
+// de-clutter logs when statements have hundreds to thousands of placeholders. The change is done in place.
 func truncateLargeSQL(data map[string]any) {
 	const (
 		maxSQLLen     = 350
@@ -127,6 +130,7 @@ func truncateLargeSQL(data map[string]any) {
 	}
 }
 
+// IsCancellationError determines if an error returned by pgx has been caused by context cancellation.
 func IsCancellationError(err error) bool {
 	if errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded) ||
