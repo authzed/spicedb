@@ -108,8 +108,9 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 }
 
 // truncateLargeSQL takes arguments of a SQL statement provided via pgx's tracelog.LoggerFunc and
-// truncates SQL statements and SQL arguments to placeholders that exceed a certain length. This helps
-// de-clutter logs when statements have hundreds to thousands of placeholders. The change is done in place.
+// replaces SQL statements and SQL arguments with placeholders when the statements and/or arguments
+// exceed a certain length. This helps de-clutter logs when statements have hundreds to thousands of placeholders.
+// The change is done in place.
 func truncateLargeSQL(data map[string]any) {
 	const (
 		maxSQLLen     = 350

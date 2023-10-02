@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.47.0
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v0.9.1-0.20230830212047-e1e7da6e877d
+	github.com/authzed/authzed-go v0.10.1-0.20231003161414-9c9116f212b7
 	github.com/authzed/cel-go v0.17.5
 	github.com/authzed/consistent v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20230908193239-4286bb1d6403

@@ -24,7 +24,7 @@ func (err SerializationError) GRPCStatus() *status.Status {
 		err,
 		codes.Aborted,
 		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_WRITE_OR_DELETE_PRECONDITION_FAILURE,
+			v1.ErrorReason_ERROR_REASON_SERIALIZATION_FAILURE,
 			map[string]string{},
 		),
 	)
