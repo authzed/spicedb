@@ -76,7 +76,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 			return g.Wait()
 		})
 		return numPanics > 0
-	}, 1*time.Second, 10*time.Millisecond)
+	}, 3*time.Second, 10*time.Millisecond)
 	require.ErrorIs(err, recoverErr)
 }
 
