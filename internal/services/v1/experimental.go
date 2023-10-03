@@ -34,11 +34,13 @@ import (
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -412,6 +414,17 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		return nil, es.rewriteError(ctx, err)
 	}
 
+	// Compute a hash for each requested item and record its index(es) for the items, to be used for sorting of results.
+	itemIndexByHash := mapz.NewMultiMapWithCap[string, int](uint32(len(req.Items)))
+	for index, item := range req.Items {
+		itemHash, err := computeBulkCheckPermissionItemHash(item)
+		if err != nil {
+			return nil, es.rewriteError(ctx, err)
+		}
+
+		itemIndexByHash.Add(itemHash, index)
+	}
+
 	// Identify checks with same permission+subject over different resources and group them. This is doable because
 	// the dispatching system already internally supports this kind of batching for performance.
 	groupedItems, err := groupItems(ctx, groupingParameters{
@@ -424,7 +437,7 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	}
 
 	bulkResponseMutex := sync.Mutex{}
-	resp := &v1.BulkCheckPermissionResponse{CheckedAt: checkedAt}
+
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, es.bulkCheckMaxConcurrency, len(groupedItems))
 
 	respMetadata := &dispatchv1.ResponseMeta{
@@ -434,6 +447,26 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		DebugInfo:           nil,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
+
+	orderedPairs := make([]*v1.BulkCheckPermissionPair, len(req.Items))
+
+	addPair := func(pair *v1.BulkCheckPermissionPair) error {
+		pairItemHash, err := computeBulkCheckPermissionItemHash(pair.Request)
+		if err != nil {
+			return err
+		}
+
+		found, ok := itemIndexByHash.Get(pairItemHash)
+		if !ok {
+			return spiceerrors.MustBugf("missing expected item hash")
+		}
+
+		for _, index := range found {
+			orderedPairs[index] = pair
+		}
+
+		return nil
+	}
 
 	appendResultsForError := func(params computed.CheckParameters, resourceIDs []string, err error) error {
 		rewritten := es.rewriteError(ctx, err)
@@ -452,12 +485,14 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 				return es.rewriteError(ctx, err)
 			}
 
-			resp.Pairs = append(resp.Pairs, &v1.BulkCheckPermissionPair{
+			if err := addPair(&v1.BulkCheckPermissionPair{
 				Request: reqItem,
 				Response: &v1.BulkCheckPermissionPair_Error{
 					Error: statusResp.Proto(),
 				},
-			})
+			}); err != nil {
+				return es.rewriteError(ctx, err)
+			}
 		}
 
 		return nil
@@ -473,10 +508,12 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 				return es.rewriteError(ctx, err)
 			}
 
-			resp.Pairs = append(resp.Pairs, &v1.BulkCheckPermissionPair{
+			if err := addPair(&v1.BulkCheckPermissionPair{
 				Request:  reqItem,
 				Response: pairItemFromCheckResult(results[resourceID]),
-			})
+			}); err != nil {
+				return es.rewriteError(ctx, err)
+			}
 		}
 
 		respMetadata.DispatchCount += metadata.DispatchCount
@@ -520,11 +557,12 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		})
 	}
 
+	// Run the checks in parallel.
 	if err := tr.StartAndWait(); err != nil {
 		return nil, es.rewriteError(ctx, err)
 	}
 
-	return resp, nil
+	return &v1.BulkCheckPermissionResponse{CheckedAt: checkedAt, Pairs: orderedPairs}, nil
 }
 
 func pairItemFromCheckResult(checkResult *dispatchv1.ResourceCheckResult) *v1.BulkCheckPermissionPair_Item {

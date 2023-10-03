@@ -8,7 +8,6 @@ import (
 	"math"
 	"math/rand"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
@@ -25,7 +24,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
-	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -350,11 +348,11 @@ func TestBulkCheckPermission(t *testing.T) {
 			},
 			response: []bulkCheckTest{
 				{
-					req: "fake:fake#fake@user:eng_lead",
+					req: "document:masterplan#view@fake:fake",
 					err: namespace.NewNamespaceNotFoundErr("fake"),
 				},
 				{
-					req: "document:masterplan#view@fake:fake",
+					req: "fake:fake#fake@user:eng_lead",
 					err: namespace.NewNamespaceNotFoundErr("fake"),
 				},
 			},
@@ -412,6 +410,24 @@ func TestBulkCheckPermission(t *testing.T) {
 				return toReturn
 			})(),
 			expectedDispatchCount: 11,
+		},
+		{
+			name: "same resource and permission with same subject, repeated",
+			requests: []string{
+				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+			},
+			response: []bulkCheckTest{
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+				{
+					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+				},
+			},
+			expectedDispatchCount: 17,
 		},
 	}
 
@@ -473,7 +489,7 @@ func TestBulkCheckPermission(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedDispatchCount, dispatchCount)
 
-			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, sortByResource, "response bulk check pairs did not match")
+			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")
 		})
 	}
 }
@@ -489,17 +505,4 @@ func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 		item.Context = r.OptionalCaveat.Context
 	}
 	return item
-}
-
-func sortByResource(first *v1.BulkCheckPermissionPair, second *v1.BulkCheckPermissionPair) int {
-	if res := strings.Compare(first.Request.Resource.ObjectId, second.Request.Resource.ObjectId); res != 0 {
-		return res
-	}
-	if res := strings.Compare(first.Request.Permission, second.Request.Permission); res != 0 {
-		return res
-	}
-	if res := strings.Compare(first.Request.Subject.Object.ObjectId, second.Request.Subject.Object.ObjectId); res != 0 {
-		return res
-	}
-	return strings.Compare(caveats.StableContextStringForHashing(first.Request.Context), caveats.StableContextStringForHashing(second.Request.Context))
 }
