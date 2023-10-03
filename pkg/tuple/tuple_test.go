@@ -546,3 +546,175 @@ func TestCopyRelationTupleToRelationship(t *testing.T) {
 		})
 	}
 }
+
+func TestEqual(t *testing.T) {
+	equalTestCases := []*core.RelationTuple{
+		makeTuple(
+			ObjectAndRelation("testns", "testobj", "testrel"),
+			ObjectAndRelation("user", "testusr", "..."),
+		),
+		MustWithCaveat(
+			makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"context": map[string]any{
+					"deeply": map[string]any{
+						"nested": true,
+					},
+				},
+			},
+		),
+	}
+
+	for _, tc := range equalTestCases {
+		t.Run(MustString(tc), func(t *testing.T) {
+			require := require.New(t)
+			require.True(Equal(tc, tc.CloneVT()))
+		})
+	}
+
+	notEqualTestCases := []struct {
+		name string
+		lhs  *core.RelationTuple
+		rhs  *core.RelationTuple
+	}{
+		{
+			name: "Mismatch Resource Type",
+			lhs: makeTuple(
+				ObjectAndRelation("testns1", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+			rhs: makeTuple(
+				ObjectAndRelation("testns2", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+		},
+		{
+			name: "Mismatch Resource ID",
+			lhs: makeTuple(
+				ObjectAndRelation("testns", "testobj1", "testrel"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+			rhs: makeTuple(
+				ObjectAndRelation("testns", "testobj2", "testrel"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+		},
+		{
+			name: "Mismatch Resource Relationship",
+			lhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel1"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+			rhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel2"),
+				ObjectAndRelation("user", "testusr", "..."),
+			),
+		},
+		{
+			name: "Mismatch Subject Type",
+			lhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user1", "testusr", "..."),
+			),
+			rhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user2", "testusr", "..."),
+			),
+		},
+		{
+			name: "Mismatch Subject ID",
+			lhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr1", "..."),
+			),
+			rhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr2", "..."),
+			),
+		},
+		{
+			name: "Mismatch Subject Relationship",
+			lhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr", "testrel1"),
+			),
+			rhs: makeTuple(
+				ObjectAndRelation("testns", "testobj", "testrel"),
+				ObjectAndRelation("user", "testusr", "testrel2"),
+			),
+		},
+		{
+			name: "Mismatch Caveat Name",
+			lhs: MustWithCaveat(
+				makeTuple(
+					ObjectAndRelation("testns", "testobj", "testrel"),
+					ObjectAndRelation("user", "testusr", "..."),
+				),
+				"somecaveat1",
+				map[string]any{
+					"context": map[string]any{
+						"deeply": map[string]any{
+							"nested": true,
+						},
+					},
+				},
+			),
+			rhs: MustWithCaveat(
+				makeTuple(
+					ObjectAndRelation("testns", "testobj", "testrel"),
+					ObjectAndRelation("user", "testusr", "..."),
+				),
+				"somecaveat2",
+				map[string]any{
+					"context": map[string]any{
+						"deeply": map[string]any{
+							"nested": true,
+						},
+					},
+				},
+			),
+		},
+		{
+			name: "Mismatch Caveat Content",
+			lhs: MustWithCaveat(
+				makeTuple(
+					ObjectAndRelation("testns", "testobj", "testrel"),
+					ObjectAndRelation("user", "testusr", "..."),
+				),
+				"somecaveat",
+				map[string]any{
+					"context": map[string]any{
+						"deeply": map[string]any{
+							"nested": "1",
+						},
+					},
+				},
+			),
+			rhs: MustWithCaveat(
+				makeTuple(
+					ObjectAndRelation("testns", "testobj", "testrel"),
+					ObjectAndRelation("user", "testusr", "..."),
+				),
+				"somecaveat",
+				map[string]any{
+					"context": map[string]any{
+						"deeply": map[string]any{
+							"nested": "2",
+						},
+					},
+				},
+			),
+		},
+	}
+
+	for _, tc := range notEqualTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			require.False(Equal(tc.lhs, tc.rhs))
+		})
+	}
+}

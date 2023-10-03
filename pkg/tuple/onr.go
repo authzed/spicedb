@@ -108,3 +108,12 @@ func StringsONRs(onrs []*core.ObjectAndRelation) []string {
 	sort.Strings(onrstrings)
 	return onrstrings
 }
+
+func OnrEqual(lhs, rhs *core.ObjectAndRelation) bool {
+	// Properties are sorted by highest to lowest cardinality to optimize for short-circuiting.
+	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
+}
+
+func OnrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
+	return OnrEqual(tpl, target) || (tpl.ObjectId == PublicWildcard && tpl.Namespace == target.Namespace)
+}

@@ -151,8 +151,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 				}
 
 				// Ensure the tuples are the same.
-				// TODO(jschorr): Use a faster method then string comparison.
-				if tuple.MustString(mut.Tuple) == tuple.MustString(foundTpl) {
+				if tuple.Equal(mut.Tuple, foundTpl) {
 					delete(createAndTouchMutationsByTuple, tplString)
 					continue
 				}
