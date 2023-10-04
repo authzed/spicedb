@@ -1,7 +1,8 @@
 package tuple
 
 import (
-	"github.com/authzed/spicedb/pkg/genutil/slicez"
+	"github.com/samber/lo"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -35,7 +36,7 @@ func (s *ONRByTypeSet) ForEachType(handler func(rr *core.RelationReference, obje
 		handler(&core.RelationReference{
 			Namespace: ns,
 			Relation:  rel,
-		}, slicez.Unique(objectIds))
+		}, lo.Uniq(objectIds))
 	}
 }
 
@@ -55,7 +56,7 @@ func (s *ONRByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.Relati
 		if updatedType == nil {
 			continue
 		}
-		mapped.byType[JoinRelRef(updatedType.Namespace, updatedType.Relation)] = slicez.Unique(objectIds)
+		mapped.byType[JoinRelRef(updatedType.Namespace, updatedType.Relation)] = lo.Uniq(objectIds)
 	}
 	return mapped, nil
 }

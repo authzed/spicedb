@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -155,7 +156,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	// Deduplicate any incoming resource IDs.
-	resourceIds := slicez.Unique(req.ResourceIds)
+	resourceIds := lo.Uniq(req.ResourceIds)
 
 	// Filter the incoming resource IDs for any which match the subject directly. For example, if we receive
 	// a check for resource `user:{tom, fred, sarah}#...` and a subject of `user:sarah#...`, then we know
