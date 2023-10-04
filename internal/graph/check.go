@@ -197,15 +197,6 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	return combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet)
 }
 
-func onrEqual(lhs, rhs *core.ObjectAndRelation) bool {
-	// Properties are sorted by highest to lowest cardinality to optimize for short-circuiting.
-	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
-}
-
-func onrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
-	return onrEqual(tpl, target) || (tpl.ObjectId == tuple.PublicWildcard && tpl.Namespace == target.Namespace)
-}
-
 type directDispatch struct {
 	resourceType *core.RelationReference
 	resourceIds  []string
@@ -298,7 +289,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 			// If the subject of the relationship matches the target subject, then we've found
 			// a result.
-			if !onrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject) {
+			if !tuple.OnrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject) {
 				tplString, err := tuple.String(tpl)
 				if err != nil {
 					return checkResultError(err, emptyMetadata)

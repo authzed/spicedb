@@ -120,6 +120,14 @@ func StringWithoutCaveat(tpl *core.RelationTuple) string {
 	return fmt.Sprintf("%s@%s", StringONR(tpl.ResourceAndRelation), StringONR(tpl.Subject))
 }
 
+func MustStringCaveat(caveat *core.ContextualizedCaveat) string {
+	caveatString, err := StringCaveat(caveat)
+	if err != nil {
+		panic(err)
+	}
+	return caveatString
+}
+
 // StringCaveat converts a contextualized caveat to a string. If the caveat is nil or empty, returns empty string.
 func StringCaveat(caveat *core.ContextualizedCaveat) (string, error) {
 	if caveat == nil || caveat.CaveatName == "" {
@@ -261,6 +269,11 @@ func Delete(tpl *core.RelationTuple) *core.RelationTupleUpdate {
 		Operation: core.RelationTupleUpdate_DELETE,
 		Tuple:     tpl,
 	}
+}
+
+func Equal(lhs, rhs *core.RelationTuple) bool {
+	// TODO(jschorr): Use a faster method then string comparison for caveats.
+	return OnrEqual(lhs.ResourceAndRelation, rhs.ResourceAndRelation) && OnrEqual(lhs.Subject, rhs.Subject) && MustStringCaveat(lhs.Caveat) == MustStringCaveat(rhs.Caveat)
 }
 
 // MustToRelationship converts a RelationTuple into a Relationship. Will panic if
