@@ -66,11 +66,12 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 	return postgresRevision{snapshot}, nil
 }
 
-func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (removed common.DeletionCounts, err error) {
+func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (common.DeletionCounts, error) {
 	revision := txID.(postgresRevision)
 
 	minTxAlive := newXid8(revision.snapshot.xmin)
-
+	removed := common.DeletionCounts{}
+	var err error
 	// Delete any relationship rows that were already dead when this transaction started
 	removed.Relationships, err = pgd.batchDelete(
 		ctx,
@@ -79,7 +80,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		sq.Lt{colDeletedXid: minTxAlive},
 	)
 	if err != nil {
-		return
+		return removed, fmt.Errorf("failed to GC relationships table: %w", err)
 	}
 
 	// Delete all transaction rows with ID < the transaction ID.
@@ -93,7 +94,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		sq.Lt{colXID: minTxAlive},
 	)
 	if err != nil {
-		return
+		return removed, fmt.Errorf("failed to GC transactions table: %w", err)
 	}
 
 	// Delete any namespace rows with deleted_transaction <= the transaction ID.
@@ -104,10 +105,10 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 		sq.Lt{colDeletedXid: minTxAlive},
 	)
 	if err != nil {
-		return
+		return removed, fmt.Errorf("failed to GC namespaces table: %w", err)
 	}
 
-	return
+	return removed, err
 }
 
 func (pgd *pgDatastore) batchDelete(
@@ -116,7 +117,7 @@ func (pgd *pgDatastore) batchDelete(
 	pkCols []string,
 	filter sqlFilter,
 ) (int64, error) {
-	sql, args, err := psql.Select(pkCols...).From(tableName).Where(filter).Limit(batchDeleteSize).ToSql()
+	sql, args, err := psql.Select(pkCols...).From(tableName).Where(filter).Limit(gcBatchDeleteSize).ToSql()
 	if err != nil {
 		return -1, err
 	}
@@ -137,7 +138,7 @@ func (pgd *pgDatastore) batchDelete(
 
 		rowsDeleted := cr.RowsAffected()
 		deletedCount += rowsDeleted
-		if rowsDeleted < batchDeleteSize {
+		if rowsDeleted < gcBatchDeleteSize {
 			break
 		}
 	}

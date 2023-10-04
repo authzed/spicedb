@@ -69,10 +69,7 @@ const (
 
 	tracingDriverName = "postgres-tracing"
 
-	batchDeleteSize = 1000
-
-	pgSerializationFailure      = "40001"
-	pgUniqueConstraintViolation = "23505"
+	gcBatchDeleteSize = 1000
 
 	livingTupleConstraint = "uq_relation_tuple_living_xid"
 )
@@ -328,7 +325,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 	for i := uint8(0); i <= pgd.maxRetries; i++ {
 		var newXID xid8
 		var newSnapshot pgSnapshot
-		err = pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
+		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
 			newXID, newSnapshot, err = createNewTransaction(ctx, tx)
 			if err != nil {
@@ -351,20 +348,48 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			return fn(rwt)
-		})
+		}))
+
 		if err != nil {
 			if !config.DisableRetries && errorRetryable(err) {
+				pgxcommon.SleepOnErr(ctx, err, i)
 				continue
 			}
+
 			return datastore.NoRevision, err
+		}
+
+		if i > 0 {
+			log.Debug().Uint8("retries", i).Msg("transaction succeeded after retry")
 		}
 
 		return postgresRevision{newSnapshot.markComplete(newXID.Uint64)}, nil
 	}
+
 	if !config.DisableRetries {
 		err = fmt.Errorf("max retries exceeded: %w", err)
 	}
+
 	return datastore.NoRevision, err
+}
+
+func wrapError(err error) error {
+	if pgxcommon.IsSerializationError(err) {
+		return common.NewSerializationError(err)
+	}
+
+	// hack: pgx asyncClose usually happens after cancellation,
+	// but the reason for it being closed is not propagated
+	// and all we get is attempting to perform an operation
+	// on cancelled connection. This keeps the same error,
+	// but wrapped along a cancellation so that:
+	// - pgx logger does not log it
+	// - response is sent as canceled back to the client
+	if err != nil && err.Error() == "conn closed" {
+		return errors.Join(err, context.Canceled)
+	}
+
+	return err
 }
 
 func (pgd *pgDatastore) Close() error {
@@ -381,16 +406,20 @@ func (pgd *pgDatastore) Close() error {
 }
 
 func errorRetryable(err error) bool {
-	var pgerr *pgconn.PgError
-	if !errors.As(err, &pgerr) {
-		log.Debug().Err(err).Msg("couldn't determine a sqlstate error code")
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 
-	// We need to check unique constraint here because some versions of postgres have an error where
-	// unique constraint violations are raised instead of serialization errors.
-	// (e.g. https://www.postgresql.org/message-id/flat/CAGPCyEZG76zjv7S31v_xPeLNRuzj-m%3DY2GOY7PEzu7vhB%3DyQog%40mail.gmail.com)
-	return pgerr.SQLState() == pgSerializationFailure || pgerr.SQLState() == pgUniqueConstraintViolation
+	if pgconn.SafeToRetry(err) {
+		return true
+	}
+
+	if pgxcommon.IsSerializationError(err) {
+		return true
+	}
+
+	log.Warn().Err(err).Msg("unable to determine if pgx error is retryable")
+	return false
 }
 
 func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

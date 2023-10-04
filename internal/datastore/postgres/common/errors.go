@@ -14,6 +14,7 @@ import (
 const (
 	pgUniqueConstraintViolation = "23505"
 	pgSerializationFailure      = "40001"
+	pgTransactionAborted        = "25P02"
 )
 
 var (

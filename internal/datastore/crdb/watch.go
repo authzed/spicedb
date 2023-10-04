@@ -15,6 +15,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -270,7 +271,7 @@ func (cds *crdbDatastore) WatchSchema(ctx context.Context, afterRevision datasto
 						running = true
 
 						// Sleep a bit for retrying.
-						pool.SleepOnErr(ctx, err, uint8(retryCount))
+						pgxcommon.SleepOnErr(ctx, err, uint8(retryCount))
 						return
 					}
 

@@ -123,6 +123,9 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 
 		case <-time.After(nextInterval):
 			log.Ctx(ctx).Info().
+				Dur("interval", nextInterval).
+				Dur("window", window).
+				Dur("timeout", timeout).
 				Msg("running garbage collection worker")
 
 			err := RunGarbageCollection(gc, window, timeout)
@@ -178,7 +181,7 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	}
 
 	collectionDuration := time.Since(startTime)
-	log.Ctx(ctx).Debug().
+	log.Ctx(ctx).Info().
 		Stringer("highestTxID", watermark).
 		Dur("duration", collectionDuration).
 		Time("nowTime", now).
