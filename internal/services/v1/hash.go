@@ -22,6 +22,18 @@ func computeBulkCheckPermissionItemHashWithoutResourceID(req *v1.BulkCheckPermis
 	})
 }
 
+func computeBulkCheckPermissionItemHash(req *v1.BulkCheckPermissionRequestItem) (string, error) {
+	return computeCallHash("v1.bulkcheckpermissionrequestitem", nil, map[string]any{
+		"resource-type":    req.Resource.ObjectType,
+		"resource-id":      req.Resource.ObjectId,
+		"permission":       req.Permission,
+		"subject-type":     req.Subject.Object.ObjectType,
+		"subject-id":       req.Subject.Object.ObjectId,
+		"subject-relation": req.Subject.OptionalRelation,
+		"context":          req.Context,
+	})
+}
+
 func computeReadRelationshipsRequestHash(req *v1.ReadRelationshipsRequest) (string, error) {
 	osf := req.RelationshipFilter.OptionalSubjectFilter
 	if osf == nil {
