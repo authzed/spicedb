@@ -1,4 +1,4 @@
-package namespace
+package typesystem
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 )
 
 // Resolver is an interface defined for resolving referenced namespaces and caveats when constructing
@@ -48,6 +49,16 @@ func ResolverForPredefinedDefinitions(predefined PredefinedElements) Resolver {
 	return &resolver{
 		predefined: predefined,
 	}
+}
+
+// ResolverForSchema returns a resolver for a schema.
+func ResolverForSchema(schema compiler.CompiledSchema) Resolver {
+	return ResolverForPredefinedDefinitions(
+		PredefinedElements{
+			Namespaces: schema.ObjectDefinitions,
+			Caveats:    schema.CaveatDefinitions,
+		},
+	)
 }
 
 type resolver struct {

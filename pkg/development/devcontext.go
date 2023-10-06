@@ -31,6 +31,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 const defaultConnBufferSize = humanize.MiByte
@@ -226,7 +227,7 @@ func loadCompiled(
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
-	resolver := namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+	resolver := typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
 		Namespaces: compiled.ObjectDefinitions,
 		Caveats:    compiled.CaveatDefinitions,
 	})
@@ -261,7 +262,7 @@ func loadCompiled(
 	}
 
 	for _, nsDef := range compiled.ObjectDefinitions {
-		ts, terr := namespace.NewNamespaceTypeSystem(nsDef, resolver)
+		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
 			if ok {

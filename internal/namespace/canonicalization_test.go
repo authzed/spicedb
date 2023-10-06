@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/typesystem"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -389,7 +390,7 @@ func TestCanonicalization(t *testing.T) {
 			lastRevision, err := ds.HeadRevision(context.Background())
 			require.NoError(err)
 
-			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts, err := typesystem.NewNamespaceTypeSystem(tc.toCheck, typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)
@@ -524,7 +525,7 @@ func TestCanonicalizationComparison(t *testing.T) {
 			lastRevision, err := ds.HeadRevision(context.Background())
 			require.NoError(err)
 
-			ts, err := NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts, err := typesystem.NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)

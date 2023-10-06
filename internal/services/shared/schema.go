@@ -12,6 +12,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
@@ -38,8 +39,8 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 	// 2) Validate the namespaces defined.
 	newObjectDefNames := mapz.NewSet[string]()
 	for _, nsdef := range compiled.ObjectDefinitions {
-		ts, err := namespace.NewNamespaceTypeSystem(nsdef,
-			namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+		ts, err := typesystem.NewNamespaceTypeSystem(nsdef,
+			typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
 				Namespaces: compiled.ObjectDefinitions,
 				Caveats:    compiled.CaveatDefinitions,
 			}))
@@ -375,7 +376,7 @@ func sanityCheckNamespaceChanges(
 				qyr,
 				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
-				namespace.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
+				typesystem.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
 			qyr.Close()
 			if err != nil {
 				return diff, err

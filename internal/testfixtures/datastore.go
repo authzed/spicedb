@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var UserNS = ns.Namespace("user")
@@ -248,8 +249,8 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 		}
 
 		for _, nsDef := range objectDefs {
-			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
-				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+			ts, err := typesystem.NewNamespaceTypeSystem(nsDef,
+				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
 					Namespaces: objectDefs,
 					Caveats:    caveatDefs,
 				}))

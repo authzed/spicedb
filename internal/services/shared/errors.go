@@ -16,13 +16,13 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/sharederrors"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ErrServiceReadOnly is an extended GRPC error returned when a service is in read-only mode.
@@ -130,7 +130,7 @@ func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 
 	var compilerError compiler.BaseCompilerError
 	var sourceError spiceerrors.ErrorWithSource
-	var typeError namespace.TypeError
+	var typeError typesystem.TypeError
 	var maxDepthError dispatch.MaxDepthExceededError
 
 	switch {

@@ -3,8 +3,6 @@ package relationships
 import (
 	"fmt"
 
-	"github.com/authzed/spicedb/internal/namespace"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -13,6 +11,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ErrInvalidSubjectType indicates that a write was attempted with a subject type which is not
@@ -28,7 +27,7 @@ func NewInvalidSubjectTypeError(update *core.RelationTuple, relationType *core.A
 	return ErrInvalidSubjectType{
 		error: fmt.Errorf(
 			"subjects of type `%s` are not allowed on relation `%s#%s`",
-			namespace.SourceForAllowedRelation(relationType),
+			typesystem.SourceForAllowedRelation(relationType),
 			update.ResourceAndRelation.Namespace,
 			update.ResourceAndRelation.Relation,
 		),
@@ -47,7 +46,7 @@ func (err ErrInvalidSubjectType) GRPCStatus() *status.Status {
 			map[string]string{
 				"definition_name": err.tuple.ResourceAndRelation.Namespace,
 				"relation_name":   err.tuple.ResourceAndRelation.Relation,
-				"subject_type":    namespace.SourceForAllowedRelation(err.relationType),
+				"subject_type":    typesystem.SourceForAllowedRelation(err.relationType),
 			},
 		),
 	)

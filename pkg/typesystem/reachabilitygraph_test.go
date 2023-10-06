@@ -1,4 +1,4 @@
-package namespace
+package typesystem
 
 import (
 	"context"

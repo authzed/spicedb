@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
@@ -117,8 +118,8 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 
 		// Validate and write the object definitions.
 		for _, objectDef := range objectDefs {
-			ts, err := namespace.NewNamespaceTypeSystem(objectDef,
-				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+			ts, err := typesystem.NewNamespaceTypeSystem(objectDef,
+				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
 					Namespaces: objectDefs,
 				}))
 			if err != nil {
