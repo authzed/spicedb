@@ -15,6 +15,7 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // dispatchVersion defines the "version" of this dispatcher. Must be incremented
@@ -111,7 +112,7 @@ func (crr *CursoredReachableResources) afterSameType(
 		return err
 	}
 
-	rg := namespace.ReachabilityGraphFor(typeSystem.AsValidated())
+	rg := typesystem.ReachabilityGraphFor(typeSystem.AsValidated())
 	entrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: req.SubjectRelation.Namespace,
 		Relation:  req.SubjectRelation.Relation,
@@ -122,7 +123,7 @@ func (crr *CursoredReachableResources) afterSameType(
 
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
 	return withParallelizedStreamingIterableInCursor(ctx, ci, entrypoints, parentStream, crr.concurrencyLimit,
-		func(ctx context.Context, ci cursorInformation, entrypoint namespace.ReachabilityEntrypoint, stream dispatch.ReachableResourcesStream) error {
+		func(ctx context.Context, ci cursorInformation, entrypoint typesystem.ReachabilityEntrypoint, stream dispatch.ReachableResourcesStream) error {
 			switch entrypoint.EntrypointKind() {
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
 				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
@@ -161,8 +162,8 @@ func (crr *CursoredReachableResources) afterSameType(
 func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 	ctx context.Context,
 	ci cursorInformation,
-	entrypoint namespace.ReachabilityEntrypoint,
-	rg *namespace.ReachabilityGraph,
+	entrypoint typesystem.ReachabilityEntrypoint,
+	rg *typesystem.ReachabilityGraph,
 	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
@@ -189,7 +190,7 @@ func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 	}
 
 	subjectIds := make([]string, 0, len(req.SubjectIds)+1)
-	if isDirectAllowed == namespace.DirectRelationValid {
+	if isDirectAllowed == typesystem.DirectRelationValid {
 		subjectIds = append(subjectIds, req.SubjectIds...)
 	}
 
@@ -199,7 +200,7 @@ func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 			return err
 		}
 
-		if isWildcardAllowed == namespace.PublicSubjectAllowed {
+		if isWildcardAllowed == typesystem.PublicSubjectAllowed {
 			subjectIds = append(subjectIds, "*")
 		}
 	}
@@ -248,8 +249,8 @@ type redispatchOverDatabaseConfig struct {
 	sourceResourceType *core.RelationReference
 	foundResourceType  *core.RelationReference
 
-	entrypoint namespace.ReachabilityEntrypoint
-	rg         *namespace.ReachabilityGraph
+	entrypoint typesystem.ReachabilityEntrypoint
+	rg         *typesystem.ReachabilityGraph
 
 	concurrencyLimit uint16
 	parentStream     dispatch.ReachableResourcesStream
@@ -339,8 +340,8 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 
 func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 	ci cursorInformation,
-	entrypoint namespace.ReachabilityEntrypoint,
-	rg *namespace.ReachabilityGraph,
+	entrypoint typesystem.ReachabilityEntrypoint,
+	rg *typesystem.ReachabilityGraph,
 	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
@@ -366,7 +367,7 @@ func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 		return err
 	}
 
-	if isAllowed != namespace.AllowedNamespaceValid {
+	if isAllowed != typesystem.AllowedNamespaceValid {
 		return nil
 	}
 
@@ -408,8 +409,8 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 	ci cursorInformation,
 	foundResourceType *core.RelationReference,
 	foundResources dispatchableResourcesSubjectMap,
-	rg *namespace.ReachabilityGraph,
-	entrypoint namespace.ReachabilityEntrypoint,
+	rg *typesystem.ReachabilityGraph,
+	entrypoint typesystem.ReachabilityEntrypoint,
 	parentStream dispatch.ReachableResourcesStream,
 	parentRequest ValidatedReachableResourcesRequest,
 	dispatched *syncONRSet,

@@ -42,6 +42,7 @@ import (
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 const (
@@ -118,7 +119,7 @@ type experimentalServer struct {
 
 type bulkLoadAdapter struct {
 	stream                 v1.ExperimentalService_BulkImportRelationshipsServer
-	referencedNamespaceMap map[string]*namespace.TypeSystem
+	referencedNamespaceMap map[string]*typesystem.TypeSystem
 	referencedCaveatMap    map[string]*core.CaveatDefinition
 	current                core.RelationTuple
 	caveat                 core.ContextualizedCaveat
@@ -180,7 +181,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
 
 func extractBatchNewReferencedNamespacesAndCaveats(
 	batch []*v1.Relationship,
-	existingNamespaces map[string]*namespace.TypeSystem,
+	existingNamespaces map[string]*typesystem.TypeSystem,
 	existingCaveats map[string]*core.CaveatDefinition,
 ) ([]string, []string) {
 	newNamespaces := make(map[string]struct{})
@@ -211,7 +212,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 
 	var numWritten uint64
 	if _, err := ds.ReadWriteTx(stream.Context(), func(rwt datastore.ReadWriteTransaction) error {
-		loadedNamespaces := make(map[string]*namespace.TypeSystem)
+		loadedNamespaces := make(map[string]*typesystem.TypeSystem)
 		loadedCaveats := make(map[string]*core.CaveatDefinition)
 
 		adapter := &bulkLoadAdapter{
@@ -238,7 +239,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 				}
 
 				for _, nsDef := range nsDefs {
-					nts, err := namespace.NewNamespaceTypeSystem(nsDef.Definition, namespace.ResolverForDatastoreReader(rwt))
+					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, typesystem.ResolverForDatastoreReader(rwt))
 					if err != nil {
 						return err
 					}

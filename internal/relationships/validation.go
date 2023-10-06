@@ -13,6 +13,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ValidateRelationshipUpdates performs validation on the given relationship updates, ensuring that
@@ -82,7 +83,7 @@ func ValidateRelationshipsForCreateOrTouch(
 	return nil
 }
 
-func loadNamespacesAndCaveats(ctx context.Context, rels []*core.RelationTuple, reader datastore.Reader) (map[string]*namespace.TypeSystem, map[string]*core.CaveatDefinition, error) {
+func loadNamespacesAndCaveats(ctx context.Context, rels []*core.RelationTuple, reader datastore.Reader) (map[string]*typesystem.TypeSystem, map[string]*core.CaveatDefinition, error) {
 	referencedNamespaceNames := mapz.NewSet[string]()
 	referencedCaveatNamesWithContext := mapz.NewSet[string]()
 	for _, rel := range rels {
@@ -93,7 +94,7 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []*core.RelationTuple, r
 		}
 	}
 
-	var referencedNamespaceMap map[string]*namespace.TypeSystem
+	var referencedNamespaceMap map[string]*typesystem.TypeSystem
 	var referencedCaveatMap map[string]*core.CaveatDefinition
 
 	if !referencedNamespaceNames.IsEmpty() {
@@ -102,9 +103,9 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []*core.RelationTuple, r
 			return nil, nil, err
 		}
 
-		referencedNamespaceMap = make(map[string]*namespace.TypeSystem, len(foundNamespaces))
+		referencedNamespaceMap = make(map[string]*typesystem.TypeSystem, len(foundNamespaces))
 		for _, nsDef := range foundNamespaces {
-			nts, err := namespace.NewNamespaceTypeSystem(nsDef.Definition, namespace.ResolverForDatastoreReader(reader))
+			nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, typesystem.ResolverForDatastoreReader(reader))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -140,7 +141,7 @@ const (
 
 // ValidateOneRelationship validates a single relationship for CREATE/TOUCH or DELETE.
 func ValidateOneRelationship(
-	namespaceMap map[string]*namespace.TypeSystem,
+	namespaceMap map[string]*typesystem.TypeSystem,
 	caveatMap map[string]*core.CaveatDefinition,
 	rel *core.RelationTuple,
 	rule ValidationRelationshipRule,
@@ -207,7 +208,7 @@ func ValidateOneRelationship(
 			return err
 		}
 
-		if isAllowed != namespace.AllowedRelationValid {
+		if isAllowed != typesystem.AllowedRelationValid {
 			return NewInvalidSubjectTypeError(rel, relationToCheck)
 		}
 
@@ -219,7 +220,7 @@ func ValidateOneRelationship(
 				return err
 			}
 
-			if isAllowed != namespace.PublicSubjectAllowed {
+			if isAllowed != typesystem.PublicSubjectAllowed {
 				return NewInvalidSubjectTypeError(rel, relationToCheck)
 			}
 		} else {
@@ -228,7 +229,7 @@ func ValidateOneRelationship(
 				return err
 			}
 
-			if isAllowed != namespace.DirectRelationValid {
+			if isAllowed != typesystem.DirectRelationValid {
 				return NewInvalidSubjectTypeError(rel, relationToCheck)
 			}
 		}

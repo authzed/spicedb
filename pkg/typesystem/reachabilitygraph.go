@@ -1,4 +1,4 @@
-package namespace
+package typesystem
 
 import (
 	"context"
@@ -121,6 +121,29 @@ func ReachabilityGraphFor(ts *ValidatedNamespaceTypeSystem) *ReachabilityGraph {
 	return &ReachabilityGraph{ts.TypeSystem, sync.Map{}, sync.Map{}}
 }
 
+// RelationsEncountered returns all relations encountered while walking, starting
+// at the given subject type and walking to the given resource type.
+func (rg *ReachabilityGraph) RelationsEncountered(
+	ctx context.Context,
+	subjectType *core.RelationReference,
+	resourceType *core.RelationReference,
+) ([]*core.RelationReference, error) {
+	_, relationNames, err := rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityFull, entrypointLookupFindAll)
+	if err != nil {
+		return nil, err
+	}
+
+	relationRefs := make([]*core.RelationReference, 0, len(relationNames))
+	for _, relationName := range relationNames {
+		namespace, relation := tuple.MustSplitRelRef(relationName)
+		relationRefs = append(relationRefs, &core.RelationReference{
+			Namespace: namespace,
+			Relation:  relation,
+		})
+	}
+	return relationRefs, nil
+}
+
 // AllEntrypointsForSubjectToResource returns the entrypoints into the reachability graph, starting
 // at the given subject type and walking to the given resource type.
 func (rg *ReachabilityGraph) AllEntrypointsForSubjectToResource(
@@ -128,7 +151,8 @@ func (rg *ReachabilityGraph) AllEntrypointsForSubjectToResource(
 	subjectType *core.RelationReference,
 	resourceType *core.RelationReference,
 ) ([]ReachabilityEntrypoint, error) {
-	return rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityFull, entrypointLookupFindAll)
+	entrypoints, _, err := rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityFull, entrypointLookupFindAll)
+	return entrypoints, err
 }
 
 // OptimizedEntrypointsForSubjectToResource returns the *optimized* set of entrypoints into the
@@ -141,7 +165,8 @@ func (rg *ReachabilityGraph) OptimizedEntrypointsForSubjectToResource(
 	subjectType *core.RelationReference,
 	resourceType *core.RelationReference,
 ) ([]ReachabilityEntrypoint, error) {
-	return rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityOptimized, entrypointLookupFindAll)
+	entrypoints, _, err := rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityOptimized, entrypointLookupFindAll)
+	return entrypoints, err
 }
 
 // HasOptimizedEntrypointsForSubjectToResource returns whether there exists any *optimized*
@@ -161,7 +186,7 @@ func (rg *ReachabilityGraph) HasOptimizedEntrypointsForSubjectToResource(
 	}
 
 	// TODO(jzelinskie): measure to see if it's worth singleflighting this
-	found, err := rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityOptimized, entrypointLookupFindOne)
+	found, _, err := rg.entrypointsForSubjectToResource(ctx, subjectType, resourceType, reachabilityOptimized, entrypointLookupFindOne)
 	if err != nil {
 		return false, err
 	}
@@ -184,15 +209,16 @@ func (rg *ReachabilityGraph) entrypointsForSubjectToResource(
 	resourceType *core.RelationReference,
 	reachabilityOption reachabilityOption,
 	entrypointLookupOption entrypointLookupOption,
-) ([]ReachabilityEntrypoint, error) {
+) ([]ReachabilityEntrypoint, []string, error) {
 	if resourceType.Namespace != rg.ts.nsDef.Name {
-		return nil, fmt.Errorf("gave mismatching namespace name for resource type to reachability graph")
+		return nil, nil, fmt.Errorf("gave mismatching namespace name for resource type to reachability graph")
 	}
 
 	collected := &[]ReachabilityEntrypoint{}
-	err := rg.collectEntrypoints(ctx, subjectType, resourceType, collected, map[string]struct{}{}, reachabilityOption, entrypointLookupOption)
+	encounteredRelations := map[string]struct{}{}
+	err := rg.collectEntrypoints(ctx, subjectType, resourceType, collected, encounteredRelations, reachabilityOption, entrypointLookupOption)
 	if err != nil {
-		return nil, err
+		return nil, maps.Keys(encounteredRelations), err
 	}
 
 	collectedEntrypoints := *collected
@@ -209,7 +235,7 @@ func (rg *ReachabilityGraph) entrypointsForSubjectToResource(
 	for _, entrypoint := range collectedEntrypoints {
 		hash, err := entrypoint.Hash()
 		if err != nil {
-			return nil, err
+			return nil, maps.Keys(encounteredRelations), err
 		}
 
 		if _, ok := entrypointMap[hash]; !ok {
@@ -218,7 +244,7 @@ func (rg *ReachabilityGraph) entrypointsForSubjectToResource(
 		}
 	}
 
-	return uniqueEntrypoints, nil
+	return uniqueEntrypoints, maps.Keys(encounteredRelations), nil
 }
 
 func (rg *ReachabilityGraph) getOrBuildGraph(ctx context.Context, resourceType *core.RelationReference, reachabilityOption reachabilityOption) (*core.ReachabilityGraph, error) {
