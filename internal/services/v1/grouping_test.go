@@ -9,6 +9,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -198,10 +199,11 @@ func TestGroupItems(t *testing.T) {
 				maximumAPIDepth:      1,
 			}
 
-			ccp, err := groupItems(context.Background(), cp, items)
+			ccpByHash, err := groupItems(context.Background(), cp, items)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 			} else {
+				ccp := maps.Values(ccpByHash)
 				require.NoError(t, err)
 				require.Equal(t, len(tt.groupings), len(ccp))
 

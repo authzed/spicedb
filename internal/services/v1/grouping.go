@@ -7,14 +7,13 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 var MaxBulkCheckDispatchChunkSize = datastore.FilterMaximumIDCount
 
 type groupedCheckParameters struct {
-	params      computed.CheckParameters
+	params      *computed.CheckParameters
 	resourceIDs []string
 }
 
@@ -26,9 +25,8 @@ type groupingParameters struct {
 
 // groupItems takes a slice of BulkCheckPermissionRequestItem and groups them based
 // on using the same permission, subject type, subject id, and caveat.
-func groupItems(ctx context.Context, params groupingParameters, items []*v1.BulkCheckPermissionRequestItem) ([]groupedCheckParameters, error) {
-	groups := mapz.NewMultiMap[string, string]()
-	groupParams := make(map[string]computed.CheckParameters, len(items))
+func groupItems(ctx context.Context, params groupingParameters, items []*v1.BulkCheckPermissionRequestItem) (map[string]*groupedCheckParameters, error) {
+	res := make(map[string]*groupedCheckParameters)
 
 	for _, item := range items {
 		hash, err := computeBulkCheckPermissionItemHashWithoutResourceID(item)
@@ -36,40 +34,42 @@ func groupItems(ctx context.Context, params groupingParameters, items []*v1.Bulk
 			return nil, err
 		}
 
-		if _, ok := groupParams[hash]; !ok {
+		if _, ok := res[hash]; !ok {
 			caveatContext, err := GetCaveatContext(ctx, item.Context, params.maxCaveatContextSize)
 			if err != nil {
 				return nil, err
 			}
 
-			groupParams[hash] = computed.CheckParameters{
-				ResourceType: &core.RelationReference{
-					Namespace: item.Resource.ObjectType,
-					Relation:  item.Permission,
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: item.Subject.Object.ObjectType,
-					ObjectId:  item.Subject.Object.ObjectId,
-					Relation:  normalizeSubjectRelation(item.Subject),
-				},
-				CaveatContext: caveatContext,
-				AtRevision:    params.atRevision,
-				MaximumDepth:  params.maximumAPIDepth,
-				DebugOption:   computed.NoDebugging,
+			res[hash] = &groupedCheckParameters{
+				params:      checkParametersFromBulkCheckPermissionRequestItem(item, params, caveatContext),
+				resourceIDs: []string{item.Resource.ObjectId},
 			}
+		} else {
+			res[hash].resourceIDs = append(res[hash].resourceIDs, item.Resource.ObjectId)
 		}
-
-		groups.Add(hash, item.Resource.ObjectId)
 	}
 
-	grouped := make([]groupedCheckParameters, 0, groups.Len())
-	for _, key := range groups.Keys() {
-		resourceIDs, _ := groups.Get(key)
-		grouped = append(grouped, groupedCheckParameters{
-			params:      groupParams[key],
-			resourceIDs: resourceIDs,
-		})
-	}
+	return res, nil
+}
 
-	return grouped, nil
+func checkParametersFromBulkCheckPermissionRequestItem(
+	bc *v1.BulkCheckPermissionRequestItem,
+	params groupingParameters,
+	caveatContext map[string]any,
+) *computed.CheckParameters {
+	return &computed.CheckParameters{
+		ResourceType: &core.RelationReference{
+			Namespace: bc.Resource.ObjectType,
+			Relation:  bc.Permission,
+		},
+		Subject: &core.ObjectAndRelation{
+			Namespace: bc.Subject.Object.ObjectType,
+			ObjectId:  bc.Subject.Object.ObjectId,
+			Relation:  normalizeSubjectRelation(bc.Subject),
+		},
+		CaveatContext: caveatContext,
+		AtRevision:    params.atRevision,
+		MaximumDepth:  params.maximumAPIDepth,
+		DebugOption:   computed.NoDebugging,
+	}
 }

@@ -469,7 +469,7 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		return nil
 	}
 
-	appendResultsForError := func(params computed.CheckParameters, resourceIDs []string, err error) error {
+	appendResultsForError := func(params *computed.CheckParameters, resourceIDs []string, err error) error {
 		rewritten := es.rewriteError(ctx, err)
 		statusResp, ok := status.FromError(rewritten)
 		if !ok {
@@ -499,7 +499,7 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 		return nil
 	}
 
-	appendResultsForCheck := func(params computed.CheckParameters, resourceIDs []string, metadata *dispatchv1.ResponseMeta, results map[string]*dispatchv1.ResourceCheckResult) error {
+	appendResultsForCheck := func(params *computed.CheckParameters, resourceIDs []string, metadata *dispatchv1.ResponseMeta, results map[string]*dispatchv1.ResourceCheckResult) error {
 		bulkResponseMutex.Lock()
 		defer bulkResponseMutex.Unlock()
 
@@ -548,7 +548,7 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 				}
 
 				// Call bulk check to compute the check result(s) for the resource ID(s).
-				rcr, metadata, err := computed.ComputeBulkCheck(ctx, es.dispatch, group.params, resourceIDs)
+				rcr, metadata, err := computed.ComputeBulkCheck(ctx, es.dispatch, *group.params, resourceIDs)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}
@@ -576,7 +576,7 @@ func pairItemFromCheckResult(checkResult *dispatchv1.ResourceCheckResult) *v1.Bu
 	}
 }
 
-func requestItemFromResourceAndParameters(params computed.CheckParameters, resourceID string) (*v1.BulkCheckPermissionRequestItem, error) {
+func requestItemFromResourceAndParameters(params *computed.CheckParameters, resourceID string) (*v1.BulkCheckPermissionRequestItem, error) {
 	item := &v1.BulkCheckPermissionRequestItem{
 		Resource: &v1.ObjectReference{
 			ObjectType: params.ResourceType.Namespace,
