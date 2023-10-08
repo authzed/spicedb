@@ -74,6 +74,11 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 		return nil, err
 	}
 
+	experimentalConn, err := registerHandler(ctx, gwMux, upstreamAddr, opts, v1.RegisterExperimentalServiceHandler)
+	if err != nil {
+		return nil, err
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/openapi.json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, proto.OpenAPISchema)
@@ -81,7 +86,7 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	mux.Handle("/", gwMux)
 
 	finalHandler := promhttp.InstrumentHandlerDuration(histogram, otelhttp.NewHandler(mux, "gateway"))
-	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn), nil
+	return newCloserHandler(finalHandler, schemaConn, permissionsConn, watchConn, healthConn, experimentalConn), nil
 }
 
 // CloserHandler is a http.Handler and a io.Closer. Meant to keep track of resources to closer
