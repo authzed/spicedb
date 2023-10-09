@@ -49,8 +49,8 @@ func TestCloseConnections(t *testing.T) {
 
 	gatewayHandler, err := NewHandler(context.Background(), "192.0.2.0:4321", "")
 	require.NoError(t, err)
-	// 3 conns for permission+schema+watch services, 1 for health check
-	require.Len(t, gatewayHandler.closers, 4)
+	// 4 conns for permission+schema+watch+experimental services, 1 for health check
+	require.Len(t, gatewayHandler.closers, 5)
 
 	// if connections are not closed, goleak would detect it
 	require.NoError(t, gatewayHandler.Close())
