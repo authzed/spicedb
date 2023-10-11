@@ -60,8 +60,8 @@ Let's take a look at a couple of examples of how reversed timestamps may be an i
 
 Two separate `WriteRelationship` calls come in:
 
-`A`: Alice removes Bob from the `shared` folder
-`B`: Alice adds a new document `not-for-bob.txt` to the `shared` folder
+- `A`: Alice removes Bob from the `shared` folder
+- `B`: Alice adds a new document `not-for-bob.txt` to the `shared` folder
 
 The normal case is that the timestamp for `A` < the timestamp for `B`.
 
@@ -88,9 +88,9 @@ This could be mitigated in your application by:
 
 Two separate API calls come in:
 
-`A`: Alice remove Bob as a viewer of document `secret`
-`B`: Alice does a `FullyConsistent` `Check` request to get a ZedToken
-`C`: Alice stores that ZedToken (timestamp `B`) with the document `secret` when she updates it to say `Bob is a fool`.
+- `A`: Alice remove Bob as a viewer of document `secret`
+- `B`: Alice does a `FullyConsistent` `Check` request to get a ZedToken
+- `C`: Alice stores that ZedToken (timestamp `B`) with the document `secret` when she updates it to say `Bob is a fool`.
 
 Same as before, the normal case is that the timestamp for `A` < the timestamp for `B`, but if the two writes hit the conditions for a timestamp reversal, then `B < A`.
 
