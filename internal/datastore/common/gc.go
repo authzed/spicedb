@@ -99,10 +99,10 @@ var MaxGCInterval = 60 * time.Minute
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
-	return startGarbageCollectorWithMaxElapsedTime(ctx, gc, interval, window, 0, timeout)
+	return startGarbageCollectorWithMaxElapsedTime(ctx, gc, interval, window, 0, timeout, gcFailureCounter)
 }
 
-func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration) error {
+func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration, failureCounter prometheus.Counter) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
@@ -130,7 +130,7 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 
 			err := RunGarbageCollection(gc, window, timeout)
 			if err != nil {
-				gcFailureCounter.Inc()
+				failureCounter.Inc()
 				nextInterval = backoffInterval.NextBackOff()
 				log.Ctx(ctx).Warn().Err(err).
 					Dur("next-attempt-in", nextInterval).

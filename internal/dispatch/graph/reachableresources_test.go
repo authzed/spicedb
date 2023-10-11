@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -978,12 +979,13 @@ type breakingDatastore struct {
 
 func (bds breakingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegate := bds.Datastore.SnapshotReader(rev)
-	return &breakingReader{delegate, 0}
+	return &breakingReader{Reader: delegate, counter: 0, lock: sync.Mutex{}}
 }
 
 type breakingReader struct {
 	datastore.Reader
 	counter int
+	lock    sync.Mutex
 }
 
 func (br *breakingReader) ReverseQueryRelationships(
@@ -991,8 +993,11 @@ func (br *breakingReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
+	br.lock.Lock()
 	br.counter++
-	if br.counter > 1 {
+	current := br.counter
+	br.lock.Unlock()
+	if current > 1 {
 		return nil, fmt.Errorf("some sort of error")
 	}
 	return br.Reader.ReverseQueryRelationships(ctx, subjectsFilter, options...)
@@ -1392,12 +1397,13 @@ type cancelingDatastore struct {
 
 func (cds cancelingDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegate := cds.Datastore.SnapshotReader(rev)
-	return &cancelingReader{delegate, 0}
+	return &cancelingReader{delegate, 0, sync.Mutex{}}
 }
 
 type cancelingReader struct {
 	datastore.Reader
 	counter int
+	lock    sync.Mutex
 }
 
 func (cr *cancelingReader) ReverseQueryRelationships(
@@ -1405,8 +1411,12 @@ func (cr *cancelingReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
+	cr.lock.Lock()
 	cr.counter++
-	if cr.counter > 1 {
+	current := cr.counter
+	cr.lock.Unlock()
+
+	if current > 1 {
 		return nil, context.Canceled
 	}
 	return cr.Reader.ReverseQueryRelationships(ctx, subjectsFilter, options...)
@@ -1449,17 +1459,17 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 		require.New(t),
 	)
 
-	dispatcher := NewLocalOnlyDispatcher(50)
-	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
-	require.NoError(t, err)
-
-	cachingDispatcher.SetDelegate(dispatcher)
-
 	g := errgroup.Group{}
 	for i := 0; i < 100; i++ {
 		g.Go(func() error {
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
+
+			dispatcher := NewLocalOnlyDispatcher(50)
+			cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
+			require.NoError(t, err)
+
+			cachingDispatcher.SetDelegate(dispatcher)
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err = cachingDispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
