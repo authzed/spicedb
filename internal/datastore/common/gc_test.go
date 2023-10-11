@@ -32,16 +32,14 @@ func (t testGC) DeleteBeforeTx(_ context.Context, _ datastore.Revision) (Deletio
 }
 
 func TestGCFailureBackoff(t *testing.T) {
-	defer func() {
-		gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
-	}()
+	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
 	reg := prometheus.NewRegistry()
-	require.NoError(t, reg.Register(gcFailureCounter))
+	require.NoError(t, reg.Register(localCounter))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, testGC{}, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute))
+		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, testGC{}, 100*time.Millisecond, 1*time.Second, 1*time.Nanosecond, 1*time.Minute, localCounter))
 	}()
 	time.Sleep(200 * time.Millisecond)
 	cancel()
@@ -56,13 +54,13 @@ func TestGCFailureBackoff(t *testing.T) {
 	}
 	require.Greater(t, *(mf.GetMetric()[0].Counter.Value), 100.0, "MaxElapsedTime=1ns did not cause backoff to get ignored")
 
-	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
+	localCounter = prometheus.NewCounter(gcFailureCounterConfig)
 	reg = prometheus.NewRegistry()
-	require.NoError(t, reg.Register(gcFailureCounter))
+	require.NoError(t, reg.Register(localCounter))
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		require.Error(t, StartGarbageCollector(ctx, testGC{}, 100*time.Millisecond, 1*time.Second, 1*time.Minute))
+		require.Error(t, startGarbageCollectorWithMaxElapsedTime(ctx, testGC{}, 100*time.Millisecond, 0, 1*time.Second, 1*time.Minute, localCounter))
 	}()
 	time.Sleep(200 * time.Millisecond)
 	cancel()

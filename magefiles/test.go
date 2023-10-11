@@ -25,7 +25,7 @@ func (t Test) All() error {
 // Unit Runs the unit tests
 func (Test) Unit() error {
 	fmt.Println("running unit tests")
-	return goTest("./...", "-tags", "ci,skipintegrationtests", "-timeout", "10m")
+	return goTest("./...", "-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m")
 }
 
 // Image Run tests that run the built image

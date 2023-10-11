@@ -94,7 +94,7 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		i := i
 		g.Go(func() error {
-			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
 				updates := []*corev1.RelationTupleUpdate{}
 				for j := 0; j < 500; j++ {
 					updates = append(updates, &corev1.RelationTupleUpdate{

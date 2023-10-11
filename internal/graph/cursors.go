@@ -358,9 +358,12 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 		taskIndex := taskIndex
 		item := item
 		tr.Add(func(ctx context.Context) error {
+			stream.lock.Lock()
 			if ci.limits.hasExhaustedLimit() {
+				stream.lock.Unlock()
 				return nil
 			}
+			stream.lock.Unlock()
 
 			ici, err := getItemCursor(taskIndex)
 			if err != nil {
