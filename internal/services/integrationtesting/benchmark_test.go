@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/internal/testserver"
@@ -19,7 +20,6 @@ import (
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
@@ -110,7 +110,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
 				}, revision, nil)
-				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
+				require.Equal(b, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result)
 				return err
 			},
 		},
@@ -127,7 +127,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectId:  "cto",
 					Relation:  tuple.Ellipsis,
 				}, revision, nil)
-				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
+				require.Equal(b, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result)
 				return err
 			},
 		},
@@ -144,7 +144,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
 				}, revision, nil)
-				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
+				require.Equal(b, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result)
 				return err
 			},
 		},
@@ -161,7 +161,7 @@ func BenchmarkServices(b *testing.B) {
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
 				}, revision, nil)
-				require.Equal(b, dispatchv1.ResourceCheckResult_MEMBER, result)
+				require.Equal(b, v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, result)
 				return err
 			},
 		},
