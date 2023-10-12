@@ -1,16 +1,59 @@
-package datastore
+package datastore_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/authzed/spicedb/internal/logging"
+	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/internal/datastore/crdb"
+	"github.com/authzed/spicedb/internal/datastore/mysql"
+	"github.com/authzed/spicedb/internal/datastore/postgres"
+	"github.com/authzed/spicedb/internal/datastore/spanner"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-func TestError(_ *testing.T) {
-	logging.Info().Err(ErrNamespaceNotFound{
-		error:         fmt.Errorf("test"),
-		namespaceName: "test/test",
-	},
-	).Msg("test")
+func createEngine(engineID string, uri string) error {
+	switch engineID {
+	case "postgres":
+		_, err := postgres.NewPostgresDatastore(uri)
+		return err
+
+	case "mysql":
+		_, err := mysql.NewMySQLDatastore(uri)
+		return err
+
+	case "spanner":
+		_, err := spanner.NewSpannerDatastore(uri)
+		return err
+
+	case "cockroachdb":
+		_, err := crdb.NewCRDBDatastore(uri)
+		return err
+
+	default:
+		panic(fmt.Sprintf("missing create implementation for engine %s", engineID))
+	}
+}
+
+func TestDatastoreURIErrors(t *testing.T) {
+	tcs := map[string]string{
+		"some-wrong-uri":                                  "wrong",
+		"postgres://foo:bar:baz@someurl":                  "bar",
+		"postgres://spicedb:somepassword":                 "somepassword",
+		"postgres://spicedb:somepassword#@foo":            "somepassword",
+		"username=foo password=somepassword dsn=whatever": "somepassword",
+	}
+
+	for _, engineID := range datastore.Engines {
+		t.Run(engineID, func(t *testing.T) {
+			for tc, check := range tcs {
+				t.Run(tc, func(t *testing.T) {
+					err := createEngine(engineID, tc)
+					require.Error(t, err)
+					require.NotContains(t, err.Error(), check)
+				})
+			}
+		})
+	}
 }

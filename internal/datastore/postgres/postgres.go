@@ -56,7 +56,7 @@ const (
 	colCaveatContextName = "caveat_name"
 	colCaveatContext     = "caveat_context"
 
-	errUnableToInstantiate = "unable to instantiate datastore: %w"
+	errUnableToInstantiate = "unable to instantiate datastore"
 
 	// The parameters to this format string are:
 	// 1: the created_xid or deleted_xid column name
@@ -125,19 +125,19 @@ func newPostgresDatastore(
 ) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
 	}
 
 	// Parse the DB URI into configuration.
 	parsedConfig, err := pgxpool.ParseConfig(pgURL)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
 	}
 
 	// Setup the default custom plan setting, if applicable.
 	pgConfig, err := defaultCustomPlan(parsedConfig)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
 	}
 
 	// Setup the config for each of the read and write pools.
@@ -168,12 +168,12 @@ func newPostgresDatastore(
 
 	readPool, err := pgxpool.NewWithConfig(initializationContext, readPoolConfig)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
 	}
 
 	writePool, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
 	}
 
 	// Verify that the server supports commit timestamps
@@ -181,7 +181,7 @@ func newPostgresDatastore(
 	if err := readPool.
 		QueryRow(initializationContext, "SHOW track_commit_timestamp;").
 		Scan(&trackTSOn); err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, err
 	}
 
 	watchEnabled := trackTSOn == "on"
@@ -194,16 +194,16 @@ func newPostgresDatastore(
 			"db_name":    "spicedb",
 			"pool_usage": "read",
 		})); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
+			return nil, err
 		}
 		if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
 			"db_name":    "spicedb",
 			"pool_usage": "write",
 		})); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
+			return nil, err
 		}
 		if err := common.RegisterGCMetrics(); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
+			return nil, err
 		}
 	}
 

@@ -39,7 +39,7 @@ func init() {
 const (
 	Engine = "spanner"
 
-	errUnableToInstantiate = "unable to instantiate spanner client: %w"
+	errUnableToInstantiate = "unable to instantiate spanner client"
 
 	errRevision = "unable to load revision: %w"
 
@@ -82,7 +82,7 @@ type spannerDatastore struct {
 func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(opts)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, database)
 	}
 
 	if len(config.emulatorHost) > 0 {
@@ -128,7 +128,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, database)
 	}
 
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*

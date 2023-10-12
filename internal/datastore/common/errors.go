@@ -2,12 +2,15 @@ package common
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -91,4 +94,21 @@ func NewCreateRelationshipExistsError(relationship *core.RelationTuple) error {
 		fmt.Errorf(msg),
 		relationship,
 	}
+}
+
+var (
+	portMatchRegex  = regexp.MustCompile("invalid port \\\"(.+)\\\" after host")
+	parseMatchRegex = regexp.MustCompile("parse \\\"(.+)\\\":")
+)
+
+// RedactAndLogSensitiveConnString elides the given error, logging it only at trace
+// level (after being redacted).
+func RedactAndLogSensitiveConnString(baseErr string, err error, pgURL string) error {
+	// See: https://github.com/jackc/pgx/issues/1271
+	filtered := err.Error()
+	filtered = strings.ReplaceAll(filtered, pgURL, "(redacted)")
+	filtered = portMatchRegex.ReplaceAllString(filtered, "(redacted)")
+	filtered = parseMatchRegex.ReplaceAllString(filtered, "(redacted)")
+	log.Trace().Msg(baseErr + ": " + filtered)
+	return fmt.Errorf("%s. To view details of this error (that may contain sensitive information), please run with --log-level=trace", baseErr)
 }
