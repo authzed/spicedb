@@ -288,7 +288,6 @@ var testCases = []struct {
 			},
 		}),
 	},
-
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
 		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
@@ -352,6 +351,23 @@ var testCases = []struct {
 			ObjectAndRelation("user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "..."),
 		),
 		relFormat: rel("testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel", "user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", ""),
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":"a@example.com"}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"hi":"a@example.com"}]`,
+		tupleFormat: MustWithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"hi": "a@example.com",
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
+			"hi": "a@example.com",
+		}),
 	},
 }
 
