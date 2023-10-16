@@ -418,6 +418,8 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
+		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
+		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 	)
 }
 
