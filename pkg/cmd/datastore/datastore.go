@@ -143,6 +143,9 @@ type Config struct {
 
 	// Migrations
 	MigrationPhase string `debugmap:"visible"`
+
+	// Schema watch.
+	SchemaWatchHeartbeat time.Duration `debugmap:"visible"`
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
@@ -210,6 +213,8 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how many events the watch buffer should queue before forcefully disconnecting reader")
 
+	flagSet.DurationVar(&opts.SchemaWatchHeartbeat, flagName("datastore-schema-watch-heartbeat"), 0*time.Millisecond, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
+
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
 	if err := flagSet.MarkHidden(flagName("datastore-disable-stats")); err != nil {
@@ -262,6 +267,7 @@ func DefaultDatastoreConfig() *Config {
 		TablePrefix:                    "",
 		MigrationPhase:                 "",
 		FollowerReadDelay:              4_800 * time.Millisecond,
+		SchemaWatchHeartbeat:           0 * time.Millisecond,
 	}
 }
 
@@ -420,6 +426,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.DisableStats(opts.DisableStats),
 		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
+		spanner.SchemaWatchHeartbeat(opts.SchemaWatchHeartbeat),
 	)
 }
 

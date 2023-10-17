@@ -51,6 +51,10 @@ func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 
 	// Try to instantiate a schema cache that reads updates from the datastore's schema watch stream. If not possible,
 	// fallback to the just-in-time caching proxy.
+	if watchable, ok := delegate.(datastore.SchemaWatchableDatastore); ok {
+		return createWatchingCacheProxy(watchable, c, gcWindow)
+	}
+
 	unwrapped, ok := delegate.(datastore.UnwrappableDatastore)
 	if !ok {
 		log.Warn().Type("datastore-type", delegate).Msg("datastore driver does not support unwrapping; falling back to just-in-time caching")
