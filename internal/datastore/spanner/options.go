@@ -26,8 +26,8 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
-	defaultReadMaxOpen                 = 20
-	defaultWriteMaxOpen                = 10
+	defaultReadMaxOpen                 = 4
+	defaultWriteMaxOpen                = 4
 )
 
 // Option provides the facility to configure how clients within the Spanner

@@ -21,7 +21,7 @@ var (
 
 func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	var uniqueID string
-	if err := sd.readClient.Single().Read(
+	if err := sd.client.Single().Read(
 		context.Background(),
 		tableMetadata,
 		spanner.AllKeys(),
@@ -32,7 +32,7 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 		return datastore.Stats{}, fmt.Errorf("unable to read unique ID: %w", err)
 	}
 
-	iter := sd.readClient.Single().Read(
+	iter := sd.client.Single().Read(
 		ctx,
 		tableNamespace,
 		spanner.AllKeys(),
@@ -45,7 +45,7 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	}
 
 	var estimate spanner.NullInt64
-	if err := sd.readClient.Single().Query(ctx, spanner.Statement{SQL: queryRelationshipEstimate}).Do(func(r *spanner.Row) error {
+	if err := sd.client.Single().Query(ctx, spanner.Statement{SQL: queryRelationshipEstimate}).Do(func(r *spanner.Row) error {
 		return r.Columns(&estimate)
 	}); err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to read row counts: %w", err)

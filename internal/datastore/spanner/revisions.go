@@ -30,7 +30,7 @@ func (sd spannerDatastore) now(ctx context.Context) (time.Time, error) {
 	defer span.End()
 
 	var timestamp time.Time
-	if err := sd.readClient.Single().Query(ctx, spanner.NewStatement("SELECT CURRENT_TIMESTAMP()")).Do(func(r *spanner.Row) error {
+	if err := sd.client.Single().Query(ctx, spanner.NewStatement("SELECT CURRENT_TIMESTAMP()")).Do(func(r *spanner.Row) error {
 		return r.Columns(&timestamp)
 	}); err != nil {
 		return time.Time{}, err

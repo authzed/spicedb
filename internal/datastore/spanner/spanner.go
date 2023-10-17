@@ -65,10 +65,9 @@ type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
 	revision.DecimalDecoder
 
-	readClient  *spanner.Client
-	writeClient *spanner.Client
-	config      spannerOptions
-	database    string
+	client   *spanner.Client
+	config   spannerOptions
+	database string
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -87,19 +86,10 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
-	readClient, err := spanner.NewClientWithConfig(context.Background(), database,
+	client, err := spanner.NewClientWithConfig(context.Background(), database,
 		spanner.ClientConfig{SessionPoolConfig: spanner.DefaultSessionPoolConfig, Compression: "gzip"},
 		option.WithCredentialsFile(config.credentialsFilePath),
-		option.WithGRPCConnectionPool(config.readMaxOpen),
-	)
-	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
-	}
-
-	writeClient, err := spanner.NewClientWithConfig(context.Background(), database,
-		spanner.ClientConfig{SessionPoolConfig: spanner.DefaultSessionPoolConfig, Compression: "gzip"},
-		option.WithCredentialsFile(config.credentialsFilePath),
-		option.WithGRPCConnectionPool(config.writeMaxOpen),
+		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -115,10 +105,9 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		readClient:  readClient,
-		writeClient: writeClient,
-		config:      config,
-		database:    database,
+		client:   client,
+		config:   config,
+		database: database,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -129,7 +118,7 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	r := revisionRaw.(revision.Decimal)
 
 	txSource := func() readTX {
-		return sd.readClient.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))
+		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))
 	}
 	executor := common.QueryExecutor{
 		Executor: queryExecutor(txSource),
@@ -145,7 +134,7 @@ func (sd spannerDatastore) ReadWriteTx(
 	config := options.NewRWTOptionsWithOptions(opts...)
 
 	ctx, cancel := context.WithCancel(ctx)
-	ts, err := sd.writeClient.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
+	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
 		txSource := func() readTX {
 			return spannerRWT
 		}
@@ -183,7 +172,7 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for spanner: %w", err)
 	}
 
-	currentRevision, err := migrations.NewSpannerDriver(sd.readClient.DatabaseName(), sd.config.credentialsFilePath, sd.config.emulatorHost)
+	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath, sd.config.emulatorHost)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}
@@ -218,7 +207,7 @@ func (sd spannerDatastore) Features(_ context.Context) (*datastore.Features, err
 }
 
 func (sd spannerDatastore) Close() error {
-	sd.readClient.Close()
+	sd.client.Close()
 	return nil
 }
 
