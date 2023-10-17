@@ -1125,11 +1125,11 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	require.Equal(t, 2, len(responses))
 	slices.SortFunc(responses, byIDAndPermission)
 
-	require.Equal(t, "first", responses[0].ResourceObjectId)
-	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship)
+	require.Equal(t, "first", responses[0].ResourceObjectId)                                                    // nolint: gosec
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[0].Permissionship) // nolint: gosec
 
-	require.Equal(t, "second", responses[1].ResourceObjectId)
-	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[1].Permissionship)
+	require.Equal(t, "second", responses[1].ResourceObjectId)                                                   // nolint: gosec
+	require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, responses[1].Permissionship) // nolint: gosec
 }
 
 func byIDAndPermission(a, b *v1.LookupResourcesResponse) int {
