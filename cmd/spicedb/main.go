@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
-	"github.com/sercand/kuberesolver/v4"
+	"github.com/sercand/kuberesolver/v5"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/balancer"
 	_ "google.golang.org/grpc/xds"
