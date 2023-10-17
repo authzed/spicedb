@@ -13,6 +13,8 @@ type spannerOptions struct {
 	credentialsFilePath         string
 	emulatorHost                string
 	disableStats                bool
+	readMaxOpen                 int
+	writeMaxOpen                int
 }
 
 const (
@@ -24,6 +26,8 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
+	defaultReadMaxOpen                 = 4
+	defaultWriteMaxOpen                = 4
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -37,6 +41,8 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		disableStats:                defaultDisableStats,
+		readMaxOpen:                 defaultReadMaxOpen,
+		writeMaxOpen:                defaultWriteMaxOpen,
 	}
 
 	for _, option := range options {
@@ -117,4 +123,18 @@ func DisableStats(disable bool) Option {
 	return func(po *spannerOptions) {
 		po.disableStats = disable
 	}
+}
+
+// ReadConnsMaxOpen is the maximum size of the connection pool used for reads.
+//
+// This value defaults to having 20 connections.
+func ReadConnsMaxOpen(conns int) Option {
+	return func(po *spannerOptions) { po.readMaxOpen = conns }
+}
+
+// WriteConnsMaxOpen is the maximum size of the connection pool used for writes.
+//
+// This value defaults to having 10 connections.
+func WriteConnsMaxOpen(conns int) Option {
+	return func(po *spannerOptions) { po.writeMaxOpen = conns }
 }
