@@ -76,6 +76,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 		defer span.End()
 
 		iter := txSource().Query(ctx, statementFromSQL(sql, args))
+		defer iter.Stop()
 
 		var tuples []*core.RelationTuple
 
@@ -152,6 +153,7 @@ func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revi
 		spanner.AllKeys(),
 		[]string{colNamespaceConfig, colNamespaceTS},
 	)
+	defer iter.Stop()
 
 	allNamespaces, err := readAllNamespaces(iter)
 	if err != nil {
@@ -177,6 +179,7 @@ func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames [
 		spanner.KeySetFromKeys(keys...),
 		[]string{colNamespaceConfig, colNamespaceTS},
 	)
+	defer iter.Stop()
 
 	foundNamespaces, err := readAllNamespaces(iter)
 	if err != nil {

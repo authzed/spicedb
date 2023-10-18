@@ -61,6 +61,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 		keyset,
 		[]string{colCaveatDefinition, colCaveatTS},
 	)
+	defer iter.Stop()
 
 	var caveats []datastore.RevisionedCaveat
 	if err := iter.Do(func(row *spanner.Row) error {

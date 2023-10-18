@@ -59,12 +59,15 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*Span
 
 func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
 	var schemaRevision string
-	if err := smd.client.Single().Read(
+	iter := smd.client.Single().Read(
 		ctx,
 		tableSchemaVersion,
 		spanner.AllKeys(),
 		[]string{colVersionNum},
-	).Do(func(r *spanner.Row) error {
+	)
+	defer iter.Stop()
+
+	if err := iter.Do(func(r *spanner.Row) error {
 		return r.Columns(&schemaRevision)
 	}); err != nil {
 		if spanner.ErrCode(err) == codes.NotFound {
