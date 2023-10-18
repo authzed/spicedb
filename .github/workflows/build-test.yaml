@@ -14,7 +14,7 @@ env:
   GO_VERSION: "~1.21.3"
 jobs:
   paths-filter:
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     outputs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
@@ -43,8 +43,8 @@ jobs:
               - "proto/**"
               - "go.mod"
   build:
-    name: "Build Binary"
-    runs-on: "ubuntu-latest"
+    name: "Build Binary & Image"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -54,24 +54,12 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-build@main"
-
-  image-build:
-    name: "Build Container Image"
-    runs-on: "ubuntu-latest-4-cores"
-    needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
       - name: "Image tests"
         run: "go run mage.go test:image"
 
   unit:
     name: "Unit"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -85,7 +73,7 @@ jobs:
 
   integration:
     name: "Integration Tests"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -99,7 +87,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -114,28 +102,12 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
       - name: "Integration tests"
         run: "go run mage.go testds:${{ matrix.datastore }}"
-
-  datastoreconsistency:
-    name: "Datastore Consistency Tests"
-    runs-on: "ubuntu-latest-4-cores"
-    needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        datastore: ["crdb", "mysql", "postgres", "spanner"]
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
       - name: "Integration tests"
         run: "go run mage.go testcons:${{ matrix.datastore }}"
 
   e2e:
     name: "E2E"
-    runs-on: "ubuntu-latest-8-cores"
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -148,7 +120,7 @@ jobs:
           cache-dependency-path: "e2e/go.sum"
       - name: "Cache Binaries"
         id: "cache-binaries"
-        uses: "actions/cache@v2"
+        uses: "buildjet/cache@v3"
         with:
           path: |
             e2e/newenemy/cockroach
@@ -162,7 +134,7 @@ jobs:
         run: |
           curl https://binaries.cockroachdb.com/cockroach-v22.1.5.linux-amd64.tgz | tar -xz && mv cockroach-v22.1.5.linux-amd64/cockroach ./cockroach
           curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
-      - uses: "actions/cache@v2"
+      - uses: "buildjet/cache@v3"
         with:
           path: |
             ~/.cache/go-build
@@ -187,7 +159,7 @@ jobs:
           path: "e2e/newenemy/*.log"
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -202,7 +174,7 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -216,7 +188,7 @@ jobs:
 
   protobuf:
     name: "Generate Protobufs"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.protochange == 'true'
