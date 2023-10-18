@@ -43,8 +43,8 @@ jobs:
               - "proto/**"
               - "go.mod"
   build:
-    name: "Build Binary"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    name: "Build Binary & Image"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -54,18 +54,6 @@ jobs:
         with:
           go-version: "${{ env.GO_VERSION }}"
       - uses: "authzed/actions/go-build@main"
-
-  image-build:
-    name: "Build Container Image"
-    runs-on: "ubuntu-latest-4-cores"
-    needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
       - name: "Image tests"
         run: "go run mage.go test:image"
 
@@ -114,22 +102,6 @@ jobs:
           go-version: "${{ env.GO_VERSION }}"
       - name: "Integration tests"
         run: "go run mage.go testds:${{ matrix.datastore }}"
-
-  datastoreconsistency:
-    name: "Datastore Consistency Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
-    needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        datastore: ["crdb", "mysql", "postgres", "spanner"]
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
       - name: "Integration tests"
         run: "go run mage.go testcons:${{ matrix.datastore }}"
 
