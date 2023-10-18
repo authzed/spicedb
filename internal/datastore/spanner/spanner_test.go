@@ -17,7 +17,7 @@ import (
 )
 
 // Implement TestableDatastore interface
-func (sd spannerDatastore) ExampleRetryableError() error {
+func (sd *spannerDatastore) ExampleRetryableError() error {
 	return status.New(codes.Aborted, "retryable").Err()
 }
 

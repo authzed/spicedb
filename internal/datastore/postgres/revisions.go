@@ -87,15 +87,23 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	var snapshot pgSnapshot
-	if err := pgd.readPool.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return datastore.NoRevision, nil
+	resultChan := pgd.headGroup.DoChan("", func() (any, error) {
+		var snapshot pgSnapshot
+		if err := pgd.readPool.QueryRow(context.Background(), queryCurrentSnapshot).Scan(&snapshot); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return datastore.NoRevision, nil
+			}
+			return datastore.NoRevision, fmt.Errorf(errRevision, err)
 		}
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
-	}
+		return postgresRevision{snapshot}, nil
+	})
 
-	return postgresRevision{snapshot}, nil
+	select {
+	case <-ctx.Done():
+		return datastore.NoRevision, ctx.Err()
+	case result := <-resultChan:
+		return result.Val.(datastore.Revision), result.Err
+	}
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {

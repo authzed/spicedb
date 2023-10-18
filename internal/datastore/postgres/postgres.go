@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -291,6 +292,8 @@ type pgDatastore struct {
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
 	watchEnabled            bool
+
+	headGroup singleflight.Group
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context

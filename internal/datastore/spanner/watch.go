@@ -34,7 +34,7 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 	return matches[1], matches[2], matches[3], nil
 }
 
-func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (sd *spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, 10)
 	errs := make(chan error, 1)
 

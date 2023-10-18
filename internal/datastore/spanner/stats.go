@@ -20,7 +20,7 @@ var (
 	rng = rand.NewSource(time.Now().UnixNano())
 )
 
-func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	var uniqueID string
 	if err := sd.client.Single().Read(
 		context.Background(),

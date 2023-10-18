@@ -120,25 +120,34 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	query, args, err := mds.GetLastRevision.ToSql()
-	if err != nil {
-		return 0, fmt.Errorf(errRevision, err)
-	}
-
-	var revision *uint64
-	err = mds.db.QueryRowContext(ctx, query, args...).Scan(&revision)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil
+	resultChan := mds.headGroup.DoChan("", func() (any, error) {
+		query, args, err := mds.GetLastRevision.ToSql()
+		if err != nil {
+			return uint64(0), fmt.Errorf(errRevision, err)
 		}
-		return 0, fmt.Errorf(errRevision, err)
-	}
 
-	if revision == nil {
-		return 0, nil
-	}
+		var revision *uint64
+		err = mds.db.QueryRowContext(context.Background(), query, args...).Scan(&revision)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return uint64(0), nil
+			}
+			return uint64(0), fmt.Errorf(errRevision, err)
+		}
 
-	return *revision, nil
+		if revision == nil {
+			return uint64(0), nil
+		}
+
+		return *revision, nil
+	})
+
+	select {
+	case <-ctx.Done():
+		return uint64(0), ctx.Err()
+	case result := <-resultChan:
+		return result.Val.(uint64), result.Err
+	}
 }
 
 func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint64) (bool, bool, error) {

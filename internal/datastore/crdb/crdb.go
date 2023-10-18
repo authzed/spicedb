@@ -17,6 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -257,6 +258,8 @@ type crdbDatastore struct {
 
 	beginChangefeedQuery string
 
+	headGroup singleflight.Group
+
 	pruneGroup *errgroup.Group
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -320,7 +323,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 
 		if cds.disableStats {
 			var err error
-			commitTimestamp, err = readCRDBNow(ctx, querier)
+			commitTimestamp, err = cds.readCRDBNow(ctx, querier)
 			if err != nil {
 				return fmt.Errorf("error getting commit timestamp: %w", err)
 			}
@@ -410,7 +413,7 @@ func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.De
 	var hlcNow revision.Decimal
 
 	var fnErr error
-	hlcNow, fnErr = readCRDBNow(ctx, cds.readPool)
+	hlcNow, fnErr = cds.readCRDBNow(ctx, cds.readPool)
 	if fnErr != nil {
 		return revision.NoRevision, fmt.Errorf(errRevision, fnErr)
 	}
@@ -448,18 +451,27 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	return &features, nil
 }
 
-func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.Decimal, error) {
+func (cds *crdbDatastore) readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.Decimal, error) {
 	ctx, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
-	var hlcNow decimal.Decimal
-	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
-		return row.Scan(&hlcNow)
-	}, querySelectNow); err != nil {
-		return revision.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
-	}
+	resultChan := cds.headGroup.DoChan("", func() (any, error) {
+		var hlcNow decimal.Decimal
+		if err := reader.QueryRowFunc(context.Background(), func(_ context.Context, row pgx.Row) error {
+			return row.Scan(&hlcNow)
+		}, querySelectNow); err != nil {
+			return revision.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
+		}
 
-	return revision.NewFromDecimal(hlcNow), nil
+		return revision.NewFromDecimal(hlcNow), nil
+	})
+
+	select {
+	case <-ctx.Done():
+		return revision.NoRevision, ctx.Err()
+	case result := <-resultChan:
+		return result.Val.(revision.Decimal), result.Err
+	}
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {

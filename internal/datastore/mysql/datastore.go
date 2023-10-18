@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -427,6 +428,8 @@ type Datastore struct {
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
+
+	headGroup singleflight.Group
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
