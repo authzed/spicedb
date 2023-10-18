@@ -148,7 +148,7 @@ jobs:
           cache-dependency-path: "e2e/go.sum"
       - name: "Cache Binaries"
         id: "cache-binaries"
-        uses: "actions/cache@v2"
+        uses: "buildjet/cache@v3"
         with:
           path: |
             e2e/newenemy/cockroach
@@ -162,7 +162,7 @@ jobs:
         run: |
           curl https://binaries.cockroachdb.com/cockroach-v22.1.5.linux-amd64.tgz | tar -xz && mv cockroach-v22.1.5.linux-amd64/cockroach ./cockroach
           curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
-      - uses: "actions/cache@v2"
+      - uses: "buildjet/cache@v3"
         with:
           path: |
             ~/.cache/go-build
