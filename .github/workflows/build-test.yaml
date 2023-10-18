@@ -14,7 +14,7 @@ env:
   GO_VERSION: "~1.21.3"
 jobs:
   paths-filter:
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     outputs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
@@ -44,7 +44,7 @@ jobs:
               - "go.mod"
   build:
     name: "Build Binary"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -71,7 +71,7 @@ jobs:
 
   unit:
     name: "Unit"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -85,7 +85,7 @@ jobs:
 
   integration:
     name: "Integration Tests"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -99,7 +99,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -117,7 +117,7 @@ jobs:
 
   datastoreconsistency:
     name: "Datastore Consistency Tests"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -135,7 +135,7 @@ jobs:
 
   e2e:
     name: "E2E"
-    runs-on: "ubuntu-latest-8-cores"
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -187,7 +187,7 @@ jobs:
           path: "e2e/newenemy/*.log"
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -202,7 +202,7 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -216,7 +216,7 @@ jobs:
 
   protobuf:
     name: "Generate Protobufs"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.protochange == 'true'

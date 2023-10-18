@@ -15,7 +15,7 @@ env:
 jobs:
   go-lint:
     name: "Lint Go"
-    runs-on: "ubuntu-latest-4-cores"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -30,7 +30,7 @@ jobs:
 
   extra-lint:
     name: "Lint YAML & Markdown"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
       - uses: "actions/checkout@v3"
       - name: "Lint Everything Else"
@@ -42,7 +42,7 @@ jobs:
 
   codeql:
     name: "Analyze with CodeQL"
-    runs-on: "ubuntu-latest-8-cores"
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
     permissions:
       actions: "read"
       contents: "read"
@@ -57,7 +57,7 @@ jobs:
 
   trivy-fs:
     name: "Analyze FS with Trivy"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "aquasecurity/trivy-action@master"
@@ -70,7 +70,7 @@ jobs:
 
   trivy-image:
     name: "Analyze Release Image with Trivy"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
