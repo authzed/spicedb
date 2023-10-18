@@ -92,7 +92,7 @@ func (smd *SpannerMigrationDriver) RunTx(ctx context.Context, f migrate.TxMigrat
 func (smd *SpannerMigrationDriver) WriteVersion(_ context.Context, rwt *spanner.ReadWriteTransaction, version, replaced string) error {
 	return rwt.BufferWrite([]*spanner.Mutation{
 		spanner.Delete(tableSchemaVersion, spanner.KeySetFromKeys(spanner.Key{replaced})),
-		spanner.Insert(tableSchemaVersion, []string{colVersionNum}, []interface{}{version}),
+		spanner.Insert(tableSchemaVersion, []string{colVersionNum}, []any{version}),
 	})
 }
 

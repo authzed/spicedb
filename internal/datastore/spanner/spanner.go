@@ -204,8 +204,8 @@ func (sd spannerDatastore) Close() error {
 	return nil
 }
 
-func statementFromSQL(sql string, args []interface{}) spanner.Statement {
-	params := make(map[string]interface{}, len(args))
+func statementFromSQL(sql string, args []any) spanner.Statement {
+	params := make(map[string]any, len(args))
 	for index, arg := range args {
 		params["p"+strconv.Itoa(index+1)] = arg
 	}

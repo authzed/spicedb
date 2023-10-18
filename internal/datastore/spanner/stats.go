@@ -88,7 +88,7 @@ func updateCounter(ctx context.Context, rwt *spanner.ReadWriteTransaction, chang
 		Msg("updating counter")
 
 	if err := rwt.BufferWrite([]*spanner.Mutation{
-		spanner.InsertOrUpdate(tableCounters, []string{colID, colCount}, []interface{}{counterID, newValue}),
+		spanner.InsertOrUpdate(tableCounters, []string{colID, colCount}, []any{counterID, newValue}),
 	}); err != nil {
 		return fmt.Errorf("unable to buffer update to counter: %w", err)
 	}
