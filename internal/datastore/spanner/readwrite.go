@@ -81,7 +81,7 @@ type selectAndDelete struct {
 	del sq.DeleteBuilder
 }
 
-func (snd selectAndDelete) Where(pred interface{}, args ...interface{}) selectAndDelete {
+func (snd selectAndDelete) Where(pred any, args ...any) selectAndDelete {
 	snd.sel = snd.sel.Where(pred, args...)
 	snd.del = snd.del.Where(pred, args...)
 	return snd
@@ -171,7 +171,7 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 		mutations = append(mutations, spanner.InsertOrUpdate(
 			tableNamespace,
 			[]string{colNamespaceName, colNamespaceConfig, colTimestamp},
-			[]interface{}{newConfig.Name, serialized, spanner.CommitTimestamp},
+			[]any{newConfig.Name, serialized, spanner.CommitTimestamp},
 		))
 	}
 

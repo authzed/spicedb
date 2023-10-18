@@ -103,7 +103,7 @@ func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.C
 		mutations = append(mutations, spanner.InsertOrUpdate(
 			tableCaveat,
 			[]string{colName, colCaveatDefinition, colCaveatTS},
-			[]interface{}{caveat.Name, serialized, spanner.CommitTimestamp},
+			[]any{caveat.Name, serialized, spanner.CommitTimestamp},
 		))
 	}
 

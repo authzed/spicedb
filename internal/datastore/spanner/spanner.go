@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	spb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/api/option"
@@ -120,28 +121,20 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	txSource := func() readTX {
 		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))
 	}
-	executor := common.QueryExecutor{
-		Executor: queryExecutor(txSource),
-	}
+	executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
 	return spannerReader{executor, txSource}
 }
 
-func (sd spannerDatastore) ReadWriteTx(
-	ctx context.Context,
-	fn datastore.TxUserFunc,
-	opts ...options.RWTOptionsOption,
-) (datastore.Revision, error) {
+func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	config := options.NewRWTOptionsWithOptions(opts...)
 
 	ctx, cancel := context.WithCancel(ctx)
-	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
+	resp, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
 		txSource := func() readTX {
 			return spannerRWT
 		}
 
-		executor := common.QueryExecutor{
-			Executor: queryExecutor(txSource),
-		}
+		executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
 		rwt := spannerReadWriteTXN{
 			spannerReader{executor, txSource},
 			spannerRWT,
@@ -155,7 +148,7 @@ func (sd spannerDatastore) ReadWriteTx(
 		}
 
 		return nil
-	})
+	}, spanner.TransactionOptions{ReadLockMode: spb.TransactionOptions_ReadWrite_OPTIMISTIC})
 	if err != nil {
 		if cerr := convertToWriteConstraintError(err); cerr != nil {
 			return datastore.NoRevision, cerr
@@ -163,7 +156,7 @@ func (sd spannerDatastore) ReadWriteTx(
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTimestamp(ts), nil
+	return revisionFromTimestamp(resp.CommitTs), nil
 }
 
 func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
@@ -211,8 +204,8 @@ func (sd spannerDatastore) Close() error {
 	return nil
 }
 
-func statementFromSQL(sql string, args []interface{}) spanner.Statement {
-	params := make(map[string]interface{}, len(args))
+func statementFromSQL(sql string, args []any) spanner.Statement {
+	params := make(map[string]any, len(args))
 	for index, arg := range args {
 		params["p"+strconv.Itoa(index+1)] = arg
 	}

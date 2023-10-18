@@ -19,9 +19,7 @@ import (
 // https://github.com/googleapis/google-cloud-go/blob/a33861fe46be42ae150d6015ad39dae6e35e04e8/spanner/transaction.go#L55
 type readTX interface {
 	ReadRow(ctx context.Context, table string, key spanner.Key, columns []string) (*spanner.Row, error)
-
 	Read(ctx context.Context, table string, keys spanner.KeySet, columns []string) *spanner.RowIterator
-
 	Query(ctx context.Context, statement spanner.Statement) *spanner.RowIterator
 }
 
@@ -73,11 +71,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 }
 
 func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
-	return func(
-		ctx context.Context,
-		sql string,
-		args []interface{},
-	) ([]*core.RelationTuple, error) {
+	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
 		ctx, span := tracer.Start(ctx, "ExecuteQuery")
 		defer span.End()
 
