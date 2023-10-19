@@ -131,7 +131,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 }
 
 func (mdb *memdbDatastore) ReadWriteTx(
-	_ context.Context,
+	ctx context.Context,
 	f datastore.TxUserFunc,
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
@@ -170,7 +170,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		newRevision := mdb.newRevisionID()
 		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil}, newRevision}
-		if err := f(rwt); err != nil {
+		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
 				tx.Abort()

@@ -121,7 +121,7 @@ func TestTxReset(t *testing.T) {
 
 			// WriteNamespace utilizes execute so we'll use it
 			i := 0
-			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				if i < len(tt.errors) {
 					defer func() { i++ }()
 					return tt.errors[i]

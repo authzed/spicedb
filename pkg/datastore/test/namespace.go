@@ -66,7 +66,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.Equal(0, len(nsDefs))
 
-	writtenRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	writtenRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testUserNS)
 	})
 	require.NoError(err)
@@ -77,7 +77,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	require.Equal(1, len(nsDefs))
 	require.Equal(testUserNS.Name, nsDefs[0].Definition.Name)
 
-	secondWritten, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	secondWritten, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)
@@ -101,7 +101,7 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 	foundDiff := cmp.Diff(testNamespace, found, protocmp.Transform())
 	require.Empty(foundDiff)
 
-	updatedRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, updatedNamespace)
 	})
 	require.NoError(err)
@@ -160,7 +160,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NotNil(folderTpl)
 	tRequire.TupleExists(ctx, folderTpl, revision)
 
-	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, testfixtures.DocumentNS.Name)
 	})
 	require.NoError(err)
@@ -207,7 +207,7 @@ func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {
 		nsNames = append(nsNames, ns.Definition.Name)
 	}
 
-	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, nsNames...)
 	})
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	deletedRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, testfixtures.UserNS.Name)
 	})
 	require.NoError(err)
@@ -271,7 +271,7 @@ definition document {
 	require.NoError(err)
 
 	ctx := context.Background()
-	updatedRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	updatedRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
 		if err != nil {
 			return err

@@ -943,7 +943,7 @@ func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datasto
 		return datastore.NoRevision, err
 	}
 
-	return ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if err := rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...); err != nil {
 			return err
 		}

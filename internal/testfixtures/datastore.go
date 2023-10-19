@@ -169,7 +169,7 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
 
-	_, err := ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		return tx.WriteCaveats(ctx, createTestCaveat(require))
 	})
 	require.NoError(err)
@@ -225,7 +225,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 
 	_ = writeDefinitions(validating, require, compiled.ObjectDefinitions, compiled.CaveatDefinitions)
 
-	newRevision, err := validating.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	newRevision, err := validating.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		mutations := make([]*core.RelationTupleUpdate, 0, len(relationships))
 		for _, rel := range relationships {
 			mutations = append(mutations, tuple.Create(rel.CloneVT()))
@@ -242,7 +242,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 
 func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
 	ctx := context.Background()
-	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if len(caveatDefs) > 0 {
 			err := rwt.WriteCaveats(ctx, caveatDefs)
 			require.NoError(err)

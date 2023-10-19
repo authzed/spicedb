@@ -346,7 +346,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	ds := datastoremw.MustFromContext(ctx)
 	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
-	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, rwt); err != nil {
 			return err
 		}

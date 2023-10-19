@@ -176,7 +176,13 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 			spannerRWT,
 			sd.config.disableStats,
 		}
-		if err := fn(rwt); err != nil {
+		err := func() error {
+			innerCtx, innerSpan := tracer.Start(ctx, "TxUserFunc")
+			defer innerSpan.End()
+
+			return fn(innerCtx, rwt)
+		}()
+		if err != nil {
 			if config.DisableRetries {
 				defer cancel()
 			}

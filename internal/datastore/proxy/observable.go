@@ -77,8 +77,8 @@ func (p *observableProxy) ReadWriteTx(
 	f datastore.TxUserFunc,
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	return p.delegate.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
-		return f(&observableRWT{&observableReader{delegateRWT}, delegateRWT})
+	return p.delegate.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
+		return f(ctx, &observableRWT{&observableReader{delegateRWT}, delegateRWT})
 	}, opts...)
 }
 

@@ -211,7 +211,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 	ds := datastoremw.MustFromContext(stream.Context())
 
 	var numWritten uint64
-	if _, err := ds.ReadWriteTx(stream.Context(), func(rwt datastore.ReadWriteTransaction) error {
+	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		loadedNamespaces := make(map[string]*typesystem.TypeSystem)
 		loadedCaveats := make(map[string]*core.CaveatDefinition)
 

@@ -40,9 +40,9 @@ func (p *definitionCachingProxy) ReadWriteTx(
 	f datastore.TxUserFunc,
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	return p.Datastore.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
+	return p.Datastore.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
 		rwt := &definitionCachingRWT{delegateRWT, &sync.Map{}}
-		return f(rwt)
+		return f(ctx, rwt)
 	}, opts...)
 }
 

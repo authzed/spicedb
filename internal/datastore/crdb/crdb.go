@@ -306,7 +306,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 			0,
 		}
 
-		if err := f(rwt); err != nil {
+		if err := f(ctx, rwt); err != nil {
 			return err
 		}
 
