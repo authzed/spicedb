@@ -84,10 +84,12 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	ctx, span := tracer.Start(ctx, "HeadRevision")
+	_, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	resultChan := pgd.headGroup.DoChan("", func() (any, error) {
+	// Ignores any cancellation from the parent context.
+	// Unlike DoChan(), Do() also avoids spawning goroutines.
+	result, err, _ := pgd.headGroup.Do("", func() (any, error) {
 		var snapshot pgSnapshot
 		if err := pgd.readPool.QueryRow(context.Background(), queryCurrentSnapshot).Scan(&snapshot); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -97,13 +99,7 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 		}
 		return postgresRevision{snapshot}, nil
 	})
-
-	select {
-	case <-ctx.Done():
-		return datastore.NoRevision, ctx.Err()
-	case result := <-resultChan:
-		return result.Val.(datastore.Revision), result.Err
-	}
+	return result.(datastore.Revision), err
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {

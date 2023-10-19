@@ -452,10 +452,12 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 }
 
 func (cds *crdbDatastore) readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.Decimal, error) {
-	ctx, span := tracer.Start(ctx, "readCRDBNow")
+	_, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
-	resultChan := cds.headGroup.DoChan("", func() (any, error) {
+	// Ignores any cancellation from the parent context.
+	// Unlike DoChan(), Do() also avoids spawning goroutines.
+	result, err, _ := cds.headGroup.Do("", func() (any, error) {
 		var hlcNow decimal.Decimal
 		if err := reader.QueryRowFunc(context.Background(), func(_ context.Context, row pgx.Row) error {
 			return row.Scan(&hlcNow)
@@ -465,13 +467,7 @@ func (cds *crdbDatastore) readCRDBNow(ctx context.Context, reader pgxcommon.DBFu
 
 		return revision.NewFromDecimal(hlcNow), nil
 	})
-
-	select {
-	case <-ctx.Done():
-		return revision.NoRevision, ctx.Err()
-	case result := <-resultChan:
-		return result.Val.(revision.Decimal), result.Err
-	}
+	return result.(revision.Decimal), err
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {

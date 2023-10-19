@@ -117,10 +117,12 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revisionRaw datastore.R
 func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// slightly changed to support no revisions at all, needed for runtime seeding of first transaction
-	ctx, span := tracer.Start(ctx, "loadRevision")
+	_, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()
 
-	resultChan := mds.headGroup.DoChan("", func() (any, error) {
+	// Ignores any cancellation from the parent context.
+	// Unlike DoChan(), Do() also avoids spawning goroutines.
+	result, err, _ := mds.headGroup.Do("", func() (any, error) {
 		query, args, err := mds.GetLastRevision.ToSql()
 		if err != nil {
 			return uint64(0), fmt.Errorf(errRevision, err)
@@ -141,13 +143,7 @@ func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
 
 		return *revision, nil
 	})
-
-	select {
-	case <-ctx.Done():
-		return uint64(0), ctx.Err()
-	case result := <-resultChan:
-		return result.Val.(uint64), result.Err
-	}
+	return result.(uint64), err
 }
 
 func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint64) (bool, bool, error) {
