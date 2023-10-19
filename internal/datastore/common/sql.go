@@ -496,8 +496,6 @@ func (tqs QueryExecutor) ExecuteQuery(
 	query SchemaQueryFilterer,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	ctx, span := tracer.Start(ctx, "ExecuteQuery")
-	defer span.End()
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
 	query = query.TupleOrder(queryOpts.Sort)
