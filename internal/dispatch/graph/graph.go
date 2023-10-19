@@ -158,8 +158,10 @@ func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceD
 
 // DispatchCheck implements dispatch.Check interface
 func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	ctx, span := tracer.Start(ctx, "DispatchCheck", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
+	resourceType := tuple.StringRR(req.ResourceRelation)
+	spanName := "DispatchCheck → " + resourceType + "@" + req.Subject.Namespace + "#" + req.Subject.Relation
+	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
+		attribute.String("resource-type", resourceType),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
 		attribute.String("subject", tuple.StringONR(req.Subject)),
 	))
