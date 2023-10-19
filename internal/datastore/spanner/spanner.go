@@ -12,6 +12,8 @@ import (
 	spb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 
@@ -115,11 +117,42 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	return ds, nil
 }
 
+type traceableRTX struct {
+	delegate readTX
+}
+
+func (t *traceableRTX) ReadRow(ctx context.Context, table string, key spanner.Key, columns []string) (*spanner.Row, error) {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("spannerAPI", "ReadOnlyTransaction.ReadRow"),
+		attribute.String("table", table),
+		attribute.String("key", key.String()),
+		attribute.StringSlice("columns", columns))
+
+	return t.delegate.ReadRow(ctx, table, key, columns)
+}
+
+func (t *traceableRTX) Read(ctx context.Context, table string, keys spanner.KeySet, columns []string) *spanner.RowIterator {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("spannerAPI", "ReadOnlyTransaction.Read"),
+		attribute.String("table", table),
+		attribute.StringSlice("columns", columns))
+
+	return t.delegate.Read(ctx, table, keys, columns)
+}
+
+func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *spanner.RowIterator {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("spannerAPI", "ReadOnlyTransaction.Query"),
+		attribute.String("statement", statement.SQL))
+
+	return t.delegate.Query(ctx, statement)
+}
+
 func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
 	r := revisionRaw.(revision.Decimal)
 
 	txSource := func() readTX {
-		return sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))
+		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))}
 	}
 	executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
 	return spannerReader{executor, txSource}
@@ -128,10 +161,13 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	config := options.NewRWTOptionsWithOptions(opts...)
 
+	ctx, span := tracer.Start(ctx, "ReadWriteTx")
+	defer span.End()
+
 	ctx, cancel := context.WithCancel(ctx)
 	resp, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
 		txSource := func() readTX {
-			return spannerRWT
+			return &traceableRTX{delegate: spannerRWT}
 		}
 
 		executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
