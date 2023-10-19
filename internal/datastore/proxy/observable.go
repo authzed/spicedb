@@ -193,7 +193,11 @@ func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName strin
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	ctx, closer := observe(ctx, "QueryRelationships")
+	ctx, closer := observe(ctx, "QueryRelationships", trace.WithAttributes(
+		attribute.String("resourceType", filter.ResourceType),
+		attribute.String("resourceRelation", filter.OptionalResourceRelation),
+		attribute.String("caveatName", filter.OptionalCaveatName),
+	))
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)
 	if err != nil {
