@@ -275,9 +275,12 @@ func (ld *localDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
-	ctx, span := tracer.Start(stream.Context(), "DispatchReachableResources", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
-		attribute.String("subject-type", tuple.StringRR(req.SubjectRelation)),
+	resourceType := tuple.StringRR(req.ResourceRelation)
+	subjectRelation := tuple.StringRR(req.SubjectRelation)
+	spanName := "DispatchReachableResources → " + resourceType + "@" + subjectRelation
+	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
+		attribute.String("resource-type", resourceType),
+		attribute.String("subject-type", subjectRelation),
 		attribute.StringSlice("subject-ids", req.SubjectIds),
 	))
 	defer span.End()
