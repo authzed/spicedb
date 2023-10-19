@@ -8,6 +8,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -25,6 +27,8 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+var tracer = otel.Tracer("spicedb/internal/graph/check")
 
 var dispatchChunkCountHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Name:    "spicedb_check_dispatch_chunk_count",
@@ -204,8 +208,8 @@ type directDispatch struct {
 }
 
 func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequestContext, relation *core.Relation) CheckResult {
-	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
-	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	ctx, span := tracer.Start(ctx, "checkDirect")
+	defer span.End()
 
 	// Build a filter for finding the direct relationships for the check. There are three
 	// classes of relationships to be found:
@@ -216,6 +220,18 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	hasNonTerminals := false
 	hasDirectSubject := false
 	hasWildcardSubject := false
+
+	defer func() {
+		if hasNonTerminals {
+			span.SetName("non terminal")
+		} else if hasDirectSubject {
+			span.SetName("terminal")
+		} else {
+			span.SetName("wildcard subject")
+		}
+	}()
+	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
 	for _, allowedDirectRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
 		// If the namespace of the allowed direct relation matches the subject type, there are two
@@ -430,10 +446,19 @@ func mapFoundResources(result CheckResult, resourceType *core.RelationReference,
 func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, crc currentRequestContext, rewrite *core.UsersetRewrite) CheckResult {
 	switch rw := rewrite.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
+		if len(rw.Union.Child) > 1 {
+			var span trace.Span
+			ctx, span = tracer.Start(ctx, "+")
+			defer span.End()
+		}
 		return union(ctx, crc, rw.Union.Child, cc.runSetOperation, cc.concurrencyLimit)
 	case *core.UsersetRewrite_Intersection:
+		ctx, span := tracer.Start(ctx, "&")
+		defer span.End()
 		return all(ctx, crc, rw.Intersection.Child, cc.runSetOperation, cc.concurrencyLimit)
 	case *core.UsersetRewrite_Exclusion:
+		ctx, span := tracer.Start(ctx, "-")
+		defer span.End()
 		return difference(ctx, crc, rw.Exclusion.Child, cc.runSetOperation, cc.concurrencyLimit)
 	default:
 		return checkResultError(fmt.Errorf("unknown userset rewrite operator"), emptyMetadata)
@@ -464,6 +489,9 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 }
 
 func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc currentRequestContext, cu *core.ComputedUserset, rr *core.RelationReference, resourceIds []string) CheckResult {
+	ctx, span := tracer.Start(ctx, cu.Relation)
+	defer span.End()
+
 	var startNamespace string
 	var targetResourceIds []string
 	if cu.Object == core.ComputedUserset_TUPLE_USERSET_OBJECT {
@@ -545,6 +573,9 @@ func removeIndexFromSlice[T any](s []T, index int) []T {
 }
 
 func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc currentRequestContext, ttu *core.TupleToUserset) CheckResult {
+	ctx, span := tracer.Start(ctx, ttu.Tupleset.Relation+"->"+ttu.ComputedUserset.Relation)
+	defer span.End()
+
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
