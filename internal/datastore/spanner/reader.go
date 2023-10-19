@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -72,14 +74,14 @@ func (sr spannerReader) ReverseQueryRelationships(
 
 func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
-		ctx, span := tracer.Start(ctx, "ExecuteQuery")
-		defer span.End()
-
+		span := trace.SpanFromContext(ctx)
+		span.AddEvent("Query issued to database")
 		iter := txSource().Query(ctx, statementFromSQL(sql, args))
 		defer iter.Stop()
 
 		var tuples []*core.RelationTuple
 
+		span.AddEvent("start reading iterator")
 		if err := iter.Do(func(row *spanner.Row) error {
 			nextTuple := &core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{},
@@ -113,6 +115,8 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 			return nil, err
 		}
 
+		span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
+		span.SetAttributes(attribute.Int("count", len(tuples)))
 		return tuples, nil
 	}
 }
@@ -155,7 +159,7 @@ func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revi
 	)
 	defer iter.Stop()
 
-	allNamespaces, err := readAllNamespaces(iter)
+	allNamespaces, err := readAllNamespaces(iter, trace.SpanFromContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -181,7 +185,7 @@ func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames [
 	)
 	defer iter.Stop()
 
-	foundNamespaces, err := readAllNamespaces(iter)
+	foundNamespaces, err := readAllNamespaces(iter, trace.SpanFromContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -189,8 +193,9 @@ func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames [
 	return foundNamespaces, nil
 }
 
-func readAllNamespaces(iter *spanner.RowIterator) ([]datastore.RevisionedNamespace, error) {
+func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.RevisionedNamespace, error) {
 	var allNamespaces []datastore.RevisionedNamespace
+	span.AddEvent("start reading iterator")
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
 		var updated time.Time
@@ -212,7 +217,8 @@ func readAllNamespaces(iter *spanner.RowIterator) ([]datastore.RevisionedNamespa
 	}); err != nil {
 		return nil, err
 	}
-
+	span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("namespaceCount", len(allNamespaces))))
+	span.SetAttributes(attribute.Int("count", len(allNamespaces)))
 	return allNamespaces, nil
 }
 
