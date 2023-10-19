@@ -51,7 +51,7 @@ func TestApplySchemaChanges(t *testing.T) {
 	validated, err := ValidateSchemaChanges(context.Background(), compiled, false)
 	require.NoError(err)
 
-	_, err = ds.ReadWriteTx(context.Background(), func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		applied, err := ApplySchemaChanges(context.Background(), rwt, validated)
 		require.NoError(err)
 

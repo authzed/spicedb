@@ -79,7 +79,7 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	revToTest, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revToTest, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)
@@ -103,7 +103,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	defer cancel()
 
 	testCaveat := createCoreCaveat(t)
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if err := rwt.WriteNamespaces(ctx, ns.Namespace("foo/createdtxgc")); err != nil {
 			return err
 		}
@@ -113,7 +113,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	previousRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	previousRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)
@@ -158,7 +158,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(ds.CheckRevision(ctx, head), "expected freshly obtained head revision to be valid")
 
 	// write happens, we get a new head revision
-	newerRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	newerRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, testNamespace)
 	})
 	require.NoError(err)

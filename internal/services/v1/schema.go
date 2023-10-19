@@ -120,7 +120,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	}
 
 	// Update the schema.
-	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, validated)
 		if err != nil {
 			return err

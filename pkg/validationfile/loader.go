@@ -109,7 +109,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 	}
 
 	// Load the definitions and relationships into the datastore.
-	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write the caveat definitions.
 		err := rwt.WriteCaveats(ctx, caveatDefs)
 		if err != nil {
@@ -154,7 +154,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		for _, update := range chunked {
 			chunkedTuples = append(chunkedTuples, update.Tuple)
 		}
-		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		revision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, chunkedTuples)
 			if err != nil {
 				return err

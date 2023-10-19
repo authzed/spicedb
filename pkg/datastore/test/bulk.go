@@ -33,7 +33,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 				t,
 			)
 
-			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				loaded, err := rwt.BulkLoad(ctx, bulkSource)
 				require.NoError(err)
 				require.Equal(uint64(tc), loaded)
@@ -66,7 +66,7 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		inserted, err := rwt.BulkLoad(ctx, &onlyErrorSource{})
 
 		// We can't check the specific error because pgx is not wrapping

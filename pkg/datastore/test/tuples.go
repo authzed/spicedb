@@ -235,7 +235,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			tRequire.TupleExists(ctx, testTuples[0], returnedAt)
 
 			// Delete with DeleteRelationship
-			deletedAt, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			deletedAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType: testResourceNamespace,
 				})
@@ -269,7 +269,7 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(tpl.Validate())
 
 			// Write the test tuple
-			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 					{
 						Operation: core.RelationTupleUpdate_CREATE,
@@ -386,7 +386,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			// TODO temporarily store tuples in multiple calls to ReadWriteTransaction since no Datastore
 			// handles correctly duplicate tuples
-			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				for _, tpl := range tt.inputTuples {
 					update := tuple.Touch(tpl)
 					err := rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{update})
@@ -398,7 +398,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			})
 			require.NoError(err)
 
-			deletedAt, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				err := rwt.DeleteRelationships(ctx, tt.filter)
 				require.NoError(err)
 				return err
@@ -474,7 +474,7 @@ func DeleteNotExistantTest(t *testing.T, tester DatastoreTester) {
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
 		})
@@ -495,7 +495,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write the relationship.
 		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom#...")),
@@ -503,7 +503,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Delete the relationship.
 		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
@@ -511,7 +511,7 @@ func DeleteAlreadyDeletedTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(err)
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Delete the relationship again.
 		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom#...")),
@@ -696,7 +696,7 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 			ResourceType: "document",
 		})
@@ -735,7 +735,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	startTime := time.Now()
 
 	g.Go(func() error {
-		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType: testResourceNamespace,
 			})
@@ -760,7 +760,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 
 	<-waitToStart
 
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		defer waitToFinishCloser.Do(func() {
 			close(waitToFinish)
 		})

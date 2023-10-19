@@ -37,9 +37,9 @@ func (vd validatingDatastore) ReadWriteTx(
 		return datastore.NoRevision, fmt.Errorf("nil delegate function")
 	}
 
-	return vd.Datastore.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	return vd.Datastore.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		txDelegate := validatingReadWriteTransaction{validatingSnapshotReader{rwt}, rwt}
-		return f(txDelegate)
+		return f(ctx, txDelegate)
 	}, opts...)
 }
 

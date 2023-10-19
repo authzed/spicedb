@@ -80,7 +80,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	}
 
 	var inputErrors []*devinterface.DeveloperError
-	currentRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		inputErrors, err = loadCompiled(ctx, compiled, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err

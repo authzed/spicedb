@@ -26,9 +26,6 @@ func (sd spannerDatastore) HeadRevision(ctx context.Context) (datastore.Revision
 }
 
 func (sd spannerDatastore) now(ctx context.Context) (time.Time, error) {
-	ctx, span := tracer.Start(ctx, "now")
-	defer span.End()
-
 	var timestamp time.Time
 	if err := sd.client.Single().Query(ctx, spanner.NewStatement("SELECT CURRENT_TIMESTAMP()")).Do(func(r *spanner.Row) error {
 		return r.Columns(&timestamp)

@@ -69,7 +69,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 			}
 
 			// Check a reader from with a transaction
-			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					ResourceType: tc.resourceType,
 				}, options.WithSort(tc.ordering))
@@ -384,7 +384,7 @@ func foreachTxType(
 	reader := ds.SnapshotReader(snapshotRev)
 	fn(reader)
 
-	_, _ = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		fn(rwt)
 		return nil
 	})

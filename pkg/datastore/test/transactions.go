@@ -40,7 +40,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 			defer cancel()
 
 			var attempts int
-			_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				attempts++
 
 				if tc.returnRetryableError {

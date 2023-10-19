@@ -347,7 +347,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 				newXID,
 			}
 
-			return fn(rwt)
+			return fn(ctx, rwt)
 		}))
 
 		if err != nil {

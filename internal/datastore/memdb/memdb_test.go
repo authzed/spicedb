@@ -46,7 +46,7 @@ func TestConcurrentWritePanic(t *testing.T) {
 
 	numPanics := uint64(0)
 	require.Eventually(func() bool {
-		_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			g := errgroup.Group{}
 			g.Go(func() (err error) {
 				defer func() {
@@ -94,7 +94,7 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		i := i
 		g.Go(func() error {
-			_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				updates := []*corev1.RelationTupleUpdate{}
 				for j := 0; j < 500; j++ {
 					updates = append(updates, &corev1.RelationTupleUpdate{

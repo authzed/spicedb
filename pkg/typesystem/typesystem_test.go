@@ -361,7 +361,7 @@ func TestTypeSystem(t *testing.T) {
 
 			ctx := context.Background()
 
-			lastRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				for _, otherNS := range tc.otherNamespaces {
 					if err := rwt.WriteNamespaces(ctx, otherNS); err != nil {
 						return err

@@ -239,7 +239,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	r, err := ds.ReadyState(ctx)
 	require.NoError(err)
 	require.True(r.IsReady)
-	firstWrite, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	firstWrite, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write basic namespaces.
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
@@ -258,7 +258,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Replace the namespace with a new one.
-	updateTwoNamespaces, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	updateTwoNamespaces, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -367,7 +367,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
 
 	// Inject a transaction to clean up the last write
-	lastRev, err := pds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	lastRev, err := pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return nil
 	})
 	require.NoError(err)
@@ -426,7 +426,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
@@ -469,7 +469,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Inject a revision to sweep up the last revision
-	_, err = pds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return nil
 	})
 	require.NoError(err)
@@ -501,7 +501,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
@@ -549,7 +549,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Inject a revision to sweep up the last revision
-	_, err = pds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return nil
 	})
 	require.NoError(err)
@@ -703,7 +703,7 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
@@ -719,7 +719,7 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	var commitLastRev, commitFirstRev datastore.Revision
 	g.Go(func() error {
 		var err error
-		commitLastRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			rtu := tuple.Touch(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{
 					Namespace: "resource",
@@ -746,7 +746,7 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 
 	<-waitToStart
 
-	commitFirstRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		rtu := tuple.Touch(&core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
@@ -805,7 +805,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.True(r.IsReady)
 
 	// Write basic namespaces.
-	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
@@ -852,7 +852,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	var commitLastRev, commitFirstRev datastore.Revision
 	g.Go(func() error {
 		var err error
-		commitLastRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 				tuple.Touch(tuple.MustParse("something:001#viewer@user:123")),
 				tuple.Touch(tuple.MustParse("something:002#viewer@user:123")),
@@ -871,7 +871,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 
 	<-waitToStart
 
-	commitFirstRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 			tuple.Touch(tuple.MustParse("resource:1001#reader@user:456")),
 			tuple.Touch(tuple.MustParse("resource:1002#reader@user:456")),
@@ -889,7 +889,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.False(commitFirstRev.Equal(commitLastRev))
 
 	// Write another revision.
-	afterRev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	afterRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		rtu := tuple.Touch(&core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
@@ -1031,7 +1031,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(r.IsReady)
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace(
 			"resource",
 			namespace.MustRelation("reader", nil),
@@ -1047,7 +1047,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	var commitLastRev, commitFirstRev datastore.Revision
 	g.Go(func() error {
 		var err error
-		commitLastRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			rtu := tuple.Touch(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{
 					Namespace: "resource",
@@ -1074,7 +1074,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 
 	<-waitToStart
 
-	commitFirstRev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		rtu := tuple.Touch(&core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{
 				Namespace: "resource",
@@ -1112,7 +1112,7 @@ func OTelTracingTest(t *testing.T, ds datastore.Datastore) {
 	testTraceProvider.RegisterSpanProcessor(spanrecorder)
 
 	// Perform basic operation
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, namespace.Namespace("resource"))
 	})
 	require.NoError(err)
@@ -1207,7 +1207,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	// Write namespaces and a few thousand relationships.
 	ctx := context.Background()
 	for i := 0; i < 1000; i++ {
-		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			err := rwt.WriteNamespaces(ctx, namespace.Namespace(
 				fmt.Sprintf("resource%d", i),
 				namespace.MustRelation("reader", nil)))
@@ -1262,7 +1262,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 
 	// Delete some relationships.
 	for i := 990; i < 1000; i++ {
-		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			rtu := tuple.Delete(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{
 					Namespace: testfixtures.DocumentNS.Name,
@@ -1295,7 +1295,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 
 	// Write some more relationships.
 	for i := 1000; i < 1100; i++ {
-		_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			// Write some relationships.
 			rtu := tuple.Touch(&core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{

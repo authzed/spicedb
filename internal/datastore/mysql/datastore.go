@@ -314,7 +314,7 @@ func (mds *Datastore) ReadWriteTx(
 				newTxnID,
 			}
 
-			return fn(rwt)
+			return fn(ctx, rwt)
 		}); err != nil {
 			if !config.DisableRetries && isErrorRetryable(err) {
 				continue

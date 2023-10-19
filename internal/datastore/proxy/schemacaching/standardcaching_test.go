@@ -219,7 +219,7 @@ func TestRWTCaching(t *testing.T) {
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching)
 
-			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				_, updatedA, err := tester.readSingleFunc(ctx, rwt, nsA)
 				require.NoError(err)
 				require.True(zero.Equal(updatedA))
@@ -256,7 +256,7 @@ func TestRWTCacheWithWrites(t *testing.T) {
 
 			ds := NewCachingDatastoreProxy(dsMock, nil, 1*time.Hour, JustInTimeCaching)
 
-			rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				// Cache the 404
 				_, _, err := tester.readSingleFunc(ctx, rwt, nsA)
 				require.Error(err, tester.notFoundErr)
@@ -374,7 +374,7 @@ func TestSnapshotCachingRealDatastore(t *testing.T) {
 			ds := NewCachingDatastoreProxy(rawDS, nil, 1*time.Hour, JustInTimeCaching)
 
 			if tc.nsDef != nil {
-				_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+				_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 					err := rwt.WriteNamespaces(ctx, tc.nsDef)
 					if err != nil {
 						return err

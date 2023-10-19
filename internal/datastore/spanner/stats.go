@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -40,7 +41,7 @@ func (sd spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, err
 	)
 	defer iter.Stop()
 
-	allNamespaces, err := readAllNamespaces(iter)
+	allNamespaces, err := readAllNamespaces(iter, trace.SpanFromContext(ctx))
 	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to read namespaces: %w", err)
 	}

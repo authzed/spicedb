@@ -181,7 +181,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	writtenAt, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -202,7 +202,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Zero(removed.Namespaces)
 
 	// Replace the namespace with a new one.
-	writtenAt, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	writtenAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -322,7 +322,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -419,7 +419,7 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -456,7 +456,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(

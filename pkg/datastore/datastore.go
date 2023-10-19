@@ -273,7 +273,7 @@ type ReadWriteTransaction interface {
 }
 
 // TxUserFunc is a type for the function that users supply when they invoke a read-write transaction.
-type TxUserFunc func(ReadWriteTransaction) error
+type TxUserFunc func(context.Context, ReadWriteTransaction) error
 
 // ReadyState represents the ready state of the datastore.
 type ReadyState struct {
