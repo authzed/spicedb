@@ -337,9 +337,13 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	req *v1.DispatchLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
 ) error {
-	ctx, span := tracer.Start(stream.Context(), "DispatchLookupSubjects", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
-		attribute.String("subject-type", tuple.StringRR(req.SubjectRelation)),
+	resourceType := tuple.StringRR(req.ResourceRelation)
+	subjectRelation := tuple.StringRR(req.SubjectRelation)
+	spanName := "DispatchLookupSubjects → " + resourceType + "@" + subjectRelation
+
+	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
+		attribute.String("resource-type", resourceType),
+		attribute.String("subject-type", subjectRelation),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
 	))
 	defer span.End()
