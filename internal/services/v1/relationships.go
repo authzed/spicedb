@@ -10,6 +10,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -248,6 +249,8 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
 	ds := datastoremw.MustFromContext(ctx)
 
+	span := trace.SpanFromContext(ctx)
+	span.AddEvent("validating mutations")
 	// Ensure that the updates and preconditions are not over the configured limits.
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
 		return nil, ps.rewriteError(
@@ -282,8 +285,10 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}
 
 	// Execute the write operation(s).
+	span.AddEvent("read write transaction")
 	tupleUpdates := tuple.UpdateFromRelationshipUpdates(req.Updates)
-	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		span.AddEvent("preconditions")
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
@@ -292,6 +297,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 
 		// Validate the updates.
+		span.AddEvent("validate updates")
 		err := relationships.ValidateRelationshipUpdates(ctx, rwt, tupleUpdates)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
@@ -302,10 +308,12 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
 		})
 
+		span.AddEvent("preconditions")
 		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
 			return err
 		}
 
+		span.AddEvent("write relationships")
 		return rwt.WriteRelationships(ctx, tupleUpdates)
 	})
 	if err != nil {
