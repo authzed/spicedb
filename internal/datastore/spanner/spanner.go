@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	spb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -165,7 +164,7 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 	defer span.End()
 
 	ctx, cancel := context.WithCancel(ctx)
-	resp, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
+	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
 		txSource := func() readTX {
 			return &traceableRTX{delegate: spannerRWT}
 		}
@@ -190,7 +189,7 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 		}
 
 		return nil
-	}, spanner.TransactionOptions{ReadLockMode: spb.TransactionOptions_ReadWrite_OPTIMISTIC})
+	})
 	if err != nil {
 		if cerr := convertToWriteConstraintError(err); cerr != nil {
 			return datastore.NoRevision, cerr
@@ -198,7 +197,7 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTimestamp(resp.CommitTs), nil
+	return revisionFromTimestamp(ts), nil
 }
 
 func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
