@@ -1,10 +1,21 @@
 package graph
 
 import (
+	"context"
 	"testing"
 
+	"github.com/authzed/spicedb/internal/graph"
+
+	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+func TestUnwrapStatusError(t *testing.T) {
+	err := rewriteError(context.Background(), graph.NewCheckFailureErr(status.Error(codes.Canceled, "canceled")))
+	grpcutil.RequireStatus(t, codes.Canceled, err)
+}
 
 func TestConcurrencyLimitsWithOverallDefaultLimit(t *testing.T) {
 	cl := ConcurrencyLimits{}

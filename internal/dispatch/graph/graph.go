@@ -9,9 +9,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -129,7 +132,7 @@ func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, rev
 	// Load namespace and relation from the datastore
 	ns, _, err := ds.ReadNamespaceByName(ctx, nsName)
 	if err != nil {
-		return nil, rewriteError(err)
+		return nil, rewriteNamespaceError(err)
 	}
 
 	return ns, err
@@ -173,7 +176,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 				Metadata: &v1.ResponseMeta{
 					DispatchCount: 0,
 				},
-			}, err
+			}, rewriteError(ctx, err)
 		}
 
 		// NOTE: we return debug information here to ensure tooling can see the cycle.
@@ -186,22 +189,22 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 					},
 				},
 			},
-		}, err
+		}, rewriteError(ctx, err)
 	}
 
 	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
 	ns, err := ld.loadNamespace(ctx, req.ResourceRelation.Namespace, revision)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
 	relation, err := ld.lookupRelation(ctx, ns, req.ResourceRelation.Relation)
 	if err != nil {
-		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+		return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 	}
 
 	// If the relation is aliasing another one and the subject does not have the same type as
@@ -211,7 +214,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 	if relation.AliasingRelation != "" && req.ResourceRelation.Namespace != req.Subject.Namespace {
 		relation, err := ld.lookupRelation(ctx, ns, relation.AliasingRelation)
 		if err != nil {
-			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, err
+			return &v1.DispatchCheckResponse{Metadata: emptyMetadata}, rewriteError(ctx, err)
 		}
 
 		// Rewrite the request over the aliased relation.
@@ -229,13 +232,15 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 			Revision: revision,
 		}
 
-		return ld.checker.Check(ctx, validatedReq, relation)
+		resp, err := ld.checker.Check(ctx, validatedReq, relation)
+		return resp, rewriteError(ctx, err)
 	}
 
-	return ld.checker.Check(ctx, graph.ValidatedCheckRequest{
+	resp, err := ld.checker.Check(ctx, graph.ValidatedCheckRequest{
 		DispatchCheckRequest: req,
 		Revision:             revision,
 	}, relation)
+	return resp, rewriteError(ctx, err)
 }
 
 // DispatchExpand implements dispatch.Expand interface
@@ -374,7 +379,7 @@ func (ld *localDispatcher) ReadyState() dispatch.ReadyState {
 	return dispatch.ReadyState{IsReady: true}
 }
 
-func rewriteError(original error) error {
+func rewriteNamespaceError(original error) error {
 	nsNotFound := datastore.ErrNamespaceNotFound{}
 
 	switch {
@@ -386,6 +391,35 @@ func rewriteError(original error) error {
 		return original
 	default:
 		return fmt.Errorf(errDispatch, original)
+	}
+}
+
+// rewriteError transforms graph errors into a gRPC Status
+func rewriteError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check if the error can be directly used.
+	if st, ok := status.FromError(err); ok {
+		return st.Err()
+	}
+
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Errorf(codes.DeadlineExceeded, "%s", err)
+	case errors.Is(err, context.Canceled):
+		err := context.Cause(ctx)
+		if err != nil {
+			if _, ok := status.FromError(err); ok {
+				return err
+			}
+		}
+
+		return status.Errorf(codes.Canceled, "%s", err)
+	default:
+		log.Ctx(ctx).Err(err).Msg("received unexpected graph error")
+		return err
 	}
 }
 
