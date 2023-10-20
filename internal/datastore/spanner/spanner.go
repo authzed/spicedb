@@ -88,8 +88,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
-	client, err := spanner.NewClientWithConfig(context.Background(), database,
-		spanner.ClientConfig{SessionPoolConfig: spanner.DefaultSessionPoolConfig, Compression: "gzip"},
+	client, err := spanner.NewClient(context.Background(), database,
 		option.WithCredentialsFile(config.credentialsFilePath),
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 	)
