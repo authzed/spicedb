@@ -130,12 +130,17 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	case consistency.GetAtLeastAsFresh() != nil:
 		// At least as fresh as: Pick one of the datastore's revision and that specified, which
 		// ever is later.
-		ConsistentyCounter.WithLabelValues("atleast", "request").Inc()
-
-		picked, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
+		picked, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
 		if err != nil {
 			return rewriteDatastoreError(ctx, err)
 		}
+
+		source := "server"
+		if pickedRequest {
+			source = "request"
+		}
+		ConsistentyCounter.WithLabelValues("atleast", source).Inc()
+
 		revision = picked
 
 	case consistency.GetAtExactSnapshot() != nil:
@@ -216,26 +221,29 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 	return AddRevisionToContext(s.ctx, m, ds)
 }
 
-func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (datastore.Revision, error) {
+// pickBestRevision compares the provided ZedToken with the optimized revision of the datastore, and returns the most
+// recent one. The boolean return value will be true if the provided ZedToken is the most recent, false otherwise.
+func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (datastore.Revision, bool, error) {
 	// Calculate a revision as we see fit
 	databaseRev, err := ds.OptimizedRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.NoRevision, false, err
 	}
 
 	if requested != nil {
 		requestedRev, err := zedtoken.DecodeRevision(requested, ds)
 		if err != nil {
-			return datastore.NoRevision, errInvalidZedToken
+			return datastore.NoRevision, false, errInvalidZedToken
 		}
 
 		if databaseRev.GreaterThan(requestedRev) {
-			return databaseRev, nil
+			return databaseRev, false, nil
 		}
-		return requestedRev, nil
+
+		return requestedRev, true, nil
 	}
 
-	return databaseRev, nil
+	return databaseRev, false, nil
 }
 
 func rewriteDatastoreError(ctx context.Context, err error) error {
