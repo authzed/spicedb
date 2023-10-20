@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
+	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
@@ -143,7 +144,7 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
-	return ds, nil
+	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
 type traceableRTX struct {
