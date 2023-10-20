@@ -81,8 +81,9 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 
 		var tuples []*core.RelationTuple
 
-		span.AddEvent("start reading iterator")
+		span.AddEvent("start reading tuple iterator")
 		if err := iter.Do(func(row *spanner.Row) error {
+			span.AddEvent("received row")
 			nextTuple := &core.RelationTuple{
 				ResourceAndRelation: &core.ObjectAndRelation{},
 				Subject:             &core.ObjectAndRelation{},
@@ -109,13 +110,13 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 			}
 
 			tuples = append(tuples, nextTuple)
-
+			span.AddEvent("processed row")
 			return nil
 		}); err != nil {
 			return nil, err
 		}
 
-		span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
+		span.AddEvent("finished reading tuple iterator", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 		span.SetAttributes(attribute.Int("count", len(tuples)))
 		return tuples, nil
 	}
@@ -195,7 +196,7 @@ func (sr spannerReader) LookupNamespacesWithNames(ctx context.Context, nsNames [
 
 func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.RevisionedNamespace, error) {
 	var allNamespaces []datastore.RevisionedNamespace
-	span.AddEvent("start reading iterator")
+	span.AddEvent("start reading namespace iterator")
 	if err := iter.Do(func(row *spanner.Row) error {
 		var serialized []byte
 		var updated time.Time
@@ -217,7 +218,7 @@ func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.
 	}); err != nil {
 		return nil, err
 	}
-	span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("namespaceCount", len(allNamespaces))))
+	span.AddEvent("finished reading namespace iterator", trace.WithAttributes(attribute.Int("namespaceCount", len(allNamespaces))))
 	span.SetAttributes(attribute.Int("count", len(allNamespaces)))
 	return allNamespaces, nil
 }
