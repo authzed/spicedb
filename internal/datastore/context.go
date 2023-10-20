@@ -3,9 +3,6 @@ package datastore
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/trace"
-
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
@@ -17,15 +14,7 @@ import (
 // killing database connections that should otherwise go back to the connection
 // pool.
 func SeparateContextWithTracing(ctx context.Context) context.Context {
-	span := trace.SpanFromContext(ctx)
-	ctxWithObservability := trace.ContextWithSpan(context.Background(), span)
-
-	loggerFromContext := log.Ctx(ctx)
-	if loggerFromContext != nil {
-		ctxWithObservability = loggerFromContext.WithContext(ctxWithObservability)
-	}
-
-	return ctxWithObservability
+	return context.WithoutCancel(ctx)
 }
 
 // NewSeparatingContextDatastoreProxy severs any timeouts in the context being
