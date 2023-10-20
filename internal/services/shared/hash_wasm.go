@@ -1,24 +1,22 @@
-//go:build !wasm
-// +build !wasm
-
-package v1
+package shared
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"sort"
 
-	"github.com/cespare/xxhash/v2"
 	"golang.org/x/exp/maps"
 )
 
 func computeAPICallHash(apiName string, arguments map[string]string) (string, error) {
-	hasher := xxhash.New()
-	_, err := hasher.WriteString(apiName)
+	h := sha256.New()
+
+	_, err := h.Write([]byte(apiName))
 	if err != nil {
 		return "", err
 	}
 
-	_, err = hasher.WriteString(":")
+	_, err = h.Write([]byte(":"))
 	if err != nil {
 		return "", err
 	}
@@ -27,26 +25,26 @@ func computeAPICallHash(apiName string, arguments map[string]string) (string, er
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		_, err = hasher.WriteString(key)
+		_, err = h.Write([]byte(key))
 		if err != nil {
 			return "", err
 		}
 
-		_, err = hasher.WriteString(":")
+		_, err = h.Write([]byte(":"))
 		if err != nil {
 			return "", err
 		}
 
-		_, err = hasher.WriteString(arguments[key])
+		_, err = h.Write([]byte(arguments[key]))
 		if err != nil {
 			return "", err
 		}
 
-		_, err = hasher.WriteString(";")
+		_, err = h.Write([]byte(";"))
 		if err != nil {
 			return "", err
 		}
 	}
 
-	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

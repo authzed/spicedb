@@ -28,6 +28,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
+	singleflightmw "github.com/authzed/spicedb/internal/middleware/singleflight"
 	"github.com/authzed/spicedb/pkg/datastore"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -276,6 +277,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			grpcprom.UnaryServerInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
+			singleflightmw.UnaryServerInterceptor(),
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
