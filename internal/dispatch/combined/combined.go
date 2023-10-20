@@ -3,6 +3,7 @@
 package combined
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/authzed/grpcutil"
@@ -23,15 +24,17 @@ import (
 type Option func(*optionState)
 
 type optionState struct {
-	metricsEnabled        bool
-	prometheusSubsystem   string
-	upstreamAddr          string
-	upstreamCAPath        string
-	grpcPresharedKey      string
-	grpcDialOpts          []grpc.DialOption
-	cache                 cache.Cache
-	concurrencyLimits     graph.ConcurrencyLimits
-	remoteDispatchTimeout time.Duration
+	metricsEnabled         bool
+	prometheusSubsystem    string
+	upstreamAddr           string
+	upstreamCAPath         string
+	grpcPresharedKey       string
+	grpcDialOpts           []grpc.DialOption
+	cache                  cache.Cache
+	concurrencyLimits      graph.ConcurrencyLimits
+	remoteDispatchTimeout  time.Duration
+	secondaryUpstreamAddrs map[string]string
+	secondaryUpstreamExprs map[string]string
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -60,6 +63,23 @@ func UpstreamAddr(addr string) Option {
 func UpstreamCAPath(path string) Option {
 	return func(state *optionState) {
 		state.upstreamCAPath = path
+	}
+}
+
+// SecondaryUpstreamAddrs sets a named map of upstream addresses for secondary
+// dispatching.
+func SecondaryUpstreamAddrs(addrs map[string]string) Option {
+	return func(state *optionState) {
+		state.secondaryUpstreamAddrs = addrs
+	}
+}
+
+// SecondaryUpstreamExprs sets a named map from dispatch type to the associated
+// CEL expression to run to determine which secondary dispatch addresses (if any)
+// to use for that incoming request.
+func SecondaryUpstreamExprs(addrs map[string]string) Option {
+	return func(state *optionState) {
+		state.secondaryUpstreamExprs = addrs
 	}
 }
 
@@ -141,10 +161,32 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
+		for name, addr := range opts.secondaryUpstreamAddrs {
+			secondaryConn, err := grpc.Dial(addr, opts.grpcDialOpts...)
+			if err != nil {
+				return nil, err
+			}
+			secondaryClients[name] = remote.SecondaryDispatch{
+				Name:   name,
+				Client: v1.NewDispatchServiceClient(secondaryConn),
+			}
+		}
+
+		secondaryExprs := make(map[string]*remote.DispatchExpr, len(opts.secondaryUpstreamExprs))
+		for name, exprString := range opts.secondaryUpstreamExprs {
+			parsed, err := remote.ParseDispatchExpression(name, exprString)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing secondary dispatch expr `%s` for method `%s`: %w", exprString, name, err)
+			}
+			secondaryExprs[name] = parsed
+		}
+
 		redispatch = remote.NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, remote.ClusterDispatcherConfig{
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
-		})
+		}, secondaryClients, secondaryExprs)
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

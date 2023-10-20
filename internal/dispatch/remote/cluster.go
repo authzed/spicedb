@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/authzed/consistent"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -18,7 +22,18 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-type clusterClient interface {
+var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "dispatch",
+	Name:      "remote_dispatch_handler_total",
+	Help:      "which dispatcher handled a request",
+}, []string{"request_kind", "handler_name"})
+
+func init() {
+	prometheus.MustRegister(dispatchCounter)
+}
+
+type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
 	DispatchReachableResources(ctx context.Context, in *v1.DispatchReachableResourcesRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchReachableResourcesClient, error)
@@ -35,9 +50,16 @@ type ClusterDispatcherConfig struct {
 	DispatchOverallTimeout time.Duration
 }
 
+// SecondaryDispatch defines a struct holding a client and its name for secondary
+// dispatching.
+type SecondaryDispatch struct {
+	Name   string
+	Client ClusterClient
+}
+
 // NewClusterDispatcher creates a dispatcher implementation that uses the provided client
 // to dispatch requests to peer nodes in the cluster.
-func NewClusterDispatcher(client clusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig) dispatch.Dispatcher {
+func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config ClusterDispatcherConfig, secondaryDispatch map[string]SecondaryDispatch, secondaryDispatchExprs map[string]*DispatchExpr) dispatch.Dispatcher {
 	keyHandler := config.KeyHandler
 	if keyHandler == nil {
 		keyHandler = &keys.DirectKeyHandler{}
@@ -53,14 +75,18 @@ func NewClusterDispatcher(client clusterClient, conn *grpc.ClientConn, config Cl
 		conn:                   conn,
 		keyHandler:             keyHandler,
 		dispatchOverallTimeout: dispatchOverallTimeout,
+		secondaryDispatch:      secondaryDispatch,
+		secondaryDispatchExprs: secondaryDispatchExprs,
 	}
 }
 
 type clusterDispatcher struct {
-	clusterClient          clusterClient
+	clusterClient          ClusterClient
 	conn                   *grpc.ClientConn
 	keyHandler             keys.Handler
 	dispatchOverallTimeout time.Duration
+	secondaryDispatch      map[string]SecondaryDispatch
+	secondaryDispatchExprs map[string]*DispatchExpr
 }
 
 func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -75,16 +101,118 @@ func (cr *clusterDispatcher) DispatchCheck(ctx context.Context, req *v1.Dispatch
 
 	ctx = context.WithValue(ctx, consistent.CtxKey, requestKey)
 
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
-	defer cancelFn()
+	resp, err := dispatchRequest(ctx, cr, "check", req, func(ctx context.Context, client ClusterClient) (*v1.DispatchCheckResponse, error) {
+		resp, err := client.DispatchCheck(ctx, req)
+		if err != nil {
+			return resp, err
+		}
 
-	resp, err := cr.clusterClient.DispatchCheck(withTimeout, req)
+		err = adjustMetadataForDispatch(resp.Metadata)
+		return resp, err
+	})
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: requestFailureMetadata}, err
 	}
 
-	err = adjustMetadataForDispatch(resp.Metadata)
 	return resp, err
+}
+
+type requestMessage interface {
+	zerolog.LogObjectMarshaler
+
+	GetMetadata() *v1.ResolverMeta
+}
+
+type responseMessage interface {
+	proto.Message
+
+	GetMetadata() *v1.ResponseMeta
+}
+
+type respTuple[S responseMessage] struct {
+	resp S
+	err  error
+}
+
+type secondaryRespTuple[S responseMessage] struct {
+	handlerName string
+	resp        S
+}
+
+func dispatchRequest[Q requestMessage, S responseMessage](ctx context.Context, cr *clusterDispatcher, reqKey string, req Q, handler func(context.Context, ClusterClient) (S, error)) (S, error) {
+	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	defer cancelFn()
+
+	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
+		return handler(withTimeout, cr.clusterClient)
+	}
+
+	// If no secondary dispatches are defined, just invoke directly.
+	expr, ok := cr.secondaryDispatchExprs[reqKey]
+	if !ok {
+		return handler(withTimeout, cr.clusterClient)
+	}
+
+	// Otherwise invoke in parallel with any secondary matches.
+	primaryResultChan := make(chan respTuple[S], 1)
+	secondaryResultChan := make(chan secondaryRespTuple[S], len(cr.secondaryDispatch))
+
+	// Run the main dispatch.
+	go func() {
+		resp, err := handler(withTimeout, cr.clusterClient)
+		primaryResultChan <- respTuple[S]{resp, err}
+	}()
+
+	result, err := RunDispatchExpr(expr, req)
+	if err != nil {
+		log.Warn().Err(err).Msg("error when trying to evaluate the dispatch expression")
+	}
+
+	log.Trace().Str("secondary-dispatchers", strings.Join(result, ",")).Object("request", req).Msg("running secondary dispatchers")
+
+	for _, secondaryDispatchName := range result {
+		secondary, ok := cr.secondaryDispatch[secondaryDispatchName]
+		if !ok {
+			log.Warn().Str("secondary-dispatcher-name", secondaryDispatchName).Msg("received unknown secondary dispatcher")
+			continue
+		}
+
+		log.Trace().Str("secondary-dispatcher", secondary.Name).Object("request", req).Msg("running secondary dispatcher")
+		go func() {
+			resp, err := handler(withTimeout, secondary.Client)
+			if err != nil {
+				// For secondary dispatches, ignore any errors, as only the primary will be handled in
+				// that scenario.
+				log.Trace().Str("secondary", secondary.Name).Err(err).Msg("got ignored secondary dispatch error")
+				return
+			}
+
+			secondaryResultChan <- secondaryRespTuple[S]{resp: resp, handlerName: secondary.Name}
+		}()
+	}
+
+	var foundError error
+	select {
+	case <-withTimeout.Done():
+		return *new(S), fmt.Errorf("check dispatch has timed out")
+
+	case r := <-primaryResultChan:
+		if r.err == nil {
+			dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+			return r.resp, nil
+		}
+
+		// Otherwise, if an error was found, log it and we'll return after *all* the secondaries have run.
+		// This allows an otherwise error-state to be handled by one of the secondaries.
+		foundError = r.err
+
+	case r := <-secondaryResultChan:
+		dispatchCounter.WithLabelValues(reqKey, r.handlerName).Add(1)
+		return r.resp, nil
+	}
+
+	dispatchCounter.WithLabelValues(reqKey, "(primary)").Add(1)
+	return *new(S), foundError
 }
 
 func adjustMetadataForDispatch(metadata *v1.ResponseMeta) error {
