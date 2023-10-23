@@ -5,6 +5,8 @@ package combined
 import (
 	"time"
 
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
+
 	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -120,6 +122,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	}
 
 	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
+	redispatch = singleflight.New(redispatch)
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
@@ -145,6 +148,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
 		})
+		redispatch = singleflight.New(redispatch)
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)
