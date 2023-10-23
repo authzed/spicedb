@@ -123,10 +123,11 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 
 // RevisionFromString reverses the encoding process performed by MarshalBinary and String.
 func (pgd *pgDatastore) RevisionFromString(revisionStr string) (datastore.Revision, error) {
-	return parseRevision(revisionStr)
+	return ParseRevisionString(revisionStr)
 }
 
-func parseRevision(revisionStr string) (rev datastore.Revision, err error) {
+// ParseRevisionString parses a revision string into a Postgres revision.
+func ParseRevisionString(revisionStr string) (rev datastore.Revision, err error) {
 	rev, err = parseRevisionProto(revisionStr)
 	if err != nil {
 		decimalRev, decimalErr := parseRevisionDecimal(revisionStr)

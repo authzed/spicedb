@@ -67,3 +67,9 @@ func DecimalKeyFunc(r Decimal) int64 {
 func DecimalKeyLessThanFunc(lhs, rhs int64) bool {
 	return lhs < rhs
 }
+
+// ParseRevisionString parses a decimal revision string into a revision.
+func ParseRevisionString(revisionStr string) (rev datastore.Revision, err error) {
+	dd := DecimalDecoder{}
+	return dd.RevisionFromString(revisionStr)
+}

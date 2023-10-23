@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	Engine                   = "memory"
 	defaultWatchBufferLength = 128
 	numAttempts              = 10
 )
