@@ -97,6 +97,9 @@ type Config struct {
 	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
 	DispatchHashringSpread            uint8                   `debugmap:"visible"`
 
+	DispatchSecondaryUpstreamAddrs map[string]string `debugmap:"visible"`
+	DispatchSecondaryUpstreamExprs map[string]string `debugmap:"visible"`
+
 	DispatchCacheConfig        CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig CacheConfig `debugmap:"visible"`
 
@@ -261,6 +264,8 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		dispatcher, err = combineddispatch.NewDispatcher(
 			combineddispatch.UpstreamAddr(c.DispatchUpstreamAddr),
 			combineddispatch.UpstreamCAPath(c.DispatchUpstreamCAPath),
+			combineddispatch.SecondaryUpstreamAddrs(c.DispatchSecondaryUpstreamAddrs),
+			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),

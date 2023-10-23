@@ -115,6 +115,9 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	cmd.Flags().Uint16Var(&config.DispatchHashringReplicationFactor, "dispatch-hashring-replication-factor", 100, "set the replication factor of the consistent hasher used for the dispatcher")
 	cmd.Flags().Uint8Var(&config.DispatchHashringSpread, "dispatch-hashring-spread", 1, "set the spread of the consistent hasher used for the dispatcher")
 
+	cmd.Flags().StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
+	cmd.Flags().StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type (currently supported: `check`) to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")
+
 	// Flags for configuring API behavior
 	cmd.Flags().BoolVar(&config.DisableV1SchemaAPI, "disable-v1-schema-api", false, "disables the V1 schema API")
 	cmd.Flags().BoolVar(&config.DisableVersionResponse, "disable-version-response", false, "disables version response support in the API")

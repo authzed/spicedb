@@ -69,6 +69,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.Dispatcher = c.Dispatcher
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchHashringSpread = c.DispatchHashringSpread
+		to.DispatchSecondaryUpstreamAddrs = c.DispatchSecondaryUpstreamAddrs
+		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
@@ -123,6 +125,8 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["Dispatcher"] = helpers.DebugValue(c.Dispatcher, false)
 	debugMap["DispatchHashringReplicationFactor"] = helpers.DebugValue(c.DispatchHashringReplicationFactor, false)
 	debugMap["DispatchHashringSpread"] = helpers.DebugValue(c.DispatchHashringSpread, false)
+	debugMap["DispatchSecondaryUpstreamAddrs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamAddrs, false)
+	debugMap["DispatchSecondaryUpstreamExprs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamExprs, false)
 	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
 	debugMap["ClusterDispatchCacheConfig"] = helpers.DebugValue(c.ClusterDispatchCacheConfig, false)
 	debugMap["DisableV1SchemaAPI"] = helpers.DebugValue(c.DisableV1SchemaAPI, false)
@@ -383,6 +387,34 @@ func WithDispatchHashringReplicationFactor(dispatchHashringReplicationFactor uin
 func WithDispatchHashringSpread(dispatchHashringSpread uint8) ConfigOption {
 	return func(c *Config) {
 		c.DispatchHashringSpread = dispatchHashringSpread
+	}
+}
+
+// WithDispatchSecondaryUpstreamAddrs returns an option that can append DispatchSecondaryUpstreamAddrss to Config.DispatchSecondaryUpstreamAddrs
+func WithDispatchSecondaryUpstreamAddrs(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamAddrs[key] = value
+	}
+}
+
+// SetDispatchSecondaryUpstreamAddrs returns an option that can set DispatchSecondaryUpstreamAddrs on a Config
+func SetDispatchSecondaryUpstreamAddrs(dispatchSecondaryUpstreamAddrs map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamAddrs = dispatchSecondaryUpstreamAddrs
+	}
+}
+
+// WithDispatchSecondaryUpstreamExprs returns an option that can append DispatchSecondaryUpstreamExprss to Config.DispatchSecondaryUpstreamExprs
+func WithDispatchSecondaryUpstreamExprs(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamExprs[key] = value
+	}
+}
+
+// SetDispatchSecondaryUpstreamExprs returns an option that can set DispatchSecondaryUpstreamExprs on a Config
+func SetDispatchSecondaryUpstreamExprs(dispatchSecondaryUpstreamExprs map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamExprs = dispatchSecondaryUpstreamExprs
 	}
 }
 
