@@ -50,7 +50,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 		}}, err
 	}
 
-	return v.CloneVT(), err
+	return v, err
 }
 
 func hashForDispatchCheck(req *v1.DispatchCheckRequest) (string, error) {
