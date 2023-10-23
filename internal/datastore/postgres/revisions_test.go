@@ -151,7 +151,7 @@ func TestCombinedRevisionParsing(t *testing.T) {
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
-			parsed, err := parseRevision(tc.inputStr)
+			parsed, err := ParseRevisionString(tc.inputStr)
 			if tc.expectErr {
 				require.Error(err)
 			} else {
@@ -163,7 +163,7 @@ func TestCombinedRevisionParsing(t *testing.T) {
 }
 
 func TestBrokenInvalidRevision(t *testing.T) {
-	_, err := parseRevision("1693540940373045727.0000000001")
+	_, err := ParseRevisionString("1693540940373045727.0000000001")
 	require.Error(t, err)
 }
 
