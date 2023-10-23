@@ -1,4 +1,4 @@
-package servicespecific
+package singleflight
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/authzed/spicedb/internal/dispatch"
 
 	"github.com/stretchr/testify/require"
 
@@ -15,10 +15,9 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestEligibleRequest(t *testing.T) {
+func TestHashForDispatchCheck(t *testing.T) {
 	for _, tt := range []struct {
-		Message      proto.Message
-		Eligible     bool
+		Message      *v1.DispatchCheckRequest
 		ExpectedHash string
 	}{
 		{
@@ -30,7 +29,6 @@ func TestEligibleRequest(t *testing.T) {
 					AtRevision: "1234",
 				},
 			},
-			Eligible:     true,
 			ExpectedHash: "24daf7c03e814283",
 		},
 		{
@@ -42,7 +40,6 @@ func TestEligibleRequest(t *testing.T) {
 					AtRevision: "12345",
 				},
 			},
-			Eligible:     true,
 			ExpectedHash: "0c14e2b0c5ce127b",
 		},
 		{
@@ -54,35 +51,25 @@ func TestEligibleRequest(t *testing.T) {
 					AtRevision: "1234",
 				},
 			},
-			Eligible:     true,
 			ExpectedHash: "091c0a405116e651",
-		},
-		{
-			Message:      &v1.DispatchExpandRequest{},
-			Eligible:     false,
-			ExpectedHash: "",
 		},
 	} {
 		tt := tt
 		t.Run("", func(t *testing.T) {
-			key, eligible, err := eligibleRequest(tt.Message)
+			key, err := hashForDispatchCheck(tt.Message)
 			require.NoError(t, err)
-			require.Equal(t, tt.Eligible, eligible)
-			if tt.Eligible {
-				require.Equal(t, tt.ExpectedHash, key)
-			}
+			require.Equal(t, tt.ExpectedHash, key)
 		})
 	}
 }
 
-func TestSingleFlightMiddleware(t *testing.T) {
-	mw := UnaryServerInterceptor()
+func TestSingleFlightDispatcher(t *testing.T) {
 	var called atomic.Uint64
-	handler := func(ctx context.Context, req any) (any, error) {
+	f := func() {
 		time.Sleep(100 * time.Millisecond)
 		called.Add(1)
-		return nil, nil
 	}
+	disp := Dispatcher{delegate: mockDispatcher{f: f}}
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
@@ -94,51 +81,46 @@ func TestSingleFlightMiddleware(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(5)
+	wg.Add(4)
 	go func() {
-		_, _ = mw(context.Background(), req, nil, handler)
+		_, _ = disp.DispatchCheck(context.Background(), req)
 		wg.Done()
 	}()
 	go func() {
-		_, _ = mw(context.Background(), req, nil, handler)
+		_, _ = disp.DispatchCheck(context.Background(), req)
 		wg.Done()
 	}()
 	go func() {
-		_, _ = mw(context.Background(), req, nil, handler)
+		_, _ = disp.DispatchCheck(context.Background(), req)
 
 		wg.Done()
 	}()
 	go func() {
-		_, _ = mw(context.Background(), &v1.DispatchExpandRequest{}, nil, handler)
-		wg.Done()
-	}()
-	go func() {
-		_, _ = mw(context.Background(), &v1.DispatchCheckRequest{
+		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
 			ResourceIds:      []string{"foo", "baz"},
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
 			},
-		}, nil, handler)
+		})
 		wg.Done()
 	}()
 
 	wg.Wait()
 
-	require.Equal(t, uint64(3), called.Load())
+	require.Equal(t, uint64(2), called.Load())
 }
 
-func TestSingleFlightMiddlewareCancelation(t *testing.T) {
-	mw := UnaryServerInterceptor()
+func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	var called atomic.Uint64
 	run := make(chan struct{}, 1)
-	handler := func(ctx context.Context, req any) (any, error) {
+	f := func() {
 		time.Sleep(100 * time.Millisecond)
 		called.Add(1)
 		run <- struct{}{}
-		return nil, nil
 	}
+	disp := Dispatcher{delegate: mockDispatcher{f: f}}
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
@@ -154,21 +136,21 @@ func TestSingleFlightMiddlewareCancelation(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := mw(ctx, req, nil, handler)
+		_, err := disp.DispatchCheck(ctx, req)
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := mw(ctx, req, nil, handler)
+		_, err := disp.DispatchCheck(ctx, req)
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := mw(ctx, req, nil, handler)
+		_, err := disp.DispatchCheck(ctx, req)
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
@@ -176,4 +158,37 @@ func TestSingleFlightMiddlewareCancelation(t *testing.T) {
 	wg.Wait()
 	<-run
 	require.Equal(t, uint64(1), called.Load())
+}
+
+type mockDispatcher struct {
+	f func()
+}
+
+func (m mockDispatcher) DispatchCheck(_ context.Context, _ *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
+	m.f()
+	return &v1.DispatchCheckResponse{}, nil
+}
+
+func (m mockDispatcher) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	return nil, nil
+}
+
+func (m mockDispatcher) DispatchReachableResources(_ *v1.DispatchReachableResourcesRequest, _ dispatch.ReachableResourcesStream) error {
+	return nil
+}
+
+func (m mockDispatcher) DispatchLookupResources(_ *v1.DispatchLookupResourcesRequest, _ dispatch.LookupResourcesStream) error {
+	return nil
+}
+
+func (m mockDispatcher) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
+	return nil
+}
+
+func (m mockDispatcher) Close() error {
+	return nil
+}
+
+func (m mockDispatcher) ReadyState() dispatch.ReadyState {
+	return dispatch.ReadyState{}
 }
