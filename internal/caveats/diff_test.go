@@ -65,6 +65,27 @@ func TestCaveatDiff(t *testing.T) {
 			[]Delta{},
 		},
 		{
+			"changed comments",
+			ns.MustCaveatDefinition(
+				caveats.MustEnvForVariables(map[string]types.VariableType{
+					"someparam": types.IntType,
+				}),
+				"somecaveat",
+				"true",
+			),
+			ns.MustCaveatDefinitionWithComment(
+				caveats.MustEnvForVariables(map[string]types.VariableType{
+					"someparam": types.IntType,
+				}),
+				"somecaveat",
+				"some comment",
+				"true",
+			),
+			[]Delta{
+				{Type: CaveatCommentsChanged},
+			},
+		},
+		{
 			"added parameter",
 			ns.MustCaveatDefinition(
 				caveats.MustEnvForVariables(map[string]types.VariableType{

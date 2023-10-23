@@ -4,9 +4,11 @@ import (
 	"bytes"
 
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -19,6 +21,9 @@ const (
 
 	// CaveatRemoved indicates that the caveat was removed.
 	CaveatRemoved DeltaType = "caveat-removed"
+
+	// CaveatCommentsChanged indicates that the comment(s) on the caveat were changed.
+	CaveatCommentsChanged DeltaType = "caveat-comments-changed"
 
 	// AddedParameter indicates that the parameter was added to the caveat.
 	AddedParameter DeltaType = "added-parameter"
@@ -95,6 +100,16 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 	}
 
 	deltas := make([]Delta, 0, len(existing.ParameterTypes)+len(updated.ParameterTypes))
+
+	// Check the caveats's comments.
+	existingComments := nspkg.GetComments(existing.Metadata)
+	updatedComments := nspkg.GetComments(updated.Metadata)
+	if !slices.Equal(existingComments, updatedComments) {
+		deltas = append(deltas, Delta{
+			Type: CaveatCommentsChanged,
+		})
+	}
+
 	existingParameterNames := mapz.NewSet(maps.Keys(existing.ParameterTypes)...)
 	updatedParameterNames := mapz.NewSet(maps.Keys(updated.ParameterTypes)...)
 

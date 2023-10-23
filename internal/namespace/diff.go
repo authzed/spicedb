@@ -2,6 +2,7 @@ package namespace
 
 import (
 	"github.com/scylladb/go-set/strset"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -21,6 +22,9 @@ const (
 	// NamespaceRemoved indicates that the namespace was removed.
 	NamespaceRemoved DeltaType = "namespace-removed"
 
+	// NamespaceCommentsChanged indicates that the comment(s) on the namespace were changed.
+	NamespaceCommentsChanged DeltaType = "namespace-comments-changed"
+
 	// AddedRelation indicates that the relation was added to the namespace.
 	AddedRelation DeltaType = "added-relation"
 
@@ -37,6 +41,9 @@ const (
 	// way.
 	ChangedPermissionImpl DeltaType = "changed-permission-implementation"
 
+	// ChangedPermissionComment indicates that the comment of the permission has changed in some way.
+	ChangedPermissionComment DeltaType = "changed-permission-comment"
+
 	// LegacyChangedRelationImpl indicates that the implementation of the relation has changed in some
 	// way. This is for legacy checks and should not apply to any modern namespaces created
 	// via schema.
@@ -49,6 +56,9 @@ const (
 	// RelationAllowedTypeRemoved indicates that an allowed relation type has been removed from
 	// the relation.
 	RelationAllowedTypeRemoved DeltaType = "relation-allowed-type-removed"
+
+	// ChangedRelationComment indicates that the comment of the relation has changed in some way.
+	ChangedRelationComment DeltaType = "changed-relation-comment"
 )
 
 // Diff holds the diff between two namespaces.
@@ -106,9 +116,18 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}, nil
 	}
 
-	// Collect up relations and check.
 	deltas := []Delta{}
 
+	// Check the namespace's comments.
+	existingComments := nspkg.GetComments(existing.Metadata)
+	updatedComments := nspkg.GetComments(updated.Metadata)
+	if !slices.Equal(existingComments, updatedComments) {
+		deltas = append(deltas, Delta{
+			Type: NamespaceCommentsChanged,
+		})
+	}
+
+	// Collect up relations and check.
 	existingRels := map[string]*core.Relation{}
 	existingRelNames := strset.New()
 
@@ -190,6 +209,16 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 				RelationName: shared,
 			})
 		}
+
+		// Compare comments.
+		existingComments := nspkg.GetComments(existingPerm.Metadata)
+		updatedComments := nspkg.GetComments(updatedPerm.Metadata)
+		if !slices.Equal(existingComments, updatedComments) {
+			deltas = append(deltas, Delta{
+				Type:         ChangedPermissionComment,
+				RelationName: shared,
+			})
+		}
 	}
 
 	for _, shared := range strset.Intersection(existingRelNames, updatedRelNames).List() {
@@ -200,6 +229,16 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		if areDifferentExpressions(existingRel.UsersetRewrite, updatedRel.UsersetRewrite) {
 			deltas = append(deltas, Delta{
 				Type:         LegacyChangedRelationImpl,
+				RelationName: shared,
+			})
+		}
+
+		// Compare comments.
+		existingComments := nspkg.GetComments(existingRel.Metadata)
+		updatedComments := nspkg.GetComments(updatedRel.Metadata)
+		if !slices.Equal(existingComments, updatedComments) {
+			deltas = append(deltas, Delta{
+				Type:         ChangedRelationComment,
 				RelationName: shared,
 			})
 		}

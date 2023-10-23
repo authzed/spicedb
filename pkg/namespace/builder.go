@@ -142,6 +142,16 @@ func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *c
 	return cd
 }
 
+// MustCaveatDefinitionWithComment returns a new caveat definition.
+func MustCaveatDefinitionWithComment(env *caveats.Environment, name string, comment string, expr string) *core.CaveatDefinition {
+	cd, err := CaveatDefinition(env, name, expr)
+	if err != nil {
+		panic(err)
+	}
+	cd.Metadata, _ = AddComment(cd.Metadata, comment)
+	return cd
+}
+
 // AllowedPublicNamespaceWithCaveat creates a relation reference to an allowed public namespace.
 func AllowedPublicNamespaceWithCaveat(namespaceName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
 	return &core.AllowedRelation{
