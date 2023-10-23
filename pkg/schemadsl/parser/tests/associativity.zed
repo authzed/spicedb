@@ -1,0 +1,8 @@
+definition resource {
+    permission union = a + b + c
+    permission exclusion = a - b - c
+    permission intersection = a & b & c
+
+    permission combined1 = a + b - c
+    permission combined2 = a - b + c
+}
