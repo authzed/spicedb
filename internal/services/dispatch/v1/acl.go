@@ -82,6 +82,11 @@ func (ds *dispatchServer) Close() error {
 }
 
 func rewriteGraphError(ctx context.Context, err error) error {
+	// Check if the error can be directly used.
+	if _, ok := status.FromError(err); ok {
+		return err
+	}
+
 	switch {
 	case errors.As(err, &graph.ErrRequestCanceled{}):
 		return status.Errorf(codes.Canceled, "request canceled: %s", err)

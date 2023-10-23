@@ -33,6 +33,10 @@ type ErrCheckFailure struct {
 	error
 }
 
+func (e ErrCheckFailure) Unwrap() error {
+	return e.error
+}
+
 // NewCheckFailureErr constructs a new check failed error.
 func NewCheckFailureErr(baseErr error) error {
 	return ErrCheckFailure{
@@ -44,6 +48,10 @@ func NewCheckFailureErr(baseErr error) error {
 // namespaces and relations not being found.
 type ErrExpansionFailure struct {
 	error
+}
+
+func (e ErrExpansionFailure) Unwrap() error {
+	return e.error
 }
 
 // NewExpansionFailureErr constructs a new expansion failed error.
@@ -157,6 +165,10 @@ func NewErrInvalidArgument(baseErr error) error {
 	}
 }
 
+func (e ErrInvalidArgument) Unwrap() error {
+	return e.error
+}
+
 // ErrUnimplemented is returned when some functionality is not yet supported.
 type ErrUnimplemented struct {
 	error
@@ -167,6 +179,10 @@ func NewUnimplementedErr(baseErr error) error {
 	return ErrUnimplemented{
 		error: baseErr,
 	}
+}
+
+func (e ErrUnimplemented) Unwrap() error {
+	return e.error
 }
 
 // ErrInvalidCursor is returned when a cursor is no longer valid.
