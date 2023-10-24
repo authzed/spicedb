@@ -38,6 +38,45 @@ func TestNamespaceDiff(t *testing.T) {
 			},
 		},
 		{
+			"added namespace comments",
+			ns.Namespace(
+				"document",
+			),
+			ns.WithComment(
+				"document",
+				"some cool comment",
+			),
+			[]Delta{
+				{Type: NamespaceCommentsChanged},
+			},
+		},
+		{
+			"unchanged namespace comments",
+			ns.WithComment(
+				"document",
+				"some cool comment",
+			),
+			ns.WithComment(
+				"document",
+				"some cool comment",
+			),
+			[]Delta{},
+		},
+		{
+			"changed namespace comments",
+			ns.WithComment(
+				"document",
+				"some cool comment!",
+			),
+			ns.WithComment(
+				"document",
+				"some cool comment",
+			),
+			[]Delta{
+				{Type: NamespaceCommentsChanged},
+			},
+		},
+		{
 			"added relation",
 			ns.Namespace(
 				"document",
@@ -161,17 +200,54 @@ func TestNamespaceDiff(t *testing.T) {
 			},
 		},
 		{
-			"no changes",
+			"changed permission comment",
 			ns.Namespace(
 				"document",
-				ns.MustRelation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
+				ns.MustRelationWithComment("somerel", "some comment", ns.Union(
+					ns.ComputedUserset("editor"),
 				)),
 			),
 			ns.Namespace(
 				"document",
-				ns.MustRelation("somerel", ns.Union(
-					ns.ComputedUserset("owner"),
+				ns.MustRelationWithComment("somerel", "some other comment", ns.Union(
+					ns.ComputedUserset("editor"),
+				)),
+			),
+			[]Delta{
+				{Type: ChangedPermissionComment, RelationName: "somerel"},
+			},
+		},
+		{
+			"changed permission impl and comment",
+			ns.Namespace(
+				"document",
+				ns.MustRelationWithComment("somerel", "some comment", ns.Union(
+					ns.ComputedUserset("editor"),
+				)),
+			),
+			ns.Namespace(
+				"document",
+				ns.MustRelationWithComment("somerel", "some other comment", ns.Union(
+					ns.ComputedUserset("editor2"),
+				)),
+			),
+			[]Delta{
+				{Type: ChangedPermissionImpl, RelationName: "somerel"},
+				{Type: ChangedPermissionComment, RelationName: "somerel"},
+			},
+		},
+		{
+			"no changes",
+			ns.Namespace(
+				"document",
+				ns.MustRelationWithComment("somerel", "some comment", ns.Union(
+					ns.ComputedUserset("editor"),
+				)),
+			),
+			ns.Namespace(
+				"document",
+				ns.MustRelationWithComment("somerel", "some comment", ns.Union(
+					ns.ComputedUserset("editor"),
 				)),
 			),
 			[]Delta{},
@@ -227,6 +303,24 @@ func TestNamespaceDiff(t *testing.T) {
 				), ns.AllowedRelation("foo", "bar")),
 			),
 			[]Delta{},
+		},
+		{
+			"changed relation comment",
+			ns.Namespace(
+				"document",
+				ns.MustRelationWithComment("somerel", "some comment", ns.Union(
+					ns.ComputedUserset("owner"),
+				), ns.AllowedRelation("foo", "bar")),
+			),
+			ns.Namespace(
+				"document",
+				ns.MustRelationWithComment("somerel", "changed comment", ns.Union(
+					ns.ComputedUserset("owner"),
+				), ns.AllowedRelation("foo", "bar")),
+			),
+			[]Delta{
+				{Type: ChangedRelationComment, RelationName: "somerel"},
+			},
 		},
 		{
 			"type added and removed",
