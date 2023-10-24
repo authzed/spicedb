@@ -10,10 +10,12 @@ import (
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -91,6 +93,9 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 	client, err := spanner.NewClient(context.Background(), database,
 		option.WithCredentialsFile(config.credentialsFilePath),
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
+		option.WithGRPCDialOption(
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
