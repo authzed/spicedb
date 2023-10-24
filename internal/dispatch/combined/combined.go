@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -140,6 +141,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	}
 
 	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
+	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
@@ -187,6 +189,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
 		}, secondaryClients, secondaryExprs)
+		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)

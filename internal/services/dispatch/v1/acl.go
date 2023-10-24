@@ -83,8 +83,8 @@ func (ds *dispatchServer) Close() error {
 
 func rewriteGraphError(ctx context.Context, err error) error {
 	// Check if the error can be directly used.
-	if _, ok := status.FromError(err); ok {
-		return err
+	if st, ok := status.FromError(err); ok {
+		return st.Err()
 	}
 
 	switch {

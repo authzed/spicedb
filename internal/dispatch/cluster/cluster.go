@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/pkg/cache"
 )
 
@@ -67,6 +68,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 	}
 
 	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits)
+	clusterDispatch = singleflight.New(clusterDispatch, &keys.CanonicalKeyHandler{})
 
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"
