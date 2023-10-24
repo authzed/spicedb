@@ -2,6 +2,7 @@ package singleflight
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -11,7 +12,7 @@ import (
 	"resenje.org/singleflight"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -22,24 +23,26 @@ var singleFlightCount = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help:      "total number of dispatch requests that were single flighted",
 }, []string{"shared"})
 
-func New(delegate dispatch.Dispatcher) dispatch.Dispatcher {
-	return &Dispatcher{delegate: delegate}
+func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {
+	return &Dispatcher{delegate: delegate, keyHandler: handler}
 }
 
 type Dispatcher struct {
 	delegate   dispatch.Dispatcher
+	keyHandler keys.Handler
 	checkGroup singleflight.Group[string, *v1.DispatchCheckResponse]
 }
 
 func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	key, err := hashForDispatchCheck(req)
+	key, err := d.keyHandler.CheckDispatchKey(ctx, req)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{
 			DispatchCount: 1,
 		}}, status.Error(codes.Internal, "unexpected DispatchCheck error")
 	}
 
-	v, isShared, err := d.checkGroup.Do(ctx, key, func(innerCtx context.Context) (*v1.DispatchCheckResponse, error) {
+	keyString := fmt.Sprintf("%x", key)
+	v, isShared, err := d.checkGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchCheckResponse, error) {
 		return d.delegate.DispatchCheck(innerCtx, req)
 	})
 
@@ -51,20 +54,6 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	}
 
 	return v, err
-}
-
-func hashForDispatchCheck(req *v1.DispatchCheckRequest) (string, error) {
-	key, err := shared.ComputeCallHash("v1.dispatchcheckrequest", nil, map[string]any{
-		"revision":          req.Metadata.AtRevision,
-		"resource-ids":      req.ResourceIds,
-		"resource-type":     req.ResourceRelation.Namespace,
-		"resource-relation": req.ResourceRelation.Relation,
-		"subject-type":      req.Subject.Namespace,
-		"subject-id":        req.Subject.ObjectId,
-		"subject-relation":  req.Subject.Relation,
-		"result-setting":    req.ResultsSetting.String(),
-	})
-	return key, err
 }
 
 func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {

@@ -69,7 +69,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 	}
 
 	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits)
-	clusterDispatch = singleflight.New(clusterDispatch)
+	clusterDispatch = singleflight.New(clusterDispatch, &keys.CanonicalKeyHandler{})
 
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"

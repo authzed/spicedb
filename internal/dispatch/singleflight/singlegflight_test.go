@@ -10,57 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
-
-func TestHashForDispatchCheck(t *testing.T) {
-	for _, tt := range []struct {
-		Message      *v1.DispatchCheckRequest
-		ExpectedHash string
-	}{
-		{
-			Message: &v1.DispatchCheckRequest{
-				ResourceRelation: tuple.RelationReference("document", "view"),
-				ResourceIds:      []string{"foo", "bar"},
-				Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-				Metadata: &v1.ResolverMeta{
-					AtRevision: "1234",
-				},
-			},
-			ExpectedHash: "24daf7c03e814283",
-		},
-		{
-			Message: &v1.DispatchCheckRequest{
-				ResourceRelation: tuple.RelationReference("document", "view"),
-				ResourceIds:      []string{"foo", "bar"},
-				Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-				Metadata: &v1.ResolverMeta{
-					AtRevision: "12345",
-				},
-			},
-			ExpectedHash: "0c14e2b0c5ce127b",
-		},
-		{
-			Message: &v1.DispatchCheckRequest{
-				ResourceRelation: tuple.RelationReference("document", "view"),
-				ResourceIds:      []string{"foo", "bar", "baz"},
-				Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-				Metadata: &v1.ResolverMeta{
-					AtRevision: "1234",
-				},
-			},
-			ExpectedHash: "091c0a405116e651",
-		},
-	} {
-		tt := tt
-		t.Run("", func(t *testing.T) {
-			key, err := hashForDispatchCheck(tt.Message)
-			require.NoError(t, err)
-			require.Equal(t, tt.ExpectedHash, key)
-		})
-	}
-}
 
 func TestSingleFlightDispatcher(t *testing.T) {
 	var called atomic.Uint64
@@ -68,7 +21,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		called.Add(1)
 	}
-	disp := Dispatcher{delegate: mockDispatcher{f: f}}
+	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
@@ -119,7 +72,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 		called.Add(1)
 		run <- struct{}{}
 	}
-	disp := Dispatcher{delegate: mockDispatcher{f: f}}
+	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),

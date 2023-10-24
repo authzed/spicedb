@@ -122,7 +122,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	}
 
 	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
-	redispatch = singleflight.New(redispatch)
+	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.
 	if opts.upstreamAddr != "" {
@@ -148,7 +148,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			KeyHandler:             &keys.CanonicalKeyHandler{},
 			DispatchOverallTimeout: opts.remoteDispatchTimeout,
 		})
-		redispatch = singleflight.New(redispatch)
+		redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 	}
 
 	cachingRedispatch.SetDelegate(redispatch)
