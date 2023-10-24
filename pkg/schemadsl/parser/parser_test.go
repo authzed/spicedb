@@ -114,6 +114,7 @@ func TestParser(t *testing.T) {
 		{"empty caveat test", "emptycaveat"},
 		{"unclosed caveat test", "unclosedcaveat"},
 		{"invalid caveat expr test", "invalidcaveatexpr"},
+		{"associativity test", "associativity"},
 	}
 
 	for _, test := range parserTests {
