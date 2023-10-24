@@ -146,6 +146,14 @@ func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *
 	return t.delegate.Query(ctx, statement)
 }
 
+func (t *traceableRTX) QueryWithStats(ctx context.Context, statement spanner.Statement) *spanner.RowIterator {
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("spannerAPI", "ReadOnlyTransaction.Query"),
+		attribute.String("statement", statement.SQL))
+
+	return t.delegate.QueryWithStats(ctx, statement)
+}
+
 func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
 	r := revisionRaw.(revision.Decimal)
 

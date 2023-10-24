@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -16,6 +18,13 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+var elapsedTimeHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "datastore",
+	Name:      "spanner_elapsed_seconds",
+	Help:      "A histogram of the time Spanner spent running the query.",
+})
+
 // The underlying Spanner shared read transaction interface is not exposed, so we re-create
 // the subsection of it which we need here.
 // https://github.com/googleapis/google-cloud-go/blob/a33861fe46be42ae150d6015ad39dae6e35e04e8/spanner/transaction.go#L55
@@ -23,6 +32,7 @@ type readTX interface {
 	ReadRow(ctx context.Context, table string, key spanner.Key, columns []string) (*spanner.Row, error)
 	Read(ctx context.Context, table string, keys spanner.KeySet, columns []string) *spanner.RowIterator
 	Query(ctx context.Context, statement spanner.Statement) *spanner.RowIterator
+	QueryWithStats(ctx context.Context, statement spanner.Statement) *spanner.RowIterator
 }
 
 type txFactory func() readTX
@@ -76,7 +86,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
 		span := trace.SpanFromContext(ctx)
 		span.AddEvent("Query issued to database")
-		iter := txSource().Query(ctx, statementFromSQL(sql, args))
+		iter := txSource().QueryWithStats(ctx, statementFromSQL(sql, args))
 		defer iter.Stop()
 
 		var tuples []*core.RelationTuple
@@ -117,6 +127,16 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 
 		span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
 		span.SetAttributes(attribute.Int("count", len(tuples)))
+
+		if elapsedTime, ok := iter.QueryStats["elapsed_time"]; ok {
+			if elapsedString, ok := elapsedTime.(string); ok && elapsedString != "" {
+				elapseDuration, err := time.ParseDuration(elapsedString)
+				if err == nil {
+					elapsedTimeHistogram.Observe(elapseDuration.Seconds())
+				}
+			}
+		}
+
 		return tuples, nil
 	}
 }
