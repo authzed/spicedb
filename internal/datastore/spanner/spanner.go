@@ -237,17 +237,8 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for spanner: %w", err)
 	}
 
-	currentRevision, err := migrations.NewSpannerDriver(sd.client.DatabaseName(), sd.config.credentialsFilePath, sd.config.emulatorHost)
-	if err != nil {
-		return datastore.ReadyState{}, err
-	}
-	defer func() {
-		if err := currentRevision.Close(ctx); err != nil {
-			log.Error().Err(err).Msg("failed to close current revision in Datastore.ReadyState")
-		}
-	}()
-
-	version, err := currentRevision.Version(ctx)
+	checker := migrations.NewSpannerVersionChecker(sd.client)
+	version, err := checker.Version(ctx)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}

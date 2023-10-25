@@ -74,7 +74,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Ctx(cmd.Context()).Fatal().Err(err).Msg("unable to get spanner emulator host")
 		}
-		migrationDriver, err := spannermigrations.NewSpannerDriver(dbURL, credFile, emulatorHost)
+		migrationDriver, err := spannermigrations.NewSpannerDriver(cmd.Context(), dbURL, credFile, emulatorHost)
 		if err != nil {
 			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}
