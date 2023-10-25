@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cmd"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
+	_ "github.com/authzed/spicedb/pkg/runtime"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 

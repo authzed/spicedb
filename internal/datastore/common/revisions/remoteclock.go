@@ -55,7 +55,11 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 		quantized -= afterLastQuantization
 		validForNanos = rcr.quantizationNanos - afterLastQuantization
 	}
-	log.Ctx(ctx).Debug().Int64("readSkew", rcr.followerReadDelayNanos).Int64("totalSkew", nowHLC.IntPart()-quantized).Msg("revision skews")
+	log.Ctx(ctx).Debug().
+		Time("quantized", time.Unix(0, quantized)).
+		Int64("readSkew", rcr.followerReadDelayNanos).
+		Int64("totalSkew", nowHLC.IntPart()-quantized).
+		Msg("revision skews")
 
 	return revision.NewFromDecimal(decimal.NewFromInt(quantized)), time.Duration(validForNanos) * time.Nanosecond, nil
 }
