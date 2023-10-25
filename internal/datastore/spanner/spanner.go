@@ -116,7 +116,16 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, fmt.Errorf("failed to enable spanner GFE latency stats: %w", err)
 	}
 
-	client, err := spanner.NewClient(context.Background(), database,
+	client, err := spanner.NewClientWithConfig(context.Background(), database,
+		spanner.ClientConfig{
+			// obtained from DefaultSessionPoolConfig, only modified the min opened
+			SessionPoolConfig: spanner.SessionPoolConfig{
+				MinOpened:           400,
+				MaxOpened:           400,
+				HealthCheckWorkers:  10,
+				HealthCheckInterval: 10 * time.Minute,
+			},
+		},
 		option.WithCredentialsFile(config.credentialsFilePath),
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 		option.WithGRPCDialOption(
