@@ -17,6 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
+	"resenje.org/singleflight"
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -257,6 +258,8 @@ type crdbDatastore struct {
 
 	beginChangefeedQuery string
 
+	featureGroup singleflight.Group[string, *datastore.Features]
+
 	pruneGroup *errgroup.Group
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -419,6 +422,13 @@ func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.De
 }
 
 func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	features, _, err := cds.featureGroup.Do(ctx, "", func(ictx context.Context) (*datastore.Features, error) {
+		return cds.features(ictx)
+	})
+	return features, err
+}
+
+func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, error) {
 	var features datastore.Features
 
 	head, err := cds.HeadRevision(ctx)
