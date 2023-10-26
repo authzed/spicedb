@@ -20,7 +20,6 @@ type singleflightProxy struct {
 	optRevGroup   singleflight.Group[string, datastore.Revision]
 	checkRevGroup singleflight.Group[string, string]
 	statsGroup    singleflight.Group[string, datastore.Stats]
-	featureGroup  singleflight.Group[string, *datastore.Features]
 	delegate      datastore.Datastore
 }
 
@@ -63,18 +62,15 @@ func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.R
 	return p.delegate.Watch(ctx, afterRevision)
 }
 
-func (p *singleflightProxy) Features(ctx context.Context) (*datastore.Features, error) {
-	features, _, err := p.featureGroup.Do(ctx, "", func(ctx context.Context) (*datastore.Features, error) {
-		return p.delegate.Features(ctx)
-	})
-	return features, err
-}
-
 func (p *singleflightProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	stats, _, err := p.statsGroup.Do(ctx, "", func(ctx context.Context) (datastore.Stats, error) {
 		return p.delegate.Statistics(ctx)
 	})
 	return stats, err
+}
+
+func (p *singleflightProxy) Features(ctx context.Context) (*datastore.Features, error) {
+	return p.delegate.Features(ctx)
 }
 
 func (p *singleflightProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
