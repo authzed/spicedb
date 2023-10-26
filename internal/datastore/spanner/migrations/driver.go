@@ -33,9 +33,7 @@ type Wrapper struct {
 }
 
 // NewSpannerDriver returns a migration driver for the given Cloud Spanner instance
-func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*SpannerMigrationDriver, error) {
-	ctx := context.Background()
-
+func NewSpannerDriver(ctx context.Context, database, credentialsFilePath, emulatorHost string) (*SpannerMigrationDriver, error) {
 	if len(emulatorHost) > 0 {
 		err := os.Setenv(emulatorSettingKey, emulatorHost)
 		if err != nil {
@@ -55,6 +53,16 @@ func NewSpannerDriver(database, credentialsFilePath, emulatorHost string) (*Span
 	}
 
 	return &SpannerMigrationDriver{client, adminClient}, nil
+}
+
+// VersionProvider returns the migration version a specific spanner datastore is running at
+type VersionProvider interface {
+	Version(ctx context.Context) (string, error)
+}
+
+// NewSpannerVersionChecker returns a VersionProvider for the argument spanner.Client
+func NewSpannerVersionChecker(c *spanner.Client) VersionProvider {
+	return &SpannerMigrationDriver{c, nil}
 }
 
 func (smd *SpannerMigrationDriver) Version(ctx context.Context) (string, error) {
