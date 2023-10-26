@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/go-logr/zerologr"
@@ -116,7 +117,10 @@ var defaultGRPCLogOptions = []grpclog.Option{
 		return grpclog.DefaultServerCodeToLevel(code)
 	}),
 	// changes default logging behaviour to only log finish call message
-	grpclog.WithLogOnEvents(grpclog.FinishCall),
+	grpclog.WithLogOnEvents(grpclog.PayloadReceived, grpclog.PayloadSent, grpclog.FinishCall),
+	grpclog.WithDurationField(func(duration time.Duration) grpclog.Fields {
+		return grpclog.Fields{"grpc.time_ms", duration.Milliseconds()}
+	}),
 }
 
 const (
