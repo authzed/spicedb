@@ -47,6 +47,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	config.DispatchClusterMetricsEnabled = true
 	config.DispatchClientMetricsEnabled = true
 
+	// Flags for logging
+	cmd.Flags().BoolVar(&config.EnableRequestLogs, "grpc-log-requests-enabled", false, "logs API request payloads")
+	cmd.Flags().BoolVar(&config.EnableResponseLogs, "grpc-log-responses-enabled", false, "logs API response payloads")
+
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.GRPCServer, "grpc", "gRPC", ":50051", true)
 	cmd.Flags().StringSliceVar(&config.PresharedSecureKey, PresharedKeyFlag, []string{}, "preshared key(s) to require for authenticated requests")
