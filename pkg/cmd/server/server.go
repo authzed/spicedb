@@ -127,6 +127,10 @@ type Config struct {
 	TelemetryCAOverridePath  string        `debugmap:"visible"`
 	TelemetryEndpoint        string        `debugmap:"visible"`
 	TelemetryInterval        time.Duration `debugmap:"visible"`
+
+	// Logs
+	EnableRequestLogs  bool `debugmap:"visible"`
+	EnableResponseLogs bool `debugmap:"visible"`
 }
 
 type closeableStack struct {
@@ -349,12 +353,21 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
-	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	opts := MiddlewareOption{
+		log.Logger,
+		c.GRPCAuthFunc,
+		!c.DisableVersionResponse,
+		dispatcher,
+		ds,
+		c.EnableRequestLogs,
+		c.EnableResponseLogs,
+	}
+	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
 	if err != nil {
 		return nil, fmt.Errorf("error building default middlewares: %w", err)
 	}
 
-	defaultStreamingMiddlewareChain, err := DefaultStreamingMiddleware(log.Logger, c.GRPCAuthFunc, !c.DisableVersionResponse, dispatcher, ds)
+	defaultStreamingMiddlewareChain, err := DefaultStreamingMiddleware(opts)
 	if err != nil {
 		return nil, fmt.Errorf("error building default middlewares: %w", err)
 	}

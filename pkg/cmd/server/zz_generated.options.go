@@ -88,6 +88,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.EnableRequestLogs = c.EnableRequestLogs
+		to.EnableResponseLogs = c.EnableResponseLogs
 	}
 }
 
@@ -140,6 +142,8 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
 	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
 	debugMap["TelemetryInterval"] = helpers.DebugValue(c.TelemetryInterval, false)
+	debugMap["EnableRequestLogs"] = helpers.DebugValue(c.EnableRequestLogs, false)
+	debugMap["EnableResponseLogs"] = helpers.DebugValue(c.EnableResponseLogs, false)
 	return debugMap
 }
 
@@ -562,5 +566,19 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithEnableRequestLogs returns an option that can set EnableRequestLogs on a Config
+func WithEnableRequestLogs(enableRequestLogs bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableRequestLogs = enableRequestLogs
+	}
+}
+
+// WithEnableResponseLogs returns an option that can set EnableResponseLogs on a Config
+func WithEnableResponseLogs(enableResponseLogs bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableResponseLogs = enableResponseLogs
 	}
 }

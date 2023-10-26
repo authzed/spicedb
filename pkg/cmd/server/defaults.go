@@ -116,8 +116,6 @@ var defaultGRPCLogOptions = []grpclog.Option{
 		}
 		return grpclog.DefaultServerCodeToLevel(code)
 	}),
-	// changes default logging behaviour to only log finish call message
-	grpclog.WithLogOnEvents(grpclog.PayloadReceived, grpclog.PayloadSent, grpclog.FinishCall),
 	grpclog.WithDurationField(func(duration time.Duration) grpclog.Fields {
 		return grpclog.Fields{"grpc.time_ms", duration.Milliseconds()}
 	}),
@@ -138,8 +136,18 @@ const (
 	DefaultInternalMiddlewareServerSpecific = "servicespecific"
 )
 
+type MiddlewareOption struct {
+	logger                zerolog.Logger
+	authFunc              grpcauth.AuthFunc
+	enableVersionResponse bool
+	dispatcher            dispatch.Dispatcher
+	ds                    datastore.Datastore
+	enableRequestLog      bool
+	enableResponseLog     bool
+}
+
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
-func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
+func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -153,7 +161,7 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(grpclog.UnaryServerInterceptor(InterceptorLogger(opts.logger), determineEventsToLog(opts)...)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -168,25 +176,25 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
-			WithInterceptor(grpcauth.UnaryServerInterceptor(authFunc)).
+			WithInterceptor(grpcauth.UnaryServerInterceptor(opts.authFunc)).
 			EnsureAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareServerVersion).
-			WithInterceptor(serverversion.UnaryServerInterceptor(enableVersionResponse)).
+			WithInterceptor(serverversion.UnaryServerInterceptor(opts.enableVersionResponse)).
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareDispatch).
 			WithInternal(true).
-			WithInterceptor(dispatchmw.UnaryServerInterceptor(dispatcher)).
+			WithInterceptor(dispatchmw.UnaryServerInterceptor(opts.dispatcher)).
 			Done(),
 
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareDatastore).
 			WithInternal(true).
-			WithInterceptor(datastoremw.UnaryServerInterceptor(ds)).
+			WithInterceptor(datastoremw.UnaryServerInterceptor(opts.ds)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -205,7 +213,7 @@ func DefaultUnaryMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, e
 }
 
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
-func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, enableVersionResponse bool, dispatcher dispatch.Dispatcher, ds datastore.Datastore) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
+func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -219,7 +227,7 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...)).
+			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(opts.logger), determineEventsToLog(opts)...)).
 			Done(),
 
 		NewStreamMiddleware().
@@ -234,25 +242,25 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCAuth).
-			WithInterceptor(grpcauth.StreamServerInterceptor(authFunc)).
+			WithInterceptor(grpcauth.StreamServerInterceptor(opts.authFunc)).
 			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareGRPCProm). // so that prom middleware reports auth failures
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareServerVersion).
-			WithInterceptor(serverversion.StreamServerInterceptor(enableVersionResponse)).
+			WithInterceptor(serverversion.StreamServerInterceptor(opts.enableVersionResponse)).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareDispatch).
 			WithInternal(true).
-			WithInterceptor(dispatchmw.StreamServerInterceptor(dispatcher)).
+			WithInterceptor(dispatchmw.StreamServerInterceptor(opts.dispatcher)).
 			Done(),
 
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareDatastore).
 			WithInternal(true).
-			WithInterceptor(datastoremw.StreamServerInterceptor(ds)).
+			WithInterceptor(datastoremw.StreamServerInterceptor(opts.ds)).
 			Done(),
 
 		NewStreamMiddleware().
@@ -268,6 +276,22 @@ func DefaultStreamingMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFun
 			Done(),
 	}...)
 	return &chain, err
+}
+
+func determineEventsToLog(opts MiddlewareOption) []grpclog.Option {
+	eventsToLog := []grpclog.LoggableEvent{grpclog.FinishCall}
+	if opts.enableRequestLog {
+		eventsToLog = append(eventsToLog, grpclog.PayloadReceived)
+	}
+
+	if opts.enableResponseLog {
+		eventsToLog = append(eventsToLog, grpclog.PayloadSent)
+	}
+
+	logOnEvents := grpclog.WithLogOnEvents(eventsToLog...)
+	grpcLogOptions := append(defaultGRPCLogOptions, logOnEvents)
+
+	return grpcLogOptions
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
