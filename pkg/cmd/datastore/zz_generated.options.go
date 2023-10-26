@@ -63,6 +63,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.MigrationPhase = c.MigrationPhase
+		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 	}
 }
 
@@ -101,6 +102,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
+	debugMap["SchemaWatchHeartbeat"] = helpers.DebugValue(c.SchemaWatchHeartbeat, false)
 	return debugMap
 }
 
@@ -355,5 +357,12 @@ func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 func WithMigrationPhase(migrationPhase string) ConfigOption {
 	return func(c *Config) {
 		c.MigrationPhase = migrationPhase
+	}
+}
+
+// WithSchemaWatchHeartbeat returns an option that can set SchemaWatchHeartbeat on a Config
+func WithSchemaWatchHeartbeat(schemaWatchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.SchemaWatchHeartbeat = schemaWatchHeartbeat
 	}
 }
