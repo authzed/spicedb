@@ -79,7 +79,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 
 			// Write a fair amount of data, much more than a functional test
 			for docNum := 0; docNum < numDocuments; docNum++ {
-				_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+				_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 					var updates []*core.RelationTupleUpdate
 					for userNum := 0; userNum < usersPerDoc; userNum++ {
 						updates = append(updates, &core.RelationTupleUpdate{
@@ -215,7 +215,7 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 									}
 								}
 
-								_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+								_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 									return rwt.WriteRelationships(ctx, mutations)
 								})
 								require.NoError(b, err)
@@ -247,7 +247,7 @@ func TestAllDriversBenchmarkedOrSkipped(t *testing.T) {
 func buildTupleTest(ctx context.Context, ds datastore.Datastore, op core.RelationTupleUpdate_Operation) func(b *testing.B) {
 	return func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
-			_, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+			_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				randomID := testfixtures.RandomObjectID(32)
 				return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
 					{
