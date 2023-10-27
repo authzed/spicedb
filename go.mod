@@ -8,6 +8,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/ab180/grpc-cloudmap-resolver v0.8.1
 	github.com/authzed/authzed-go v0.10.1
 	github.com/authzed/cel-go v0.17.5
 	github.com/authzed/consistent v0.1.0
@@ -343,3 +344,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/ab180/grpc-cloudmap-resolver v0.8.1 => github.com/vroldanbet/grpc-cloudmap-resolver v0.0.0-20231027102816-d359049e4485

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	_ "github.com/ab180/grpc-cloudmap-resolver"
 	"github.com/rs/zerolog"
 	"github.com/sercand/kuberesolver/v5"
 	"github.com/spf13/cobra"
