@@ -94,24 +94,11 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
 }
 
-func TestMySQL5Datastore(t *testing.T) {
-	b := testdatastore.RunMySQLForTesting(t, "")
-	dst := datastoreTester{b: b, t: t}
-	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
-	additionalMySQLTests(t, b)
-}
-
 func TestMySQL8Datastore(t *testing.T) {
-	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, UseV8: true}, "")
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b, t: t}
 	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 	additionalMySQLTests(t, b)
-}
-
-func TestMySQL5DatastoreWithTablePrefix(t *testing.T) {
-	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
-	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
-	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
 
 func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
