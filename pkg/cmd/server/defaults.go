@@ -34,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/middleware/serverversion"
 	"github.com/authzed/spicedb/pkg/releases"
+	"github.com/authzed/spicedb/pkg/runtime"
 )
 
 var DisableTelemetryHandler *prometheus.Registry
@@ -68,6 +69,7 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
 		).RunE(),
 		releases.CheckAndLogRunE(),
+		runtime.RunE(),
 	)
 }
 
