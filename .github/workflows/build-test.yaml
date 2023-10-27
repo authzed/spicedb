@@ -94,7 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        datastore: ["crdb", "mysql", "postgres", "spanner"]
+        datastore: ["crdb", "mysql", "postgres", "spanner", "pgbouncer"]
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"

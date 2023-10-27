@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -72,7 +73,12 @@ func (Testds) Spanner() error {
 
 // Postgres Run datastore tests for postgres
 func (Testds) Postgres() error {
-	return datastoreTest("postgres")
+	return datastoreTest("postgres", "postgres")
+}
+
+// Pgbouncer Run datastore tests for postgres with Pgbouncer
+func (Testds) Pgbouncer() error {
+	return datastoreTest("postgres", "pgbouncer")
 }
 
 // Mysql Run datastore tests for mysql
@@ -80,9 +86,11 @@ func (Testds) Mysql() error {
 	return datastoreTest("mysql")
 }
 
-func datastoreTest(datastore string) error {
+func datastoreTest(datastore string, tags ...string) error {
+	mergedTags := append([]string{"ci", "docker"}, tags...)
+	tagString := strings.Join(mergedTags, ",")
 	mg.Deps(checkDocker)
-	return goTest(fmt.Sprintf("./internal/datastore/%s/...", datastore), "-tags", "ci,docker", "-timeout", "10m")
+	return goTest(fmt.Sprintf("./internal/datastore/%s/...", datastore), "-tags", tagString, "-timeout", "10m")
 }
 
 type Testcons mg.Namespace
@@ -100,6 +108,13 @@ func (Testcons) Spanner() error {
 // Postgres Run consistency tests for postgres
 func (Testcons) Postgres() error {
 	return consistencyTest("postgres")
+}
+
+// Pgbouncer Run consistency tests for postgres with pgbouncer
+// FIXME actually implement this
+func (Testcons) Pgbouncer() error {
+	println("postgres+pgbouncer consistency tests are not implemented")
+	return nil
 }
 
 // Mysql Run consistency tests for mysql

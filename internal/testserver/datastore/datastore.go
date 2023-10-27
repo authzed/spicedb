@@ -63,7 +63,7 @@ func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName
 	case "cockroachdb":
 		return RunCRDBForTesting(t, bridgeNetworkName)
 	case "postgres":
-		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head, version.MinimumSupportedPostgresVersion)
+		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head, version.MinimumSupportedPostgresVersion, false)
 	case "mysql":
 		return RunMySQLForTesting(t, bridgeNetworkName)
 	case "spanner":
