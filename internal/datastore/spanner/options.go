@@ -2,6 +2,8 @@ package spanner
 
 import (
 	"fmt"
+	"math"
+	"runtime"
 	"time"
 )
 
@@ -27,8 +29,6 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
-	defaultReadMaxOpen                 = 4
-	defaultWriteMaxOpen                = 4
 	defaultSchemaWatchHeartbeat        = 100 * time.Millisecond
 )
 
@@ -37,14 +37,17 @@ const (
 type Option func(*spannerOptions)
 
 func generateConfig(options []Option) (spannerOptions, error) {
+	// originally SpiceDB didn't use connection pools for Spanner SDK, so it opened 1 single connection
+	// This determines if there are more CPU cores to increase the default number of connections
+	defaultNumberConnections := max(1, math.Round(float64(runtime.GOMAXPROCS(0))))
 	computed := spannerOptions{
 		watchBufferLength:           defaultWatchBufferLength,
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		disableStats:                defaultDisableStats,
-		readMaxOpen:                 defaultReadMaxOpen,
-		writeMaxOpen:                defaultWriteMaxOpen,
+		readMaxOpen:                 int(defaultNumberConnections),
+		writeMaxOpen:                int(defaultNumberConnections),
 		schemaWatchHeartbeat:        defaultSchemaWatchHeartbeat,
 	}
 
