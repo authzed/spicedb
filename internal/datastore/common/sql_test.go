@@ -1,8 +1,9 @@
 package common
 
 import (
-	"github.com/google/uuid"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 
