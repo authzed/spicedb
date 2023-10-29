@@ -23,6 +23,8 @@ func RegisterTypes(m *pgtype.Map) {
 	})
 	m.RegisterDefaultPgType(pgSnapshot{}, "snapshot")
 	m.RegisterDefaultPgType(xid8{}, "xid")
+	// needed for text query modes (exec, and simple), so that caveats are serialized as JSONB
+	m.RegisterDefaultPgType(map[string]any{}, "jsonb")
 }
 
 type SnapshotCodec struct {
