@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -97,6 +98,14 @@ var (
 	getNow = psql.Select("NOW()")
 
 	tracer = otel.Tracer("spicedb/internal/datastore/postgres")
+
+	// Some execution modes (exec and simple_protocol) are not supported
+	// because they require type mappers to be registered.
+	supportedQueryExecModes = map[pgx.QueryExecMode]string{
+		pgx.QueryExecModeCacheStatement: "cache_statement",
+		pgx.QueryExecModeCacheDescribe:  "cache_describe",
+		pgx.QueryExecModeDescribeExec:   "describe_exec",
+	}
 )
 
 type sqlFilter interface {
@@ -134,11 +143,8 @@ func newPostgresDatastore(
 		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
 	}
 
-	// Setup the default custom plan setting, if applicable.
-	pgConfig, err := defaultCustomPlan(parsedConfig)
-	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
-	}
+	// Setup the default query execution mode setting, if applicable.
+	pgConfig := DefaultQueryExecMode(parsedConfig)
 
 	// Setup the config for each of the read and write pools.
 	readPoolConfig := pgConfig.Copy()
@@ -477,25 +483,42 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 }
 
-// defaultCustomPlan parses a Postgres URI and determines if a plan_cache_mode
-// has been specified. If not, it defaults to "force_custom_plan".
+// DefaultQueryExecMode parses a Postgres URI and determines if a default_query_exec_mode
+// has been specified. If not, it defaults to "cache_describe".
 // This works around a bug impacting performance documented here:
 // https://spicedb.dev/d/force-custom-plan.
-func defaultCustomPlan(poolConfig *pgxpool.Config) (*pgxpool.Config, error) {
-	if existing, ok := poolConfig.ConnConfig.Config.RuntimeParams["plan_cache_mode"]; ok {
-		log.Info().
-			Str("plan_cache_mode", existing).
-			Msg("found plan_cache_mode in DB URI; leaving as-is")
-		return poolConfig, nil
+//
+// The docs for the different execution modes offered by pgx may be found
+// here:
+// https://pkg.go.dev/github.com/jackc/pgx/v5#QueryExecMode
+func DefaultQueryExecMode(poolConfig *pgxpool.Config) *pgxpool.Config {
+	if !strings.Contains(poolConfig.ConnString(), "default_query_exec_mode") {
+		// the execution mode was not overridden by the user
+		poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
+		log.Warn().
+			Str("details-url", "https://spicedb.dev/d/force-custom-plan").
+			Str("default_query_exec_mode", "cache_describe").
+			Msg("defaulting value in Postgres DB URI")
+
+		return poolConfig
 	}
 
-	poolConfig.ConnConfig.Config.RuntimeParams["plan_cache_mode"] = "force_custom_plan"
-	log.Warn().
-		Str("details-url", "https://spicedb.dev/d/force-custom-plan").
-		Str("plan_cache_mode", "force_custom_plan").
-		Msg("defaulting value in Postgres DB URI")
+	existing, ok := supportedQueryExecModes[poolConfig.ConnConfig.DefaultQueryExecMode]
+	if !ok {
+		// the user tried to override the execution mode, but chose a value
+		// that is incompatible with SpiceDB.
+		poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheDescribe
+		log.Warn().
+			Str("default_query_exec_mode", "cache_describe").
+			Msg("unsupported default_query_exec_mode in DB URI; defaulting to cache_describe")
 
-	return poolConfig, nil
+		return poolConfig
+	}
+
+	log.Info().
+		Str("default_query_exec_mode", existing).
+		Msg("found default_query_exec_mode in DB URI; leaving as-is")
+	return poolConfig
 }
 
 var _ datastore.Datastore = &pgDatastore{}
