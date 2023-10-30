@@ -18,6 +18,8 @@ type spannerOptions struct {
 	readMaxOpen                 int
 	writeMaxOpen                int
 	schemaWatchHeartbeat        time.Duration
+	minSessions                 uint64
+	maxSessions                 uint64
 }
 
 const (
@@ -49,6 +51,8 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		readMaxOpen:                 int(defaultNumberConnections),
 		writeMaxOpen:                int(defaultNumberConnections),
 		schemaWatchHeartbeat:        defaultSchemaWatchHeartbeat,
+		minSessions:                 100,
+		maxSessions:                 400,
 	}
 
 	for _, option := range options {
@@ -157,4 +161,20 @@ func SchemaWatchHeartbeat(heartbeat time.Duration) Option {
 			po.schemaWatchHeartbeat = heartbeat
 		}
 	}
+}
+
+// MinSessionCount minimum number of session the Spanner client can have
+// at a given time.
+//
+// Defaults to 100.
+func MinSessionCount(minSessions uint64) Option {
+	return func(po *spannerOptions) { po.minSessions = minSessions }
+}
+
+// MaxSessionCount maximum number of session the Spanner client can have
+// at a given time.
+//
+// Defaults to 400 sessions.
+func MaxSessionCount(maxSessions uint64) Option {
+	return func(po *spannerOptions) { po.maxSessions = maxSessions }
 }

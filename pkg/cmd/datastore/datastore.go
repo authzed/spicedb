@@ -134,6 +134,8 @@ type Config struct {
 	// Spanner
 	SpannerCredentialsFile string `debugmap:"visible"`
 	SpannerEmulatorHost    string `debugmap:"visible"`
+	SpannerMinSessions     uint64 `debugmap:"visible"`
+	SpannerMaxSessions     uint64 `debugmap:"visible"`
 
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
@@ -209,6 +211,8 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (cockroach driver only)")
 	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
+	flagSet.Uint64Var(&opts.SpannerMinSessions, flagName("datastore-spanner-min-sessions"), 100, "minimum number of sessions across all Spanner gRPC connections the client can have at a given time")
+	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how many events the watch buffer should queue before forcefully disconnecting reader")
@@ -268,6 +272,8 @@ func DefaultDatastoreConfig() *Config {
 		MigrationPhase:                 "",
 		FollowerReadDelay:              4_800 * time.Millisecond,
 		SchemaWatchHeartbeat:           0 * time.Millisecond,
+		SpannerMinSessions:             100,
+		SpannerMaxSessions:             400,
 	}
 }
 
@@ -427,6 +433,8 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		spanner.SchemaWatchHeartbeat(opts.SchemaWatchHeartbeat),
+		spanner.MinSessionCount(opts.SpannerMinSessions),
+		spanner.MaxSessionCount(opts.SpannerMaxSessions),
 	)
 }
 
