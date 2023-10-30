@@ -115,7 +115,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	}
 
 	if !parsedURI.ParseTime {
-		return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter. See https://spicedb.dev/d/parse-time-mysql for more details.", err, uri)
+		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see https://spicedb.dev/d/parse-time-mysql for more details")
 	}
 
 	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
