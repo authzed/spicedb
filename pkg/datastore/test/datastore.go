@@ -69,6 +69,8 @@ func WithCategories(cats ...string) Categories {
 // AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
 // those specified test categories
 func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
+	t.Run("TestUseAfterClose", func(t *testing.T) { UseAfterCloseTest(t, tester) })
+
 	t.Run("TestNamespaceNotFound", func(t *testing.T) { NamespaceNotFoundTest(t, tester) })
 	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
 	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })

@@ -2,6 +2,7 @@ package memdb
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -40,6 +41,9 @@ func (mdb *memdbDatastore) newRevisionID() revision.Decimal {
 func (mdb *memdbDatastore) HeadRevision(_ context.Context) (datastore.Revision, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
+	if mdb.db == nil {
+		return nil, fmt.Errorf("datastore has been closed")
+	}
 
 	return revision.NewFromDecimal(mdb.headRevisionNoLock()), nil
 }
@@ -58,6 +62,12 @@ func (mdb *memdbDatastore) headRevisionNoLock() decimal.Decimal {
 }
 
 func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revision, error) {
+	mdb.RLock()
+	defer mdb.RUnlock()
+	if mdb.db == nil {
+		return nil, fmt.Errorf("datastore has been closed")
+	}
+
 	now := revisionFromTimestamp(time.Now().UTC())
 	return revision.NewFromDecimal(now.Sub(now.Mod(mdb.quantizationPeriod))), nil
 }
@@ -65,6 +75,9 @@ func (mdb *memdbDatastore) OptimizedRevision(_ context.Context) (datastore.Revis
 func (mdb *memdbDatastore) CheckRevision(_ context.Context, revisionRaw datastore.Revision) error {
 	mdb.RLock()
 	defer mdb.RUnlock()
+	if mdb.db == nil {
+		return fmt.Errorf("datastore has been closed")
+	}
 
 	dr, ok := revisionRaw.(revision.Decimal)
 	if !ok {
