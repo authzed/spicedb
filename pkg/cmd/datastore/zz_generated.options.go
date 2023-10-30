@@ -60,6 +60,8 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
+		to.SpannerMinSessions = c.SpannerMinSessions
+		to.SpannerMaxSessions = c.SpannerMaxSessions
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.MigrationPhase = c.MigrationPhase
@@ -99,6 +101,8 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
 	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)
 	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
+	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
+	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
@@ -336,6 +340,20 @@ func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 func WithSpannerEmulatorHost(spannerEmulatorHost string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerEmulatorHost = spannerEmulatorHost
+	}
+}
+
+// WithSpannerMinSessions returns an option that can set SpannerMinSessions on a Config
+func WithSpannerMinSessions(spannerMinSessions uint64) ConfigOption {
+	return func(c *Config) {
+		c.SpannerMinSessions = spannerMinSessions
+	}
+}
+
+// WithSpannerMaxSessions returns an option that can set SpannerMaxSessions on a Config
+func WithSpannerMaxSessions(spannerMaxSessions uint64) ConfigOption {
+	return func(c *Config) {
+		c.SpannerMaxSessions = spannerMaxSessions
 	}
 }
 
