@@ -64,7 +64,7 @@ const (
 	colCaveatContextName = "caveat_name"
 	colCaveatContext     = "caveat_context"
 
-	errUnableToInstantiate = "unable to instantiate datastore: %w"
+	errUnableToInstantiate = "unable to instantiate datastore"
 	errRevision            = "unable to find revision: %w"
 
 	querySelectNow      = "SELECT cluster_logical_timestamp()"
@@ -76,18 +76,18 @@ const (
 func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 
 	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
@@ -96,7 +96,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 	healthChecker, err := pool.NewNodeHealthChecker(url)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 
 	// The initPool is a 1-connection pool that is only used for setup tasks.
@@ -106,13 +106,13 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	initPoolConfig.MinConns = 1
 	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 	defer initPool.Close()
 
 	var version crdbVersion
 	if err := queryServerVersion(initCtx, initPool, &version); err != nil {
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 
 	changefeedQuery := queryChangefeed
@@ -140,10 +140,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	switch config.overlapStrategy {
 	case overlapStrategyStatic:
 		if len(config.overlapKey) == 0 {
-			return nil, fmt.Errorf(
-				errUnableToInstantiate,
-				fmt.Errorf("static tx overlap strategy specified without an overlap key"),
-			)
+			return nil, fmt.Errorf("static tx overlap strategy specified without an overlap key")
 		}
 		keyer = appendStaticKey(config.overlapKey)
 	case overlapStrategyPrefix:
@@ -183,12 +180,12 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
-		return nil, fmt.Errorf(errUnableToInstantiate, err)
+		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
 	}
 
 	if config.enablePrometheusStats {
@@ -197,7 +194,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 			"pool_usage": "write",
 		})); err != nil {
 			ds.cancel()
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
+			return nil, err
 		}
 
 		if err := prometheus.Register(pgxpoolprometheus.NewCollector(ds.readPool, map[string]string{
@@ -205,7 +202,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 			"pool_usage": "read",
 		})); err != nil {
 			ds.cancel()
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
+			return nil, err
 		}
 	}
 

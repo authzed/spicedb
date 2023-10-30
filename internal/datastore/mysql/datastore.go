@@ -111,16 +111,16 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 
 	parsedURI, err := mysql.ParseDSN(uri)
 	if err != nil {
-		return nil, fmt.Errorf("NewMySQLDatastore: could not parse connection URI `%s`: %w", uri, err)
+		return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: could not parse connection URI", err, uri)
 	}
 
 	if !parsedURI.ParseTime {
-		return nil, fmt.Errorf("NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter. See https://spicedb.dev/d/parse-time-mysql for more details. Found: `%s`", uri)
+		return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter. See https://spicedb.dev/d/parse-time-mysql for more details.", err, uri)
 	}
 
 	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
 	if err != nil {
-		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
+		return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: failed to create connector", err, uri)
 	}
 
 	if config.lockWaitTimeoutSeconds != nil {
@@ -129,7 +129,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 			"innodb_lock_wait_timeout": strconv.FormatUint(uint64(*config.lockWaitTimeoutSeconds), 10),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("NewMySQLDatastore: failed to add session variables to connector: %w", err)
+			return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: failed to add session variables to connector", err, uri)
 		}
 	}
 
@@ -137,7 +137,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
 		if err != nil {
-			return nil, fmt.Errorf("NewMySQLDatastore: unable to instrument connector: %w", err)
+			return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: unable to instrument connector", err, uri)
 		}
 
 		db = sql.OpenDB(connector)
