@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -104,6 +105,10 @@ var (
 // RedactAndLogSensitiveConnString elides the given error, logging it only at trace
 // level (after being redacted).
 func RedactAndLogSensitiveConnString(baseErr string, err error, pgURL string) error {
+	if err == nil {
+		return errors.New(baseErr)
+	}
+
 	// See: https://github.com/jackc/pgx/issues/1271
 	filtered := err.Error()
 	filtered = strings.ReplaceAll(filtered, pgURL, "(redacted)")
