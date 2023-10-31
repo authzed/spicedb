@@ -681,7 +681,7 @@ func union[T any](
 
 		case <-ctx.Done():
 			log.Ctx(ctx).Trace().Msg("anyCanceled")
-			return checkResultError(NewRequestCanceledErr(), responseMetadata)
+			return checkResultError(context.Canceled, responseMetadata)
 		}
 	}
 
@@ -736,7 +736,7 @@ func all[T any](
 				return noMembersWithMetadata(responseMetadata)
 			}
 		case <-ctx.Done():
-			return checkResultError(NewRequestCanceledErr(), responseMetadata)
+			return checkResultError(context.Canceled, responseMetadata)
 		}
 	}
 
@@ -794,7 +794,7 @@ func difference[T any](
 		}
 
 	case <-ctx.Done():
-		return checkResultError(NewRequestCanceledErr(), responseMetadata)
+		return checkResultError(context.Canceled, responseMetadata)
 	}
 
 	// Subtract the remaining sets.
@@ -813,7 +813,7 @@ func difference[T any](
 			}
 
 		case <-ctx.Done():
-			return checkResultError(NewRequestCanceledErr(), responseMetadata)
+			return checkResultError(context.Canceled, responseMetadata)
 		}
 	}
 

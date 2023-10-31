@@ -386,9 +386,6 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &relNotFoundError):
 		fallthrough
 
-	case errors.As(err, &maingraph.ErrRequestCanceled{}):
-		return status.Errorf(codes.Canceled, "request canceled: %s", err)
-
 	case errors.As(err, &maingraph.ErrInvalidArgument{}):
 		return status.Errorf(codes.InvalidArgument, "%s", err)
 
@@ -401,6 +398,12 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &maingraph.ErrAlwaysFail{}):
 		log.Ctx(ctx).Err(err).Msg("internal graph error in devcontext")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
+
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Errorf(codes.DeadlineExceeded, "%s", err)
+
+	case errors.Is(err, context.Canceled):
+		return status.Errorf(codes.Canceled, "%s", err)
 
 	default:
 		log.Ctx(ctx).Err(err).Msg("unexpected graph error in devcontext")
