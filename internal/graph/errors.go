@@ -15,18 +15,6 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// ErrRequestCanceled occurs when a request has been canceled.
-type ErrRequestCanceled struct {
-	error
-}
-
-// NewRequestCanceledErr constructs a new request was canceled error.
-func NewRequestCanceledErr() error {
-	return ErrRequestCanceled{
-		error: errors.New("request canceled"),
-	}
-}
-
 // ErrCheckFailure occurs when check failed in some manner. Note this should not apply to
 // namespaces and relations not being found.
 type ErrCheckFailure struct {
