@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -431,6 +432,7 @@ type Datastore struct {
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+	gcHasRun atomic.Bool
 
 	createTxn     string
 	createBaseTxn string

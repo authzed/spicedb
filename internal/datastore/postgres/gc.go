@@ -31,6 +31,18 @@ var (
 	transactionPKCols = []string{colXID}
 )
 
+func (pgd *pgDatastore) HasGCRun() bool {
+	return pgd.gcHasRun.Load()
+}
+
+func (pgd *pgDatastore) MarkGCCompleted() {
+	pgd.gcHasRun.Store(true)
+}
+
+func (pgd *pgDatastore) ResetGCCompleted() {
+	pgd.gcHasRun.Store(false)
+}
+
 func (pgd *pgDatastore) Now(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()

@@ -16,6 +16,18 @@ import (
 
 var _ common.GarbageCollector = (*Datastore)(nil)
 
+func (mds *Datastore) HasGCRun() bool {
+	return mds.gcHasRun.Load()
+}
+
+func (mds *Datastore) MarkGCCompleted() {
+	mds.gcHasRun.Store(true)
+}
+
+func (mds *Datastore) ResetGCCompleted() {
+	mds.gcHasRun.Store(false)
+}
+
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
