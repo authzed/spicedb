@@ -33,7 +33,7 @@ require (
 	github.com/golangci/golangci-lint v1.54.2
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-github/v43 v43.0.0
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.4.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.0
