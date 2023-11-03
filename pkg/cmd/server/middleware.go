@@ -445,10 +445,10 @@ func mustMarkAsExecuted(ctx context.Context, handleKey any, name string) {
 	val := ctx.Value(handleKey)
 	if val == nil {
 		panic("handle should exist")
-	} else {
-		handle := val.(*executedHandle)
-		handle.executed[name] = struct{}{}
 	}
+
+	handle := val.(*executedHandle)
+	handle.executed[name] = struct{}{}
 }
 
 type executedHandle struct {
