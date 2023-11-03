@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -999,4 +1000,18 @@ func filterSourcePositions(m protoreflect.Message) {
 		}
 		return true
 	})
+}
+
+func TestSuperLargeCaveatCompile(t *testing.T) {
+	b, err := os.ReadFile("../parser/tests/superlarge.zed")
+	if err != nil {
+		panic(err)
+	}
+
+	compiled, err := Compile(InputSchema{
+		input.Source("superlarge"), string(b),
+	}, new(string))
+	require.NoError(t, err)
+	require.Equal(t, 29, len(compiled.ObjectDefinitions))
+	require.Equal(t, 1, len(compiled.CaveatDefinitions))
 }
