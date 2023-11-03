@@ -212,19 +212,32 @@ func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames ...stri
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
-	updates := []*core.RelationTupleUpdate{{
-		Operation: core.RelationTupleUpdate_TOUCH,
-	}}
+	var updates []*core.RelationTupleUpdate
 
 	var numCopied uint64
 	var next *core.RelationTuple
 	var err error
 	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
-		updates[0].Tuple = next
+		update := core.RelationTupleUpdate{
+			Operation: core.RelationTupleUpdate_TOUCH,
+			Tuple:     next.CloneVT(),
+		}
+		updates = append(updates, &update)
+		numCopied++
+
+		if len(updates) > 1000 {
+			if err := rwt.WriteRelationships(ctx, updates); err != nil {
+				return 0, err
+			}
+
+			updates = nil
+		}
+	}
+
+	if len(updates) > 0 {
 		if err := rwt.WriteRelationships(ctx, updates); err != nil {
 			return 0, err
 		}
-		numCopied++
 	}
 
 	return numCopied, err
