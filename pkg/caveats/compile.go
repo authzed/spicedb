@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common"
@@ -12,6 +13,8 @@ import (
 )
 
 const anonymousCaveat = ""
+
+const maxCaveatExpressionSize = 100_000 // characters
 
 // CompiledCaveat is a compiled form of a caveat.
 type CompiledCaveat struct {
@@ -78,6 +81,10 @@ func CompileCaveatWithSource(env *Environment, name string, source common.Source
 	celEnv, err := env.asCelEnvironment()
 	if err != nil {
 		return nil, err
+	}
+
+	if len(strings.TrimSpace(source.Content())) > maxCaveatExpressionSize {
+		return nil, fmt.Errorf("caveat expression provided exceeds maximum allowed size of %d characters", maxCaveatExpressionSize)
 	}
 
 	ast, issues := celEnv.CompileSource(source)
