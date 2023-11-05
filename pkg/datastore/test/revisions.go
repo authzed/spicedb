@@ -124,8 +124,14 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
 
-	// wait to make sure GC kicks in
-	time.Sleep(400 * time.Millisecond)
+	// Make sure GC kicks in after the window.
+	time.Sleep(300 * time.Millisecond)
+
+	gcable, ok := ds.(common.GarbageCollector)
+	if ok {
+		gcable.ResetGCCompleted()
+		require.Eventually(func() bool { return gcable.HasGCRun() }, 5*time.Second, 50*time.Millisecond, "GC was never run as expected")
+	}
 
 	// FIXME currently the various datastores behave differently when a revision was requested and GC Window elapses.
 	// this is due to the fact MySQL and PostgreSQL implement revisions as a snapshot, while CRDB, Spanner and MemDB

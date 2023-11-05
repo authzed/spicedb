@@ -31,6 +31,16 @@ func (t testGC) DeleteBeforeTx(_ context.Context, _ datastore.Revision) (Deletio
 	return DeletionCounts{}, fmt.Errorf("hi")
 }
 
+func (t testGC) HasGCRun() bool {
+	return true
+}
+
+func (t testGC) MarkGCCompleted() {
+}
+
+func (t testGC) ResetGCCompleted() {
+}
+
 func TestGCFailureBackoff(t *testing.T) {
 	localCounter := prometheus.NewCounter(gcFailureCounterConfig)
 	reg := prometheus.NewRegistry()

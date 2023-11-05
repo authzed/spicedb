@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -295,6 +296,7 @@ type pgDatastore struct {
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+	gcHasRun atomic.Bool
 }
 
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {

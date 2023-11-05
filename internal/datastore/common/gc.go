@@ -73,6 +73,10 @@ func RegisterGCMetrics() error {
 // GarbageCollector represents any datastore that supports external garbage
 // collection.
 type GarbageCollector interface {
+	HasGCRun() bool
+	MarkGCCompleted()
+	ResetGCCompleted()
+
 	ReadyState(context.Context) (datastore.ReadyState, error)
 	Now(context.Context) (time.Time, error)
 	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
@@ -192,5 +196,6 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	gcRelationshipsCounter.Add(float64(collected.Relationships))
 	gcTransactionsCounter.Add(float64(collected.Transactions))
 	gcNamespacesCounter.Add(float64(collected.Namespaces))
+	gc.MarkGCCompleted()
 	return nil
 }
