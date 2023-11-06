@@ -2889,6 +2889,17 @@ func (m *ResolverMeta) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	if len(m.GetRequestId()) > 1024 {
+		err := ResolverMetaValidationError{
+			field:  "RequestId",
+			reason: "value length must be at most 1024 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	if len(errors) > 0 {
 		return ResolverMetaMultiError(errors)
 	}

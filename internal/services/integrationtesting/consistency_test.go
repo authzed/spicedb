@@ -284,6 +284,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 					Metadata: &dispatchv1.ResolverMeta{
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
+						RequestId:      "somerequestid",
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 				})

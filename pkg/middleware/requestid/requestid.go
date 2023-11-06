@@ -40,6 +40,34 @@ func WithIDGenerator(genFunc IDGenerator) Option {
 	}
 }
 
+// GenerateRequestID generates a new request ID.
+func GenerateRequestID() string {
+	return randSeq(32)
+}
+
+// GetOrGenerateRequestID returns the request ID found in the given context. If not, a new request ID
+// is generated and added to the returned context.
+func GetOrGenerateRequestID(ctx context.Context) (string, context.Context) {
+	var haveRequestID bool
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		var requestIDs []string
+		requestIDs, haveRequestID = md[RequestIDMetadataKey]
+		if haveRequestID {
+			return requestIDs[0], ctx
+		}
+	}
+
+	if md == nil {
+		md = metadata.New(nil)
+	}
+
+	requestID := GenerateRequestID()
+	md.Set(RequestIDMetadataKey, requestID)
+	ctx = metadata.NewIncomingContext(ctx, md)
+	return requestID, ctx
+}
+
 type handleRequestID struct {
 	generateIfMissing  bool
 	requestIDGenerator IDGenerator
@@ -61,6 +89,10 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 		requestID, haveRequestID = r.requestIDGenerator(), true
 
 		// Inject the newly generated request ID into the metadata
+		if md == nil {
+			md = metadata.New(nil)
+		}
+
 		md.Set(RequestIDMetadataKey, requestID)
 		ctx = metadata.NewIncomingContext(ctx, md)
 	}
@@ -97,9 +129,7 @@ func StreamServerInterceptor(opts ...Option) grpc.StreamServerInterceptor {
 
 func createReporter(opts []Option) *handleRequestID {
 	reporter := &handleRequestID{
-		requestIDGenerator: func() string {
-			return randSeq(32)
-		},
+		requestIDGenerator: GenerateRequestID,
 	}
 
 	for _, opt := range opts {

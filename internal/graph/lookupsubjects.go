@@ -184,6 +184,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     parentRequest.Revision.String(),
 			DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+			RequestId:      parentRequest.Metadata.RequestId,
 		},
 	}, stream)
 }
@@ -426,6 +427,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     parentRequest.Revision.String(),
 						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+						RequestId:      parentRequest.Metadata.RequestId,
 					},
 				}, stream)
 			})
