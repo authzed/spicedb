@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -155,10 +156,13 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	requestID, ctx := requestid.GetOrGenerateRequestID(ctx)
+
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.config.MaximumAPIDepth,
+			RequestId:      requestID,
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -326,7 +330,8 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 }
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
-	ctx := resp.Context()
+	requestID, ctx := requestid.GetOrGenerateRequestID(resp.Context())
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -420,6 +425,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
+				RequestId:      requestID,
 			},
 			ObjectRelation: &core.RelationReference{
 				Namespace: req.ResourceObjectType,
@@ -444,7 +450,8 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 }
 
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
-	ctx := resp.Context()
+	requestID, ctx := requestid.GetOrGenerateRequestID(resp.Context())
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
@@ -538,6 +545,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
+				RequestId:      requestID,
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,

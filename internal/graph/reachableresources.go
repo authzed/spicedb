@@ -549,6 +549,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     parentRequest.Revision.String(),
 					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+					RequestId:      parentRequest.Metadata.RequestId,
 				},
 				OptionalCursor: ci.currentCursor,
 				OptionalLimit:  ci.limits.currentLimit,

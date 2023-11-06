@@ -8,6 +8,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -102,6 +103,8 @@ func computeCheck(ctx context.Context,
 	metadata := &v1.ResponseMeta{}
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
+	requestID, ctx := requestid.GetOrGenerateRequestID(ctx)
+
 	_, err := slicez.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
 		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: params.ResourceType,
@@ -111,6 +114,7 @@ func computeCheck(ctx context.Context,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     params.AtRevision.String(),
 				DepthRemaining: params.MaximumDepth,
+				RequestId:      requestID,
 			},
 			Debug: debugging,
 		})

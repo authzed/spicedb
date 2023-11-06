@@ -23,27 +23,42 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	}
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
-	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
-		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-		Metadata: &v1.ResolverMeta{
-			AtRevision: "1234",
-		},
-	}
-
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+			ResourceRelation: tuple.RelationReference("document", "view"),
+			ResourceIds:      []string{"foo", "bar"},
+			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				RequestId:  "first",
+			},
+		})
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+			ResourceRelation: tuple.RelationReference("document", "view"),
+			ResourceIds:      []string{"foo", "bar"},
+			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				RequestId:  "second",
+			},
+		})
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+			ResourceRelation: tuple.RelationReference("document", "view"),
+			ResourceIds:      []string{"foo", "bar"},
+			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				RequestId:  "third",
+			},
+		})
 
 		wg.Done()
 	}()
@@ -74,35 +89,50 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	}
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
-	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
-		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-		Metadata: &v1.ResolverMeta{
-			AtRevision: "1234",
-		},
-	}
-
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, req)
+		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+			ResourceRelation: tuple.RelationReference("document", "view"),
+			ResourceIds:      []string{"foo", "bar"},
+			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				RequestId:  "first",
+			},
+		})
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, req)
+		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+			ResourceRelation: tuple.RelationReference("document", "view"),
+			ResourceIds:      []string{"foo", "bar"},
+			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				RequestId:  "second",
+			},
+		})
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, req)
+		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+			ResourceRelation: tuple.RelationReference("document", "view"),
+			ResourceIds:      []string{"foo", "bar"},
+			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+			Metadata: &v1.ResolverMeta{
+				AtRevision: "1234",
+				RequestId:  "third",
+			},
+		})
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()

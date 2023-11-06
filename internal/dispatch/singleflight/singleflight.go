@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -24,14 +25,23 @@ var singleFlightCount = promauto.NewCounterVec(prometheus.CounterOpts{
 }, []string{"method", "shared"})
 
 func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {
-	return &Dispatcher{delegate: delegate, keyHandler: handler}
+	return &Dispatcher{
+		delegate:            delegate,
+		keyHandler:          handler,
+		checkByDispatchKey:  mapz.NewCountingMultiMap[string, string](),
+		expandByDispatchKey: mapz.NewCountingMultiMap[string, string](),
+	}
 }
 
 type Dispatcher struct {
-	delegate    dispatch.Dispatcher
-	keyHandler  keys.Handler
+	delegate   dispatch.Dispatcher
+	keyHandler keys.Handler
+
 	checkGroup  singleflight.Group[string, *v1.DispatchCheckResponse]
 	expandGroup singleflight.Group[string, *v1.DispatchExpandResponse]
+
+	checkByDispatchKey  *mapz.CountingMultiMap[string, string]
+	expandByDispatchKey *mapz.CountingMultiMap[string, string]
 }
 
 func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -42,6 +52,18 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	}
 
 	keyString := hex.EncodeToString(key)
+
+	// Check if the key has already been part of a dispatch, for the *same* request ID. If so, this represents a
+	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
+	requestID := req.Metadata.RequestId
+	existed := d.checkByDispatchKey.Add(keyString, requestID)
+	defer d.checkByDispatchKey.Remove(keyString, requestID)
+
+	if existed {
+		// Likely a recursive call.
+		return d.delegate.DispatchCheck(ctx, req)
+	}
+
 	v, isShared, err := d.checkGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchCheckResponse, error) {
 		return d.delegate.DispatchCheck(innerCtx, req)
 	})
@@ -62,6 +84,18 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	}
 
 	keyString := hex.EncodeToString(key)
+
+	// Check if the key has already been part of a dispatch, for the *same* request ID. If so, this represents a
+	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
+	requestID := req.Metadata.RequestId
+	existed := d.expandByDispatchKey.Add(keyString, requestID)
+	defer d.expandByDispatchKey.Remove(keyString, requestID)
+
+	if existed {
+		// Likely a recursive call.
+		return d.delegate.DispatchExpand(ctx, req)
+	}
+
 	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(ictx context.Context) (*v1.DispatchExpandResponse, error) {
 		return d.delegate.DispatchExpand(ictx, req)
 	})
