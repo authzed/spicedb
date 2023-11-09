@@ -179,6 +179,15 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 					WatchBufferLength(50),
 					MigrationPhase(config.migrationPhase),
 				))
+
+				t.Run("RepairTransactionsTest", createDatastoreTest(
+					b,
+					RepairTransactionsTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(1),
+					MigrationPhase(config.migrationPhase),
+				))
 			}
 
 			t.Run("OTelTracing", createDatastoreTest(
@@ -1376,4 +1385,27 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 			require.Failf("unknown GC query: %s", explanation)
 		}
 	}
+}
+
+func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
+	// Break the datastore by adding a transaction entry with an XID greater the current one.
+	pds := ds.(*pgDatastore)
+
+	createLaterTxn := fmt.Sprintf(
+		"INSERT INTO %s (\"xid\") VALUES (12345::text::xid8)",
+		tableTransaction,
+	)
+
+	_, err := pds.writePool.Exec(context.Background(), createLaterTxn)
+	require.NoError(t, err)
+
+	// Run the repair code.
+	err = pds.repairTransactionIDs(context.Background(), false)
+	require.NoError(t, err)
+
+	// Ensure the current transaction ID is greater than the max specified in the transactions table.
+	currentMaximumID := 0
+	err = pds.writePool.QueryRow(context.Background(), queryCurrentTransactionID).Scan(&currentMaximumID)
+	require.NoError(t, err)
+	require.Greater(t, currentMaximumID, 12345)
 }
