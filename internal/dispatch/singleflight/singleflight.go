@@ -60,7 +60,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	defer d.checkByDispatchKey.Remove(keyString, requestID)
 
 	if existed {
-		// Likely a recursive call.
+		singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
 		return d.delegate.DispatchCheck(ctx, req)
 	}
 

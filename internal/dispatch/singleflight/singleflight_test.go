@@ -2,6 +2,7 @@ package singleflight
 
 import (
 	"context"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -23,52 +24,55 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	}
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
+	reqID, ctx := requestid.GetOrGenerateRequestID(context.Background())
+
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
 			ResourceIds:      []string{"foo", "bar"},
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
-				RequestId:  "first",
+				RequestId:  reqID,
 			},
 		})
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
 			ResourceIds:      []string{"foo", "bar"},
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
-				RequestId:  "second",
+				RequestId:  reqID,
 			},
 		})
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
 			ResourceIds:      []string{"foo", "bar"},
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
-				RequestId:  "third",
+				RequestId:  reqID,
 			},
 		})
 
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
+		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
 			ResourceIds:      []string{"foo", "baz"},
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
+				RequestId:  reqID,
 			},
 		})
 		wg.Done()
@@ -76,7 +80,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 
 	wg.Wait()
 
-	require.Equal(t, uint64(2), called.Load())
+	require.Equal(t, uint64(2), called.Load(), "should have dispatched %d calls but did %d", uint64(2), called.Load())
 }
 
 func TestSingleFlightDispatcherCancelation(t *testing.T) {
@@ -88,11 +92,11 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 		run <- struct{}{}
 	}
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
-
+	reqID, ctx := requestid.GetOrGenerateRequestID(context.Background())
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
@@ -100,14 +104,14 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
-				RequestId:  "first",
+				RequestId:  reqID,
 			},
 		})
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
@@ -115,14 +119,14 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
-				RequestId:  "second",
+				RequestId:  reqID,
 			},
 		})
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*50)
 		defer cancel()
 		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: tuple.RelationReference("document", "view"),
@@ -130,7 +134,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 			Metadata: &v1.ResolverMeta{
 				AtRevision: "1234",
-				RequestId:  "third",
+				RequestId:  reqID,
 			},
 		})
 		wg.Done()
