@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/developmentmembership"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -133,7 +134,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     headRevision.String(),
 							DepthRemaining: 50,
-							RequestId:      "somerequestid",
+							TraversalBloom: singleflight.MustNewTraversalBloomFilter(50),
 						},
 					})
 					require.NoError(t, err)
@@ -158,11 +159,12 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						if membership == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER {
 							cr, _, err := computed.ComputeCheck(ccd.Ctx, dispatcher,
 								computed.CheckParameters{
-									ResourceType:  resourceRelation,
-									Subject:       subject,
-									CaveatContext: nil,
-									AtRevision:    headRevision,
-									MaximumDepth:  50,
+									ResourceType:         resourceRelation,
+									Subject:              subject,
+									CaveatContext:        nil,
+									AtRevision:           headRevision,
+									MaximumDepth:         50,
+									TraversalBloomFilter: singleflight.MustNewTraversalBloomFilter(50),
 								},
 								possibleResourceID,
 							)
@@ -360,7 +362,7 @@ func isAccessibleViaWildcardOnly(
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
-			RequestId:      "somerequestid",
+			TraversalBloom: singleflight.MustNewTraversalBloomFilter(100),
 		},
 		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})

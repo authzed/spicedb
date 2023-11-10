@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/pkg/datastore"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -87,6 +88,7 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	meta := dispatch.ResolverMeta{
 		AtRevision:     revToTest.String(),
 		DepthRemaining: 50,
+		TraversalBloom: singleflight.MustNewTraversalBloomFilter(50),
 	}
 	require.NoError(meta.Validate())
 }

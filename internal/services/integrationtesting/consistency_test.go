@@ -21,6 +21,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/developmentmembership"
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
@@ -284,7 +285,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 					Metadata: &dispatchv1.ResolverMeta{
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
-						RequestId:      "somerequestid",
+						TraversalBloom: singleflight.MustNewTraversalBloomFilter(100),
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 				})

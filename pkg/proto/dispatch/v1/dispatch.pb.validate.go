@@ -2889,9 +2889,11 @@ func (m *ResolverMeta) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
-	if len(m.GetRequestId()) > 1024 {
+	// no validation rules for RequestId
+
+	if len(m.GetTraversalBloom()) > 1024 {
 		err := ResolverMetaValidationError{
-			field:  "RequestId",
+			field:  "TraversalBloom",
 			reason: "value length must be at most 1024 bytes",
 		}
 		if !all {

@@ -2,18 +2,24 @@ package singleflight
 
 import (
 	"context"
-	"github.com/authzed/spicedb/pkg/middleware/requestid"
+	"encoding/hex"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+const (
+	maxDefaultDepth        = 50
+	defaultBloomFilterSize = maxDefaultDepth + 1
 )
 
 func TestSingleFlightDispatcher(t *testing.T) {
@@ -24,63 +30,90 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	}
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
-	reqID, ctx := requestid.GetOrGenerateRequestID(context.Background())
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+		},
+	}
 
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "bar"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
+		_, _ = disp.DispatchCheck(context.Background(), req)
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "bar"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
+		_, _ = disp.DispatchCheck(context.Background(), req)
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "bar"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
-
+		_, _ = disp.DispatchCheck(context.Background(), req)
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "baz"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
+		anotherReq := req.CloneVT()
+		anotherReq.ResourceIds = []string{"foo", "baz"}
+		_, _ = disp.DispatchCheck(context.Background(), anotherReq)
 		wg.Done()
 	}()
 
 	wg.Wait()
 
 	require.Equal(t, uint64(2), called.Load(), "should have dispatched %d calls but did %d", uint64(2), called.Load())
+}
+
+func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
+	var called atomic.Uint64
+	f := func() {
+		time.Sleep(100 * time.Millisecond)
+		called.Add(1)
+	}
+	keyHandler := &keys.DirectKeyHandler{}
+	disp := New(mockDispatcher{f: f}, keyHandler)
+
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+		},
+	}
+
+	// we simulate the request above being already part of the traversal path,
+	// so that the dispatcher detects a loop and does not singleflight
+	req.Metadata.TraversalBloom = bloomFilterForRequest(t, keyHandler, req)
+
+	wg := sync.WaitGroup{}
+	wg.Add(4)
+	go func() {
+		_, _ = disp.DispatchCheck(context.Background(), req)
+		wg.Done()
+	}()
+	go func() {
+		_, _ = disp.DispatchCheck(context.Background(), req)
+		wg.Done()
+	}()
+	go func() {
+		_, _ = disp.DispatchCheck(context.Background(), req)
+
+		wg.Done()
+	}()
+	go func() {
+		differentReq := req.CloneVT()
+		differentReq.ResourceIds = []string{"foo", "baz"}
+		_, _ = disp.DispatchCheck(context.Background(), differentReq)
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	require.Equal(t, uint64(4), called.Load(), "should have dispatched %d calls but did %d", uint64(4), called.Load())
 }
 
 func TestSingleFlightDispatcherCancelation(t *testing.T) {
@@ -91,52 +124,38 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 		called.Add(1)
 		run <- struct{}{}
 	}
+
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+		},
+	}
+
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
-	reqID, ctx := requestid.GetOrGenerateRequestID(context.Background())
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
-		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "bar"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
+		_, err := disp.DispatchCheck(ctx, req)
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
-		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "bar"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
+		_, err := disp.DispatchCheck(ctx, req)
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
-		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*50)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: tuple.RelationReference("document", "view"),
-			ResourceIds:      []string{"foo", "bar"},
-			Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
-			Metadata: &v1.ResolverMeta{
-				AtRevision: "1234",
-				RequestId:  reqID,
-			},
-		})
+		_, err := disp.DispatchCheck(ctx, req)
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
@@ -144,6 +163,19 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	wg.Wait()
 	<-run
 	require.Equal(t, uint64(1), called.Load())
+}
+
+func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) string {
+	t.Helper()
+
+	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, defaultFalsePositiveRate)
+	key, err := keyHandler.CheckDispatchKey(context.Background(), req)
+	require.NoError(t, err)
+	stringKey := hex.EncodeToString(key)
+	bloomFilter = bloomFilter.AddString(stringKey)
+	binaryBloom, err := bloomFilter.MarshalBinary()
+	require.NoError(t, err)
+	return string(binaryBloom)
 }
 
 type mockDispatcher struct {
