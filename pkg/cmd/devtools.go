@@ -61,7 +61,7 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
 		grpc.ChainUnaryInterceptor(
 			grpclog.UnaryServerInterceptor(server.InterceptorLogger(log.Logger)),
-			otelgrpc.UnaryServerInterceptor(),
+			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
 			grpcprom.UnaryServerInterceptor,
 		))
 	if err != nil {

@@ -168,7 +168,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.UnaryServerInterceptor()).
+			WithInterceptor(otelgrpc.UnaryServerInterceptor()). // nolint: staticcheck
 			Done(),
 
 		NewUnaryMiddleware().
@@ -234,7 +234,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.StreamServerInterceptor()).
+			WithInterceptor(otelgrpc.StreamServerInterceptor()). // nolint: staticcheck
 			Done(),
 
 		NewStreamMiddleware().
@@ -302,7 +302,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
-			otelgrpc.UnaryServerInterceptor(),
+			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
 			grpcprom.UnaryServerInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
@@ -311,7 +311,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
-			otelgrpc.StreamServerInterceptor(),
+			otelgrpc.StreamServerInterceptor(), // nolint: staticcheck
 			grpcprom.StreamServerInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
