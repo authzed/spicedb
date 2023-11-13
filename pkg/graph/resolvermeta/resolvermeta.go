@@ -6,7 +6,7 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-const defaultFalsePositiveRate = 0.01
+const defaultFalsePositiveRate = 0.001
 
 // NewTraversalBloomFilter creates a new bloom filter sized to the provided number of elements and
 // with a predefined false-positive ratio of 1%.

@@ -255,7 +255,7 @@ func assertCounterWithLabel(t *testing.T, gatherer prometheus.Gatherer, expected
 func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) []byte {
 	t.Helper()
 
-	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, 0.01)
+	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, 0.001)
 	key, err := keyHandler.CheckDispatchKey(context.Background(), req)
 	require.NoError(t, err)
 	stringKey := hex.EncodeToString(key)
