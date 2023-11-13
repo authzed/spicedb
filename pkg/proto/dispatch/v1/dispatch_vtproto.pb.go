@@ -485,7 +485,11 @@ func (m *ResolverMeta) CloneVT() *ResolverMeta {
 		AtRevision:     m.AtRevision,
 		DepthRemaining: m.DepthRemaining,
 		RequestId:      m.RequestId,
-		TraversalBloom: m.TraversalBloom,
+	}
+	if rhs := m.TraversalBloom; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.TraversalBloom = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -1185,7 +1189,7 @@ func (this *ResolverMeta) EqualVT(that *ResolverMeta) bool {
 	if this.RequestId != that.RequestId {
 		return false
 	}
-	if this.TraversalBloom != that.TraversalBloom {
+	if string(this.TraversalBloom) != string(that.TraversalBloom) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -6259,7 +6263,7 @@ func (m *ResolverMeta) UnmarshalVT(dAtA []byte) error {
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TraversalBloom", wireType)
 			}
-			var stringLen uint64
+			var byteLen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -6269,23 +6273,25 @@ func (m *ResolverMeta) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				byteLen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
+			if byteLen < 0 {
 				return ErrInvalidLength
 			}
-			postIndex := iNdEx + intStringLen
+			postIndex := iNdEx + byteLen
 			if postIndex < 0 {
 				return ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.TraversalBloom = string(dAtA[iNdEx:postIndex])
+			m.TraversalBloom = append(m.TraversalBloom[:0], dAtA[iNdEx:postIndex]...)
+			if m.TraversalBloom == nil {
+				m.TraversalBloom = []byte{}
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

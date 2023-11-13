@@ -118,30 +118,30 @@ var ErrLoopDetect = errors.New("traversal recursion loop detected")
 // validateTraversalRecursion determines from the ResolverMeta.TraversalBloom value if a traversal loop has happened
 // based on the argument key. As a bloom filter, this may lead to false positives,
 // so clients should take that into account.
-func validateTraversalRecursion(key string, meta *v1.ResolverMeta) (string, error) {
-	if meta.TraversalBloom == "" {
-		return "", status.Error(codes.Internal, fmt.Errorf("required traversal bloom filter is missing").Error())
+func validateTraversalRecursion(key string, meta *v1.ResolverMeta) ([]byte, error) {
+	if len(meta.TraversalBloom) == 0 {
+		return nil, status.Error(codes.Internal, fmt.Errorf("required traversal bloom filter is missing").Error())
 	}
 
 	bf := &bloom.BloomFilter{}
-	if err := bf.UnmarshalBinary([]byte(meta.TraversalBloom)); err != nil {
-		return "", status.Error(codes.Internal, fmt.Errorf("unable to unmarshall traversal bloom filter: %w", err).Error())
+	if err := bf.UnmarshalBinary(meta.TraversalBloom); err != nil {
+		return nil, status.Error(codes.Internal, fmt.Errorf("unable to unmarshall traversal bloom filter: %w", err).Error())
 	}
 
 	if bf.TestString(key) {
-		return "", ErrLoopDetect
+		return nil, ErrLoopDetect
 	}
 
 	bf = bf.AddString(key)
 	modifiedBloomFilter, err := bf.MarshalBinary()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(modifiedBloomFilter), nil
+	return modifiedBloomFilter, nil
 }
 
-func MustNewTraversalBloomFilter(depth uint) string {
+func MustNewTraversalBloomFilter(depth uint) []byte {
 	bf := bloom.NewWithEstimates(depth, defaultFalsePositiveRate)
 
 	modifiedBloomFilter, err := bf.MarshalBinary()
@@ -149,7 +149,7 @@ func MustNewTraversalBloomFilter(depth uint) string {
 		panic("unexpected error while serializing empty bloom filter")
 	}
 
-	return string(modifiedBloomFilter)
+	return modifiedBloomFilter
 }
 
 func (d *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {

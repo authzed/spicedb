@@ -7,6 +7,13 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+type dispatchCacheKeyHashComputeOption int
+
+const (
+	computeOnlyStableHash dispatchCacheKeyHashComputeOption = 0
+	computeBothHashes     dispatchCacheKeyHashComputeOption = 1
+)
+
 // cachePrefix defines a unique prefix for a type of cache key.
 type cachePrefix string
 

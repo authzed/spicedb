@@ -165,7 +165,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	require.Equal(t, uint64(1), called.Load())
 }
 
-func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) string {
+func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) []byte {
 	t.Helper()
 
 	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, defaultFalsePositiveRate)
@@ -175,7 +175,8 @@ func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req 
 	bloomFilter = bloomFilter.AddString(stringKey)
 	binaryBloom, err := bloomFilter.MarshalBinary()
 	require.NoError(t, err)
-	return string(binaryBloom)
+
+	return binaryBloom
 }
 
 type mockDispatcher struct {

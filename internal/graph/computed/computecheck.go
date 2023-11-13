@@ -46,7 +46,7 @@ type CheckParameters struct {
 	AtRevision           datastore.Revision
 	MaximumDepth         uint32
 	DebugOption          DebugOption
-	TraversalBloomFilter string
+	TraversalBloomFilter []byte
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
