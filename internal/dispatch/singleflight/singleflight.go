@@ -21,12 +21,15 @@ import (
 
 const defaultFalsePositiveRate = 0.01
 
-var singleFlightCount = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "single_flight_total",
-	Help:      "total number of dispatch requests that were single flighted",
-}, []string{"method", "shared"})
+var (
+	singleFlightCount       = promauto.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	singleFlightCountConfig = prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "dispatch",
+		Name:      "single_flight_total",
+		Help:      "total number of dispatch requests that were single flighted",
+	}
+)
 
 func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {
 	return &Dispatcher{
@@ -103,7 +106,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	clonedReq.Metadata.TraversalBloom = serializedBloom
 
 	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(ictx context.Context) (*v1.DispatchExpandResponse, error) {
-		return d.delegate.DispatchExpand(ictx, req)
+		return d.delegate.DispatchExpand(ictx, clonedReq)
 	})
 
 	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()

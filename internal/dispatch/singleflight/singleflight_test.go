@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
+	"github.com/prometheus/client_golang/prometheus"
+	promclient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -67,6 +69,9 @@ func TestSingleFlightDispatcher(t *testing.T) {
 }
 
 func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
 	var called atomic.Uint64
 	f := func() {
 		time.Sleep(100 * time.Millisecond)
@@ -114,6 +119,53 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, uint64(4), called.Load(), "should have dispatched %d calls but did %d", uint64(4), called.Load())
+	assertCounterWithLabel(t, reg, 2, "spicedb_dispatch_single_flight_total", "loop")
+}
+
+// this test makes sure that bloom filter information is carried from dispatcher to dispatcher
+func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
+	var called atomic.Uint64
+	f := func() {
+		time.Sleep(100 * time.Millisecond)
+		called.Add(1)
+	}
+	keyHandler := &keys.DirectKeyHandler{}
+	// we simulate an actual dispatch-chain loop by nesting 2 singleflight dispatchers
+	disp := New(New(mockDispatcher{f: f}, keyHandler), keyHandler)
+
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+		},
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+	go func() {
+		_, _ = disp.DispatchCheck(context.Background(), req)
+		wg.Done()
+	}()
+	go func() {
+		_, _ = disp.DispatchCheck(context.Background(), req)
+		wg.Done()
+	}()
+	go func() {
+		_, _ = disp.DispatchCheck(context.Background(), req)
+
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
+	assertCounterWithLabel(t, reg, 2, "spicedb_dispatch_single_flight_total", "loop")
 }
 
 func TestSingleFlightDispatcherCancelation(t *testing.T) {
@@ -163,6 +215,39 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	wg.Wait()
 	<-run
 	require.Equal(t, uint64(1), called.Load())
+}
+
+func registerMetricInGatherer(collector prometheus.Collector) prometheus.Gatherer {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(collector)
+
+	return reg
+}
+
+func assertCounterWithLabel(t *testing.T, gatherer prometheus.Gatherer, expectedMetricsCount int, metricName, labelName string) {
+	t.Helper()
+
+	metrics, err := gatherer.Gather()
+	require.NoError(t, err)
+
+	var mf *promclient.MetricFamily
+	for _, metric := range metrics {
+		if metric.GetName() == metricName {
+			mf = metric
+		}
+	}
+
+	found := false
+	require.Len(t, mf.GetMetric(), expectedMetricsCount)
+	for _, metric := range mf.GetMetric() {
+		for _, label := range metric.Label {
+			if *label.Value == labelName {
+				found = true
+			}
+		}
+	}
+
+	require.True(t, found, "didn't find counter with label %s", labelName)
 }
 
 func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) []byte {
