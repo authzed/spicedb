@@ -451,6 +451,10 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		toCheck.Add(current.reachableResult.Resource.ResourceId, current)
 	}
 
+	bf, err := singleflight.NewTraversalBloomFilter(uint(crs.req.Metadata.DepthRemaining))
+	if err != nil {
+		return false, err
+	}
 	// Issue the bulk check over all the resources.
 	results, checkResultMetadata, err := computed.ComputeBulkCheck(
 		crs.ctx,
@@ -462,7 +466,7 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 			AtRevision:           crs.req.Revision,
 			MaximumDepth:         crs.req.Metadata.DepthRemaining,
 			DebugOption:          computed.NoDebugging,
-			TraversalBloomFilter: singleflight.MustNewTraversalBloomFilter(uint(crs.req.Metadata.DepthRemaining)),
+			TraversalBloomFilter: bf,
 		},
 		toCheck.Keys(),
 	)

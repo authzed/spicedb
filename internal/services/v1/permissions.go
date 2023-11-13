@@ -75,6 +75,11 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		}
 	}
 
+	bf, err := singleflight.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
 		computed.CheckParameters{
 			ResourceType: &core.RelationReference{
@@ -89,7 +94,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			CaveatContext:        caveatContext,
 			AtRevision:           atRevision,
 			MaximumDepth:         ps.config.MaximumAPIDepth,
-			TraversalBloomFilter: singleflight.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+			TraversalBloomFilter: bf,
 			DebugOption:          debugOption,
 		},
 		req.Resource.ObjectId,

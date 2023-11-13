@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const defaultFalsePositiveRate = 0.01
@@ -142,15 +143,28 @@ func validateTraversalRecursion(key string, meta *v1.ResolverMeta) ([]byte, erro
 	return modifiedBloomFilter, nil
 }
 
-func MustNewTraversalBloomFilter(depth uint) []byte {
+// MustNewTraversalBloomFilter creates a new bloom filter sized to the provided number of elements and
+// with a predefined false-positive ratio of 1%.
+func MustNewTraversalBloomFilter(numElements uint) []byte {
+	bf, err := NewTraversalBloomFilter(numElements)
+	if err != nil {
+		panic(err)
+	}
+
+	return bf
+}
+
+// NewTraversalBloomFilter creates a new bloom filter sized to the provided number of elements and
+// with a predefined false-positive ratio of 1%.
+func NewTraversalBloomFilter(depth uint) ([]byte, error) {
 	bf := bloom.NewWithEstimates(depth, defaultFalsePositiveRate)
 
 	modifiedBloomFilter, err := bf.MarshalBinary()
 	if err != nil {
-		panic("unexpected error while serializing empty bloom filter")
+		return nil, spiceerrors.MustBugf("unexpected error while serializing empty bloom filter: %s", err.Error())
 	}
 
-	return modifiedBloomFilter
+	return modifiedBloomFilter, nil
 }
 
 func (d *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
