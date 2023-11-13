@@ -10,7 +10,6 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -451,22 +450,17 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		toCheck.Add(current.reachableResult.Resource.ResourceId, current)
 	}
 
-	bf, err := singleflight.NewTraversalBloomFilter(uint(crs.req.Metadata.DepthRemaining))
-	if err != nil {
-		return false, err
-	}
 	// Issue the bulk check over all the resources.
 	results, checkResultMetadata, err := computed.ComputeBulkCheck(
 		crs.ctx,
 		crs.checker,
 		computed.CheckParameters{
-			ResourceType:         crs.req.ObjectRelation,
-			Subject:              crs.req.Subject,
-			CaveatContext:        crs.req.Context.AsMap(),
-			AtRevision:           crs.req.Revision,
-			MaximumDepth:         crs.req.Metadata.DepthRemaining,
-			DebugOption:          computed.NoDebugging,
-			TraversalBloomFilter: bf,
+			ResourceType:  crs.req.ObjectRelation,
+			Subject:       crs.req.Subject,
+			CaveatContext: crs.req.Context.AsMap(),
+			AtRevision:    crs.req.Revision,
+			MaximumDepth:  crs.req.Metadata.DepthRemaining,
+			DebugOption:   computed.NoDebugging,
 		},
 		toCheck.Keys(),
 	)

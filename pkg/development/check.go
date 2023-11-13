@@ -3,7 +3,6 @@ package development
 import (
 	v1api "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	v1 "github.com/authzed/spicedb/internal/services/v1"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -30,12 +29,11 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 				Namespace: resource.Namespace,
 				Relation:  resource.Relation,
 			},
-			Subject:              subject,
-			CaveatContext:        caveatContext,
-			AtRevision:           devContext.Revision,
-			MaximumDepth:         maxDispatchDepth,
-			TraversalBloomFilter: singleflight.MustNewTraversalBloomFilter(uint(maxDispatchDepth)),
-			DebugOption:          computed.TraceDebuggingEnabled,
+			Subject:       subject,
+			CaveatContext: caveatContext,
+			AtRevision:    devContext.Revision,
+			MaximumDepth:  maxDispatchDepth,
+			DebugOption:   computed.TraceDebuggingEnabled,
 		},
 		resource.ObjectId,
 	)

@@ -5,7 +5,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -68,10 +67,9 @@ func checkParametersFromBulkCheckPermissionRequestItem(
 			ObjectId:  bc.Subject.Object.ObjectId,
 			Relation:  normalizeSubjectRelation(bc.Subject),
 		},
-		CaveatContext:        caveatContext,
-		AtRevision:           params.atRevision,
-		MaximumDepth:         params.maximumAPIDepth,
-		TraversalBloomFilter: singleflight.MustNewTraversalBloomFilter(uint(params.maximumAPIDepth)),
-		DebugOption:          computed.NoDebugging,
+		CaveatContext: caveatContext,
+		AtRevision:    params.atRevision,
+		MaximumDepth:  params.maximumAPIDepth,
+		DebugOption:   computed.NoDebugging,
 	}
 }

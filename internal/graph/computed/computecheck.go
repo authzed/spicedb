@@ -3,6 +3,8 @@ package computed
 import (
 	"context"
 
+	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
+
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -40,13 +42,12 @@ const (
 
 // CheckParameters are the parameters for the ComputeCheck call. *All* are required.
 type CheckParameters struct {
-	ResourceType         *core.RelationReference
-	Subject              *core.ObjectAndRelation
-	CaveatContext        map[string]any
-	AtRevision           datastore.Revision
-	MaximumDepth         uint32
-	DebugOption          DebugOption
-	TraversalBloomFilter []byte
+	ResourceType  *core.RelationReference
+	Subject       *core.ObjectAndRelation
+	CaveatContext map[string]any
+	AtRevision    datastore.Revision
+	MaximumDepth  uint32
+	DebugOption   DebugOption
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
@@ -102,8 +103,13 @@ func computeCheck(ctx context.Context,
 	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
 	metadata := &v1.ResponseMeta{}
 
+	bf, err := resolvermeta.NewTraversalBloomFilter(uint(params.MaximumDepth))
+	if err != nil {
+		return nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
+	}
+
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
-	_, err := slicez.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
+	_, err = slicez.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
 		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: params.ResourceType,
 			ResourceIds:      resourceIDsToCheck,
@@ -112,7 +118,7 @@ func computeCheck(ctx context.Context,
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     params.AtRevision.String(),
 				DepthRemaining: params.MaximumDepth,
-				TraversalBloom: params.TraversalBloomFilter,
+				TraversalBloom: bf,
 			},
 			Debug: debugging,
 		})

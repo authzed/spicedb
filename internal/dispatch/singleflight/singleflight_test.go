@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
+
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
@@ -38,7 +40,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -86,7 +88,7 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -142,7 +144,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -183,7 +185,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -253,7 +255,7 @@ func assertCounterWithLabel(t *testing.T, gatherer prometheus.Gatherer, expected
 func bloomFilterForRequest(t *testing.T, keyHandler *keys.DirectKeyHandler, req *v1.DispatchCheckRequest) []byte {
 	t.Helper()
 
-	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, defaultFalsePositiveRate)
+	bloomFilter := bloom.NewWithEstimates(defaultBloomFilterSize, 0.01)
 	key, err := keyHandler.CheckDispatchKey(context.Background(), req)
 	require.NoError(t, err)
 	stringKey := hex.EncodeToString(key)

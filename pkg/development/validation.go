@@ -5,11 +5,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
+
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/developmentmembership"
-	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -33,7 +34,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     devContext.Revision.String(),
 				DepthRemaining: maxDispatchDepth,
-				TraversalBloom: singleflight.MustNewTraversalBloomFilter(uint(maxDispatchDepth)),
+				TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(maxDispatchDepth)),
 			},
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})

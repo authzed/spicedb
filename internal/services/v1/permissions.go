@@ -17,7 +17,6 @@ import (
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
-	"github.com/authzed/spicedb/internal/dispatch/singleflight"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -26,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -75,11 +75,6 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		}
 	}
 
-	bf, err := singleflight.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
-	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
-	}
-
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
 		computed.CheckParameters{
 			ResourceType: &core.RelationReference{
@@ -91,11 +86,10 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),
 			},
-			CaveatContext:        caveatContext,
-			AtRevision:           atRevision,
-			MaximumDepth:         ps.config.MaximumAPIDepth,
-			TraversalBloomFilter: bf,
-			DebugOption:          debugOption,
+			CaveatContext: caveatContext,
+			AtRevision:    atRevision,
+			MaximumDepth:  ps.config.MaximumAPIDepth,
+			DebugOption:   debugOption,
 		},
 		req.Resource.ObjectId,
 	)
@@ -166,7 +160,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.config.MaximumAPIDepth,
-			TraversalBloom: singleflight.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -429,7 +423,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: singleflight.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+				TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
 			},
 			ObjectRelation: &core.RelationReference{
 				Namespace: req.ResourceObjectType,
@@ -549,7 +543,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: singleflight.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+				TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,
