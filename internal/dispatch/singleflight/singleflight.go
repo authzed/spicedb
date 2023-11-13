@@ -69,11 +69,10 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	}
 
-	clonedReq := req.CloneVT()
-	clonedReq.Metadata.TraversalBloom = serializedBloom
+	req.Metadata.TraversalBloom = serializedBloom
 
 	v, isShared, err := d.checkGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchCheckResponse, error) {
-		return d.delegate.DispatchCheck(innerCtx, clonedReq)
+		return d.delegate.DispatchCheck(innerCtx, req)
 	})
 
 	singleFlightCount.WithLabelValues("DispatchCheck", strconv.FormatBool(isShared)).Inc()
@@ -102,11 +101,10 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	}
 
-	clonedReq := req.CloneVT()
-	clonedReq.Metadata.TraversalBloom = serializedBloom
+	req.Metadata.TraversalBloom = serializedBloom
 
 	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(ictx context.Context) (*v1.DispatchExpandResponse, error) {
-		return d.delegate.DispatchExpand(ictx, clonedReq)
+		return d.delegate.DispatchExpand(ictx, req)
 	})
 
 	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()

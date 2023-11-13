@@ -45,15 +45,15 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
@@ -97,15 +97,15 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 
 		wg.Done()
 	}()
@@ -149,15 +149,15 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 		wg.Done()
 	}()
 	go func() {
-		_, _ = disp.DispatchCheck(context.Background(), req)
+		_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
 
 		wg.Done()
 	}()
@@ -193,21 +193,21 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, req)
+		_, err := disp.DispatchCheck(ctx, req.CloneVT())
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, req)
+		_, err := disp.DispatchCheck(ctx, req.CloneVT())
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 		defer cancel()
-		_, err := disp.DispatchCheck(ctx, req)
+		_, err := disp.DispatchCheck(ctx, req.CloneVT())
 		wg.Done()
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 	}()
