@@ -9,7 +9,7 @@ import (
 const defaultFalsePositiveRate = 0.001
 
 // NewTraversalBloomFilter creates a new bloom filter sized to the provided number of elements and
-// with a predefined false-positive ratio of 1%.
+// with a predefined false-positive ratio of 0.1%.
 func NewTraversalBloomFilter(numElements uint) ([]byte, error) {
 	bf := bloom.NewWithEstimates(numElements, defaultFalsePositiveRate)
 
@@ -22,7 +22,7 @@ func NewTraversalBloomFilter(numElements uint) ([]byte, error) {
 }
 
 // MustNewTraversalBloomFilter creates a new bloom filter sized to the provided number of elements and
-// with a predefined false-positive ratio of 1%.
+// with a predefined false-positive ratio of 0.1%.
 func MustNewTraversalBloomFilter(numElements uint) []byte {
 	bf, err := NewTraversalBloomFilter(numElements)
 	if err != nil {
