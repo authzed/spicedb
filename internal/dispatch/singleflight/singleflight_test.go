@@ -19,10 +19,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const (
-	maxDefaultDepth        = 50
-	defaultBloomFilterSize = maxDefaultDepth
-)
+const defaultBloomFilterSize = 50
 
 func TestSingleFlightDispatcher(t *testing.T) {
 	var called atomic.Uint64
@@ -217,6 +214,48 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	require.Equal(t, uint64(1), called.Load())
 }
 
+func TestSingleFlightDispatcherExpand(t *testing.T) {
+	var called atomic.Uint64
+	f := func() {
+		time.Sleep(100 * time.Millisecond)
+		called.Add(1)
+	}
+	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchExpandRequest{
+		ResourceAndRelation: tuple.ObjectAndRelation("document", "foo", "view"),
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     "1234",
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+		},
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(4)
+	go func() {
+		_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+		wg.Done()
+	}()
+	go func() {
+		_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+		wg.Done()
+	}()
+	go func() {
+		_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+		wg.Done()
+	}()
+	go func() {
+		anotherReq := req.CloneVT()
+		anotherReq.ResourceAndRelation.ObjectId = "baz"
+		_, _ = disp.DispatchExpand(context.Background(), anotherReq)
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	require.Equal(t, uint64(2), called.Load(), "should have dispatched %d calls but did %d", uint64(2), called.Load())
+}
+
 func registerMetricInGatherer(collector prometheus.Collector) prometheus.Gatherer {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collector)
@@ -274,6 +313,7 @@ func (m mockDispatcher) DispatchCheck(_ context.Context, _ *v1.DispatchCheckRequ
 }
 
 func (m mockDispatcher) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	m.f()
 	return &v1.DispatchExpandResponse{}, nil
 }
 

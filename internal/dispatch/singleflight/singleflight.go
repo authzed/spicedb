@@ -90,8 +90,8 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
-	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(ictx context.Context) (*v1.DispatchExpandResponse, error) {
-		return d.delegate.DispatchExpand(ictx, req)
+	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchExpandResponse, error) {
+		return d.delegate.DispatchExpand(innerCtx, req)
 	})
 
 	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
