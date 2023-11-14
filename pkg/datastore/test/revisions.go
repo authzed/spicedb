@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -89,7 +87,7 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	meta := dispatch.ResolverMeta{
 		AtRevision:     revToTest.String(),
 		DepthRemaining: 50,
-		TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(50),
+		TraversalBloom: dispatch.MustNewTraversalBloomFilter(50),
 	}
 	require.NoError(meta.Validate())
 }

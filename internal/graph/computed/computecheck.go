@@ -3,8 +3,6 @@ package computed
 import (
 	"context"
 
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
-
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -103,7 +101,7 @@ func computeCheck(ctx context.Context,
 	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
 	metadata := &v1.ResponseMeta{}
 
-	bf, err := resolvermeta.NewTraversalBloomFilter(uint(params.MaximumDepth))
+	bf, err := v1.NewTraversalBloomFilter(uint(params.MaximumDepth))
 	if err != nil {
 		return nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
 	}

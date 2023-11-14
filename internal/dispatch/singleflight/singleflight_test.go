@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
-
 	"github.com/bits-and-blooms/bloom/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
@@ -23,7 +21,7 @@ import (
 
 const (
 	maxDefaultDepth        = 50
-	defaultBloomFilterSize = maxDefaultDepth + 1
+	defaultBloomFilterSize = maxDefaultDepth
 )
 
 func TestSingleFlightDispatcher(t *testing.T) {
@@ -40,7 +38,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -88,7 +86,7 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -144,7 +142,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 
@@ -185,7 +183,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
-			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(defaultBloomFilterSize),
+			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
 		},
 	}
 

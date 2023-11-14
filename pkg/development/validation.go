@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
-
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 
@@ -34,7 +32,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     devContext.Revision.String(),
 				DepthRemaining: maxDispatchDepth,
-				TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(maxDispatchDepth)),
+				TraversalBloom: v1.MustNewTraversalBloomFilter(uint(maxDispatchDepth)),
 			},
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})

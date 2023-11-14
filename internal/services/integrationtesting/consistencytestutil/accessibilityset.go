@@ -3,8 +3,6 @@ package consistencytestutil
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -135,7 +133,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     headRevision.String(),
 							DepthRemaining: 50,
-							TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(50),
+							TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(50),
 						},
 					})
 					require.NoError(t, err)
@@ -362,7 +360,7 @@ func isAccessibleViaWildcardOnly(
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
-			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(100),
+			TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
 		},
 		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})

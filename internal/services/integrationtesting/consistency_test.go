@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
-
 	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -286,7 +284,7 @@ func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 					Metadata: &dispatchv1.ResolverMeta{
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
-						TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(100),
+						TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
 					},
 					ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 				})

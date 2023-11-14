@@ -1,10 +1,36 @@
-package resolvermeta
+package dispatchv1
 
 import (
-	"github.com/bits-and-blooms/bloom/v3"
+	"fmt"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+
+	"github.com/bits-and-blooms/bloom/v3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+func (x *ResolverMeta) RecordTraversal(key string) (possiblyLoop bool, err error) {
+	if x == nil || len(x.TraversalBloom) == 0 {
+		return false, status.Error(codes.Internal, fmt.Errorf("required traversal bloom filter is missing").Error())
+	}
+
+	bf := &bloom.BloomFilter{}
+	if err := bf.UnmarshalBinary(x.TraversalBloom); err != nil {
+		return false, status.Error(codes.Internal, fmt.Errorf("unable to unmarshall traversal bloom filter: %w", err).Error())
+	}
+
+	if bf.TestString(key) {
+		return true, nil
+	}
+
+	x.TraversalBloom, err = bf.AddString(key).MarshalBinary()
+	if err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
 
 const defaultFalsePositiveRate = 0.001
 

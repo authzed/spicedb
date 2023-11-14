@@ -25,7 +25,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/graph/resolvermeta"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -160,7 +159,7 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.config.MaximumAPIDepth,
-			TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+			TraversalBloom: dispatch.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -423,7 +422,7 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+				TraversalBloom: dispatch.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
 			},
 			ObjectRelation: &core.RelationReference{
 				Namespace: req.ResourceObjectType,
@@ -543,7 +542,7 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: resolvermeta.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+				TraversalBloom: dispatch.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,
