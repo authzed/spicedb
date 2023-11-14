@@ -12,11 +12,11 @@ import (
 	sppb "cloud.google.com/go/spanner/apiv1/spannerpb"
 	"github.com/cloudspannerecosystem/spanner-change-streams-tail/changestreams"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/api/option"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
