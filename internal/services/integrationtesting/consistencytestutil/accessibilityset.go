@@ -133,7 +133,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     headRevision.String(),
 							DepthRemaining: 50,
-							RequestId:      "somerequestid",
+							TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(50),
 						},
 					})
 					require.NoError(t, err)
@@ -360,7 +360,7 @@ func isAccessibleViaWildcardOnly(
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
-			RequestId:      "somerequestid",
+			TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
 		},
 		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})

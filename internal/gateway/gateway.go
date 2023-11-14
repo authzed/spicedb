@@ -40,8 +40,8 @@ func NewHandler(ctx context.Context, upstreamAddr, upstreamTLSCertPath string) (
 	}
 
 	opts := []grpc.DialOption{
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),   // nolint: staticcheck
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()), // nolint: staticcheck
 	}
 	if upstreamTLSCertPath == "" {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))

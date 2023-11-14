@@ -81,9 +81,9 @@ func (cs *DispatchLookupSubjectsResponse) MarshalZerologObject(e *zerolog.Event)
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (cr *ResolverMeta) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("revision", cr.AtRevision)
-	e.Uint32("depth", cr.DepthRemaining)
+func (x *ResolverMeta) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("revision", x.AtRevision)
+	e.Uint32("depth", x.DepthRemaining)
 }
 
 // MarshalZerologObject implements zerolog object marshalling.

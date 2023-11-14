@@ -87,6 +87,7 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 	meta := dispatch.ResolverMeta{
 		AtRevision:     revToTest.String(),
 		DepthRemaining: 50,
+		TraversalBloom: dispatch.MustNewTraversalBloomFilter(50),
 	}
 	require.NoError(meta.Validate())
 }

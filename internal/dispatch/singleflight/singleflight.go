@@ -13,23 +13,23 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
-	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-var singleFlightCount = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "spicedb",
-	Subsystem: "dispatch",
-	Name:      "single_flight_total",
-	Help:      "total number of dispatch requests that were single flighted",
-}, []string{"method", "shared"})
+var (
+	singleFlightCount       = promauto.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	singleFlightCountConfig = prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "dispatch",
+		Name:      "single_flight_total",
+		Help:      "total number of dispatch requests that were single flighted",
+	}
+)
 
 func New(delegate dispatch.Dispatcher, handler keys.Handler) dispatch.Dispatcher {
 	return &Dispatcher{
-		delegate:            delegate,
-		keyHandler:          handler,
-		checkByDispatchKey:  mapz.NewCountingMultiMap[string, string](),
-		expandByDispatchKey: mapz.NewCountingMultiMap[string, string](),
+		delegate:   delegate,
+		keyHandler: handler,
 	}
 }
 
@@ -39,9 +39,6 @@ type Dispatcher struct {
 
 	checkGroup  singleflight.Group[string, *v1.DispatchCheckResponse]
 	expandGroup singleflight.Group[string, *v1.DispatchExpandResponse]
-
-	checkByDispatchKey  *mapz.CountingMultiMap[string, string]
-	expandByDispatchKey *mapz.CountingMultiMap[string, string]
 }
 
 func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
@@ -53,14 +50,15 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 
 	keyString := hex.EncodeToString(key)
 
-	// Check if the key has already been part of a dispatch, for the *same* request ID. If so, this represents a
+	// Check if the key has already been part of a dispatch. If so, this represents a
 	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
-	requestID := req.Metadata.RequestId
-	existed := d.checkByDispatchKey.Add(keyString, requestID)
-	defer d.checkByDispatchKey.Remove(keyString, requestID)
-
-	if existed {
-		// Likely a recursive call.
+	// If the bloom filter presents a false positive, a dispatch will happen, which is a small inefficiency
+	// traded-off to prevent a recursive-call deadlock
+	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
+	if err != nil {
+		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
+	} else if possiblyLoop {
+		singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
 		return d.delegate.DispatchCheck(ctx, req)
 	}
 
@@ -84,21 +82,18 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	}
 
 	keyString := hex.EncodeToString(key)
-
-	// Check if the key has already been part of a dispatch, for the *same* request ID. If so, this represents a
-	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
-	requestID := req.Metadata.RequestId
-	existed := d.expandByDispatchKey.Add(keyString, requestID)
-	defer d.expandByDispatchKey.Remove(keyString, requestID)
-
-	if existed {
-		// Likely a recursive call.
+	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
+	if err != nil {
+		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
+	} else if possiblyLoop {
+		singleFlightCount.WithLabelValues("DispatchExpand", "loop").Inc()
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
-	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(ictx context.Context) (*v1.DispatchExpandResponse, error) {
-		return d.delegate.DispatchExpand(ictx, req)
+	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchExpandResponse, error) {
+		return d.delegate.DispatchExpand(innerCtx, req)
 	})
+
 	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err

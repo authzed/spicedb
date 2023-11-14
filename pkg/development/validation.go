@@ -32,7 +32,7 @@ func RunValidation(devContext *DevContext, validation *blocks.ParsedExpectedRela
 			Metadata: &v1.ResolverMeta{
 				AtRevision:     devContext.Revision.String(),
 				DepthRemaining: maxDispatchDepth,
-				RequestId:      "validation",
+				TraversalBloom: v1.MustNewTraversalBloomFilter(uint(maxDispatchDepth)),
 			},
 			ExpansionMode: v1.DispatchExpandRequest_RECURSIVE,
 		})

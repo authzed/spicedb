@@ -10,7 +10,7 @@ import (
 
 // Handler is an interface defining how keys are computed for dispatching and caching.
 type Handler interface {
-	// CheckCachekKey computes the caching key for a Check operation.
+	// CheckCacheKey computes the caching key for a Check operation.
 	CheckCacheKey(ctx context.Context, req *v1.DispatchCheckRequest) (DispatchCacheKey, error)
 
 	// LookupResourcesCacheKey computes the caching key for a LookupResources operation.

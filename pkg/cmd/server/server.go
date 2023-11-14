@@ -273,7 +273,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
-				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()), // nolint: staticcheck
 				grpc.WithDefaultServiceConfig(hashringConfigJSON),
 			),
 			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),

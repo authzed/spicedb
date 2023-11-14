@@ -63,7 +63,7 @@ func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{
 		AtRevision:     md.AtRevision,
 		DepthRemaining: md.DepthRemaining - 1,
-		RequestId:      md.RequestId,
+		TraversalBloom: md.TraversalBloom,
 	}
 }
 
