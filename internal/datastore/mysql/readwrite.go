@@ -15,10 +15,10 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
