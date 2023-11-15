@@ -57,7 +57,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	name := fmt.Sprintf("mysql-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
-		Repository: "mysql",
+		Repository: "public.ecr.aws/docker/library/mysql",
 		Tag:        containerImageTag,
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 		// increase max connections (default 151) to accommodate tests using the same docker container

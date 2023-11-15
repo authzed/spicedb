@@ -68,7 +68,7 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 
 	postgres, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       postgresContainerHostname,
-		Repository: "postgres",
+		Repository: "public.ecr.aws/docker/library/postgres",
 		Tag:        pgVersion,
 		Env: []string{
 			"POSTGRES_USER=" + POSTGRES_TEST_USER,
