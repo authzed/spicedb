@@ -105,6 +105,30 @@ func TestStableCacheKeys(t *testing.T) {
 			"8afff68e91a7cbb3ef01",
 		},
 		{
+			"expand different resource",
+			func() DispatchCacheKey {
+				return expandRequestToKey(&v1.DispatchExpandRequest{
+					ResourceAndRelation: ONR("document", "foo2", "view"),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+				}, computeBothHashes)
+			},
+			"9dd1e0c9cba88edc6b",
+		},
+		{
+			"expand different revision",
+			func() DispatchCacheKey {
+				return expandRequestToKey(&v1.DispatchExpandRequest{
+					ResourceAndRelation: ONR("document", "foo2", "view"),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1235",
+					},
+				}, computeBothHashes)
+			},
+			"f1b396da87bdeae2bd01",
+		},
+		{
 			"lookup resources",
 			func() DispatchCacheKey {
 				return lookupResourcesRequestToKey(&v1.DispatchLookupResourcesRequest{
