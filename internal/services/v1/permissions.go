@@ -155,11 +155,16 @@ func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.Ex
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := ps.dispatch.DispatchExpand(ctx, &dispatch.DispatchExpandRequest{
 		Metadata: &dispatch.ResolverMeta{
 			AtRevision:     atRevision.String(),
 			DepthRemaining: ps.config.MaximumAPIDepth,
-			TraversalBloom: dispatch.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+			TraversalBloom: bf,
 		},
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: req.Resource.ObjectType,
@@ -417,12 +422,17 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 		return nil
 	})
 
+	bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+	if err != nil {
+		return err
+	}
+
 	err = ps.dispatch.DispatchLookupResources(
 		&dispatch.DispatchLookupResourcesRequest{
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: dispatch.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+				TraversalBloom: bf,
 			},
 			ObjectRelation: &core.RelationReference{
 				Namespace: req.ResourceObjectType,
@@ -537,12 +547,17 @@ func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v
 		return nil
 	})
 
+	bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+	if err != nil {
+		return err
+	}
+
 	err = ps.dispatch.DispatchLookupSubjects(
 		&dispatch.DispatchLookupSubjectsRequest{
 			Metadata: &dispatch.ResolverMeta{
 				AtRevision:     atRevision.String(),
 				DepthRemaining: ps.config.MaximumAPIDepth,
-				TraversalBloom: dispatch.MustNewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth)),
+				TraversalBloom: bf,
 			},
 			ResourceRelation: &core.RelationReference{
 				Namespace: req.Resource.ObjectType,
