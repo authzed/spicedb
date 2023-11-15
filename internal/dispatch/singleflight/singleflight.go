@@ -50,35 +50,36 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	}
 
 	keyString := hex.EncodeToString(key)
+	reqClone := req.CloneVT()
 
 	// this is in place so that upgrading to a SpiceDB version with traversal bloom does not cause dispatch failures
 	// if this is observed frequently it suggests a callsite is missing setting the bloom filter.
 	// Since there is no bloom filter, there is no guarantee recursion won't happen, so it's safer not to singleflight
-	if len(req.Metadata.TraversalBloom) == 0 {
+	if len(reqClone.Metadata.TraversalBloom) == 0 {
 		tb, err := v1.NewTraversalBloomFilter(50)
 		if err != nil {
 			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
 		}
 
 		singleFlightCount.WithLabelValues("DispatchCheck", "missing").Inc()
-		req.Metadata.TraversalBloom = tb
-		return d.delegate.DispatchCheck(ctx, req)
+		reqClone.Metadata.TraversalBloom = tb
+		return d.delegate.DispatchCheck(ctx, reqClone)
 	}
 
 	// Check if the key has already been part of a dispatch. If so, this represents a
 	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
 	// If the bloom filter presents a false positive, a dispatch will happen, which is a small inefficiency
 	// traded-off to prevent a recursive-call deadlock
-	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
+	possiblyLoop, err := reqClone.Metadata.RecordTraversal(keyString)
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
 		singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
-		return d.delegate.DispatchCheck(ctx, req)
+		return d.delegate.DispatchCheck(ctx, reqClone)
 	}
 
 	v, isShared, err := d.checkGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchCheckResponse, error) {
-		return d.delegate.DispatchCheck(innerCtx, req)
+		return d.delegate.DispatchCheck(innerCtx, reqClone)
 	})
 
 	singleFlightCount.WithLabelValues("DispatchCheck", strconv.FormatBool(isShared)).Inc()
@@ -97,31 +98,32 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	}
 
 	keyString := hex.EncodeToString(key)
+	reqClone := req.CloneVT()
 
 	// this is in place so that upgrading to a SpiceDB version with traversal bloom does not cause dispatch failures
 	// if this is observed frequently it suggests a callsite is missing setting the bloom filter
 	// Since there is no bloom filter, there is no guarantee recursion won't happen, so it's safer not to singleflight
-	if len(req.Metadata.TraversalBloom) == 0 {
+	if len(reqClone.Metadata.TraversalBloom) == 0 {
 		tb, err := v1.NewTraversalBloomFilter(50)
 		if err != nil {
 			return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
 		}
 
 		singleFlightCount.WithLabelValues("DispatchExpand", "missing").Inc()
-		req.Metadata.TraversalBloom = tb
-		return d.delegate.DispatchExpand(ctx, req)
+		reqClone.Metadata.TraversalBloom = tb
+		return d.delegate.DispatchExpand(ctx, reqClone)
 	}
 
-	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
+	possiblyLoop, err := reqClone.Metadata.RecordTraversal(keyString)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
 		singleFlightCount.WithLabelValues("DispatchExpand", "loop").Inc()
-		return d.delegate.DispatchExpand(ctx, req)
+		return d.delegate.DispatchExpand(ctx, reqClone)
 	}
 
 	v, isShared, err := d.expandGroup.Do(ctx, keyString, func(innerCtx context.Context) (*v1.DispatchExpandResponse, error) {
-		return d.delegate.DispatchExpand(innerCtx, req)
+		return d.delegate.DispatchExpand(innerCtx, reqClone)
 	})
 
 	singleFlightCount.WithLabelValues("DispatchExpand", strconv.FormatBool(isShared)).Inc()
