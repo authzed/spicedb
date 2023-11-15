@@ -75,7 +75,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
-		log.Warn().Object("DispatchCheckRequest", req).Msg("potential loop detect on SingleFlight Dispatcher")
+		log.Debug().Object("DispatchCheckRequest", req).Str("key", keyString).Msg("potential DispatchCheckRequest loop detected")
 		singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
 		return d.delegate.DispatchCheck(ctx, req)
 	}
@@ -119,8 +119,8 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
+		log.Debug().Object("DispatchExpand", req).Str("key", keyString).Msg("potential DispatchExpand loop detected")
 		singleFlightCount.WithLabelValues("DispatchExpand", "loop").Inc()
-		log.Warn().Object("DispatchExpand", req).Msg("potential loop detect on SingleFlight Dispatcher")
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
