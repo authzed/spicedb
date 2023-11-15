@@ -12,7 +12,7 @@ import (
 // NewSingleflightDatastoreProxy creates a new Datastore proxy which
 // deduplicates calls to Datastore methods that can share results.
 func NewSingleflightDatastoreProxy(d datastore.Datastore) datastore.Datastore {
-	return &observableProxy{delegate: d}
+	return &singleflightProxy{delegate: d}
 }
 
 type singleflightProxy struct {
