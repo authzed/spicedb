@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 	"resenje.org/singleflight"
 
+	log "github.com/authzed/spicedb/internal/logging"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -73,6 +75,7 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 	if err != nil {
 		return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
+		log.Warn().Object("DispatchCheckRequest", req).Msg("potential loop detect on SingleFlight Dispatcher")
 		singleFlightCount.WithLabelValues("DispatchCheck", "loop").Inc()
 		return d.delegate.DispatchCheck(ctx, req)
 	}
@@ -117,6 +120,7 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
 	} else if possiblyLoop {
 		singleFlightCount.WithLabelValues("DispatchExpand", "loop").Inc()
+		log.Warn().Object("DispatchExpand", req).Msg("potential loop detect on SingleFlight Dispatcher")
 		return d.delegate.DispatchExpand(ctx, req)
 	}
 
