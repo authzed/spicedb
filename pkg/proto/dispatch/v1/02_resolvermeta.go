@@ -12,7 +12,7 @@ import (
 
 func (x *ResolverMeta) RecordTraversal(key string) (possiblyLoop bool, err error) {
 	if key == "" {
-		return false, status.Error(codes.Internal, fmt.Errorf("missing key to be recorded in traversal").Error())
+		return false, spiceerrors.MustBugf("missing key to be recorded in traversal")
 	}
 
 	if x == nil || len(x.TraversalBloom) == 0 {
