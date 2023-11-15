@@ -3,6 +3,7 @@ package singleflight
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,6 +51,20 @@ func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckReq
 
 	keyString := hex.EncodeToString(key)
 
+	// this is in place so that upgrading to a SpiceDB version with traversal bloom does not cause dispatch failures
+	// if this is observed frequently it suggests a callsite is missing setting the bloom filter.
+	// Since there is no bloom filter, there is no guarantee recursion won't happen, so it's safer not to singleflight
+	if len(req.Metadata.TraversalBloom) == 0 {
+		tb, err := v1.NewTraversalBloomFilter(50)
+		if err != nil {
+			return &v1.DispatchCheckResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
+		}
+
+		singleFlightCount.WithLabelValues("DispatchCheck", "missing").Inc()
+		req.Metadata.TraversalBloom = tb
+		return d.delegate.DispatchCheck(ctx, req)
+	}
+
 	// Check if the key has already been part of a dispatch. If so, this represents a
 	// likely recursive call, so we dispatch it to the delegate to avoid the singleflight from blocking it.
 	// If the bloom filter presents a false positive, a dispatch will happen, which is a small inefficiency
@@ -82,6 +97,21 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	}
 
 	keyString := hex.EncodeToString(key)
+
+	// this is in place so that upgrading to a SpiceDB version with traversal bloom does not cause dispatch failures
+	// if this is observed frequently it suggests a callsite is missing setting the bloom filter
+	// Since there is no bloom filter, there is no guarantee recursion won't happen, so it's safer not to singleflight
+	if len(req.Metadata.TraversalBloom) == 0 {
+		tb, err := v1.NewTraversalBloomFilter(50)
+		if err != nil {
+			return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, status.Error(codes.Internal, fmt.Errorf("unable to create traversal bloom filter: %w", err).Error())
+		}
+
+		singleFlightCount.WithLabelValues("DispatchExpand", "missing").Inc()
+		req.Metadata.TraversalBloom = tb
+		return d.delegate.DispatchExpand(ctx, req)
+	}
+
 	possiblyLoop, err := req.Metadata.RecordTraversal(keyString)
 	if err != nil {
 		return &v1.DispatchExpandResponse{Metadata: &v1.ResponseMeta{DispatchCount: 1}}, err
