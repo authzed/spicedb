@@ -256,6 +256,54 @@ func TestSingleFlightDispatcherExpand(t *testing.T) {
 	require.Equal(t, uint64(2), called.Load(), "should have dispatched %d calls but did %d", uint64(2), called.Load())
 }
 
+func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
+	var called atomic.Uint64
+	f := func() {
+		called.Add(1)
+	}
+	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchCheckRequest{
+		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceIds:      []string{"foo", "bar"},
+		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Metadata: &v1.ResolverMeta{
+			AtRevision: "1234",
+		},
+	}
+
+	_, _ = disp.DispatchCheck(context.Background(), req.CloneVT())
+
+	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
+	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
+}
+
+func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
+	singleFlightCount = prometheus.NewCounterVec(singleFlightCountConfig, []string{"method", "shared"})
+	reg := registerMetricInGatherer(singleFlightCount)
+
+	var called atomic.Uint64
+	f := func() {
+		called.Add(1)
+	}
+	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
+
+	req := &v1.DispatchExpandRequest{
+		ResourceAndRelation: tuple.ObjectAndRelation("document", "foo", "view"),
+		Metadata: &v1.ResolverMeta{
+			AtRevision: "1234",
+		},
+	}
+
+	_, _ = disp.DispatchExpand(context.Background(), req.CloneVT())
+
+	require.Equal(t, uint64(1), called.Load(), "should have dispatched %d calls but did %d", uint64(1), called.Load())
+	assertCounterWithLabel(t, reg, 1, "spicedb_dispatch_single_flight_total", "missing")
+}
+
 func registerMetricInGatherer(collector prometheus.Collector) prometheus.Gatherer {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collector)
