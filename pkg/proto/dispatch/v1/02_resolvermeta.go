@@ -11,6 +11,10 @@ import (
 )
 
 func (x *ResolverMeta) RecordTraversal(key string) (possiblyLoop bool, err error) {
+	if key == "" {
+		return false, spiceerrors.MustBugf("missing key to be recorded in traversal")
+	}
+
 	if x == nil || len(x.TraversalBloom) == 0 {
 		return false, status.Error(codes.Internal, fmt.Errorf("required traversal bloom filter is missing").Error())
 	}
@@ -39,12 +43,12 @@ const defaultFalsePositiveRate = 0.001
 func NewTraversalBloomFilter(numElements uint) ([]byte, error) {
 	bf := bloom.NewWithEstimates(numElements, defaultFalsePositiveRate)
 
-	modifiedBloomFilter, err := bf.MarshalBinary()
+	emptyBloomFilter, err := bf.MarshalBinary()
 	if err != nil {
 		return nil, spiceerrors.MustBugf("unexpected error while serializing empty bloom filter: %s", err.Error())
 	}
 
-	return modifiedBloomFilter, nil
+	return emptyBloomFilter, nil
 }
 
 // MustNewTraversalBloomFilter creates a new bloom filter sized to the provided number of elements and
