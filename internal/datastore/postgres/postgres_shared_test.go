@@ -36,6 +36,10 @@ import (
 
 const pgSerializationFailure = "40001"
 
+const (
+	veryLargeGCInterval = 90000 * time.Second
+)
+
 // Implement the TestableDatastore interface
 func (pgd *pgDatastore) ExampleRetryableError() error {
 	return &pgconn.PgError{
@@ -100,6 +104,7 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 				GarbageCollectionTest,
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
 				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
@@ -109,6 +114,7 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 				TransactionTimestampsTest,
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
 				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
@@ -118,6 +124,7 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 				GarbageCollectionByTimeTest,
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
 				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
@@ -127,6 +134,7 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 				ChunkedGarbageCollectionTest,
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
+				GCInterval(veryLargeGCInterval),
 				WatchBufferLength(1),
 				MigrationPhase(config.migrationPhase),
 			))
