@@ -76,7 +76,6 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 			pgbouncerStr = "pgbouncer-"
 		}
 		t.Run(fmt.Sprintf("%spostgres-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
-			t.Parallel()
 			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
 
 			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
@@ -198,8 +197,6 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, pc []postgresCon
 		pgVersion := config.pgVersion
 		enablePgbouncer := config.pgbouncer
 		t.Run(fmt.Sprintf("postgres-%s", pgVersion), func(t *testing.T) {
-			t.Parallel()
-
 			b := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", "head", false, pgVersion, enablePgbouncer)
 
 			// NOTE: watch API requires the commit timestamps, so we skip those tests here.
