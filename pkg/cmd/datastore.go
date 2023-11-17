@@ -37,6 +37,12 @@ func NewDatastoreCommand(_ string) (*cobra.Command, error) {
 	}
 	datastoreCmd.AddCommand(gcCmd)
 
+	repairCmd := NewRepairDatastoreCommand(datastoreCmd.Use, &cfg)
+	if err := datastore.RegisterDatastoreFlagsWithPrefix(repairCmd.Flags(), "", &cfg); err != nil {
+		return nil, err
+	}
+	datastoreCmd.AddCommand(repairCmd)
+
 	return datastoreCmd, nil
 }
 
@@ -77,6 +83,60 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				return err
 			}
 			log.Ctx(ctx).Info().Msg("Garbage collection completed")
+			return nil
+		}),
+	}
+}
+
+func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Command {
+	return &cobra.Command{
+		Use:     "repair",
+		Short:   "executes datastore repair",
+		Long:    "Executes a repair operation for the datastore",
+		PreRunE: server.DefaultPreRunE(programName),
+		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+
+			// Disable background GC and hedging.
+			cfg.GCInterval = -1 * time.Hour
+			cfg.RequestHedgingEnabled = false
+
+			ds, err := datastore.NewDatastore(ctx, cfg.ToOption())
+			if err != nil {
+				return fmt.Errorf("failed to create datastore: %w", err)
+			}
+
+			for {
+				wds, ok := ds.(dspkg.UnwrappableDatastore)
+				if !ok {
+					break
+				}
+				ds = wds.Unwrap()
+			}
+
+			repairable, ok := ds.(dspkg.RepairableDatastore)
+			if !ok {
+				return fmt.Errorf("datastore of type %T does not support the repair operation", ds)
+			}
+
+			if len(args) == 0 {
+				fmt.Println()
+				fmt.Println("Available repair operations:")
+				for _, op := range repairable.RepairOperations() {
+					fmt.Printf("\t%s: %s\n", op.Name, op.Description)
+				}
+				return nil
+			}
+
+			operationName := args[0]
+
+			log.Ctx(ctx).Info().Msg("Running repair...")
+			err = repairable.Repair(ctx, operationName, true)
+			if err != nil {
+				return err
+			}
+
+			log.Ctx(ctx).Info().Msg("Datastore repair completed")
 			return nil
 		}),
 	}

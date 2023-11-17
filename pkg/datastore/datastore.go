@@ -410,6 +410,28 @@ type SchemaWatchableDatastore interface {
 	WatchSchema(ctx context.Context, afterRevision Revision) (<-chan *SchemaState, <-chan error)
 }
 
+// RepairOperation represents a single kind of repair operation that can be run in a repairable
+// datastore.
+type RepairOperation struct {
+	// Name is the command-line name for the repair operation.
+	Name string
+
+	// Description is the human-readable description for the repair operation.
+	Description string
+}
+
+// RepairableDatastore is an optional extension to the datastore interface that, when implemented,
+// provides the ability for callers to repair the datastore's data in some fashion.
+type RepairableDatastore interface {
+	Datastore
+
+	// Repair runs the repair operation on the datastore.
+	Repair(ctx context.Context, operationName string, outputProgress bool) error
+
+	// RepairOperations returns the available repair operations for the datastore.
+	RepairOperations() []RepairOperation
+}
+
 // UnwrappableDatastore represents a datastore that can be unwrapped into the underlying
 // datastore.
 type UnwrappableDatastore interface {

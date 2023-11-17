@@ -67,6 +67,9 @@ const (
 	SELECT minvalid.%[1]s, minvalid.%[5]s, pg_current_snapshot() FROM minvalid;`
 
 	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
+
+	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
+	queryLatestXID            = `SELECT max(xid) FROM relation_tuple_transaction;`
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
@@ -236,7 +239,10 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, newSnaps
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	err = tx.QueryRow(ctx, createTxn).Scan(&newXID, &newSnapshot)
+	cterr := tx.QueryRow(ctx, createTxn).Scan(&newXID, &newSnapshot)
+	if cterr != nil {
+		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
+	}
 	return
 }
 

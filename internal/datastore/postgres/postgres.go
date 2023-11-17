@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -14,8 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/mattn/go-isatty"
 	"github.com/ngrok/sqlmw"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/schollz/progressbar/v3"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
@@ -373,6 +376,98 @@ func (pgd *pgDatastore) ReadWriteTx(
 	}
 
 	return datastore.NoRevision, err
+}
+
+const repairTransactionIDsOperation = "transaction-ids"
+
+func (pgd *pgDatastore) Repair(ctx context.Context, operationName string, outputProgress bool) error {
+	switch operationName {
+	case repairTransactionIDsOperation:
+		return pgd.repairTransactionIDs(ctx, outputProgress)
+
+	default:
+		return fmt.Errorf("unknown operation")
+	}
+}
+
+const batchSize = 10000
+
+func (pgd *pgDatastore) repairTransactionIDs(ctx context.Context, outputProgress bool) error {
+	conn, err := pgx.Connect(ctx, pgd.dburl)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+
+	// Get the current transaction ID.
+	currentMaximumID := 0
+	if err := conn.QueryRow(ctx, queryCurrentTransactionID).Scan(&currentMaximumID); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+
+	// Find the maximum transaction ID referenced in the transactions table.
+	referencedMaximumID := 0
+	if err := conn.QueryRow(ctx, queryLatestXID).Scan(&referencedMaximumID); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+
+	// The delta is what this needs to fill in.
+	log.Ctx(ctx).Info().Int64("current-maximum", int64(currentMaximumID)).Int64("referenced-maximum", int64(referencedMaximumID)).Msg("found transactions")
+	counterDelta := referencedMaximumID - currentMaximumID
+	if counterDelta < 0 {
+		return nil
+	}
+
+	var bar *progressbar.ProgressBar
+	if isatty.IsTerminal(os.Stderr.Fd()) && outputProgress {
+		bar = progressbar.Default(int64(counterDelta), "updating transactions counter")
+	}
+
+	for i := 0; i < counterDelta; i++ {
+		var batch pgx.Batch
+
+		batchCount := min(batchSize, counterDelta-i)
+		for j := 0; j < batchCount; j++ {
+			batch.Queue("begin;")
+			batch.Queue("select pg_current_xact_id();")
+			batch.Queue("rollback;")
+		}
+
+		br := conn.SendBatch(ctx, &batch)
+		if err := br.Close(); err != nil {
+			return err
+		}
+
+		i += batchCount - 1
+		if bar != nil {
+			if err := bar.Add(batchCount); err != nil {
+				return err
+			}
+		}
+	}
+
+	if bar != nil {
+		if err := bar.Close(); err != nil {
+			return err
+		}
+	}
+
+	log.Ctx(ctx).Info().Msg("completed revisions repair")
+	return nil
+}
+
+// RepairOperations returns the available repair operations for the datastore.
+func (pgd *pgDatastore) RepairOperations() []datastore.RepairOperation {
+	return []datastore.RepairOperation{
+		{
+			Name:        repairTransactionIDsOperation,
+			Description: "Brings the Postgres database up to the expected transaction ID (Postgres v14+ only)",
+		},
+	}
 }
 
 func wrapError(err error) error {
