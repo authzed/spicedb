@@ -79,6 +79,29 @@ func queryTuples(ctx context.Context, sqlStatement string, args []any, span trac
 	return tuples, nil
 }
 
+// ParseConfigWithInstrumentation returns a pgx.ConnConfig that has been instrumented for observability
+func ParseConfigWithInstrumentation(url string) (*pgx.ConnConfig, error) {
+	connConfig, err := pgx.ParseConfig(url)
+	if err != nil {
+		return nil, err
+	}
+
+	ConfigurePGXLogger(connConfig)
+	ConfigureOTELTracer(connConfig)
+
+	return connConfig, nil
+}
+
+// ConnectWithInstrumentation returns a pgx.Conn that has been instrumented for observability
+func ConnectWithInstrumentation(ctx context.Context, url string) (*pgx.Conn, error) {
+	connConfig, err := ParseConfigWithInstrumentation(url)
+	if err != nil {
+		return nil, err
+	}
+
+	return pgx.ConnectConfig(ctx, connConfig)
+}
+
 // ConfigurePGXLogger sets zerolog global logger into the connection pool configuration, and maps
 // info level events to debug, as they are rather verbose for SpiceDB's info level
 func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
