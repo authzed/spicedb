@@ -52,7 +52,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	}
 
 	var nsDefs []datastore.RevisionedNamespace
-	var relCount uint64
+	var relCount int64
 
 	if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 		return row.Scan(&relCount)
@@ -76,9 +76,14 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 		return datastore.Stats{}, err
 	}
 
+	// NOTE: this is a stop-gap solution to prevent panics in telemetry collection
+	if relCount < 0 {
+		relCount = 0
+	}
+
 	return datastore.Stats{
 		UniqueID:                   uniqueID,
-		EstimatedRelationshipCount: relCount,
+		EstimatedRelationshipCount: uint64(relCount),
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(nsDefs),
 	}, nil
 }
