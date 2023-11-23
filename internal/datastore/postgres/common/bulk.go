@@ -14,8 +14,9 @@ type tupleSourceAdapter struct {
 	source datastore.BulkWriteRelationshipSource
 	ctx    context.Context
 
-	current *core.RelationTuple
-	err     error
+	current      *core.RelationTuple
+	err          error
+	valuesBuffer []any
 }
 
 // Next returns true if there is another row and makes the next row data
@@ -36,16 +37,16 @@ func (tg *tupleSourceAdapter) Values() ([]any, error) {
 		caveatContext = tg.current.Caveat.Context.AsMap()
 	}
 
-	return []any{
-		tg.current.ResourceAndRelation.Namespace,
-		tg.current.ResourceAndRelation.ObjectId,
-		tg.current.ResourceAndRelation.Relation,
-		tg.current.Subject.Namespace,
-		tg.current.Subject.ObjectId,
-		tg.current.Subject.Relation,
-		caveatName,
-		caveatContext,
-	}, nil
+	tg.valuesBuffer[0] = tg.current.ResourceAndRelation.Namespace
+	tg.valuesBuffer[1] = tg.current.ResourceAndRelation.ObjectId
+	tg.valuesBuffer[2] = tg.current.ResourceAndRelation.Relation
+	tg.valuesBuffer[3] = tg.current.Subject.Namespace
+	tg.valuesBuffer[4] = tg.current.Subject.ObjectId
+	tg.valuesBuffer[5] = tg.current.Subject.Relation
+	tg.valuesBuffer[6] = caveatName
+	tg.valuesBuffer[7] = caveatContext
+
+	return tg.valuesBuffer, nil
 }
 
 // Err returns any error that has been encountered by the CopyFromSource. If
@@ -62,8 +63,9 @@ func BulkLoad(
 	iter datastore.BulkWriteRelationshipSource,
 ) (uint64, error) {
 	adapter := &tupleSourceAdapter{
-		source: iter,
-		ctx:    ctx,
+		source:       iter,
+		ctx:          ctx,
+		valuesBuffer: make([]any, 8),
 	}
 	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
 	return uint64(copied), err
