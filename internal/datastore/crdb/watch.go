@@ -205,7 +205,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 			pending.Changes = append(pending.Changes, oneChange)
 		}
 
-		if changes.Err() != nil {
+		if err := changes.Err(); err != nil {
 			if errors.Is(ctx.Err(), context.Canceled) {
 				closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer closeCancel()
