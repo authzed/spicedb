@@ -141,7 +141,10 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 					Msg("error attempting to perform garbage collection")
 				continue
 			}
+
 			backoffInterval.Reset()
+			nextInterval = interval
+
 			log.Ctx(ctx).Debug().
 				Dur("next-run-in", interval).
 				Msg("datastore garbage collection scheduled for next run")
