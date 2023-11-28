@@ -318,8 +318,14 @@ func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWrite
 func observe(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, func()) {
 	ctx, span := tracer.Start(ctx, name, opts...)
 	timer := prometheus.NewTimer(queryLatency.WithLabelValues(name))
+	closed := false
 
 	return ctx, func() {
+		if closed {
+			return
+		}
+
+		closed = true
 		timer.ObserveDuration()
 		span.End()
 	}
