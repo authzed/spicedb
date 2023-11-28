@@ -7,7 +7,7 @@ on:  # yamllint disable-line rule:truthy
       - "checks_requested"
 jobs:
   triage:
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     steps:
       - uses: "actions/labeler@v3"
         with:

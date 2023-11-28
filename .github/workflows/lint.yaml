@@ -15,7 +15,7 @@ env:
 jobs:
   go-lint:
     name: "Lint Go"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-4"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -30,7 +30,7 @@ jobs:
 
   extra-lint:
     name: "Lint YAML & Markdown"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     steps:
       - uses: "actions/checkout@v3"
       - name: "Lint Everything Else"
@@ -42,7 +42,7 @@ jobs:
 
   codeql:
     name: "Analyze with CodeQL"
-    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-8"
     permissions:
       actions: "read"
       contents: "read"
@@ -57,7 +57,7 @@ jobs:
 
   trivy:
     name: "Trivvy: Analyze FS and Image"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
