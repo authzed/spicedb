@@ -17,31 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Allows specifying different deletion behaviors for tests
-type gcDeleter interface {
-	DeleteBeforeTx(revision int64) (DeletionCounts, error)
-}
-
-// Always error trying to perform a delete
-type alwaysErrorDeleter struct{}
-
-func (alwaysErrorDeleter) DeleteBeforeTx(_ int64) (DeletionCounts, error) {
-	return DeletionCounts{}, fmt.Errorf("delete error")
-}
-
-// Only error on specific revisions
-type revisionErrorDeleter struct {
-	errorOnRevisions []int64
-}
-
-func (d revisionErrorDeleter) DeleteBeforeTx(revision int64) (DeletionCounts, error) {
-	if slices.Contains(d.errorOnRevisions, revision) {
-		return DeletionCounts{}, fmt.Errorf("delete error")
-	}
-
-	return DeletionCounts{}, nil
-}
-
 // Fake garbage collector that returns a new incremented revision each time
 // TxIDBefore is called.
 type fakeGC struct {
@@ -123,6 +98,31 @@ func (gc *fakeGC) GetMetrics() gcMetrics {
 	defer gc.lock.Unlock()
 
 	return gc.metrics
+}
+
+// Allows specifying different deletion behaviors for tests
+type gcDeleter interface {
+	DeleteBeforeTx(revision int64) (DeletionCounts, error)
+}
+
+// Always error trying to perform a delete
+type alwaysErrorDeleter struct{}
+
+func (alwaysErrorDeleter) DeleteBeforeTx(_ int64) (DeletionCounts, error) {
+	return DeletionCounts{}, fmt.Errorf("delete error")
+}
+
+// Only error on specific revisions
+type revisionErrorDeleter struct {
+	errorOnRevisions []int64
+}
+
+func (d revisionErrorDeleter) DeleteBeforeTx(revision int64) (DeletionCounts, error) {
+	if slices.Contains(d.errorOnRevisions, revision) {
+		return DeletionCounts{}, fmt.Errorf("delete error")
+	}
+
+	return DeletionCounts{}, nil
 }
 
 func TestGCFailureBackoff(t *testing.T) {
