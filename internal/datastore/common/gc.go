@@ -111,6 +111,7 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 	backoffInterval.InitialInterval = interval
 	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
 	backoffInterval.MaxElapsedTime = maxElapsedTime
+	backoffInterval.Reset()
 
 	nextInterval := interval
 

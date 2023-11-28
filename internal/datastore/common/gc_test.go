@@ -176,7 +176,10 @@ func TestGCFailureBackoff(t *testing.T) {
 // backoff interval that is activated on error.
 func TestGCFailureBackoffReset(t *testing.T) {
 	gc := newFakeGC(revisionErrorDeleter{
-		errorOnRevisions: []int64{1}, // Error only on revision 1
+		// Error on revisions 1 - 5, giving the exponential
+		// backoff enough time to fail the test if the interval
+		// is not reset properly.
+		errorOnRevisions: []int64{1, 2, 3, 4, 5},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -196,5 +199,5 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	// The next interval should have been reset after recovering from the error.
 	// If it is not reset, the last exponential backoff interval will not give
 	// the GC enough time to run.
-	require.Greater(t, gc.GetMetrics().markedCompleteCount, 10, "Next interval was not reset with backoff")
+	require.Greater(t, gc.GetMetrics().markedCompleteCount, 20, "Next interval was not reset with backoff")
 }
