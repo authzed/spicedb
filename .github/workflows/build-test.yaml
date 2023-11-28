@@ -44,7 +44,7 @@ jobs:
               - "go.mod"
   lint:
     name: "Lint"
-    runs-on: "ubicloud-standard-4"
+    runs-on: "ubicloud-standard-8"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -81,7 +81,7 @@ jobs:
 
   build:
     name: "Build Binary & Image"
-    runs-on: "ubicloud-standard-4"
+    runs-on: "ubicloud-standard-8"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -96,7 +96,7 @@ jobs:
 
   unit:
     name: "Unit"
-    runs-on: "ubicloud-standard-4"
+    runs-on: "ubicloud-standard-16"
     needs:
       - "paths-filter"
       - "lint"
@@ -114,7 +114,7 @@ jobs:
 
   integration:
     name: "Integration Tests"
-    runs-on: "ubicloud-standard-4"
+    runs-on: "ubicloud-standard-8"
     needs:
       - "paths-filter"
       - "build"
@@ -130,7 +130,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "ubicloud-standard-4"
+    runs-on: "ubicloud-standard-8"
     needs:
       - "paths-filter"
       - "unit"
@@ -249,7 +249,7 @@ jobs:
 
   codeql:
     name: "Analyze with CodeQL"
-    runs-on: "ubicloud-standard-8"
+    runs-on: "ubicloud-standard-32"
     needs: "unit"
     if: |
       github.ref == 'refs/heads/main'
