@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,8 +45,13 @@ func (d revisionErrorDeleter) DeleteBeforeTx(revision int64) (DeletionCounts, er
 // Fake garbage collector that returns a new incremented revision each time
 // TxIDBefore is called.
 type fakeGC struct {
-	lastRevision          int64
-	deleter               gcDeleter
+	lastRevision int64
+	deleter      gcDeleter
+	metrics      gcMetrics
+	lock         sync.RWMutex
+}
+
+type gcMetrics struct {
 	deleteBeforeTxCount   int
 	markedCompleteCount   int
 	resetGCCompletedCount int
@@ -58,43 +64,65 @@ func newFakeGC(deleter gcDeleter) fakeGC {
 	}
 }
 
-func (t fakeGC) ReadyState(_ context.Context) (datastore.ReadyState, error) {
+func (*fakeGC) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	return datastore.ReadyState{
 		Message: "Ready",
 		IsReady: true,
 	}, nil
 }
 
-func (t fakeGC) Now(_ context.Context) (time.Time, error) {
+func (*fakeGC) Now(_ context.Context) (time.Time, error) {
 	return time.Now(), nil
 }
 
-func (t *fakeGC) TxIDBefore(_ context.Context, _ time.Time) (datastore.Revision, error) {
-	t.lastRevision++
+func (gc *fakeGC) TxIDBefore(_ context.Context, _ time.Time) (datastore.Revision, error) {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
 
-	rev := revision.NewFromDecimal(decimal.NewFromInt(t.lastRevision))
+	gc.lastRevision++
+
+	rev := revision.NewFromDecimal(decimal.NewFromInt(gc.lastRevision))
 
 	return rev, nil
 }
 
-func (t *fakeGC) DeleteBeforeTx(_ context.Context, rev datastore.Revision) (DeletionCounts, error) {
-	t.deleteBeforeTxCount++
+func (gc *fakeGC) DeleteBeforeTx(_ context.Context, rev datastore.Revision) (DeletionCounts, error) {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	gc.metrics.deleteBeforeTxCount++
 
 	revInt := rev.(revision.Decimal).Decimal.IntPart()
 
-	return t.deleter.DeleteBeforeTx(revInt)
+	return gc.deleter.DeleteBeforeTx(revInt)
 }
 
-func (t fakeGC) HasGCRun() bool {
-	return t.markedCompleteCount > 0
+func (gc *fakeGC) HasGCRun() bool {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	return gc.metrics.markedCompleteCount > 0
 }
 
-func (t *fakeGC) MarkGCCompleted() {
-	t.markedCompleteCount++
+func (gc *fakeGC) MarkGCCompleted() {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	gc.metrics.markedCompleteCount++
 }
 
-func (t *fakeGC) ResetGCCompleted() {
-	t.resetGCCompletedCount++
+func (gc *fakeGC) ResetGCCompleted() {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	gc.metrics.resetGCCompletedCount++
+}
+
+func (gc *fakeGC) GetMetrics() gcMetrics {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	return gc.metrics
 }
 
 func TestGCFailureBackoff(t *testing.T) {
@@ -168,5 +196,5 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	// The next interval should have been reset after recovering from the error.
 	// If it is not reset, the last exponential backoff interval will not give
 	// the GC enough time to run.
-	require.Greater(t, gc.markedCompleteCount, 10, "Next interval was not reset with backoff")
+	require.Greater(t, gc.GetMetrics().markedCompleteCount, 10, "Next interval was not reset with backoff")
 }
