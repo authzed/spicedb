@@ -60,7 +60,9 @@ jobs:
   unit:
     name: "Unit"
     runs-on: "ubicloud-standard-4"
-    needs: "paths-filter"
+    needs:
+      - "paths-filter"
+      - "build"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
@@ -74,7 +76,9 @@ jobs:
   integration:
     name: "Integration Tests"
     runs-on: "ubicloud-standard-4"
-    needs: "paths-filter"
+    needs:
+      - "paths-filter"
+      - "unit"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
@@ -88,7 +92,9 @@ jobs:
   datastore:
     name: "Datastore Tests"
     runs-on: "ubicloud-standard-4"
-    needs: "paths-filter"
+    needs:
+      - "paths-filter"
+      - "unit"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     strategy:
@@ -108,7 +114,9 @@ jobs:
   e2e:
     name: "E2E"
     runs-on: "ubicloud-standard-8"
-    needs: "paths-filter"
+    needs:
+      - "paths-filter"
+      - "unit"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:

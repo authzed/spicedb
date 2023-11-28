@@ -43,6 +43,7 @@ jobs:
   codeql:
     name: "Analyze with CodeQL"
     runs-on: "ubicloud-standard-8"
+    needs: "go-lint"
     permissions:
       actions: "read"
       contents: "read"
@@ -58,6 +59,7 @@ jobs:
   trivy:
     name: "Trivvy: Analyze FS and Image"
     runs-on: "ubicloud-standard-2"
+    needs: "go-lint"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
