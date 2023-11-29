@@ -301,7 +301,7 @@ type Datastore interface {
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader
 
-	// ReadWriteTx tarts a read/write transaction, which will be committed if no error is
+	// ReadWriteTx starts a read/write transaction, which will be committed if no error is
 	// returned and rolled back if an error is returned.
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
 
