@@ -125,6 +125,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 		t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
 		t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
 		t.Run("TestWatchWithTouch", func(t *testing.T) { WatchWithTouchTest(t, tester) })
+		t.Run("TestWatchWithDelete", func(t *testing.T) { WatchWithDeleteTest(t, tester) })
 	}
 }
 

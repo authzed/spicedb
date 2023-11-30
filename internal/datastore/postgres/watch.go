@@ -206,7 +206,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 		}
 
 		var createdXID, deletedXID xid8
-		var caveatName string
+		var caveatName *string
 		var caveatContext map[string]any
 		if err := changes.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
@@ -223,13 +223,13 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 			return nil, fmt.Errorf("unable to parse changed tuple: %w", err)
 		}
 
-		if caveatName != "" {
+		if caveatName != nil && *caveatName != "" {
 			contextStruct, err := structpb.NewStruct(caveatContext)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read caveat context from update: %w", err)
 			}
 			nextTuple.Caveat = &core.ContextualizedCaveat{
-				CaveatName: caveatName,
+				CaveatName: *caveatName,
 				Context:    contextStruct,
 			}
 		}

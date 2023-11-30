@@ -321,6 +321,70 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 }
 
+func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// TOUCH a relationship and ensure watch sees it.
+	changes, errchan := ds.Watch(ctx, lowestRevision)
+	require.Zero(len(errchan))
+
+	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{
+			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom")),
+			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:sarah")),
+			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]")),
+		},
+	},
+		changes,
+		errchan,
+		false,
+	)
+
+	// DELETE the relationship
+	changes, errchan = ds.Watch(ctx, afterTouchRevision)
+	require.Zero(len(errchan))
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tuple.Parse("document:firstdoc#viewer@user:tom"))
+	require.NoError(err)
+
+	ensureTuples(ctx, require, ds,
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{tuple.Delete(tuple.Parse("document:firstdoc#viewer@user:tom"))},
+	},
+		changes,
+		errchan,
+		false,
+	)
+}
+
 func verifyNoUpdates(
 	require *require.Assertions,
 	changes <-chan *datastore.RevisionChanges,

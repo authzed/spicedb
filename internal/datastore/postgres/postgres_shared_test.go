@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
+	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -194,6 +196,15 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 					RevisionQuantization(0),
 					GCWindow(1*time.Millisecond),
 					WatchBufferLength(1),
+					MigrationPhase(config.migrationPhase),
+				))
+
+				t.Run("TestNullCaveatWatch", createDatastoreTest(
+					b,
+					NullCaveatWatchTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(50),
 					MigrationPhase(config.migrationPhase),
 				))
 			}
@@ -1416,4 +1427,127 @@ func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
 	err = pds.writePool.QueryRow(context.Background(), queryCurrentTransactionID).Scan(&currentMaximumID)
 	require.NoError(t, err)
 	require.Greater(t, currentMaximumID, 12345)
+}
+
+func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Run the watch API.
+	changes, errchan := ds.Watch(ctx, lowestRevision)
+	require.Zero(len(errchan))
+
+	// Manually insert a relationship with a NULL caveat. This is allowed, but can only happen due to
+	// bulk import (normal write rels will make it empty instead)
+	pds := ds.(*pgDatastore)
+	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, drwt datastore.ReadWriteTransaction) error {
+		rwt := drwt.(*pgReadWriteTXN)
+
+		createInserts := writeTuple
+		valuesToWrite := []interface{}{
+			"resource",
+			"someresourceid",
+			"somerelation",
+			"subject",
+			"somesubject",
+			"...",
+			nil, // set explicitly to null
+			nil, // set explicitly to null
+		}
+
+		query := createInserts.Values(valuesToWrite...)
+		sql, args, err := query.ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		_, err = rwt.tx.Exec(ctx, sql, args...)
+		return err
+	})
+	require.NoError(err)
+
+	// Verify the relationship create was tracked by the watch.
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{
+			tuple.Touch(tuple.Parse("resource:someresourceid#somerelation@subject:somesubject")),
+		},
+	},
+		changes,
+		errchan,
+		false,
+	)
+
+	// Delete the relationship and ensure it does not raise an error in watch.
+	deleteUpdate := tuple.Delete(tuple.Parse("resource:someresourceid#somerelation@subject:somesubject"))
+	_, err = common.UpdateTuplesInDatastore(ctx, ds, deleteUpdate)
+	require.NoError(err)
+
+	// Verify the delete.
+	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+		{
+			tuple.Delete(tuple.Parse("resource:someresourceid#somerelation@subject:somesubject")),
+		},
+	},
+		changes,
+		errchan,
+		false,
+	)
+}
+
+const waitForChangesTimeout = 5 * time.Second
+
+// TODO(jschorr): Combine with the same impl in the datastore shared tests
+func verifyUpdates(
+	require *require.Assertions,
+	testUpdates [][]*core.RelationTupleUpdate,
+	changes <-chan *datastore.RevisionChanges,
+	errchan <-chan error,
+	expectDisconnect bool,
+) {
+	for _, expected := range testUpdates {
+		changeWait := time.NewTimer(waitForChangesTimeout)
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				require.True(expectDisconnect, "unexpected disconnect")
+				errWait := time.NewTimer(waitForChangesTimeout)
+				select {
+				case err := <-errchan:
+					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					return
+				case <-errWait.C:
+					require.Fail("Timed out waiting for ErrWatchDisconnected")
+				}
+				return
+			}
+
+			expectedChangeSet := setOfChanges(expected)
+			actualChangeSet := setOfChanges(change.Changes)
+
+			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
+			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+
+			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
+			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
+
+			time.Sleep(1 * time.Millisecond)
+		case <-changeWait.C:
+			require.Fail("Timed out", "waiting for changes: %s", expected)
+		}
+	}
+
+	require.False(expectDisconnect, "all changes verified without expected disconnect")
+}
+
+func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
+	changeSet := strset.NewWithSize(len(changes))
+	for _, change := range changes {
+		changeSet.Add(fmt.Sprintf("OPERATION_%s(%s)", change.Operation, tuple.StringWithoutCaveat(change.Tuple)))
+	}
+	return changeSet
 }
