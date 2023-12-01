@@ -230,9 +230,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		cachingMode = schemacaching.WatchIfSupported
 	}
 
+	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
 	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode)
-	ds = proxy.NewObservableDatastoreProxy(ds)
 	closeables.AddWithError(ds.Close)
 
 	enableGRPCHistogram()
