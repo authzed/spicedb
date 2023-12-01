@@ -9,7 +9,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -67,7 +66,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	// changefeed data, instead of using a connection pool as most client
 	// drivers do by default."
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
-	conn, err := pgx.Connect(ctx, cds.dburl)
+	conn, err := pgxcommon.ConnectWithInstrumentation(ctx, cds.dburl)
 	if err != nil {
 		errs <- err
 		return updates, errs
@@ -299,7 +298,7 @@ func (cds *crdbDatastore) watchSchemaWithoutRetry(ctx context.Context, afterRevi
 	// changefeed data, instead of using a connection pool as most client
 	// drivers do by default."
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
-	conn, err := pgx.Connect(ctx, cds.dburl)
+	conn, err := pgxcommon.ConnectWithInstrumentation(ctx, cds.dburl)
 	if err != nil {
 		processUpdate(nil, err)
 		return

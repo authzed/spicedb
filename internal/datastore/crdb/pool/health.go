@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
@@ -40,7 +41,7 @@ type NodeHealthTracker struct {
 
 // NewNodeHealthChecker builds a health checker that polls the cluster at the given url.
 func NewNodeHealthChecker(url string) (*NodeHealthTracker, error) {
-	connConfig, err := pgx.ParseConfig(url)
+	connConfig, err := pgxcommon.ParseConfigWithInstrumentation(url)
 	if err != nil {
 		return nil, err
 	}
