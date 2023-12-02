@@ -239,6 +239,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	enableGRPCHistogram()
 
+	specificConcurrencyLimits := c.DispatchConcurrencyLimits
+	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
+
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
 		cc, err := c.DispatchCacheConfig.WithRevisionParameters(
@@ -256,9 +259,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		if len(c.PresharedSecureKey) > 0 {
 			dispatchPresharedKey = c.PresharedSecureKey[0]
 		}
-
-		specificConcurrencyLimits := c.DispatchConcurrencyLimits
-		concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
 
 		hashringConfigJSON, err := (&consistent.BalancerConfig{
 			ReplicationFactor: c.DispatchHashringReplicationFactor,
@@ -318,6 +318,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.PrometheusSubsystem(c.DispatchClusterMetricsPrefix),
 			clusterdispatch.Cache(cdcc),
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
+			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
