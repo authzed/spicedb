@@ -3,11 +3,12 @@ package shared
 import (
 	"context"
 
-	"github.com/authzed/spicedb/internal/caveats"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	caveatdiff "github.com/authzed/spicedb/pkg/diff/caveats"
+	nsdiff "github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -232,20 +233,20 @@ func sanityCheckCaveatChanges(
 	_ datastore.ReadWriteTransaction,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
-) (*caveats.Diff, error) {
+) (*caveatdiff.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	existing := existingDefs[caveatDef.Name]
-	diff, err := caveats.DiffCaveats(existing, caveatDef)
+	diff, err := caveatdiff.DiffCaveats(existing, caveatDef)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
-		case caveats.RemovedParameter:
+		case caveatdiff.RemovedParameter:
 			return diff, NewSchemaWriteDataValidationError("cannot remove parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
 
-		case caveats.ParameterTypeChanged:
+		case caveatdiff.ParameterTypeChanged:
 			return diff, NewSchemaWriteDataValidationError("cannot change the type of parameter `%s` on caveat `%s`", delta.ParameterName, caveatDef.Name)
 		}
 	}
@@ -296,17 +297,17 @@ func sanityCheckNamespaceChanges(
 	rwt datastore.ReadWriteTransaction,
 	nsdef *core.NamespaceDefinition,
 	existingDefs map[string]*core.NamespaceDefinition,
-) (*namespace.Diff, error) {
+) (*nsdiff.Diff, error) {
 	// Ensure that the updated namespace does not break the existing tuple data.
 	existing := existingDefs[nsdef.Name]
-	diff, err := namespace.DiffNamespaces(existing, nsdef)
+	diff, err := nsdiff.DiffNamespaces(existing, nsdef)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
-		case namespace.RemovedRelation:
+		case nsdiff.RemovedRelation:
 			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				ResourceType:             nsdef.Name,
 				OptionalResourceRelation: delta.RelationName,
@@ -338,7 +339,7 @@ func sanityCheckNamespaceChanges(
 				return diff, err
 			}
 
-		case namespace.RelationAllowedTypeRemoved:
+		case nsdiff.RelationAllowedTypeRemoved:
 			var optionalSubjectIds []string
 			var relationFilter datastore.SubjectRelationFilter
 			optionalCaveatName := ""
