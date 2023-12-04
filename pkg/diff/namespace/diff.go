@@ -5,6 +5,7 @@ import (
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
 
+	nsinternal "github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -73,6 +74,7 @@ func (nd Diff) Deltas() []Delta {
 	return nd.deltas
 }
 
+// Delta holds a single change of a namespace.
 type Delta struct {
 	// Type is the type of this delta.
 	Type DeltaType
@@ -143,7 +145,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	for _, relation := range existing.Relation {
 		_, ok := existingRels[relation.Name]
 		if ok {
-			return nil, NewDuplicateRelationError(existing.Name, relation.Name)
+			return nil, nsinternal.NewDuplicateRelationError(existing.Name, relation.Name)
 		}
 
 		if isPermission(relation) {
@@ -158,7 +160,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 	for _, relation := range updated.Relation {
 		_, ok := updatedRels[relation.Name]
 		if ok {
-			return nil, NewDuplicateRelationError(updated.Name, relation.Name)
+			return nil, nsinternal.NewDuplicateRelationError(updated.Name, relation.Name)
 		}
 
 		if isPermission(relation) {
