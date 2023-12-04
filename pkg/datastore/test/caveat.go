@@ -342,7 +342,7 @@ func expectTupleChange(t *testing.T, ds datastore.Datastore, revBeforeWrite data
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite)
+	chanRevisionChanges, chanErr := ds.Watch(ctx, revBeforeWrite, datastore.WatchJustRelationships())
 	require.Zero(t, len(chanErr))
 
 	changeWait := time.NewTimer(waitForChangesTimeout)
@@ -351,7 +351,7 @@ func expectTupleChange(t *testing.T, ds datastore.Datastore, revBeforeWrite data
 		require.True(t, ok)
 
 		// do not check length of change, may contain duplicates
-		foundDiff := cmp.Diff(expectedTuple, change.Changes[0].Tuple, protocmp.Transform())
+		foundDiff := cmp.Diff(expectedTuple, change.RelationshipChanges[0].Tuple, protocmp.Transform())
 		require.Empty(t, foundDiff)
 	case <-changeWait.C:
 		require.Fail(t, "timed out waiting for relationship update via Watch API")

@@ -85,13 +85,13 @@ func (ch Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) []
 		revisionChangeRecord := ch.records[k]
 		changes[i].Revision = revisionChangeRecord.rev
 		for _, tpl := range revisionChangeRecord.tupleTouches {
-			changes[i].Changes = append(changes[i].Changes, &core.RelationTupleUpdate{
+			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, &core.RelationTupleUpdate{
 				Operation: core.RelationTupleUpdate_TOUCH,
 				Tuple:     tpl,
 			})
 		}
 		for _, tpl := range revisionChangeRecord.tupleDeletes {
-			changes[i].Changes = append(changes[i].Changes, &core.RelationTupleUpdate{
+			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, &core.RelationTupleUpdate{
 				Operation: core.RelationTupleUpdate_DELETE,
 				Tuple:     tpl,
 			})

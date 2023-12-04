@@ -31,7 +31,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
@@ -134,7 +134,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
@@ -190,7 +190,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
@@ -242,7 +242,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
@@ -284,7 +284,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 		headRevision: rev("4"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 		existingNamespaces: []datastore.RevisionedNamespace{
 			datastore.RevisionedDefinition[*corev1.NamespaceDefinition]{
@@ -328,7 +328,7 @@ type fakeDatastore struct {
 	namespaces map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]
 	caveats    map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]
 
-	schemaChan chan *datastore.SchemaState
+	schemaChan chan *datastore.RevisionChanges
 	errChan    chan error
 
 	readsDisabled      bool
@@ -354,7 +354,7 @@ func (fds *fakeDatastore) updateCaveat(name string, def *corev1.CaveatDefinition
 }
 
 func (fds *fakeDatastore) sendCheckpoint(revision datastore.Revision) {
-	fds.schemaChan <- &datastore.SchemaState{
+	fds.schemaChan <- &datastore.RevisionChanges{
 		Revision:     revision,
 		IsCheckpoint: true,
 	}
@@ -377,7 +377,7 @@ func updateDef[T datastore.SchemaDefinition](
 	def T,
 	isDelete bool,
 	revision datastore.Revision,
-	schemaChan chan *datastore.SchemaState,
+	schemaChan chan *datastore.RevisionChanges,
 ) {
 	slice, ok := defs[name]
 	if !ok {
@@ -394,12 +394,12 @@ func updateDef[T datastore.SchemaDefinition](
 	defs[name] = slice
 
 	if isDelete {
-		schemaChan <- &datastore.SchemaState{
+		schemaChan <- &datastore.RevisionChanges{
 			Revision:          revision,
 			DeletedNamespaces: []string{name},
 		}
 	} else {
-		schemaChan <- &datastore.SchemaState{
+		schemaChan <- &datastore.RevisionChanges{
 			Revision:           revision,
 			ChangedDefinitions: []datastore.SchemaDefinition{def},
 		}
@@ -487,7 +487,7 @@ func (fds *fakeDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &fakeSnapshotReader{fds, rev}
 }
 
-func (fds *fakeDatastore) WatchSchema(context.Context, datastore.Revision) (<-chan *datastore.SchemaState, <-chan error) {
+func (fds *fakeDatastore) WatchSchema(context.Context, datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
 	return fds.schemaChan, fds.errChan
 }
 
@@ -530,7 +530,7 @@ func (*fakeDatastore) Statistics(context.Context) (datastore.Stats, error) {
 	return datastore.Stats{}, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) Watch(context.Context, datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (*fakeDatastore) Watch(context.Context, datastore.Revision, datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
 	return nil, nil
 }
 

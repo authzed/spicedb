@@ -49,16 +49,5 @@ func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 		}
 	}
 
-	// Try to instantiate a schema cache that reads updates from the datastore's schema watch stream. If not possible,
-	// fallback to the just-in-time caching proxy.
-	if watchable := datastore.UnwrapAs[datastore.SchemaWatchableDatastore](delegate); watchable != nil {
-		log.Info().Type("datastore-type", watchable).Msg("schema watch caching enabled")
-		return createWatchingCacheProxy(watchable, c, gcWindow)
-	}
-
-	log.Info().Type("datastore-type", delegate).Msg("schema watch caching was requested but datastore does not support it; falling back to just-in-time caching")
-	return &definitionCachingProxy{
-		Datastore: delegate,
-		c:         c,
-	}
+	return createWatchingCacheProxy(delegate, c, gcWindow)
 }

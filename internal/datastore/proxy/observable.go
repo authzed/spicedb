@@ -109,8 +109,8 @@ func (p *observableProxy) RevisionFromString(serialized string) (datastore.Revis
 	return p.delegate.RevisionFromString(serialized)
 }
 
-func (p *observableProxy) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return p.delegate.Watch(ctx, afterRevision)
+func (p *observableProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+	return p.delegate.Watch(ctx, afterRevision, options)
 }
 
 func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, error) {

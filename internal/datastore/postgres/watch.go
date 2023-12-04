@@ -51,6 +51,7 @@ var (
 func (pgd *pgDatastore) Watch(
 	ctx context.Context,
 	afterRevisionRaw datastore.Revision,
+	options datastore.WatchOptions,
 ) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
 	errs := make(chan error, 1)

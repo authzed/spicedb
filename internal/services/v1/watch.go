@@ -62,12 +62,12 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := ds.Watch(ctx, afterRevision)
+	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchJustRelationships())
 	for {
 		select {
 		case update, ok := <-updates:
 			if ok {
-				filtered := filterUpdates(objectTypesMap, update.Changes)
+				filtered := filterUpdates(objectTypesMap, update.RelationshipChanges)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v1.WatchResponse{
 						Updates:        filtered,

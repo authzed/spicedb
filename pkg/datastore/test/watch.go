@@ -59,7 +59,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			lowestRevision, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
-			changes, errchan := ds.Watch(ctx, lowestRevision)
+			changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 			require.Zero(len(errchan))
 
 			var testUpdates [][]*core.RelationTupleUpdate
@@ -111,7 +111,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
 			// Test the catch-up case
-			changes, errchan = ds.Watch(ctx, lowestRevision)
+			changes, errchan = ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
 	}
@@ -142,7 +142,7 @@ func verifyUpdates(
 			}
 
 			expectedChangeSet := setOfChanges(expected)
-			actualChangeSet := setOfChanges(change.Changes)
+			actualChangeSet := setOfChanges(change.RelationshipChanges)
 
 			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
 			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
@@ -178,7 +178,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	startWatchRevision := setupDatastore(ds, require)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	changes, errchan := ds.Watch(ctx, startWatchRevision)
+	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, makeTestTuple("test", "test"))
@@ -193,7 +193,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 			if ok {
 				foundDiff := cmp.Diff(
 					[]*core.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
-					created.Changes,
+					created.RelationshipChanges,
 					protocmp.Transform(),
 				)
 				require.Empty(foundDiff)
@@ -231,7 +231,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// TOUCH a relationship and ensure watch sees it.
-	changes, errchan := ds.Watch(ctx, lowestRevision)
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
@@ -260,7 +260,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with no changes and ensure it does *not* appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterTouchRevision)
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom"))
@@ -279,7 +279,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with a caveat name change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterTouchRevision)
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	afterNameChange, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))
@@ -300,7 +300,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// TOUCH the relationship again with a caveat context change and ensure it does appear in the watch.
-	changes, errchan = ds.Watch(ctx, afterNameChange)
+	changes, errchan = ds.Watch(ctx, afterNameChange, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))
@@ -336,7 +336,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	// TOUCH a relationship and ensure watch sees it.
-	changes, errchan := ds.Watch(ctx, lowestRevision)
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
@@ -365,7 +365,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	)
 
 	// DELETE the relationship
-	changes, errchan = ds.Watch(ctx, afterTouchRevision)
+	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tuple.Parse("document:firstdoc#viewer@user:tom"))
@@ -407,7 +407,7 @@ func verifyNoUpdates(
 			return
 		}
 
-		require.Equal(0, len(changes.Changes), "expected no changes")
+		require.Equal(0, len(changes.RelationshipChanges), "expected no changes")
 	case <-changeWait.C:
 		return
 	}

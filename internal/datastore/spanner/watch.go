@@ -2,7 +2,6 @@ package spanner
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -15,8 +14,6 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -53,7 +50,7 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 	return matches[1], matches[2], matches[3], nil
 }
 
-func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, 10)
 	errs := make(chan error, 1)
 
@@ -201,226 +198,4 @@ func contextualizedCaveatFromValues(values map[string]any) (*core.Contextualized
 		return common.ContextualizedCaveatFrom(name, context)
 	}
 	return nil, nil
-}
-
-const maxSchemaWatchRetryCount = 15
-
-func (sd spannerDatastore) WatchSchema(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.SchemaState, <-chan error) {
-	updates := make(chan *datastore.SchemaState, 10)
-	errs := make(chan error, 1)
-
-	lastRevision := afterRevision
-	retryCount := -1
-	go func() {
-		running := true
-		for running {
-			retryCount++
-			retryHistogram.Observe(float64(retryCount))
-			if retryCount >= maxSchemaWatchRetryCount {
-				errs <- fmt.Errorf("schema watch terminated after %d retries", retryCount)
-				return
-			}
-
-			log.Debug().Str("revision", lastRevision.String()).Int("retry-count", retryCount).Msg("starting schema watch connection")
-
-			sd.watchSchemaWithoutRetry(ctx, lastRevision, func(update *datastore.SchemaState, err error) {
-				if err != nil {
-					// TODO(jschorr): If this is a terminal error, just quit instead of retrying.
-					running = true
-
-					// Sleep a bit for retrying.
-					pgxcommon.SleepOnErr(ctx, err, uint8(retryCount))
-					return
-				}
-
-				if update.Revision.GreaterThan(lastRevision) {
-					lastRevision = update.Revision
-				}
-
-				updates <- update
-				retryCount = 0
-			})
-		}
-	}()
-
-	return updates, errs
-}
-
-func (sd spannerDatastore) watchSchemaWithoutRetry(ctx context.Context, afterRevisionRaw datastore.Revision, processUpdate func(update *datastore.SchemaState, err error)) {
-	project, instance, database, err := parseDatabaseName(sd.database)
-	if err != nil {
-		processUpdate(nil, err)
-		return
-	}
-
-	afterRevision := afterRevisionRaw.(revision.Decimal)
-	reader, err := changestreams.NewReaderWithConfig(
-		ctx,
-		project,
-		instance,
-		database,
-		SchemaChangeStreamName,
-		changestreams.Config{
-			StartTimestamp:    timestampFromRevision(afterRevision),
-			HeartbeatInterval: sd.config.schemaWatchHeartbeat,
-			SpannerClientOptions: []option.ClientOption{
-				option.WithCredentialsFile(sd.config.credentialsFilePath),
-			},
-			SpannerClientConfig: spanner.ClientConfig{
-				QueryOptions: spanner.QueryOptions{
-					Priority: sppb.RequestOptions_PRIORITY_LOW,
-				},
-				ApplyOptions: []spanner.ApplyOption{
-					spanner.Priority(sppb.RequestOptions_PRIORITY_LOW),
-				},
-			},
-		})
-	if err != nil {
-		processUpdate(nil, err)
-		return
-	}
-	defer reader.Close()
-
-	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
-		// See: https://cloud.google.com/spanner/docs/change-streams/details
-		for _, record := range result.ChangeRecords {
-			for _, dcr := range record.DataChangeRecords {
-				changeRevision := revisionFromTimestamp(dcr.CommitTimestamp)
-				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
-
-				for _, mod := range dcr.Mods {
-					primaryKeyColumnValues, ok := mod.Keys.Value.(map[string]any)
-					if !ok {
-						return spiceerrors.MustBugf("error converting keys map")
-					}
-
-					switch modType {
-					case "DELETE":
-						switch dcr.TableName {
-						case tableNamespace:
-							namespaceNameValue, ok := primaryKeyColumnValues[colNamespaceName]
-							if !ok {
-								return spiceerrors.MustBugf("missing namespace name value")
-							}
-
-							namespaceName, ok := namespaceNameValue.(string)
-							if !ok {
-								return spiceerrors.MustBugf("error converting namespace name: %v", primaryKeyColumnValues[colNamespaceName])
-							}
-
-							processUpdate(&datastore.SchemaState{
-								Revision:          changeRevision,
-								DeletedNamespaces: []string{namespaceName},
-								IsCheckpoint:      false,
-							}, nil)
-
-						case tableCaveat:
-							caveatNameValue, ok := primaryKeyColumnValues[colNamespaceName]
-							if !ok {
-								return spiceerrors.MustBugf("missing caveat name")
-							}
-
-							caveatName, ok := caveatNameValue.(string)
-							if !ok {
-								return spiceerrors.MustBugf("error converting caveat name: %v", primaryKeyColumnValues[colName])
-							}
-
-							processUpdate(&datastore.SchemaState{
-								Revision:       changeRevision,
-								DeletedCaveats: []string{caveatName},
-								IsCheckpoint:   false,
-							}, nil)
-
-						default:
-							return spiceerrors.MustBugf("unknown table name %s in delete of schema change stream", dcr.TableName)
-						}
-
-					case "INSERT":
-						fallthrough
-
-					case "UPDATE":
-						newValues, ok := mod.NewValues.Value.(map[string]any)
-						if !ok {
-							return spiceerrors.MustBugf("error new values keys map")
-						}
-
-						switch dcr.TableName {
-						case tableNamespace:
-							namespaceConfigValue, ok := newValues[colNamespaceConfig]
-							if !ok {
-								return spiceerrors.MustBugf("missing namespace config value")
-							}
-
-							base64SerializedConfig, ok := namespaceConfigValue.(string)
-							if !ok {
-								return spiceerrors.MustBugf("error converting namespace config value")
-							}
-
-							serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
-							if err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
-							}
-
-							ns := &core.NamespaceDefinition{}
-							if err := ns.UnmarshalVT(serializedConfig); err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
-							}
-
-							processUpdate(&datastore.SchemaState{
-								Revision:           changeRevision,
-								ChangedDefinitions: []datastore.SchemaDefinition{ns},
-								IsCheckpoint:       false,
-							}, nil)
-
-						case tableCaveat:
-							caveatDefValue, ok := newValues[colCaveatDefinition]
-							if !ok {
-								return spiceerrors.MustBugf("missing caveat definition value")
-							}
-
-							base64SerializedConfig, ok := caveatDefValue.(string)
-							if !ok {
-								return spiceerrors.MustBugf("error converting caveat definition value")
-							}
-
-							serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
-							if err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
-							}
-
-							caveat := &core.CaveatDefinition{}
-							if err := caveat.UnmarshalVT(serializedConfig); err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
-							}
-
-							processUpdate(&datastore.SchemaState{
-								Revision:           changeRevision,
-								ChangedDefinitions: []datastore.SchemaDefinition{caveat},
-								IsCheckpoint:       false,
-							}, nil)
-
-						default:
-							return spiceerrors.MustBugf("unknown table name %s in delete of schema change stream", dcr.TableName)
-						}
-
-					default:
-						return spiceerrors.MustBugf("unknown modtype in spanner schema change stream record")
-					}
-				}
-			}
-
-			for _, hbr := range record.HeartbeatRecords {
-				processUpdate(&datastore.SchemaState{
-					Revision:     revisionFromTimestamp(hbr.Timestamp),
-					IsCheckpoint: true,
-				}, nil)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		processUpdate(nil, err)
-		return
-	}
 }

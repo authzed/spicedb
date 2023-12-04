@@ -61,7 +61,7 @@ func init() {
 // this API, or the data is not available in this case or an error occurs, the updating cache fallsback
 // to the standard schema cache.
 type watchingCachingProxy struct {
-	datastore.SchemaWatchableDatastore
+	datastore.Datastore
 
 	fallbackCache *definitionCachingProxy
 	gcWindow      time.Duration
@@ -72,15 +72,15 @@ type watchingCachingProxy struct {
 }
 
 // createWatchingCacheProxy creates and returns a watching cache proxy.
-func createWatchingCacheProxy(wrapped datastore.SchemaWatchableDatastore, c cache.Cache, gcWindow time.Duration) *watchingCachingProxy {
+func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration) *watchingCachingProxy {
 	fallbackCache := &definitionCachingProxy{
-		Datastore: wrapped,
+		Datastore: delegate,
 		c:         c,
 	}
 
 	proxy := &watchingCachingProxy{
-		SchemaWatchableDatastore: wrapped,
-		fallbackCache:            fallbackCache,
+		Datastore:     delegate,
+		fallbackCache: fallbackCache,
 
 		gcWindow: gcWindow,
 		closed:   make(chan bool, 2),
@@ -116,7 +116,7 @@ func createWatchingCacheProxy(wrapped datastore.SchemaWatchableDatastore, c cach
 }
 
 func (p *watchingCachingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	delegateReader := p.SchemaWatchableDatastore.SnapshotReader(rev)
+	delegateReader := p.Datastore.SnapshotReader(rev)
 	return &watchingCachingReader{delegateReader, rev, p}
 }
 
@@ -141,7 +141,7 @@ func (p *watchingCachingProxy) Start(ctx context.Context) error {
 
 func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	log.Info().Msg("starting watching cache")
-	headRev, err := p.SchemaWatchableDatastore.HeadRevision(context.Background())
+	headRev, err := p.Datastore.HeadRevision(context.Background())
 	if err != nil {
 		p.namespaceCache.setFallbackMode()
 		p.caveatCache.setFallbackMode()
@@ -178,7 +178,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 	// Start watching for schema changes.
 	go (func() {
 		log.Debug().Str("revision", headRev.String()).Msg("starting watching cache watch goroutine")
-		reader := p.SchemaWatchableDatastore.SnapshotReader(headRev)
+		reader := p.Datastore.SnapshotReader(headRev)
 
 		// Populate the cache with all definitions at the head revision.
 		log.Info().Str("revision", headRev.String()).Msg("prepopulating namespace watching cache")
@@ -226,7 +226,10 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 		log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
 		log.Debug().Str("revision", headRev.String()).Msg("beginning schema watch")
-		ssc, serrc := p.SchemaWatchableDatastore.WatchSchema(context.Background(), headRev)
+		ssc, serrc := p.Datastore.Watch(context.Background(), headRev, datastore.WatchOptions{
+			Content:             datastore.WatchSchema | datastore.WatchCheckpoints,
+			CheckpointHeartbeat: 10 * time.Millisecond,
+		})
 		log.Debug().Msg("schema watch started")
 
 		p.namespaceCache.startAtRevision(headRev)
@@ -322,7 +325,7 @@ func (p *watchingCachingProxy) Close() error {
 	p.closed <- true
 
 	p.fallbackCache.Close()
-	return p.SchemaWatchableDatastore.Close()
+	return p.Datastore.Close()
 }
 
 // schemaWatchCache is a schema cache which updates based on changes received via the WatchSchema
