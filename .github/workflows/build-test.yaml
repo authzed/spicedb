@@ -44,7 +44,7 @@ jobs:
               - "go.mod"
   lint:
     name: "Lint"
-    runs-on: "ubicloud-standard-8"
+    runs-on: "ubicloud-standard-4"
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
@@ -96,7 +96,7 @@ jobs:
 
   unit:
     name: "Unit"
-    runs-on: "ubicloud-standard-16"
+    runs-on: "warp-ubuntu-latest-x64-16x"
     needs:
       - "paths-filter"
       - "lint"
@@ -130,7 +130,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "ubicloud-standard-8"
+    runs-on: "warp-ubuntu-latest-x64-16x"
     needs:
       - "paths-filter"
       - "unit"
@@ -249,7 +249,7 @@ jobs:
 
   codeql:
     name: "Analyze with CodeQL"
-    runs-on: "ubicloud-standard-32"
+    runs-on: "warp-ubuntu-latest-x64-16x"
     needs: "unit"
     if: |
       github.ref == 'refs/heads/main'
