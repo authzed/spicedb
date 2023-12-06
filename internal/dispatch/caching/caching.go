@@ -11,6 +11,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
@@ -169,6 +171,7 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 	}
 
 	// Disable caching when debugging is enabled.
+	span := trace.SpanFromContext(ctx)
 	if cachedResultRaw, found := cd.c.Get(requestKey); found {
 		var response v1.DispatchCheckResponse
 		if err := response.UnmarshalVT(cachedResultRaw.([]byte)); err != nil {
@@ -188,9 +191,11 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 				}
 			}
 
+			span.SetAttributes(attribute.Bool("cached", true))
 			return &response, nil
 		}
 	}
+	span.SetAttributes(attribute.Bool("cached", false))
 	computed, err := cd.d.DispatchCheck(ctx, req)
 
 	// We only want to cache the result if there was no error
