@@ -2,18 +2,22 @@ package crdb
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -21,25 +25,31 @@ const (
 	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
 )
 
-type changeDetails struct {
-	Resolved string
-	Updated  string
-	After    *struct {
-		CaveatContext map[string]any `json:"caveat_context"`
-		CaveatName    string         `json:"caveat_name"`
-	}
-}
-
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
-	Name:      "crdb_schema_watch_retries",
-	Help:      "schema watch retry distribution",
+	Name:      "crdb_watch_retries",
+	Help:      "watch retry distribution",
 	Buckets:   []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
 func init() {
 	prometheus.MustRegister(retryHistogram)
+}
+
+type changeDetails struct {
+	Resolved string
+	Updated  string
+	After    *struct {
+		Namespace                 string `json:"namespace"`
+		SerializedNamespaceConfig string `json:"serialized_config"`
+
+		CaveatName                 string `json:"name"`
+		SerializedCaveatDefinition string `json:"definition"`
+
+		RelationshipCaveatContext map[string]any `json:"caveat_context"`
+		RelationshipCaveatName    string         `json:"caveat_name"`
+	}
 }
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
@@ -57,6 +67,21 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
+	go cds.watch(ctx, afterRevision, options, updates, errs)
+
+	return updates, errs
+}
+
+func (cds *crdbDatastore) watch(
+	ctx context.Context,
+	afterRevision datastore.Revision,
+	opts datastore.WatchOptions,
+	updates chan *datastore.RevisionChanges,
+	errs chan error,
+) {
+	defer close(updates)
+	defer close(errs)
+
 	// get non-pooled connection for watch
 	// "applications should explicitly create dedicated connections to consume
 	// changefeed data, instead of using a connection pool as most client
@@ -65,154 +90,232 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	conn, err := pgxcommon.ConnectWithInstrumentation(ctx, cds.dburl)
 	if err != nil {
 		errs <- err
-		return updates, errs
+		return
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	tableNames := make([]string, 0, 3)
+	if opts.Content&datastore.WatchRelationships == datastore.WatchRelationships {
+		tableNames = append(tableNames, tableTuple)
+	}
+	if opts.Content&datastore.WatchSchema == datastore.WatchSchema {
+		tableNames = append(tableNames, tableNamespace)
+		tableNames = append(tableNames, tableCaveat)
 	}
 
-	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, afterRevision)
+	if len(tableNames) == 0 {
+		errs <- fmt.Errorf("at least relationships or schema must be specified")
+		return
+	}
 
-	go func() {
-		defer close(updates)
-		defer close(errs)
-		defer func() { _ = conn.Close(ctx) }()
+	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision)
 
-		pendingChanges := make(map[string]*datastore.RevisionChanges)
-
-		changes, err := conn.Query(ctx, interpolated)
-		if err != nil {
-			if errors.Is(ctx.Err(), context.Canceled) {
-				errs <- datastore.NewWatchCanceledErr()
-			} else {
-				errs <- err
-			}
+	sendError := func(err error) {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			errs <- datastore.NewWatchCanceledErr()
 			return
 		}
 
-		// We call Close async here because it can be slow and blocks closing the channels. There is
-		// no return value so we're not really losing anything.
-		defer func() { go changes.Close() }()
+		if pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err) {
+			errs <- datastore.NewWatchTemporaryErr(err)
+			return
+		}
 
-		for changes.Next() {
-			var unused interface{}
-			var changeJSON []byte
-			var primaryKeyValuesJSON []byte
+		errs <- err
+	}
 
-			if err := changes.Scan(&unused, &primaryKeyValuesJSON, &changeJSON); err != nil {
-				if errors.Is(ctx.Err(), context.Canceled) {
-					errs <- datastore.NewWatchCanceledErr()
-				} else {
-					errs <- err
-				}
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
+	}
+
+	changes, err := conn.Query(ctx, interpolated)
+	if err != nil {
+		sendError(err)
+		return
+	}
+
+	// We call Close async here because it can be slow and blocks closing the channels. There is
+	// no return value so we're not really losing anything.
+	defer func() { go changes.Close() }()
+
+	tracked := common.NewChanges(revision.DecimalKeyFunc, opts.Content)
+
+	for changes.Next() {
+		var tableNameBytes []byte
+		var changeJSON []byte
+		var primaryKeyValuesJSON []byte
+
+		// Pull in the table name, the primary key(s) and change information.
+		if err := changes.Scan(&tableNameBytes, &primaryKeyValuesJSON, &changeJSON); err != nil {
+			sendError(err)
+			return
+		}
+
+		var details changeDetails
+		if err := json.Unmarshal(changeJSON, &details); err != nil {
+			sendError(err)
+			return
+		}
+
+		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before it.
+		// Therefore, at this point, we issue tracked updates from before that time, and the checkpoint update.
+		if details.Resolved != "" {
+			rev, err := cds.RevisionFromString(details.Resolved)
+			if err != nil {
+				sendError(fmt.Errorf("malformed resolved timestamp: %w", err))
 				return
 			}
 
-			var details changeDetails
-			if err := json.Unmarshal(changeJSON, &details); err != nil {
-				errs <- err
-				return
-			}
-
-			if details.Resolved != "" {
-				// This entry indicates that we are ready to potentially emit some changes
-				resolved, err := cds.RevisionFromString(details.Resolved)
-				if err != nil {
-					errs <- err
+			for _, revChange := range tracked.FilteredRevisionChanges(revision.DecimalKeyLessThanFunc, rev.(revision.Decimal)) {
+				revChange := revChange
+				if !sendChange(&revChange) {
 					return
 				}
+			}
 
-				var toEmit []*datastore.RevisionChanges
-				for ts, values := range pendingChanges {
-					if resolved.GreaterThan(values.Revision) {
-						delete(pendingChanges, ts)
-
-						toEmit = append(toEmit, values)
-					}
+			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				if !sendChange(&datastore.RevisionChanges{
+					Revision:     rev,
+					IsCheckpoint: true,
+				}) {
+					return
 				}
-
-				sort.Slice(toEmit, func(i, j int) bool {
-					return toEmit[i].Revision.LessThan(toEmit[j].Revision)
-				})
-
-				for _, change := range toEmit {
-					select {
-					case updates <- change:
-					default:
-						errs <- datastore.NewWatchDisconnectedErr()
-						return
-					}
-				}
-
-				continue
 			}
+			continue
+		}
 
-			var pkValues [6]string
-			if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
-				errs <- err
-				return
-			}
+		// Otherwise, this a notification of a row change.
+		tableName := string(tableNameBytes)
 
-			revision, err := cds.RevisionFromString(details.Updated)
-			if err != nil {
-				errs <- fmt.Errorf("malformed update timestamp: %w", err)
-				return
-			}
+		var pkValues []string
+		if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
+			sendError(err)
+			return
+		}
 
+		switch tableName {
+		case tableTuple:
 			var caveatName string
 			var caveatContext map[string]any
-			if details.After != nil && details.After.CaveatName != "" {
-				caveatName = details.After.CaveatName
-				caveatContext = details.After.CaveatContext
+			if details.After != nil && details.After.RelationshipCaveatName != "" {
+				caveatName = details.After.RelationshipCaveatName
+				caveatContext = details.After.RelationshipCaveatContext
 			}
 			ctxCaveat, err := common.ContextualizedCaveatFrom(caveatName, caveatContext)
 			if err != nil {
-				errs <- err
+				sendError(err)
 				return
 			}
 
-			oneChange := &core.RelationTupleUpdate{
-				Tuple: &core.RelationTuple{
-					ResourceAndRelation: &core.ObjectAndRelation{
-						Namespace: pkValues[0],
-						ObjectId:  pkValues[1],
-						Relation:  pkValues[2],
-					},
-					Subject: &core.ObjectAndRelation{
-						Namespace: pkValues[3],
-						ObjectId:  pkValues[4],
-						Relation:  pkValues[5],
-					},
-					Caveat: ctxCaveat,
+			tuple := &core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: pkValues[0],
+					ObjectId:  pkValues[1],
+					Relation:  pkValues[2],
 				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: pkValues[3],
+					ObjectId:  pkValues[4],
+					Relation:  pkValues[5],
+				},
+				Caveat: ctxCaveat,
+			}
+
+			rev, err := cds.RevisionFromString(details.Updated)
+			if err != nil {
+				sendError(fmt.Errorf("malformed update timestamp: %w", err))
+				return
 			}
 
 			if details.After == nil {
-				oneChange.Operation = core.RelationTupleUpdate_DELETE
+				tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_DELETE)
 			} else {
-				oneChange.Operation = core.RelationTupleUpdate_TOUCH
+				tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_TOUCH)
 			}
 
-			pending, ok := pendingChanges[details.Updated]
-			if !ok {
-				pending = &datastore.RevisionChanges{
-					Revision: revision,
-				}
-				pendingChanges[details.Updated] = pending
+		case tableNamespace:
+			if len(pkValues) != 1 {
+				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
+				return
 			}
-			pending.RelationshipChanges = append(pending.RelationshipChanges, oneChange)
+
+			definitionName := pkValues[0]
+
+			rev, err := cds.RevisionFromString(details.Updated)
+			if err != nil {
+				sendError(fmt.Errorf("malformed update timestamp: %w", err))
+				return
+			}
+
+			if details.After != nil && details.After.SerializedNamespaceConfig != "" {
+				namespaceDef := &core.NamespaceDefinition{}
+				defBytes, err := hex.DecodeString(details.After.SerializedNamespaceConfig[2:]) // drop the \x
+				if err != nil {
+					sendError(fmt.Errorf("could not decode namespace definition: %w", err))
+					return
+				}
+
+				if err := namespaceDef.UnmarshalVT(defBytes); err != nil {
+					sendError(fmt.Errorf("could not unmarshal namespace definition: %w", err))
+					return
+				}
+				tracked.AddChangedDefinition(ctx, rev.(revision.Decimal), namespaceDef)
+			} else {
+				tracked.AddDeletedNamespace(ctx, rev.(revision.Decimal), definitionName)
+			}
+
+		case tableCaveat:
+			if len(pkValues) != 1 {
+				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
+				return
+			}
+
+			definitionName := pkValues[0]
+
+			rev, err := cds.RevisionFromString(details.Updated)
+			if err != nil {
+				sendError(fmt.Errorf("malformed update timestamp: %w", err))
+				return
+			}
+
+			if details.After != nil && details.After.SerializedCaveatDefinition != "" {
+				caveatDef := &core.CaveatDefinition{}
+				defBytes, err := hex.DecodeString(details.After.SerializedCaveatDefinition[2:]) // drop the \x
+				if err != nil {
+					sendError(fmt.Errorf("could not decode caveat definition: %w", err))
+					return
+				}
+
+				if err := caveatDef.UnmarshalVT(defBytes); err != nil {
+					sendError(fmt.Errorf("could not unmarshal caveat definition: %w", err))
+					return
+				}
+				tracked.AddChangedDefinition(ctx, rev.(revision.Decimal), caveatDef)
+			} else {
+				tracked.AddDeletedCaveat(ctx, rev.(revision.Decimal), definitionName)
+			}
 		}
+	}
 
-		if err := changes.Err(); err != nil {
-			if errors.Is(ctx.Err(), context.Canceled) {
-				closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer closeCancel()
-				if err := conn.Close(closeCtx); err != nil {
-					errs <- err
-				}
-				errs <- datastore.NewWatchCanceledErr()
-			} else {
+	if changes.Err() != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer closeCancel()
+			if err := conn.Close(closeCtx); err != nil {
 				errs <- err
+				return
 			}
-			return
+			errs <- datastore.NewWatchCanceledErr()
+		} else {
+			errs <- changes.Err()
 		}
-	}()
-	return updates, errs
+		return
+	}
 }

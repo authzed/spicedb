@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -66,9 +68,11 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			var bulkDeletes []*core.RelationTupleUpdate
 			for i := 0; i < tc.numTuples; i++ {
 				newRelationship := makeTestTuple(fmt.Sprintf("relation%d", i), "test_user")
+
 				newUpdate := tuple.Touch(newRelationship)
 				batch := []*core.RelationTupleUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
+
 				_, err := common.UpdateTuplesInDatastore(ctx, ds, newUpdate)
 				require.NoError(err)
 
@@ -152,7 +156,7 @@ func verifyUpdates(
 
 			time.Sleep(1 * time.Millisecond)
 		case <-changeWait.C:
-			require.Fail("Timed out", "waiting for changes: %s", expected)
+			require.Fail("Timed out", "waited for changes: %s", expected)
 		}
 	}
 
@@ -411,4 +415,196 @@ func verifyNoUpdates(
 	case <-changeWait.C:
 		return
 	}
+}
+
+func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
+	require.Zero(len(errchan))
+
+	// Write an updated schema and ensure the changes are returned.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
+			Name: "somenewnamespace",
+		})
+		if err != nil {
+			return err
+		}
+
+		return rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
+			{
+				Name: "somenewcaveat",
+			},
+		})
+	})
+	require.NoError(err)
+
+	verifyMixedUpdates(require, [][]string{
+		{
+			"changed:somenewnamespace",
+			"changed:somenewcaveat",
+		},
+	}, changes, errchan, false)
+
+	// Delete some namespaces and caveats.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.DeleteNamespaces(ctx, "somenewnamespace")
+		if err != nil {
+			return err
+		}
+
+		return rwt.DeleteCaveats(ctx, []string{"somenewcaveat"})
+	})
+	require.NoError(err)
+
+	verifyMixedUpdates(require, [][]string{
+		{
+			"deleted-ns:somenewnamespace",
+			"deleted-caveat:somenewcaveat",
+		},
+	}, changes, errchan, false)
+}
+
+func WatchAllTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+		Content: datastore.WatchRelationships | datastore.WatchSchema,
+	})
+	require.Zero(len(errchan))
+
+	// Write an updated schema.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
+			Name: "somenewnamespace",
+		})
+		if err != nil {
+			return err
+		}
+
+		return rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
+			{
+				Name: "somenewcaveat",
+			},
+		})
+	})
+	require.NoError(err)
+
+	verifyMixedUpdates(require, [][]string{
+		{
+			"changed:somenewnamespace",
+			"changed:somenewcaveat",
+		},
+	}, changes, errchan, false)
+
+	// Write some relationships.
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+		tuple.Parse("document:firstdoc#viewer@user:sarah"),
+		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	)
+	require.NoError(err)
+
+	verifyMixedUpdates(require, [][]string{
+		{
+			"rel:OPERATION_TOUCH(document:firstdoc#viewer@user:fred)",
+			"rel:OPERATION_TOUCH(document:firstdoc#viewer@user:sarah)",
+			"rel:OPERATION_TOUCH(document:firstdoc#viewer@user:tom)",
+		},
+	}, changes, errchan, false)
+
+	// Delete some namespaces and caveats.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.DeleteNamespaces(ctx, "somenewnamespace")
+		if err != nil {
+			return err
+		}
+
+		return rwt.DeleteCaveats(ctx, []string{"somenewcaveat"})
+	})
+	require.NoError(err)
+
+	verifyMixedUpdates(require, [][]string{
+		{
+			"deleted-ns:somenewnamespace",
+			"deleted-caveat:somenewcaveat",
+		},
+	}, changes, errchan, false)
+}
+
+func verifyMixedUpdates(
+	require *require.Assertions,
+	expectedUpdates [][]string,
+	changes <-chan *datastore.RevisionChanges,
+	errchan <-chan error,
+	expectDisconnect bool,
+) {
+	for _, expected := range expectedUpdates {
+		changeWait := time.NewTimer(waitForChangesTimeout)
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				require.True(expectDisconnect, "unexpected disconnect")
+				errWait := time.NewTimer(waitForChangesTimeout)
+				select {
+				case err := <-errchan:
+					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					return
+				case <-errWait.C:
+					require.Fail("Timed out waiting for ErrWatchDisconnected")
+				}
+				return
+			}
+
+			foundChanges := mapz.NewSet[string]()
+			for _, changedDef := range change.ChangedDefinitions {
+				foundChanges.Add("changed:" + changedDef.GetName())
+			}
+			for _, deleted := range change.DeletedNamespaces {
+				foundChanges.Add("deleted-ns:" + deleted)
+			}
+			for _, deleted := range change.DeletedCaveats {
+				foundChanges.Add("deleted-caveat:" + deleted)
+			}
+
+			for _, update := range change.RelationshipChanges {
+				foundChanges.Add("rel:" + fmt.Sprintf("OPERATION_%s(%s)", update.Operation, tuple.StringWithoutCaveat(update.Tuple)))
+			}
+
+			found := foundChanges.AsSlice()
+
+			sort.Strings(expected)
+			sort.Strings(found)
+
+			require.Equal(expected, found, "found unexpected changes")
+			time.Sleep(1 * time.Millisecond)
+		case <-changeWait.C:
+			require.Fail("Timed out", "waited for changes: %s", expected)
+		}
+	}
+
+	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }

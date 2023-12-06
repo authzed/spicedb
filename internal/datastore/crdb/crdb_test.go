@@ -169,7 +169,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 				headRevision, err := ds.HeadRevision(ctx)
 				require.NoError(t, err)
 
-				_, errChan := ds.Watch(ctx, headRevision)
+				_, errChan := ds.Watch(ctx, headRevision, datastore.WatchJustRelationships())
 				err = <-errChan
 				require.NotNil(t, err)
 				require.Contains(t, err.Error(), "watch is currently disabled")

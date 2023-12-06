@@ -55,6 +55,10 @@ type ErrWatchDisabled struct{ error }
 // read-only mode.
 type ErrReadOnly struct{ error }
 
+// ErrWatchRetryable is returned when a transient/temporary error occurred in watch and indicates that
+// the caller *may* retry the watch after some backoff time.
+type ErrWatchRetryable struct{ error }
+
 // InvalidRevisionReason is the reason the revision could not be used.
 type InvalidRevisionReason int
 
@@ -123,6 +127,14 @@ func NewWatchCanceledErr() error {
 func NewWatchDisabledErr(reason string) error {
 	return ErrWatchDisabled{
 		error: fmt.Errorf("watch is currently disabled: %s", reason),
+	}
+}
+
+// NewWatchTemporaryErr wraps another error in watch, indicating that the error is likely
+// a temporary condition and that the caller may retry the watch all if they choose (vs a fatal error).
+func NewWatchTemporaryErr(wrapped error) error {
+	return ErrWatchRetryable{
+		error: wrapped,
 	}
 }
 

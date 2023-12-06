@@ -851,7 +851,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	seenWatchRevisionsLock := sync.Mutex{}
 
 	go func() {
-		changes, _ := ds.Watch(withCancel, rev)
+		changes, _ := ds.Watch(withCancel, rev, datastore.WatchJustRelationships())
 
 		waitForWatch <- struct{}{}
 
@@ -1031,7 +1031,7 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Call watch and ensure it terminates with having only read the two expected sets of changes.
-	changes, errChan := ds.Watch(ctx, rev)
+	changes, errChan := ds.Watch(ctx, rev, datastore.WatchJustRelationships())
 	transactionCount := 0
 loop:
 	for {
@@ -1177,6 +1177,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 	_, errChan := ds.Watch(
 		context.Background(),
 		revision,
+		datastore.WatchJustRelationships(),
 	)
 	err := <-errChan
 	require.NotNil(err)
@@ -1431,7 +1432,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Run the watch API.
-	changes, errchan := ds.Watch(ctx, lowestRevision)
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
 	// Manually insert a relationship with a NULL caveat. This is allowed, but can only happen due to
@@ -1519,7 +1520,7 @@ func verifyUpdates(
 			}
 
 			expectedChangeSet := setOfChanges(expected)
-			actualChangeSet := setOfChanges(change.Changes)
+			actualChangeSet := setOfChanges(change.RelationshipChanges)
 
 			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
 			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)

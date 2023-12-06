@@ -2,7 +2,9 @@ package spanner
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -23,13 +25,14 @@ import (
 const (
 	RelationTupleChangeStreamName = "relation_tuple_stream"
 	SchemaChangeStreamName        = "schema_change_stream"
+	CombinedChangeStreamName      = "combined_change_stream"
 )
 
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 	Namespace: "spicedb",
 	Subsystem: "datastore",
-	Name:      "spanner_schema_watch_retries",
-	Help:      "schema watch retry distribution",
+	Name:      "spanner_watch_retries",
+	Help:      "watch retry distribution",
 	Buckets:   []float64{0, 1, 2, 5, 10, 20, 50},
 })
 
@@ -50,90 +53,201 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 	return matches[1], matches[2], matches[3], nil
 }
 
-func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
 	updates := make(chan *datastore.RevisionChanges, 10)
 	errs := make(chan error, 1)
 
-	go func() {
-		project, instance, database, err := parseDatabaseName(sd.database)
-		if err != nil {
-			errs <- err
+	go sd.watch(ctx, afterRevision, opts, updates, errs)
+
+	return updates, errs
+}
+
+func (sd spannerDatastore) watch(
+	ctx context.Context,
+	afterRevisionRaw datastore.Revision,
+	opts datastore.WatchOptions,
+	updates chan *datastore.RevisionChanges,
+	errs chan error,
+) {
+	defer close(updates)
+	defer close(errs)
+
+	// NOTE: 100ms is the minimum allowed.
+	heartbeatInterval := 100 * time.Millisecond
+	if opts.Content == datastore.WatchCheckpoints|datastore.WatchSchema {
+		heartbeatInterval = sd.config.schemaWatchHeartbeat
+	}
+
+	if heartbeatInterval < 100*time.Millisecond {
+		heartbeatInterval = 100 * time.Millisecond
+	}
+
+	sendError := func(err error) {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			errs <- datastore.NewWatchCanceledErr()
 			return
 		}
 
-		afterRevision := afterRevisionRaw.(revision.Decimal)
-		reader, err := changestreams.NewReaderWithConfig(
-			ctx,
-			project,
-			instance,
-			database,
-			RelationTupleChangeStreamName,
-			changestreams.Config{
-				StartTimestamp:    timestampFromRevision(afterRevision),
-				HeartbeatInterval: 30 * time.Second,
-				SpannerClientOptions: []option.ClientOption{
-					option.WithCredentialsFile(sd.config.credentialsFilePath),
-				},
-				SpannerClientConfig: spanner.ClientConfig{
-					QueryOptions: spanner.QueryOptions{
-						Priority: sppb.RequestOptions_PRIORITY_LOW,
-					},
-					ApplyOptions: []spanner.ApplyOption{
-						spanner.Priority(sppb.RequestOptions_PRIORITY_LOW),
-					},
-				},
-			})
-		if err != nil {
-			errs <- err
-			return
+		errs <- err
+	}
+
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			return false
 		}
-		defer reader.Close()
-		err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
-			tracked := common.NewChanges(revision.DecimalKeyFunc)
+	}
 
-			// See: https://cloud.google.com/spanner/docs/change-streams/details
-			for _, record := range result.ChangeRecords {
-				for _, dcr := range record.DataChangeRecords {
-					changeRevision := revisionFromTimestamp(dcr.CommitTimestamp)
-					modType := dcr.ModType // options are INSERT, UPDATE, DELETE
+	project, instance, database, err := parseDatabaseName(sd.database)
+	if err != nil {
+		sendError(err)
+		return
+	}
 
-					for _, mod := range dcr.Mods {
-						primaryKeyColumnValues, ok := mod.Keys.Value.(map[string]any)
-						if !ok {
-							return spiceerrors.MustBugf("error converting keys map")
-						}
+	// Select the change stream to use for the watch.
+	// TODO(jschorr): we can probably just get rid of the non-combined stream, given the filter below.
+	changeStreamName := CombinedChangeStreamName
+	if opts.Content&datastore.WatchRelationships == opts.Content {
+		changeStreamName = RelationTupleChangeStreamName
+	}
+	if opts.Content&(datastore.WatchSchema|datastore.WatchCheckpoints) == opts.Content {
+		changeStreamName = SchemaChangeStreamName
+	}
 
-						relationTuple := &core.RelationTuple{
-							ResourceAndRelation: &core.ObjectAndRelation{
-								Namespace: primaryKeyColumnValues[colNamespace].(string),
-								ObjectId:  primaryKeyColumnValues[colObjectID].(string),
-								Relation:  primaryKeyColumnValues[colRelation].(string),
-							},
-							Subject: &core.ObjectAndRelation{
-								Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
-								ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
-								Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
-							},
-						}
+	afterRevision := afterRevisionRaw.(revision.Decimal)
+	reader, err := changestreams.NewReaderWithConfig(
+		ctx,
+		project,
+		instance,
+		database,
+		changeStreamName,
+		changestreams.Config{
+			StartTimestamp:    timestampFromRevision(afterRevision),
+			HeartbeatInterval: heartbeatInterval,
+			SpannerClientOptions: []option.ClientOption{
+				option.WithCredentialsFile(sd.config.credentialsFilePath),
+			},
+			SpannerClientConfig: spanner.ClientConfig{
+				QueryOptions: spanner.QueryOptions{
+					Priority: sppb.RequestOptions_PRIORITY_LOW,
+				},
+				ApplyOptions: []spanner.ApplyOption{
+					spanner.Priority(sppb.RequestOptions_PRIORITY_LOW),
+				},
+			},
+		})
+	if err != nil {
+		sendError(err)
+		return
+	}
+	defer reader.Close()
 
-						oldValues, ok := mod.OldValues.Value.(map[string]any)
-						if !ok {
-							return spiceerrors.MustBugf("error converting old values map")
-						}
+	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
+		// See: https://cloud.google.com/spanner/docs/change-streams/details
+		for _, record := range result.ChangeRecords {
+			tracked := common.NewChanges(revision.DecimalKeyFunc, opts.Content)
 
-						switch modType {
-						case "DELETE":
+			for _, dcr := range record.DataChangeRecords {
+				changeRevision := revisionFromTimestamp(dcr.CommitTimestamp)
+				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
+
+				for _, mod := range dcr.Mods {
+					primaryKeyColumnValues, ok := mod.Keys.Value.(map[string]any)
+					if !ok {
+						return spiceerrors.MustBugf("error converting keys map")
+					}
+
+					switch modType {
+					case "DELETE":
+						switch dcr.TableName {
+						case tableRelationship:
+							relationTuple := &core.RelationTuple{
+								ResourceAndRelation: &core.ObjectAndRelation{
+									Namespace: primaryKeyColumnValues[colNamespace].(string),
+									ObjectId:  primaryKeyColumnValues[colObjectID].(string),
+									Relation:  primaryKeyColumnValues[colRelation].(string),
+								},
+								Subject: &core.ObjectAndRelation{
+									Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
+									ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
+									Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
+								},
+							}
+
+							oldValues, ok := mod.OldValues.Value.(map[string]any)
+							if !ok {
+								return spiceerrors.MustBugf("error converting old values map")
+							}
+
 							relationTuple.Caveat, err = contextualizedCaveatFromValues(oldValues)
 							if err != nil {
 								return err
 							}
 
-							tracked.AddChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_DELETE)
+							tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_DELETE)
 
-						case "INSERT":
-							fallthrough
+						case tableNamespace:
+							namespaceNameValue, ok := primaryKeyColumnValues[colNamespaceName]
+							if !ok {
+								return spiceerrors.MustBugf("missing namespace name value")
+							}
 
-						case "UPDATE":
+							namespaceName, ok := namespaceNameValue.(string)
+							if !ok {
+								return spiceerrors.MustBugf("error converting namespace name: %v", primaryKeyColumnValues[colNamespaceName])
+							}
+
+							tracked.AddDeletedNamespace(ctx, changeRevision, namespaceName)
+
+						case tableCaveat:
+							caveatNameValue, ok := primaryKeyColumnValues[colNamespaceName]
+							if !ok {
+								return spiceerrors.MustBugf("missing caveat name")
+							}
+
+							caveatName, ok := caveatNameValue.(string)
+							if !ok {
+								return spiceerrors.MustBugf("error converting caveat name: %v", primaryKeyColumnValues[colName])
+							}
+
+							tracked.AddDeletedCaveat(ctx, changeRevision, caveatName)
+
+						default:
+							return spiceerrors.MustBugf("unknown table name %s in delete of change stream", dcr.TableName)
+						}
+
+					case "INSERT":
+						fallthrough
+
+					case "UPDATE":
+						newValues, ok := mod.NewValues.Value.(map[string]any)
+						if !ok {
+							return spiceerrors.MustBugf("error new values keys map")
+						}
+
+						switch dcr.TableName {
+						case tableRelationship:
+							relationTuple := &core.RelationTuple{
+								ResourceAndRelation: &core.ObjectAndRelation{
+									Namespace: primaryKeyColumnValues[colNamespace].(string),
+									ObjectId:  primaryKeyColumnValues[colObjectID].(string),
+									Relation:  primaryKeyColumnValues[colRelation].(string),
+								},
+								Subject: &core.ObjectAndRelation{
+									Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
+									ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
+									Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
+								},
+							}
+
+							oldValues, ok := mod.OldValues.Value.(map[string]any)
+							if !ok {
+								return spiceerrors.MustBugf("error converting old values map")
+							}
+
 							// NOTE: Spanner's change stream will return a record for a TOUCH operation that does not
 							// change anything. Therefore, we check  to see if the caveat name or context has changed
 							// between the old and new values, and only raise the event in that case. This works for
@@ -152,34 +266,91 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevisionRaw datastore
 								return err
 							}
 
-							tracked.AddChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_TOUCH)
+							tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_TOUCH)
+
+						case tableNamespace:
+							namespaceConfigValue, ok := newValues[colNamespaceConfig]
+							if !ok {
+								return spiceerrors.MustBugf("missing namespace config value")
+							}
+
+							base64SerializedConfig, ok := namespaceConfigValue.(string)
+							if !ok {
+								return spiceerrors.MustBugf("error converting namespace config value")
+							}
+
+							serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
+							if err != nil {
+								return fmt.Errorf(errUnableToReadConfig, err)
+							}
+
+							ns := &core.NamespaceDefinition{}
+							if err := ns.UnmarshalVT(serializedConfig); err != nil {
+								return fmt.Errorf(errUnableToReadConfig, err)
+							}
+
+							tracked.AddChangedDefinition(ctx, changeRevision, ns)
+
+						case tableCaveat:
+							caveatDefValue, ok := newValues[colCaveatDefinition]
+							if !ok {
+								return spiceerrors.MustBugf("missing caveat definition value")
+							}
+
+							base64SerializedConfig, ok := caveatDefValue.(string)
+							if !ok {
+								return spiceerrors.MustBugf("error converting caveat definition value")
+							}
+
+							serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
+							if err != nil {
+								return fmt.Errorf(errUnableToReadConfig, err)
+							}
+
+							caveat := &core.CaveatDefinition{}
+							if err := caveat.UnmarshalVT(serializedConfig); err != nil {
+								return fmt.Errorf(errUnableToReadConfig, err)
+							}
+
+							tracked.AddChangedDefinition(ctx, changeRevision, caveat)
 
 						default:
-							return spiceerrors.MustBugf("unknown modtype in spanner change stream record")
+							return spiceerrors.MustBugf("unknown table name %s in delete of change stream", dcr.TableName)
 						}
+
+					default:
+						return spiceerrors.MustBugf("unknown modtype in spanner change stream record")
 					}
 				}
 			}
 
-			changesToWrite := tracked.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
-			for _, changeToWrite := range changesToWrite {
-				changeToWrite := changeToWrite
-				select {
-				case updates <- &changeToWrite:
-					// Nothing to do here, we've already written to the channel.
-				default:
-					return datastore.NewWatchDisconnectedErr()
+			if !tracked.IsEmpty() {
+				for _, revChange := range tracked.AsRevisionChanges(revision.DecimalKeyLessThanFunc) {
+					revChange := revChange
+					if !sendChange(&revChange) {
+						return datastore.NewWatchDisconnectedErr()
+					}
 				}
 			}
 
-			return nil
-		})
-		if err != nil {
-			errs <- err
-			return
+			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				for _, hbr := range record.HeartbeatRecords {
+					if !sendChange(&datastore.RevisionChanges{
+						Revision:     revisionFromTimestamp(hbr.Timestamp),
+						IsCheckpoint: true,
+					}) {
+						return datastore.NewWatchDisconnectedErr()
+					}
+				}
+			}
 		}
-	}()
-	return updates, errs
+		return nil
+	})
+
+	if err != nil {
+		sendError(err)
+		return
+	}
 }
 
 func contextualizedCaveatFromValues(values map[string]any) (*core.ContextualizedCaveat, error) {

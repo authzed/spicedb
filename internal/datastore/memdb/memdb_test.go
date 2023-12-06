@@ -26,7 +26,7 @@ func (mdbt memDBTest) New(revisionQuantization, _, gcWindow time.Duration, watch
 }
 
 func TestMemdbDatastore(t *testing.T) {
-	test.All(t, memDBTest{})
+	test.AllWithExceptions(t, memDBTest{}, test.WithCategories(test.WatchSchemaCategory))
 }
 
 func TestConcurrentWritePanic(t *testing.T) {

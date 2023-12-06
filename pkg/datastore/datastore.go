@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog"
 
@@ -339,18 +338,19 @@ const (
 type WatchOptions struct {
 	// Content is the content to watch.
 	Content WatchContent
-
-	// CheckpointHeartbeat is the heartbeat to use for checkpoints (if requested).
-	// Some datastores will have a minimum, which will be used if the specified
-	// heartbeat is lower.
-	CheckpointHeartbeat time.Duration
 }
 
 // WatchJustRelationships returns watch options for just relationships.
 func WatchJustRelationships() WatchOptions {
 	return WatchOptions{
-		Content:             WatchRelationships,
-		CheckpointHeartbeat: 0 * time.Microsecond, // Not used
+		Content: WatchRelationships,
+	}
+}
+
+// WatchJustSchema returns watch options for just schema.
+func WatchJustSchema() WatchOptions {
+	return WatchOptions{
+		Content: WatchSchema,
 	}
 }
 

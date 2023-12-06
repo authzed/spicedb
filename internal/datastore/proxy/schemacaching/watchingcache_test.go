@@ -487,10 +487,6 @@ func (fds *fakeDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &fakeSnapshotReader{fds, rev}
 }
 
-func (fds *fakeDatastore) WatchSchema(context.Context, datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return fds.schemaChan, fds.errChan
-}
-
 func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.Revision, error) {
 	fds.lock.RLock()
 	defer fds.lock.RUnlock()
@@ -530,8 +526,12 @@ func (*fakeDatastore) Statistics(context.Context) (datastore.Stats, error) {
 	return datastore.Stats{}, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) Watch(context.Context, datastore.Revision, datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return nil, nil
+func (fds *fakeDatastore) Watch(_ context.Context, _ datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+	if opts.Content&datastore.WatchSchema != datastore.WatchSchema {
+		panic("unexpected option")
+	}
+
+	return fds.schemaChan, fds.errChan
 }
 
 type fakeSnapshotReader struct {

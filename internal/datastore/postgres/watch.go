@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -34,7 +35,7 @@ var (
 		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
 	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, tableTransaction)
 
-	queryChanged = psql.Select(
+	queryChangedTuples = psql.Select(
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -46,6 +47,19 @@ var (
 		colCreatedXid,
 		colDeletedXid,
 	).From(tableTuple)
+
+	queryChangedNamespaces = psql.Select(
+		colConfig,
+		colCreatedXid,
+		colDeletedXid,
+	).From(tableNamespace)
+
+	queryChangedCaveats = psql.Select(
+		colCaveatName,
+		colCaveatDefinition,
+		colCreatedXid,
+		colDeletedXid,
+	).From(tableCaveat)
 )
 
 func (pgd *pgDatastore) Watch(
@@ -75,13 +89,18 @@ func (pgd *pgDatastore) Watch(
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
 				} else {
+					if pgxcommon.IsCancellationError(err) {
+						errs <- datastore.NewWatchCanceledErr()
+						return
+					}
+
 					errs <- err
 				}
 				return
 			}
 
 			if len(newTxns) > 0 {
-				changesToWrite, err := pgd.loadChanges(ctx, newTxns)
+				changesToWrite, err := pgd.loadChanges(ctx, newTxns, options)
 				if err != nil {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						errs <- datastore.NewWatchCanceledErr()
@@ -161,7 +180,7 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 	return ids, nil
 }
 
-func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWithXid) ([]datastore.RevisionChanges, error) {
+func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWithXid, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
 	min := revisions[0].tx.Uint64
 	max := revisions[0].tx.Uint64
 	filter := make(map[uint64]int, len(revisions))
@@ -178,7 +197,41 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 		txidToRevision[rev.tx.Uint64] = rev
 	}
 
-	sql, args, err := queryChanged.Where(sq.Or{
+	tracked := common.NewChanges(revisionKeyFunc, options.Content)
+
+	// Load relationship changes.
+	if options.Content&datastore.WatchRelationships == datastore.WatchRelationships {
+		err := pgd.loadRelationshipChanges(ctx, min, max, txidToRevision, filter, tracked)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Load namespace changes.
+	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+		err := pgd.loadNamespaceChanges(ctx, min, max, txidToRevision, filter, tracked)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Load caveat changes.
+	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+		err := pgd.loadCaveatChanges(ctx, min, max, txidToRevision, filter, tracked)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Reconcile the changes.
+	reconciledChanges := tracked.AsRevisionChanges(func(lhs, rhs uint64) bool {
+		return filter[lhs] < filter[rhs]
+	})
+	return reconciledChanges, nil
+}
+
+func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+	sql, args, err := queryChangedTuples.Where(sq.Or{
 		sq.And{
 			sq.LtOrEq{colCreatedXid: max},
 			sq.GtOrEq{colCreatedXid: min},
@@ -189,17 +242,16 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 		},
 	}).ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("unable to prepare changes SQL: %w", err)
+		return fmt.Errorf("unable to prepare changes SQL: %w", err)
 	}
 
 	changes, err := pgd.readPool.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
+		return fmt.Errorf("unable to load changes for XID: %w", err)
 	}
 
 	defer changes.Close()
 
-	tracked := common.NewChanges(revisionKeyFunc)
 	for changes.Next() {
 		nextTuple := &core.RelationTuple{
 			ResourceAndRelation: &core.ObjectAndRelation{},
@@ -221,13 +273,13 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 			&createdXID,
 			&deletedXID,
 		); err != nil {
-			return nil, fmt.Errorf("unable to parse changed tuple: %w", err)
+			return fmt.Errorf("unable to parse changed tuple: %w", err)
 		}
 
 		if caveatName != nil && *caveatName != "" {
 			contextStruct, err := structpb.NewStruct(caveatContext)
 			if err != nil {
-				return nil, fmt.Errorf("failed to read caveat context from update: %w", err)
+				return fmt.Errorf("failed to read caveat context from update: %w", err)
 			}
 			nextTuple.Caveat = &core.ContextualizedCaveat{
 				CaveatName: *caveatName,
@@ -236,18 +288,118 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			tracked.AddChange(ctx, txidToRevision[createdXID.Uint64], nextTuple, core.RelationTupleUpdate_TOUCH)
+			tracked.AddRelationshipChange(ctx, txidToRevision[createdXID.Uint64], nextTuple, core.RelationTupleUpdate_TOUCH)
 		}
 		if _, found := filter[deletedXID.Uint64]; found {
-			tracked.AddChange(ctx, txidToRevision[deletedXID.Uint64], nextTuple, core.RelationTupleUpdate_DELETE)
+			tracked.AddRelationshipChange(ctx, txidToRevision[deletedXID.Uint64], nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if changes.Err() != nil {
-		return nil, fmt.Errorf("unable to load changes for XID: %w", err)
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+	return nil
+}
+
+func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+	sql, args, err := queryChangedNamespaces.Where(sq.Or{
+		sq.And{
+			sq.LtOrEq{colCreatedXid: max},
+			sq.GtOrEq{colCreatedXid: min},
+		},
+		sq.And{
+			sq.LtOrEq{colDeletedXid: max},
+			sq.GtOrEq{colDeletedXid: min},
+		},
+	}).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to prepare changes SQL: %w", err)
 	}
 
-	reconciledChanges := tracked.AsRevisionChanges(func(lhs, rhs uint64) bool {
-		return filter[lhs] < filter[rhs]
-	})
-	return reconciledChanges, nil
+	changes, err := pgd.readPool.Query(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+
+	defer changes.Close()
+
+	for changes.Next() {
+		var createdXID, deletedXID xid8
+		var config []byte
+		if err := changes.Scan(
+			&config,
+			&createdXID,
+			&deletedXID,
+		); err != nil {
+			return fmt.Errorf("unable to parse changed namespace: %w", err)
+		}
+
+		loaded := &core.NamespaceDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
+			return fmt.Errorf(errUnableToReadConfig, err)
+		}
+
+		if _, found := filter[createdXID.Uint64]; found {
+			tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+		}
+		if _, found := filter[deletedXID.Uint64]; found {
+			tracked.AddDeletedNamespace(ctx, txidToRevision[deletedXID.Uint64], loaded.Name)
+		}
+	}
+	if changes.Err() != nil {
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+	return nil
+}
+
+func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+	sql, args, err := queryChangedCaveats.Where(sq.Or{
+		sq.And{
+			sq.LtOrEq{colCreatedXid: max},
+			sq.GtOrEq{colCreatedXid: min},
+		},
+		sq.And{
+			sq.LtOrEq{colDeletedXid: max},
+			sq.GtOrEq{colDeletedXid: min},
+		},
+	}).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to prepare changes SQL: %w", err)
+	}
+
+	changes, err := pgd.readPool.Query(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+
+	defer changes.Close()
+
+	for changes.Next() {
+		var createdXID, deletedXID xid8
+		var config []byte
+		var name string
+		if err := changes.Scan(
+			&name,
+			&config,
+			&createdXID,
+			&deletedXID,
+		); err != nil {
+			return fmt.Errorf("unable to parse changed caveat: %w", err)
+		}
+
+		loaded := &core.CaveatDefinition{}
+		if err := loaded.UnmarshalVT(config); err != nil {
+			return fmt.Errorf(errUnableToReadConfig, err)
+		}
+
+		if _, found := filter[createdXID.Uint64]; found {
+			tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+		}
+		if _, found := filter[deletedXID.Uint64]; found {
+			tracked.AddDeletedCaveat(ctx, txidToRevision[deletedXID.Uint64], loaded.Name)
+		}
+	}
+	if changes.Err() != nil {
+		return fmt.Errorf("unable to load changes for XID: %w", err)
+	}
+	return nil
 }

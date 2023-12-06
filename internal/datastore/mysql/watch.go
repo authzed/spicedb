@@ -28,6 +28,11 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
 
+	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+		errs <- errors.New("schema watch unsupported in MySQL")
+		return updates, errs
+	}
+
 	go func() {
 		defer close(updates)
 		defer close(errs)
@@ -37,7 +42,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 		for {
 			var stagedUpdates []datastore.RevisionChanges
 			var err error
-			stagedUpdates, currentTxn, err = mds.loadChanges(ctx, currentTxn)
+			stagedUpdates, currentTxn, err = mds.loadChanges(ctx, currentTxn, options)
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
@@ -81,6 +86,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,
+	options datastore.WatchOptions,
 ) (changes []datastore.RevisionChanges, newRevision uint64, err error) {
 	newRevision, err = mds.loadRevision(ctx)
 	if err != nil {
@@ -114,7 +120,7 @@ func (mds *Datastore) loadChanges(
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges(revision.DecimalKeyFunc)
+	stagedChanges := common.NewChanges(revision.DecimalKeyFunc, options.Content)
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{
@@ -147,11 +153,11 @@ func (mds *Datastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH)
+			stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH)
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE)
+			stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE)
 		}
 	}
 	if err = rows.Err(); err != nil {

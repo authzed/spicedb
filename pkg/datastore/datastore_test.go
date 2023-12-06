@@ -163,7 +163,7 @@ func (f fakeDatastore) RevisionFromString(_ string) (Revision, error) {
 	return nil, nil
 }
 
-func (f fakeDatastore) Watch(_ context.Context, _ Revision) (<-chan *RevisionChanges, <-chan error) {
+func (f fakeDatastore) Watch(_ context.Context, _ Revision, _ WatchOptions) (<-chan *RevisionChanges, <-chan error) {
 	return nil, nil
 }
 

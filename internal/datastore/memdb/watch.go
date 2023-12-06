@@ -19,6 +19,11 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	updates := make(chan *datastore.RevisionChanges, mdb.watchBufferLength)
 	errs := make(chan error, 1)
 
+	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+		errs <- errors.New("schema watch unsupported in MemDB")
+		return updates, errs
+	}
+
 	go func() {
 		defer close(updates)
 		defer close(errs)
