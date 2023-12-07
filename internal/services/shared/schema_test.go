@@ -33,7 +33,6 @@ func TestApplySchemaChanges(t *testing.T) {
 	`, nil, require)
 
 	// Update the schema and ensure it works.
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source: input.Source("schema"),
 		SchemaString: `
@@ -45,7 +44,7 @@ func TestApplySchemaChanges(t *testing.T) {
 			  value == 22
 			}
 		`,
-	}, &emptyDefaultPrefix)
+	})
 	require.NoError(err)
 
 	validated, err := ValidateSchemaChanges(context.Background(), compiled, false)

@@ -103,11 +103,10 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	ds := datastoremw.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
-	}, &emptyDefaultPrefix)
+	})
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}

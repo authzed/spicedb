@@ -30,11 +30,10 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
-	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: ps.Schema,
-	}, &empty)
+	})
 	if err != nil {
 		var errWithContext compiler.ErrorWithContext
 		if errors.As(err, &errWithContext) {

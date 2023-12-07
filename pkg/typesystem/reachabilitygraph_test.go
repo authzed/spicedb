@@ -484,11 +484,10 @@ func TestReachabilityGraph(t *testing.T) {
 
 			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
 
-			empty := ""
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
 				SchemaString: tc.schema,
-			}, &empty)
+			})
 			require.NoError(err)
 
 			lastRevision, err := ds.HeadRevision(context.Background())

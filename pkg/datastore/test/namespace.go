@@ -258,11 +258,10 @@ definition document {
 }`
 
 	// Compile namespace to write to the datastore.
-	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schemaString,
-	}, &empty)
+	})
 	require.NoError(err)
 	require.Equal(2, len(compiled.OrderedDefinitions))
 

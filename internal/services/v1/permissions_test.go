@@ -344,11 +344,10 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	require.NotEmpty(debugInfo.SchemaUsed)
 
 	// Compile the schema into the namespace definitions.
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: debugInfo.SchemaUsed,
-	}, &emptyDefaultPrefix)
+	})
 	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
 	require.Equal(4, len(compiled.OrderedDefinitions))
 }

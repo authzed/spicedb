@@ -216,11 +216,10 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)
 
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
-	}, &emptyDefaultPrefix)
+	})
 	require.NoError(err)
 
 	_ = writeDefinitions(validating, require, compiled.ObjectDefinitions, compiled.CaveatDefinitions)

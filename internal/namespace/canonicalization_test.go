@@ -514,12 +514,11 @@ func TestCanonicalizationComparison(t *testing.T) {
 
 			ctx := context.Background()
 
-			empty := ""
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
 				SchemaString: schemaText,
-			}, &empty)
+			})
 			require.NoError(err)
 
 			lastRevision, err := ds.HeadRevision(context.Background())
