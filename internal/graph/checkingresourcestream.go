@@ -542,9 +542,10 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 func (crs *checkingResourceStream) addSkippedDispatchCountToBePublished(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 	dispatchCount := crs.dispatchesToBeReported.Swap(0)
 	cachedDispatchCount := crs.cachedDispatchesToBeReported.Swap(0)
-	metadata.DispatchCount += dispatchCount
-	metadata.CachedDispatchCount += cachedDispatchCount
-	return metadata
+	cloned := metadata.CloneVT()
+	cloned.DispatchCount += dispatchCount
+	cloned.CachedDispatchCount += cachedDispatchCount
+	return cloned
 }
 
 // spawnIfAvailable spawns a processing working, if the concurrency limit has not been reached.
