@@ -12,11 +12,10 @@ import (
 // error if the schema could not be compiled. The non-developer error is returned only if an
 // internal errors occurred.
 func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.DeveloperError, error) {
-	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
-	}, &empty)
+	})
 
 	var contextError compiler.ErrorWithContext
 	if errors.As(err, &contextError) {

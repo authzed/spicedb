@@ -18,7 +18,6 @@ func TestAnnotateNamespace(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source: input.Source("schema"),
 		SchemaString: `definition document {
@@ -30,7 +29,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission other = editor - viewer
 	permission also_aliased = viewer
 }`,
-	}, &empty)
+	})
 	require.NoError(err)
 
 	lastRevision, err := ds.HeadRevision(context.Background())

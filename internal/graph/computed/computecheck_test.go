@@ -934,11 +934,10 @@ func TestComputeBulkCheck(t *testing.T) {
 }
 
 func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datastore, schema string, updates []caveatedUpdate) (datastore.Revision, error) {
-	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       "schema",
 		SchemaString: schema,
-	}, &empty)
+	})
 	if err != nil {
 		return datastore.NoRevision, err
 	}

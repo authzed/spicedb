@@ -927,7 +927,7 @@ func TestCompile(t *testing.T) {
 			require := require.New(t)
 			compiled, err := Compile(InputSchema{
 				input.Source(test.name), test.input,
-			}, test.implicitTenant)
+			}, ObjectTypePrefix(test.implicitTenant))
 
 			if test.expectedError != "" {
 				require.Error(err)
@@ -1010,7 +1010,7 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 
 	compiled, err := Compile(InputSchema{
 		input.Source("superlarge"), string(b),
-	}, new(string))
+	})
 	require.NoError(t, err)
 	require.Equal(t, 29, len(compiled.ObjectDefinitions))
 	require.Equal(t, 1, len(compiled.CaveatDefinitions))

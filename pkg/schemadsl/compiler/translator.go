@@ -20,6 +20,7 @@ type translationContext struct {
 	objectTypePrefix *string
 	mapper           input.PositionMapper
 	schemaString     string
+	skipValidate     bool
 }
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
@@ -220,9 +221,10 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 		ns := namespace.Namespace(nspath)
 		ns.Metadata = addComments(ns.Metadata, defNode)
 
-		err = ns.Validate()
-		if err != nil {
-			return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+		if !tctx.skipValidate {
+			if err = ns.Validate(); err != nil {
+				return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+			}
 		}
 
 		return ns, nil
@@ -232,9 +234,10 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 	ns.Metadata = addComments(ns.Metadata, defNode)
 	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
-	err = ns.Validate()
-	if err != nil {
-		return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+	if !tctx.skipValidate {
+		if err := ns.Validate(); err != nil {
+			return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+		}
 	}
 
 	return ns, nil
@@ -329,9 +332,10 @@ func translateRelation(tctx translationContext, relationNode *dslNode) (*core.Re
 		return nil, err
 	}
 
-	err = relation.Validate()
-	if err != nil {
-		return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
+	if !tctx.skipValidate {
+		if err := relation.Validate(); err != nil {
+			return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
+		}
 	}
 
 	return relation, nil
@@ -358,9 +362,10 @@ func translatePermission(tctx translationContext, permissionNode *dslNode) (*cor
 		return nil, err
 	}
 
-	err = permission.Validate()
-	if err != nil {
-		return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
+	if !tctx.skipValidate {
+		if err := permission.Validate(); err != nil {
+			return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
+		}
 	}
 
 	return permission, nil
@@ -582,9 +587,10 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
 		}
 
-		err = ref.Validate()
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+		if !tctx.skipValidate {
+			if err := ref.Validate(); err != nil {
+				return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+			}
 		}
 
 		ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
@@ -611,9 +617,10 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid caveat: %w", err)
 	}
 
-	err = ref.Validate()
-	if err != nil {
-		return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+	if !tctx.skipValidate {
+		if err := ref.Validate(); err != nil {
+			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+		}
 	}
 
 	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)

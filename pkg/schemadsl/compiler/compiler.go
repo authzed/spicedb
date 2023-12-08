@@ -41,8 +41,25 @@ type CompiledSchema struct {
 	OrderedDefinitions []SchemaDefinition
 }
 
+type config struct {
+	skipValidation   bool
+	objectTypePrefix *string
+}
+
+func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
+func ObjectTypePrefix(prefix *string) Option {
+	return func(cfg *config) { cfg.objectTypePrefix = prefix }
+}
+
+type Option func(*config)
+
 // Compile compilers the input schema into a set of namespace definition protos.
-func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, error) {
+func Compile(schema InputSchema, opts ...Option) (*CompiledSchema, error) {
+	cfg := &config{objectTypePrefix: new(string)}
+	for _, fn := range opts {
+		fn(cfg)
+	}
+
 	mapper := newPositionMapper(schema)
 	root := parser.Parse(createAstNode, schema.Source, schema.SchemaString).(*dslNode)
 	errs := root.FindAll(dslshape.NodeTypeError)
@@ -52,9 +69,10 @@ func Compile(schema InputSchema, objectTypePrefix *string) (*CompiledSchema, err
 	}
 
 	compiled, err := translate(translationContext{
-		objectTypePrefix: objectTypePrefix,
+		objectTypePrefix: cfg.objectTypePrefix,
 		mapper:           mapper,
 		schemaString:     schema.SchemaString,
+		skipValidate:     cfg.skipValidation,
 	}, root)
 	if err != nil {
 		var errorWithNode errorWithNode
