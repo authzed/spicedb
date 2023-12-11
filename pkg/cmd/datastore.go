@@ -18,26 +18,26 @@ import (
 func RegisterDatastoreRootFlags(_ *cobra.Command) {
 }
 
-func NewDatastoreCommand(_ string) (*cobra.Command, error) {
+func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	datastoreCmd := &cobra.Command{
 		Use:   "datastore",
 		Short: "datastore operations",
 		Long:  "Operations against the configured datastore",
 	}
 
-	migrateCmd := NewMigrateCommand(datastoreCmd.Use)
+	migrateCmd := NewMigrateCommand(programName)
 	RegisterMigrateFlags(migrateCmd)
 	datastoreCmd.AddCommand(migrateCmd)
 
 	cfg := datastore.Config{}
 
-	gcCmd := NewGCDatastoreCommand(datastoreCmd.Use, &cfg)
+	gcCmd := NewGCDatastoreCommand(programName, &cfg)
 	if err := datastore.RegisterDatastoreFlagsWithPrefix(gcCmd.Flags(), "", &cfg); err != nil {
 		return nil, err
 	}
 	datastoreCmd.AddCommand(gcCmd)
 
-	repairCmd := NewRepairDatastoreCommand(datastoreCmd.Use, &cfg)
+	repairCmd := NewRepairDatastoreCommand(programName, &cfg)
 	if err := datastore.RegisterDatastoreFlagsWithPrefix(repairCmd.Flags(), "", &cfg); err != nil {
 		return nil, err
 	}
@@ -77,7 +77,10 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				return fmt.Errorf("datastore of type %T does not support garbage collection", ds)
 			}
 
-			log.Ctx(ctx).Info().Msg("Running garbage collection...")
+			log.Ctx(ctx).Info().
+				Float64("gc_window_seconds", cfg.GCWindow.Seconds()).
+				Float64("gc_max_operation_time_seconds", cfg.GCMaxOperationTime.Seconds()).
+				Msg("Running garbage collection...")
 			err = common.RunGarbageCollection(gc, cfg.GCWindow, cfg.GCMaxOperationTime)
 			if err != nil {
 				return err
