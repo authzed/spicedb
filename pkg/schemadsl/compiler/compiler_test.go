@@ -15,35 +15,38 @@ import (
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
-var someTenant = "sometenant"
+var (
+	withTenantPrefix = ObjectTypePrefix("sometenant")
+	nilPrefix        = func(cfg *config) { cfg.objectTypePrefix = nil }
+)
 
 func TestCompile(t *testing.T) {
 	type compileTest struct {
-		name           string
-		implicitTenant *string
-		input          string
-		expectedError  string
-		expectedProto  []SchemaDefinition
+		name          string
+		objectPrefix  ObjectPrefixOption
+		input         string
+		expectedError string
+		expectedProto []SchemaDefinition
 	}
 
 	tests := []compileTest{
 		{
 			"empty",
-			&someTenant,
+			withTenantPrefix,
 			"",
 			"",
 			[]SchemaDefinition{},
 		},
 		{
 			"parse error",
-			&someTenant,
+			withTenantPrefix,
 			"foo",
 			"parse error in `parse error`, line 1, column 1: Unexpected token at root level: TokenTypeIdentifier",
 			[]SchemaDefinition{},
 		},
 		{
 			"nested parse error",
-			&someTenant,
+			withTenantPrefix,
 			`definition foo {
 				relation something: rela | relb + relc	
 			}`,
@@ -51,8 +54,17 @@ func TestCompile(t *testing.T) {
 			[]SchemaDefinition{},
 		},
 		{
+			"allows bypassing prefix requirement",
+			AllowUnprefixedObjectType(),
+			`definition def {}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("def"),
+			},
+		},
+		{
 			"empty def",
-			&someTenant,
+			withTenantPrefix,
 			`definition def {}`,
 			"",
 			[]SchemaDefinition{
@@ -61,7 +73,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"simple def",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation foo: bar;
 			}`,
@@ -76,7 +88,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"explicit relation",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation foos: bars#mehs;
 			}`,
@@ -91,7 +103,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"wildcard relation",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation foos: bars:*
 			}`,
@@ -106,7 +118,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"cross tenant relation",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation foos: anothertenant/bars#mehs;
 			}`,
@@ -121,7 +133,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple relations",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation foos: bars#mehs;
 				relation hello: there | world;
@@ -141,7 +153,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"relation with required caveat",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation viewer: user with somecaveat
 			}`,
@@ -157,7 +169,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"relation with optional caveat",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation viewer: user with somecaveat | user
 			}`,
@@ -174,7 +186,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"relation with multiple caveats",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				relation viewer: user with somecaveat | user | team#member with anothercaveat
 			}`,
@@ -193,7 +205,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"simple permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = bars;
 			}`,
@@ -210,7 +222,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"union permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = bars + bazs;
 			}`,
@@ -228,7 +240,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"intersection permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = bars & bazs;
 			}`,
@@ -246,7 +258,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"exclusion permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = bars - bazs;
 			}`,
@@ -264,7 +276,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multi-union permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = bars + bazs + mehs;
 			}`,
@@ -283,7 +295,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"complex permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition complex {
 				permission foos = bars + bazs - mehs;
 			}`,
@@ -306,7 +318,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"complex parens permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition complex {
 				permission foos = bars + (bazs - mehs);
 			}`,
@@ -329,7 +341,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"arrow permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition arrowed {
 				permission foos = bars->bazs
 			}`,
@@ -347,7 +359,7 @@ func TestCompile(t *testing.T) {
 
 		{
 			"multiarrow permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition arrowed {
 				relation somerel: something;
 				permission foos = somerel->brel->crel
@@ -379,7 +391,7 @@ func TestCompile(t *testing.T) {
 
 		{
 			"expression permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition expressioned {
 				permission foos = ((arel->brel) + nil) - drel
 			}`,
@@ -402,7 +414,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple permission",
-			&someTenant,
+			withTenantPrefix,
 			`definition multiple {
 				permission first = bars + bazs
 				permission second = bars - bazs
@@ -440,7 +452,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"permission with nil",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = aaaa + nil + bbbb;
 			}`,
@@ -459,14 +471,14 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"no implicit tenant with unspecified tenant",
-			nil,
+			nilPrefix,
 			`definition foos {}`,
 			"parse error in `no implicit tenant with unspecified tenant`, line 1, column 1: found reference `foos` without prefix",
 			[]SchemaDefinition{},
 		},
 		{
 			"no implicit tenant with specified tenant",
-			nil,
+			nilPrefix,
 			`definition some_tenant/foos {}`,
 			"",
 			[]SchemaDefinition{
@@ -475,7 +487,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"no implicit tenant with unspecified tenant on type ref",
-			nil,
+			nilPrefix,
 			`definition some_tenant/foo {
 				relation somerel: bars
 			}`,
@@ -484,14 +496,14 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"invalid definition name",
-			nil,
+			nilPrefix,
 			`definition someTenant/fo {}`,
 			"parse error in `invalid definition name`, line 1, column 1: error in object definition someTenant/fo: invalid NamespaceDefinition.Name: value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
 			[]SchemaDefinition{},
 		},
 		{
 			"invalid relation name",
-			nil,
+			nilPrefix,
 			`definition some_tenant/foos {
 				relation ab: some_tenant/foos
 			}`,
@@ -500,7 +512,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"no implicit tenant with specified tenant on type ref",
-			nil,
+			nilPrefix,
 			`definition some_tenant/foos {
 				relation somerel: some_tenant/bars
 			}`,
@@ -517,7 +529,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"doc comments",
-			&someTenant,
+			withTenantPrefix,
 			`/**
 			  * user is a user
 			  */
@@ -553,7 +565,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"duplicate definition",
-			&someTenant,
+			withTenantPrefix,
 			`definition foo {}
 			definition foo {}`,
 			"parse error in `duplicate definition`, line 2, column 4: found name reused between multiple definitions and/or caveats: sometenant/foo",
@@ -561,7 +573,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"duplicate definitions across objects and caveats",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 				someParam == 42
 			}
@@ -571,7 +583,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat missing parameters",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo() {
 				someParam == 42
 			}`,
@@ -580,7 +592,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat missing expression",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 			}`,
 			"Unexpected token at root level: TokenTypeRightBrace",
@@ -588,7 +600,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat invalid parameter type",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam foobar) {
 				someParam == 42
 			}`,
@@ -597,7 +609,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat invalid parameter type",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam map<foobar>) {
 				someParam == 42
 			}`,
@@ -606,7 +618,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat missing parameter",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 				anotherParam == 42
 			}`,
@@ -615,7 +627,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat missing parameter on a different line",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 				someParam == 42 &&
 					anotherParam
@@ -625,7 +637,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat invalid expression type",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 				someParam
 			}`,
@@ -634,7 +646,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat invalid expression",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 				someParam:{}
 			}`,
@@ -643,7 +655,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat valid",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int) {
 				someParam == 42
 			}`,
@@ -658,7 +670,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"long caveat valid",
-			&someTenant,
+			withTenantPrefix,
 			`caveat foo(someParam int, anotherParam string, thirdParam list<int>) {
 				someParam == 42 && someParam != 43 && someParam < 12 &&
 				someParam > 56 && anotherParam == "hi there" && 42 in thirdParam
@@ -678,7 +690,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat IP example",
-			&someTenant,
+			withTenantPrefix,
 			`caveat has_allowed_ip(user_ip ipaddress) {
 				!user_ip.in_cidr('1.2.3.0')
 			}`,
@@ -694,7 +706,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"caveat subtree example",
-			&someTenant,
+			withTenantPrefix,
 			`caveat something(someMap map<any>, anotherMap map<any>) {
 				someMap.isSubtreeOf(anotherMap)
 			}`,
@@ -711,7 +723,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"union permission with multiple branches",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = first + second + third + fourth
 			}`,
@@ -731,7 +743,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"union permission with multiple branches, some not union",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = first + second + (foo - bar) + fourth
 			}`,
@@ -756,7 +768,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"intersection permission with multiple branches",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = first & second & third & fourth
 			}`,
@@ -776,7 +788,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"exclusion permission with multiple branches",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = first - second - third - fourth
 			}`,
@@ -804,7 +816,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"wrong tenant is not translated",
-			&someTenant,
+			withTenantPrefix,
 			`definition someothertenant/simple {
 				permission foos = (first + second) + (third + fourth)
 			}`,
@@ -824,7 +836,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple-segment tenant",
-			&someTenant,
+			withTenantPrefix,
 			`definition sometenant/some_team/simple {
 				permission foos = (first + second) + (third + fourth)
 			}`,
@@ -844,7 +856,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple levels of compressed nesting",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = (first + second) + (third + fourth)
 			}`,
@@ -864,7 +876,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple levels",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = (first + second) + (middle & thing) + (third + fourth)
 			}`,
@@ -890,7 +902,7 @@ func TestCompile(t *testing.T) {
 		},
 		{
 			"multiple reduction",
-			&someTenant,
+			withTenantPrefix,
 			`definition simple {
 				permission foos = first + second + (fourth & (sixth - seventh) & fifth) + third
 			}`,
@@ -927,7 +939,7 @@ func TestCompile(t *testing.T) {
 			require := require.New(t)
 			compiled, err := Compile(InputSchema{
 				input.Source(test.name), test.input,
-			}, ObjectTypePrefix(test.implicitTenant))
+			}, test.objectPrefix)
 
 			if test.expectedError != "" {
 				require.Error(err)
@@ -1002,6 +1014,14 @@ func filterSourcePositions(m protoreflect.Message) {
 	})
 }
 
+func TestSkipValidation(t *testing.T) {
+	_, err := Compile(InputSchema{"test", `definition a/def {}`}, AllowUnprefixedObjectType())
+	require.Error(t, err)
+
+	_, err = Compile(InputSchema{"test", `definition a/def {}`}, AllowUnprefixedObjectType(), SkipValidation())
+	require.NoError(t, err)
+}
+
 func TestSuperLargeCaveatCompile(t *testing.T) {
 	b, err := os.ReadFile("../parser/tests/superlarge.zed")
 	if err != nil {
@@ -1009,8 +1029,8 @@ func TestSuperLargeCaveatCompile(t *testing.T) {
 	}
 
 	compiled, err := Compile(InputSchema{
-		input.Source("superlarge"), string(b),
-	})
+		"superlarge", string(b),
+	}, AllowUnprefixedObjectType())
 	require.NoError(t, err)
 	require.Equal(t, 29, len(compiled.ObjectDefinitions))
 	require.Equal(t, 1, len(compiled.CaveatDefinitions))

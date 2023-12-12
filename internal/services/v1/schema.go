@@ -106,7 +106,7 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
-	})
+	}, compiler.AllowUnprefixedObjectType())
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}

@@ -219,7 +219,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
-	})
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
 	_ = writeDefinitions(validating, require, compiled.ObjectDefinitions, compiled.CaveatDefinitions)

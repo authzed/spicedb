@@ -47,15 +47,24 @@ type config struct {
 }
 
 func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
-func ObjectTypePrefix(prefix *string) Option {
-	return func(cfg *config) { cfg.objectTypePrefix = prefix }
+
+func ObjectTypePrefix(prefix string) ObjectPrefixOption {
+	return func(cfg *config) { cfg.objectTypePrefix = &prefix }
+}
+
+func AllowUnprefixedObjectType() ObjectPrefixOption {
+	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
 }
 
 type Option func(*config)
 
+type ObjectPrefixOption func(*config)
+
 // Compile compilers the input schema into a set of namespace definition protos.
-func Compile(schema InputSchema, opts ...Option) (*CompiledSchema, error) {
-	cfg := &config{objectTypePrefix: new(string)}
+func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
+	cfg := &config{}
+	prefix(cfg) // required option
+
 	for _, fn := range opts {
 		fn(cfg)
 	}

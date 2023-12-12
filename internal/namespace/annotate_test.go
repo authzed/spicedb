@@ -29,7 +29,7 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission other = editor - viewer
 	permission also_aliased = viewer
 }`,
-	})
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
 	lastRevision, err := ds.HeadRevision(context.Background())
