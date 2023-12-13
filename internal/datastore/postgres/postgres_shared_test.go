@@ -1372,16 +1372,8 @@ func GCQueriesServedByExpectedIndexes(t *testing.T, _ testdatastore.RunningEngin
 	revision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
 
-	for {
-		wds, ok := ds.(datastore.UnwrappableDatastore)
-		if !ok {
-			break
-		}
-		ds = wds.Unwrap()
-	}
-
-	casted, ok := ds.(common.GarbageCollector)
-	require.True(ok)
+	casted := datastore.UnwrapAs[common.GarbageCollector](ds)
+	require.NotNil(casted)
 
 	_, err = casted.DeleteBeforeTx(context.Background(), revision)
 	require.NoError(err)

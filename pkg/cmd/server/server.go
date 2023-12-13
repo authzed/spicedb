@@ -591,14 +591,11 @@ func (c *completedServerConfig) DispatchNetDialContext(ctx context.Context, s st
 
 func (c *completedServerConfig) Run(ctx context.Context) error {
 	log.Ctx(ctx).Info().Type("datastore", c.ds).Msg("running server")
-	if unwrappableDS, ok := c.ds.(datastore.UnwrappableDatastore); ok {
-		log.Ctx(ctx).Info().Msg("checking for startable datastore")
-		if startableDS, ok := unwrappableDS.Unwrap().(datastore.StartableDatastore); ok {
-			log.Ctx(ctx).Info().Msg("Start-ing datastore")
-			err := startableDS.Start(ctx)
-			if err != nil {
-				return err
-			}
+	if startable := datastore.UnwrapAs[datastore.StartableDatastore](c.ds); startable != nil {
+		log.Ctx(ctx).Info().Msg("Start-ing datastore")
+		err := startable.Start(ctx)
+		if err != nil {
+			return err
 		}
 	}
 

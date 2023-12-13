@@ -42,7 +42,7 @@ func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 	}
 
 	if cachingMode == JustInTimeCaching {
-		log.Info().Type("datastore-type", delegate).Msg("datastore driver explicitly asked to skip schema watch")
+		log.Info().Msg("schema watch explicitly disabled")
 		return &definitionCachingProxy{
 			Datastore: delegate,
 			c:         c,
@@ -51,27 +51,14 @@ func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 
 	// Try to instantiate a schema cache that reads updates from the datastore's schema watch stream. If not possible,
 	// fallback to the just-in-time caching proxy.
-	if watchable, ok := delegate.(datastore.SchemaWatchableDatastore); ok {
+	if watchable := datastore.UnwrapAs[datastore.SchemaWatchableDatastore](delegate); watchable != nil {
+		log.Info().Type("datastore-type", watchable).Msg("enabled schema caching")
 		return createWatchingCacheProxy(watchable, c, gcWindow)
 	}
 
-	unwrapped, ok := delegate.(datastore.UnwrappableDatastore)
-	if !ok {
-		log.Warn().Type("datastore-type", delegate).Msg("datastore driver does not support unwrapping; falling back to just-in-time caching")
-		return &definitionCachingProxy{
-			Datastore: delegate,
-			c:         c,
-		}
+	log.Info().Type("datastore-type", delegate).Msg("schema watch was enabled but datastore does not support it; falling back to just-in-time caching")
+	return &definitionCachingProxy{
+		Datastore: delegate,
+		c:         c,
 	}
-
-	watchable, ok := unwrapped.Unwrap().(datastore.SchemaWatchableDatastore)
-	if !ok {
-		log.Info().Type("datastore-type", delegate).Msg("datastore driver does not schema watch; falling back to just-in-time caching")
-		return &definitionCachingProxy{
-			Datastore: delegate,
-			c:         c,
-		}
-	}
-
-	return createWatchingCacheProxy(watchable, c, gcWindow)
 }
