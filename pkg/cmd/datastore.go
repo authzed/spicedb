@@ -64,16 +64,8 @@ func NewGCDatastoreCommand(programName string, cfg *datastore.Config) *cobra.Com
 				return fmt.Errorf("failed to create datastore: %w", err)
 			}
 
-			for {
-				wds, ok := ds.(dspkg.UnwrappableDatastore)
-				if !ok {
-					break
-				}
-				ds = wds.Unwrap()
-			}
-
-			gc, ok := ds.(common.GarbageCollector)
-			if !ok {
+			gc := dspkg.UnwrapAs[common.GarbageCollector](ds)
+			if gc == nil {
 				return fmt.Errorf("datastore of type %T does not support garbage collection", ds)
 			}
 
@@ -109,16 +101,8 @@ func NewRepairDatastoreCommand(programName string, cfg *datastore.Config) *cobra
 				return fmt.Errorf("failed to create datastore: %w", err)
 			}
 
-			for {
-				wds, ok := ds.(dspkg.UnwrappableDatastore)
-				if !ok {
-					break
-				}
-				ds = wds.Unwrap()
-			}
-
-			repairable, ok := ds.(dspkg.RepairableDatastore)
-			if !ok {
+			repairable := dspkg.UnwrapAs[dspkg.RepairableDatastore](ds)
+			if repairable == nil {
 				return fmt.Errorf("datastore of type %T does not support the repair operation", ds)
 			}
 

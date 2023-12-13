@@ -287,7 +287,7 @@ type ReadyState struct {
 // BulkWriteRelationshipSource is an interface for transferring relationships
 // to a backing datastore with a zero-copy methodology.
 type BulkWriteRelationshipSource interface {
-	// Returns a pointer to a relation tuple if one is available, or nil if
+	// Next Returns a pointer to a relation tuple if one is available, or nil if
 	// there are no more or there was an error.
 	//
 	// Note: sources may re-use the same memory address for every tuple, data
@@ -439,6 +439,30 @@ type UnwrappableDatastore interface {
 	Unwrap() Datastore
 }
 
+// UnwrapAs recursively attempts to unwrap the datastore into the specified type
+// In none of the layers of the datastore implement the specified type, nil is returned.
+func UnwrapAs[T any](datastore Datastore) T {
+	var ds T
+	uwds := datastore
+
+	for {
+		var ok bool
+		ds, ok = uwds.(T)
+		if ok {
+			break
+		}
+
+		wds, ok := uwds.(UnwrappableDatastore)
+		if !ok {
+			break
+		}
+
+		uwds = wds.Unwrap()
+	}
+
+	return ds
+}
+
 // Feature represents a capability that a datastore can support, plus an
 // optional message explaining the feature is available (or not).
 type Feature struct {
@@ -502,10 +526,10 @@ type Revision interface {
 	// Equal returns whether the revisions should be considered equal.
 	Equal(Revision) bool
 
-	// Equal returns whether the receiver is provably greater than the right hand side.
+	// GreaterThan returns whether the receiver is probably greater than the right hand side.
 	GreaterThan(Revision) bool
 
-	// Equal returns whether the receiver is provably less than the right hand side.
+	// LessThan returns whether the receiver is probably less than the right hand side.
 	LessThan(Revision) bool
 }
 
