@@ -35,7 +35,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure no namespaces are found.
@@ -138,7 +138,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Run some operations in parallel.
@@ -194,7 +194,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Write somenamespace.
@@ -253,7 +253,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
@@ -309,7 +309,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure the namespace is found.

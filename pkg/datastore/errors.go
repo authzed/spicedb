@@ -112,7 +112,7 @@ func NewNamespaceNotFoundErr(nsName string) error {
 // NewWatchDisconnectedErr constructs a new watch was disconnected error.
 func NewWatchDisconnectedErr() error {
 	return ErrWatchDisconnected{
-		error: fmt.Errorf("watch fell too far behind and was disconnected"),
+		error: fmt.Errorf("watch fell too far behind and was disconnected; consider increasing watch buffer size via the flag --datastore-watch-buffer-length"),
 	}
 }
 
@@ -131,10 +131,10 @@ func NewWatchDisabledErr(reason string) error {
 }
 
 // NewWatchTemporaryErr wraps another error in watch, indicating that the error is likely
-// a temporary condition and that the caller may retry the watch all if they choose (vs a fatal error).
+// a temporary condition and clients may consider retrying by calling watch again (vs a fatal error).
 func NewWatchTemporaryErr(wrapped error) error {
 	return ErrWatchRetryable{
-		error: wrapped,
+		error: fmt.Errorf("watch has failed with a temporary condition: %w. please retry the watch", wrapped),
 	}
 }
 

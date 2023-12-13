@@ -75,6 +75,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	server.RegisterCacheFlags(cmd.Flags(), "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
 	cmd.Flags().BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache which makes use of the Watch API for automatic updates")
+	cmd.Flags().DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 100*time.Millisecond, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
 
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")

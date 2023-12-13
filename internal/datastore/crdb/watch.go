@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +22,8 @@ import (
 )
 
 const (
-	queryChangefeed       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s', min_checkpoint_frequency = '0';"
-	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
+	queryChangefeed       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
+	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
 )
 
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -108,7 +109,19 @@ func (cds *crdbDatastore) watch(
 		return
 	}
 
-	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision)
+	if opts.CheckpointInterval < 0 {
+		errs <- fmt.Errorf("invalid checkpoint interval given")
+		return
+	}
+
+	// Default: 1s
+	resolvedDuration := 1 * time.Second
+	if opts.CheckpointInterval > 0 {
+		resolvedDuration = opts.CheckpointInterval
+	}
+
+	resolvedDurationString := strconv.FormatInt(resolvedDuration.Milliseconds(), 10) + "ms"
+	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
 
 	sendError := func(err error) {
 		if errors.Is(ctx.Err(), context.Canceled) {
@@ -164,7 +177,7 @@ func (cds *crdbDatastore) watch(
 			return
 		}
 
-		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before it.
+		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before or at it.
 		// Therefore, at this point, we issue tracked updates from before that time, and the checkpoint update.
 		if details.Resolved != "" {
 			rev, err := cds.RevisionFromString(details.Resolved)
@@ -173,7 +186,7 @@ func (cds *crdbDatastore) watch(
 				return
 			}
 
-			for _, revChange := range tracked.FilteredRevisionChanges(revision.DecimalKeyLessThanFunc, rev.(revision.Decimal)) {
+			for _, revChange := range tracked.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, rev.(revision.Decimal)) {
 				revChange := revChange
 				if !sendChange(&revChange) {
 					return
@@ -235,9 +248,15 @@ func (cds *crdbDatastore) watch(
 			}
 
 			if details.After == nil {
-				tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_DELETE)
+				if err := tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_DELETE); err != nil {
+					sendError(err)
+					return
+				}
 			} else {
-				tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_TOUCH)
+				if err := tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_TOUCH); err != nil {
+					sendError(err)
+					return
+				}
 			}
 
 		case tableNamespace:

@@ -67,16 +67,17 @@ func init() {
 type watchingCachingProxy struct {
 	datastore.Datastore
 
-	fallbackCache *definitionCachingProxy
-	gcWindow      time.Duration
-	closed        chan bool
+	fallbackCache  *definitionCachingProxy
+	gcWindow       time.Duration
+	watchHeartbeat time.Duration
+	closed         chan bool
 
 	namespaceCache *schemaWatchCache[*core.NamespaceDefinition]
 	caveatCache    *schemaWatchCache[*core.CaveatDefinition]
 }
 
 // createWatchingCacheProxy creates and returns a watching cache proxy.
-func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration) *watchingCachingProxy {
+func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
 	fallbackCache := &definitionCachingProxy{
 		Datastore: delegate,
 		c:         c,
@@ -86,8 +87,9 @@ func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 		Datastore:     delegate,
 		fallbackCache: fallbackCache,
 
-		gcWindow: gcWindow,
-		closed:   make(chan bool, 2),
+		gcWindow:       gcWindow,
+		watchHeartbeat: watchHeartbeat,
+		closed:         make(chan bool, 2),
 
 		namespaceCache: newSchemaWatchCache[*core.NamespaceDefinition](
 			"namespace",
@@ -236,9 +238,10 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			}
 			log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
-			log.Debug().Str("revision", headRev.String()).Msg("beginning schema watch")
+			log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
 			ssc, serrc := p.Datastore.Watch(context.Background(), headRev, datastore.WatchOptions{
-				Content: datastore.WatchSchema | datastore.WatchCheckpoints,
+				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
+				CheckpointInterval: p.watchHeartbeat,
 			})
 			log.Debug().Msg("schema watch started")
 

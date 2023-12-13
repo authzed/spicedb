@@ -53,6 +53,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
 		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
 		to.EnableExperimentalWatchableSchemaCache = c.EnableExperimentalWatchableSchemaCache
+		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -111,6 +112,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
 	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
 	debugMap["EnableExperimentalWatchableSchemaCache"] = helpers.DebugValue(c.EnableExperimentalWatchableSchemaCache, false)
+	debugMap["SchemaWatchHeartbeat"] = helpers.DebugValue(c.SchemaWatchHeartbeat, false)
 	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
 	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
 	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
@@ -279,6 +281,13 @@ func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption
 func WithEnableExperimentalWatchableSchemaCache(enableExperimentalWatchableSchemaCache bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalWatchableSchemaCache = enableExperimentalWatchableSchemaCache
+	}
+}
+
+// WithSchemaWatchHeartbeat returns an option that can set SchemaWatchHeartbeat on a Config
+func WithSchemaWatchHeartbeat(schemaWatchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.SchemaWatchHeartbeat = schemaWatchHeartbeat
 	}
 }
 

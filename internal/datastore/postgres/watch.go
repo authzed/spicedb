@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	watchSleep = 100 * time.Millisecond
+	minimumWatchSleep = 100 * time.Millisecond
 )
 
 type revisionWithXid struct {
@@ -76,6 +76,10 @@ func (pgd *pgDatastore) Watch(
 	}
 
 	afterRevision := afterRevisionRaw.(postgresRevision)
+	watchSleep := options.CheckpointInterval
+	if watchSleep < minimumWatchSleep {
+		watchSleep = minimumWatchSleep
+	}
 
 	go func() {
 		defer close(updates)
@@ -288,10 +292,14 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, min uint64,
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			tracked.AddRelationshipChange(ctx, txidToRevision[createdXID.Uint64], nextTuple, core.RelationTupleUpdate_TOUCH)
+			if err := tracked.AddRelationshipChange(ctx, txidToRevision[createdXID.Uint64], nextTuple, core.RelationTupleUpdate_TOUCH); err != nil {
+				return err
+			}
 		}
 		if _, found := filter[deletedXID.Uint64]; found {
-			tracked.AddRelationshipChange(ctx, txidToRevision[deletedXID.Uint64], nextTuple, core.RelationTupleUpdate_DELETE)
+			if err := tracked.AddRelationshipChange(ctx, txidToRevision[deletedXID.Uint64], nextTuple, core.RelationTupleUpdate_DELETE); err != nil {
+				return err
+			}
 		}
 	}
 	if changes.Err() != nil {

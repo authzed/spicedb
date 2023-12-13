@@ -9,6 +9,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -54,9 +55,9 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 	rev R,
 	tpl *core.RelationTuple,
 	op core.RelationTupleUpdate_Operation,
-) {
+) error {
 	if ch.content&datastore.WatchRelationships != datastore.WatchRelationships {
-		return
+		return nil
 	}
 
 	record := ch.recordForRevision(rev)
@@ -74,11 +75,13 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 			record.tupleDeletes[tplKey] = tpl
 		}
 	default:
-		log.Ctx(ctx).Fatal().Stringer("operation", op).Msg("unknown change operation")
+		log.Ctx(ctx).Warn().Stringer("operation", op).Msg("unknown change operation")
+		return spiceerrors.MustBugf("unknown change operation")
 	}
+	return nil
 }
 
-func (ch Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
+func (ch *Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
 	k := ch.keyFunc(rev)
 	revisionChanges, ok := ch.records[k]
 	if !ok {
@@ -130,7 +133,7 @@ func (ch *Changes[R, K]) AddDeletedCaveat(
 
 // AddChangedDefinition adds a change indicating that the schema definition (namespace or caveat)
 // was changed to the definition given.
-func (ch Changes[R, K]) AddChangedDefinition(
+func (ch *Changes[R, K]) AddChangedDefinition(
 	ctx context.Context,
 	rev R,
 	def datastore.SchemaDefinition,
@@ -160,9 +163,9 @@ func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) [
 	return ch.revisionChanges(lessThanFunc, *new(R), false)
 }
 
-// FilteredRevisionChanges returns a list of changes processed up to the bound revision. Returns changes
-// are removed from the tracker.
-func (ch *Changes[R, K]) FilteredRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) []datastore.RevisionChanges {
+// FilterAndRemoveRevisionChanges filters a list of changes processed up to the bound revision from the changes list, removing them
+// and returning the filtered changes.
+func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) []datastore.RevisionChanges {
 	changes := ch.revisionChanges(lessThanFunc, boundRev, true)
 	ch.removeAllChangesBefore(boundRev)
 	return changes

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -338,6 +339,11 @@ const (
 type WatchOptions struct {
 	// Content is the content to watch.
 	Content WatchContent
+
+	// CheckpointInterval is the interval to use for checkpointing in the watch.
+	// If given the zero value, the datastore's default will be used. If smaller
+	// than the datastore's minimum, the minimum will be used.
+	CheckpointInterval time.Duration
 }
 
 // WatchJustRelationships returns watch options for just relationships.
@@ -351,6 +357,15 @@ func WatchJustRelationships() WatchOptions {
 func WatchJustSchema() WatchOptions {
 	return WatchOptions{
 		Content: WatchSchema,
+	}
+}
+
+// WithCheckpointInterval sets the checkpoint interval on a watch options, returning
+// an updated options struct.
+func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptions {
+	return WatchOptions{
+		Content:            wo.Content,
+		CheckpointInterval: interval,
 	}
 }
 

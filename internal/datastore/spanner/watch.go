@@ -73,11 +73,7 @@ func (sd spannerDatastore) watch(
 	defer close(errs)
 
 	// NOTE: 100ms is the minimum allowed.
-	heartbeatInterval := 100 * time.Millisecond
-	if opts.Content == datastore.WatchCheckpoints|datastore.WatchSchema {
-		heartbeatInterval = sd.config.schemaWatchHeartbeat
-	}
-
+	heartbeatInterval := opts.CheckpointInterval
 	if heartbeatInterval < 100*time.Millisecond {
 		heartbeatInterval = 100 * time.Millisecond
 	}
@@ -187,7 +183,10 @@ func (sd spannerDatastore) watch(
 								return err
 							}
 
-							tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_DELETE)
+							err := tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_DELETE)
+							if err != nil {
+								return err
+							}
 
 						case tableNamespace:
 							namespaceNameValue, ok := primaryKeyColumnValues[colNamespaceName]
@@ -266,7 +265,10 @@ func (sd spannerDatastore) watch(
 								return err
 							}
 
-							tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_TOUCH)
+							err := tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_TOUCH)
+							if err != nil {
+								return err
+							}
 
 						case tableNamespace:
 							namespaceConfigValue, ok := newValues[colNamespaceConfig]

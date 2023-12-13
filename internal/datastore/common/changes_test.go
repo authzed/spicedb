@@ -314,7 +314,8 @@ func TestChanges(t *testing.T) {
 			for _, step := range tc.script {
 				if step.relationship != "" {
 					rel := tuple.MustParse(step.relationship)
-					ch.AddRelationshipChange(ctx, revisionFromTransactionID(step.revision), rel, step.op)
+					err := ch.AddRelationshipChange(ctx, revisionFromTransactionID(step.revision), rel, step.op)
+					require.NoError(err)
 				}
 
 				for _, changed := range step.changedDefinitions {
@@ -338,7 +339,7 @@ func TestChanges(t *testing.T) {
 	}
 }
 
-func TestFilteredRevisionChanges(t *testing.T) {
+func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 	ctx := context.Background()
 	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 
@@ -350,7 +351,7 @@ func TestFilteredRevisionChanges(t *testing.T) {
 
 	require.False(t, ch.IsEmpty())
 
-	results := ch.FilteredRevisionChanges(revision.DecimalKeyLessThanFunc, rev3)
+	results := ch.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, rev3)
 	require.Equal(t, 2, len(results))
 	require.False(t, ch.IsEmpty())
 

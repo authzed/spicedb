@@ -17,7 +17,6 @@ type spannerOptions struct {
 	disableStats                bool
 	readMaxOpen                 int
 	writeMaxOpen                int
-	schemaWatchHeartbeat        time.Duration
 	minSessions                 uint64
 	maxSessions                 uint64
 }
@@ -31,7 +30,6 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
-	defaultSchemaWatchHeartbeat        = 100 * time.Millisecond
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -50,7 +48,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		disableStats:                defaultDisableStats,
 		readMaxOpen:                 int(defaultNumberConnections),
 		writeMaxOpen:                int(defaultNumberConnections),
-		schemaWatchHeartbeat:        defaultSchemaWatchHeartbeat,
 		minSessions:                 100,
 		maxSessions:                 400,
 	}
@@ -147,20 +144,6 @@ func ReadConnsMaxOpen(conns int) Option {
 // This value defaults to having 10 connections.
 func WriteConnsMaxOpen(conns int) Option {
 	return func(po *spannerOptions) { po.writeMaxOpen = conns }
-}
-
-// SchemaWatchHeartbeat is the heartbeat to use for the schema watch, if enabled.
-//
-// A lower heartbeat means that the schema watch will be able to "catch up" faster.
-//
-// This value defaults to the minimum heartbeat time of 100ms.
-func SchemaWatchHeartbeat(heartbeat time.Duration) Option {
-	return func(po *spannerOptions) {
-		// NOTE: 100ms is the minimum allowed.
-		if heartbeat >= 100*time.Millisecond {
-			po.schemaWatchHeartbeat = heartbeat
-		}
-	}
 }
 
 // MinSessionCount minimum number of session the Spanner client can have

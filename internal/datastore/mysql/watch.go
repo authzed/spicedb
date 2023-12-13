@@ -153,11 +153,15 @@ func (mds *Datastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH)
+			if err = stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH); err != nil {
+				return
+			}
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE)
+			if err = stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE); err != nil {
+				return
+			}
 		}
 	}
 	if err = rows.Err(); err != nil {

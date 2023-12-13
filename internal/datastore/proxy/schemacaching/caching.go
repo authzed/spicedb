@@ -36,7 +36,7 @@ func DatastoreProxyTestCache(t testing.TB) cache.Cache {
 
 // NewCachingDatastoreProxy creates a new datastore proxy which caches definitions that
 // are loaded at specific datastore revisions.
-func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration, cachingMode CachingMode) datastore.Datastore {
+func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration, cachingMode CachingMode, watchHeartbeat time.Duration) datastore.Datastore {
 	if c == nil {
 		c = cache.NoopCache()
 	}
@@ -49,5 +49,5 @@ func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWin
 		}
 	}
 
-	return createWatchingCacheProxy(delegate, c, gcWindow)
+	return createWatchingCacheProxy(delegate, c, gcWindow, watchHeartbeat)
 }
