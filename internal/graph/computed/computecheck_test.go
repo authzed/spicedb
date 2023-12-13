@@ -937,7 +937,7 @@ func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datasto
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       "schema",
 		SchemaString: schema,
-	})
+	}, compiler.AllowUnprefixedObjectType())
 	if err != nil {
 		return datastore.NoRevision, err
 	}

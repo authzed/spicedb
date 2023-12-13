@@ -362,7 +362,7 @@ definition foos/document {
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source(test.name),
 				SchemaString: test.input,
-			}, compiler.ObjectTypePrefix(nil))
+			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
 			source, _, err := GenerateSchema(compiled.OrderedDefinitions)

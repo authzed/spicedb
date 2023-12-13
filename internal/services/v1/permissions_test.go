@@ -347,7 +347,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: debugInfo.SchemaUsed,
-	})
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
 	require.Equal(4, len(compiled.OrderedDefinitions))
 }

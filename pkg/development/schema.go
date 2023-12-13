@@ -15,7 +15,7 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
-	})
+	}, compiler.AllowUnprefixedObjectType())
 
 	var contextError compiler.ErrorWithContext
 	if errors.As(err, &contextError) {

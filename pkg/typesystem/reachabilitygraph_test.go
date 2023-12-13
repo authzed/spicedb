@@ -487,7 +487,7 @@ func TestReachabilityGraph(t *testing.T) {
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
 				SchemaString: tc.schema,
-			})
+			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
 			lastRevision, err := ds.HeadRevision(context.Background())

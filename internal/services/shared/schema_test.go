@@ -44,7 +44,7 @@ func TestApplySchemaChanges(t *testing.T) {
 			  value == 22
 			}
 		`,
-	})
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
 	validated, err := ValidateSchemaChanges(context.Background(), compiled, false)
