@@ -133,12 +133,12 @@ func TestGracefulShutdownInMemory(t *testing.T) {
 }
 
 type watchingWriter struct {
-	c chan bool
+	c              chan bool
+	expectedString string
 }
 
 func (ww *watchingWriter) Write(p []byte) (n int, err error) {
-	// Ensure GC ran.
-	if strings.Contains(string(p), "running garbage collection worker") {
+	if strings.Contains(string(p), ww.expectedString) {
 		ww.c <- true
 	}
 
@@ -218,7 +218,7 @@ func TestGracefulShutdown(t *testing.T) {
 			})
 
 			if awaitGC {
-				ww := &watchingWriter{make(chan bool, 1)}
+				ww := &watchingWriter{make(chan bool, 1), "running garbage collection worker"}
 
 				// Grab logs and ensure GC has run before starting a graceful shutdown.
 				opts := docker.LogsOptions{
