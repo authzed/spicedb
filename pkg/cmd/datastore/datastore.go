@@ -428,6 +428,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		spanner.MinSessionCount(opts.SpannerMinSessions),
 		spanner.MaxSessionCount(opts.SpannerMaxSessions),
+		spanner.MigrationPhase(opts.MigrationPhase),
 	)
 }
 

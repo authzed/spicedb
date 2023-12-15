@@ -85,6 +85,12 @@ func NewSpannerDatastore(database string, opts ...Option) (datastore.Datastore, 
 		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, database)
 	}
 
+	if config.migrationPhase != "" {
+		log.Info().
+			Str("phase", config.migrationPhase).
+			Msg("spanner configured to use intermediate migration phase")
+	}
+
 	if len(config.emulatorHost) > 0 {
 		if err := os.Setenv("SPANNER_EMULATOR_HOST", config.emulatorHost); err != nil {
 			log.Error().Err(err).Msg("failed to set SPANNER_EMULATOR_HOST env variable")

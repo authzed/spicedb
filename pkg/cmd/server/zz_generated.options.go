@@ -80,6 +80,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
 		to.StreamingAPITimeout = c.StreamingAPITimeout
+		to.WatchHeartbeat = c.WatchHeartbeat
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -139,6 +140,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
 	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
 	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
+	debugMap["WatchHeartbeat"] = helpers.DebugValue(c.WatchHeartbeat, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -484,6 +486,13 @@ func WithMaxDatastoreReadPageSize(maxDatastoreReadPageSize uint64) ConfigOption 
 func WithStreamingAPITimeout(streamingAPITimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.StreamingAPITimeout = streamingAPITimeout
+	}
+}
+
+// WithWatchHeartbeat returns an option that can set WatchHeartbeat on a Config
+func WithWatchHeartbeat(watchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.WatchHeartbeat = watchHeartbeat
 	}
 }
 

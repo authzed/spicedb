@@ -19,6 +19,17 @@ type spannerOptions struct {
 	writeMaxOpen                int
 	minSessions                 uint64
 	maxSessions                 uint64
+	migrationPhase              string
+}
+
+type migrationPhase uint8
+
+const (
+	complete migrationPhase = iota
+)
+
+var migrationPhases = map[string]migrationPhase{
+	"": complete,
 }
 
 const (
@@ -50,6 +61,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		writeMaxOpen:                int(defaultNumberConnections),
 		minSessions:                 100,
 		maxSessions:                 400,
+		migrationPhase:              "", // no migration
 	}
 
 	for _, option := range options {
@@ -64,6 +76,10 @@ func generateConfig(options []Option) (spannerOptions, error) {
 			computed.revisionQuantization,
 			maxRevisionQuantization,
 		)
+	}
+
+	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
+		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
 	return computed, nil
@@ -160,4 +176,12 @@ func MinSessionCount(minSessions uint64) Option {
 // Defaults to 400 sessions.
 func MaxSessionCount(maxSessions uint64) Option {
 	return func(po *spannerOptions) { po.maxSessions = maxSessions }
+}
+
+// MigrationPhase configures the spanner driver to the proper state of a
+// multi-phase migration.
+//
+// Steady-state configuration (e.g. fully migrated) by default
+func MigrationPhase(phase string) Option {
+	return func(po *spannerOptions) { po.migrationPhase = phase }
 }

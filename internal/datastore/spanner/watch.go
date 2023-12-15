@@ -23,9 +23,7 @@ import (
 )
 
 const (
-	RelationTupleChangeStreamName = "relation_tuple_stream"
-	SchemaChangeStreamName        = "schema_change_stream"
-	CombinedChangeStreamName      = "combined_change_stream"
+	CombinedChangeStreamName = "combined_change_stream"
 )
 
 var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
@@ -103,23 +101,13 @@ func (sd spannerDatastore) watch(
 		return
 	}
 
-	// Select the change stream to use for the watch.
-	// TODO(jschorr): we can probably just get rid of the non-combined stream, given the filter below.
-	changeStreamName := CombinedChangeStreamName
-	if opts.Content&datastore.WatchRelationships == opts.Content {
-		changeStreamName = RelationTupleChangeStreamName
-	}
-	if opts.Content&(datastore.WatchSchema|datastore.WatchCheckpoints) == opts.Content {
-		changeStreamName = SchemaChangeStreamName
-	}
-
 	afterRevision := afterRevisionRaw.(revision.Decimal)
 	reader, err := changestreams.NewReaderWithConfig(
 		ctx,
 		project,
 		instance,
 		database,
-		changeStreamName,
+		CombinedChangeStreamName,
 		changestreams.Config{
 			StartTimestamp:    timestampFromRevision(afterRevision),
 			HeartbeatInterval: heartbeatInterval,
@@ -160,18 +148,7 @@ func (sd spannerDatastore) watch(
 					case "DELETE":
 						switch dcr.TableName {
 						case tableRelationship:
-							relationTuple := &core.RelationTuple{
-								ResourceAndRelation: &core.ObjectAndRelation{
-									Namespace: primaryKeyColumnValues[colNamespace].(string),
-									ObjectId:  primaryKeyColumnValues[colObjectID].(string),
-									Relation:  primaryKeyColumnValues[colRelation].(string),
-								},
-								Subject: &core.ObjectAndRelation{
-									Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
-									ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
-									Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
-								},
-							}
+							relationTuple := relationTupleFromPrimaryKey(primaryKeyColumnValues)
 
 							oldValues, ok := mod.OldValues.Value.(map[string]any)
 							if !ok {
@@ -229,18 +206,7 @@ func (sd spannerDatastore) watch(
 
 						switch dcr.TableName {
 						case tableRelationship:
-							relationTuple := &core.RelationTuple{
-								ResourceAndRelation: &core.ObjectAndRelation{
-									Namespace: primaryKeyColumnValues[colNamespace].(string),
-									ObjectId:  primaryKeyColumnValues[colObjectID].(string),
-									Relation:  primaryKeyColumnValues[colRelation].(string),
-								},
-								Subject: &core.ObjectAndRelation{
-									Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
-									ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
-									Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
-								},
-							}
+							relationTuple := relationTupleFromPrimaryKey(primaryKeyColumnValues)
 
 							oldValues, ok := mod.OldValues.Value.(map[string]any)
 							if !ok {
@@ -276,19 +242,9 @@ func (sd spannerDatastore) watch(
 								return spiceerrors.MustBugf("missing namespace config value")
 							}
 
-							base64SerializedConfig, ok := namespaceConfigValue.(string)
-							if !ok {
-								return spiceerrors.MustBugf("error converting namespace config value")
-							}
-
-							serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
-							if err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
-							}
-
 							ns := &core.NamespaceDefinition{}
-							if err := ns.UnmarshalVT(serializedConfig); err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
+							if err := unmarshalSchemaDefinition(ns, namespaceConfigValue); err != nil {
+								return err
 							}
 
 							tracked.AddChangedDefinition(ctx, changeRevision, ns)
@@ -299,19 +255,9 @@ func (sd spannerDatastore) watch(
 								return spiceerrors.MustBugf("missing caveat definition value")
 							}
 
-							base64SerializedConfig, ok := caveatDefValue.(string)
-							if !ok {
-								return spiceerrors.MustBugf("error converting caveat definition value")
-							}
-
-							serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
-							if err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
-							}
-
 							caveat := &core.CaveatDefinition{}
-							if err := caveat.UnmarshalVT(serializedConfig); err != nil {
-								return fmt.Errorf(errUnableToReadConfig, err)
+							if err := unmarshalSchemaDefinition(caveat, caveatDefValue); err != nil {
+								return err
 							}
 
 							tracked.AddChangedDefinition(ctx, changeRevision, caveat)
@@ -352,6 +298,43 @@ func (sd spannerDatastore) watch(
 	if err != nil {
 		sendError(err)
 		return
+	}
+}
+
+type unmarshallable interface {
+	UnmarshalVT([]byte) error
+}
+
+func unmarshalSchemaDefinition(def unmarshallable, configValue any) error {
+	base64SerializedConfig, ok := configValue.(string)
+	if !ok {
+		return spiceerrors.MustBugf("error converting config value")
+	}
+
+	serializedConfig, err := base64.StdEncoding.DecodeString(base64SerializedConfig)
+	if err != nil {
+		return fmt.Errorf(errUnableToReadConfig, err)
+	}
+
+	if err := def.UnmarshalVT(serializedConfig); err != nil {
+		return fmt.Errorf(errUnableToReadConfig, err)
+	}
+
+	return nil
+}
+
+func relationTupleFromPrimaryKey(primaryKeyColumnValues map[string]any) *core.RelationTuple {
+	return &core.RelationTuple{
+		ResourceAndRelation: &core.ObjectAndRelation{
+			Namespace: primaryKeyColumnValues[colNamespace].(string),
+			ObjectId:  primaryKeyColumnValues[colObjectID].(string),
+			Relation:  primaryKeyColumnValues[colRelation].(string),
+		},
+		Subject: &core.ObjectAndRelation{
+			Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
+			ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
+			Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
+		},
 	}
 }
 

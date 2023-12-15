@@ -111,6 +111,7 @@ type Config struct {
 	MaximumPreconditionCount uint16        `debugmap:"visible"`
 	MaxDatastoreReadPageSize uint64        `debugmap:"visible"`
 	StreamingAPITimeout      time.Duration `debugmap:"visible"`
+	WatchHeartbeat           time.Duration `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -411,6 +412,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				v1SchemaServiceOption,
 				watchServiceOption,
 				permSysConfig,
+				c.WatchHeartbeat,
 			)
 		},
 	)

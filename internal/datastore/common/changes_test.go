@@ -257,7 +257,7 @@ func TestChanges(t *testing.T) {
 			},
 		},
 		{
-			"kitchen sink relationshipsd",
+			"kitchen sink relationships",
 			[]changeEntry{
 				{1, tuple1, core.RelationTupleUpdate_TOUCH, nil, nil, nil},
 				{2, tuple1, core.RelationTupleUpdate_DELETE, nil, nil, nil},
@@ -339,6 +339,24 @@ func TestChanges(t *testing.T) {
 	}
 }
 
+func TestFilteredSchemaChanges(t *testing.T) {
+	ctx := context.Background()
+	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchSchema)
+	require.True(t, ch.IsEmpty())
+
+	require.NoError(t, ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:firstdoc#viewer@user:tom"), core.RelationTupleUpdate_TOUCH))
+	require.True(t, ch.IsEmpty())
+}
+
+func TestFilteredRelationshipChanges(t *testing.T) {
+	ctx := context.Background()
+	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchRelationships)
+	require.True(t, ch.IsEmpty())
+
+	ch.AddDeletedNamespace(ctx, rev3, "deletedns3")
+	require.True(t, ch.IsEmpty())
+}
+
 func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 	ctx := context.Background()
 	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
@@ -381,6 +399,14 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 			ChangedDefinitions: []datastore.SchemaDefinition{},
 		},
 	}, remaining)
+
+	results = ch.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, revOneMillion)
+	require.Equal(t, 1, len(results))
+	require.True(t, ch.IsEmpty())
+
+	results = ch.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, revOneMillionOne)
+	require.Equal(t, 0, len(results))
+	require.True(t, ch.IsEmpty())
 }
 
 func TestCanonicalize(t *testing.T) {

@@ -239,7 +239,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 			log.Info().Str("revision", headRev.String()).Int("count", len(caveats)).Msg("populated caveat watching cache")
 
 			log.Debug().Str("revision", headRev.String()).Dur("watch-heartbeat", p.watchHeartbeat).Msg("beginning schema watch")
-			ssc, serrc := p.Datastore.Watch(context.Background(), headRev, datastore.WatchOptions{
+			ssc, serrc := p.Datastore.Watch(ctx, headRev, datastore.WatchOptions{
 				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
 				CheckpointInterval: p.watchHeartbeat,
 			})
@@ -347,8 +347,7 @@ func (p *watchingCachingProxy) Close() error {
 	p.closed <- true
 	p.closed <- true
 
-	p.fallbackCache.Close()
-	return p.Datastore.Close()
+	return errors.Join(p.fallbackCache.Close(), p.Datastore.Close())
 }
 
 // schemaWatchCache is a schema cache which updates based on changes received via the WatchSchema

@@ -92,12 +92,9 @@ func (pgd *pgDatastore) Watch(
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
+				} else if pgxcommon.IsCancellationError(err) {
+					errs <- datastore.NewWatchCanceledErr()
 				} else {
-					if pgxcommon.IsCancellationError(err) {
-						errs <- datastore.NewWatchCanceledErr()
-						return
-					}
-
 					errs <- err
 				}
 				return
@@ -134,6 +131,22 @@ func (pgd *pgDatastore) Watch(
 				currentTxn = newTxns[len(newTxns)-1].postgresRevision
 				for _, newTx := range newTxns {
 					currentTxn = postgresRevision{currentTxn.snapshot.markComplete(newTx.tx.Uint64)}
+				}
+
+				// If checkpoints were requested, output a checkpoint. While the Postgres datastore does not
+				// move revisions forward outside of changes, these could be necessary if the caller is
+				// watching only a *subset* of changes.
+				if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+					select {
+					case updates <- &datastore.RevisionChanges{
+						Revision:     currentTxn,
+						IsCheckpoint: true,
+					}:
+						// Nothing to do here, we've already written to the channel.
+					default:
+						errs <- datastore.NewWatchDisconnectedErr()
+						return
+					}
 				}
 			} else {
 				sleep := time.NewTimer(watchSleep)
@@ -185,17 +198,17 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 }
 
 func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWithXid, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
-	min := revisions[0].tx.Uint64
-	max := revisions[0].tx.Uint64
+	xmin := revisions[0].tx.Uint64
+	xmax := revisions[0].tx.Uint64
 	filter := make(map[uint64]int, len(revisions))
 	txidToRevision := make(map[uint64]revisionWithXid, len(revisions))
 
 	for i, rev := range revisions {
-		if rev.tx.Uint64 < min {
-			min = rev.tx.Uint64
+		if rev.tx.Uint64 < xmin {
+			xmin = rev.tx.Uint64
 		}
-		if rev.tx.Uint64 > max {
-			max = rev.tx.Uint64
+		if rev.tx.Uint64 > xmax {
+			xmax = rev.tx.Uint64
 		}
 		filter[rev.tx.Uint64] = i
 		txidToRevision[rev.tx.Uint64] = rev
@@ -205,7 +218,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 
 	// Load relationship changes.
 	if options.Content&datastore.WatchRelationships == datastore.WatchRelationships {
-		err := pgd.loadRelationshipChanges(ctx, min, max, txidToRevision, filter, tracked)
+		err := pgd.loadRelationshipChanges(ctx, xmin, xmax, txidToRevision, filter, tracked)
 		if err != nil {
 			return nil, err
 		}
@@ -213,7 +226,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 
 	// Load namespace changes.
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
-		err := pgd.loadNamespaceChanges(ctx, min, max, txidToRevision, filter, tracked)
+		err := pgd.loadNamespaceChanges(ctx, xmin, xmax, txidToRevision, filter, tracked)
 		if err != nil {
 			return nil, err
 		}
@@ -221,7 +234,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 
 	// Load caveat changes.
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
-		err := pgd.loadCaveatChanges(ctx, min, max, txidToRevision, filter, tracked)
+		err := pgd.loadCaveatChanges(ctx, xmin, xmax, txidToRevision, filter, tracked)
 		if err != nil {
 			return nil, err
 		}
@@ -234,15 +247,15 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 	return reconciledChanges, nil
 }
 
-func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
 	sql, args, err := queryChangedTuples.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: max},
-			sq.GtOrEq{colCreatedXid: min},
+			sq.LtOrEq{colCreatedXid: xmax},
+			sq.GtOrEq{colCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: max},
-			sq.GtOrEq{colDeletedXid: min},
+			sq.LtOrEq{colDeletedXid: xmax},
+			sq.GtOrEq{colDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {
@@ -308,15 +321,15 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, min uint64,
 	return nil
 }
 
-func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
 	sql, args, err := queryChangedNamespaces.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: max},
-			sq.GtOrEq{colCreatedXid: min},
+			sq.LtOrEq{colCreatedXid: xmax},
+			sq.GtOrEq{colCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: max},
-			sq.GtOrEq{colDeletedXid: min},
+			sq.LtOrEq{colDeletedXid: xmax},
+			sq.GtOrEq{colDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {
