@@ -95,8 +95,8 @@ type sqlFilter interface {
 //
 // URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
 // See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
-func NewMySQLDatastore(uri string, options ...Option) (datastore.Datastore, error) {
-	ds, err := newMySQLDatastore(uri, options...)
+func NewMySQLDatastore(ctx context.Context, uri string, options ...Option) (datastore.Datastore, error) {
+	ds, err := newMySQLDatastore(ctx, uri, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func NewMySQLDatastore(uri string, options ...Option) (datastore.Datastore, erro
 	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
-func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
+func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -112,7 +112,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 
 	parsedURI, err := mysql.ParseDSN(uri)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: could not parse connection URI", err, uri)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: could not parse connection URI", err, uri)
 	}
 
 	if !parsedURI.ParseTime {
@@ -121,7 +121,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 
 	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: failed to create connector", err, uri)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
 	}
 
 	if config.lockWaitTimeoutSeconds != nil {
@@ -130,7 +130,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 			"innodb_lock_wait_timeout": strconv.FormatUint(uint64(*config.lockWaitTimeoutSeconds), 10),
 		})
 		if err != nil {
-			return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: failed to add session variables to connector", err, uri)
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to add session variables to connector", err, uri)
 		}
 	}
 
@@ -138,7 +138,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
 		if err != nil {
-			return nil, common.RedactAndLogSensitiveConnString("NewMySQLDatastore: unable to instrument connector", err, uri)
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: unable to instrument connector", err, uri)
 		}
 
 		db = sql.OpenDB(connector)

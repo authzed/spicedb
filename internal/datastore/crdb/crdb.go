@@ -73,21 +73,21 @@ const (
 	livingTupleConstraint = "pk_relation_tuple"
 )
 
-func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
+func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
 	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
@@ -96,7 +96,7 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 	healthChecker, err := pool.NewNodeHealthChecker(url)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
 	// The initPool is a 1-connection pool that is only used for setup tasks.
@@ -106,13 +106,13 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	initPoolConfig.MinConns = 1
 	initPool, err := pool.NewRetryPool(initCtx, "init", initPoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 	defer initPool.Close()
 
 	var version crdbVersion
 	if err := queryServerVersion(initCtx, initPool, &version); err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
 	changefeedQuery := queryChangefeed
@@ -180,12 +180,12 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 	ds.writePool, err = pool.NewRetryPool(ds.ctx, "write", writePoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 	ds.readPool, err = pool.NewRetryPool(ds.ctx, "read", readPoolConfig, healthChecker, config.maxRetries, config.connectRate)
 	if err != nil {
 		ds.cancel()
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, url)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
 	if config.enablePrometheusStats {
@@ -234,8 +234,8 @@ func newCRDBDatastore(url string, options ...Option) (datastore.Datastore, error
 
 // NewCRDBDatastore initializes a SpiceDB datastore that uses a CockroachDB
 // database while leveraging its AOST functionality.
-func NewCRDBDatastore(url string, options ...Option) (datastore.Datastore, error) {
-	ds, err := newCRDBDatastore(url, options...)
+func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datastore.Datastore, error) {
+	ds, err := newCRDBDatastore(ctx, url, options...)
 	if err != nil {
 		return nil, err
 	}

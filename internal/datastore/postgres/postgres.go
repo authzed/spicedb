@@ -112,10 +112,11 @@ type sqlFilter interface {
 //
 // This datastore is also tested to be compatible with CockroachDB.
 func NewPostgresDatastore(
+	ctx context.Context,
 	url string,
 	options ...Option,
 ) (datastore.Datastore, error) {
-	ds, err := newPostgresDatastore(url, options...)
+	ds, err := newPostgresDatastore(ctx, url, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,24 +125,25 @@ func NewPostgresDatastore(
 }
 
 func newPostgresDatastore(
+	ctx context.Context,
 	pgURL string,
 	options ...Option,
 ) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	// Parse the DB URI into configuration.
 	parsedConfig, err := pgxpool.ParseConfig(pgURL)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	// Setup the default custom plan setting, if applicable.
 	pgConfig, err := defaultCustomPlan(parsedConfig)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	// Setup the config for each of the read and write pools.
@@ -172,12 +174,12 @@ func newPostgresDatastore(
 
 	readPool, err := pgxpool.NewWithConfig(initializationContext, readPoolConfig)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	writePool, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
 	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(errUnableToInstantiate, err, pgURL)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
 	// Verify that the server supports commit timestamps

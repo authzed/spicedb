@@ -45,8 +45,9 @@ type datastoreTester struct {
 }
 
 func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+	ctx := context.Background()
 	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
-		ds, err := newMySQLDatastore(uri,
+		ds, err := newMySQLDatastore(ctx, uri,
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(gcInterval),
@@ -78,8 +79,9 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
+		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := newMySQLDatastore(uri, options...)
+			ds, err := newMySQLDatastore(ctx, uri, options...)
 			require.NoError(t, err)
 			return ds
 		})
@@ -90,7 +92,7 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
-	_, err := NewMySQLDatastore("root:password@(localhost:1234)/mysql")
+	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
 }
 
@@ -563,6 +565,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newMySQLDatastore(
+					ctx,
 					uri,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),

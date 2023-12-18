@@ -100,9 +100,11 @@ func TestTxReset(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
+			ctx := context.Background()
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newCRDBDatastore(
+					ctx,
 					uri,
 					GCWindow(24*time.Hour),
 					RevisionQuantization(5*time.Second),
@@ -114,7 +116,6 @@ func TestTxReset(t *testing.T) {
 			})
 			defer ds.Close()
 
-			ctx := context.Background()
 			r, err := ds.ReadyState(ctx)
 			require.NoError(err)
 			require.True(r.IsReady)
