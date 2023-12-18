@@ -1,6 +1,7 @@
 package datastore_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -14,21 +15,23 @@ import (
 )
 
 func createEngine(engineID string, uri string) error {
+	ctx := context.Background()
+
 	switch engineID {
 	case "postgres":
-		_, err := postgres.NewPostgresDatastore(uri)
+		_, err := postgres.NewPostgresDatastore(ctx, uri)
 		return err
 
 	case "mysql":
-		_, err := mysql.NewMySQLDatastore(uri)
+		_, err := mysql.NewMySQLDatastore(ctx, uri)
 		return err
 
 	case "spanner":
-		_, err := spanner.NewSpannerDatastore(uri)
+		_, err := spanner.NewSpannerDatastore(ctx, uri)
 		return err
 
 	case "cockroachdb":
-		_, err := crdb.NewCRDBDatastore(uri)
+		_, err := crdb.NewCRDBDatastore(ctx, uri)
 		return err
 
 	default:

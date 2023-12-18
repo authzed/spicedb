@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -104,7 +105,7 @@ var (
 
 // RedactAndLogSensitiveConnString elides the given error, logging it only at trace
 // level (after being redacted).
-func RedactAndLogSensitiveConnString(baseErr string, err error, pgURL string) error {
+func RedactAndLogSensitiveConnString(ctx context.Context, baseErr string, err error, pgURL string) error {
 	if err == nil {
 		return errors.New(baseErr)
 	}
@@ -114,6 +115,6 @@ func RedactAndLogSensitiveConnString(baseErr string, err error, pgURL string) er
 	filtered = strings.ReplaceAll(filtered, pgURL, "(redacted)")
 	filtered = portMatchRegex.ReplaceAllString(filtered, "(redacted)")
 	filtered = parseMatchRegex.ReplaceAllString(filtered, "(redacted)")
-	log.Trace().Msg(baseErr + ": " + filtered)
+	log.Ctx(ctx).Trace().Msg(baseErr + ": " + filtered)
 	return fmt.Errorf("%s. To view details of this error (that may contain sensitive information), please run with --log-level=trace", baseErr)
 }

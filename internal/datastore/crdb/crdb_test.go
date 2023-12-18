@@ -44,8 +44,10 @@ func (cds *crdbDatastore) ExampleRetryableError() error {
 func TestCRDBDatastore(t *testing.T) {
 	b := testdatastore.RunCRDBForTesting(t, "")
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
+		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 			ds, err := NewCRDBDatastore(
+				ctx,
 				uri,
 				GCWindow(gcWindow),
 				RevisionQuantization(revisionQuantization),
@@ -73,9 +75,11 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	for _, quantization := range quantizationDurations {
 		t.Run(fmt.Sprintf("Quantization%s", quantization), func(t *testing.T) {
 			require := require.New(t)
+			ctx := context.Background()
 
 			ds := engine.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := NewCRDBDatastore(
+					ctx,
 					uri,
 					GCWindow(gcWindow),
 					RevisionQuantization(quantization),
@@ -86,7 +90,6 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 			})
 			defer ds.Close()
 
-			ctx := context.Background()
 			r, err := ds.ReadyState(ctx)
 			require.NoError(err)
 			require.True(r.IsReady)
@@ -157,7 +160,7 @@ func TestWatchFeatureDetection(t *testing.T) {
 
 			tt.postInit(ctx, adminConn)
 
-			ds, err := NewCRDBDatastore(connStrings[unprivileged])
+			ds, err := NewCRDBDatastore(ctx, connStrings[unprivileged])
 			require.NoError(t, err)
 
 			features, err := ds.Features(ctx)

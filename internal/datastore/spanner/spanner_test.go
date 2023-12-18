@@ -4,6 +4,7 @@
 package spanner
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ func (sd spannerDatastore) ExampleRetryableError() error {
 }
 
 func TestSpannerDatastore(t *testing.T) {
+	ctx := context.Background()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
 
 	// TODO(jschorr): Once https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/issues/74 has been resolved,
@@ -29,7 +31,7 @@ func TestSpannerDatastore(t *testing.T) {
 	// GC tests are disabled because they depend also on the ability to configure change streams with custom retention.
 	test.AllWithExceptions(t, test.DatastoreTesterFunc(func(revisionQuantization, _, _ time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := NewSpannerDatastore(uri,
+			ds, err := NewSpannerDatastore(ctx, uri,
 				RevisionQuantization(revisionQuantization),
 				WatchBufferLength(watchBufferLength))
 			require.NoError(t, err)
