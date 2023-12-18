@@ -13,11 +13,16 @@ import (
 
 const errWatchError = "watch error: %w"
 
-func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
 	ar := afterRevision.(revision.Decimal)
 
 	updates := make(chan *datastore.RevisionChanges, mdb.watchBufferLength)
 	errs := make(chan error, 1)
+
+	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+		errs <- errors.New("schema watch unsupported in MemDB")
+		return updates, errs
+	}
 
 	go func() {
 		defer close(updates)
@@ -37,7 +42,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
-				if len(changeToWrite.Changes) == 0 {
+				if len(changeToWrite.RelationshipChanges) == 0 {
 					continue
 				}
 

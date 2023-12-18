@@ -2,6 +2,7 @@ package v1
 
 import (
 	"errors"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -21,14 +22,17 @@ import (
 type watchServer struct {
 	v1.UnimplementedWatchServiceServer
 	shared.WithStreamServiceSpecificInterceptor
+
+	heartbeatDuration time.Duration
 }
 
 // NewWatchServer creates an instance of the watch server.
-func NewWatchServer() v1.WatchServiceServer {
+func NewWatchServer(heartbeatDuration time.Duration) v1.WatchServiceServer {
 	s := &watchServer{
 		WithStreamServiceSpecificInterceptor: shared.WithStreamServiceSpecificInterceptor{
 			Stream: grpcvalidate.StreamServerInterceptor(),
 		},
+		heartbeatDuration: heartbeatDuration,
 	}
 	return s
 }
@@ -62,12 +66,15 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		DispatchCount: 1,
 	})
 
-	updates, errchan := ds.Watch(ctx, afterRevision)
+	updates, errchan := ds.Watch(ctx, afterRevision, datastore.WatchOptions{
+		Content:            datastore.WatchRelationships,
+		CheckpointInterval: ws.heartbeatDuration,
+	})
 	for {
 		select {
 		case update, ok := <-updates:
 			if ok {
-				filtered := filterUpdates(objectTypesMap, update.Changes)
+				filtered := filterUpdates(objectTypesMap, update.RelationshipChanges)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v1.WatchResponse{
 						Updates:        filtered,

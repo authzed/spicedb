@@ -448,7 +448,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
 		}
 		return nil
-	}, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head))
+	}, fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, head, "1s"))
 
 	<-streamCtx.Done()
 

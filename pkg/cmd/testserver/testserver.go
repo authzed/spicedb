@@ -3,6 +3,7 @@ package testserver
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -70,6 +71,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				MaximumAPIDepth:       maxDepth,
 				MaxCaveatContextSize:  c.MaxCaveatContextSize,
 			},
+			1*time.Second,
 		)
 	}
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,

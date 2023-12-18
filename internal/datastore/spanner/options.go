@@ -17,9 +17,19 @@ type spannerOptions struct {
 	disableStats                bool
 	readMaxOpen                 int
 	writeMaxOpen                int
-	schemaWatchHeartbeat        time.Duration
 	minSessions                 uint64
 	maxSessions                 uint64
+	migrationPhase              string
+}
+
+type migrationPhase uint8
+
+const (
+	complete migrationPhase = iota
+)
+
+var migrationPhases = map[string]migrationPhase{
+	"": complete,
 }
 
 const (
@@ -31,7 +41,6 @@ const (
 	defaultWatchBufferLength           = 128
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
-	defaultSchemaWatchHeartbeat        = 100 * time.Millisecond
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -50,9 +59,9 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		disableStats:                defaultDisableStats,
 		readMaxOpen:                 int(defaultNumberConnections),
 		writeMaxOpen:                int(defaultNumberConnections),
-		schemaWatchHeartbeat:        defaultSchemaWatchHeartbeat,
 		minSessions:                 100,
 		maxSessions:                 400,
+		migrationPhase:              "", // no migration
 	}
 
 	for _, option := range options {
@@ -67,6 +76,10 @@ func generateConfig(options []Option) (spannerOptions, error) {
 			computed.revisionQuantization,
 			maxRevisionQuantization,
 		)
+	}
+
+	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
+		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
 	return computed, nil
@@ -149,20 +162,6 @@ func WriteConnsMaxOpen(conns int) Option {
 	return func(po *spannerOptions) { po.writeMaxOpen = conns }
 }
 
-// SchemaWatchHeartbeat is the heartbeat to use for the schema watch, if enabled.
-//
-// A lower heartbeat means that the schema watch will be able to "catch up" faster.
-//
-// This value defaults to the minimum heartbeat time of 100ms.
-func SchemaWatchHeartbeat(heartbeat time.Duration) Option {
-	return func(po *spannerOptions) {
-		// NOTE: 100ms is the minimum allowed.
-		if heartbeat >= 100*time.Millisecond {
-			po.schemaWatchHeartbeat = heartbeat
-		}
-	}
-}
-
 // MinSessionCount minimum number of session the Spanner client can have
 // at a given time.
 //
@@ -177,4 +176,12 @@ func MinSessionCount(minSessions uint64) Option {
 // Defaults to 400 sessions.
 func MaxSessionCount(maxSessions uint64) Option {
 	return func(po *spannerOptions) { po.maxSessions = maxSessions }
+}
+
+// MigrationPhase configures the spanner driver to the proper state of a
+// multi-phase migration.
+//
+// Steady-state configuration (e.g. fully migrated) by default
+func MigrationPhase(phase string) Option {
+	return func(po *spannerOptions) { po.migrationPhase = phase }
 }

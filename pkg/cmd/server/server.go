@@ -75,8 +75,9 @@ type Config struct {
 	MaxRelationshipContextSize int `debugmap:"visible" default:"25_000"`
 
 	// Namespace cache
-	EnableExperimentalWatchableSchemaCache bool        `debugmap:"visible"`
-	NamespaceCacheConfig                   CacheConfig `debugmap:"visible"`
+	EnableExperimentalWatchableSchemaCache bool          `debugmap:"visible"`
+	SchemaWatchHeartbeat                   time.Duration `debugmap:"visible"`
+	NamespaceCacheConfig                   CacheConfig   `debugmap:"visible"`
 
 	// Schema options
 	SchemaPrefixesRequired bool `debugmap:"visible"`
@@ -110,6 +111,7 @@ type Config struct {
 	MaximumPreconditionCount uint16        `debugmap:"visible"`
 	MaxDatastoreReadPageSize uint64        `debugmap:"visible"`
 	StreamingAPITimeout      time.Duration `debugmap:"visible"`
+	WatchHeartbeat           time.Duration `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -232,7 +234,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	ds = proxy.NewObservableDatastoreProxy(ds)
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
-	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode)
+	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
 	closeables.AddWithError(ds.Close)
 
 	enableGRPCHistogram()
@@ -410,6 +412,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 				v1SchemaServiceOption,
 				watchServiceOption,
 				permSysConfig,
+				c.WatchHeartbeat,
 			)
 		},
 	)

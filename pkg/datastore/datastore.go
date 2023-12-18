@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -48,7 +49,38 @@ const FilterMaximumIDCount uint16 = 100
 // RevisionChanges represents the changes in a single transaction.
 type RevisionChanges struct {
 	Revision Revision
-	Changes  []*core.RelationTupleUpdate
+
+	// RelationshipChanges are any relationships that were changed at this revision.
+	RelationshipChanges []*core.RelationTupleUpdate
+
+	// ChangedDefinitions are any definitions that were added or changed at this revision.
+	ChangedDefinitions []SchemaDefinition
+
+	// DeletedNamespaces are any namespaces that were deleted.
+	DeletedNamespaces []string
+
+	// DeletedCaveats are any caveats that were deleted.
+	DeletedCaveats []string
+
+	// IsCheckpoint, if true, indicates that the datastore has reported all changes
+	// up until and including the Revision and that no additional schema updates can
+	// have occurred before this point.
+	IsCheckpoint bool
+}
+
+func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("revision", rc.Revision.String())
+	e.Bool("is-checkpoint", rc.IsCheckpoint)
+	e.Array("deleted-namespaces", strArray(rc.DeletedNamespaces))
+	e.Array("deleted-caveats", strArray(rc.DeletedCaveats))
+
+	changedNames := make([]string, 0, len(rc.ChangedDefinitions))
+	for _, cd := range rc.ChangedDefinitions {
+		changedNames = append(changedNames, fmt.Sprintf("%T:%s", cd, cd.GetName()))
+	}
+
+	e.Array("changed-definitions", strArray(changedNames))
+	e.Int("num-changed-relationships", len(rc.RelationshipChanges))
 }
 
 // RelationshipsFilter is a filter for relationships.
@@ -295,6 +327,48 @@ type BulkWriteRelationshipSource interface {
 	Next(ctx context.Context) (*core.RelationTuple, error)
 }
 
+type WatchContent int
+
+const (
+	WatchRelationships WatchContent = 1 << 0
+	WatchSchema        WatchContent = 1 << 1
+	WatchCheckpoints   WatchContent = 1 << 2
+)
+
+// WatchOptions are options for a Watch call.
+type WatchOptions struct {
+	// Content is the content to watch.
+	Content WatchContent
+
+	// CheckpointInterval is the interval to use for checkpointing in the watch.
+	// If given the zero value, the datastore's default will be used. If smaller
+	// than the datastore's minimum, the minimum will be used.
+	CheckpointInterval time.Duration
+}
+
+// WatchJustRelationships returns watch options for just relationships.
+func WatchJustRelationships() WatchOptions {
+	return WatchOptions{
+		Content: WatchRelationships,
+	}
+}
+
+// WatchJustSchema returns watch options for just schema.
+func WatchJustSchema() WatchOptions {
+	return WatchOptions{
+		Content: WatchSchema,
+	}
+}
+
+// WithCheckpointInterval sets the checkpoint interval on a watch options, returning
+// an updated options struct.
+func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptions {
+	return WatchOptions{
+		Content:            wo.Content,
+		CheckpointInterval: interval,
+	}
+}
+
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
@@ -321,10 +395,10 @@ type Datastore interface {
 	// used by the specific datastore implementation.
 	RevisionFromString(serialized string) (Revision, error)
 
-	// Watch notifies the caller about all changes to tuples.
+	// Watch notifies the caller about changes to the datastore, based on the specified options.
 	//
 	// All events following afterRevision will be sent to the caller.
-	Watch(ctx context.Context, afterRevision Revision) (<-chan *RevisionChanges, <-chan error)
+	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan *RevisionChanges, <-chan error)
 
 	// ReadyState returns a state indicating whether the datastore is ready to accept data.
 	// Datastores that require database schema creation will return not-ready until the migrations
@@ -340,40 +414,6 @@ type Datastore interface {
 
 	// Close closes the data store.
 	Close() error
-}
-
-// SchemaState is the state of the schema at a point in time.
-type SchemaState struct {
-	// Revision is the timestamp at which this state was created.
-	Revision Revision
-
-	// ChangedDefinitions are any definitions that were added or changed at this revision.
-	ChangedDefinitions []SchemaDefinition
-
-	// DeletedNamespaces are any namespaces that were deleted.
-	DeletedNamespaces []string
-
-	// DeletedCaveats are any caveats that were deleted.
-	DeletedCaveats []string
-
-	// IsCheckpoint, if true, indicates that the datastore has reported all changes
-	// up until and including the Revision and that no additional schema updates can
-	// have occurred before this point.
-	IsCheckpoint bool
-}
-
-func (ss *SchemaState) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("revision", ss.Revision.String())
-	e.Bool("is-checkpoint", ss.IsCheckpoint)
-	e.Array("deleted-namespaces", strArray(ss.DeletedNamespaces))
-	e.Array("deleted-caveats", strArray(ss.DeletedCaveats))
-
-	changedNames := make([]string, 0, len(ss.ChangedDefinitions))
-	for _, cd := range ss.ChangedDefinitions {
-		changedNames = append(changedNames, fmt.Sprintf("%T:%s", cd, cd.GetName()))
-	}
-
-	e.Array("changed-definitions", strArray(changedNames))
 }
 
 type strArray []string
@@ -393,21 +433,6 @@ type StartableDatastore interface {
 	// Start starts any background operations on the datastore. The context provided, if canceled, will
 	// also cancel the background operation(s) on the datastore.
 	Start(ctx context.Context) error
-}
-
-// SchemaWatchableDatastore is an optional extension to the datastore interface that, when implemented,
-// provides the ability for callers to watch the datastore for schema (namespace and caveat) changes.
-type SchemaWatchableDatastore interface {
-	Datastore
-
-	// WatchSchema notifies the caller about all changes to schema, as well as when time has moved forward
-	// without any changes.
-	//
-	// All events following afterRevision will be sent to the caller.
-	//
-	// If the SchemaState received is a checkpoint, then *no additional changes to schema* can have occurred
-	// before that revision timestamp.
-	WatchSchema(ctx context.Context, afterRevision Revision) (<-chan *SchemaState, <-chan error)
 }
 
 // RepairOperation represents a single kind of repair operation that can be run in a repairable

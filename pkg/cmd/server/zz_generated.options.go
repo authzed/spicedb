@@ -53,6 +53,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
 		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
 		to.EnableExperimentalWatchableSchemaCache = c.EnableExperimentalWatchableSchemaCache
+		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -79,6 +80,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
 		to.StreamingAPITimeout = c.StreamingAPITimeout
+		to.WatchHeartbeat = c.WatchHeartbeat
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -111,6 +113,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
 	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
 	debugMap["EnableExperimentalWatchableSchemaCache"] = helpers.DebugValue(c.EnableExperimentalWatchableSchemaCache, false)
+	debugMap["SchemaWatchHeartbeat"] = helpers.DebugValue(c.SchemaWatchHeartbeat, false)
 	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
 	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
 	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
@@ -137,6 +140,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
 	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
 	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
+	debugMap["WatchHeartbeat"] = helpers.DebugValue(c.WatchHeartbeat, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -279,6 +283,13 @@ func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption
 func WithEnableExperimentalWatchableSchemaCache(enableExperimentalWatchableSchemaCache bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalWatchableSchemaCache = enableExperimentalWatchableSchemaCache
+	}
+}
+
+// WithSchemaWatchHeartbeat returns an option that can set SchemaWatchHeartbeat on a Config
+func WithSchemaWatchHeartbeat(schemaWatchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.SchemaWatchHeartbeat = schemaWatchHeartbeat
 	}
 }
 
@@ -475,6 +486,13 @@ func WithMaxDatastoreReadPageSize(maxDatastoreReadPageSize uint64) ConfigOption 
 func WithStreamingAPITimeout(streamingAPITimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.StreamingAPITimeout = streamingAPITimeout
+	}
+}
+
+// WithWatchHeartbeat returns an option that can set WatchHeartbeat on a Config
+func WithWatchHeartbeat(watchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.WatchHeartbeat = watchHeartbeat
 	}
 }
 

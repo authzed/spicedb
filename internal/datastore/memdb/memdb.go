@@ -198,8 +198,8 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		// Record the changes that were made
 		newChanges := datastore.RevisionChanges{
-			Revision: newRevision,
-			Changes:  nil,
+			Revision:            newRevision,
+			RelationshipChanges: nil,
 		}
 		if tx != nil {
 			for _, change := range tx.Changes() {
@@ -209,7 +209,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-						newChanges.Changes = append(newChanges.Changes, &corev1.RelationTupleUpdate{
+						newChanges.RelationshipChanges = append(newChanges.RelationshipChanges, &corev1.RelationTupleUpdate{
 							Operation: corev1.RelationTupleUpdate_TOUCH,
 							Tuple:     rt,
 						})
@@ -219,7 +219,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-						newChanges.Changes = append(newChanges.Changes, &corev1.RelationTupleUpdate{
+						newChanges.RelationshipChanges = append(newChanges.RelationshipChanges, &corev1.RelationTupleUpdate{
 							Operation: corev1.RelationTupleUpdate_DELETE,
 							Tuple:     rt,
 						})

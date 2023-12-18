@@ -99,7 +99,7 @@ func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 func TestMySQL8Datastore(t *testing.T) {
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b, t: t}
-	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+	test.AllWithExceptions(t, test.DatastoreTesterFunc(dst.createDatastore), test.WithCategories(test.WatchSchemaCategory))
 	additionalMySQLTests(t, b)
 }
 

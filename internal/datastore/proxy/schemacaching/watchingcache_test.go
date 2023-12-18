@@ -31,11 +31,11 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure no namespaces are found.
@@ -134,11 +134,11 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Run some operations in parallel.
@@ -190,11 +190,11 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Write somenamespace.
@@ -242,7 +242,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 		headRevision: rev("0"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 	}
 
@@ -253,7 +253,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
@@ -284,7 +284,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 		headRevision: rev("4"),
 		namespaces:   map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]{},
 		caveats:      map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]{},
-		schemaChan:   make(chan *datastore.SchemaState, 1),
+		schemaChan:   make(chan *datastore.RevisionChanges, 1),
 		errChan:      make(chan error, 1),
 		existingNamespaces: []datastore.RevisionedNamespace{
 			datastore.RevisionedDefinition[*corev1.NamespaceDefinition]{
@@ -309,7 +309,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour)
+	wcache := createWatchingCacheProxy(fakeDS, c, 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure the namespace is found.
@@ -328,7 +328,7 @@ type fakeDatastore struct {
 	namespaces map[string][]fakeEntry[datastore.RevisionedNamespace, *corev1.NamespaceDefinition]
 	caveats    map[string][]fakeEntry[datastore.RevisionedCaveat, *corev1.CaveatDefinition]
 
-	schemaChan chan *datastore.SchemaState
+	schemaChan chan *datastore.RevisionChanges
 	errChan    chan error
 
 	readsDisabled      bool
@@ -354,7 +354,7 @@ func (fds *fakeDatastore) updateCaveat(name string, def *corev1.CaveatDefinition
 }
 
 func (fds *fakeDatastore) sendCheckpoint(revision datastore.Revision) {
-	fds.schemaChan <- &datastore.SchemaState{
+	fds.schemaChan <- &datastore.RevisionChanges{
 		Revision:     revision,
 		IsCheckpoint: true,
 	}
@@ -377,7 +377,7 @@ func updateDef[T datastore.SchemaDefinition](
 	def T,
 	isDelete bool,
 	revision datastore.Revision,
-	schemaChan chan *datastore.SchemaState,
+	schemaChan chan *datastore.RevisionChanges,
 ) {
 	slice, ok := defs[name]
 	if !ok {
@@ -394,12 +394,12 @@ func updateDef[T datastore.SchemaDefinition](
 	defs[name] = slice
 
 	if isDelete {
-		schemaChan <- &datastore.SchemaState{
+		schemaChan <- &datastore.RevisionChanges{
 			Revision:          revision,
 			DeletedNamespaces: []string{name},
 		}
 	} else {
-		schemaChan <- &datastore.SchemaState{
+		schemaChan <- &datastore.RevisionChanges{
 			Revision:           revision,
 			ChangedDefinitions: []datastore.SchemaDefinition{def},
 		}
@@ -487,10 +487,6 @@ func (fds *fakeDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &fakeSnapshotReader{fds, rev}
 }
 
-func (fds *fakeDatastore) WatchSchema(context.Context, datastore.Revision) (<-chan *datastore.SchemaState, <-chan error) {
-	return fds.schemaChan, fds.errChan
-}
-
 func (fds *fakeDatastore) HeadRevision(context.Context) (datastore.Revision, error) {
 	fds.lock.RLock()
 	defer fds.lock.RUnlock()
@@ -530,8 +526,12 @@ func (*fakeDatastore) Statistics(context.Context) (datastore.Stats, error) {
 	return datastore.Stats{}, fmt.Errorf("not implemented")
 }
 
-func (*fakeDatastore) Watch(context.Context, datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return nil, nil
+func (fds *fakeDatastore) Watch(_ context.Context, _ datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+	if opts.Content&datastore.WatchSchema != datastore.WatchSchema {
+		panic("unexpected option")
+	}
+
+	return fds.schemaChan, fds.errChan
 }
 
 type fakeSnapshotReader struct {
