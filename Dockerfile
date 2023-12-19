@@ -9,7 +9,7 @@ WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 RUN git clone https://github.com/grpc-ecosystem/grpc-health-probe.git
 WORKDIR /go/src/app/grpc-health-probe
-RUN git checkout 46b326771cb9e57af7a495973a180e388b1a516f
+RUN git checkout v0.4.24 
 RUN CGO_ENABLED=0 go install -a -tags netgo -ldflags=-w
 
 FROM cgr.dev/chainguard/static:latest
