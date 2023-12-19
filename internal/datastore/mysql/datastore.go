@@ -321,7 +321,7 @@ func (mds *Datastore) ReadWriteTx(
 				continue
 			}
 
-			return datastore.NoRevision, err
+			return datastore.NoRevision, wrapError(err)
 		}
 
 		return revisionFromTransaction(newTxnID), nil
@@ -329,7 +329,18 @@ func (mds *Datastore) ReadWriteTx(
 	if !config.DisableRetries {
 		err = fmt.Errorf("max retries exceeded: %w", err)
 	}
-	return datastore.NoRevision, err
+
+	return datastore.NoRevision, wrapError(err)
+}
+
+// wrapError maps any mysql internal error into a SpiceDB typed error or an error
+// that implements GRPCStatus().
+func wrapError(err error) error {
+	if cerr := convertToWriteConstraintError(err); cerr != nil {
+		return cerr
+	}
+
+	return err
 }
 
 func isErrorRetryable(err error) bool {

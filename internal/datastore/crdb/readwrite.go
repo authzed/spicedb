@@ -168,12 +168,6 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-			// If a unique constraint violation is returned, then its likely that the cause
-			// was an existing relationship given as a CREATE.
-			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
-				return cerr
-			}
-
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}

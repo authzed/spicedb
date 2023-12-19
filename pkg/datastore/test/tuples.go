@@ -566,6 +566,14 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	require.ErrorAs(err, &common.CreateRelationshipExistsError{})
 	require.Contains(err.Error(), "could not CREATE relationship ")
 	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
+
+	f := func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(testResourceNamespace, testReaderRelation, testUserNamespace, 1, t))
+		return err
+	}
+	_, _ = ds.ReadWriteTx(ctx, f)
+	_, err = ds.ReadWriteTx(ctx, f)
+	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
 // TouchAlreadyExistingTest tests touching a relationship twice.

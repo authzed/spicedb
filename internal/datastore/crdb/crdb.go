@@ -336,10 +336,19 @@ func (cds *crdbDatastore) ReadWriteTx(
 		return nil
 	})
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.NoRevision, wrapError(err)
 	}
 
 	return commitTimestamp, nil
+}
+
+func wrapError(err error) error {
+	// If a unique constraint violation is returned, then its likely that the cause
+	// was an existing relationship.
+	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+		return cerr
+	}
+	return err
 }
 
 func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

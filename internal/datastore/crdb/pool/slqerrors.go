@@ -5,6 +5,10 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -35,6 +39,15 @@ func (e *MaxRetryError) Error() string {
 
 func (e *MaxRetryError) Unwrap() error { return e.LastErr }
 
+func (e *MaxRetryError) GRPCStatus() *status.Status {
+	s, ok := status.FromError(e.Unwrap())
+	if !ok {
+		return nil
+	}
+
+	return s
+}
+
 // ResettableError is an error that we think may succeed if retried against a new connection.
 type ResettableError struct {
 	Err error
@@ -43,6 +56,13 @@ type ResettableError struct {
 func (e *ResettableError) Error() string { return "resettable error" + ": " + e.Err.Error() }
 func (e *ResettableError) Unwrap() error { return e.Err }
 
+func (e *ResettableError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		e.Unwrap(),
+		codes.Unavailable, // return unavailable so clients are know it's ok to retry
+	)
+}
+
 // RetryableError is an error that can be retried against the existing connection.
 type RetryableError struct {
 	Err error
@@ -50,6 +70,13 @@ type RetryableError struct {
 
 func (e *RetryableError) Error() string { return "retryable error" + ": " + e.Err.Error() }
 func (e *RetryableError) Unwrap() error { return e.Err }
+
+func (e *RetryableError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		e.Unwrap(),
+		codes.Unavailable, // return unavailable so clients are know it's ok to retry
+	)
+}
 
 // sqlErrorCode attempts to extract the crdb error code from the error state.
 func sqlErrorCode(err error) string {
