@@ -473,6 +473,12 @@ func (pgd *pgDatastore) RepairOperations() []datastore.RepairOperation {
 }
 
 func wrapError(err error) error {
+	// If a unique constraint violation is returned, then its likely that the cause
+	// was an existing relationship given as a CREATE.
+	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+		return cerr
+	}
+
 	if pgxcommon.IsSerializationError(err) {
 		return common.NewSerializationError(err)
 	}

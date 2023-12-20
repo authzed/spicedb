@@ -210,10 +210,6 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 		_, err = rwt.tx.ExecContext(ctx, query, args...)
 		if err != nil {
-			if cerr := convertToWriteConstraintError(err); cerr != nil {
-				return cerr
-			}
-
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
