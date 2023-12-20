@@ -224,6 +224,23 @@ func ComputedUserset(relation string) *core.SetOperation_Child {
 	}
 }
 
+// MustComputesUsersetWithSourcePosition creates a child for a set operation that follows a relation on the given starting object.
+func MustComputesUsersetWithSourcePosition(relation string, lineNumber uint64) *core.SetOperation_Child {
+	cu := &core.ComputedUserset{
+		Relation: relation,
+	}
+	cu.SourcePosition = &core.SourcePosition{
+		ZeroIndexedLineNumber:     lineNumber,
+		ZeroIndexedColumnPosition: 0,
+	}
+
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_ComputedUserset{
+			ComputedUserset: cu,
+		},
+	}
+}
+
 // TupleToUserset creates a child which first loads all tuples with the specific relation,
 // and then unions all children on the usersets found by following a relation on those loaded
 // tuples.

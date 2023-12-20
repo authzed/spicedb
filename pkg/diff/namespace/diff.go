@@ -1,9 +1,10 @@
 package namespace
 
 import (
+	"github.com/google/go-cmp/cmp"
 	"github.com/scylladb/go-set/strset"
 	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	nsinternal "github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -301,5 +302,12 @@ func isPermission(relation *core.Relation) bool {
 }
 
 func areDifferentExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite) bool {
-	return !proto.Equal(existing, updated)
+	// Return whether the rewrites are different, ignoring the SourcePosition message type.
+	delta := cmp.Diff(
+		existing,
+		updated,
+		protocmp.Transform(),
+		protocmp.IgnoreMessages(&core.SourcePosition{}),
+	)
+	return delta != ""
 }

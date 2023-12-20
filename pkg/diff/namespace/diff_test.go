@@ -556,6 +556,22 @@ func TestNamespaceDiff(t *testing.T) {
 				},
 			},
 		},
+		{
+			"location change does not cause expression change",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("somerel", ns.Union(
+					ns.MustComputesUsersetWithSourcePosition("editor", 1),
+				)),
+			),
+			ns.Namespace(
+				"document",
+				ns.MustRelation("somerel", ns.Union(
+					ns.MustComputesUsersetWithSourcePosition("editor", 2),
+				)),
+			),
+			[]Delta{},
+		},
 	}
 
 	for _, tc := range testCases {
