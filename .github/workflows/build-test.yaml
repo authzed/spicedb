@@ -53,6 +53,11 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
+      - uses: "authzed/actions/docker-login@main"
+        with:
+          quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
+          dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
       - uses: "authzed/actions/go-build@main"
       - name: "Image tests"
         run: "go run mage.go test:image"
@@ -82,6 +87,11 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
+      - uses: "authzed/actions/docker-login@main"
+        with:
+          quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
+          dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
       - name: "Integration tests"
         run: "go run mage.go test:integration"
 
@@ -100,6 +110,11 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
+      - uses: "authzed/actions/docker-login@main"
+        with:
+          quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
+          github_token: "${{ secrets.GITHUB_TOKEN }}"
+          dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
       - name: "Integration tests"
         run: "go run mage.go testds:${{ matrix.datastore }}"
       - name: "Integration tests"
