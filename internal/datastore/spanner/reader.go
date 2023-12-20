@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -15,6 +17,21 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
+
+// forceIndex is used to force critical indices.
+//
+// You can find the documentation for forcing indices here:
+// https://cloud.google.com/spanner/docs/secondary-indexes#index-directive
+func forceIndex(b sq.SelectBuilder, setColumns []string) (sq.SelectBuilder, error) {
+	// The query is setting subject ID and not the resource ID; this is a
+	// reverse lookup.
+	if slices.Contains(setColumns, colUsersetObjectID) && !slices.Contains(setColumns, colObjectID) {
+		// When using the Postgres dialect, Spanner uses magic comments to
+		// force indices.
+		b = b.From(tableRelationship + " /*@ FORCE_INDEX=idx_relation_tuple_by_subject */")
+	}
+	return b, nil
+}
 
 // The underlying Spanner shared read transaction interface is not exposed, so we re-create
 // the subsection of it which we need here.
@@ -42,7 +59,7 @@ func (sr spannerReader) QueryRelationships(
 		return nil, err
 	}
 
-	return sr.executor.ExecuteQuery(ctx, qBuilder, opts...)
+	return sr.executor.ExecuteQuery(ctx, qBuilder, forceIndex, opts...)
 }
 
 func (sr spannerReader) ReverseQueryRelationships(
@@ -66,6 +83,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 
 	return sr.executor.ExecuteQuery(ctx,
 		qBuilder,
+		forceIndex,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),

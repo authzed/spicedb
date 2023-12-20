@@ -10,6 +10,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -494,6 +495,7 @@ type QueryExecutor struct {
 func (tqs QueryExecutor) ExecuteQuery(
 	ctx context.Context,
 	query SchemaQueryFilterer,
+	fn QueryOptimizationFunc,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
@@ -513,8 +515,18 @@ func (tqs QueryExecutor) ExecuteQuery(
 		limit = int(*queryOpts.Limit)
 	}
 
-	toExecute := query.limit(uint64(limit))
-	sql, args, err := toExecute.queryBuilder.ToSql()
+	limitedSchemaFilterer := query.limit(uint64(limit))
+	queryBuilder := limitedSchemaFilterer.queryBuilder
+
+	if fn != nil {
+		var err error
+		queryBuilder, err = fn(queryBuilder, maps.Keys(limitedSchemaFilterer.filteringColumnCounts))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	sql, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
@@ -530,6 +542,12 @@ func (tqs QueryExecutor) ExecuteQuery(
 
 	return NewSliceRelationshipIterator(queryTuples, queryOpts.Sort), nil
 }
+
+// QueryOptimizationFunc is a function apply a final transform to a
+// ready-to-execute query.
+//
+// This is useful for scenarios like forcing a particular index.
+type QueryOptimizationFunc func(b sq.SelectBuilder, setColumns []string) (sq.SelectBuilder, error)
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
 type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error)

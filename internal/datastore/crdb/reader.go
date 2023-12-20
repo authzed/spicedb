@@ -100,7 +100,7 @@ func (cr *crdbReader) QueryRelationships(
 		return nil, err
 	}
 
-	return cr.executor.ExecuteQuery(ctx, qBuilder, opts...)
+	return cr.executor.ExecuteQuery(ctx, qBuilder, nil, opts...)
 }
 
 func (cr *crdbReader) ReverseQueryRelationships(
@@ -126,6 +126,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	return cr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
+		nil,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse))

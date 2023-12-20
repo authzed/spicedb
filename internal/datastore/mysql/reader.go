@@ -59,7 +59,7 @@ func (mr *mysqlReader) QueryRelationships(
 		return nil, err
 	}
 
-	return mr.executor.ExecuteQuery(ctx, qBuilder, opts...)
+	return mr.executor.ExecuteQuery(ctx, qBuilder, nil, opts...)
 }
 
 func (mr *mysqlReader) ReverseQueryRelationships(
@@ -85,6 +85,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	return mr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
+		nil,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),

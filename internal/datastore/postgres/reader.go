@@ -66,7 +66,7 @@ func (r *pgReader) QueryRelationships(
 		return nil, err
 	}
 
-	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
+	return r.executor.ExecuteQuery(ctx, qBuilder, nil, opts...)
 }
 
 func (r *pgReader) ReverseQueryRelationships(
@@ -90,6 +90,7 @@ func (r *pgReader) ReverseQueryRelationships(
 
 	return r.executor.ExecuteQuery(ctx,
 		qBuilder,
+		nil,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
