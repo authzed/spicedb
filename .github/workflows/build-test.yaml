@@ -1,6 +1,6 @@
 ---
 name: "Build & Test"
-on: # yamllint disable-line rule:truthy
+on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -12,6 +12,8 @@ on: # yamllint disable-line rule:truthy
       - "checks_requested"
 env:
   GO_VERSION: "~1.21.3"
+  DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
+  DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
 jobs:
   paths-filter:
     runs-on: "buildjet-2vcpu-ubuntu-2204"
@@ -53,11 +55,10 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/docker-login@main"
+      - uses: "docker/login-action@v3"
         with:
-          quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
-          github_token: "${{ secrets.GITHUB_TOKEN }}"
-          dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - uses: "authzed/actions/go-build@main"
       - name: "Image tests"
         run: "go run mage.go test:image"
@@ -87,11 +88,10 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/docker-login@main"
+      - uses: "docker/login-action@v3"
         with:
-          quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
-          github_token: "${{ secrets.GITHUB_TOKEN }}"
-          dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests"
         run: "go run mage.go test:integration"
 
@@ -110,11 +110,10 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/docker-login@main"
+      - uses: "docker/login-action@v3"
         with:
-          quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
-          github_token: "${{ secrets.GITHUB_TOKEN }}"
-          dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests"
         run: "go run mage.go testds:${{ matrix.datastore }}"
       - name: "Integration tests"
