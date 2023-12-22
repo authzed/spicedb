@@ -37,10 +37,6 @@ func (ir TransactionIDRevision) LessThan(other datastore.Revision) bool {
 	return uint64(ir) < uint64(other.(TransactionIDRevision))
 }
 
-func (TransactionIDRevision) MarshalBinary() (data []byte, err error) {
-	panic("unimplemented")
-}
-
 func (ir TransactionIDRevision) TransactionID() uint64 {
 	return uint64(ir)
 }

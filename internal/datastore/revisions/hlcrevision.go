@@ -68,10 +68,6 @@ func (hlc HLCRevision) LessThan(rhs datastore.Revision) bool {
 	return hlc.decimal.LessThan(rhsD.decimal)
 }
 
-func (HLCRevision) MarshalBinary() (data []byte, err error) {
-	panic("unimplemented")
-}
-
 func (hlc HLCRevision) String() string {
 	return hlc.decimal.String()
 }

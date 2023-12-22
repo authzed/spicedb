@@ -43,10 +43,6 @@ func (ir TimestampRevision) LessThan(other datastore.Revision) bool {
 	return int64(ir) < int64(other.(TimestampRevision))
 }
 
-func (TimestampRevision) MarshalBinary() (data []byte, err error) {
-	panic("unimplemented")
-}
-
 func (ir TimestampRevision) TimestampNanoSec() int64 {
 	return int64(ir)
 }
