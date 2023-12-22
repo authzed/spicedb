@@ -27,9 +27,9 @@ import (
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -102,7 +102,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 				nowRevision, err := ds.HeadRevision(ctx)
 				require.NoError(err)
 
-				diff := nowRevision.(revision.Decimal).IntPart() - testRevision.(revision.Decimal).IntPart()
+				diff := nowRevision.(revisions.HLCRevision).TimestampNanoSec() - testRevision.(revisions.HLCRevision).TimestampNanoSec()
 				require.True(diff > followerReadDelay.Nanoseconds())
 			}
 		})

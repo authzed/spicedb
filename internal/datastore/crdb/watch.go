@@ -15,8 +15,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -158,7 +158,7 @@ func (cds *crdbDatastore) watch(
 	// no return value so we're not really losing anything.
 	defer func() { go changes.Close() }()
 
-	tracked := common.NewChanges(revision.DecimalKeyFunc, opts.Content)
+	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content)
 
 	for changes.Next() {
 		var tableNameBytes []byte
@@ -180,13 +180,13 @@ func (cds *crdbDatastore) watch(
 		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before or at it.
 		// Therefore, at this point, we issue tracked updates from before that time, and the checkpoint update.
 		if details.Resolved != "" {
-			rev, err := cds.RevisionFromString(details.Resolved)
+			rev, err := revisions.HLCRevisionFromString(details.Resolved)
 			if err != nil {
 				sendError(fmt.Errorf("malformed resolved timestamp: %w", err))
 				return
 			}
 
-			for _, revChange := range tracked.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, rev.(revision.Decimal)) {
+			for _, revChange := range tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev) {
 				revChange := revChange
 				if !sendChange(&revChange) {
 					return
@@ -241,19 +241,19 @@ func (cds *crdbDatastore) watch(
 				Caveat: ctxCaveat,
 			}
 
-			rev, err := cds.RevisionFromString(details.Updated)
+			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
 			}
 
 			if details.After == nil {
-				if err := tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_DELETE); err != nil {
+				if err := tracked.AddRelationshipChange(ctx, rev, tuple, core.RelationTupleUpdate_DELETE); err != nil {
 					sendError(err)
 					return
 				}
 			} else {
-				if err := tracked.AddRelationshipChange(ctx, rev.(revision.Decimal), tuple, core.RelationTupleUpdate_TOUCH); err != nil {
+				if err := tracked.AddRelationshipChange(ctx, rev, tuple, core.RelationTupleUpdate_TOUCH); err != nil {
 					sendError(err)
 					return
 				}
@@ -267,7 +267,7 @@ func (cds *crdbDatastore) watch(
 
 			definitionName := pkValues[0]
 
-			rev, err := cds.RevisionFromString(details.Updated)
+			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
@@ -285,9 +285,9 @@ func (cds *crdbDatastore) watch(
 					sendError(fmt.Errorf("could not unmarshal namespace definition: %w", err))
 					return
 				}
-				tracked.AddChangedDefinition(ctx, rev.(revision.Decimal), namespaceDef)
+				tracked.AddChangedDefinition(ctx, rev, namespaceDef)
 			} else {
-				tracked.AddDeletedNamespace(ctx, rev.(revision.Decimal), definitionName)
+				tracked.AddDeletedNamespace(ctx, rev, definitionName)
 			}
 
 		case tableCaveat:
@@ -298,7 +298,7 @@ func (cds *crdbDatastore) watch(
 
 			definitionName := pkValues[0]
 
-			rev, err := cds.RevisionFromString(details.Updated)
+			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
@@ -316,9 +316,9 @@ func (cds *crdbDatastore) watch(
 					sendError(fmt.Errorf("could not unmarshal caveat definition: %w", err))
 					return
 				}
-				tracked.AddChangedDefinition(ctx, rev.(revision.Decimal), caveatDef)
+				tracked.AddChangedDefinition(ctx, rev, caveatDef)
 			} else {
-				tracked.AddDeletedCaveat(ctx, rev.(revision.Decimal), definitionName)
+				tracked.AddDeletedCaveat(ctx, rev, definitionName)
 			}
 		}
 	}

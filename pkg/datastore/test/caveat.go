@@ -34,7 +34,6 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	require.True(startRevision.GreaterThan(datastore.NoRevision))
 
 	_, _, err = ds.SnapshotReader(startRevision).ReadCaveatByName(ctx, "unknown")
 	require.True(errors.As(err, &datastore.ErrCaveatNameNotFound{}))
@@ -66,12 +65,11 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 
 	// The caveat can be looked up by name
 	cr := ds.SnapshotReader(rev)
-	cv, readRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 
 	foundDiff := cmp.Diff(coreCaveat, cv, protocmp.Transform())
 	req.Empty(foundDiff)
-	req.True(readRev.GreaterThan(datastore.NoRevision))
 
 	// All caveats can be listed when no arg is provided
 	// Manually check the caveat's contents.
@@ -265,17 +263,15 @@ func CaveatSnapshotReadsTest(t *testing.T, tester DatastoreTester) {
 
 	// check most recent revision
 	cr := ds.SnapshotReader(newRev)
-	cv, fetchedRev, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err := cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(newExpression, cv.SerializedExpression)
-	req.True(fetchedRev.GreaterThan(datastore.NoRevision))
 
 	// check previous revision
 	cr = ds.SnapshotReader(oldRev)
-	cv, fetchedRev, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
+	cv, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
 	req.NoError(err)
 	req.Equal(oldExpression, cv.SerializedExpression)
-	req.True(fetchedRev.GreaterThan(datastore.NoRevision))
 }
 
 func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {

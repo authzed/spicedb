@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/datastore"
 )
 
 func TestRemoteClockOptimizedRevisions(t *testing.T) {
@@ -80,20 +79,15 @@ func TestRemoteClockOptimizedRevisions(t *testing.T) {
 
 			remoteClock := clock.NewMock()
 			rcr.clockFn = remoteClock
-			rcr.SetNowFunc(func(ctx context.Context) (revision.Decimal, error) {
+			rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
 				log.Debug().Stringer("now", remoteClock.Now()).Msg("current remote time")
-				return revision.NewFromDecimal(
-					decimal.NewFromInt(remoteClock.Now().UnixNano()),
-				), nil
+				return NewForTime(remoteClock.Now()), nil
 			})
 
 			for _, timeAndExpected := range tc.times {
 				remoteClock.Set(time.Unix(timeAndExpected.unixTime, 0))
 
-				expected := revision.NewFromDecimal(
-					decimal.NewFromInt(timeAndExpected.expected * 1_000_000_000),
-				)
-
+				expected := NewForTimestamp(timeAndExpected.expected * 1_000_000_000)
 				optimized, err := rcr.OptimizedRevision(context.Background())
 				require.NoError(err)
 				require.True(
@@ -132,19 +126,14 @@ func TestRemoteClockCheckRevisions(t *testing.T) {
 
 			remoteClock := clock.NewMock()
 			rcr.clockFn = remoteClock
-			rcr.SetNowFunc(func(ctx context.Context) (revision.Decimal, error) {
+			rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
 				log.Debug().Stringer("now", remoteClock.Now()).Msg("current remote time")
-				return revision.NewFromDecimal(
-					decimal.NewFromInt(remoteClock.Now().UnixNano()),
-				), nil
+				return NewForTime(remoteClock.Now()), nil
 			})
 
 			remoteClock.Set(time.Unix(tc.currentTime, 0))
 
-			testRevision := revision.NewFromDecimal(
-				decimal.NewFromInt(tc.testRevisionSeconds * 1_000_000_000),
-			)
-
+			testRevision := NewForTimestamp(tc.testRevisionSeconds * 1_000_000_000)
 			err := rcr.CheckRevision(context.Background(), testRevision)
 			if tc.expectError {
 				require.Error(err)

@@ -27,8 +27,7 @@ func TestPreconditions(t *testing.T) {
 	uninitialized, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(uninitialized, require)
-	require.True(revision.GreaterThan(datastore.NoRevision))
+	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)
 
 	ctx := context.Background()
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

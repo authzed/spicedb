@@ -42,7 +42,6 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	require.True(startRevision.GreaterThan(datastore.NoRevision))
 
 	_, _, err = ds.SnapshotReader(startRevision).ReadNamespaceByName(ctx, "unknown")
 	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
@@ -60,7 +59,6 @@ func NamespaceWriteTest(t *testing.T, tester DatastoreTester) {
 
 	startRevision, err := ds.HeadRevision(ctx)
 	require.NoError(err)
-	require.True(startRevision.GreaterThan(datastore.NoRevision))
 
 	nsDefs, err := ds.SnapshotReader(startRevision).ListAllNamespaces(ctx)
 	require.NoError(err)

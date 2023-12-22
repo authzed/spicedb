@@ -8,16 +8,15 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -29,8 +28,8 @@ var (
 	errKnown             = errors.New("known error")
 	errAnotherKnown      = errors.New("another known error")
 	nsKnown              = "namespace_name"
-	revisionKnown        = revision.NewFromDecimal(decimal.NewFromInt(1))
-	anotherRevisionKnown = revision.NewFromDecimal(decimal.NewFromInt(2))
+	revisionKnown        = revisions.NewForTransactionID(1)
+	anotherRevisionKnown = revisions.NewForTransactionID(2)
 
 	emptyIterator = common.NewSliceRelationshipIterator(nil, options.Unsorted)
 )

@@ -8,17 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,10 +25,10 @@ import (
 )
 
 var (
-	old  = revision.NewFromDecimal(decimal.NewFromInt(-100))
-	zero = revision.NewFromDecimal(decimal.NewFromInt(0))
-	one  = revision.NewFromDecimal(decimal.NewFromInt(1))
-	two  = revision.NewFromDecimal(decimal.NewFromInt(2))
+	old  = revisions.NewForTransactionID(0)
+	zero = revisions.NewForTransactionID(1)
+	one  = revisions.NewForTransactionID(2)
+	two  = revisions.NewForTransactionID(3)
 
 	nilOpts []options.RWTOptionsOption
 )

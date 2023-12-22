@@ -14,7 +14,6 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -867,7 +866,7 @@ func TestComputeCheckError(t *testing.T) {
 			},
 			Subject:       &core.ObjectAndRelation{},
 			CaveatContext: nil,
-			AtRevision:    revision.NoRevision,
+			AtRevision:    datastore.NoRevision,
 			MaximumDepth:  50,
 			DebugOption:   computed.BasicDebuggingEnabled,
 		},

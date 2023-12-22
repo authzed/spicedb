@@ -37,7 +37,6 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			ctx := context.Background()
 			veryFirstRevision, err := ds.OptimizedRevision(ctx)
 			require.NoError(err)
-			require.True(veryFirstRevision.GreaterThan(datastore.NoRevision))
 
 			postSetupRevision := setupDatastore(ds, require)
 			require.True(postSetupRevision.GreaterThan(veryFirstRevision))
@@ -54,7 +53,6 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			// Get the new now revision
 			nowRevision, err := ds.HeadRevision(ctx)
 			require.NoError(err)
-			require.True(nowRevision.GreaterThan(datastore.NoRevision))
 
 			// Let the quantization window expire
 			time.Sleep(tc.quantizationRange)

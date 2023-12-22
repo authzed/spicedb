@@ -21,19 +21,20 @@ import (
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 func init() {
 	datastore.Engines = append(datastore.Engines, Engine)
 }
+
+var ParseRevisionString = revisions.RevisionParser(revisions.HybridLogicalClock)
 
 var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -165,7 +166,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		DecimalDecoder:       revision.DecimalDecoder{},
+		CommonDecoder:        revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
 		dburl:                url,
 		watchBufferLength:    config.watchBufferLength,
 		writeOverlapKeyer:    keyer,
@@ -244,7 +245,7 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 
 type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
-	revision.DecimalDecoder
+	revisions.CommonDecoder
 
 	dburl               string
 	readPool, writePool *pool.RetryPool
@@ -279,7 +280,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 	f datastore.TxUserFunc,
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	var commitTimestamp revision.Decimal
+	var commitTimestamp datastore.Revision
 
 	config := options.NewRWTOptionsWithOptions(opts...)
 	if config.DisableRetries {
@@ -415,13 +416,13 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.Revision,
 	return cds.headRevisionInternal(ctx)
 }
 
-func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (revision.Decimal, error) {
-	var hlcNow revision.Decimal
+func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, error) {
+	var hlcNow datastore.Revision
 
 	var fnErr error
 	hlcNow, fnErr = readCRDBNow(ctx, cds.readPool)
 	if fnErr != nil {
-		return revision.NoRevision, fmt.Errorf(errRevision, fnErr)
+		return datastore.NoRevision, fmt.Errorf(errRevision, fnErr)
 	}
 
 	return hlcNow, fnErr
@@ -464,7 +465,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 	return &features, nil
 }
 
-func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.Decimal, error) {
+func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, error) {
 	ctx, span := tracer.Start(ctx, "readCRDBNow")
 	defer span.End()
 
@@ -472,10 +473,10 @@ func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (revision.
 	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 		return row.Scan(&hlcNow)
 	}, querySelectNow); err != nil {
-		return revision.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 
-	return revision.NewFromDecimal(hlcNow), nil
+	return revisions.NewForHLC(hlcNow), nil
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
@@ -498,8 +499,4 @@ func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int
 	}
 
 	return gcSeconds * 1_000_000_000, nil
-}
-
-func revisionFromTimestamp(t time.Time) revision.Decimal {
-	return revision.NewFromDecimal(decimal.NewFromInt(t.UnixNano()))
 }

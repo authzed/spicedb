@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -67,7 +68,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
-	return config, revisionFromTimestamp(timestamp), nil
+	return config, revisions.NewHLCForTime(timestamp), nil
 }
 
 func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
@@ -190,7 +191,7 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 
 			nsDefs = append(nsDefs, datastore.RevisionedNamespace{
 				Definition:          loaded,
-				LastWrittenRevision: revisionFromTimestamp(timestamp),
+				LastWrittenRevision: revisions.NewHLCForTime(timestamp),
 			})
 		}
 
@@ -231,7 +232,7 @@ func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuil
 
 			nsDefs = append(nsDefs, datastore.RevisionedNamespace{
 				Definition:          loaded,
-				LastWrittenRevision: revisionFromTimestamp(timestamp),
+				LastWrittenRevision: revisions.NewHLCForTime(timestamp),
 			})
 		}
 

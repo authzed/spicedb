@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
@@ -20,11 +20,7 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
-//
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
-	afterRevision := afterRevisionRaw.(revision.Decimal)
-
 	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
 	errs := make(chan error, 1)
 
@@ -33,12 +29,17 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 		return updates, errs
 	}
 
+	afterRevision, ok := afterRevisionRaw.(revisions.TransactionIDRevision)
+	if !ok {
+		errs <- datastore.NewInvalidRevisionErr(afterRevisionRaw, datastore.CouldNotDetermineRevision)
+		return updates, errs
+	}
+
 	go func() {
 		defer close(updates)
 		defer close(errs)
 
-		currentTxn := transactionFromRevision(afterRevision)
-
+		currentTxn := afterRevision.TransactionID()
 		for {
 			var stagedUpdates []datastore.RevisionChanges
 			var err error
@@ -120,7 +121,7 @@ func (mds *Datastore) loadChanges(
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges(revision.DecimalKeyFunc, options.Content)
+	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content)
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{
@@ -153,13 +154,13 @@ func (mds *Datastore) loadChanges(
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			if err = stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH); err != nil {
+			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH); err != nil {
 				return
 			}
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			if err = stagedChanges.AddRelationshipChange(ctx, revisionFromTransaction(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE); err != nil {
+			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE); err != nil {
 				return
 			}
 		}
@@ -168,7 +169,6 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	changes = stagedChanges.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
-
+	changes = stagedChanges.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
 	return
 }

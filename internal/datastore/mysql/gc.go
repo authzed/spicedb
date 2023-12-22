@@ -6,12 +6,11 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 var _ common.GarbageCollector = (*Datastore)(nil)
@@ -66,7 +65,8 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
 		return datastore.NoRevision, nil
 	}
-	return revision.NewFromDecimal(decimal.NewFromInt(value.Int64)), nil
+
+	return revisions.NewForTransactionID(uint64(value.Int64)), nil
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor

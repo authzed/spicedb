@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
-	"github.com/shopspring/decimal"
-
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
+
+var ParseRevisionString = revisions.RevisionParser(revisions.TransactionID)
 
 const (
 	errRevision      = "unable to find revision: %w"
@@ -69,9 +68,9 @@ func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revi
 	var validForNanos time.Duration
 	if err := mds.db.QueryRowContext(ctx, mds.optimizedRevisionQuery).
 		Scan(&rev, &validForNanos); err != nil {
-		return revision.NoRevision, 0, fmt.Errorf(errRevision, err)
+		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
 	}
-	return revisionFromTransaction(rev), validForNanos, nil
+	return revisions.NewForTransactionID(rev), validForNanos, nil
 }
 
 func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
@@ -85,20 +84,20 @@ func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, err
 		return datastore.NoRevision, nil
 	}
 
-	return revisionFromTransaction(revision), nil
+	return revisions.NewForTransactionID(revision), nil
 }
 
-func (mds *Datastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
-	if revisionRaw == datastore.NoRevision {
-		return datastore.NewInvalidRevisionErr(revisionRaw, datastore.CouldNotDetermineRevision)
+func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revision) error {
+	if revision == datastore.NoRevision {
+		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 
-	revision := revisionRaw.(revision.Decimal)
+	rev, ok := revision.(revisions.TransactionIDRevision)
+	if !ok {
+		return fmt.Errorf("expected transaction revision, got %T", revision)
+	}
 
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-
-	revisionTx := transactionFromRevision(revision)
-
+	revisionTx := rev.TransactionID()
 	freshEnough, unknown, err := mds.checkValidTransaction(ctx, revisionTx)
 	if err != nil {
 		return fmt.Errorf(errCheckRevision, err)
@@ -178,12 +177,4 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 	}
 
 	return uint64(lastInsertID), nil
-}
-
-func revisionFromTransaction(txID uint64) revision.Decimal {
-	return revision.NewFromDecimal(decimal.NewFromBigInt(new(big.Int).SetUint64(txID), 0))
-}
-
-func transactionFromRevision(revision revision.Decimal) uint64 {
-	return uint64(revision.IntPart())
 }

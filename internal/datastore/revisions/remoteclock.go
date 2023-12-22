@@ -4,15 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/shopspring/decimal"
-
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // RemoteNowFunction queries the datastore to get a current revision.
-type RemoteNowFunction func(context.Context) (revision.Decimal, error)
+type RemoteNowFunction func(context.Context) (datastore.Revision, error)
 
 // RemoteClockRevisions handles revision calculation for datastores that provide
 // their own clocks.
@@ -42,12 +40,21 @@ func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, 
 }
 
 func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	nowHLC, err := rcr.nowFunc(ctx)
+	nowRev, err := rcr.nowFunc(ctx)
 	if err != nil {
-		return revision.NoRevision, 0, err
+		return datastore.NoRevision, 0, err
 	}
 
-	delayedNow := nowHLC.IntPart() - rcr.followerReadDelayNanos
+	if nowRev == datastore.NoRevision {
+		return datastore.NoRevision, 0, datastore.NewInvalidRevisionErr(nowRev, datastore.CouldNotDetermineRevision)
+	}
+
+	nowTS, ok := nowRev.(WithTimestampRevision)
+	if !ok {
+		return datastore.NoRevision, 0, spiceerrors.MustBugf("expected with-timestamp revision, got %T", nowRev)
+	}
+
+	delayedNow := nowTS.TimestampNanoSec() - rcr.followerReadDelayNanos
 	quantized := delayedNow
 	validForNanos := int64(0)
 	if rcr.quantizationNanos > 0 {
@@ -58,10 +65,10 @@ func (rcr *RemoteClockRevisions) optimizedRevisionFunc(ctx context.Context) (dat
 	log.Ctx(ctx).Debug().
 		Time("quantized", time.Unix(0, quantized)).
 		Int64("readSkew", rcr.followerReadDelayNanos).
-		Int64("totalSkew", nowHLC.IntPart()-quantized).
+		Int64("totalSkew", nowTS.TimestampNanoSec()-quantized).
 		Msg("revision skews")
 
-	return revision.NewFromDecimal(decimal.NewFromInt(quantized)), time.Duration(validForNanos) * time.Nanosecond, nil
+	return nowTS.ConstructForTimestamp(quantized), time.Duration(validForNanos) * time.Nanosecond, nil
 }
 
 // SetNowFunc sets the function used to determine the head revision
@@ -74,7 +81,7 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 		return datastore.NewInvalidRevisionErr(dsRevision, datastore.CouldNotDetermineRevision)
 	}
 
-	revision := dsRevision.(revision.Decimal)
+	revision := dsRevision.(WithTimestampRevision)
 
 	ctx, span := tracer.Start(ctx, "CheckRevision")
 	defer span.End()
@@ -85,8 +92,13 @@ func (rcr *RemoteClockRevisions) CheckRevision(ctx context.Context, dsRevision d
 		return err
 	}
 
-	nowNanos := now.IntPart()
-	revisionNanos := revision.IntPart()
+	nowTS, ok := now.(WithTimestampRevision)
+	if !ok {
+		return spiceerrors.MustBugf("expected HLC revision, got %T", now)
+	}
+
+	nowNanos := nowTS.TimestampNanoSec()
+	revisionNanos := revision.TimestampNanoSec()
 
 	isStale := revisionNanos < (nowNanos - rcr.gcWindowNanos)
 	if isStale {

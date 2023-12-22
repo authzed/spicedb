@@ -22,12 +22,11 @@ import (
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -219,6 +218,9 @@ func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Dat
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
+		CommonDecoder: revisions.CommonDecoder{
+			Kind: revisions.TransactionID,
+		},
 	}
 
 	store.SetOptimizedRevisionFunc(store.optimizedRevisionFunc)
@@ -250,9 +252,7 @@ func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Dat
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	rev := revisionRaw.(revision.Decimal)
-
+func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
 		if err != nil {
@@ -324,7 +324,7 @@ func (mds *Datastore) ReadWriteTx(
 			return datastore.NoRevision, wrapError(err)
 		}
 
-		return revisionFromTransaction(newTxnID), nil
+		return revisions.NewForTransactionID(newTxnID), nil
 	}
 	if !config.DisableRetries {
 		err = fmt.Errorf("max retries exceeded: %w", err)
@@ -450,7 +450,7 @@ type Datastore struct {
 
 	*QueryBuilder
 	*revisions.CachedOptimizedRevisions
-	revision.DecimalDecoder
+	revisions.CommonDecoder
 }
 
 // Close closes the data store.
@@ -596,9 +596,9 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 }
 
 // TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func buildLivingObjectFilterForRevision(revision revision.Decimal) queryFilterer {
+func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		return original.Where(sq.LtOrEq{colCreatedTxn: revision.(revisions.TransactionIDRevision).TransactionID()}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},
