@@ -63,8 +63,10 @@ func (ir TimestampRevision) ConstructForTimestamp(timestamp int64) WithTimestamp
 	return TimestampRevision(timestamp)
 }
 
-var _ datastore.Revision = TimestampRevision(0)
-var _ WithTimestampRevision = TimestampRevision(0)
+var (
+	_ datastore.Revision    = TimestampRevision(0)
+	_ WithTimestampRevision = TimestampRevision(0)
+)
 
 // TimestampIDKeyFunc is used to create keys for timestamps.
 func TimestampIDKeyFunc(r TimestampRevision) int64 {

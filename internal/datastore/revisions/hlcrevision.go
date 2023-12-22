@@ -3,96 +3,134 @@ package revisions
 import (
 	"time"
 
+	"github.com/cockroachdb/apd"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+var zeroHLC = HLCRevision(*apd.New(0, 0))
+
 // HLCRevision is a revision that is a hybrid logical clock, stored as a decimal.
-type HLCRevision struct {
-	decimal decimal.Decimal
-}
+type HLCRevision apd.Decimal
 
 // parseHLCRevisionString parses a string into a hybrid logical clock revision.
 func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
-	parsed, err := decimal.NewFromString(revisionStr)
+	parsed, _, err := apd.NewFromString(revisionStr)
 	if err != nil {
 		return datastore.NoRevision, err
 	}
-	return HLCRevision{parsed}, nil
+	if parsed == nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("got nil parsed HLC")
+	}
+	return HLCRevision(*parsed), nil
 }
 
 // HLCRevisionFromString parses a string into a hybrid logical clock revision.
 func HLCRevisionFromString(revisionStr string) (HLCRevision, error) {
-	parsed, err := decimal.NewFromString(revisionStr)
+	parsed, _, err := apd.NewFromString(revisionStr)
 	if err != nil {
-		return HLCRevision{decimal.Zero}, err
+		return zeroHLC, err
 	}
-	return HLCRevision{parsed}, nil
+	if parsed == nil {
+		return zeroHLC, spiceerrors.MustBugf("got nil parsed HLC")
+	}
+	return HLCRevision(*parsed), nil
 }
 
 // NewForHLC creates a new revision for the given hybrid logical clock.
 func NewForHLC(decimal decimal.Decimal) HLCRevision {
-	return HLCRevision{decimal}
+	return HLCRevision(*apd.NewWithBigInt(decimal.Coefficient(), decimal.Exponent()))
 }
 
 // NewHLCForTime creates a new revision for the given time.
 func NewHLCForTime(time time.Time) HLCRevision {
-	return HLCRevision{decimal.NewFromInt(time.UnixNano())}
+	return HLCRevision(*apd.New(0, 0).SetInt64(time.UnixNano()))
 }
 
 func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
-		return false
+		rhs = HLCRevision(*apd.New(0, 0))
 	}
 
-	rhsD := rhs.(HLCRevision)
-	return hlc.decimal.Equal(rhsD.decimal)
+	lhsD := apd.Decimal(hlc)
+	lhsDP := &lhsD
+	rhsD := apd.Decimal(rhs.(HLCRevision))
+	return lhsDP.Cmp(&rhsD) == 0
 }
 
 func (hlc HLCRevision) GreaterThan(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
-		rhs = HLCRevision{decimal.Zero}
+		rhs = HLCRevision(*apd.New(0, 0))
 	}
 
-	rhsD := rhs.(HLCRevision)
-	return hlc.decimal.GreaterThan(rhsD.decimal)
+	lhsD := apd.Decimal(hlc)
+	lhsDP := &lhsD
+	rhsD := apd.Decimal(rhs.(HLCRevision))
+	return lhsDP.Cmp(&rhsD) == 1
 }
 
 func (hlc HLCRevision) LessThan(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
-		rhs = HLCRevision{decimal.Zero}
+		return false
 	}
 
-	rhsD := rhs.(HLCRevision)
-	return hlc.decimal.LessThan(rhsD.decimal)
+	lhsD := apd.Decimal(hlc)
+	lhsDP := &lhsD
+	rhsD := apd.Decimal(rhs.(HLCRevision))
+	return lhsDP.Cmp(&rhsD) == -1
 }
 
 func (hlc HLCRevision) String() string {
-	return hlc.decimal.String()
+	d := apd.Decimal(hlc)
+	dp := &d
+	return dp.String()
 }
 
 func (hlc HLCRevision) TimestampNanoSec() int64 {
-	return hlc.decimal.IntPart()
+	d := apd.Decimal(hlc)
+	dp := &d
+	c := apd.BaseContext
+	output := new(apd.Decimal)
+	_, _ = c.Floor(output, dp)
+	i, _ := output.Int64()
+	return i
 }
 
 func (hlc HLCRevision) InexactFloat64() float64 {
-	return float64(hlc.decimal.IntPart())
+	d := apd.Decimal(hlc)
+	dp := &d
+	f, _ := dp.Float64()
+	return f
 }
 
 func (hlc HLCRevision) ConstructForTimestamp(timestamp int64) WithTimestampRevision {
-	return HLCRevision{decimal.NewFromInt(timestamp)}
+	return HLCRevision(*(apd.New(0, 0).SetInt64(timestamp)))
 }
 
-var _ datastore.Revision = HLCRevision{}
-var _ WithTimestampRevision = HLCRevision{}
+var (
+	_ datastore.Revision    = HLCRevision{}
+	_ WithTimestampRevision = HLCRevision{}
+)
 
-// HLCKeyFunc is used to convert a simple HLC to an int64 for use in maps.
-func HLCKeyFunc(r HLCRevision) int64 {
-	return r.TimestampNanoSec()
+// HLCKeyFunc is used to convert a simple HLC for use in maps.
+func HLCKeyFunc(r HLCRevision) string {
+	return r.String()
 }
 
 // HLCKeyLessThanFunc is used to compare keys created by the HLCKeyFunc.
-func HLCKeyLessThanFunc(lhs, rhs int64) bool {
-	return lhs < rhs
+func HLCKeyLessThanFunc(lhs, rhs string) bool {
+	// Return the HLCs as strings to ensure precise is maintained.
+	lp := mustParseDecimal(lhs)
+	rp := mustParseDecimal(rhs)
+	return lp.Cmp(rp) == -1
+}
+
+func mustParseDecimal(value string) *apd.Decimal {
+	parsed, _, err := apd.NewFromString(value)
+	if err != nil {
+		panic("could not parse decimal")
+	}
+	return parsed
 }

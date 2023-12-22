@@ -404,6 +404,84 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 	require.True(t, ch.IsEmpty())
 }
 
+func TestHLCOrdering(t *testing.T) {
+	ctx := context.Background()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	require.True(t, ch.IsEmpty())
+
+	rev1, err := revisions.HLCRevisionFromString("1.1")
+	require.NoError(t, err)
+
+	rev0, err := revisions.HLCRevisionFromString("1.0")
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_DELETE)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	require.Equal(t, 2, len(remaining))
+
+	require.Equal(t, []datastore.RevisionChanges{
+		{
+			Revision: rev0,
+			RelationshipChanges: []*core.RelationTupleUpdate{
+				tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
+			},
+			DeletedNamespaces:  []string{},
+			DeletedCaveats:     []string{},
+			ChangedDefinitions: []datastore.SchemaDefinition{},
+		},
+		{
+			Revision: rev1,
+			RelationshipChanges: []*core.RelationTupleUpdate{
+				tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom")),
+			},
+			DeletedNamespaces:  []string{},
+			DeletedCaveats:     []string{},
+			ChangedDefinitions: []datastore.SchemaDefinition{},
+		},
+	}, remaining)
+}
+
+func TestHLCSameRevision(t *testing.T) {
+	ctx := context.Background()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	require.True(t, ch.IsEmpty())
+
+	rev0, err := revisions.HLCRevisionFromString("1.0")
+	require.NoError(t, err)
+
+	rev0again, err := revisions.HLCRevisionFromString("1.0")
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0again, tuple.MustParse("document:foo#viewer@user:sarah"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	require.Equal(t, 1, len(remaining))
+
+	require.Equal(t, []datastore.RevisionChanges{
+		{
+			Revision: rev0,
+			RelationshipChanges: []*core.RelationTupleUpdate{
+				tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
+				tuple.Touch(tuple.MustParse("document:foo#viewer@user:sarah")),
+			},
+			DeletedNamespaces:  []string{},
+			DeletedCaveats:     []string{},
+			ChangedDefinitions: []datastore.SchemaDefinition{},
+		},
+	}, remaining)
+}
+
 func TestCanonicalize(t *testing.T) {
 	testCases := []struct {
 		name            string
