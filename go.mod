@@ -55,6 +55,7 @@ require (
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58
+	github.com/planetscale/vtprotobuf v0.5.1-0.20231212170721-e7d721933795
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.45.0
