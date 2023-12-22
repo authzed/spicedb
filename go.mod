@@ -18,6 +18,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cloudspannerecosystem/spanner-change-streams-tail v0.3.1
+	github.com/cockroachdb/apd v1.1.0
 	github.com/creasty/defaults v1.7.0
 	github.com/dalzilio/rudd v1.1.1-0.20230806153452-9e08a6ea8170
 	github.com/dlmiddlecote/sqlstats v1.0.2

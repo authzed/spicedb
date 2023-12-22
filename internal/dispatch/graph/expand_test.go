@@ -20,7 +20,6 @@ import (
 	expand "github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -290,7 +289,6 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
-	require.True(revision.GreaterThan(datastore.NoRevision))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	dispatch := NewLocalOnlyDispatcher(10)

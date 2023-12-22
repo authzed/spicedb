@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -58,7 +59,7 @@ func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, name, err)
 	}
 	cr.addOverlapKey(name)
-	return loaded, revisionFromTimestamp(timestamp), nil
+	return loaded, revisions.NewHLCForTime(timestamp), nil
 }
 
 func (cr *crdbReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
@@ -116,7 +117,7 @@ func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) (
 		}
 		caveats = append(caveats, datastore.RevisionedCaveat{
 			Definition:          loaded,
-			LastWrittenRevision: revisionFromTimestamp(bat.timestamp),
+			LastWrittenRevision: revisions.NewHLCForTime(bat.timestamp),
 		})
 	}
 

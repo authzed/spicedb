@@ -6,11 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -21,16 +20,12 @@ const (
 )
 
 var (
-	rev1             = revision.NewFromDecimal(decimal.NewFromInt(1))
-	rev2             = revision.NewFromDecimal(decimal.NewFromInt(2))
-	rev3             = revision.NewFromDecimal(decimal.NewFromInt(3))
-	revOneMillion    = revision.NewFromDecimal(decimal.NewFromInt(1_000_000))
-	revOneMillionOne = revision.NewFromDecimal(decimal.NewFromInt(1_000_001))
+	rev1             = revisions.NewForTransactionID(1)
+	rev2             = revisions.NewForTransactionID(2)
+	rev3             = revisions.NewForTransactionID(3)
+	revOneMillion    = revisions.NewForTransactionID(1_000_000)
+	revOneMillionOne = revisions.NewForTransactionID(1_000_001)
 )
-
-func revisionFromTransactionID(txID uint64) revision.Decimal {
-	return revision.NewFromDecimal(decimal.NewFromInt(int64(txID)))
-}
 
 func TestChanges(t *testing.T) {
 	type changeEntry struct {
@@ -310,30 +305,30 @@ func TestChanges(t *testing.T) {
 			require := require.New(t)
 
 			ctx := context.Background()
-			ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+			ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 			for _, step := range tc.script {
 				if step.relationship != "" {
 					rel := tuple.MustParse(step.relationship)
-					err := ch.AddRelationshipChange(ctx, revisionFromTransactionID(step.revision), rel, step.op)
+					err := ch.AddRelationshipChange(ctx, revisions.NewForTransactionID(step.revision), rel, step.op)
 					require.NoError(err)
 				}
 
 				for _, changed := range step.changedDefinitions {
-					ch.AddChangedDefinition(ctx, revisionFromTransactionID(step.revision), changed)
+					ch.AddChangedDefinition(ctx, revisions.NewForTransactionID(step.revision), changed)
 				}
 
 				for _, ns := range step.deletedNamespaces {
-					ch.AddDeletedNamespace(ctx, revisionFromTransactionID(step.revision), ns)
+					ch.AddDeletedNamespace(ctx, revisions.NewForTransactionID(step.revision), ns)
 				}
 
 				for _, c := range step.deletedCaveats {
-					ch.AddDeletedCaveat(ctx, revisionFromTransactionID(step.revision), c)
+					ch.AddDeletedCaveat(ctx, revisions.NewForTransactionID(step.revision), c)
 				}
 			}
 
 			require.Equal(
 				canonicalize(tc.expected),
-				canonicalize(ch.AsRevisionChanges(revision.DecimalKeyLessThanFunc)),
+				canonicalize(ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)),
 			)
 		})
 	}
@@ -341,7 +336,7 @@ func TestChanges(t *testing.T) {
 
 func TestFilteredSchemaChanges(t *testing.T) {
 	ctx := context.Background()
-	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchSchema)
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchSchema)
 	require.True(t, ch.IsEmpty())
 
 	require.NoError(t, ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:firstdoc#viewer@user:tom"), core.RelationTupleUpdate_TOUCH))
@@ -350,7 +345,7 @@ func TestFilteredSchemaChanges(t *testing.T) {
 
 func TestFilteredRelationshipChanges(t *testing.T) {
 	ctx := context.Background()
-	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchRelationships)
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships)
 	require.True(t, ch.IsEmpty())
 
 	ch.AddDeletedNamespace(ctx, rev3, "deletedns3")
@@ -359,7 +354,7 @@ func TestFilteredRelationshipChanges(t *testing.T) {
 
 func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 	ctx := context.Background()
-	ch := NewChanges(revision.DecimalKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 
 	require.True(t, ch.IsEmpty())
 
@@ -369,7 +364,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 
 	require.False(t, ch.IsEmpty())
 
-	results := ch.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, rev3)
+	results := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
 	require.Equal(t, 2, len(results))
 	require.False(t, ch.IsEmpty())
 
@@ -388,7 +383,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		},
 	}, results)
 
-	remaining := ch.AsRevisionChanges(revision.DecimalKeyLessThanFunc)
+	remaining := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
 	require.Equal(t, 1, len(remaining))
 
 	require.Equal(t, []datastore.RevisionChanges{
@@ -400,13 +395,91 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		},
 	}, remaining)
 
-	results = ch.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, revOneMillion)
+	results = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillion)
 	require.Equal(t, 1, len(results))
 	require.True(t, ch.IsEmpty())
 
-	results = ch.FilterAndRemoveRevisionChanges(revision.DecimalKeyLessThanFunc, revOneMillionOne)
+	results = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillionOne)
 	require.Equal(t, 0, len(results))
 	require.True(t, ch.IsEmpty())
+}
+
+func TestHLCOrdering(t *testing.T) {
+	ctx := context.Background()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	require.True(t, ch.IsEmpty())
+
+	rev1, err := revisions.HLCRevisionFromString("1.1")
+	require.NoError(t, err)
+
+	rev0, err := revisions.HLCRevisionFromString("1.0")
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_DELETE)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	require.Equal(t, 2, len(remaining))
+
+	require.Equal(t, []datastore.RevisionChanges{
+		{
+			Revision: rev0,
+			RelationshipChanges: []*core.RelationTupleUpdate{
+				tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
+			},
+			DeletedNamespaces:  []string{},
+			DeletedCaveats:     []string{},
+			ChangedDefinitions: []datastore.SchemaDefinition{},
+		},
+		{
+			Revision: rev1,
+			RelationshipChanges: []*core.RelationTupleUpdate{
+				tuple.Delete(tuple.MustParse("document:foo#viewer@user:tom")),
+			},
+			DeletedNamespaces:  []string{},
+			DeletedCaveats:     []string{},
+			ChangedDefinitions: []datastore.SchemaDefinition{},
+		},
+	}, remaining)
+}
+
+func TestHLCSameRevision(t *testing.T) {
+	ctx := context.Background()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	require.True(t, ch.IsEmpty())
+
+	rev0, err := revisions.HLCRevisionFromString("1.0")
+	require.NoError(t, err)
+
+	rev0again, err := revisions.HLCRevisionFromString("1.0")
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0again, tuple.MustParse("document:foo#viewer@user:sarah"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	require.Equal(t, 1, len(remaining))
+
+	require.Equal(t, []datastore.RevisionChanges{
+		{
+			Revision: rev0,
+			RelationshipChanges: []*core.RelationTupleUpdate{
+				tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
+				tuple.Touch(tuple.MustParse("document:foo#viewer@user:sarah")),
+			},
+			DeletedNamespaces:  []string{},
+			DeletedCaveats:     []string{},
+			ChangedDefinitions: []datastore.SchemaDefinition{},
+		},
+	}, remaining)
 }
 
 func TestCanonicalize(t *testing.T) {

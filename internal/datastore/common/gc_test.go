@@ -8,19 +8,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 
 	"github.com/prometheus/client_golang/prometheus"
 	promclient "github.com/prometheus/client_model/go"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
 // Fake garbage collector that returns a new incremented revision each time
 // TxIDBefore is called.
 type fakeGC struct {
-	lastRevision int64
+	lastRevision uint64
 	deleter      gcDeleter
 	metrics      gcMetrics
 	lock         sync.RWMutex
@@ -56,7 +55,7 @@ func (gc *fakeGC) TxIDBefore(_ context.Context, _ time.Time) (datastore.Revision
 
 	gc.lastRevision++
 
-	rev := revision.NewFromDecimal(decimal.NewFromInt(gc.lastRevision))
+	rev := revisions.NewForTransactionID(gc.lastRevision)
 
 	return rev, nil
 }
@@ -67,9 +66,9 @@ func (gc *fakeGC) DeleteBeforeTx(_ context.Context, rev datastore.Revision) (Del
 
 	gc.metrics.deleteBeforeTxCount++
 
-	revInt := rev.(revision.Decimal).Decimal.IntPart()
+	revInt := rev.(revisions.TransactionIDRevision).TransactionID()
 
-	return gc.deleter.DeleteBeforeTx(revInt)
+	return gc.deleter.DeleteBeforeTx(int64(revInt))
 }
 
 func (gc *fakeGC) HasGCRun() bool {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -654,7 +655,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 
 	revision, err := ds.OptimizedRevision(ctx)
 	req.NoError(err)
-	req.Equal(revisionFromTransaction(txID), revision)
+	req.Equal(revisions.NewForTransactionID(txID), revision)
 }
 
 func TestMySQLMigrations(t *testing.T) {

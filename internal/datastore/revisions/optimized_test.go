@@ -8,13 +8,11 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/samber/lo"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 type trackingRevisionFunction struct {
@@ -23,13 +21,13 @@ type trackingRevisionFunction struct {
 
 func (m *trackingRevisionFunction) optimizedRevisionFunc(_ context.Context) (datastore.Revision, time.Duration, error) {
 	args := m.Called()
-	return args.Get(0).(revision.Decimal), args.Get(1).(time.Duration), args.Error(2)
+	return args.Get(0).(datastore.Revision), args.Get(1).(time.Duration), args.Error(2)
 }
 
 var (
-	one   = revision.NewFromDecimal(decimal.NewFromInt(1))
-	two   = revision.NewFromDecimal(decimal.NewFromInt(2))
-	three = revision.NewFromDecimal(decimal.NewFromInt(3))
+	one   = NewForTransactionID(1)
+	two   = NewForTransactionID(2)
+	three = NewForTransactionID(3)
 )
 
 func cand(revs ...datastore.Revision) []datastore.Revision {
@@ -193,7 +191,7 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 		nowNS := time.Now().UnixNano()
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
-		rev := revision.NewFromDecimal(decimal.NewFromInt(roundedNS))
+		rev := NewForTransactionID(uint64(roundedNS))
 		return rev, time.Duration(validForNS) * time.Nanosecond, nil
 	})
 

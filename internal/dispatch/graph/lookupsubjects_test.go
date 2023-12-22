@@ -17,7 +17,6 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	itestutil "github.com/authzed/spicedb/internal/testutil"
-	"github.com/authzed/spicedb/pkg/datastore"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -207,7 +206,6 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	tpl := tuple.Parse("folder:oops#owner@folder:oops#owner")
 	revision, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
-	require.True(revision.GreaterThan(datastore.NoRevision))
 
 	dis := NewLocalOnlyDispatcher(10)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)

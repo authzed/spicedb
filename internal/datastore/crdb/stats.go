@@ -11,8 +11,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 const (
@@ -88,22 +88,22 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 	}, nil
 }
 
-func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (revision.Decimal, error) {
+func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (datastore.Revision, error) {
 	counterID := make([]byte, 2)
 	_, err := rand.New(rng).Read(counterID)
 	if err != nil {
-		return revision.NoRevision, fmt.Errorf("unable to select random counter: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to select random counter: %w", err)
 	}
 
 	sql, args, err := upsertCounterQuery.Values(counterID, change).ToSql()
 	if err != nil {
-		return revision.NoRevision, fmt.Errorf("unable to prepare upsert counter sql: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to prepare upsert counter sql: %w", err)
 	}
 
 	var timestamp decimal.Decimal
 	if err := tx.QueryRow(ctx, sql, args...).Scan(&timestamp); err != nil {
-		return revision.NoRevision, fmt.Errorf("unable to executed upsert counter query: %w", err)
+		return datastore.NoRevision, fmt.Errorf("unable to executed upsert counter query: %w", err)
 	}
 
-	return revision.NewFromDecimal(timestamp), nil
+	return revisions.NewForHLC(timestamp), nil
 }

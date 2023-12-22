@@ -169,7 +169,6 @@ func TestMaxDepth(t *testing.T) {
 
 	revision, err := common.UpdateTuplesInDatastore(ctx, ds, mutation)
 	require.NoError(err)
-	require.True(revision.GreaterThan(datastore.NoRevision))
 
 	dispatch := NewLocalOnlyDispatcher(10)
 

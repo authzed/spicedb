@@ -5,22 +5,22 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
+	"github.com/authzed/spicedb/pkg/datastore"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 var (
-	revision1 = decimal.NewFromInt(1)
-	revision2 = decimal.NewFromInt(2)
+	revision1 = revisions.NewForTransactionID(1)
+	revision2 = revisions.NewForTransactionID(2)
 )
 
 func TestEncodeDecode(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		revision decimal.Decimal
+		revision datastore.Revision
 		sections []string
 		hash     string
 	}{
@@ -48,7 +48,7 @@ func TestEncodeDecode(t *testing.T) {
 			require := require.New(t)
 			encoded, err := EncodeFromDispatchCursor(&dispatch.Cursor{
 				Sections: tc.sections,
-			}, tc.hash, revision.NewFromDecimal(tc.revision))
+			}, tc.hash, tc.revision)
 			require.NoError(err)
 			require.NotNil(encoded)
 
@@ -58,10 +58,12 @@ func TestEncodeDecode(t *testing.T) {
 
 			require.Equal(tc.sections, decoded.Sections)
 
-			decodedRev, err := DecodeToDispatchRevision(encoded, revision.DecimalDecoder{})
+			decodedRev, err := DecodeToDispatchRevision(encoded, revisions.CommonDecoder{
+				Kind: revisions.TransactionID,
+			})
 			require.NoError(err)
 			require.NotNil(decodedRev)
-			require.Equal(revision.NewFromDecimal(tc.revision), decodedRev)
+			require.Equal(tc.revision, decodedRev)
 		})
 	}
 }
@@ -70,7 +72,7 @@ func TestDecode(t *testing.T) {
 	for _, testCase := range []struct {
 		name             string
 		token            string
-		expectedRevision decimal.Decimal
+		expectedRevision datastore.Revision
 		expectedSections []string
 		expectedHash     string
 		expectError      bool
@@ -78,7 +80,7 @@ func TestDecode(t *testing.T) {
 		{
 			name:             "invalid",
 			token:            "abc",
-			expectedRevision: decimal.Zero,
+			expectedRevision: datastore.NoRevision,
 			expectedSections: []string{},
 			expectedHash:     "",
 			expectError:      true,
@@ -136,11 +138,13 @@ func TestDecode(t *testing.T) {
 
 			decodedRev, err := DecodeToDispatchRevision(&v1.Cursor{
 				Token: testCase.token,
-			}, revision.DecimalDecoder{})
+			}, revisions.CommonDecoder{
+				Kind: revisions.TransactionID,
+			})
 
 			require.NoError(err)
 			require.True(
-				revision.NewFromDecimal(testCase.expectedRevision).Equal(decodedRev),
+				testCase.expectedRevision.Equal(decodedRev),
 				"%s != %s",
 				testCase.expectedRevision,
 				decodedRev,

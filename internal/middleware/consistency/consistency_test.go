@@ -6,21 +6,20 @@ import (
 	"testing"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/cursor"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 var (
-	zero      = revision.NewFromDecimal(decimal.NewFromInt(0))
-	optimized = revision.NewFromDecimal(decimal.NewFromInt(100))
-	exact     = revision.NewFromDecimal(decimal.NewFromInt(123))
-	head      = revision.NewFromDecimal(decimal.NewFromInt(145))
+	zero      = revisions.NewForTransactionID(0)
+	optimized = revisions.NewForTransactionID(100)
+	exact     = revisions.NewForTransactionID(123)
+	head      = revisions.NewForTransactionID(145)
 )
 
 func TestAddRevisionToContextNoneSupplied(t *testing.T) {

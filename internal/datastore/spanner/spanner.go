@@ -23,12 +23,11 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -71,7 +70,7 @@ var (
 
 type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
-	revision.DecimalDecoder
+	revisions.CommonDecoder
 
 	client   *spanner.Client
 	config   spannerOptions
@@ -147,6 +146,9 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
+		CommonDecoder: revisions.CommonDecoder{
+			Kind: revisions.Timestamp,
+		},
 		client:   client,
 		config:   config,
 		database: database,
@@ -188,10 +190,10 @@ func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *
 }
 
 func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	r := revisionRaw.(revision.Decimal)
+	r := revisionRaw.(revisions.TimestampRevision)
 
 	txSource := func() readTX {
-		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(timestampFromRevision(r)))}
+		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
 	return spannerReader{executor, txSource}
@@ -237,7 +239,7 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 		return datastore.NoRevision, err
 	}
 
-	return revisionFromTimestamp(ts), nil
+	return revisions.NewForTime(ts), nil
 }
 
 func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

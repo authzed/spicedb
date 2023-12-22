@@ -16,8 +16,8 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -101,7 +101,12 @@ func (sd spannerDatastore) watch(
 		return
 	}
 
-	afterRevision := afterRevisionRaw.(revision.Decimal)
+	afterRevision, ok := afterRevisionRaw.(revisions.TimestampRevision)
+	if !ok {
+		sendError(datastore.NewInvalidRevisionErr(afterRevisionRaw, datastore.CouldNotDetermineRevision))
+		return
+	}
+
 	reader, err := changestreams.NewReaderWithConfig(
 		ctx,
 		project,
@@ -109,7 +114,7 @@ func (sd spannerDatastore) watch(
 		database,
 		CombinedChangeStreamName,
 		changestreams.Config{
-			StartTimestamp:    timestampFromRevision(afterRevision),
+			StartTimestamp:    afterRevision.Time(),
 			HeartbeatInterval: heartbeatInterval,
 			SpannerClientOptions: []option.ClientOption{
 				option.WithCredentialsFile(sd.config.credentialsFilePath),
@@ -132,10 +137,10 @@ func (sd spannerDatastore) watch(
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
 		for _, record := range result.ChangeRecords {
-			tracked := common.NewChanges(revision.DecimalKeyFunc, opts.Content)
+			tracked := common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content)
 
 			for _, dcr := range record.DataChangeRecords {
-				changeRevision := revisionFromTimestamp(dcr.CommitTimestamp)
+				changeRevision := revisions.NewForTime(dcr.CommitTimestamp)
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
 
 				for _, mod := range dcr.Mods {
@@ -273,7 +278,7 @@ func (sd spannerDatastore) watch(
 			}
 
 			if !tracked.IsEmpty() {
-				for _, revChange := range tracked.AsRevisionChanges(revision.DecimalKeyLessThanFunc) {
+				for _, revChange := range tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc) {
 					revChange := revChange
 					if !sendChange(&revChange) {
 						return datastore.NewWatchDisconnectedErr()
@@ -284,7 +289,7 @@ func (sd spannerDatastore) watch(
 			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
 				for _, hbr := range record.HeartbeatRecords {
 					if !sendChange(&datastore.RevisionChanges{
-						Revision:     revisionFromTimestamp(hbr.Timestamp),
+						Revision:     revisions.NewForTime(hbr.Timestamp),
 						IsCheckpoint: true,
 					}) {
 						return datastore.NewWatchDisconnectedErr()

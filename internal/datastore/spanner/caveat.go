@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -32,7 +33,7 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 	if err := loaded.UnmarshalVT(serialized); err != nil {
 		return nil, datastore.NoRevision, err
 	}
-	return loaded, revisionFromTimestamp(updated), nil
+	return loaded, revisions.NewForTime(updated), nil
 }
 
 func (sr spannerReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
@@ -77,7 +78,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 		}
 		caveats = append(caveats, datastore.RevisionedCaveat{
 			Definition:          loaded,
-			LastWrittenRevision: revisionFromTimestamp(updated),
+			LastWrittenRevision: revisions.NewForTime(updated),
 		})
 
 		return nil

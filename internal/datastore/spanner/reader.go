@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -147,7 +148,7 @@ func (sr spannerReader) ReadNamespaceByName(ctx context.Context, nsName string) 
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
 	}
 
-	return ns, revisionFromTimestamp(updated), nil
+	return ns, revisions.NewForTime(updated), nil
 }
 
 func (sr spannerReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
@@ -210,7 +211,7 @@ func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.
 
 		allNamespaces = append(allNamespaces, datastore.RevisionedNamespace{
 			Definition:          ns,
-			LastWrittenRevision: revisionFromTimestamp(updated),
+			LastWrittenRevision: revisions.NewForTime(updated),
 		})
 
 		return nil

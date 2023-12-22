@@ -9,11 +9,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -264,7 +264,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 					log.Trace().Object("update", ss).Msg("received update from schema watch")
 
 					if ss.IsCheckpoint {
-						if converted, ok := ss.Revision.(revision.Decimal); ok {
+						if converted, ok := ss.Revision.(revisions.WithInexactFloat64); ok {
 							schemaCacheRevisionGauge.Set(converted.InexactFloat64())
 						}
 

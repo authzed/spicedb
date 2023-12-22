@@ -11,11 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
-	"github.com/shopspring/decimal"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -57,20 +56,20 @@ func NewMemdbDatastore(
 	}
 
 	uniqueID := uuid.NewString()
-
-	negativeGCWindow := decimal.NewFromInt(gcWindow.Nanoseconds()).Mul(decimal.NewFromInt(-1))
-
 	return &memdbDatastore{
+		CommonDecoder: revisions.CommonDecoder{
+			Kind: revisions.Timestamp,
+		},
 		db: db,
 		revisions: []snapshot{
 			{
-				revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
+				revision: nowRevision(),
 				db:       db,
 			},
 		},
 
-		negativeGCWindow:   negativeGCWindow,
-		quantizationPeriod: decimal.NewFromInt(revisionQuantization.Nanoseconds()),
+		negativeGCWindow:   gcWindow.Nanoseconds() * -1,
+		quantizationPeriod: revisionQuantization.Nanoseconds(),
 		watchBufferLength:  watchBufferLength,
 		uniqueID:           uniqueID,
 	}, nil
@@ -78,26 +77,24 @@ func NewMemdbDatastore(
 
 type memdbDatastore struct {
 	sync.RWMutex
-	revision.DecimalDecoder
+	revisions.CommonDecoder
 
 	db             *memdb.MemDB
 	revisions      []snapshot
 	activeWriteTxn *memdb.Txn
 
-	negativeGCWindow   decimal.Decimal
-	quantizationPeriod decimal.Decimal
+	negativeGCWindow   int64
+	quantizationPeriod int64
 	watchBufferLength  uint16
 	uniqueID           string
 }
 
 type snapshot struct {
-	revision decimal.Decimal
+	revision revisions.TimestampRevision
 	db       *memdb.MemDB
 }
 
-func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	dr := revisionRaw.(revision.Decimal)
-
+func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
@@ -110,7 +107,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
-		return mdb.revisions[i].revision.GreaterThanOrEqual(dr.Decimal)
+		return mdb.revisions[i].revision.GreaterThan(dr) || mdb.revisions[i].revision.Equal(dr)
 	})
 
 	// handle the case when there is no revision snapshot newer than the requested revision
@@ -228,7 +225,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			}
 
 			change := &changelog{
-				revisionNanos: newRevision.IntPart(),
+				revisionNanos: newRevision.TimestampNanoSec(),
 				changes:       newChanges,
 			}
 			if err := tx.Insert(tableChangelog, change); err != nil {
@@ -245,7 +242,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision.Decimal, snap})
+		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
 		return newRevision, nil
 	}
 
@@ -274,7 +271,7 @@ func (mdb *memdbDatastore) Close() error {
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{
-				revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
+				revision: nowRevision(),
 				db:       db,
 			},
 		}

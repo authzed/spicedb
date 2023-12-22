@@ -201,7 +201,6 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 					protocmp.Transform(),
 				)
 				require.Empty(foundDiff)
-				require.True(created.Revision.GreaterThan(datastore.NoRevision))
 			} else {
 				errWait := time.NewTimer(waitForChangesTimeout)
 				require.Zero(created)

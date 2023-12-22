@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"encoding"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var Engines []string
@@ -546,7 +544,6 @@ type RelationshipIterator interface {
 // each datastore implementation.
 type Revision interface {
 	fmt.Stringer
-	encoding.BinaryMarshaler
 
 	// Equal returns whether the revisions should be considered equal.
 	Equal(Revision) bool
@@ -574,10 +571,6 @@ func (nilRevision) LessThan(_ Revision) bool {
 
 func (nilRevision) String() string {
 	return "nil"
-}
-
-func (nilRevision) MarshalBinary() ([]byte, error) {
-	return nil, spiceerrors.MustBugf("the nil revision should never be serialized")
 }
 
 // NoRevision is a zero type for the revision that will make changing the

@@ -14,7 +14,6 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	"github.com/authzed/spicedb/pkg/namespace"
 )
 
@@ -134,7 +133,7 @@ func TestTxReset(t *testing.T) {
 				require.Equal(datastore.NoRevision, rev)
 			} else {
 				require.NoError(err)
-				require.True(rev.GreaterThan(revision.NoRevision))
+				require.NotEqual(datastore.NoRevision, rev)
 			}
 		})
 	}

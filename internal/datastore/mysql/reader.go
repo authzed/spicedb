@@ -7,12 +7,11 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -121,8 +120,8 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	}
 
 	var config []byte
-	var version decimal.Decimal
-	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
+	var txID uint64
+	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &txID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
@@ -135,7 +134,7 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 		return nil, datastore.NoRevision, err
 	}
 
-	return loaded, revision.NewFromDecimal(version), nil
+	return loaded, revisions.NewForTransactionID(txID), nil
 }
 
 func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
@@ -200,8 +199,8 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 
 	for rows.Next() {
 		var config []byte
-		var version decimal.Decimal
-		if err := rows.Scan(&config, &version); err != nil {
+		var txID uint64
+		if err := rows.Scan(&config, &txID); err != nil {
 			return nil, err
 		}
 
@@ -212,7 +211,7 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 
 		nsDefs = append(nsDefs, datastore.RevisionedNamespace{
 			Definition:          loaded,
-			LastWrittenRevision: revision.NewFromDecimal(version),
+			LastWrittenRevision: revisions.NewForTransactionID(txID),
 		})
 	}
 	if rows.Err() != nil {
