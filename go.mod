@@ -47,7 +47,7 @@ require (
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/johannesboyne/gofakes3 v0.0.0-20230914150226-f005f5cc03aa
 	github.com/jzelinskie/cobrautil/v2 v2.0.0-20231016191810-9f8a4f6d038a
-	github.com/jzelinskie/stringz v0.0.2
+	github.com/jzelinskie/stringz v0.0.3
 	github.com/lthibault/jitterbug v2.0.0+incompatible
 	github.com/magefile/mage v1.15.0
 	github.com/mattn/go-isatty v0.0.20
