@@ -80,7 +80,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.2.1
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/mod v0.13.0
+	golang.org/x/mod v0.14.0
 	golang.org/x/sync v0.5.0
 	golang.org/x/time v0.5.0
 	golang.org/x/vuln v1.0.1
