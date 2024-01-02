@@ -62,7 +62,7 @@ require (
 	github.com/prometheus/common v0.45.0
 	github.com/rs/cors v1.10.1
 	github.com/rs/zerolog v1.31.0
-	github.com/samber/lo v1.38.1
+	github.com/samber/lo v1.39.0
 	github.com/schollz/progressbar/v3 v3.14.1
 	github.com/scylladb/go-set v1.0.2
 	github.com/sean-/sysexits v1.0.0

@@ -45,7 +45,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.5.1-0.20231212170721-e7d721933795 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rs/zerolog v1.31.0 // indirect
-	github.com/samber/lo v1.38.1 // indirect
+	github.com/samber/lo v1.39.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	go.opentelemetry.io/otel v1.21.0 // indirect
