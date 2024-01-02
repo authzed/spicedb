@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -468,16 +469,29 @@ func TestHLCSameRevision(t *testing.T) {
 	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
 	require.Equal(t, 1, len(remaining))
 
+	expected := []*core.RelationTupleUpdate{
+		tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
+		tuple.Touch(tuple.MustParse("document:foo#viewer@user:sarah")),
+	}
+	slices.SortFunc(expected, func(i, j *core.RelationTupleUpdate) int {
+		iStr := tuple.StringWithoutCaveat(i.Tuple)
+		jStr := tuple.StringWithoutCaveat(j.Tuple)
+		return strings.Compare(iStr, jStr)
+	})
+
+	slices.SortFunc(remaining[0].RelationshipChanges, func(i, j *core.RelationTupleUpdate) int {
+		iStr := tuple.StringWithoutCaveat(i.Tuple)
+		jStr := tuple.StringWithoutCaveat(j.Tuple)
+		return strings.Compare(iStr, jStr)
+	})
+
 	require.Equal(t, []datastore.RevisionChanges{
 		{
-			Revision: rev0,
-			RelationshipChanges: []*core.RelationTupleUpdate{
-				tuple.Touch(tuple.MustParse("document:foo#viewer@user:tom")),
-				tuple.Touch(tuple.MustParse("document:foo#viewer@user:sarah")),
-			},
-			DeletedNamespaces:  []string{},
-			DeletedCaveats:     []string{},
-			ChangedDefinitions: []datastore.SchemaDefinition{},
+			Revision:            rev0,
+			RelationshipChanges: expected,
+			DeletedNamespaces:   []string{},
+			DeletedCaveats:      []string{},
+			ChangedDefinitions:  []datastore.SchemaDefinition{},
 		},
 	}, remaining)
 }
