@@ -172,7 +172,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 	}
 
-	existingRelNames.Subtract(updatedRelNames).ForEach(func(removed string) error {
+	_ = existingRelNames.Subtract(updatedRelNames).ForEach(func(removed string) error {
 		deltas = append(deltas, Delta{
 			Type:         RemovedRelation,
 			RelationName: removed,
@@ -180,7 +180,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		return nil
 	})
 
-	updatedRelNames.Subtract(existingRelNames).ForEach(func(added string) error {
+	_ = updatedRelNames.Subtract(existingRelNames).ForEach(func(added string) error {
 		deltas = append(deltas, Delta{
 			Type:         AddedRelation,
 			RelationName: added,
@@ -188,7 +188,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		return nil
 	})
 
-	existingPermNames.Subtract(updatedPermNames).ForEach(func(removed string) error {
+	_ = existingPermNames.Subtract(updatedPermNames).ForEach(func(removed string) error {
 		deltas = append(deltas, Delta{
 			Type:         RemovedPermission,
 			RelationName: removed,
@@ -196,7 +196,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		return nil
 	})
 
-	updatedPermNames.Subtract(existingPermNames).ForEach(func(added string) error {
+	_ = updatedPermNames.Subtract(existingPermNames).ForEach(func(added string) error {
 		deltas = append(deltas, Delta{
 			Type:         AddedPermission,
 			RelationName: added,
@@ -204,7 +204,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		return nil
 	})
 
-	existingPermNames.Intersect(updatedPermNames).ForEach(func(shared string) error {
+	_ = existingPermNames.Intersect(updatedPermNames).ForEach(func(shared string) error {
 		existingPerm := existingPerms[shared]
 		updatedPerm := updatedPerms[shared]
 
@@ -228,7 +228,7 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		return nil
 	})
 
-	existingRelNames.Intersect(updatedRelNames).ForEach(func(shared string) error {
+	_ = existingRelNames.Intersect(updatedRelNames).ForEach(func(shared string) error {
 		existingRel := existingRels[shared]
 		updatedRel := updatedRels[shared]
 
@@ -277,21 +277,24 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 			updatedAllowedRels.Add(source)
 		}
 
-		for _, removed := range existingAllowedRels.Subtract(updatedAllowedRels).AsSlice() {
+		_ = existingAllowedRels.Subtract(updatedAllowedRels).ForEach(func(removed string) error {
 			deltas = append(deltas, Delta{
 				Type:         RelationAllowedTypeRemoved,
 				RelationName: shared,
 				AllowedType:  allowedRelsBySource[removed],
 			})
-		}
+			return nil
+		})
 
-		for _, added := range updatedAllowedRels.Subtract(existingAllowedRels).AsSlice() {
+		_ = updatedAllowedRels.Subtract(existingAllowedRels).ForEach(func(added string) error {
 			deltas = append(deltas, Delta{
 				Type:         RelationAllowedTypeAdded,
 				RelationName: shared,
 				AllowedType:  allowedRelsBySource[added],
 			})
-		}
+			return nil
+		})
+
 		return nil
 	})
 
