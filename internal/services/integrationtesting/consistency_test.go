@@ -253,7 +253,7 @@ func validateRelationshipReads(t *testing.T, vctx validationContext) {
 
 		foundRelationshipsSet := mapz.NewSet[string]()
 		for _, rel := range foundRelationships {
-			foundRelationshipsSet.Add(tuple.MustString(rel))
+			foundRelationshipsSet.Insert(tuple.MustString(rel))
 		}
 
 		require.True(t, foundRelationshipsSet.Has(tuple.MustString(relationship)), "missing expected relationship %s in read results: %s", tuple.MustString(relationship), foundRelationshipsSet.AsSlice())

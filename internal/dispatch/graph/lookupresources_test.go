@@ -212,7 +212,7 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 
 			require.Equal(1, len(stream.Results()))
 
-			found.Add(stream.Results()[0].ResolvedResource.ResourceId)
+			found.Insert(stream.Results()[0].ResolvedResource.ResourceId)
 			require.Equal(tc.expectedFirst, found.AsSlice())
 
 			cursor := stream.Results()[0].AfterResponseCursor
@@ -233,7 +233,7 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 			require.NoError(err)
 
 			for _, result := range stream.Results() {
-				found.Add(result.ResolvedResource.ResourceId)
+				found.Insert(result.ResolvedResource.ResourceId)
 			}
 
 			foundResults := found.AsSlice()
@@ -585,7 +585,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 						}
 
 						for _, result := range stream.Results() {
-							foundResourceIDs.Add(result.ResolvedResource.ResourceId)
+							foundResourceIDs.Insert(result.ResolvedResource.ResourceId)
 							currentCursor = result.AfterResponseCursor
 						}
 

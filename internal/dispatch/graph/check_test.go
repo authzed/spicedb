@@ -292,7 +292,7 @@ func TestCheckMetadata(t *testing.T) {
 }
 
 func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
-	foundFrames.Add(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
+	foundFrames.Insert(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
 	for _, subTrace := range trace.SubProblems {
 		addFrame(subTrace, foundFrames)
 	}

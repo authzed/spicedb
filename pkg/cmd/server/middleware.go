@@ -97,7 +97,7 @@ const (
 func (mc *MiddlewareChain[T]) Names() *mapz.Set[string] {
 	names := mapz.NewSet[string]()
 	for _, mw := range mc.chain {
-		names.Add(mw.Name)
+		names.Insert(mw.Name)
 	}
 	return names
 }

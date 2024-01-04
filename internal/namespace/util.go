@@ -55,7 +55,7 @@ type TypeAndRelationToCheck struct {
 func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToCheck, ds datastore.Reader) error {
 	nsNames := mapz.NewSet[string]()
 	for _, toCheck := range checks {
-		nsNames.Add(toCheck.NamespaceName)
+		nsNames.Insert(toCheck.NamespaceName)
 	}
 
 	if nsNames.IsEmpty() {
@@ -150,12 +150,12 @@ func ReadNamespaceAndTypes(
 func ListReferencedNamespaces(nsdefs []*core.NamespaceDefinition) []string {
 	referencedNamespaceNamesSet := mapz.NewSet[string]()
 	for _, nsdef := range nsdefs {
-		referencedNamespaceNamesSet.Add(nsdef.Name)
+		referencedNamespaceNamesSet.Insert(nsdef.Name)
 
 		for _, relation := range nsdef.Relation {
 			if relation.GetTypeInformation() != nil {
 				for _, allowedRel := range relation.GetTypeInformation().AllowedDirectRelations {
-					referencedNamespaceNamesSet.Add(allowedRel.GetNamespace())
+					referencedNamespaceNamesSet.Insert(allowedRel.GetNamespace())
 				}
 			}
 		}

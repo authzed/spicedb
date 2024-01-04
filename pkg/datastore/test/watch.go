@@ -580,17 +580,17 @@ func verifyMixedUpdates(
 
 			foundChanges := mapz.NewSet[string]()
 			for _, changedDef := range change.ChangedDefinitions {
-				foundChanges.Add("changed:" + changedDef.GetName())
+				foundChanges.Insert("changed:" + changedDef.GetName())
 			}
 			for _, deleted := range change.DeletedNamespaces {
-				foundChanges.Add("deleted-ns:" + deleted)
+				foundChanges.Insert("deleted-ns:" + deleted)
 			}
 			for _, deleted := range change.DeletedCaveats {
-				foundChanges.Add("deleted-caveat:" + deleted)
+				foundChanges.Insert("deleted-caveat:" + deleted)
 			}
 
 			for _, update := range change.RelationshipChanges {
-				foundChanges.Add("rel:" + fmt.Sprintf("OPERATION_%s(%s)", update.Operation, tuple.StringWithoutCaveat(update.Tuple)))
+				foundChanges.Insert("rel:" + fmt.Sprintf("OPERATION_%s(%s)", update.Operation, tuple.StringWithoutCaveat(update.Tuple)))
 			}
 
 			found := foundChanges.AsSlice()

@@ -87,10 +87,10 @@ func loadNamespacesAndCaveats(ctx context.Context, rels []*core.RelationTuple, r
 	referencedNamespaceNames := mapz.NewSet[string]()
 	referencedCaveatNamesWithContext := mapz.NewSet[string]()
 	for _, rel := range rels {
-		referencedNamespaceNames.Add(rel.ResourceAndRelation.Namespace)
-		referencedNamespaceNames.Add(rel.Subject.Namespace)
+		referencedNamespaceNames.Insert(rel.ResourceAndRelation.Namespace)
+		referencedNamespaceNames.Insert(rel.Subject.Namespace)
 		if hasNonEmptyCaveatContext(rel) {
-			referencedCaveatNamesWithContext.Add(rel.Caveat.CaveatName)
+			referencedCaveatNamesWithContext.Insert(rel.Caveat.CaveatName)
 		}
 	}
 
