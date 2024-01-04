@@ -324,7 +324,7 @@ func combinatorialValues(names []string) []map[string]bool {
 // collectReferencedNames collects all referenced caveat names into the given set.
 func collectReferencedNames(expr *core.CaveatExpression, nameSet *mapz.Set[string]) {
 	if expr.GetCaveat() != nil {
-		nameSet.Add(expr.GetCaveat().CaveatName)
+		nameSet.Insert(expr.GetCaveat().CaveatName)
 		return
 	}
 

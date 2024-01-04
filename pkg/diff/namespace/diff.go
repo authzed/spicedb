@@ -2,7 +2,6 @@ package namespace
 
 import (
 	"github.com/google/go-cmp/cmp"
-	"github.com/scylladb/go-set/strset"
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -132,16 +131,16 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 
 	// Collect up relations and check.
 	existingRels := map[string]*core.Relation{}
-	existingRelNames := strset.New()
+	existingRelNames := mapz.NewSet[string]()
 
 	existingPerms := map[string]*core.Relation{}
-	existingPermNames := strset.New()
+	existingPermNames := mapz.NewSet[string]()
 
 	updatedRels := map[string]*core.Relation{}
-	updatedRelNames := strset.New()
+	updatedRelNames := mapz.NewSet[string]()
 
 	updatedPerms := map[string]*core.Relation{}
-	updatedPermNames := strset.New()
+	updatedPermNames := mapz.NewSet[string]()
 
 	for _, relation := range existing.Relation {
 		_, ok := existingRels[relation.Name]
@@ -173,35 +172,39 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 		}
 	}
 
-	for _, removed := range strset.Difference(existingRelNames, updatedRelNames).List() {
+	_ = existingRelNames.Subtract(updatedRelNames).ForEach(func(removed string) error {
 		deltas = append(deltas, Delta{
 			Type:         RemovedRelation,
 			RelationName: removed,
 		})
-	}
+		return nil
+	})
 
-	for _, added := range strset.Difference(updatedRelNames, existingRelNames).List() {
+	_ = updatedRelNames.Subtract(existingRelNames).ForEach(func(added string) error {
 		deltas = append(deltas, Delta{
 			Type:         AddedRelation,
 			RelationName: added,
 		})
-	}
+		return nil
+	})
 
-	for _, removed := range strset.Difference(existingPermNames, updatedPermNames).List() {
+	_ = existingPermNames.Subtract(updatedPermNames).ForEach(func(removed string) error {
 		deltas = append(deltas, Delta{
 			Type:         RemovedPermission,
 			RelationName: removed,
 		})
-	}
+		return nil
+	})
 
-	for _, added := range strset.Difference(updatedPermNames, existingPermNames).List() {
+	_ = updatedPermNames.Subtract(existingPermNames).ForEach(func(added string) error {
 		deltas = append(deltas, Delta{
 			Type:         AddedPermission,
 			RelationName: added,
 		})
-	}
+		return nil
+	})
 
-	for _, shared := range strset.Intersection(existingPermNames, updatedPermNames).List() {
+	_ = existingPermNames.Intersect(updatedPermNames).ForEach(func(shared string) error {
 		existingPerm := existingPerms[shared]
 		updatedPerm := updatedPerms[shared]
 
@@ -222,9 +225,10 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 				RelationName: shared,
 			})
 		}
-	}
+		return nil
+	})
 
-	for _, shared := range strset.Intersection(existingRelNames, updatedRelNames).List() {
+	_ = existingRelNames.Intersect(updatedRelNames).ForEach(func(shared string) error {
 		existingRel := existingRels[shared]
 		updatedRel := updatedRels[shared]
 
@@ -273,22 +277,26 @@ func DiffNamespaces(existing *core.NamespaceDefinition, updated *core.NamespaceD
 			updatedAllowedRels.Add(source)
 		}
 
-		for _, removed := range existingAllowedRels.Subtract(updatedAllowedRels).AsSlice() {
+		_ = existingAllowedRels.Subtract(updatedAllowedRels).ForEach(func(removed string) error {
 			deltas = append(deltas, Delta{
 				Type:         RelationAllowedTypeRemoved,
 				RelationName: shared,
 				AllowedType:  allowedRelsBySource[removed],
 			})
-		}
+			return nil
+		})
 
-		for _, added := range updatedAllowedRels.Subtract(existingAllowedRels).AsSlice() {
+		_ = updatedAllowedRels.Subtract(existingAllowedRels).ForEach(func(added string) error {
 			deltas = append(deltas, Delta{
 				Type:         RelationAllowedTypeAdded,
 				RelationName: shared,
 				AllowedType:  allowedRelsBySource[added],
 			})
-		}
-	}
+			return nil
+		})
+
+		return nil
+	})
 
 	return &Diff{
 		existing: existing,

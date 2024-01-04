@@ -196,9 +196,9 @@ func (rsm dispatchableResourcesSubjectMap) mapFoundResource(foundResource *v1.Re
 		}
 
 		for _, info := range infos {
-			forSubjectIDs.Add(info.subjectID)
+			forSubjectIDs.Insert(info.subjectID)
 			if !info.isCaveated {
-				nonCaveatedSubjectIDs.Add(info.subjectID)
+				nonCaveatedSubjectIDs.Insert(info.subjectID)
 			}
 		}
 	}

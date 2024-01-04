@@ -125,7 +125,7 @@ func listAndCache[T schemaDefinition](
 			continue
 		}
 
-		remainingToLoad.Remove(name)
+		remainingToLoad.Delete(name)
 		loaded := loadedRaw.(*cacheEntry)
 		foundDefs = append(foundDefs, datastore.RevisionedDefinition[T]{
 			Definition:          loaded.definition.(T),

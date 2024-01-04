@@ -1,7 +1,11 @@
 package mapz
 
 import (
+	"maps"
+
 	"github.com/rs/zerolog"
+
+	expmaps "golang.org/x/exp/maps"
 )
 
 // Set implements a very basic generic set.
@@ -37,15 +41,14 @@ func (s *Set[T]) Add(value T) bool {
 	return true
 }
 
-// Remove removes the value from the set, returning whether
-// the element was present when the call was made.
-func (s *Set[T]) Remove(value T) bool {
-	if !s.Has(value) {
-		return false
-	}
+// Insert adds the given value to the set.
+func (s *Set[T]) Insert(value T) {
+	s.values[value] = struct{}{}
+}
 
+// Delete removes the value from the set, returning nothing.
+func (s *Set[T]) Delete(value T) {
 	delete(s.values, value)
-	return true
 }
 
 // Extend adds all the values to the set.
@@ -60,7 +63,7 @@ func (s *Set[T]) Extend(values []T) {
 func (s *Set[T]) IntersectionDifference(other *Set[T]) *Set[T] {
 	for value := range s.values {
 		if !other.Has(value) {
-			s.Remove(value)
+			delete(s.values, value)
 		}
 	}
 	return s
@@ -69,21 +72,22 @@ func (s *Set[T]) IntersectionDifference(other *Set[T]) *Set[T] {
 // RemoveAll removes all values from this set found in the other set.
 func (s *Set[T]) RemoveAll(other *Set[T]) {
 	for value := range other.values {
-		s.Remove(value)
+		delete(s.values, value)
 	}
 }
 
 // Subtract subtracts the other set from this set, returning a new set.
 func (s *Set[T]) Subtract(other *Set[T]) *Set[T] {
-	newSet := NewSet[T]()
-	newSet.Extend(s.AsSlice())
-	newSet.RemoveAll(other)
-	return newSet
+	cpy := s.Copy()
+	cpy.RemoveAll(other)
+	return cpy
 }
 
 // Copy returns a copy of this set.
 func (s *Set[T]) Copy() *Set[T] {
-	return NewSet(s.AsSlice()...)
+	return &Set[T]{
+		values: maps.Clone(s.values),
+	}
 }
 
 // Intersect removes any values from this set that
@@ -92,7 +96,7 @@ func (s *Set[T]) Intersect(other *Set[T]) *Set[T] {
 	cpy := s.Copy()
 	for value := range cpy.values {
 		if !other.Has(value) {
-			cpy.Remove(value)
+			delete(cpy.values, value)
 		}
 	}
 	return cpy
@@ -100,17 +104,7 @@ func (s *Set[T]) Intersect(other *Set[T]) *Set[T] {
 
 // Equal returns true if both sets have the same elements
 func (s *Set[T]) Equal(other *Set[T]) bool {
-	for value := range s.values {
-		if !other.Has(value) {
-			return false
-		}
-	}
-	for value := range other.values {
-		if !s.Has(value) {
-			return false
-		}
-	}
-	return true
+	return maps.Equal(s.values, other.values)
 }
 
 // IsEmpty returns true if the set is empty.
@@ -124,11 +118,7 @@ func (s *Set[T]) AsSlice() []T {
 		return nil
 	}
 
-	slice := make([]T, 0, len(s.values))
-	for value := range s.values {
-		slice = append(slice, value)
-	}
-	return slice
+	return expmaps.Keys(s.values)
 }
 
 // Len returns the length of the set.

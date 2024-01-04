@@ -1,6 +1,10 @@
 package tuple
 
 import (
+	"maps"
+
+	expmaps "golang.org/x/exp/maps"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -83,9 +87,8 @@ func (ons *ONRSet) Subtract(otherSet *ONRSet) *ONRSet {
 
 // With returns a copy of this ONR set with the given element added.
 func (ons *ONRSet) With(onr *core.ObjectAndRelation) *ONRSet {
-	updated := NewONRSet()
-	for _, current := range ons.onrs {
-		updated.Add(current)
+	updated := &ONRSet{
+		onrs: maps.Clone(ons.onrs),
 	}
 	updated.Add(onr)
 	return updated
@@ -93,9 +96,8 @@ func (ons *ONRSet) With(onr *core.ObjectAndRelation) *ONRSet {
 
 // Union returns a copy of this ONR set with the other set's elements added in.
 func (ons *ONRSet) Union(otherSet *ONRSet) *ONRSet {
-	updated := NewONRSet()
-	for _, current := range ons.onrs {
-		updated.Add(current)
+	updated := &ONRSet{
+		onrs: maps.Clone(ons.onrs),
 	}
 	for _, current := range otherSet.onrs {
 		updated.Add(current)
@@ -105,9 +107,5 @@ func (ons *ONRSet) Union(otherSet *ONRSet) *ONRSet {
 
 // AsSlice returns the ONRs found in the set as a slice.
 func (ons *ONRSet) AsSlice() []*core.ObjectAndRelation {
-	slice := make([]*core.ObjectAndRelation, 0, len(ons.onrs))
-	for _, onr := range ons.onrs {
-		slice = append(slice, onr)
-	}
-	return slice
+	return expmaps.Values(ons.onrs)
 }

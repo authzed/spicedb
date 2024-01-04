@@ -34,7 +34,7 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 			return nil, err
 		}
 
-		newCaveatDefNames.Add(caveatDef.Name)
+		newCaveatDefNames.Insert(caveatDef.Name)
 	}
 
 	// 2) Validate the namespaces defined.
@@ -58,7 +58,7 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 			return nil, err
 		}
 
-		newObjectDefNames.Add(nsdef.Name)
+		newObjectDefNames.Insert(nsdef.Name)
 	}
 
 	return &ValidatedSchemaChanges{
@@ -119,7 +119,7 @@ func ApplySchemaChangesOverExisting(
 
 	for _, existingCaveat := range existingCaveats {
 		existingCaveatDefMap[existingCaveat.Name] = existingCaveat
-		existingCaveatDefNames.Add(existingCaveat.Name)
+		existingCaveatDefNames.Insert(existingCaveat.Name)
 	}
 
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
@@ -142,7 +142,7 @@ func ApplySchemaChangesOverExisting(
 	existingObjectDefNames := mapz.NewSet[string]()
 	for _, existingDef := range existingObjectDefs {
 		existingObjectDefMap[existingDef.Name] = existingDef
-		existingObjectDefNames.Add(existingDef.Name)
+		existingObjectDefNames.Insert(existingDef.Name)
 	}
 
 	// For each definition, perform a diff and ensure the changes will not result in any

@@ -827,7 +827,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 			count := 0
 			for _, result := range stream2.Results() {
 				count++
-				foundResources.Add(result.Resource.ResourceId)
+				foundResources.Insert(result.Resource.ResourceId)
 			}
 			require.LessOrEqual(t, count, 310)
 
@@ -1262,7 +1262,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 						}
 
 						for _, result := range stream.Results() {
-							foundResourceIDs.Add(result.Resource.ResourceId)
+							foundResourceIDs.Insert(result.Resource.ResourceId)
 							currentCursor = result.AfterResponseCursor
 						}
 
@@ -1433,12 +1433,12 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 
 	for i := 0; i < 410; i++ {
 		if i < 250 {
-			expectedResources.Add(fmt.Sprintf("res%03d", i))
+			expectedResources.Insert(fmt.Sprintf("res%03d", i))
 			testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
 		}
 
 		if i > 200 {
-			expectedResources.Add(fmt.Sprintf("res%03d", i))
+			expectedResources.Insert(fmt.Sprintf("res%03d", i))
 			testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#editor@user:tom", i)))
 		}
 	}
@@ -1488,7 +1488,7 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 
 			foundResources := mapz.NewSet[string]()
 			for _, result := range stream.Results() {
-				foundResources.Add(result.Resource.ResourceId)
+				foundResources.Insert(result.Resource.ResourceId)
 			}
 
 			expectedResourcesSlice := expectedResources.AsSlice()

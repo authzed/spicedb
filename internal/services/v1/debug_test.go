@@ -49,7 +49,7 @@ func expectDebugFrames(permissionNames ...string) rda {
 		for _, sp := range debugInfo.Check.GetSubProblems().Traces {
 			for _, permissionName := range permissionNames {
 				if sp.Permission == permissionName {
-					found.Add(permissionName)
+					found.Insert(permissionName)
 				}
 			}
 		}

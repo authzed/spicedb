@@ -567,7 +567,7 @@ func (swc *schemaWatchCache[T]) readDefinitionsWithNames(ctx context.Context, na
 		}
 
 		swc.definitionsReadCachedCounter.WithLabelValues(swc.kind).Inc()
-		remainingNames.Remove(name)
+		remainingNames.Delete(name)
 		if !found.wasNotFound {
 			foundDefs = append(foundDefs, found.revisionedDefinition)
 		}
