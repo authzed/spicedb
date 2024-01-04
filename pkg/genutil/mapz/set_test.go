@@ -32,9 +32,9 @@ func TestSetOperations(t *testing.T) {
 	sort.Strings(slice)
 	require.Equal(t, slice, []string{"hello", "heyo", "hi"})
 
-	// Remove some items.
-	require.True(t, set.Remove("hi"))
-	require.False(t, set.Remove("hi"))
+	// Delete some items.
+	set.Delete("hi")
+	set.Delete("hi")
 
 	require.False(t, set.Has("hi"))
 	require.True(t, set.Has("hello"))
@@ -95,6 +95,12 @@ func TestSetIntersect(t *testing.T) {
 	slice := set.AsSlice()
 	sort.Strings(slice)
 	require.Equal(t, []string{"1", "2", "3", "4"}, slice)
+
+	// Perform in reverse.
+	updated = NewSet[string]("1", "2", "3", "5").Intersect(set)
+	updatedSlice = updated.AsSlice()
+	sort.Strings(updatedSlice)
+	require.Equal(t, []string{"1", "2", "3"}, updatedSlice)
 }
 
 func TestSetSubtract(t *testing.T) {
@@ -163,10 +169,17 @@ func TestSetIntersectionDifference(t *testing.T) {
 	}
 }
 
-func BenchmarkSet(b *testing.B) {
+func BenchmarkAdd(b *testing.B) {
 	set := NewSet[int]()
 	for i := 0; i < b.N; i++ {
 		set.Add(i)
+	}
+}
+
+func BenchmarkInsert(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Insert(i)
 	}
 }
 
@@ -199,7 +212,7 @@ func BenchmarkDelete(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		set.Remove(i)
+		set.Delete(i)
 	}
 }
 
@@ -230,5 +243,31 @@ func BenchmarkSubtract(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		set.Subtract(other)
+	}
+}
+
+func BenchmarkAsSlice(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.AsSlice()
+	}
+}
+
+func BenchmarkEqual(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	other := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		other.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Equal(other)
 	}
 }

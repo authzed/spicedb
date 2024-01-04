@@ -43,7 +43,7 @@ func (cmm *CountingMultiMap[T, Q]) Remove(key T, value Q) {
 		return
 	}
 
-	values.Remove(value)
+	values.Delete(value)
 	if values.IsEmpty() {
 		delete(cmm.valuesByKey, key)
 	}
