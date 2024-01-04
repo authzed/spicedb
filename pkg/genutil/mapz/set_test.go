@@ -162,3 +162,73 @@ func TestSetIntersectionDifference(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkSet(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+}
+
+func BenchmarkCopy(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Copy()
+	}
+}
+
+func BenchmarkHas(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Has(i)
+	}
+}
+
+func BenchmarkDelete(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Remove(i)
+	}
+}
+
+func BenchmarkIntersect(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	other := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		other.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Intersect(other)
+	}
+}
+
+func BenchmarkSubtract(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	other := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		other.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Subtract(other)
+	}
+}
