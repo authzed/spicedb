@@ -129,6 +129,40 @@ func TestEqual(t *testing.T) {
 	require.False(t, NewSet[string]("1", "2").Equal(NewSet[string]("1", "3")))
 }
 
+func TestUnion(t *testing.T) {
+	u1 := NewSet[string]("1", "2").Union(NewSet[string]("2", "3")).AsSlice()
+	sort.Strings(u1)
+
+	u2 := NewSet[string]("2", "3").Union(NewSet[string]("1", "2")).AsSlice()
+	sort.Strings(u2)
+
+	require.Equal(t, []string{"1", "2", "3"}, u1)
+	require.Equal(t, []string{"1", "2", "3"}, u2)
+}
+
+func TestMerge(t *testing.T) {
+	u1 := NewSet[string]("1", "2")
+	u2 := NewSet[string]("2", "3")
+
+	u1.Merge(u2)
+
+	slice := u1.AsSlice()
+	sort.Strings(slice)
+
+	require.Equal(t, []string{"1", "2", "3"}, slice)
+
+	// Try the reverse.
+	u1 = NewSet[string]("1", "2")
+	u2 = NewSet[string]("2", "3")
+
+	u2.Merge(u1)
+
+	slice = u2.AsSlice()
+	sort.Strings(slice)
+
+	require.Equal(t, []string{"1", "2", "3"}, slice)
+}
+
 func TestSetIntersectionDifference(t *testing.T) {
 	tcs := []struct {
 		first    []int
@@ -269,5 +303,50 @@ func BenchmarkEqual(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		set.Equal(other)
+	}
+}
+
+func BenchmarkExtendFromSlice(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	other := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		other.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Extend(other.AsSlice())
+	}
+}
+
+func BenchmarkMerge(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	other := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		other.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Merge(other)
+	}
+}
+
+func BenchmarkUnion(b *testing.B) {
+	set := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		set.Add(i)
+	}
+	other := NewSet[int]()
+	for i := 0; i < b.N; i++ {
+		other.Add(i)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		set.Union(other)
 	}
 }
