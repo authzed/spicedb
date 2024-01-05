@@ -58,6 +58,23 @@ func (s *Set[T]) Extend(values []T) {
 	}
 }
 
+// Merge adds all the values from the other set to this set.
+func (s *Set[T]) Merge(other *Set[T]) {
+	for value := range other.values {
+		s.values[value] = struct{}{}
+	}
+}
+
+// Union adds all the values from the other set to this set,
+// returning a new set.
+func (s *Set[T]) Union(other *Set[T]) *Set[T] {
+	cpy := s.Copy()
+	for value := range other.values {
+		cpy.values[value] = struct{}{}
+	}
+	return cpy
+}
+
 // IntersectionDifference removes any values from this set that
 // are not shared with the other set. Returns the same set.
 func (s *Set[T]) IntersectionDifference(other *Set[T]) *Set[T] {
