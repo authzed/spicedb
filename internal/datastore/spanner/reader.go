@@ -28,7 +28,7 @@ func forceIndex(b sq.SelectBuilder, setColumns []string) (sq.SelectBuilder, erro
 	if slices.Contains(setColumns, colUsersetObjectID) && !slices.Contains(setColumns, colObjectID) {
 		// When using the Postgres dialect, Spanner uses magic comments to
 		// force indices.
-		b = b.From(tableRelationship + " /*@ FORCE_INDEX=idx_relation_tuple_by_subject */")
+		b = b.From(tableRelationship + " /*@ FORCE_INDEX = ix_relation_tuple_by_subject */")
 	}
 	return b, nil
 }
