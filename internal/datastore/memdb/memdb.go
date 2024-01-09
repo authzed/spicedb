@@ -68,10 +68,11 @@ func NewMemdbDatastore(
 			},
 		},
 
-		negativeGCWindow:   gcWindow.Nanoseconds() * -1,
-		quantizationPeriod: revisionQuantization.Nanoseconds(),
-		watchBufferLength:  watchBufferLength,
-		uniqueID:           uniqueID,
+		negativeGCWindow:        gcWindow.Nanoseconds() * -1,
+		quantizationPeriod:      revisionQuantization.Nanoseconds(),
+		watchBufferLength:       watchBufferLength,
+		watchBufferWriteTimeout: 100 * time.Millisecond,
+		uniqueID:                uniqueID,
 	}, nil
 }
 
@@ -83,10 +84,11 @@ type memdbDatastore struct {
 	revisions      []snapshot
 	activeWriteTxn *memdb.Txn
 
-	negativeGCWindow   int64
-	quantizationPeriod int64
-	watchBufferLength  uint16
-	uniqueID           string
+	negativeGCWindow        int64
+	quantizationPeriod      int64
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	uniqueID                string
 }
 
 type snapshot struct {

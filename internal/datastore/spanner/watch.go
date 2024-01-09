@@ -52,7 +52,12 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 }
 
 func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, 10)
+	watchBufferLength := opts.WatchBufferLength
+	if watchBufferLength <= 0 {
+		watchBufferLength = sd.watchBufferLength
+	}
+
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	go sd.watch(ctx, afterRevision, opts, updates, errs)
@@ -85,12 +90,29 @@ func (sd spannerDatastore) watch(
 		errs <- err
 	}
 
+	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout <= 0 {
+		watchBufferWriteTimeout = sd.watchBufferWriteTimeout
+	}
+
 	sendChange := func(change *datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
 
 		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
 			return false
 		}
 	}

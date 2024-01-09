@@ -342,6 +342,14 @@ type WatchOptions struct {
 	// If given the zero value, the datastore's default will be used. If smaller
 	// than the datastore's minimum, the minimum will be used.
 	CheckpointInterval time.Duration
+
+	// WatchBufferLength is the length of the buffer for the watch channel. If
+	// given the zero value, the datastore's default will be used.
+	WatchBufferLength uint16
+
+	// WatchBufferWriteTimeout is the timeout for writing to the watch channel.
+	// If given the zero value, the datastore's default will be used.
+	WatchBufferWriteTimeout time.Duration
 }
 
 // WatchJustRelationships returns watch options for just relationships.

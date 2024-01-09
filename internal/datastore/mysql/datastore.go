@@ -197,24 +197,25 @@ func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Dat
 	)
 
 	store := &Datastore{
-		db:                     db,
-		driver:                 driver,
-		url:                    uri,
-		revisionQuantization:   config.revisionQuantization,
-		gcWindow:               config.gcWindow,
-		gcInterval:             config.gcInterval,
-		gcTimeout:              config.gcMaxOperationTime,
-		gcCtx:                  gcCtx,
-		cancelGc:               cancelGc,
-		watchBufferLength:      config.watchBufferLength,
-		optimizedRevisionQuery: revisionQuery,
-		validTransactionQuery:  validTransactionQuery,
-		createTxn:              createTxn,
-		createBaseTxn:          createBaseTxn,
-		QueryBuilder:           queryBuilder,
-		readTxOptions:          &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
-		maxRetries:             config.maxRetries,
-		analyzeBeforeStats:     config.analyzeBeforeStats,
+		db:                      db,
+		driver:                  driver,
+		url:                     uri,
+		revisionQuantization:    config.revisionQuantization,
+		gcWindow:                config.gcWindow,
+		gcInterval:              config.gcInterval,
+		gcTimeout:               config.gcMaxOperationTime,
+		gcCtx:                   gcCtx,
+		cancelGc:                cancelGc,
+		watchBufferLength:       config.watchBufferLength,
+		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
+		optimizedRevisionQuery:  revisionQuery,
+		validTransactionQuery:   validTransactionQuery,
+		createTxn:               createTxn,
+		createBaseTxn:           createBaseTxn,
+		QueryBuilder:            queryBuilder,
+		readTxOptions:           &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
+		maxRetries:              config.maxRetries,
+		analyzeBeforeStats:      config.analyzeBeforeStats,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
@@ -430,12 +431,13 @@ type Datastore struct {
 	url                string
 	analyzeBeforeStats bool
 
-	revisionQuantization time.Duration
-	gcWindow             time.Duration
-	gcInterval           time.Duration
-	gcTimeout            time.Duration
-	watchBufferLength    uint16
-	maxRetries           uint8
+	revisionQuantization    time.Duration
+	gcWindow                time.Duration
+	gcInterval              time.Duration
+	gcTimeout               time.Duration
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	maxRetries              uint8
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string

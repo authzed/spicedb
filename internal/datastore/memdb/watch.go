@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 
@@ -14,12 +15,44 @@ import (
 const errWatchError = "watch error: %w"
 
 func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, mdb.watchBufferLength)
+	watchBufferLength := options.WatchBufferLength
+	if watchBufferLength == 0 {
+		watchBufferLength = mdb.watchBufferLength
+	}
+
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
 		errs <- errors.New("schema watch unsupported in MemDB")
 		return updates, errs
+	}
+
+	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout == 0 {
+		watchBufferWriteTimeout = mdb.watchBufferWriteTimeout
+	}
+
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
 	}
 
 	go func() {
@@ -40,10 +73,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
-				select {
-				case updates <- changeToWrite:
-				default:
-					errs <- datastore.NewWatchDisconnectedErr()
+				if !sendChange(changeToWrite) {
 					return
 				}
 			}

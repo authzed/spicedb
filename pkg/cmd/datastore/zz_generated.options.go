@@ -64,6 +64,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerMaxSessions = c.SpannerMaxSessions
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
+		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.MigrationPhase = c.MigrationPhase
 	}
 }
@@ -104,6 +105,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
+	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
 	return debugMap
 }
@@ -366,6 +368,13 @@ func WithTablePrefix(tablePrefix string) ConfigOption {
 func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 	return func(c *Config) {
 		c.WatchBufferLength = watchBufferLength
+	}
+}
+
+// WithWatchBufferWriteTimeout returns an option that can set WatchBufferWriteTimeout on a Config
+func WithWatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.WatchBufferWriteTimeout = watchBufferWriteTimeout
 	}
 }
 

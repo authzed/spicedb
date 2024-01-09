@@ -166,13 +166,14 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 			config.followerReadDelay,
 			config.revisionQuantization,
 		),
-		CommonDecoder:        revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
-		dburl:                url,
-		watchBufferLength:    config.watchBufferLength,
-		writeOverlapKeyer:    keyer,
-		overlapKeyInit:       keySetInit,
-		disableStats:         config.disableStats,
-		beginChangefeedQuery: changefeedQuery,
+		CommonDecoder:           revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
+		dburl:                   url,
+		watchBufferLength:       config.watchBufferLength,
+		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
+		writeOverlapKeyer:       keyer,
+		overlapKeyInit:          keySetInit,
+		disableStats:            config.disableStats,
+		beginChangefeedQuery:    changefeedQuery,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -247,12 +248,13 @@ type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
 	revisions.CommonDecoder
 
-	dburl               string
-	readPool, writePool *pool.RetryPool
-	watchBufferLength   uint16
-	writeOverlapKeyer   overlapKeyer
-	overlapKeyInit      func(ctx context.Context) keySet
-	disableStats        bool
+	dburl                   string
+	readPool, writePool     *pool.RetryPool
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	writeOverlapKeyer       overlapKeyer
+	overlapKeyInit          func(ctx context.Context) keySet
+	disableStats            bool
 
 	beginChangefeedQuery string
 

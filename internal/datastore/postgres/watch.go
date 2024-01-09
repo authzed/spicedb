@@ -67,7 +67,12 @@ func (pgd *pgDatastore) Watch(
 	afterRevisionRaw datastore.Revision,
 	options datastore.WatchOptions,
 ) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, pgd.watchBufferLength)
+	watchBufferLength := options.WatchBufferLength
+	if watchBufferLength <= 0 {
+		watchBufferLength = pgd.watchBufferLength
+	}
+
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if !pgd.watchEnabled {
@@ -79,6 +84,33 @@ func (pgd *pgDatastore) Watch(
 	watchSleep := options.CheckpointInterval
 	if watchSleep < minimumWatchSleep {
 		watchSleep = minimumWatchSleep
+	}
+
+	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout <= 0 {
+		watchBufferWriteTimeout = pgd.watchBufferWriteTimeout
+	}
+
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
 	}
 
 	go func() {
@@ -113,12 +145,7 @@ func (pgd *pgDatastore) Watch(
 
 				for _, changeToWrite := range changesToWrite {
 					changeToWrite := changeToWrite
-
-					select {
-					case updates <- &changeToWrite:
-						// Nothing to do here, we've already written to the channel.
-					default:
-						errs <- datastore.NewWatchDisconnectedErr()
+					if !sendChange(&changeToWrite) {
 						return
 					}
 				}
@@ -137,14 +164,10 @@ func (pgd *pgDatastore) Watch(
 				// move revisions forward outside of changes, these could be necessary if the caller is
 				// watching only a *subset* of changes.
 				if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-					select {
-					case updates <- &datastore.RevisionChanges{
+					if !sendChange(&datastore.RevisionChanges{
 						Revision:     currentTxn,
 						IsCheckpoint: true,
-					}:
-						// Nothing to do here, we've already written to the channel.
-					default:
-						errs <- datastore.NewWatchDisconnectedErr()
+					}) {
 						return
 					}
 				}

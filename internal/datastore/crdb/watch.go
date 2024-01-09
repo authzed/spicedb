@@ -54,7 +54,12 @@ type changeDetails struct {
 }
 
 func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, cds.watchBufferLength)
+	watchBufferLength := options.WatchBufferLength
+	if watchBufferLength <= 0 {
+		watchBufferLength = cds.watchBufferLength
+	}
+
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	features, err := cds.Features(ctx)
@@ -137,12 +142,28 @@ func (cds *crdbDatastore) watch(
 		errs <- err
 	}
 
+	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout <= 0 {
+		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
+	}
+
 	sendChange := func(change *datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
 
 		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
 			errs <- datastore.NewWatchDisconnectedErr()
 			return false
 		}

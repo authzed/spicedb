@@ -72,6 +72,9 @@ type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
 	revisions.CommonDecoder
 
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+
 	client   *spanner.Client
 	config   spannerOptions
 	database string
@@ -149,9 +152,11 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
-		client:   client,
-		config:   config,
-		database: database,
+		client:                  client,
+		config:                  config,
+		database:                database,
+		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
+		watchBufferLength:       config.watchBufferLength,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
