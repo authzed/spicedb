@@ -607,3 +607,50 @@ func verifyMixedUpdates(
 
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
+
+func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships,
+		CheckpointInterval: 100 * time.Millisecond,
+	})
+	require.Zero(len(errchan))
+
+	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
+		tuple.Parse("document:firstdoc#viewer@user:tom"),
+	)
+	require.NoError(err)
+	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+}
+
+func verifyCheckpointUpdate(
+	require *require.Assertions,
+	expectedRevision datastore.Revision,
+	changes <-chan *datastore.RevisionChanges,
+) {
+	changeWait := time.NewTimer(waitForChangesTimeout)
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(ok)
+			if change.IsCheckpoint {
+				require.True(change.Revision.Equal(change.Revision) || change.Revision.GreaterThan(expectedRevision))
+				return
+			}
+		case <-changeWait.C:
+			require.Fail("Timed out", "waited for checkpoint")
+		}
+	}
+}
