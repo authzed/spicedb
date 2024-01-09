@@ -21,7 +21,12 @@ const (
 //
 // All events following afterRevision will be sent to the caller.
 func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, mds.watchBufferLength)
+	watchBufferLength := options.WatchBufferLength
+	if watchBufferLength <= 0 {
+		watchBufferLength = mds.watchBufferLength
+	}
+
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
@@ -33,6 +38,33 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 	if !ok {
 		errs <- datastore.NewInvalidRevisionErr(afterRevisionRaw, datastore.CouldNotDetermineRevision)
 		return updates, errs
+	}
+
+	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout <= 0 {
+		watchBufferWriteTimeout = mds.watchBufferWriteTimeout
+	}
+
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
 	}
 
 	go func() {
@@ -56,11 +88,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
 				changeToWrite := changeToWrite
-
-				select {
-				case updates <- &changeToWrite:
-				default:
-					errs <- datastore.NewWatchDisconnectedErr()
+				if !sendChange(&changeToWrite) {
 					return
 				}
 			}

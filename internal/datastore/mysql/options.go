@@ -15,6 +15,7 @@ const (
 	defaultConnMaxIdleTime                   = 30 * time.Minute
 	defaultConnMaxLifetime                   = 30 * time.Minute
 	defaultWatchBufferLength                 = 128
+	defaultWatchBufferWriteTimeout           = 1 * time.Second
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
@@ -29,6 +30,7 @@ type mysqlOptions struct {
 	gcMaxOperationTime          time.Duration
 	maxRevisionStalenessPercent float64
 	watchBufferLength           uint16
+	watchBufferWriteTimeout     time.Duration
 	tablePrefix                 string
 	enablePrometheusStats       bool
 	maxOpenConns                int
@@ -50,6 +52,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		gcInterval:                  defaultGarbageCollectionInterval,
 		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
 		watchBufferLength:           defaultWatchBufferLength,
+		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
 		maxOpenConns:                defaultMaxOpenConns,
 		connMaxIdleTime:             defaultConnMaxIdleTime,
 		connMaxLifetime:             defaultConnMaxLifetime,
@@ -84,6 +87,12 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 	return func(mo *mysqlOptions) {
 		mo.watchBufferLength = watchBufferLength
 	}
+}
+
+// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
+// after which the caller to the watch will be disconnected.
+func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
+	return func(mo *mysqlOptions) { mo.watchBufferWriteTimeout = watchBufferWriteTimeout }
 }
 
 // RevisionQuantization is the time bucket size to which advertised

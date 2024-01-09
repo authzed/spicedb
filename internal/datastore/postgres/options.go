@@ -12,12 +12,13 @@ type postgresOptions struct {
 
 	maxRevisionStalenessPercent float64
 
-	watchBufferLength    uint16
-	revisionQuantization time.Duration
-	gcWindow             time.Duration
-	gcInterval           time.Duration
-	gcMaxOperationTime   time.Duration
-	maxRetries           uint8
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	revisionQuantization    time.Duration
+	gcWindow                time.Duration
+	gcInterval              time.Duration
+	gcMaxOperationTime      time.Duration
+	maxRetries              uint8
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
@@ -48,6 +49,7 @@ const (
 	errQuantizationTooLarge = "revision quantization interval (%s) must be less than GC window (%s)"
 
 	defaultWatchBufferLength                 = 128
+	defaultWatchBufferWriteTimeout           = 1 * time.Second
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
@@ -68,6 +70,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		gcInterval:                  defaultGarbageCollectionInterval,
 		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
 		watchBufferLength:           defaultWatchBufferLength,
+		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
@@ -226,6 +229,12 @@ func WriteConnsMaxOpen(conns int) Option {
 // This value defaults to 128.
 func WatchBufferLength(watchBufferLength uint16) Option {
 	return func(po *postgresOptions) { po.watchBufferLength = watchBufferLength }
+}
+
+// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
+// after which the caller to the watch will be disconnected.
+func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
+	return func(po *postgresOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
 }
 
 // RevisionQuantization is the time bucket size to which advertised

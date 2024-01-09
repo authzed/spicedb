@@ -141,7 +141,8 @@ type Config struct {
 	TablePrefix string `debugmap:"visible"`
 
 	// Internal
-	WatchBufferLength uint16 `debugmap:"visible"`
+	WatchBufferLength       uint16        `debugmap:"visible"`
+	WatchBufferWriteTimeout time.Duration `debugmap:"visible"`
 
 	// Migrations
 	MigrationPhase string `debugmap:"visible"`
@@ -212,7 +213,8 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
-	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how many events the watch buffer should queue before forcefully disconnecting reader")
+	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
+	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
@@ -252,6 +254,7 @@ func DefaultDatastoreConfig() *Config {
 		GCInterval:                     3 * time.Minute,
 		GCMaxOperationTime:             1 * time.Minute,
 		WatchBufferLength:              1024,
+		WatchBufferWriteTimeout:        1 * time.Second,
 		EnableDatastoreMetrics:         true,
 		DisableStats:                   false,
 		BootstrapFiles:                 []string{},
@@ -379,6 +382,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
+		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		crdb.DisableStats(opts.DisableStats),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
@@ -408,6 +412,7 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
 		postgres.EnableTracing(),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
+		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(uint8(opts.MaxRetries)),
 		postgres.MigrationPhase(opts.MigrationPhase),
@@ -424,6 +429,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
+		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
 		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
@@ -448,6 +454,7 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
+		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		mysql.MaxRetries(uint8(opts.MaxRetries)),
 		mysql.OverrideLockWaitTimeout(1),

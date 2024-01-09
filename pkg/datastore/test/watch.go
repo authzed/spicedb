@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
 
@@ -29,25 +28,34 @@ const waitForChangesTimeout = 5 * time.Second
 func WatchTest(t *testing.T, tester DatastoreTester) {
 	testCases := []struct {
 		numTuples        int
+		bufferTimeout    time.Duration
 		expectFallBehind bool
 	}{
 		{
 			numTuples:        1,
+			bufferTimeout:    1 * time.Minute,
 			expectFallBehind: false,
 		},
 		{
 			numTuples:        2,
+			bufferTimeout:    1 * time.Minute,
 			expectFallBehind: false,
 		},
 		{
 			numTuples:        256,
+			bufferTimeout:    1 * time.Minute,
+			expectFallBehind: false,
+		},
+		{
+			numTuples:        256,
+			bufferTimeout:    1 * time.Nanosecond,
 			expectFallBehind: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
-		t.Run(strconv.Itoa(tc.numTuples), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%d-%v", tc.numTuples, tc.expectFallBehind), func(t *testing.T) {
 			require := require.New(t)
 
 			ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
@@ -61,7 +69,12 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			lowestRevision, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 
-			changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+			opts := datastore.WatchOptions{
+				Content:                 datastore.WatchRelationships,
+				WatchBufferLength:       128,
+				WatchBufferWriteTimeout: tc.bufferTimeout,
+			}
+			changes, errchan := ds.Watch(ctx, lowestRevision, opts)
 			require.Zero(len(errchan))
 
 			var testUpdates [][]*core.RelationTupleUpdate
@@ -115,7 +128,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
 			// Test the catch-up case
-			changes, errchan = ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+			changes, errchan = ds.Watch(ctx, lowestRevision, opts)
 			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
 	}
