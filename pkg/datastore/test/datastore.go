@@ -56,12 +56,18 @@ func (c Categories) WatchSchema() bool {
 	return ok
 }
 
+func (c Categories) WatchCheckpoints() bool {
+	_, ok := c[WatchCheckpointsCategory]
+	return ok
+}
+
 var noException = Categories{}
 
 const (
-	GCCategory          = "GC"
-	WatchCategory       = "Watch"
-	WatchSchemaCategory = "WatchSchema"
+	GCCategory               = "GC"
+	WatchCategory            = "Watch"
+	WatchSchemaCategory      = "WatchSchema"
+	WatchCheckpointsCategory = "WatchCheckpoints"
 )
 
 func WithCategories(cats ...string) Categories {
@@ -137,6 +143,10 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	if !except.Watch() && !except.WatchSchema() {
 		t.Run("TestWatchSchema", func(t *testing.T) { WatchSchemaTest(t, tester) })
 		t.Run("TestWatchAll", func(t *testing.T) { WatchAllTest(t, tester) })
+	}
+
+	if !except.Watch() && !except.WatchCheckpoints() {
+		t.Run("TestWatchCheckpoints", func(t *testing.T) { WatchCheckpointsTest(t, tester) })
 	}
 }
 

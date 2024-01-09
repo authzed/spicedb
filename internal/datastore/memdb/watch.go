@@ -32,7 +32,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 			var stagedUpdates []*datastore.RevisionChanges
 			var watchChan <-chan struct{}
 			var err error
-			stagedUpdates, currentTxn, watchChan, err = mdb.loadChanges(ctx, currentTxn)
+			stagedUpdates, currentTxn, watchChan, err = mdb.loadChanges(ctx, currentTxn, options)
 			if err != nil {
 				errs <- err
 				return
@@ -40,10 +40,6 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
-				if len(changeToWrite.RelationshipChanges) == 0 {
-					continue
-				}
-
 				select {
 				case updates <- changeToWrite:
 				default:
@@ -72,7 +68,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 	return updates, errs
 }
 
-func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
+func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64, options datastore.WatchOptions) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
@@ -88,7 +84,23 @@ func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64) ([]*
 	lastRevision := currentTxn
 	for changeRaw := it.Next(); changeRaw != nil; changeRaw = it.Next() {
 		change := changeRaw.(*changelog)
-		changes = append(changes, &change.changes)
+
+		if options.Content&datastore.WatchRelationships == datastore.WatchRelationships && len(change.changes.RelationshipChanges) > 0 {
+			changes = append(changes, &change.changes)
+		}
+
+		if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints && change.revisionNanos > lastRevision {
+			changes = append(changes, &datastore.RevisionChanges{
+				Revision:     revisions.NewForTimestamp(change.revisionNanos),
+				IsCheckpoint: true,
+			})
+		}
+
+		if options.Content&datastore.WatchSchema == datastore.WatchSchema &&
+			len(change.changes.ChangedDefinitions) > 0 || len(change.changes.DeletedCaveats) > 0 || len(change.changes.DeletedNamespaces) > 0 {
+			changes = append(changes, &change.changes)
+		}
+
 		lastRevision = change.revisionNanos
 	}
 
