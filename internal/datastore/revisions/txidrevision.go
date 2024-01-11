@@ -49,6 +49,10 @@ func (ir TransactionIDRevision) WithInexactFloat64() float64 {
 	return float64(ir)
 }
 
+func (ir TransactionIDRevision) IntegerRepresentation() [2]int64 {
+	return [2]int64{int64(ir), 0}
+}
+
 var _ datastore.Revision = TransactionIDRevision(0)
 
 // TransactionIDKeyFunc is used to create keys for transaction IDs.

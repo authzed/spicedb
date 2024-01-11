@@ -63,6 +63,10 @@ func (ir TimestampRevision) ConstructForTimestamp(timestamp int64) WithTimestamp
 	return TimestampRevision(timestamp)
 }
 
+func (ir TimestampRevision) IntegerRepresentation() [2]int64 {
+	return [2]int64{int64(ir), 0}
+}
+
 var (
 	_ datastore.Revision    = TimestampRevision(0)
 	_ WithTimestampRevision = TimestampRevision(0)

@@ -132,6 +132,10 @@ func (hlc HLCRevision) ConstructForTimestamp(timestamp int64) WithTimestampRevis
 	return HLCRevision([2]int64{timestamp, 0})
 }
 
+func (hlc HLCRevision) IntegerRepresentation() [2]int64 {
+	return hlc
+}
+
 var (
 	_ datastore.Revision    = HLCRevision{}
 	_ WithTimestampRevision = HLCRevision{}
