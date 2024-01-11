@@ -48,7 +48,7 @@ func TestIntervalTrackerBasic(t *testing.T) {
 	validate(t, tracker)
 
 	// Ensure that revisions 1-3 find the first.
-	for _, rv := range []string{"1", "1.1", "2", "2.6", "3", "3.9", "3.999"} {
+	for _, rv := range []string{"1", "1.0000000001", "2", "2.0000000006", "3", "3.0000000009", "3.0000000010"} {
 		value, found = tracker.lookup(rev(rv), rev("5"))
 		require.True(t, found)
 		require.Equal(t, "first", value)
@@ -68,7 +68,7 @@ func TestIntervalTrackerBasic(t *testing.T) {
 	require.Equal(t, "second", value)
 
 	// Ensure the entry is not found if the tracking revision is less than that specified.
-	_, found = tracker.lookup(rev("5.1"), rev("5"))
+	_, found = tracker.lookup(rev("5.0000000001"), rev("5"))
 	require.False(t, found)
 }
 
@@ -85,7 +85,7 @@ func TestIntervalTrackerBeginningGap(t *testing.T) {
 	require.Equal(t, "first", value)
 
 	// Ensure the value is *not* found at revision 4.1 with max tracked 4.
-	_, found = tracker.lookup(rev("4.1"), rev("4"))
+	_, found = tracker.lookup(rev("4.0000000001"), rev("4"))
 	require.False(t, found)
 
 	// Ensure the value is found at revision 4.1 when maxed tracked is 5.
@@ -94,7 +94,7 @@ func TestIntervalTrackerBeginningGap(t *testing.T) {
 	require.Equal(t, "first", value)
 
 	// Make sure a request for revision 1-3 (exclusive) with the tracking revision less (since that "update" hasn't "arrived" yet)
-	for _, rv := range []string{"1", "1.1", "2", "2.6", "2.999"} {
+	for _, rv := range []string{"1", "1.0000000001", "2", "2.0000000006", "2.0000000009"} {
 		_, found = tracker.lookup(rev(rv), rev("3"))
 		require.False(t, found)
 	}
@@ -120,22 +120,22 @@ func TestIntervalTrackerOutOfOrderInsertion(t *testing.T) {
 	validate(t, tracker)
 
 	// Make sure a request for revision 1-2 (exclusive) refer to 'first'.
-	for _, rv := range []string{"1", "1.1", "1.999"} {
-		value, found := tracker.lookup(rev(rv), rev("4.1"))
+	for _, rv := range []string{"1", "1.0000000001", "1.0000000009"} {
+		value, found := tracker.lookup(rev(rv), rev("4.0000000001"))
 		require.True(t, found)
 		require.Equal(t, "first", value)
 	}
 
 	// Make sure a request for revision 2-4 (exclusive) refer to 'second'.
-	for _, rv := range []string{"2", "2.5", "3.999"} {
-		value, found := tracker.lookup(rev(rv), rev("4.1"))
+	for _, rv := range []string{"2", "2.0000000005", "3.0000000009"} {
+		value, found := tracker.lookup(rev(rv), rev("4.0000000001"))
 		require.True(t, found)
 		require.Equal(t, "second", value)
 	}
 
 	// Make sure a request for revision 4+ refers to 'four'
-	for _, rv := range []string{"4", "4.01", "4.05", "4.1"} {
-		value, found := tracker.lookup(rev(rv), rev("4.1"))
+	for _, rv := range []string{"4", "4.0000000001", "4.0000000005", "4.0000000009"} {
+		value, found := tracker.lookup(rev(rv), rev("4.0000000009"))
 		require.True(t, found)
 		require.Equal(t, "four", value)
 	}
@@ -145,15 +145,15 @@ func TestIntervalTrackerOutOfOrderInsertion(t *testing.T) {
 	validate(t, tracker)
 
 	// Make sure a request for revision 4-8 (exclusive) refers to 'four'
-	for _, rv := range []string{"4", "4.01", "4.05", "4.1", "7.999"} {
-		value, found := tracker.lookup(rev(rv), rev("8.1"))
+	for _, rv := range []string{"4", "4.0000000001", "4.0000000005", "4.0000000001", "7.0000000009"} {
+		value, found := tracker.lookup(rev(rv), rev("8.0000000001"))
 		require.True(t, found)
 		require.Equal(t, "four", value)
 	}
 
 	// Make sure a request for revision 8+ refers to 'eight'
-	for _, rv := range []string{"8", "8.01", "8.05", "8.1"} {
-		value, found := tracker.lookup(rev(rv), rev("8.1"))
+	for _, rv := range []string{"8", "8.0000000001", "8.0000000005", "8.0000000009"} {
+		value, found := tracker.lookup(rev(rv), rev("8.0000000009"))
 		require.True(t, found)
 		require.Equal(t, "eight", value)
 	}
@@ -291,7 +291,7 @@ func TestIntervalTrackerRealWorldUsage(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "notfound5", value)
 
-	value, found = tracker.lookup(rev("5"), rev("3.5"))
+	value, found = tracker.lookup(rev("5"), rev("3.0000000005"))
 	require.True(t, found)
 	require.Equal(t, "notfound5", value)
 
@@ -299,15 +299,15 @@ func TestIntervalTrackerRealWorldUsage(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "real2", value)
 
-	value, found = tracker.lookup(rev("2"), rev("3.5"))
+	value, found = tracker.lookup(rev("2"), rev("3.0000000005"))
 	require.True(t, found)
 	require.Equal(t, "real2", value)
 
-	value, found = tracker.lookup(rev("3.5"), rev("5"))
+	value, found = tracker.lookup(rev("3.0000000005"), rev("5"))
 	require.True(t, found)
 	require.Equal(t, "real2-again", value)
 
-	value, found = tracker.lookup(rev("3.5"), rev("3.5"))
+	value, found = tracker.lookup(rev("3.0000000005"), rev("3.0000000005"))
 	require.True(t, found)
 	require.Equal(t, "real2-again", value)
 }

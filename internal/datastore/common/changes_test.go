@@ -411,10 +411,10 @@ func TestHLCOrdering(t *testing.T) {
 	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 	require.True(t, ch.IsEmpty())
 
-	rev1, err := revisions.HLCRevisionFromString("1.1")
+	rev1, err := revisions.HLCRevisionFromString("1.0000000001")
 	require.NoError(t, err)
 
-	rev0, err := revisions.HLCRevisionFromString("1.0")
+	rev0, err := revisions.HLCRevisionFromString("1")
 	require.NoError(t, err)
 
 	err = ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_DELETE)
@@ -454,10 +454,10 @@ func TestHLCSameRevision(t *testing.T) {
 	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 	require.True(t, ch.IsEmpty())
 
-	rev0, err := revisions.HLCRevisionFromString("1.0")
+	rev0, err := revisions.HLCRevisionFromString("1")
 	require.NoError(t, err)
 
-	rev0again, err := revisions.HLCRevisionFromString("1.0")
+	rev0again, err := revisions.HLCRevisionFromString("1")
 	require.NoError(t, err)
 
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)

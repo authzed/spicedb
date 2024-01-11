@@ -83,12 +83,12 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.disableReads()
 
 	// Read again, which should now be via the cache.
-	nsDef, _, err = wcache.SnapshotReader(rev("3.5")).ReadNamespaceByName(context.Background(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(context.Background(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
 	// Read via a lookup.
-	nsDefs, err := wcache.SnapshotReader(rev("3.5")).LookupNamespacesWithNames(context.Background(), []string{"somenamespace"})
+	nsDefs, err := wcache.SnapshotReader(rev("3.0000000005")).LookupNamespacesWithNames(context.Background(), []string{"somenamespace"})
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDefs[0].Definition.Name)
 
@@ -96,7 +96,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 	fakeDS.updateNamespace("somenamespace", nil, rev("5"))
 
 	// Re-read at an earlier revision.
-	nsDef, _, err = wcache.SnapshotReader(rev("3.5")).ReadNamespaceByName(context.Background(), "somenamespace")
+	nsDef, _, err = wcache.SnapshotReader(rev("3.0000000005")).ReadNamespaceByName(context.Background(), "somenamespace")
 	require.NoError(t, err)
 	require.Equal(t, "somenamespace", nsDef.Name)
 
