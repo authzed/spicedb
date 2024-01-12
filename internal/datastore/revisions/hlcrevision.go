@@ -13,18 +13,21 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-var zeroHLC = HLCRevision([2]int64{0, 0})
+var zeroHLC = HLCRevision{}
 
 // NOTE: This *must* match the length defined in CRDB or the implementation below will break.
 const logicalClockLength = 10
 
-var logicalClockOffset = int64(math.Pow10(logicalClockLength + 1))
+var logicalClockOffset = uint32(math.Pow10(logicalClockLength + 1))
 
 // HLCRevision is a revision that is a hybrid logical clock, stored as two integers.
 // The first integer is the timestamp in nanoseconds, and the second integer is the
 // logical clock defined as 11 digits, with the first digit being ignored to ensure
 // precision of the given logical clock.
-type HLCRevision [2]int64
+type HLCRevision struct {
+	time         int64
+	logicalclock uint32
+}
 
 // parseHLCRevisionString parses a string into a hybrid logical clock revision.
 func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
@@ -35,7 +38,7 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 		}
-		return HLCRevision([2]int64{timestamp, 0}), nil
+		return HLCRevision{timestamp, 0}, nil
 	}
 
 	if len(pieces) != 2 {
@@ -47,7 +50,7 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 	}
 
-	logicalclock, err := strconv.ParseInt(pieces[1], 10, 64)
+	logicalclock, err := strconv.ParseInt(pieces[1], 10, 32)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 	}
@@ -56,7 +59,7 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, spiceerrors.MustBugf("invalid revision string due to unexpected logical clock size (%d): %q", len(pieces[1]), revisionStr)
 	}
 
-	return HLCRevision([2]int64{timestamp, logicalclock + logicalClockOffset}), nil
+	return HLCRevision{timestamp, uint32(logicalclock) + logicalClockOffset}, nil
 }
 
 // HLCRevisionFromString parses a string into a hybrid logical clock revision.
@@ -77,7 +80,7 @@ func NewForHLC(decimal decimal.Decimal) HLCRevision {
 
 // NewHLCForTime creates a new revision for the given time.
 func NewHLCForTime(time time.Time) HLCRevision {
-	return HLCRevision([2]int64{time.UnixNano(), 0})
+	return HLCRevision{time.UnixNano(), 0}
 }
 
 func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
@@ -86,7 +89,7 @@ func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
 	}
 
 	rhsHLC := rhs.(HLCRevision)
-	return hlc[0] == rhsHLC[0] && hlc[1] == rhsHLC[1]
+	return hlc.time == rhsHLC.time && hlc.logicalclock == rhsHLC.logicalclock
 }
 
 func (hlc HLCRevision) GreaterThan(rhs datastore.Revision) bool {
@@ -95,7 +98,7 @@ func (hlc HLCRevision) GreaterThan(rhs datastore.Revision) bool {
 	}
 
 	rhsHLC := rhs.(HLCRevision)
-	return hlc[0] > rhsHLC[0] || (hlc[0] == rhsHLC[0] && hlc[1] > rhsHLC[1])
+	return hlc.time > rhsHLC.time || (hlc.time == rhsHLC.time && hlc.logicalclock > rhsHLC.logicalclock)
 }
 
 func (hlc HLCRevision) LessThan(rhs datastore.Revision) bool {
@@ -104,36 +107,36 @@ func (hlc HLCRevision) LessThan(rhs datastore.Revision) bool {
 	}
 
 	rhsHLC := rhs.(HLCRevision)
-	return hlc[0] < rhsHLC[0] || (hlc[0] == rhsHLC[0] && hlc[1] < rhsHLC[1])
+	return hlc.time < rhsHLC.time || (hlc.time == rhsHLC.time && hlc.logicalclock < rhsHLC.logicalclock)
 }
 
 func (hlc HLCRevision) String() string {
-	if hlc[1] == 0 {
-		return strconv.FormatInt(hlc[0], 10)
+	if hlc.logicalclock == 0 {
+		return strconv.FormatInt(hlc.time, 10)
 	}
 
-	logicalClockString := strconv.FormatInt(hlc[1]-logicalClockOffset, 10)
-	return strconv.FormatInt(hlc[0], 10) + "." + strings.Repeat("0", logicalClockLength-len(logicalClockString)) + logicalClockString
+	logicalClockString := strconv.FormatInt(int64(hlc.logicalclock)-int64(logicalClockOffset), 10)
+	return strconv.FormatInt(hlc.time, 10) + "." + strings.Repeat("0", logicalClockLength-len(logicalClockString)) + logicalClockString
 }
 
 func (hlc HLCRevision) TimestampNanoSec() int64 {
-	return hlc[0]
+	return hlc.time
 }
 
 func (hlc HLCRevision) InexactFloat64() float64 {
-	if hlc[1] == 0 {
-		return float64(hlc[0])
+	if hlc.logicalclock == 0 {
+		return float64(hlc.time)
 	}
 
-	return float64(hlc[0]) + float64(hlc[1]-logicalClockOffset)/math.Pow10(logicalClockLength)
+	return float64(hlc.time) + float64(hlc.logicalclock-logicalClockOffset)/math.Pow10(logicalClockLength)
 }
 
 func (hlc HLCRevision) ConstructForTimestamp(timestamp int64) WithTimestampRevision {
-	return HLCRevision([2]int64{timestamp, 0})
+	return HLCRevision{timestamp, 0}
 }
 
-func (hlc HLCRevision) IntegerRepresentation() [2]int64 {
-	return hlc
+func (hlc HLCRevision) IntegerRepresentation() (int64, uint32) {
+	return hlc.time, hlc.logicalclock
 }
 
 var (
@@ -142,11 +145,11 @@ var (
 )
 
 // HLCKeyFunc is used to convert a simple HLC for use in maps.
-func HLCKeyFunc(r HLCRevision) [2]int64 {
+func HLCKeyFunc(r HLCRevision) HLCRevision {
 	return r
 }
 
 // HLCKeyLessThanFunc is used to compare keys created by the HLCKeyFunc.
-func HLCKeyLessThanFunc(lhs, rhs [2]int64) bool {
-	return lhs[0] < rhs[0] || (lhs[0] == rhs[0] && lhs[1] < rhs[1])
+func HLCKeyLessThanFunc(lhs, rhs HLCRevision) bool {
+	return lhs.time < rhs.time || (lhs.time == rhs.time && lhs.logicalclock < rhs.logicalclock)
 }

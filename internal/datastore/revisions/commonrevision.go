@@ -82,5 +82,5 @@ type WithTimestampRevision interface {
 // provide an integer representation of the revision.
 type WithIntegerRepresentation interface {
 	datastore.Revision
-	IntegerRepresentation() [2]int64
+	IntegerRepresentation() (int64, uint32)
 }

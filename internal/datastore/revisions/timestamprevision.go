@@ -63,8 +63,8 @@ func (ir TimestampRevision) ConstructForTimestamp(timestamp int64) WithTimestamp
 	return TimestampRevision(timestamp)
 }
 
-func (ir TimestampRevision) IntegerRepresentation() [2]int64 {
-	return [2]int64{int64(ir), 0}
+func (ir TimestampRevision) IntegerRepresentation() (int64, uint32) {
+	return int64(ir), 0
 }
 
 var (
