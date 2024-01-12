@@ -31,18 +31,18 @@ func TestRevisionEqual(t *testing.T) {
 			true,
 		},
 		{
-			"1.1",
+			"1.0000000004",
 			"1",
 			false,
 		},
 		{
 			"1",
-			"1.1",
+			"1.0000000004",
 			false,
 		},
 		{
-			"1.1",
-			"1.1",
+			"1.0000000004",
+			"1.0000000004",
 			true,
 		},
 	}
@@ -97,18 +97,18 @@ func TestRevisionComparison(t *testing.T) {
 			false,
 		},
 		{
-			"1.1",
+			"1.0000000004",
 			"1",
 			true,
 		},
 		{
 			"1",
-			"1.1",
+			"1.0000000004",
 			false,
 		},
 		{
-			"1.1",
-			"1.1",
+			"1.0000000004",
+			"1.0000000004",
 			false,
 		},
 	}
@@ -151,7 +151,7 @@ func TestRevisionComparison(t *testing.T) {
 
 func TestRevisionBidirectionalParsing(t *testing.T) {
 	tcs := []string{
-		"1", "2", "42", "192747564535", "1.1", "1.2", "1.42", "-1235",
+		"1", "2", "42", "192747564535", "1.0000000004", "1.0000000002", "1.0000000042", "-1235",
 	}
 
 	for _, tc := range tcs {
@@ -178,7 +178,7 @@ func TestTimestampRevisionParsing(t *testing.T) {
 		"42":                  false,
 		"1257894000000000000": false,
 		"-1":                  false,
-		"1.23":                true,
+		"1.0000000004":        true,
 	}
 
 	for tc, expectError := range tcs {
@@ -203,7 +203,7 @@ func TestTransactionIDRevisionParsing(t *testing.T) {
 		"42":                  false,
 		"1257894000000000000": false,
 		"-1":                  true,
-		"1.23":                true,
+		"1.0000000004":        true,
 	}
 
 	for tc, expectError := range tcs {
@@ -223,13 +223,13 @@ func TestTransactionIDRevisionParsing(t *testing.T) {
 
 func TestHLCRevisionParsing(t *testing.T) {
 	tcs := map[string]bool{
-		"1":                     false,
-		"2":                     false,
-		"42":                    false,
-		"1257894000000000000":   false,
-		"-1":                    false,
-		"1.23":                  false,
-		"9223372036854775807.2": false,
+		"1":                              false,
+		"2":                              false,
+		"42":                             false,
+		"1257894000000000000":            false,
+		"-1":                             false,
+		"1.0000000004":                   false,
+		"9223372036854775807.0000000004": false,
 	}
 
 	for tc, expectError := range tcs {

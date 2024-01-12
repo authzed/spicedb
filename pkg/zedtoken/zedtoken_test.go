@@ -23,9 +23,17 @@ var encodeRevisionTests = []datastore.Revision{
 	revisions.NewForTransactionID(1621538189028928000),
 }
 
+func mustHLC(str string) datastore.Revision {
+	rev, err := revisions.HLCRevisionFromString(str)
+	if err != nil {
+		panic(err)
+	}
+	return rev
+}
+
 var encodeHLCRevisionTests = []datastore.Revision{
-	revisions.NewForHLC(decimal.New(12345, -2)),
-	revisions.NewForHLC(decimal.New(0, -10)),
+	mustHLC("1235"),
+	mustHLC("1234.0000000001"),
 }
 
 func TestZedTokenEncode(t *testing.T) {
@@ -161,12 +169,6 @@ var hlcDecodeTests = []struct {
 		format:           "V1 ZedToken",
 		token:            "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
 		expectedRevision: revisions.NewForHLC(decimal.NewFromInt(1621538189028928000)),
-		expectError:      false,
-	},
-	{
-		format:           "V1 ZedToken",
-		token:            "CAIaCAoGMTIzLjQ1",
-		expectedRevision: revisions.NewForHLC(decimal.New(12345, -2)),
 		expectError:      false,
 	},
 	{
