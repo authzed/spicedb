@@ -52,6 +52,10 @@ func ObjectTypePrefix(prefix string) ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = &prefix }
 }
 
+func RequirePrefixedObjectType() ObjectPrefixOption {
+	return func(cfg *config) { cfg.objectTypePrefix = nil }
+}
+
 func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
 }
