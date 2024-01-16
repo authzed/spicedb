@@ -208,7 +208,7 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 		if count <= perNodeMax {
 			continue
 		}
-		log.Ctx(ctx).Info().
+		log.Ctx(ctx).Trace().
 			Uint32("node", node).
 			Uint32("poolmaxconns", p.pool.MaxConns()).
 			Uint32("conncount", count).
@@ -228,10 +228,10 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 		}
 
 		for _, c := range healthyConns[node][:numToPrune] {
-			log.Ctx(ctx).Debug().Str("pool", p.pool.ID()).Uint32("node", node).Msg("pruning connection")
+			log.Ctx(ctx).Trace().Str("pool", p.pool.ID()).Uint32("node", node).Msg("pruning connection")
 			p.pool.GC(c.Conn())
 		}
 
-		log.Ctx(ctx).Info().Str("pool", p.pool.ID()).Uint32("node", node).Uint32("prunedCount", numToPrune).Msg("pruned connections")
+		log.Ctx(ctx).Trace().Str("pool", p.pool.ID()).Uint32("node", node).Uint32("prunedCount", numToPrune).Msg("pruned connections")
 	}
 }

@@ -324,7 +324,7 @@ func (p *RetryPool) GC(conn *pgx.Conn) {
 }
 
 func (p *RetryPool) acquireFromDifferentNode(ctx context.Context, nodeID uint32) (*pgxpool.Conn, error) {
-	log.Ctx(ctx).Info().Uint32("node_id", nodeID).Msg("acquiring a connection from a different node")
+	log.Ctx(ctx).Trace().Uint32("node_id", nodeID).Msg("acquiring a connection from a different node")
 	for {
 		conn, err := p.pool.Acquire(ctx)
 		if err != nil {
@@ -342,7 +342,7 @@ func (p *RetryPool) acquireFromDifferentNode(ctx context.Context, nodeID uint32)
 			conn.Release()
 			continue
 		}
-		log.Ctx(ctx).Info().Uint32("old node id", nodeID).Uint32("new node id", id).Msg("acquired a connection from a different node")
+		log.Ctx(ctx).Trace().Uint32("old node id", nodeID).Uint32("new node id", id).Msg("acquired a connection from a different node")
 		return conn, nil
 	}
 }
