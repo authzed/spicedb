@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/go-errors/errors"
 )
 
 // IsInTests returns true if go test is running
@@ -28,5 +30,6 @@ func MustBugf(format string, args ...any) error {
 		panic(fmt.Sprintf(format, args...))
 	}
 
-	return fmt.Errorf("BUG: "+format, args...)
+	e := errors.Errorf(format, args...)
+	return fmt.Errorf("BUG: %s", e.ErrorStack())
 }
