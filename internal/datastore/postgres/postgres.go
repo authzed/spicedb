@@ -547,12 +547,19 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 	}
 
 	if version == headMigration {
+		// Ensure a datastore ID is present. This ensures the tables have not been truncated.
+		uniqueID, err := pgd.datastoreUniqueID(ctx)
+		if err != nil {
+			return datastore.ReadyState{}, fmt.Errorf("database validation failed: %w; if you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported", err)
+		}
+
+		log.Trace().Str("unique_id", uniqueID).Msg("postgres datastore unique ID")
 		return datastore.ReadyState{IsReady: true}, nil
 	}
 
 	return datastore.ReadyState{
 		Message: fmt.Sprintf(
-			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
+			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`. If you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported",
 			version,
 			headMigration,
 		),

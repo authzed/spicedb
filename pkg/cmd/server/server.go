@@ -439,15 +439,17 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		log.Ctx(ctx).Debug().Msg("initializing telemetry collector")
 		registry, err := telemetry.RegisterTelemetryCollector(c.DatastoreConfig.Engine, ds)
 		if err != nil {
-			return nil, fmt.Errorf("unable to initialize telemetry collector: %w", err)
-		}
-
-		telemetryRegistry = registry
-		reporter, err = telemetry.RemoteReporter(
-			telemetryRegistry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("unable to initialize metrics reporter: %w", err)
+			log.Warn().Err(err).Msg("unable to initialize telemetry collector")
+		} else {
+			telemetryRegistry = registry
+			reporter, err = telemetry.RemoteReporter(
+				telemetryRegistry, c.TelemetryEndpoint, c.TelemetryCAOverridePath, c.TelemetryInterval,
+			)
+			if err != nil {
+				log.Warn().Err(err).Msg("unable to initialize telemetry reporter")
+				telemetryRegistry = nil
+				reporter = telemetry.DisabledReporter
+			}
 		}
 	}
 
