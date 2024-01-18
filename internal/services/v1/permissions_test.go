@@ -230,6 +230,13 @@ func TestCheckPermissions(t *testing.T) {
 			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 			codes.OK,
 		},
+		{
+			obj("document", "foo"),
+			"*",
+			sub("user", "bar", ""),
+			v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
+			codes.InvalidArgument,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -506,6 +513,14 @@ func TestLookupResources(t *testing.T) {
 			0,
 			0,
 		},
+		{
+			"document", "*",
+			sub("user", "someuser", ""),
+			[]string{},
+			codes.InvalidArgument,
+			0,
+			0,
+		},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -581,6 +596,7 @@ func TestExpand(t *testing.T) {
 		{"document", "masterplan", "fakerelation", 0, codes.FailedPrecondition},
 		{"fake", "masterplan", "owner", 0, codes.FailedPrecondition},
 		{"document", "", "owner", 1, codes.InvalidArgument},
+		{"document", "somedoc", "*", 1, codes.InvalidArgument},
 	}
 
 	for _, delta := range testTimedeltas {
@@ -814,6 +830,14 @@ func TestLookupSubjects(t *testing.T) {
 			"invalidrel",
 			nil,
 			codes.FailedPrecondition,
+		},
+		{
+			obj("document", "specialplan"),
+			"*",
+			"user",
+			"",
+			nil,
+			codes.InvalidArgument,
 		},
 	}
 
