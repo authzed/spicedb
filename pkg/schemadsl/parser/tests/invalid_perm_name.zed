@@ -1,0 +1,10 @@
+definition org {
+    relation admin: user
+    relation member: user
+
+    permission read = admin + member
+    permission create = admin
+    permission update = admin
+    permission delete = admin
+    permission * = read + create + update + delete
+}

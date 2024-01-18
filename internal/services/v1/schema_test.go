@@ -563,3 +563,25 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 
 	require.True(t, docRevision.GreaterThan(userRevision))
 }
+
+func TestSchemaInvalid(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	// Write a schema that references an invalid type.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition org {
+			relation admin: user
+			relation member: user
+		
+			permission read = admin + member
+			permission create = admin
+			permission update = admin
+			permission delete = admin
+			permission * = read + create + update + delete // <= crash case
+		}`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.ErrorContains(t, err, "found token TokenTypeStar")
+}
