@@ -28,6 +28,18 @@ var (
 				Where(sq.Eq{colRelname: tableTuple})
 )
 
+func (pgd *pgDatastore) datastoreUniqueID(ctx context.Context) (string, error) {
+	idSQL, idArgs, err := queryUniqueID.ToSql()
+	if err != nil {
+		return "", fmt.Errorf("unable to generate query sql: %w", err)
+	}
+
+	var uniqueID string
+	return uniqueID, pgx.BeginTxFunc(ctx, pgd.readPool, pgd.readTxOptions, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, idSQL, idArgs...).Scan(&uniqueID)
+	})
+}
+
 func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	idSQL, idArgs, err := queryUniqueID.ToSql()
 	if err != nil {
