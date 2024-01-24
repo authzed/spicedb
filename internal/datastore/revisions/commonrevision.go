@@ -65,7 +65,7 @@ func (cd CommonDecoder) RevisionFromString(s string) (datastore.Revision, error)
 // WithInexactFloat64 is an interface that can be implemented by a revision to
 // provide an inexact float64 representation of the revision.
 type WithInexactFloat64 interface {
-	// WithInexactFloat64 returns a float64 that is an inexact representation of the
+	// InexactFloat64 returns a float64 that is an inexact representation of the
 	// revision.
 	InexactFloat64() float64
 }

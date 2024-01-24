@@ -23,11 +23,6 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, opt
 	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
-	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
-		errs <- errors.New("schema watch unsupported in MemDB")
-		return updates, errs
-	}
-
 	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
 	if watchBufferWriteTimeout == 0 {
 		watchBufferWriteTimeout = mdb.watchBufferWriteTimeout

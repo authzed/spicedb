@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 
@@ -195,40 +198,72 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		mdb.Lock()
 		defer mdb.Unlock()
 
-		// Record the changes that were made
-		newChanges := datastore.RevisionChanges{
-			Revision:            newRevision,
-			RelationshipChanges: nil,
-		}
+		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 		if tx != nil {
 			for _, change := range tx.Changes() {
-				if change.Table == tableRelationship {
+				switch change.Table {
+				case tableRelationship:
 					if change.After != nil {
 						rt, err := change.After.(*relationship).RelationTuple()
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-						newChanges.RelationshipChanges = append(newChanges.RelationshipChanges, &corev1.RelationTupleUpdate{
-							Operation: corev1.RelationTupleUpdate_TOUCH,
-							Tuple:     rt,
-						})
-					}
-					if change.After == nil && change.Before != nil {
+
+						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, corev1.RelationTupleUpdate_TOUCH); err != nil {
+							return datastore.NoRevision, err
+						}
+					} else if change.After == nil && change.Before != nil {
 						rt, err := change.Before.(*relationship).RelationTuple()
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-						newChanges.RelationshipChanges = append(newChanges.RelationshipChanges, &corev1.RelationTupleUpdate{
-							Operation: corev1.RelationTupleUpdate_DELETE,
-							Tuple:     rt,
-						})
+
+						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, corev1.RelationTupleUpdate_DELETE); err != nil {
+							return datastore.NoRevision, err
+						}
+					} else {
+						return datastore.NoRevision, spiceerrors.MustBugf("unexpected relationship change")
+					}
+				case tableNamespace:
+					if change.After != nil {
+						loaded := &corev1.NamespaceDefinition{}
+						if err := loaded.UnmarshalVT(change.After.(*namespace).configBytes); err != nil {
+							return datastore.NoRevision, err
+						}
+
+						tracked.AddChangedDefinition(ctx, newRevision, loaded)
+					} else if change.After == nil && change.Before != nil {
+						tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
+					} else {
+						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
+					}
+				case tableCaveats:
+					if change.After != nil {
+						loaded := &corev1.CaveatDefinition{}
+						if err := loaded.UnmarshalVT(change.After.(*caveat).definition); err != nil {
+							return datastore.NoRevision, err
+						}
+
+						tracked.AddChangedDefinition(ctx, newRevision, loaded)
+					} else if change.After == nil && change.Before != nil {
+						tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
+					} else {
+						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
 					}
 				}
 			}
 
+			var rc datastore.RevisionChanges
+			changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+			if len(changes) > 1 {
+				return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
+			} else if len(changes) == 1 {
+				rc = changes[0]
+			}
+
 			change := &changelog{
 				revisionNanos: newRevision.TimestampNanoSec(),
-				changes:       newChanges,
+				changes:       rc,
 			}
 			if err := tx.Insert(tableChangelog, change); err != nil {
 				return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
