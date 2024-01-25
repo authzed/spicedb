@@ -169,6 +169,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 var bypassServiceWhitelist = map[string]struct{}{
 	"/grpc.reflection.v1alpha.ServerReflection/": {},
+	"/grpc.reflection.v1.ServerReflection/":      {},
 	"/grpc.health.v1.Health/":                    {},
 }
 
