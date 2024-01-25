@@ -86,7 +86,7 @@ func TestMain(m *testing.M) {
 
 const (
 	createDB       = "CREATE DATABASE %s;"
-	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 10;"
+	setSmallRanges = "ALTER DATABASE %s CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 65536, num_replicas = 1, gc.ttlseconds = 30;"
 	dbName         = "spicedbnetest"
 )
 
