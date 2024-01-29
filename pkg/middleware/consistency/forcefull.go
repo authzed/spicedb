@@ -21,7 +21,7 @@ func ForceFullConsistencyUnaryServerInterceptor(serviceLabel string) grpc.UnaryS
 		}
 		ds := datastoremw.MustFromContext(ctx)
 		newCtx := ContextWithHandle(ctx)
-		if err := setFullConsistencyRevisionToContext(newCtx, req, ds, serviceLabel); err != nil {
+		if err := setFullConsistencyRevisionToContext(newCtx, req, ds, serviceLabel, TreatMismatchingTokensAsFullConsistency); err != nil {
 			return nil, err
 		}
 
@@ -38,12 +38,12 @@ func ForceFullConsistencyStreamServerInterceptor(serviceLabel string) grpc.Strea
 				return handler(srv, stream)
 			}
 		}
-		wrapper := &recvWrapper{stream, ContextWithHandle(stream.Context()), serviceLabel, setFullConsistencyRevisionToContext}
+		wrapper := &recvWrapper{stream, ContextWithHandle(stream.Context()), serviceLabel, TreatMismatchingTokensAsFullConsistency, setFullConsistencyRevisionToContext}
 		return handler(srv, wrapper)
 	}
 }
 
-func setFullConsistencyRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string) error {
+func setFullConsistencyRevisionToContext(ctx context.Context, req any, ds datastore.Datastore, serviceLabel string, _ MismatchingTokenOption) error {
 	handle := ctx.Value(revisionKey)
 	if handle == nil {
 		return nil

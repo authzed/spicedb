@@ -280,7 +280,7 @@ func TestCheckPermissions(t *testing.T) {
 							checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 								Consistency: &v1.Consistency{
 									Requirement: &v1.Consistency_AtLeastAsFresh{
-										AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+										AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 									},
 								},
 								Resource:   tc.resource,
@@ -335,7 +335,7 @@ func TestCheckPermissionWithWildcardSubject(t *testing.T) {
 	_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:   obj("document", "masterplan"),
@@ -361,7 +361,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	checkResp, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:   obj("document", "masterplan"),
@@ -423,7 +423,7 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 	_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:   obj("document", "doc1"),
@@ -656,7 +656,7 @@ func TestLookupResources(t *testing.T) {
 								Subject:            tc.subject,
 								Consistency: &v1.Consistency{
 									Requirement: &v1.Consistency_AtLeastAsFresh{
-										AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+										AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 									},
 								},
 							}, grpc.Trailer(&trailer))
@@ -733,7 +733,7 @@ func TestExpand(t *testing.T) {
 						Permission: tc.startPermission,
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
 					}, grpc.Trailer(&trailer))
@@ -869,7 +869,7 @@ func TestLookupSubjectsWithConcreteLimit(t *testing.T) {
 		SubjectObjectType: "user",
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		OptionalConcreteLimit: 2,
@@ -1003,7 +1003,7 @@ func TestLookupSubjects(t *testing.T) {
 						OptionalSubjectRelation: tc.subjectRelation,
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
 					}, grpc.Trailer(&trailer))
@@ -1051,7 +1051,7 @@ func TestCheckWithCaveats(t *testing.T) {
 	request := &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:   obj("document", "caveatedplan"),
@@ -1163,7 +1163,7 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 			request := &v1.CheckPermissionRequest{
 				Consistency: &v1.Consistency{
 					Requirement: &v1.Consistency_AtLeastAsFresh{
-						AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+						AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 					},
 				},
 				Resource:   obj("document", "firstdoc"),
@@ -1216,7 +1216,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	request := &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		ResourceObjectType: "document",
@@ -1262,7 +1262,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 	request = &v1.LookupResourcesRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		ResourceObjectType: "document",
@@ -1335,7 +1335,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	request := &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1380,7 +1380,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	request = &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1425,7 +1425,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 	request = &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1499,7 +1499,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 	request := &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1538,7 +1538,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 	request = &v1.LookupSubjectsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		Resource:          obj("document", "first"),
@@ -1682,7 +1682,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 									Subject:            tc.subject,
 									Consistency: &v1.Consistency{
 										Requirement: &v1.Consistency_AtLeastAsFresh{
-											AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+											AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 										},
 									},
 									OptionalLimit:  uintLimit,
@@ -1751,7 +1751,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 		Subject:            sub("user", "tom", ""),
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 	})

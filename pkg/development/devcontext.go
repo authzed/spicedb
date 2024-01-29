@@ -167,11 +167,11 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 	s := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			datastoremw.UnaryServerInterceptor(dc.Datastore),
-			consistency.UnaryServerInterceptor("development"),
+			consistency.UnaryServerInterceptor("development", consistency.TreatMismatchingTokensAsError),
 		),
 		grpc.ChainStreamInterceptor(
 			datastoremw.StreamServerInterceptor(dc.Datastore),
-			consistency.StreamServerInterceptor("development"),
+			consistency.StreamServerInterceptor("development", consistency.TreatMismatchingTokensAsError),
 		),
 	)
 	ps := v1svc.NewPermissionsServer(dc.Dispatcher, v1svc.PermissionsServerConfig{

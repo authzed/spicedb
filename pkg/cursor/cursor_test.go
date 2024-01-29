@@ -1,6 +1,7 @@
 package cursor
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -60,7 +61,7 @@ func TestEncodeDecode(t *testing.T) {
 
 			require.Equal(tc.sections, decoded.Sections)
 
-			decodedRev, err := DecodeToDispatchRevision(encoded, revisions.CommonDecoder{
+			decodedRev, _, err := DecodeToDispatchRevision(context.Background(), encoded, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
 			})
 			require.NoError(err)
@@ -138,7 +139,7 @@ func TestDecode(t *testing.T) {
 			require.NotNil(decoded)
 			require.Equal(testCase.expectedSections, decoded.Sections)
 
-			decodedRev, err := DecodeToDispatchRevision(&v1.Cursor{
+			decodedRev, _, err := DecodeToDispatchRevision(context.Background(), &v1.Cursor{
 				Token: testCase.token,
 			}, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
