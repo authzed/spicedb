@@ -18,9 +18,7 @@ const (
 	colUniqueID   = "unique_id"
 )
 
-var (
-	queryReadUniqueID = psql.Select(colUniqueID).From(tableMetadata)
-)
+var queryReadUniqueID = psql.Select(colUniqueID).From(tableMetadata)
 
 func (cds *crdbDatastore) UniqueID(ctx context.Context) (string, error) {
 	if cds.uniqueID.Load() == nil {

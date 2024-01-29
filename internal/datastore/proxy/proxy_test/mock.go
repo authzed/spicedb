@@ -13,10 +13,16 @@ import (
 
 type MockDatastore struct {
 	mock.Mock
+
+	CurrentUniqueID string
 }
 
 func (dm *MockDatastore) UniqueID(_ context.Context) (string, error) {
-	return "mockds", nil
+	if dm.CurrentUniqueID == "" {
+		return "mockds", nil
+	}
+
+	return dm.CurrentUniqueID, nil
 }
 
 func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {

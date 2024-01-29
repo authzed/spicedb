@@ -81,6 +81,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
 		to.StreamingAPITimeout = c.StreamingAPITimeout
 		to.WatchHeartbeat = c.WatchHeartbeat
+		to.MismatchZedTokenBehavior = c.MismatchZedTokenBehavior
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -141,6 +142,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
 	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
 	debugMap["WatchHeartbeat"] = helpers.DebugValue(c.WatchHeartbeat, false)
+	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -493,6 +495,13 @@ func WithStreamingAPITimeout(streamingAPITimeout time.Duration) ConfigOption {
 func WithWatchHeartbeat(watchHeartbeat time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.WatchHeartbeat = watchHeartbeat
+	}
+}
+
+// WithMismatchZedTokenBehavior returns an option that can set MismatchZedTokenBehavior on a Config
+func WithMismatchZedTokenBehavior(mismatchZedTokenBehavior string) ConfigOption {
+	return func(c *Config) {
+		c.MismatchZedTokenBehavior = mismatchZedTokenBehavior
 	}
 }
 
