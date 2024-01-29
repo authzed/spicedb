@@ -360,6 +360,7 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 			Updates: []*v1.RelationshipUpdate{blockusers[i]},
 		})
 		require.NoError(t, err)
+		t.Log("r1 token: ", r1.WrittenAt.Token)
 
 		// sleeping in between the writes seems to let cockroach clear out
 		// pending transactions in the background and has a better chance
@@ -373,6 +374,13 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 			Updates: []*v1.RelationshipUpdate{allowlists[i]},
 		})
 		require.NoError(t, err)
+		t.Log("r2 token: ", r2.WrittenAt.Token)
+
+		z1, _ := zedtoken.DecodeRevision(r1.WrittenAt, revisions.CommonDecoder{Kind: revisions.HybridLogicalClock})
+		z2, _ := zedtoken.DecodeRevision(r2.WrittenAt, revisions.CommonDecoder{Kind: revisions.HybridLogicalClock})
+
+		t.Log("z1 revision: ", z1)
+		t.Log("z2 revision: ", z2)
 
 		canHas, err := spicedb[1].Client().V1().Permissions().CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{Requirement: &v1.Consistency_AtExactSnapshot{AtExactSnapshot: r2.WrittenAt}},
@@ -396,8 +404,6 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 		ns2AllowlistLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), allowlists[i].Relationship.Subject.Object.ObjectType)
 
 		r1leader, r2leader := getLeaderNode(ctx, crdb[2].Conn(), blockusers[i].Relationship), getLeaderNode(ctx, crdb[2].Conn(), allowlists[i].Relationship)
-		z1, _ := zedtoken.DecodeRevision(r1.WrittenAt, revisions.CommonDecoder{Kind: revisions.HybridLogicalClock})
-		z2, _ := zedtoken.DecodeRevision(r2.WrittenAt, revisions.CommonDecoder{Kind: revisions.HybridLogicalClock})
 		t.Log(sleep, z1, z2, z1.GreaterThan(z2), r1leader, r2leader, ns1BlocklistLeader, ns1UserLeader, ns2ResourceLeader, ns2AllowlistLeader)
 
 		if z1.GreaterThan(z2) {
