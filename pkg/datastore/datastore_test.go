@@ -582,6 +582,10 @@ type fakeDatastore struct {
 	delegate Datastore
 }
 
+func (f fakeDatastore) UniqueID(_ context.Context) (string, error) {
+	return "fake", nil
+}
+
 func (f fakeDatastore) Unwrap() Datastore {
 	return f.delegate
 }

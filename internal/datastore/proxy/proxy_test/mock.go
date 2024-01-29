@@ -15,6 +15,10 @@ type MockDatastore struct {
 	mock.Mock
 }
 
+func (dm *MockDatastore) UniqueID(_ context.Context) (string, error) {
+	return "mockds", nil
+}
+
 func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	args := dm.Called(rev)
 	return args.Get(0).(datastore.Reader)

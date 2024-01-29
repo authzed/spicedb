@@ -459,6 +459,11 @@ func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptio
 
 // Datastore represents tuple access for a single namespace.
 type Datastore interface {
+	// UniqueID returns a unique identifier for the datastore. This identifier
+	// must be stable across restarts of the datastore if the datastore is
+	// persistent.
+	UniqueID(context.Context) (string, error)
+
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader
