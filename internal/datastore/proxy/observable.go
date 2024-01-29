@@ -74,6 +74,10 @@ func (p *observableProxy) MetricsID() (string, error) {
 	return p.delegate.MetricsID()
 }
 
+func (p *observableProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(ctx)
+}
+
 func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.delegate.SnapshotReader(rev)
 	return &observableReader{delegateReader}
