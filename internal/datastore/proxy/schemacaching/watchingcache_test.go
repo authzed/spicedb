@@ -336,6 +336,10 @@ func (fds *fakeDatastore) MetricsID() (string, error) {
 	return "fake", nil
 }
 
+func (fds *fakeDatastore) UniqueID(_ context.Context) (string, error) {
+	return "fakedsforwatch", nil
+}
+
 func (fds *fakeDatastore) updateNamespace(name string, def *corev1.NamespaceDefinition, revision datastore.Revision) {
 	fds.lock.Lock()
 	defer fds.lock.Unlock()
