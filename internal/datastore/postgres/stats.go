@@ -29,16 +29,25 @@ var (
 				Where(sq.Eq{colRelname: schema.TableTuple})
 )
 
-func (pgd *pgDatastore) datastoreUniqueID(ctx context.Context) (string, error) {
-	idSQL, idArgs, err := queryUniqueID.ToSql()
-	if err != nil {
-		return "", fmt.Errorf("unable to generate query sql: %w", err)
+func (pgd *pgDatastore) UniqueID(ctx context.Context) (string, error) {
+	if pgd.uniqueID.Load() == nil {
+		idSQL, idArgs, err := queryUniqueID.ToSql()
+		if err != nil {
+			return "", fmt.Errorf("unable to generate query sql: %w", err)
+		}
+
+		var uniqueID string
+		if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgd.readTxOptions, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, idSQL, idArgs...).Scan(&uniqueID)
+		}); err != nil {
+			return "", fmt.Errorf("unable to query unique ID: %w", err)
+		}
+
+		pgd.uniqueID.Store(&uniqueID)
+		return uniqueID, nil
 	}
 
-	var uniqueID string
-	return uniqueID, pgx.BeginTxFunc(ctx, pgd.readPool, pgd.readTxOptions, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, idSQL, idArgs...).Scan(&uniqueID)
-	})
+	return *pgd.uniqueID.Load(), nil
 }
 
 func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {

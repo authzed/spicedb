@@ -110,6 +110,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 		runner = parallel
 	}
 
+	t.Run("TestUniqueID", func(t *testing.T) { runner(tester, UniqueIDTest) })
 	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
 
 	t.Run("TestNamespaceNotFound", runner(tester, NamespaceNotFoundTest))

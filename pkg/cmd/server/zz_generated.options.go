@@ -95,6 +95,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
 		to.EnableRevisionHeartbeat = c.EnableRevisionHeartbeat
 		to.EnablePerformanceInsightMetrics = c.EnablePerformanceInsightMetrics
+		to.MismatchZedTokenBehavior = c.MismatchZedTokenBehavior
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -169,6 +170,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
 	debugMap["EnableRevisionHeartbeat"] = helpers.DebugValue(c.EnableRevisionHeartbeat, false)
 	debugMap["EnablePerformanceInsightMetrics"] = helpers.DebugValue(c.EnablePerformanceInsightMetrics, false)
+	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -627,6 +629,13 @@ func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
 func WithEnablePerformanceInsightMetrics(enablePerformanceInsightMetrics bool) ConfigOption {
 	return func(c *Config) {
 		c.EnablePerformanceInsightMetrics = enablePerformanceInsightMetrics
+	}
+}
+
+// WithMismatchZedTokenBehavior returns an option that can set MismatchZedTokenBehavior on a Config
+func WithMismatchZedTokenBehavior(mismatchZedTokenBehavior string) ConfigOption {
+	return func(c *Config) {
+		c.MismatchZedTokenBehavior = mismatchZedTokenBehavior
 	}
 }
 

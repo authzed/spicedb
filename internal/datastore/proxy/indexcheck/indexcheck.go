@@ -52,6 +52,10 @@ func (p *indexcheckingProxy) MetricsID() (string, error) {
 	return p.delegate.MetricsID()
 }
 
+func (p *indexcheckingProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(ctx)
+}
+
 func (p *indexcheckingProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
 	return p.delegate.OptimizedRevision(ctx)
 }

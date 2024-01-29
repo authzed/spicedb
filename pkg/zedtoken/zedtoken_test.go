@@ -42,10 +42,9 @@ func TestZedTokenEncode(t *testing.T) {
 		rev := rev
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
-			encoded, err := NewFromRevision(rev)
-			require.NoError(err)
+			encoded := MustNewFromRevisionForTesting(rev)
 
-			decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
+			decoded, _, err := DecodeRevision(encoded, revisions.CommonDecoder{
 				Kind: revisions.TransactionID,
 			})
 			require.NoError(err)
@@ -59,10 +58,9 @@ func TestZedTokenEncodeHLC(t *testing.T) {
 		rev := rev
 		t.Run(rev.String(), func(t *testing.T) {
 			require := require.New(t)
-			encoded, err := NewFromRevision(rev)
-			require.NoError(err)
+			encoded := MustNewFromRevisionForTesting(rev)
 
-			decoded, err := DecodeRevision(encoded, revisions.CommonDecoder{
+			decoded, _, err := DecodeRevision(encoded, revisions.CommonDecoder{
 				Kind: revisions.HybridLogicalClock,
 			})
 			require.NoError(err)
@@ -72,64 +70,91 @@ func TestZedTokenEncodeHLC(t *testing.T) {
 }
 
 var decodeTests = []struct {
-	format           string
-	token            string
-	expectedRevision datastore.Revision
-	expectError      bool
+	format            string
+	token             string
+	datastoreUniqueID string
+	expectedRevision  datastore.Revision
+	expectedStatus    TokenStatus
+	expectError       bool
 }{
 	{
 		format:           "invalid",
 		token:            "abc",
 		expectedRevision: datastore.NoRevision,
+		expectedStatus:   StatusUnknown,
 		expectError:      true,
 	},
 	{
 		format:           "V1 Zookie",
 		token:            "CAESAA==",
 		expectedRevision: revisions.NewForTransactionID(0),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 Zookie",
 		token:            "CAESAggB",
 		expectedRevision: revisions.NewForTransactionID(1),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 Zookie",
 		token:            "CAESAggC",
 		expectedRevision: revisions.NewForTransactionID(2),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 Zookie",
 		token:            "CAESAwiAAg==",
 		expectedRevision: revisions.NewForTransactionID(256),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 Zookie",
 		token:            "CAIaAwoBMA==",
 		expectedRevision: revisions.NewForTransactionID(0),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 ZedToken",
 		token:            "CAIaAwoBMQ==",
 		expectedRevision: revisions.NewForTransactionID(1),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 ZedToken",
 		token:            "CAIaAwoBMg==",
 		expectedRevision: revisions.NewForTransactionID(2),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
 	},
 	{
 		format:           "V1 ZedToken",
 		token:            "CAIaAwoBNA==",
 		expectedRevision: revisions.NewForTransactionID(4),
+		expectedStatus:   StatusLegacyEmptyDatastoreID,
 		expectError:      false,
+	},
+	{
+		format:            "V1 ZedToken with matching datastore unique ID",
+		token:             "Gg4KAjQyEghzb21ldW5pcQ==",
+		datastoreUniqueID: "someuniqueid",
+		expectedRevision:  revisions.NewForTransactionID(42),
+		expectedStatus:    StatusValid,
+		expectError:       false,
+	},
+	{
+		format:            "V1 ZedToken with mismatched datastore unique ID",
+		token:             "Gg4KAjQyEghzb21ldW5pcQ==",
+		datastoreUniqueID: "anotheruniqueid",
+		expectedRevision:  revisions.NewForTransactionID(42),
+		expectedStatus:    StatusMismatchedDatastoreID,
+		expectError:       false,
 	},
 }
 
@@ -140,15 +165,17 @@ func TestDecode(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
-			decoded, err := DecodeRevision(&v1.ZedToken{
+			decoded, status, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
 			}, revisions.CommonDecoder{
-				Kind: revisions.TransactionID,
+				DatastoreUniqueID: testCase.datastoreUniqueID,
+				Kind:              revisions.TransactionID,
 			})
 			if testCase.expectError {
 				require.Error(err)
 			} else {
 				require.NoError(err)
+				require.Equal(testCase.expectedStatus, status)
 				require.True(
 					testCase.expectedRevision.Equal(decoded),
 					"%s != %s",
@@ -161,14 +188,17 @@ func TestDecode(t *testing.T) {
 }
 
 var hlcDecodeTests = []struct {
-	format           string
-	token            string
-	expectedRevision datastore.Revision
-	expectError      bool
+	format            string
+	token             string
+	datastoreUniqueID string
+	expectedRevision  datastore.Revision
+	expectedStatus    TokenStatus
+	expectError       bool
 }{
 	{
-		format: "V1 ZedToken",
-		token:  "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
+		format:         "V1 ZedToken",
+		token:          "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
+		expectedStatus: StatusLegacyEmptyDatastoreID,
 		expectedRevision: func() datastore.Revision {
 			r, err := revisions.NewForHLC(decimal.NewFromInt(1621538189028928000))
 			if err != nil {
@@ -176,11 +206,47 @@ var hlcDecodeTests = []struct {
 			}
 			return r
 		}(),
+	},
+	{
+		format:         "V1 ZedToken",
+		token:          "GiAKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMQ==",
+		expectedStatus: StatusLegacyEmptyDatastoreID,
+		expectedRevision: (func() datastore.Revision {
+			v, err := decimal.NewFromString("1693540940373045727.0000000001")
+			if err != nil {
+				panic(err)
+			}
+			r, err := revisions.NewForHLC(v)
+			if err != nil {
+				panic(err)
+			}
+			return r
+		})(),
 		expectError: false,
 	},
 	{
-		format: "V1 ZedToken",
-		token:  "GiAKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMQ==",
+		format:            "V1 ZedToken with matching datastore unique ID",
+		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
+		datastoreUniqueID: "6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
+		expectedStatus:    StatusValid,
+		expectedRevision: (func() datastore.Revision {
+			v, err := decimal.NewFromString("1693540940373045727.0000000001")
+			if err != nil {
+				panic(err)
+			}
+			r, err := revisions.NewForHLC(v)
+			if err != nil {
+				panic(err)
+			}
+			return r
+		})(),
+		expectError: false,
+	},
+	{
+		format:            "V1 ZedToken with mismatched datastore unique ID",
+		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
+		datastoreUniqueID: "arrrg-6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
+		expectedStatus:    StatusMismatchedDatastoreID,
 		expectedRevision: (func() datastore.Revision {
 			v, err := decimal.NewFromString("1693540940373045727.0000000001")
 			if err != nil {
@@ -205,15 +271,17 @@ func TestHLCDecode(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
-			decoded, err := DecodeRevision(&v1.ZedToken{
+			decoded, status, err := DecodeRevision(&v1.ZedToken{
 				Token: testCase.token,
 			}, revisions.CommonDecoder{
-				Kind: revisions.HybridLogicalClock,
+				DatastoreUniqueID: testCase.datastoreUniqueID,
+				Kind:              revisions.HybridLogicalClock,
 			})
 			if testCase.expectError {
 				require.Error(err)
 			} else {
 				require.NoError(err)
+				require.Equal(testCase.expectedStatus, status)
 				require.True(
 					testCase.expectedRevision.Equal(decoded),
 					"%s != %s",
