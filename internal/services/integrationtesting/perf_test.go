@@ -58,7 +58,7 @@ func TestBurst(t *testing.T) {
 					_, err := client.CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 						Consistency: &v1.Consistency{
 							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+								AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 							},
 						},
 						Resource:   rel.Resource,

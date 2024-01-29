@@ -97,9 +97,14 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 		DispatchCount: dispatchCount,
 	})
 
+	zedToken, err := zedtoken.NewFromRevision(ctx, headRevision, ds)
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
+	}
+
 	return &v1.ReadSchemaResponse{
 		SchemaText: schemaText,
-		ReadAt:     zedtoken.MustNewFromRevision(headRevision),
+		ReadAt:     zedToken,
 	}, nil
 }
 
@@ -145,7 +150,12 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
+	}
+
 	return &v1.WriteSchemaResponse{
-		WrittenAt: zedtoken.MustNewFromRevision(revision),
+		WrittenAt: zedToken,
 	}, nil
 }

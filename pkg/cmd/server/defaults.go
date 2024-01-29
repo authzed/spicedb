@@ -169,14 +169,15 @@ const (
 )
 
 type MiddlewareOption struct {
-	logger                zerolog.Logger
-	authFunc              grpcauth.AuthFunc
-	enableVersionResponse bool
-	dispatcher            dispatch.Dispatcher
-	ds                    datastore.Datastore
-	enableRequestLog      bool
-	enableResponseLog     bool
-	disableGRPCHistogram  bool
+	logger                    zerolog.Logger
+	authFunc                  grpcauth.AuthFunc
+	enableVersionResponse     bool
+	dispatcher                dispatch.Dispatcher
+	ds                        datastore.Datastore
+	enableRequestLog          bool
+	enableResponseLog         bool
+	disableGRPCHistogram      bool
+	mismatchingZedTokenOption consistencymw.MismatchingTokenOption
 }
 
 // gRPCMetricsUnaryInterceptor creates the default prometheus metrics interceptor for unary gRPCs
@@ -276,7 +277,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInternal(true).
-			WithInterceptor(consistencymw.UnaryServerInterceptor()).
+			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.mismatchingZedTokenOption)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -354,7 +355,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInternal(true).
-			WithInterceptor(consistencymw.StreamServerInterceptor()).
+			WithInterceptor(consistencymw.StreamServerInterceptor(opts.mismatchingZedTokenOption)).
 			Done(),
 
 		NewStreamMiddleware().

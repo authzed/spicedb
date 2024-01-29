@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -55,19 +56,39 @@ func RevisionFromContext(ctx context.Context) (datastore.Revision, *v1.ZedToken,
 		handle := c.(*revisionHandle)
 		rev := handle.revision
 		if rev != nil {
-			return rev, zedtoken.MustNewFromRevision(rev), nil
+			ds := datastoremw.FromContext(ctx)
+			if ds == nil {
+				return nil, nil, spiceerrors.MustBugf("consistency middleware did not inject datastore")
+			}
+
+			zedToken, err := zedtoken.NewFromRevision(ctx, rev, ds)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return rev, zedToken, nil
 		}
 	}
 
 	return nil, nil, fmt.Errorf("consistency middleware did not inject revision")
 }
 
+type MismatchingTokenOption int
+
+const (
+	TreatMismatchingTokensAsFullConsistency MismatchingTokenOption = iota
+
+	TreatMismatchingTokensAsMinLatency
+
+	TreatMismatchingTokensAsError
+)
+
 // AddRevisionToContext adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
-func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore) error {
+func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Datastore, option MismatchingTokenOption) error {
 	switch req := req.(type) {
 	case hasConsistency:
-		return addRevisionToContextFromConsistency(ctx, req, ds)
+		return addRevisionToContextFromConsistency(ctx, req, ds, option)
 	default:
 		return nil
 	}
@@ -75,7 +96,7 @@ func AddRevisionToContext(ctx context.Context, req interface{}, ds datastore.Dat
 
 // addRevisionToContextFromConsistency adds a revision to the given context, based on the consistency block found
 // in the given request (if applicable).
-func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency, ds datastore.Datastore) error {
+func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency, ds datastore.Datastore, option MismatchingTokenOption) error {
 	handle := ctx.Value(revisionKey)
 	if handle == nil {
 		return nil
@@ -91,7 +112,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		// Always use the revision encoded in the cursor.
 		ConsistentyCounter.WithLabelValues("snapshot", "cursor").Inc()
 
-		requestedRev, err := cursor.DecodeToDispatchRevision(withOptionalCursor.GetOptionalCursor(), ds)
+		requestedRev, _, err := cursor.DecodeToDispatchRevision(ctx, withOptionalCursor.GetOptionalCursor(), ds)
 		if err != nil {
 			return rewriteDatastoreError(ctx, err)
 		}
@@ -130,7 +151,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	case consistency.GetAtLeastAsFresh() != nil:
 		// At least as fresh as: Pick one of the datastore's revision and that specified, which
 		// ever is later.
-		picked, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
+		picked, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds, option)
 		if err != nil {
 			return rewriteDatastoreError(ctx, err)
 		}
@@ -147,9 +168,14 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		// Exact snapshot: Use the revision as encoded in the zed token.
 		ConsistentyCounter.WithLabelValues("snapshot", "request").Inc()
 
-		requestedRev, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot(), ds)
+		requestedRev, status, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot(), ds)
 		if err != nil {
 			return errInvalidZedToken
+		}
+
+		if status == zedtoken.StatusMismatchedDatastoreID {
+			log.Error().Str("zedtoken", consistency.GetAtExactSnapshot().Token).Msg("ZedToken specified references an older datastore but at-exact-snapshot was requested")
+			return fmt.Errorf("ZedToken specified references an older datastore but at-exact-snapshot was requested")
 		}
 
 		err = ds.CheckRevision(ctx, requestedRev)
@@ -175,7 +201,7 @@ var bypassServiceWhitelist = map[string]struct{}{
 
 // UnaryServerInterceptor returns a new unary server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
-func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
+func UnaryServerInterceptor(option MismatchingTokenOption) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
@@ -184,7 +210,7 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		}
 		ds := datastoremw.MustFromContext(ctx)
 		newCtx := ContextWithHandle(ctx)
-		if err := AddRevisionToContext(newCtx, req, ds); err != nil {
+		if err := AddRevisionToContext(newCtx, req, ds, option); err != nil {
 			return nil, err
 		}
 
@@ -194,21 +220,22 @@ func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 
 // StreamServerInterceptor returns a new stream server interceptor that performs per-request exchange of
 // the specified consistency configuration for the revision at which to perform the request.
-func StreamServerInterceptor() grpc.StreamServerInterceptor {
+func StreamServerInterceptor(option MismatchingTokenOption) grpc.StreamServerInterceptor {
 	return func(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		for bypass := range bypassServiceWhitelist {
 			if strings.HasPrefix(info.FullMethod, bypass) {
 				return handler(srv, stream)
 			}
 		}
-		wrapper := &recvWrapper{stream, ContextWithHandle(stream.Context())}
+		wrapper := &recvWrapper{stream, ContextWithHandle(stream.Context()), option}
 		return handler(srv, wrapper)
 	}
 }
 
 type recvWrapper struct {
 	grpc.ServerStream
-	ctx context.Context
+	ctx    context.Context
+	option MismatchingTokenOption
 }
 
 func (s *recvWrapper) Context() context.Context { return s.ctx }
@@ -219,12 +246,12 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 	}
 	ds := datastoremw.MustFromContext(s.ctx)
 
-	return AddRevisionToContext(s.ctx, m, ds)
+	return AddRevisionToContext(s.ctx, m, ds, s.option)
 }
 
 // pickBestRevision compares the provided ZedToken with the optimized revision of the datastore, and returns the most
 // recent one. The boolean return value will be true if the provided ZedToken is the most recent, false otherwise.
-func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (datastore.Revision, bool, error) {
+func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore, option MismatchingTokenOption) (datastore.Revision, bool, error) {
 	// Calculate a revision as we see fit
 	databaseRev, err := ds.OptimizedRevision(ctx)
 	if err != nil {
@@ -232,9 +259,33 @@ func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.
 	}
 
 	if requested != nil {
-		requestedRev, err := zedtoken.DecodeRevision(requested, ds)
+		requestedRev, status, err := zedtoken.DecodeRevision(requested, ds)
 		if err != nil {
 			return datastore.NoRevision, false, errInvalidZedToken
+		}
+
+		if status == zedtoken.StatusMismatchedDatastoreID {
+			switch option {
+			case TreatMismatchingTokensAsFullConsistency:
+				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references an older datastore and SpiceDB is configured to treat this as a full consistency request")
+				headRev, err := ds.HeadRevision(ctx)
+				if err != nil {
+					return datastore.NoRevision, false, err
+				}
+
+				return headRev, false, nil
+
+			case TreatMismatchingTokensAsMinLatency:
+				log.Warn().Str("zedtoken", requested.Token).Msg("ZedToken specified references an older datastore and SpiceDB is configured to treat this as a min latency request")
+				return databaseRev, false, nil
+
+			case TreatMismatchingTokensAsError:
+				log.Error().Str("zedtoken", requested.Token).Msg("ZedToken specified references an older datastore and SpiceDB is configured to raise an error in this scenario")
+				return datastore.NoRevision, false, fmt.Errorf("ZedToken specified references an older datastore and SpiceDB is configured to raise an error in this scenario")
+
+			default:
+				return datastore.NoRevision, false, spiceerrors.MustBugf("unknown mismatching token option: %v", option)
+			}
 		}
 
 		if databaseRev.GreaterThan(requestedRev) {
