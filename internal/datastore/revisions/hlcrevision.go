@@ -73,9 +73,13 @@ func HLCRevisionFromString(revisionStr string) (HLCRevision, error) {
 }
 
 // NewForHLC creates a new revision for the given hybrid logical clock.
-func NewForHLC(decimal decimal.Decimal) HLCRevision {
-	rev, _ := HLCRevisionFromString(decimal.String())
-	return rev
+func NewForHLC(decimal decimal.Decimal) (HLCRevision, error) {
+	rev, err := HLCRevisionFromString(decimal.String())
+	if err != nil {
+		return zeroHLC, fmt.Errorf("invalid HLC decimal: %v (%s) => %w", decimal, decimal.String(), err)
+	}
+
+	return rev, nil
 }
 
 // NewHLCForTime creates a new revision for the given time.

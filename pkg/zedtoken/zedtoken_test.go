@@ -166,10 +166,16 @@ var hlcDecodeTests = []struct {
 	expectError      bool
 }{
 	{
-		format:           "V1 ZedToken",
-		token:            "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
-		expectedRevision: revisions.NewForHLC(decimal.NewFromInt(1621538189028928000)),
-		expectError:      false,
+		format: "V1 ZedToken",
+		token:  "CAIaFQoTMTYyMTUzODE4OTAyODkyODAwMA==",
+		expectedRevision: func() datastore.Revision {
+			r, err := revisions.NewForHLC(decimal.NewFromInt(1621538189028928000))
+			if err != nil {
+				panic(err)
+			}
+			return r
+		}(),
+		expectError: false,
 	},
 	{
 		format: "V1 ZedToken",
@@ -179,7 +185,13 @@ var hlcDecodeTests = []struct {
 			if err != nil {
 				panic(err)
 			}
-			return revisions.NewForHLC(v)
+
+			r, err := revisions.NewForHLC(v)
+			if err != nil {
+				panic(err)
+			}
+
+			return r
 		})(),
 		expectError: false,
 	},

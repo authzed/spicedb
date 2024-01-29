@@ -105,5 +105,5 @@ func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (datastore.Revi
 		return datastore.NoRevision, fmt.Errorf("unable to executed upsert counter query: %w", err)
 	}
 
-	return revisions.NewForHLC(timestamp), nil
+	return revisions.NewForHLC(timestamp)
 }

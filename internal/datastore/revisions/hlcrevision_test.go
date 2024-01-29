@@ -24,7 +24,8 @@ func TestNewForHLC(t *testing.T) {
 			d, err := decimal.NewFromString(tc)
 			require.NoError(t, err)
 
-			rev := NewForHLC(d)
+			rev, err := NewForHLC(d)
+			require.NoError(t, err)
 			require.Equal(t, tc, rev.String())
 		})
 	}
