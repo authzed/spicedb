@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -91,6 +92,7 @@ type spannerDatastore struct {
 	cachedEstimatedBytesPerRelationship     uint64
 
 	tableSizesStatsTable string
+	uniqueID             atomic.Pointer[string]
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
