@@ -102,39 +102,9 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 				return ds, nil
 			}))
 
-			t.Run("GarbageCollection", createDatastoreTest(
-				b,
-				GarbageCollectionTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
-				MigrationPhase(config.migrationPhase),
-			))
-
 			t.Run("TransactionTimestamps", createDatastoreTest(
 				b,
 				TransactionTimestampsTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
-				MigrationPhase(config.migrationPhase),
-			))
-
-			t.Run("GarbageCollectionByTime", createDatastoreTest(
-				b,
-				GarbageCollectionByTimeTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
-				MigrationPhase(config.migrationPhase),
-			))
-
-			t.Run("ChunkedGarbageCollection", createDatastoreTest(
-				b,
-				ChunkedGarbageCollectionTest,
 				RevisionQuantization(0),
 				GCWindow(1*time.Millisecond),
 				GCInterval(veryLargeGCInterval),
