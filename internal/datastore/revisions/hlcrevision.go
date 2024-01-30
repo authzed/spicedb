@@ -50,13 +50,14 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 	}
 
-	logicalclock, err := strconv.ParseInt(pieces[1], 10, 32)
-	if err != nil {
-		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
+	if len(pieces[1]) > logicalClockLength {
+		return datastore.NoRevision, spiceerrors.MustBugf("invalid revision string due to unexpected logical clock size (%d): %q", len(pieces[1]), revisionStr)
 	}
 
-	if len(pieces[1]) != logicalClockLength {
-		return datastore.NoRevision, spiceerrors.MustBugf("invalid revision string due to unexpected logical clock size (%d): %q", len(pieces[1]), revisionStr)
+	paddedLogicalClockStr := pieces[1] + strings.Repeat("0", logicalClockLength-len(pieces[1]))
+	logicalclock, err := strconv.ParseInt(paddedLogicalClockStr, 10, 32)
+	if err != nil {
+		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 	}
 
 	return HLCRevision{timestamp, uint32(logicalclock) + logicalClockOffset}, nil
@@ -73,9 +74,13 @@ func HLCRevisionFromString(revisionStr string) (HLCRevision, error) {
 }
 
 // NewForHLC creates a new revision for the given hybrid logical clock.
-func NewForHLC(decimal decimal.Decimal) HLCRevision {
-	rev, _ := HLCRevisionFromString(decimal.String())
-	return rev
+func NewForHLC(decimal decimal.Decimal) (HLCRevision, error) {
+	rev, err := HLCRevisionFromString(decimal.String())
+	if err != nil {
+		return zeroHLC, fmt.Errorf("invalid HLC decimal: %v (%s) => %w", decimal, decimal.String(), err)
+	}
+
+	return rev, nil
 }
 
 // NewHLCForTime creates a new revision for the given time.

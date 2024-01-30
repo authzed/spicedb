@@ -478,7 +478,7 @@ func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore
 		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
 	}
 
-	return revisions.NewForHLC(hlcNow), nil
+	return revisions.NewForHLC(hlcNow)
 }
 
 func readClusterTTLNanos(ctx context.Context, conn pgxcommon.DBFuncQuerier) (int64, error) {
