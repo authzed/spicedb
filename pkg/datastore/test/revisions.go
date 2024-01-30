@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -169,4 +170,58 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(ds.CheckRevision(ctx, newerRev), "expected newer head revision to be within GC Window")
 	require.Error(ds.CheckRevision(ctx, previousRev), "expected revision head-1 to be outside GC Window")
+}
+
+func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
+	require.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var previous datastore.Revision
+	for i := 0; i < 50; i++ {
+		head, err := ds.HeadRevision(ctx)
+		require.NoError(err)
+		require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
+
+		if previous != nil {
+			require.True(head.GreaterThan(previous) || head.Equal(previous))
+		}
+
+		previous = head
+	}
+}
+
+func ConcurrentRevisionsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, 10*time.Second, 300*time.Minute, 1)
+	require.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(10)
+
+	startingRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer wg.Done()
+
+			for i := 0; i < 5; i++ {
+				head, err := ds.HeadRevision(ctx)
+				require.NoError(err)
+				require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
+				require.True(head.GreaterThan(startingRev) || head.Equal(startingRev))
+			}
+		}()
+	}
+
+	wg.Wait()
 }

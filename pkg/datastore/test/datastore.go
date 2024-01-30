@@ -113,6 +113,8 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
+	t.Run("TestSequentialRevisions", func(t *testing.T) { SequentialRevisionsTest(t, tester) })
+	t.Run("TestConcurrentRevisions", func(t *testing.T) { ConcurrentRevisionsTest(t, tester) })
 
 	if !except.GC() {
 		t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
