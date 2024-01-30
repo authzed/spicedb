@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -127,11 +128,31 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 	)
 }
 
+const (
+	retryCount         = 3
+	timeBetweenRetries = 100 * time.Millisecond
+)
+
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	connectStr := b.NewDatabase(t)
 
-	migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr)
-	require.NoError(t, err)
+	var migrationDriver *pgmigrations.AlembicPostgresDriver
+	for i := 0; i < retryCount; i++ {
+		md, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr)
+		if err == nil {
+			migrationDriver = md
+			break
+		}
+
+		if i == retryCount-1 {
+			require.NoError(t, err, "got error when trying to create migration driver")
+		}
+
+		time.Sleep(timeBetweenRetries)
+	}
+
+	require.NotNil(t, migrationDriver, "failed to create migration driver")
+
 	ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
 	require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
 
