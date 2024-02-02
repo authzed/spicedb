@@ -44,7 +44,7 @@ require (
 	github.com/influxdata/tdigest v0.0.1
 	github.com/jackc/pgio v1.0.0
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
-	github.com/jackc/pgx/v5 v5.4.3
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20230914150226-f005f5cc03aa
 	github.com/jzelinskie/cobrautil/v2 v2.0.0-20231016191810-9f8a4f6d038a
 	github.com/jzelinskie/stringz v0.0.3
