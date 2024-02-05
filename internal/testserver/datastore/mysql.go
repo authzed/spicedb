@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/mysql/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
@@ -52,7 +53,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	containerImageTag := "8"
+	containerImageTag := version.MinimumSupportedMySQLVersion
 
 	name := fmt.Sprintf("mysql-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
