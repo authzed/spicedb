@@ -143,3 +143,42 @@ func TestRemoteClockCheckRevisions(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoteClockStalenessBeyondGC(t *testing.T) {
+	// Set a GC window of 1 hour.
+	gcWindow := 1 * time.Hour
+
+	// Set a max revision staleness of 100 hours, well in excess of the GC window.
+	maxRevisionStaleness := 100 * time.Hour
+
+	rcr := NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, 0, 0)
+
+	remoteClock := clock.NewMock()
+	rcr.clockFn = remoteClock
+	rcr.SetNowFunc(func(ctx context.Context) (datastore.Revision, error) {
+		log.Debug().Stringer("now", remoteClock.Now()).Msg("current remote time")
+		return NewForTime(remoteClock.Now()), nil
+	})
+
+	// Set the current time to 1.
+	currentTime := int64(1)
+	remoteClock.Set(time.Unix(currentTime, 0))
+
+	// Call optimized revision.
+	optimized, err := rcr.OptimizedRevision(context.Background())
+	require.NoError(t, err)
+
+	// Ensure the optimized revision is not past the GC window.
+	err = rcr.CheckRevision(context.Background(), optimized)
+	require.NoError(t, err)
+
+	// Set the current time to 100001 to ensure the optimized revision is past the GC window.
+	remoteClock.Set(time.Unix(100001, 0))
+
+	newOptimized, err := rcr.OptimizedRevision(context.Background())
+	require.NoError(t, err)
+
+	// Ensure the new optimized revision is not past the GC window.
+	err = rcr.CheckRevision(context.Background(), newOptimized)
+	require.NoError(t, err)
+}
