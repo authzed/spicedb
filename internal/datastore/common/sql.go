@@ -351,47 +351,49 @@ func (sqf SchemaQueryFilterer) MustFilterWithRelationshipsFilter(filter datastor
 }
 
 func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) (SchemaQueryFilterer, error) {
+	csqf := sqf
+
 	if filter.OptionalResourceType != "" {
-		sqf = sqf.FilterToResourceType(filter.OptionalResourceType)
+		csqf = csqf.FilterToResourceType(filter.OptionalResourceType)
 	}
 
 	if filter.OptionalResourceRelation != "" {
-		sqf = sqf.FilterToRelation(filter.OptionalResourceRelation)
+		csqf = csqf.FilterToRelation(filter.OptionalResourceRelation)
 	}
 
 	if len(filter.OptionalResourceIds) > 0 && filter.OptionalResourceIDPrefix != "" {
-		return sqf, spiceerrors.MustBugf("cannot filter by both resource IDs and ID prefix")
+		return csqf, spiceerrors.MustBugf("cannot filter by both resource IDs and ID prefix")
 	}
 
 	if len(filter.OptionalResourceIds) > 0 {
-		usqf, err := sqf.FilterToResourceIDs(filter.OptionalResourceIds)
+		usqf, err := csqf.FilterToResourceIDs(filter.OptionalResourceIds)
 		if err != nil {
-			return sqf, err
+			return csqf, err
 		}
-		sqf = usqf
+		csqf = usqf
 	}
 
 	if len(filter.OptionalResourceIDPrefix) > 0 {
-		usqf, err := sqf.FilterWithResourceIDPrefix(filter.OptionalResourceIDPrefix)
+		usqf, err := csqf.FilterWithResourceIDPrefix(filter.OptionalResourceIDPrefix)
 		if err != nil {
-			return sqf, err
+			return csqf, err
 		}
-		sqf = usqf
+		csqf = usqf
 	}
 
 	if len(filter.OptionalSubjectsSelectors) > 0 {
-		usqf, err := sqf.FilterWithSubjectsSelectors(filter.OptionalSubjectsSelectors...)
+		usqf, err := csqf.FilterWithSubjectsSelectors(filter.OptionalSubjectsSelectors...)
 		if err != nil {
-			return sqf, err
+			return csqf, err
 		}
-		sqf = usqf
+		csqf = usqf
 	}
 
 	if filter.OptionalCaveatName != "" {
-		sqf = sqf.FilterWithCaveatName(filter.OptionalCaveatName)
+		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatName)
 	}
 
-	return sqf, nil
+	return csqf, nil
 }
 
 // MustFilterWithSubjectsSelectors returns a new SchemaQueryFilterer that is limited to resources with

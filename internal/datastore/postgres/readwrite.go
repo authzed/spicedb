@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -288,12 +289,23 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.R
 
 func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (bool, error) {
 	// Construct a select query for the relationships to be removed.
-	query := selectForDelete.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := selectForDelete
+
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+	if filter.OptionalResourceIdPrefix != "" {
+		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
+			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		}
+
+		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
 	}
 
 	// Add clauses for the SubjectFilter
@@ -315,16 +327,14 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	}
 
 	args = append(args, rwt.newXID)
-	if len(args) != 3 {
-		return false, spiceerrors.MustBugf("expected 3 arguments, got %d", len(args))
-	}
 
 	// Construct a CTE to update the relationships as removed.
 	cteSQL := fmt.Sprintf(
-		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $3 WHERE (%s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
+		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $%d WHERE (%s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
 		selectSQL,
 		tableTuple,
 		colDeletedXid,
+		len(args),
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -352,6 +362,13 @@ func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.R
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+	if filter.OptionalResourceIdPrefix != "" {
+		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
+			return fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		}
+
+		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
 	}
 
 	// Add clauses for the SubjectFilter

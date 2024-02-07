@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -780,6 +781,174 @@ func DeleteCaveatedTupleTest(t *testing.T, tester DatastoreTester) {
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, withoutCaveat)
 	require.NoError(err)
 	ensureNotTuples(ctx, require, ds, tpl, withoutCaveat)
+}
+
+// DeleteRelationshipsWithVariousFiltersTest tests deleting relationships with various filters.
+func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTester) {
+	tcs := []struct {
+		name            string
+		filter          *v1.RelationshipFilter
+		relationships   []string
+		expectedDeleted []string
+	}{
+		{
+			name: "resource type",
+			filter: &v1.RelationshipFilter{
+				ResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expectedDeleted: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
+		},
+		{
+			name: "resource id",
+			filter: &v1.RelationshipFilter{
+				ResourceType:       "document",
+				OptionalResourceId: "first",
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
+			expectedDeleted: []string{"document:first#viewer@user:tom"},
+		},
+		{
+			name: "resource id without resource type",
+			filter: &v1.RelationshipFilter{
+				OptionalResourceId: "first",
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
+			expectedDeleted: []string{"document:first#viewer@user:tom"},
+		},
+		{
+			name: "resource id prefix with resource type",
+			filter: &v1.RelationshipFilter{
+				ResourceType:             "document",
+				OptionalResourceIdPrefix: "f",
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "document:fourth#viewer@user:tom", "folder:fsomething#viewer@user:tom"},
+			expectedDeleted: []string{"document:first#viewer@user:tom", "document:fourth#viewer@user:tom"},
+		},
+		{
+			name: "resource id prefix without resource type",
+			filter: &v1.RelationshipFilter{
+				OptionalResourceIdPrefix: "f",
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "document:fourth#viewer@user:tom", "folder:fsomething#viewer@user:tom"},
+			expectedDeleted: []string{"document:first#viewer@user:tom", "document:fourth#viewer@user:tom", "folder:fsomething#viewer@user:tom"},
+		},
+		{
+			name: "resource relation",
+			filter: &v1.RelationshipFilter{
+				OptionalRelation: "viewer",
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "document:third#editor@user:tom", "folder:fsomething#viewer@user:tom"},
+			expectedDeleted: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "folder:fsomething#viewer@user:tom"},
+		},
+		{
+			name: "subject id",
+			filter: &v1.RelationshipFilter{
+				OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: "user", OptionalSubjectId: "tom"},
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "document:third#editor@user:tom", "document:first#viewer@user:alice"},
+			expectedDeleted: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "document:third#editor@user:tom"},
+		},
+		{
+			name: "subject filter with relation",
+			filter: &v1.RelationshipFilter{
+				OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: "user", OptionalRelation: &v1.SubjectFilter_RelationFilter{Relation: "something"}},
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom#something"},
+			expectedDeleted: []string{"document:second#viewer@user:tom#something"},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			for _, withLimit := range []bool{false, true} {
+				t.Run(fmt.Sprintf("withLimit=%v", withLimit), func(t *testing.T) {
+					require := require.New(t)
+
+					rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+					require.NoError(err)
+
+					// Write the initial relationships.
+					ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+					ctx := context.Background()
+
+					allRelationships := mapz.NewSet[string]()
+					for _, rel := range tc.relationships {
+						allRelationships.Add(rel)
+
+						tpl := tuple.MustParse(rel)
+						_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+						require.NoError(err)
+					}
+
+					var delLimit *uint64
+					if withLimit {
+						limit := uint64(len(tc.expectedDeleted))
+						delLimit = &limit
+					}
+
+					// Delete the relationships and ensure matching are no longer found.
+					_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+						_, err := rwt.DeleteRelationships(ctx, tc.filter, options.WithDeleteLimit(delLimit))
+						return err
+					})
+					require.NoError(err)
+
+					// Read the updated relationships and ensure no matching relationships are found.
+					headRev, err := ds.HeadRevision(ctx)
+					require.NoError(err)
+
+					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
+					require.NoError(err)
+
+					reader := ds.SnapshotReader(headRev)
+					iter, err := reader.QueryRelationships(ctx, filter)
+					require.NoError(err)
+					t.Cleanup(iter.Close)
+
+					found := iter.Next()
+					if found != nil {
+						require.Nil(found, "got relationship: %s", tuple.MustString(found))
+					}
+					iter.Close()
+
+					// Ensure the expected relationships were deleted.
+					resourceTypes := mapz.NewSet[string]()
+					for _, rel := range tc.relationships {
+						tpl := tuple.MustParse(rel)
+						resourceTypes.Add(tpl.ResourceAndRelation.Namespace)
+					}
+
+					allRemainingRelationships := mapz.NewSet[string]()
+					for _, resourceType := range resourceTypes.AsSlice() {
+						iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+							OptionalResourceType: resourceType,
+						})
+						require.NoError(err)
+						t.Cleanup(iter.Close)
+
+						for {
+							rel := iter.Next()
+							if rel == nil {
+								break
+							}
+							allRemainingRelationships.Add(tuple.MustString(rel))
+						}
+						iter.Close()
+					}
+
+					deletedRelationships := allRelationships.Subtract(allRemainingRelationships).AsSlice()
+					require.ElementsMatch(tc.expectedDeleted, deletedRelationships)
+				})
+			}
+		})
+	}
 }
 
 // QueryRelationshipsWithVariousFiltersTest tests various relationship filters for query relationships.

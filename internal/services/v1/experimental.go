@@ -693,5 +693,6 @@ func decodeCursor(ds datastore.Datastore, encoded *v1.Cursor) (datastore.Revisio
 		return datastore.NoRevision, "", nil, errors.New("malformed cursor: invalid encoded relation tuple")
 	}
 
+	// Returns the current namespace and the cursor.
 	return atRevision, decoded.GetV1().GetSections()[0], cur, nil
 }

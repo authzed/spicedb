@@ -643,7 +643,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			[]*v1.RelationshipFilter{{}},
 			nil,
 			codes.InvalidArgument,
-			"one of the specified preconditions is empty",
+			"the relationship filter provided is not valid",
 		},
 		{
 			"good precondition, invalid update",
@@ -1057,11 +1057,7 @@ func TestDeleteRelationships(t *testing.T) {
 				},
 			},
 			expectedCode: codes.OK,
-			deleted: map[string]struct{}{
-				"document:specialplan#editor@user:multiroleguy":              {},
-				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
-				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
-			},
+			deleted:      map[string]struct{}{},
 		},
 		{
 			name: "delete unknown resource type",

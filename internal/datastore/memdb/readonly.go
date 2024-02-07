@@ -8,14 +8,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
-
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type txFactory func() (*memdb.Txn, error)
@@ -264,8 +263,12 @@ func (r *memdbReader) mustLock() {
 }
 
 func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (memdb.ResultIterator, error) {
+	// "_prefix" is a specialized index suffix used by github.com/hashicorp/go-memdb to match on
+	// a prefix of a string.
+	// See: https://github.com/hashicorp/go-memdb/blob/9940d4a14258e3b887bfb4bc6ebc28f65461a01c/txn.go#L531
 	index := indexNamespace + "_prefix"
-	args := []any{}
+
+	var args []any
 	if filter.OptionalResourceType != "" {
 		args = append(args, filter.OptionalResourceType)
 		index = indexNamespace
