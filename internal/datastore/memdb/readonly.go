@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 
@@ -55,8 +56,9 @@ func (r *memdbReader) QueryRelationships(
 	}
 
 	matchingRelationshipsFilterFunc := filterFuncForFilters(
-		filter.ResourceType,
+		filter.OptionalResourceType,
 		filter.OptionalResourceIds,
+		filter.OptionalResourceIDPrefix,
 		filter.OptionalResourceRelation,
 		filter.OptionalSubjectsSelectors,
 		filter.OptionalCaveatName,
@@ -124,6 +126,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 	matchingRelationshipsFilterFunc := filterFuncForFilters(
 		filterObjectType,
 		nil,
+		"",
 		filterRelation,
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		"",
@@ -261,11 +264,22 @@ func (r *memdbReader) mustLock() {
 }
 
 func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (memdb.ResultIterator, error) {
-	index := indexNamespace
-	args := []any{filter.ResourceType}
-	if filter.OptionalResourceRelation != "" {
+	index := indexNamespace + "_prefix"
+	args := []any{}
+	if filter.OptionalResourceType != "" {
+		args = append(args, filter.OptionalResourceType)
+		index = indexNamespace
+	} else {
+		args = append(args, "")
+	}
+
+	if filter.OptionalResourceType != "" && filter.OptionalResourceRelation != "" {
 		args = append(args, filter.OptionalResourceRelation)
 		index = indexNamespaceAndRelation
+	}
+
+	if len(args) == 0 {
+		return nil, spiceerrors.MustBugf("cannot specify an empty filter")
 	}
 
 	iter, err := txn.Get(tableRelationship, index, args...)
@@ -279,6 +293,7 @@ func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (me
 func filterFuncForFilters(
 	optionalResourceType string,
 	optionalResourceIds []string,
+	optionalResourceIDPrefix string,
 	optionalRelation string,
 	optionalSubjectsSelectors []datastore.SubjectsSelector,
 	optionalCaveatFilter string,
@@ -291,6 +306,8 @@ func filterFuncForFilters(
 		case optionalResourceType != "" && optionalResourceType != tuple.namespace:
 			return true
 		case len(optionalResourceIds) > 0 && !slices.Contains(optionalResourceIds, tuple.resourceID):
+			return true
+		case optionalResourceIDPrefix != "" && !strings.HasPrefix(tuple.resourceID, optionalResourceIDPrefix):
 			return true
 		case optionalRelation != "" && optionalRelation != tuple.relation:
 			return true

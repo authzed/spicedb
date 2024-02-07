@@ -101,7 +101,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 ) error {
 	// TODO(jschorr): use type information to skip subject relations that cannot reach the subject type.
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             req.ResourceRelation.Namespace,
+		OptionalResourceType:     req.ResourceRelation.Namespace,
 		OptionalResourceRelation: req.ResourceRelation.Relation,
 		OptionalResourceIds:      req.ResourceIds,
 	})
@@ -196,7 +196,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 ) error {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             parentRequest.ResourceRelation.Namespace,
+		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
 		OptionalResourceRelation: ttu.Tupleset.Relation,
 		OptionalResourceIds:      parentRequest.ResourceIds,
 	})

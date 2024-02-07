@@ -47,7 +47,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 
 			// Check the snapshot reader order
 			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: tc.resourceType,
+				OptionalResourceType: tc.resourceType,
 			}, options.WithSort(tc.ordering))
 
 			require.NoError(err)
@@ -71,7 +71,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 			// Check a reader from with a transaction
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType: tc.resourceType,
+					OptionalResourceType: tc.resourceType,
 				}, options.WithSort(tc.ordering))
 				require.NoError(err)
 				defer iter.Close()
@@ -121,7 +121,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 
 				foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
 					iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-						ResourceType: objectType,
+						OptionalResourceType: objectType,
 					}, options.WithLimit(&testLimit))
 
 					require.NoError(err)
@@ -154,7 +154,7 @@ type (
 func forwardIterator(resourceType string, _ options.SortOrder) iterator {
 	return func(ctx context.Context, reader datastore.Reader, limit uint64, cursor options.Cursor) (datastore.RelationshipIterator, error) {
 		return reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType: resourceType,
+			OptionalResourceType: resourceType,
 		}, options.WithSort(options.ByResource), options.WithLimit(&limit), options.WithAfter(cursor))
 	}
 }
@@ -335,7 +335,7 @@ func CursorErrorsTest(t *testing.T, tester DatastoreTester) {
 
 			foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
 				iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType: testfixtures.DocumentNS.Name,
+					OptionalResourceType: testfixtures.DocumentNS.Name,
 				}, options.WithSort(tc.order))
 				require.NoError(err)
 				require.NotNil(iter)

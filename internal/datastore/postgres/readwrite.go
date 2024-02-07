@@ -343,7 +343,10 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	// Add clauses for the ResourceFilter
-	query := deleteTuple.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := deleteTuple
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
@@ -429,14 +432,14 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 		switch {
 		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 			return err
+
 		case err == nil:
-			break
+			nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName})
+			tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
+
 		default:
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
-
-		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName})
-		tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
 	}
 
 	delSQL, delArgs, err := deleteNamespace.

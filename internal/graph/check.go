@@ -285,7 +285,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		}
 
 		filter := datastore.RelationshipsFilter{
-			ResourceType:              crc.parentReq.ResourceRelation.Namespace,
+			OptionalResourceType:      crc.parentReq.ResourceRelation.Namespace,
 			OptionalResourceIds:       crc.filteredResourceIDs,
 			OptionalResourceRelation:  crc.parentReq.ResourceRelation.Relation,
 			OptionalSubjectsSelectors: subjectSelectors,
@@ -346,7 +346,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 	// Otherwise, for any remaining resource IDs, query for redispatch.
 	filter := datastore.RelationshipsFilter{
-		ResourceType:             crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      furtherFilteredResourceIDs,
 		OptionalResourceRelation: crc.parentReq.ResourceRelation.Relation,
 		OptionalSubjectsSelectors: []datastore.SubjectsSelector{
@@ -582,7 +582,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      crc.filteredResourceIDs,
 		OptionalResourceRelation: ttu.Tupleset.Relation,
 	})

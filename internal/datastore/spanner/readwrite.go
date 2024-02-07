@@ -186,7 +186,9 @@ type builder[T any] interface {
 
 func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) T {
 	// Add clauses for the ResourceFilter
-	query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}

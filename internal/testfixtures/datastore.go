@@ -280,7 +280,10 @@ type TupleChecker struct {
 
 func (tc TupleChecker) ExactRelationshipIterator(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) datastore.RelationshipIterator {
 	filter := tuple.MustToFilter(tpl)
-	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(filter))
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
+	tc.Require.NoError(err)
+
+	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter)
 	tc.Require.NoError(err)
 	return iter
 }

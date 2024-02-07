@@ -200,7 +200,11 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 
 func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := queryDeleteTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := queryDeleteTuples
+
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}

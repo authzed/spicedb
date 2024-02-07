@@ -114,6 +114,10 @@ type permissionServer struct {
 }
 
 func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType, optionalRelation string, ds datastore.Reader) error {
+	if objectType == "" {
+		return nil
+	}
+
 	relationToTest := stringz.DefaultEmpty(optionalRelation, datastore.Ellipsis)
 	allowEllipsis := optionalRelation == ""
 	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, ds)
@@ -188,10 +192,15 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 	}
 
+	filter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
 	tupleIterator, err := pagination.NewPaginatedIterator(
 		ctx,
 		ds,
-		datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter),
+		filter,
 		pageSize,
 		options.ByResource,
 		startCursor,
@@ -289,8 +298,13 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	tupleUpdates := tuple.UpdateFromRelationshipUpdates(req.Updates)
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		span.AddEvent("preconditions")
+
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
+			if err := ps.validatePrecondition(precond); err != nil {
+				return err
+			}
+
 			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
 				return err
 			}
@@ -366,6 +380,12 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			DispatchCount: dispatchCount,
 		})
 
+		for _, precond := range req.OptionalPreconditions {
+			if err := ps.validatePrecondition(precond); err != nil {
+				return err
+			}
+		}
+
 		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
 			return err
 		}
@@ -375,7 +395,10 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		if req.OptionalLimit > 0 && !req.OptionalAllowPartialDeletions {
 			limit := uint64(req.OptionalLimit)
 			limitPlusOne := limit + 1
-			filter := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+			filter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+			if err != nil {
+				return ps.rewriteError(ctx, err)
+			}
 
 			iter, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne))
 			if err != nil {
@@ -425,4 +448,16 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		DeletedAt:        zedtoken.MustNewFromRevision(revision),
 		DeletionProgress: deletionProgress,
 	}, nil
+}
+
+func (ps *permissionServer) validatePrecondition(precond *v1.Precondition) error {
+	if precond.Filter == nil {
+		return NewEmptyPreconditionErr()
+	}
+
+	if precond.Filter.EqualVT(&v1.RelationshipFilter{}) {
+		return NewEmptyPreconditionErr()
+	}
+
+	return nil
 }

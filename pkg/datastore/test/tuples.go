@@ -84,14 +84,21 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				// Check that we can find the tuple a number of ways
 				iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:        tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceType: tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceIds:  []string{tupleToFind.ResourceAndRelation.ObjectId},
+				})
+				require.NoError(err)
+				tRequire.VerifyIteratorResults(iter, tupleToFind)
+
+				// Check without a resource type.
+				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 					OptionalResourceIds: []string{tupleToFind.ResourceAndRelation.ObjectId},
 				})
 				require.NoError(err)
 				tRequire.VerifyIteratorResults(iter, tupleToFind)
 
 				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceType:     tupleToFind.ResourceAndRelation.Namespace,
 					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
 					OptionalResourceRelation: tupleToFind.ResourceAndRelation.Relation,
 				})
@@ -123,7 +130,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 				// Check that we fail to find the tuple with the wrong filters
 				iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					ResourceType:             tupleToFind.ResourceAndRelation.Namespace,
+					OptionalResourceType:     tupleToFind.ResourceAndRelation.Namespace,
 					OptionalResourceIds:      []string{tupleToFind.ResourceAndRelation.ObjectId},
 					OptionalResourceRelation: "fake",
 				})
@@ -150,14 +157,14 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Check a query that returns a number of tuples
 			iter, err := dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: testResourceNamespace,
+				OptionalResourceType: testResourceNamespace,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			// Filter it down to a single tuple with a userset
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: testResourceNamespace,
+				OptionalResourceType: testResourceNamespace,
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
 						OptionalSubjectType: testUserNamespace,
@@ -188,13 +195,13 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Check that we can find the group of tuples too
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceType: testTuples[0].ResourceAndRelation.Namespace,
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter, testTuples...)
 
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType:             testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceType:     testTuples[0].ResourceAndRelation.Namespace,
 				OptionalResourceRelation: testTuples[0].ResourceAndRelation.Relation,
 			})
 			require.NoError(err)
@@ -202,8 +209,8 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Try some bad queries
 			iter, err = dsReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType:        testTuples[0].ResourceAndRelation.Namespace,
-				OptionalResourceIds: []string{"fakeobectid"},
+				OptionalResourceType: testTuples[0].ResourceAndRelation.Namespace,
+				OptionalResourceIds:  []string{"fakeobectid"},
 			})
 			require.NoError(err)
 			tRequire.VerifyIteratorResults(iter)
@@ -224,7 +231,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 			alreadyDeletedIter, err := ds.SnapshotReader(deletedAt).QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
-					ResourceType: testTuples[0].ResourceAndRelation.Namespace,
+					OptionalResourceType: testTuples[0].ResourceAndRelation.Namespace,
 				},
 			)
 			require.NoError(err)
@@ -284,8 +291,8 @@ func ObjectIDsTest(t *testing.T, tester DatastoreTester) {
 			rev, err := ds.HeadRevision(ctx)
 			require.NoError(err)
 			iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType:        testResourceNamespace,
-				OptionalResourceIds: []string{tc},
+				OptionalResourceType: testResourceNamespace,
+				OptionalResourceIds:  []string{tc},
 			})
 			require.NoError(err)
 			defer iter.Close()
@@ -330,6 +337,24 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			testTuples[:1],
 		},
 		{
+			"only resourceID",
+			testTuples,
+			&v1.RelationshipFilter{
+				OptionalResourceId: "resource0",
+			},
+			testTuples[1:],
+			testTuples[:1],
+		},
+		{
+			"only relation",
+			testTuples,
+			&v1.RelationshipFilter{
+				OptionalRelation: "writer",
+			},
+			testTuples[:len(testTuples)-1],
+			[]*core.RelationTuple{testTuples[len(testTuples)-1]},
+		},
+		{
 			"relation",
 			testTuples,
 			&v1.RelationshipFilter{
@@ -344,6 +369,15 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			testTuples,
 			&v1.RelationshipFilter{
 				ResourceType:          testResourceNamespace,
+				OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: testUserNamespace, OptionalSubjectId: "user0"},
+			},
+			[]*core.RelationTuple{testTuples[1], testTuples[3], testTuples[5], testTuples[7], testTuples[9]},
+			[]*core.RelationTuple{testTuples[0], testTuples[2], testTuples[4], testTuples[6], testTuples[8]},
+		},
+		{
+			"subjectID without resource type",
+			testTuples,
+			&v1.RelationshipFilter{
 				OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: testUserNamespace, OptionalSubjectId: "user0"},
 			},
 			[]*core.RelationTuple{testTuples[1], testTuples[3], testTuples[5], testTuples[7], testTuples[9]},
@@ -748,6 +782,374 @@ func DeleteCaveatedTupleTest(t *testing.T, tester DatastoreTester) {
 	ensureNotTuples(ctx, require, ds, tpl, withoutCaveat)
 }
 
+// QueryRelationshipsWithVariousFiltersTest tests various relationship filters for query relationships.
+func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTester) {
+	tcs := []struct {
+		name          string
+		filter        datastore.RelationshipsFilter
+		relationships []string
+		expected      []string
+	}{
+		{
+			name: "resource type",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
+		},
+		{
+			name: "resource id",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIds: []string{"first"},
+			},
+			relationships: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
+			expected:      []string{"document:first#viewer@user:tom"},
+		},
+		{
+			name: "resource id prefix",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIDPrefix: "first",
+			},
+			relationships: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
+			expected:      []string{"document:first#viewer@user:tom"},
+		},
+		{
+			name: "resource id different prefix",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIDPrefix: "s",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "resource id different longer prefix",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIDPrefix: "se",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "resource type and resource id different prefix",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "folder",
+				OptionalResourceIDPrefix: "s",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "full resource",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "folder",
+				OptionalResourceIDPrefix: "s",
+				OptionalResourceRelation: "viewer",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "full resource mismatch",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "folder",
+				OptionalResourceIDPrefix: "s",
+				OptionalResourceRelation: "someotherelation",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{},
+		},
+		{
+			name: "subject type",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:tom",
+				"folder:secondfolder#viewer@anotheruser:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "subject ids",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectIds: []string{"tom"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred",
+				"folder:secondfolder#viewer@anotheruser:fred",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "multiple subject ids",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectIds: []string{"tom", "fred"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "non ellipsis subject relation",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "something",
+						},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom#...",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:second#viewer@anotheruser:fred#something",
+			},
+		},
+		{
+			name: "specific subject relation and ellipsis",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation:     "something",
+							IncludeEllipsisRelation: true,
+						},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "specific subject relation and no non-ellipsis",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation:      "something",
+							OnlyNonEllipsisRelations: true,
+						},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:second#viewer@anotheruser:fred#something",
+			},
+		},
+		{
+			name: "only ellipsis",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							IncludeEllipsisRelation: true,
+						},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "multiple subject filters",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "something",
+						},
+					},
+					{
+						OptionalSubjectIds: []string{"tom"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "multiple subject filters and resource ID prefix",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIDPrefix: "s",
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: "something",
+						},
+					},
+					{
+						OptionalSubjectIds: []string{"tom"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+			require.NoError(err)
+
+			ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+			ctx := context.Background()
+
+			for _, rel := range tc.relationships {
+				tpl := tuple.MustParse(rel)
+				_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+				require.NoError(err)
+			}
+
+			headRev, err := ds.HeadRevision(ctx)
+			require.NoError(err)
+
+			reader := ds.SnapshotReader(headRev)
+			iter, err := reader.QueryRelationships(ctx, tc.filter)
+			require.NoError(err)
+
+			var results []string
+			for {
+				tpl := iter.Next()
+				if tpl == nil {
+					err := iter.Err()
+					require.NoError(err)
+					break
+				}
+
+				results = append(results, tuple.MustString(tpl))
+			}
+			iter.Close()
+
+			require.ElementsMatch(tc.expected, results)
+		})
+	}
+}
+
 // CreateTouchDeleteTouchTest tests writing a relationship, touching it, deleting it, and then touching it.
 func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
@@ -819,13 +1221,13 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		it, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType: "document",
+			OptionalResourceType: "document",
 		})
 		require.NoError(err)
 		it.Close()
 
 		it, err = rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType: "folder",
+			OptionalResourceType: "folder",
 		})
 		require.NoError(err)
 		it.Close()
@@ -858,7 +1260,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	g.Go(func() error {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			iter, err := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: testResourceNamespace,
+				OptionalResourceType: testResourceNamespace,
 			})
 			iter.Close()
 			require.NoError(err)
@@ -940,7 +1342,7 @@ func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	t.Log(time.Now(), "starting check")
 	reader := ds.SnapshotReader(deletedRev)
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             testResourceNamespace,
+		OptionalResourceType:     testResourceNamespace,
 		OptionalResourceRelation: testReaderRelation,
 	})
 	require.NoError(err)
@@ -973,7 +1375,7 @@ func ensureTuplesStatus(ctx context.Context, require *require.Assertions, ds dat
 
 	for _, tpl := range tpls {
 		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType:             tpl.ResourceAndRelation.Namespace,
+			OptionalResourceType:     tpl.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{tpl.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: tpl.ResourceAndRelation.Relation,
 			OptionalSubjectsSelectors: []datastore.SubjectsSelector{
@@ -1009,7 +1411,7 @@ func countTuples(ctx context.Context, require *require.Assertions, ds datastore.
 	reader := ds.SnapshotReader(headRev)
 
 	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: resourceType,
+		OptionalResourceType: resourceType,
 	})
 	require.NoError(err)
 	defer iter.Close()

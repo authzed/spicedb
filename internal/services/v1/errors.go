@@ -337,6 +337,31 @@ func (err ErrInvalidCursor) GRPCStatus() *status.Status {
 	)
 }
 
+func NewEmptyPreconditionErr() ErrEmptyPrecondition {
+	return ErrEmptyPrecondition{
+		error: fmt.Errorf(
+			"one of the specified preconditions is empty",
+		),
+	}
+}
+
+// ErrEmptyPrecondition indicates an empty precondition was found.
+type ErrEmptyPrecondition struct {
+	error
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrEmptyPrecondition) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{},
+		),
+	)
+}
+
 func defaultIfZero[T comparable](value T, defaultValue T) T {
 	var zero T
 	if value == zero {

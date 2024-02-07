@@ -165,7 +165,7 @@ func TestPaginatedIterator(t *testing.T) {
 
 			ctx := context.Background()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
-				ResourceType: "unused",
+				OptionalResourceType: "unused",
 			}, tc.pageSize, options.ByResource, nil)
 			require.NoError(err)
 			defer iter.Close()

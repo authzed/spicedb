@@ -109,12 +109,6 @@ func TestReadRelationships(t *testing.T) {
 			},
 		},
 		{
-			"bad namespace",
-			&v1.RelationshipFilter{ResourceType: ""},
-			codes.InvalidArgument,
-			nil,
-		},
-		{
 			"bad objectId",
 			&v1.RelationshipFilter{
 				ResourceType:       tf.DocumentNS.Name,
@@ -572,7 +566,7 @@ func TestInvalidWriteRelationship(t *testing.T) {
 			[]*v1.RelationshipFilter{{}},
 			nil,
 			codes.InvalidArgument,
-			"value does not match regex pattern",
+			"one of the specified preconditions is empty",
 		},
 		{
 			"good precondition, invalid update",
@@ -948,11 +942,10 @@ func TestDeleteRelationships(t *testing.T) {
 			name: "delete no resource type",
 			req: &v1.DeleteRelationshipsRequest{
 				RelationshipFilter: &v1.RelationshipFilter{
-					OptionalResourceId: "specialplan",
+					OptionalResourceId: "someunknownid",
 				},
 			},
-			expectedCode:  codes.InvalidArgument,
-			errorContains: "invalid DeleteRelationshipsRequest.RelationshipFilter: embedded message failed validation",
+			deleted: map[string]struct{}{},
 		},
 		{
 			name: "delete unknown resource type",

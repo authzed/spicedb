@@ -47,7 +47,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			iter, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType: testfixtures.DocumentNS.Name,
+				OptionalResourceType: testfixtures.DocumentNS.Name,
 			})
 			require.NoError(err)
 			defer iter.Close()

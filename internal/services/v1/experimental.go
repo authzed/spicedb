@@ -366,7 +366,7 @@ func (es *experimentalServer) BulkExportRelationships(
 			cur, err = queryForEach(
 				ctx,
 				reader,
-				datastore.RelationshipsFilter{ResourceType: ns.Definition.Name},
+				datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.Name},
 				tplFn,
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),

@@ -182,7 +182,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	iter, err := ds.SnapshotReader(deletedRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: testfixtures.DocumentNS.Name,
+		OptionalResourceType: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)
