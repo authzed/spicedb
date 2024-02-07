@@ -123,11 +123,15 @@ func (ps *permissionServer) checkFilterComponent(ctx context.Context, objectType
 	return namespace.CheckNamespaceAndRelation(ctx, objectType, relationToTest, allowEllipsis, ds)
 }
 
-func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v1.RelationshipFilter, ds datastore.Reader) error {
-	if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, ds); err != nil {
-		return err
+func (ps *permissionServer) validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFilter, ds datastore.Reader) error {
+	// ResourceType is optional, so only check the relation if it is specified.
+	if filter.ResourceType != "" {
+		if err := ps.checkFilterComponent(ctx, filter.ResourceType, filter.OptionalRelation, ds); err != nil {
+			return err
+		}
 	}
 
+	// SubjectFilter is optional, so only check if it is specified.
 	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
 		subjectRelation := ""
 		if subjectFilter.OptionalRelation != nil {
@@ -136,6 +140,20 @@ func (ps *permissionServer) checkFilterNamespaces(ctx context.Context, filter *v
 		if err := ps.checkFilterComponent(ctx, subjectFilter.SubjectType, subjectRelation, ds); err != nil {
 			return err
 		}
+	}
+
+	// Ensure the resource ID and the resource ID prefix are not set at the same time.
+	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
+		return NewInvalidFilterErr("resource_id and resource_id_prefix cannot be set at the same time")
+	}
+
+	// Ensure that at least one field is set.
+	if filter.ResourceType == "" &&
+		filter.OptionalResourceId == "" &&
+		filter.OptionalResourceIdPrefix == "" &&
+		filter.OptionalRelation == "" &&
+		filter.OptionalSubjectFilter == nil {
+		return NewInvalidFilterErr("at least one field must be set")
 	}
 
 	return nil
@@ -150,7 +168,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
 
-	if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, ds); err != nil {
+	if err := ps.validateRelationshipsFilter(ctx, req.RelationshipFilter, ds); err != nil {
 		return ps.rewriteError(ctx, err)
 	}
 
@@ -192,15 +210,15 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		}
 	}
 
-	filter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
 	if err != nil {
-		return ps.rewriteError(ctx, err)
+		return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
 	}
 
 	tupleIterator, err := pagination.NewPaginatedIterator(
 		ctx,
 		ds,
-		filter,
+		dsFilter,
 		pageSize,
 		options.ByResource,
 		startCursor,
@@ -301,11 +319,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 		// Validate the preconditions.
 		for _, precond := range req.OptionalPreconditions {
-			if err := ps.validatePrecondition(precond); err != nil {
-				return err
-			}
-
-			if err := ps.checkFilterNamespaces(ctx, precond.Filter, rwt); err != nil {
+			if err := ps.validateRelationshipsFilter(ctx, precond.Filter, rwt); err != nil {
 				return err
 			}
 		}
@@ -366,7 +380,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	deletionProgress := v1.DeleteRelationshipsResponse_DELETION_PROGRESS_COMPLETE
 
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		if err := ps.checkFilterNamespaces(ctx, req.RelationshipFilter, rwt); err != nil {
+		if err := ps.validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
 			return err
 		}
 

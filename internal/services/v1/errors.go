@@ -148,12 +148,19 @@ func NewPreconditionFailedErr(precondition *v1.Precondition) error {
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err ErrPreconditionFailed) GRPCStatus() *status.Status {
 	metadata := map[string]string{
-		"precondition_resource_type": err.precondition.Filter.ResourceType,
-		"precondition_operation":     v1.Precondition_Operation_name[int32(err.precondition.Operation)],
+		"precondition_operation": v1.Precondition_Operation_name[int32(err.precondition.Operation)],
+	}
+
+	if err.precondition.Filter.ResourceType != "" {
+		metadata["precondition_resource_type"] = err.precondition.Filter.ResourceType
 	}
 
 	if err.precondition.Filter.OptionalResourceId != "" {
 		metadata["precondition_resource_id"] = err.precondition.Filter.OptionalResourceId
+	}
+
+	if err.precondition.Filter.OptionalResourceIdPrefix != "" {
+		metadata["precondition_resource_id_prefix"] = err.precondition.Filter.OptionalResourceIdPrefix
 	}
 
 	if err.precondition.Filter.OptionalRelation != "" {
@@ -337,6 +344,34 @@ func (err ErrInvalidCursor) GRPCStatus() *status.Status {
 	)
 }
 
+// ErrInvalidFilter indicates the specified relationship filter was invalid.
+type ErrInvalidFilter struct {
+	error
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrInvalidFilter) GRPCStatus() *status.Status {
+	// TODO(jschorr): Put a proper error reason in here.
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{},
+		),
+	)
+}
+
+// NewInvalidFilterErr constructs a new invalid filter error.
+func NewInvalidFilterErr(reason string) ErrInvalidFilter {
+	return ErrInvalidFilter{
+		error: fmt.Errorf(
+			"the relationship filter provided is not valid: %s", reason,
+		),
+	}
+}
+
+// NewEmptyPreconditionErr constructs a new empty precondition error.
 func NewEmptyPreconditionErr() ErrEmptyPrecondition {
 	return ErrEmptyPrecondition{
 		error: fmt.Errorf(
@@ -352,6 +387,7 @@ type ErrEmptyPrecondition struct {
 
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err ErrEmptyPrecondition) GRPCStatus() *status.Status {
+	// TODO(jschorr): Put a proper error reason in here.
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,

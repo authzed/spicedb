@@ -22,6 +22,14 @@ var companyPlanFolder = &v1.RelationshipFilter{
 	},
 }
 
+var prefixMatch = &v1.RelationshipFilter{
+	OptionalResourceIdPrefix: "c",
+}
+
+var prefixNoMatch = &v1.RelationshipFilter{
+	OptionalResourceIdPrefix: "zzz",
+}
+
 func TestPreconditions(t *testing.T) {
 	require := require.New(t)
 	uninitialized, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -41,6 +49,18 @@ func TestPreconditions(t *testing.T) {
 			{
 				Operation: v1.Precondition_OPERATION_MUST_NOT_MATCH,
 				Filter:    companyPlanFolder,
+			},
+		}))
+		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter:    prefixMatch,
+			},
+		}))
+		require.Error(checkPreconditions(ctx, rwt, []*v1.Precondition{
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter:    prefixNoMatch,
 			},
 		}))
 		return nil

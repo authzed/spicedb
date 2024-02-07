@@ -20,12 +20,12 @@ func checkPreconditions(
 	preconditions []*v1.Precondition,
 ) error {
 	for _, precond := range preconditions {
-		filter, err := datastore.RelationshipsFilterFromPublicFilter(precond.Filter)
+		dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(precond.Filter)
 		if err != nil {
 			return fmt.Errorf("error converting filter: %w", err)
 		}
 
-		iter, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitOne))
+		iter, err := rwt.QueryRelationships(ctx, dsFilter, options.WithLimit(&limitOne))
 		if err != nil {
 			return fmt.Errorf("error reading relationships: %w", err)
 		}

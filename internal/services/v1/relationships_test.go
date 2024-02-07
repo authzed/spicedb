@@ -21,6 +21,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -76,6 +77,68 @@ func TestReadRelationships(t *testing.T) {
 				"document:masterplan#parent@folder:strategy": {},
 				"document:masterplan#parent@folder:plans":    {},
 				"document:healthplan#parent@folder:plans":    {},
+			},
+		},
+		{
+			"resource id prefix and resource id",
+			&v1.RelationshipFilter{
+				OptionalResourceId:       "master",
+				OptionalResourceIdPrefix: "master",
+				OptionalRelation:         "parent",
+			},
+			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"just relation",
+			&v1.RelationshipFilter{
+				OptionalRelation: "parent",
+			},
+			codes.OK,
+			map[string]struct{}{
+				"document:companyplan#parent@folder:company": {},
+				"document:masterplan#parent@folder:strategy": {},
+				"document:masterplan#parent@folder:plans":    {},
+				"document:healthplan#parent@folder:plans":    {},
+				"folder:strategy#parent@folder:company":      {},
+			},
+		},
+		{
+			"just resource ID",
+			&v1.RelationshipFilter{
+				OptionalResourceId: "masterplan",
+			},
+			codes.OK,
+			map[string]struct{}{
+				"document:masterplan#parent@folder:strategy":     {},
+				"document:masterplan#parent@folder:plans":        {},
+				"document:masterplan#owner@user:product_manager": {},
+				"document:masterplan#viewer@user:eng_lead":       {},
+			},
+		},
+		{
+			"just resource ID prefix",
+			&v1.RelationshipFilter{
+				OptionalResourceIdPrefix: "masterpl",
+			},
+			codes.OK,
+			map[string]struct{}{
+				"document:masterplan#parent@folder:strategy":     {},
+				"document:masterplan#parent@folder:plans":        {},
+				"document:masterplan#owner@user:product_manager": {},
+				"document:masterplan#viewer@user:eng_lead":       {},
+			},
+		},
+		{
+			"relation and resource ID prefix",
+			&v1.RelationshipFilter{
+				OptionalRelation:         "parent",
+				OptionalResourceIdPrefix: "masterpl",
+			},
+			codes.OK,
+			map[string]struct{}{
+				"document:masterplan#parent@folder:strategy": {},
+				"document:masterplan#parent@folder:plans":    {},
 			},
 		},
 		{
@@ -196,6 +259,15 @@ func TestReadRelationships(t *testing.T) {
 			codes.FailedPrecondition,
 			nil,
 		},
+		{
+			"invalid filter",
+			&v1.RelationshipFilter{
+				OptionalResourceId:       "auditors",
+				OptionalResourceIdPrefix: "aud",
+			},
+			codes.InvalidArgument,
+			nil,
+		},
 	}
 
 	for _, pageSize := range []int{0, 1, 5, 10} {
@@ -247,6 +319,11 @@ func TestReadRelationships(t *testing.T) {
 									}
 
 									require.NoError(err)
+
+									dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
+									require.NoError(err)
+
+									require.True(dsFilter.Test(tuple.MustFromRelationship(rel.Relationship)), "relationship did not match filter: %v", rel.Relationship)
 
 									relString := tuple.MustRelString(rel.Relationship)
 									_, found := tc.expected[relString]
@@ -750,6 +827,40 @@ func TestDeleteRelationships(t *testing.T) {
 			},
 		},
 		{
+			name: "delete by resource ID",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					OptionalResourceId: "auditors",
+				},
+			},
+			deleted: map[string]struct{}{
+				"folder:auditors#viewer@user:auditor": {},
+			},
+		},
+		{
+			name: "delete by resource ID prefix",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					OptionalResourceIdPrefix: "a",
+				},
+			},
+			deleted: map[string]struct{}{
+				"folder:auditors#viewer@user:auditor": {},
+			},
+		},
+		{
+			name: "delete by relation and resource ID prefix",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					OptionalResourceIdPrefix: "s",
+					OptionalRelation:         "editor",
+				},
+			},
+			deleted: map[string]struct{}{
+				"document:specialplan#editor@user:multiroleguy": {},
+			},
+		},
+		{
 			name: "delete resource + relation + subject type",
 			req: &v1.DeleteRelationshipsRequest{
 				RelationshipFilter: &v1.RelationshipFilter{
@@ -945,7 +1056,12 @@ func TestDeleteRelationships(t *testing.T) {
 					OptionalResourceId: "someunknownid",
 				},
 			},
-			deleted: map[string]struct{}{},
+			expectedCode: codes.OK,
+			deleted: map[string]struct{}{
+				"document:specialplan#editor@user:multiroleguy":              {},
+				"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+				"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+			},
 		},
 		{
 			name: "delete unknown resource type",
@@ -1005,6 +1121,17 @@ func TestDeleteRelationships(t *testing.T) {
 			},
 			expectedCode:  codes.FailedPrecondition,
 			errorContains: "unable to satisfy write precondition",
+		},
+		{
+			name: "invalid filter",
+			req: &v1.DeleteRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					OptionalResourceId:       "auditors",
+					OptionalResourceIdPrefix: "aud",
+				},
+			},
+			expectedCode:  codes.InvalidArgument,
+			errorContains: "resource_id and resource_id_prefix cannot be set at the same time",
 		},
 	}
 	for _, delta := range testTimedeltas {
