@@ -25,6 +25,15 @@ type RemoteClockRevisions struct {
 
 // NewRemoteClockRevisions returns a RemoteClockRevisions for the given configuration
 func NewRemoteClockRevisions(gcWindow, maxRevisionStaleness, followerReadDelay, quantization time.Duration) *RemoteClockRevisions {
+	// Ensure the max revision staleness never exceeds the GC window.
+	if maxRevisionStaleness > gcWindow {
+		log.Warn().
+			Dur("maxRevisionStaleness", maxRevisionStaleness).
+			Dur("gcWindow", gcWindow).
+			Msg("the configured maximum revision staleness exceeds the configured gc window, so capping to gcWindow")
+		maxRevisionStaleness = gcWindow - 1
+	}
+
 	revisions := &RemoteClockRevisions{
 		CachedOptimizedRevisions: NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
