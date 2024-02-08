@@ -12,16 +12,18 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ValidatedSchemaChanges is a set of validated schema changes that can be applied to the datastore.
 type ValidatedSchemaChanges struct {
-	compiled          *compiler.CompiledSchema
-	newCaveatDefNames *mapz.Set[string]
-	newObjectDefNames *mapz.Set[string]
-	additiveOnly      bool
+	compiled             *compiler.CompiledSchema
+	validatedTypeSystems map[string]*typesystem.ValidatedNamespaceTypeSystem
+	newCaveatDefNames    *mapz.Set[string]
+	newObjectDefNames    *mapz.Set[string]
+	additiveOnly         bool
 }
 
 // ValidateSchemaChanges validates the schema found in the compiled schema and returns a
@@ -39,6 +41,8 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 
 	// 2) Validate the namespaces defined.
 	newObjectDefNames := mapz.NewSet[string]()
+	validatedTypeSystems := make(map[string]*typesystem.ValidatedNamespaceTypeSystem, len(compiled.ObjectDefinitions))
+
 	for _, nsdef := range compiled.ObjectDefinitions {
 		ts, err := typesystem.NewNamespaceTypeSystem(nsdef,
 			typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
@@ -54,18 +58,16 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 			return nil, err
 		}
 
-		if err := namespace.AnnotateNamespace(vts); err != nil {
-			return nil, err
-		}
-
+		validatedTypeSystems[nsdef.Name] = vts
 		newObjectDefNames.Insert(nsdef.Name)
 	}
 
 	return &ValidatedSchemaChanges{
-		compiled:          compiled,
-		newCaveatDefNames: newCaveatDefNames,
-		newObjectDefNames: newObjectDefNames,
-		additiveOnly:      additiveOnly,
+		compiled:             compiled,
+		validatedTypeSystems: validatedTypeSystems,
+		newCaveatDefNames:    newCaveatDefNames,
+		newObjectDefNames:    newObjectDefNames,
+		additiveOnly:         additiveOnly,
 	}, nil
 }
 
@@ -156,6 +158,15 @@ func ApplySchemaChangesOverExisting(
 
 		if len(diff.Deltas()) > 0 {
 			objectDefsWithChanges = append(objectDefsWithChanges, nsdef)
+
+			vts, ok := validated.validatedTypeSystems[nsdef.Name]
+			if !ok {
+				return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
+			}
+
+			if err := namespace.AnnotateNamespace(vts); err != nil {
+				return nil, err
+			}
 		}
 	}
 
