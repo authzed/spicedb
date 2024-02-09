@@ -38,7 +38,10 @@ func TestApplySchemaChanges(t *testing.T) {
 		SchemaString: `
 			definition user {}
 
-			definition organization {}
+			definition organization {
+				relation member: user
+				permission admin = member
+			}
 
 			caveat catchTwentyTwo(value int) {
 			  value == 22
@@ -58,6 +61,13 @@ func TestApplySchemaChanges(t *testing.T) {
 		require.Equal(applied.RemovedObjectDefNames, []string{"document"})
 		require.Equal(applied.NewCaveatDefNames, []string{"catchTwentyTwo"})
 		require.Equal(applied.RemovedCaveatDefNames, []string{"hasFortyTwo"})
+
+		orgDef, err := rwt.LookupNamespacesWithNames(ctx, []string{"organization"})
+		require.NoError(err)
+		require.Len(orgDef, 1)
+
+		require.NotEmpty(orgDef[0].Definition.Relation[0].CanonicalCacheKey)
+		require.NotEmpty(orgDef[0].Definition.Relation[1].CanonicalCacheKey)
 		return nil
 	})
 	require.NoError(err)
