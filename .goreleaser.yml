@@ -32,6 +32,24 @@ furies:
   - account: "authzed"
     secret_name: "GEMFURY_PUSH_TOKEN"
     skip: "{{ gt (len .Prerelease) 0 }}"
+snapcrafts:
+  - name: "spicedb"
+    publish: false
+    summary: "A database that stores, computes, and validates application permissions"
+    description: |
+      SpiceDB is an open source, Google Zanzibar-inspired database for creating and managing security-critical application permissions.
+
+      Developers create a schema and use client libraries to apply the schema to the database, insert relationships into the database, and query the database to efficiently check permissions in their applications.
+    grade: "stable"
+    confinement: "strict"
+    license: "Apache-2.0"
+    base: "core22"
+    apps:
+      spicedb:
+        command: "spicedb"
+        plugs:
+          - "network-bind"
+          - "network"
 brews:
   - name: "{{.ProjectName}}"
     repository:
