@@ -51,7 +51,7 @@ func (Lint) Markdown() error {
 	}
 	return sh.RunV("docker", "run", "--rm",
 		"-v", fmt.Sprintf("%s:/src:ro", cwd),
-		"ghcr.io/igorshubovych/markdownlint-cli:v0.34.0", "--config", "/src/.markdownlint.yaml", "/src")
+		"ghcr.io/igorshubovych/markdownlint-cli:v0.39.0", "--config", "/src/.markdownlint.yaml", "/src")
 }
 
 // Go Run all go linters
