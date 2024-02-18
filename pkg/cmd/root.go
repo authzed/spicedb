@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/spf13/cobra"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/releases"
@@ -17,6 +19,14 @@ func RegisterRootFlags(cmd *cobra.Command) {
 	releases.RegisterFlags(cmd.PersistentFlags())
 	termination.RegisterFlags(cmd.PersistentFlags())
 	runtime.RegisterFlags(cmd.PersistentFlags())
+}
+
+// DeprecatedRunE wraps the RunFunc with a warning log statement.
+func DeprecatedRunE(fn cobrautil.CobraRunFunc, newCmd string) cobrautil.CobraRunFunc {
+	return func(cmd *cobra.Command, args []string) error {
+		log.Warn().Str("newCommand", newCmd).Msg("use of deprecated command")
+		return fn(cmd, args)
+	}
 }
 
 func NewRootCommand(programName string) *cobra.Command {

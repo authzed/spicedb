@@ -43,6 +43,10 @@ func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	}
 	datastoreCmd.AddCommand(repairCmd)
 
+	headCmd := NewHeadCommand(programName)
+	RegisterHeadFlags(headCmd)
+	datastoreCmd.AddCommand(headCmd)
+
 	return datastoreCmd, nil
 }
 
