@@ -2,6 +2,7 @@ package slicez
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,4 +29,40 @@ func TestForEachChunk(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestForEachChunkOverflowPanic(t *testing.T) {
+	datasize := math.MaxUint16
+	chunksize := uint16(50)
+	data := make([]int, 0, datasize)
+	for i := 0; i < datasize; i++ {
+		data = append(data, i)
+	}
+
+	found := make([]int, 0, datasize)
+	ForEachChunk(data, chunksize, func(items []int) {
+		found = append(found, items...)
+		require.True(t, len(items) <= int(chunksize))
+		require.True(t, len(items) > 0)
+	})
+
+	require.Equal(t, data, found)
+}
+
+func TestForEachChunkOverflowIncorrect(t *testing.T) {
+	chunksize := uint16(50)
+	datasize := math.MaxUint16 + int(chunksize)
+	data := make([]int, 0, datasize)
+	for i := 0; i < datasize; i++ {
+		data = append(data, i)
+	}
+
+	found := make([]int, 0, datasize)
+	ForEachChunk(data, chunksize, func(items []int) {
+		found = append(found, items...)
+		require.True(t, len(items) <= int(chunksize))
+		require.True(t, len(items) > 0)
+	})
+
+	require.Equal(t, data, found)
 }
