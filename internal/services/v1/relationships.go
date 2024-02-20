@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/pagination"
+	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -254,14 +255,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	if len(req.Updates) > int(ps.config.MaxUpdatesPerWrite) {
 		return nil, ps.rewriteError(
 			ctx,
-			NewExceedsMaximumUpdatesErr(uint16(len(req.Updates)), ps.config.MaxUpdatesPerWrite),
+			NewExceedsMaximumUpdatesErr(uint64(len(req.Updates)), uint64(ps.config.MaxUpdatesPerWrite)),
 		)
 	}
 
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
 		return nil, ps.rewriteError(
 			ctx,
-			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
+			NewExceedsMaximumPreconditionsErr(uint64(len(req.OptionalPreconditions)), uint64(ps.config.MaxPreconditionsCount)),
 		)
 	}
 
@@ -302,9 +303,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return ps.rewriteError(ctx, err)
 		}
 
+		dispatchCount, err := genutil.EnsureUInt32(len(req.OptionalPreconditions) + 1)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 			// One request per precondition and one request for the actual writes.
-			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+			DispatchCount: dispatchCount,
 		})
 
 		span.AddEvent("preconditions")
@@ -338,7 +344,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
 		return nil, ps.rewriteError(
 			ctx,
-			NewExceedsMaximumPreconditionsErr(uint16(len(req.OptionalPreconditions)), ps.config.MaxPreconditionsCount),
+			NewExceedsMaximumPreconditionsErr(uint64(len(req.OptionalPreconditions)), uint64(ps.config.MaxPreconditionsCount)),
 		)
 	}
 
@@ -350,9 +356,14 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			return err
 		}
 
+		dispatchCount, err := genutil.EnsureUInt32(len(req.OptionalPreconditions) + 1)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 			// One request per precondition and one request for the actual delete.
-			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
+			DispatchCount: dispatchCount,
 		})
 
 		if err := checkPreconditions(ctx, rwt, req.OptionalPreconditions); err != nil {
@@ -403,7 +414,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		}
 
 		// Otherwise, kick off an unlimited deletion.
-		_, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		_, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 		return err
 	})
 	if err != nil {

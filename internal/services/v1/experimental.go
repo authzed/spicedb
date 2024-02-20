@@ -34,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -416,7 +417,12 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	}
 
 	// Compute a hash for each requested item and record its index(es) for the items, to be used for sorting of results.
-	itemIndexByHash := mapz.NewMultiMapWithCap[string, int](uint32(len(req.Items)))
+	itemCount, err := genutil.EnsureUInt32(len(req.Items))
+	if err != nil {
+		return nil, es.rewriteError(ctx, err)
+	}
+
+	itemIndexByHash := mapz.NewMultiMapWithCap[string, int](itemCount)
 	for index, item := range req.Items {
 		itemHash, err := computeBulkCheckPermissionItemHash(item)
 		if err != nil {

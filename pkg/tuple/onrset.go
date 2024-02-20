@@ -23,8 +23,8 @@ func NewONRSet(onrs ...*core.ObjectAndRelation) *ONRSet {
 }
 
 // Length returns the size of the set.
-func (ons *ONRSet) Length() uint32 {
-	return uint32(len(ons.onrs))
+func (ons *ONRSet) Length() uint64 {
+	return uint64(len(ons.onrs))
 }
 
 // IsEmpty returns whether the set is empty.

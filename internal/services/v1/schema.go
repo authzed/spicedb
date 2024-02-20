@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -87,8 +88,13 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 		return nil, ss.rewriteError(ctx, err)
 	}
 
+	dispatchCount, err := genutil.EnsureUInt32(len(nsDefs) + len(caveatDefs))
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
+	}
+
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsDefs) + len(caveatDefs)),
+		DispatchCount: dispatchCount,
 	})
 
 	return &v1.ReadSchemaResponse{
@@ -124,8 +130,14 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		if err != nil {
 			return err
 		}
+
+		dispatchCount, err := genutil.EnsureUInt32(applied.TotalOperationCount)
+		if err != nil {
+			return err
+		}
+
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: applied.TotalOperationCount,
+			DispatchCount: dispatchCount,
 		})
 		return nil
 	})

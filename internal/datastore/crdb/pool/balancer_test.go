@@ -162,7 +162,7 @@ func TestNodeConnectionBalancerPrune(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			p.pruneConnections(ctx)
+			p.mustPruneConnections(ctx)
 			require.Equal(t, len(tt.expectedGC), len(pool.gc))
 			gcFromNodes := make([]uint32, 0, len(tt.expectedGC))
 			for _, n := range pool.gc {
