@@ -18,11 +18,12 @@ func ForEachChunkUntil[T any](data []T, chunkSize uint16, handler func(items []T
 		chunkSize = 1
 	}
 
-	dataLength := uint16(len(data))
-	chunkCount := (dataLength / chunkSize) + 1
-	for chunkIndex := uint16(0); chunkIndex < chunkCount; chunkIndex++ {
-		chunkStart := chunkIndex * chunkSize
-		chunkEnd := (chunkIndex + 1) * chunkSize
+	dataLength := uint64(len(data))
+	chunkSize64 := uint64(chunkSize)
+	chunkCount := (dataLength / chunkSize64) + 1
+	for chunkIndex := uint64(0); chunkIndex < chunkCount; chunkIndex++ {
+		chunkStart := chunkIndex * chunkSize64
+		chunkEnd := (chunkIndex + 1) * chunkSize64
 		if chunkEnd > dataLength {
 			chunkEnd = dataLength
 		}
@@ -38,5 +39,6 @@ func ForEachChunkUntil[T any](data []T, chunkSize uint16, handler func(items []T
 			}
 		}
 	}
+
 	return true, nil
 }
