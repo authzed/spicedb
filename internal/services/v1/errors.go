@@ -15,6 +15,42 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// ErrExceedsMaximumChecks occurs when too many checks are given to a call.
+type ErrExceedsMaximumChecks struct {
+	error
+	checkCount      uint64
+	maxCountAllowed uint64
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrExceedsMaximumChecks) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Uint64("checkCount", err.checkCount).Uint64("maxCountAllowed", err.maxCountAllowed)
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrExceedsMaximumChecks) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{
+				"check_count":            strconv.FormatUint(err.checkCount, 10),
+				"maximum_checks_allowed": strconv.FormatUint(err.maxCountAllowed, 10),
+			},
+		),
+	)
+}
+
+// NewExceedsMaximumChecksErr creates a new error representing that too many updates were given to a BulkCheckPermissions call.
+func NewExceedsMaximumChecksErr(checkCount uint64, maxCountAllowed uint64) ErrExceedsMaximumChecks {
+	return ErrExceedsMaximumChecks{
+		error:           fmt.Errorf("check count of %d is greater than maximum allowed of %d", checkCount, maxCountAllowed),
+		checkCount:      checkCount,
+		maxCountAllowed: maxCountAllowed,
+	}
+}
+
 // ErrExceedsMaximumUpdates occurs when too many updates are given to a call.
 type ErrExceedsMaximumUpdates struct {
 	error

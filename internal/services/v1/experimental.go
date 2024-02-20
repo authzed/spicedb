@@ -410,10 +410,16 @@ func (es *experimentalServer) BulkExportRelationships(
 	return nil
 }
 
+const maxBulkCheckCount = 10000
+
 func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.BulkCheckPermissionRequest) (*v1.BulkCheckPermissionResponse, error) {
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, es.rewriteError(ctx, err)
+	}
+
+	if len(req.Items) > maxBulkCheckCount {
+		return nil, es.rewriteError(ctx, NewExceedsMaximumChecksErr(uint64(len(req.Items)), maxBulkCheckCount))
 	}
 
 	// Compute a hash for each requested item and record its index(es) for the items, to be used for sorting of results.
