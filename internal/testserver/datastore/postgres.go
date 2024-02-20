@@ -25,7 +25,7 @@ const (
 	POSTGRES_TEST_USER            = "postgres"
 	POSTGRES_TEST_PASSWORD        = "secret"
 	POSTGRES_TEST_PORT            = "5432"
-	POSTGRES_TEST_MAX_CONNECTIONS = "500"
+	POSTGRES_TEST_MAX_CONNECTIONS = "2000"
 	PGBOUNCER_TEST_PORT           = "6432"
 )
 
@@ -134,14 +134,14 @@ const (
 )
 
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	connectStr := b.NewDatabase(t)
-
-	var migrationDriver *pgmigrations.AlembicPostgresDriver
 	for i := 0; i < retryCount; i++ {
-		md, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr)
+		connectStr := b.NewDatabase(t)
+
+		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr)
 		if err == nil {
-			migrationDriver = md
-			break
+			ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
+			require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
+			return initFunc("postgres", connectStr)
 		}
 
 		if i == retryCount-1 {
@@ -151,12 +151,8 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 		time.Sleep(timeBetweenRetries)
 	}
 
-	require.NotNil(t, migrationDriver, "failed to create migration driver")
-
-	ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
-	require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))
-
-	return initFunc("postgres", connectStr)
+	require.Fail(t, "failed to create datastore for testing")
+	return nil
 }
 
 func createNetworkBridge(t testing.TB, pool *dockertest.Pool) string {
