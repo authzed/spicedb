@@ -6,7 +6,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // ReadNamespaceAndRelation checks that the specified namespace and relation exist in the
@@ -127,21 +126,6 @@ func CheckNamespaceAndRelation(
 	}
 
 	return NewRelationNotFoundErr(namespace, relation)
-}
-
-// ReadNamespaceAndTypes reads a namespace definition, version, and type system and returns it if found.
-func ReadNamespaceAndTypes(
-	ctx context.Context,
-	nsName string,
-	ds datastore.Reader,
-) (*core.NamespaceDefinition, *typesystem.TypeSystem, error) {
-	nsDef, _, err := ds.ReadNamespaceByName(ctx, nsName)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, typesystem.ResolverForDatastoreReader(ds))
-	return nsDef, ts, terr
 }
 
 // ListReferencedNamespaces returns the names of all namespaces referenced in the

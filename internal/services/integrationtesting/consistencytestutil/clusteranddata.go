@@ -15,9 +15,9 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -59,7 +59,7 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 
 	// Validate the type system for each namespace.
 	for _, nsDef := range populated.NamespaceDefinitions {
-		_, ts, err := namespace.ReadNamespaceAndTypes(
+		_, ts, err := typesystem.ReadNamespaceAndTypes(
 			dsCtx,
 			nsDef.Name,
 			ds.SnapshotReader(revision),

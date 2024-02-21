@@ -8,7 +8,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -107,12 +106,12 @@ func (crr *CursoredReachableResources) afterSameType(
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
 	reader := ds.SnapshotReader(req.Revision)
-	_, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ResourceRelation.Namespace, reader)
+	_, typeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, req.ResourceRelation.Namespace, reader)
 	if err != nil {
 		return err
 	}
 
-	rg := typesystem.ReachabilityGraphFor(typeSystem.AsValidated())
+	rg := typesystem.ReachabilityGraphFor(typeSystem)
 	entrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: req.SubjectRelation.Namespace,
 		Relation:  req.SubjectRelation.Relation,
@@ -174,7 +173,7 @@ func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 		return err
 	}
 
-	_, relTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
+	_, relTypeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
 	if err != nil {
 		return err
 	}
@@ -349,7 +348,7 @@ func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 ) error {
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
-	_, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
+	_, ttuTypeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
 	if err != nil {
 		return err
 	}
