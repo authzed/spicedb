@@ -259,8 +259,8 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 		return datastore.ReadyState{}, err
 	}
 
-	// TODO(jschorr): Remove register-tuple-change-stream once the multi-phase is done.
-	if version == headMigration || version == "register-tuple-change-stream" {
+	// TODO: once phased migration is complete, remove the extra allowed version
+	if version == headMigration || version == "register-combined-change-stream" {
 		return datastore.ReadyState{IsReady: true}, nil
 	}
 
