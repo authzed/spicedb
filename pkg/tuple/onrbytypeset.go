@@ -66,7 +66,17 @@ func (s *ONRByTypeSet) IsEmpty() bool {
 	return len(s.byType) == 0
 }
 
-// Len returns the number of keys in the set.
-func (s *ONRByTypeSet) Len() int {
+// KeyLen returns the number of keys in the set.
+func (s *ONRByTypeSet) KeyLen() int {
 	return len(s.byType)
+}
+
+// ValueLen returns the number of values in the set.
+func (s *ONRByTypeSet) ValueLen() int {
+	var total int
+	for _, vals := range s.byType {
+		total += len(vals)
+	}
+
+	return total
 }

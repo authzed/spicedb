@@ -383,7 +383,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	it.Close()
 
 	// Convert the subjects into batched requests.
-	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
+	// To simplify the logic, +1 is added to account for the situation where
+	// the number of elements is less than the chunk size, and spare us some annoying code.
+	expectedNumberOfChunks := subjectsToDispatch.ValueLen()/int(crc.maxDispatchCount) + 1
+	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
 		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
@@ -601,7 +604,10 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	it.Close()
 
 	// Convert the subjects into batched requests.
-	toDispatch := make([]directDispatch, 0, subjectsToDispatch.Len())
+	// To simplify the logic, +1 is added to account for the situation where
+	// the number of elements is less than the chunk size, and spare us some annoying code.
+	expectedNumberOfChunks := subjectsToDispatch.ValueLen()/int(crc.maxDispatchCount) + 1
+	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
 		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
