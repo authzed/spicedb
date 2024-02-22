@@ -43,11 +43,6 @@ func main() {
 	cmd.RegisterVersionFlags(versionCmd)
 	rootCmd.AddCommand(versionCmd)
 
-	// Add migration commands
-	migrateCmd := cmd.NewMigrateCommand(rootCmd.Use)
-	cmd.RegisterMigrateFlags(migrateCmd)
-	rootCmd.AddCommand(migrateCmd)
-
 	// Add datastore commands
 	datastoreCmd, err := cmd.NewDatastoreCommand(rootCmd.Use)
 	if err != nil {
@@ -57,10 +52,19 @@ func main() {
 	cmd.RegisterDatastoreRootFlags(datastoreCmd)
 	rootCmd.AddCommand(datastoreCmd)
 
-	// Add head command.
+	// Add deprecated head command
 	headCmd := cmd.NewHeadCommand(rootCmd.Use)
 	cmd.RegisterHeadFlags(headCmd)
+	headCmd.Hidden = true
+	headCmd.RunE = cmd.DeprecatedRunE(headCmd.RunE, "spicedb datastore head")
 	rootCmd.AddCommand(headCmd)
+
+	// Add deprecated migrate command
+	migrateCmd := cmd.NewMigrateCommand(rootCmd.Use)
+	migrateCmd.Hidden = true
+	migrateCmd.RunE = cmd.DeprecatedRunE(migrateCmd.RunE, "spicedb datastore migrate")
+	cmd.RegisterMigrateFlags(migrateCmd)
+	rootCmd.AddCommand(migrateCmd)
 
 	// Add server commands
 	serverConfig := cmdutil.NewConfigWithOptionsAndDefaults()
