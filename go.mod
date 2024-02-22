@@ -61,6 +61,7 @@ require (
 	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.45.0
 	github.com/rs/cors v1.10.1
+	github.com/rs/xid v1.5.0
 	github.com/rs/zerolog v1.31.0
 	github.com/samber/lo v1.39.0
 	github.com/schollz/progressbar/v3 v3.14.1
