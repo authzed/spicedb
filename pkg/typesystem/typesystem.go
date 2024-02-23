@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/graph"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
@@ -365,13 +366,6 @@ func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relati
 	return nil, nil
 }
 
-// AsValidated returns the current type system marked as validated. This method should *only* be
-// called for type systems read from storage.
-// TODO(jschorr): Maybe have the namespaces loaded from datastore do this automatically?
-func (nts *TypeSystem) AsValidated() *ValidatedNamespaceTypeSystem {
-	return &ValidatedNamespaceTypeSystem{nts}
-}
-
 // Validate runs validation on the type system for the namespace to ensure it is consistent.
 func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSystem, error) {
 	for _, relation := range nts.relationMap {
@@ -624,4 +618,25 @@ func NewTypeErrorWithSource(wrapped error, withSource nspkg.WithSourcePosition, 
 		0,
 		0,
 	))
+}
+
+// ReadNamespaceAndTypes reads a namespace definition, version, and type system and returns it if found.
+func ReadNamespaceAndTypes(
+	ctx context.Context,
+	nsName string,
+	ds datastore.Reader,
+) (*core.NamespaceDefinition, *ValidatedNamespaceTypeSystem, error) {
+	nsDef, _, err := ds.ReadNamespaceByName(ctx, nsName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ts, terr := NewNamespaceTypeSystem(nsDef, ResolverForDatastoreReader(ds))
+	if terr != nil {
+		return nil, nil, terr
+	}
+
+	// NOTE: since the type system was read from the datastore, it must have been validated
+	// on the way in, so it is safe for us to return it as a validated type system.
+	return nsDef, &ValidatedNamespaceTypeSystem{ts}, nil
 }

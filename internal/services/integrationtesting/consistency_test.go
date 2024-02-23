@@ -22,7 +22,6 @@ import (
 	"github.com/authzed/spicedb/internal/developmentmembership"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/development"
@@ -31,6 +30,7 @@ import (
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/validationfile"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
@@ -78,7 +78,7 @@ func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDis
 	require.NoError(t, err)
 
 	for _, nsDef := range cad.Populated.NamespaceDefinitions {
-		_, ts, err := namespace.ReadNamespaceAndTypes(
+		_, ts, err := typesystem.ReadNamespaceAndTypes(
 			cad.Ctx,
 			nsDef.Name,
 			cad.DataStore.SnapshotReader(headRevision),
