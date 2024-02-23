@@ -2,18 +2,18 @@ package requestid
 
 import (
 	"context"
-	"math/rand"
 
 	log "github.com/authzed/spicedb/internal/logging"
 
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
+	"github.com/rs/xid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
-// RequestIDMetadataKey is the key in which request IDs are passed to metadata.
-const RequestIDMetadataKey = "x-request-id"
+// MetadataKey is the key in which request IDs are passed to metadata.
+const MetadataKey = "x-request-id"
 
 // Option instances control how the middleware is initialized.
 type Option func(*handleRequestID)
@@ -31,41 +31,9 @@ func GenerateIfMissing(enable bool) Option {
 // IDGenerator functions are used to generate request IDs if a new one is needed.
 type IDGenerator func() string
 
-// WithIDGenerator gives the middleware a function to use for generating requestIDs.
-//
-// default: 32 character hex string
-func WithIDGenerator(genFunc IDGenerator) Option {
-	return func(reporter *handleRequestID) {
-		reporter.requestIDGenerator = genFunc
-	}
-}
-
 // GenerateRequestID generates a new request ID.
 func GenerateRequestID() string {
-	return randSeq(32)
-}
-
-// GetOrGenerateRequestID returns the request ID found in the given context. If not, a new request ID
-// is generated and added to the returned context.
-func GetOrGenerateRequestID(ctx context.Context) (string, context.Context) {
-	var haveRequestID bool
-	md, ok := metadata.FromIncomingContext(ctx)
-	if ok {
-		var requestIDs []string
-		requestIDs, haveRequestID = md[RequestIDMetadataKey]
-		if haveRequestID {
-			return requestIDs[0], ctx
-		}
-	}
-
-	if md == nil {
-		md = metadata.New(nil)
-	}
-
-	requestID := GenerateRequestID()
-	md.Set(RequestIDMetadataKey, requestID)
-	ctx = metadata.NewIncomingContext(ctx, md)
-	return requestID, ctx
+	return xid.New().String()
 }
 
 type handleRequestID struct {
@@ -79,7 +47,7 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
 		var requestIDs []string
-		requestIDs, haveRequestID = md[RequestIDMetadataKey]
+		requestIDs, haveRequestID = md[MetadataKey]
 		if haveRequestID {
 			requestID = requestIDs[0]
 		}
@@ -93,12 +61,12 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 			md = metadata.New(nil)
 		}
 
-		md.Set(RequestIDMetadataKey, requestID)
+		md.Set(MetadataKey, requestID)
 		ctx = metadata.NewIncomingContext(ctx, md)
 	}
 
 	if haveRequestID {
-		ctx = metadata.AppendToOutgoingContext(ctx, RequestIDMetadataKey, requestID)
+		ctx = metadata.AppendToOutgoingContext(ctx, MetadataKey, requestID)
 		err := responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
 			responsemeta.RequestID: requestID,
 		})
@@ -137,14 +105,4 @@ func createReporter(opts []Option) *handleRequestID {
 	}
 
 	return reporter
-}
-
-var letters = []rune("0123456789abcdef")
-
-func randSeq(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
 }

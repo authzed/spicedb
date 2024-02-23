@@ -22,6 +22,9 @@ func RandomObjectID(length uint8) string {
 		if i == 0 {
 			sourceLetters = FirstLetters
 		}
+		// nolint:gosec
+		// G404 use of non cryptographically secure random number generator is not a security concern here,
+		// as this is only used for generating fixtures in testing.
 		b[i] = sourceLetters[rand.Intn(len(sourceLetters))]
 	}
 	return string(b)

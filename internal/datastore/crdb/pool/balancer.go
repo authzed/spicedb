@@ -90,7 +90,11 @@ func newNodeConnectionBalancer[P balancePoolConn[C], C balanceConn](pool balance
 		healthTracker: healthTracker,
 		pool:          pool,
 		seed:          seed,
-		rnd:           rand.New(rand.NewSource(seed)),
+		// nolint:gosec
+		// use of non cryptographically secure random number generator is not concern here,
+		// as it's used for shuffling the nodes to balance the connections when the number of
+		// connections do not divide evenly.
+		rnd: rand.New(rand.NewSource(seed)),
 	}
 }
 

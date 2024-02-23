@@ -241,7 +241,6 @@ func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuil
 		}
 		return nil
 	}, sql, args...)
-
 	if err != nil {
 		return nil, err
 	}

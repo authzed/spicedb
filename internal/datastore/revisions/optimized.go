@@ -44,6 +44,10 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 	// Subtract a random amount of time from now, to let barely expired candidates get selected
 	adjustedNow := localNow
 	if cor.maxRevisionStaleness > 0 {
+		// nolint:gosec
+		// G404 use of non cryptographically secure random number generator is not a security concern here,
+		// as we are using it to introduce randomness to the accepted staleness of a revision and reduce the odds of
+		// a thundering herd to the datastore
 		adjustedNow = localNow.Add(-1 * time.Duration(rand.Int63n(cor.maxRevisionStaleness.Nanoseconds())) * time.Nanosecond)
 	}
 

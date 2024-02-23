@@ -90,6 +90,9 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 
 func updateCounter(ctx context.Context, tx pgx.Tx, change int64) (datastore.Revision, error) {
 	counterID := make([]byte, 2)
+	// nolint:gosec
+	// G404 use of non cryptographically secure random number generator is not concern here,
+	// as this is only used to randomly distributed the counters across multiple rows and reduce write row contention
 	_, err := rand.New(rng).Read(counterID)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("unable to select random counter: %w", err)
