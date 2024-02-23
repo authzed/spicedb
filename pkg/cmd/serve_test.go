@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,10 +31,10 @@ func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, m
 	cmd.SetArgs(args)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		_, err := config.Complete(cmd.Context())
-		t.Cleanup(func() {
-			// TODO: RunnableServer.closeFunc should be called on Cleanup, but it is private.
-		})
+		ctx, cancel := context.WithCancel(cmd.Context())
+		t.Cleanup(cancel)
+
+		_, err := config.Complete(ctx)
 		if err != nil {
 			return err
 		}
