@@ -1,2 +1,4 @@
 dist/
 *.wasm
+.vscode/settings.json
+.env.local
