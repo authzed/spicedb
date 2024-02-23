@@ -448,7 +448,6 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			OptionalLimit:  req.OptionalLimit,
 		},
 		stream)
-
 	if err != nil {
 		return ps.rewriteError(ctx, err)
 	}

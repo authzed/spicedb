@@ -321,7 +321,6 @@ func (sd spannerDatastore) watch(
 		}
 		return nil
 	})
-
 	if err != nil {
 		sendError(err)
 		return

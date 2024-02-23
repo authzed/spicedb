@@ -358,7 +358,6 @@ func (pgd *pgDatastore) ReadWriteTx(
 
 			return fn(ctx, rwt)
 		}))
-
 		if err != nil {
 			if !config.DisableRetries && errorRetryable(err) {
 				pgxcommon.SleepOnErr(ctx, err, i)

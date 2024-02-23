@@ -13,6 +13,10 @@ linters-settings:
   gosec:
     excludes:
       - 'G404'  # Allow the usage of math/rand
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: true
 linters:
   enable:
     - 'bidichk'
