@@ -64,6 +64,9 @@ func updateCounter(ctx context.Context, rwt *spanner.ReadWriteTransaction, chang
 	newValue := change
 
 	counterID := make([]byte, 2)
+	// nolint:gosec
+	// G404 use of non cryptographically secure random number generator is not concern here,
+	// as this is only used to randomly distributed the counters across multiple rows and reduce write contention
 	_, err := rand.New(rng).Read(counterID)
 	if err != nil {
 		return fmt.Errorf("unable to select random counter: %w", err)

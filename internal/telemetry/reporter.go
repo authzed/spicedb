@@ -164,7 +164,9 @@ func RemoteReporter(
 	}
 
 	return func(ctx context.Context) error {
-		// Smear the startup delay out over 10% of the reporting interval
+		// nolint:gosec
+		// G404 use of non cryptographically secure random number generator is not a security concern here,
+		// as this is only used to smear the startup delay out over 10% of the reporting interval
 		startupDelay := time.Duration(rand.Int63n(int64(interval.Seconds()/10))) * time.Second
 
 		log.Ctx(ctx).Info().
