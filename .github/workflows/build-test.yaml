@@ -99,24 +99,32 @@ jobs:
     name: "Datastore Tests"
     runs-on: "buildjet-4vcpu-ubuntu-2204"
     needs: "paths-filter"
-    if: |
-      needs.paths-filter.outputs.codechange == 'true'
     strategy:
       fail-fast: false
       matrix:
         datastore: ["crdb", "mysql", "postgres", "spanner", "pgbouncer"]
     steps:
       - uses: "actions/checkout@v3"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
         with:
           go-version: "${{ env.GO_VERSION }}"
       - uses: "docker/login-action@v3"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Integration tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}"
       - name: "Integration tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:${{ matrix.datastore }}"
 
   e2e:
