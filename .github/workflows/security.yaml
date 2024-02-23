@@ -1,0 +1,106 @@
+---
+name: "Security"
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "!dependabot/*"
+      - "main"
+  pull_request:
+    branches: ["*"]
+  merge_group:
+    types:
+      - "checks_requested"
+jobs:
+
+  codeql:
+    name: "Analyze with CodeQL"
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    permissions:
+      actions: "read"
+      contents: "read"
+      security-events: "write"
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["go"]
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "authzed/actions/setup-go@main"
+      - uses: "authzed/actions/codeql@main"
+
+  trivy:
+    name: "Analyze Code and Docker Image with Trivvy"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "authzed/actions/setup-go@main"
+      - uses: "aquasecurity/trivy-action@master"
+        with:
+          scan-type: "fs"
+          ignore-unfixed: true
+          format: "table"
+          exit-code: "1"
+          severity: "CRITICAL,HIGH,MEDIUM"
+      # Workaround until goreleaser release supports --single-target
+      # makes the build faster by not building everything
+      - name: "modify goreleaser config to skip building all targets"
+        run: |
+          echo "partial:
+            by: target" >> .goreleaser.yml
+      - uses: "goreleaser/goreleaser-action@v4"
+        id: "goreleaser"
+        with:
+          distribution: "goreleaser-pro"
+          version: "latest"
+          args: "release --clean --split --snapshot"
+        env:
+          GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
+      - name: "Obtain container image to scan"
+        run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64/metadata.json --raw-output)" >> $GITHUB_ENV'
+      - name: "run trivy on release image"
+        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64"
+
+  snyk-code:
+    name: "Analyze Go code with Snyk"
+    permissions:
+      contents: "read" # for actions/checkout to fetch code
+      security-events: "write" # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: "read" # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    steps:
+      - uses: "actions/checkout@master"
+      - name: "Run Snyk to check for vulnerabilities"
+        uses: "snyk/actions/golang@master"
+        continue-on-error: true # To make sure that SARIF upload gets called
+        env:
+          SNYK_TOKEN: "${{ secrets.SNYK_TOKEN }}"
+        with:
+          args: "--sarif-file-output=snyk.sarif"
+      - name: "Upload result to GitHub Code Scanning"
+        uses: "github/codeql-action/upload-sarif@v3"
+        with:
+          sarif_file: "snyk.sarif"
+
+  snyk-docker:
+    name: "Analyze Docker with Snyk"
+    permissions:
+      contents: "read" # for actions/checkout to fetch code
+      security-events: "write" # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: "read" # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    steps:
+      - uses: "actions/checkout@master"
+      - name: "Build a Docker image"
+        run: "DOCKER_BUILDKIT=1 docker build -t authzed/spicedb ."
+      - name: "Run Snyk to check Docker image for vulnerabilities"
+        continue-on-error: true
+        uses: "snyk/actions/docker@master"
+        env:
+          SNYK_TOKEN: "${{ secrets.SNYK_TOKEN }}"
+        with:
+          image: "authzed/spicedb"
+          args: "--file=Dockerfile"
+      - name: "Upload result to GitHub Code Scanning"
+        uses: "github/codeql-action/upload-sarif@v3"
+        with:
+          sarif_file: "snyk.sarif"
