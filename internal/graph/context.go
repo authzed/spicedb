@@ -12,9 +12,6 @@ import (
 // branchContext returns a context disconnected from the parent context, but populated with the datastore.
 // Also returns a function for canceling the newly created context, without canceling the parent context.
 func branchContext(ctx context.Context) (context.Context, func(cancelErr error)) {
-	// TODO(jschorr): Replace with https://pkg.go.dev/context@master#WithoutCancel once
-	// Go 1.21 lands.
-
 	// Add tracing to the context.
 	span := trace.SpanFromContext(ctx)
 	detachedContext := trace.ContextWithSpan(context.Background(), span)

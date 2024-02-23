@@ -114,7 +114,6 @@ func (mds *Datastore) CheckRevision(ctx context.Context, revision datastore.Revi
 }
 
 func (mds *Datastore) loadRevision(ctx context.Context) (uint64, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// slightly changed to support no revisions at all, needed for runtime seeding of first transaction
 	ctx, span := tracer.Start(ctx, "loadRevision")
 	defer span.End()

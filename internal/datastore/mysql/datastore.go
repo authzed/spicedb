@@ -252,7 +252,6 @@ func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Dat
 	return store, nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
@@ -277,7 +276,6 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 
 func noCleanup() error { return nil }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // ReadWriteTx starts a read/write transaction, which will be committed if no error is
 // returned and rolled back if an error is returned.
 func (mds *Datastore) ReadWriteTx(
@@ -457,7 +455,6 @@ type Datastore struct {
 
 // Close closes the data store.
 func (mds *Datastore) Close() error {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
@@ -597,7 +594,6 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 	})
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.LtOrEq{colCreatedTxn: revision.(revisions.TransactionIDRevision).TransactionID()}).
@@ -608,7 +604,6 @@ func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilter
 	}
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }

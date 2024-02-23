@@ -384,8 +384,8 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			// TODO temporarily store tuples in multiple calls to ReadWriteTransaction since no Datastore
-			// handles correctly duplicate tuples
+			// NOTE: we write tuples in multiple calls to ReadWriteTransaction because it is not allowed to change
+			// the same tuple in the same transaction.
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				for _, tpl := range tt.inputTuples {
 					update := tuple.Touch(tpl)

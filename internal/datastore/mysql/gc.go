@@ -27,7 +27,6 @@ func (mds *Datastore) ResetGCCompleted() {
 	mds.gcHasRun.Store(false)
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()
@@ -46,7 +45,6 @@ func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	return now.UTC(), nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - main difference is how the PSQL driver handles null values
 func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
 	// Find the highest transaction ID before the GC window.
@@ -69,7 +67,6 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 	return revisions.NewForTransactionID(uint64(value.Int64)), nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - implementation misses metrics
 func (mds *Datastore) DeleteBeforeTx(
 	ctx context.Context,
@@ -95,7 +92,6 @@ func (mds *Datastore) DeleteBeforeTx(
 	return
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - query was reworked to make it compatible with Vitess
 // - API differences with PSQL driver
 func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {

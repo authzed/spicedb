@@ -68,10 +68,6 @@ func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	// TODO(jschorr): Determine if we can do this in a more efficient manner using ON CONFLICT UPDATE
 	// rather than SELECT FOR UPDATE as we've been doing.
-	//
-	// NOTE: There are some fundamental changes introduced to prevent a deadlock in MySQL vs the initial
-	// Postgres implementation from which this was copied.
-
 	bulkWrite := rwt.WriteTupleQuery
 	bulkWriteHasValues := false
 
@@ -218,7 +214,6 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 }
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	// Add clauses for the ResourceFilter
 	query := rwt.DeleteTupleQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
 	if filter.OptionalResourceId != "" {
@@ -254,8 +249,6 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 }
 
 func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-
 	deletedNamespaceClause := sq.Or{}
 	writeQuery := rwt.WriteNamespaceQuery
 
@@ -296,8 +289,6 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 }
 
 func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-
 	// For each namespace, check they exist and collect predicates for the
 	// "WHERE" clause to delete the namespaces and associated tuples.
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
@@ -311,13 +302,11 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 			// TODO(jzelinskie): return the name of the missing namespace
 			return err
 		case err == nil:
-			break
+			nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt})
+			tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
 		default:
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
-
-		nsClauses = append(nsClauses, sq.Eq{colNamespace: nsName, colCreatedTxn: createdAt})
-		tplClauses = append(tplClauses, sq.Eq{colNamespace: nsName})
 	}
 
 	delSQL, delArgs, err := rwt.DeleteNamespaceQuery.
@@ -459,7 +448,6 @@ func convertToWriteConstraintError(err error) error {
 	return nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	return sq.Eq{
 		colNamespace:        r.ResourceAndRelation.Namespace,

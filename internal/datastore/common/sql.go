@@ -278,7 +278,6 @@ func (sqf SchemaQueryFilterer) MustFilterToResourceIDs(resourceIds []string) Sch
 // FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
 // specified IDs.
 func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
-	// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
 	if len(resourceIds) > int(datastore.FilterMaximumIDCount) {
 		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount)
 	}
@@ -380,7 +379,6 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 		}
 
 		if len(selector.OptionalSubjectIds) > 0 {
-			// TODO(jschorr): Change this panic into an automatic query split, if we find it necessary.
 			if len(selector.OptionalSubjectIds) > int(datastore.FilterMaximumIDCount) {
 				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount)
 			}

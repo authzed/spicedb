@@ -111,7 +111,6 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 	return updates, errs
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func (mds *Datastore) loadChanges(
 	ctx context.Context,
 	afterRevision uint64,

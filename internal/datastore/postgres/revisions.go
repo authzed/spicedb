@@ -220,8 +220,7 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 			return nil, fmt.Errorf("received revision delta in excess of that expected; are you sure you're not passing a ZedToken from an incompatible datastore?")
 		}
 
-		// TODO(jschorr): Remove this deprecated code path at some point and maybe look into
-		// a more memory-efficient encoding of the XIP list if necessary.
+		// TODO(jschorr): Remove this deprecated code path once we have per-datastore-marked ZedTokens.
 		xipList = make([]uint64, 0, xmax-xmin)
 		for i := xmin; i < xid; i++ {
 			xipList = append(xipList, i)
