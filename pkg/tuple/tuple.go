@@ -10,6 +10,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -271,9 +272,21 @@ func Delete(tpl *core.RelationTuple) *core.RelationTupleUpdate {
 	}
 }
 
+// Equal returns true if the two relationships are exactly the same.
 func Equal(lhs, rhs *core.RelationTuple) bool {
-	// TODO(jschorr): Use a faster method then string comparison for caveats.
-	return OnrEqual(lhs.ResourceAndRelation, rhs.ResourceAndRelation) && OnrEqual(lhs.Subject, rhs.Subject) && MustStringCaveat(lhs.Caveat) == MustStringCaveat(rhs.Caveat)
+	return OnrEqual(lhs.ResourceAndRelation, rhs.ResourceAndRelation) && OnrEqual(lhs.Subject, rhs.Subject) && caveatEqual(lhs.Caveat, rhs.Caveat)
+}
+
+func caveatEqual(lhs, rhs *core.ContextualizedCaveat) bool {
+	if lhs == nil && rhs == nil {
+		return true
+	}
+
+	if lhs == nil || rhs == nil {
+		return false
+	}
+
+	return lhs.CaveatName == rhs.CaveatName && proto.Equal(lhs.Context, rhs.Context)
 }
 
 // MustToRelationship converts a RelationTuple into a Relationship. Will panic if
