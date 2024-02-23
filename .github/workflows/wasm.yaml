@@ -5,8 +5,6 @@ on: # yamllint disable-line rule:truthy
     types: ["created"]
 permissions:
   contents: "write"
-env:
-  GO_VERSION: "~1.21.3"
 jobs:
   build:
     name: "Build WASM"
@@ -16,8 +14,6 @@ jobs:
         with:
           ref: "${{ env.GITHUB_SHA }}"
       - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
       - name: "Build WASM"
         run: "go run mage.go build:wasm"
       - uses: "shogo82148/actions-upload-release-asset@v1"
