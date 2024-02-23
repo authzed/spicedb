@@ -227,10 +227,9 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 
-	// TODO(jschorr): Remove this flag after a few versions.
 	flagSet.Uint16Var(&unusedSplitQueryCount, flagName("datastore-query-userset-batch-size"), 1024, "number of usersets after which a relationship query will be split into multiple queries")
-	if err := flagSet.MarkDeprecated(flagName("datastore-query-userset-batch-size"), "no longer has any effect"); err != nil {
-		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	if err := flagSet.MarkHidden(flagName("datastore-query-userset-batch-size")); err != nil {
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
 	return nil

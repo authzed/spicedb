@@ -125,16 +125,16 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				testUpdates = append(testUpdates, bulkDeletes)
 			}
 
-			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
+			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 
 			// Test the catch-up case
 			changes, errchan = ds.Watch(ctx, lowestRevision, opts)
-			verifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
+			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
 	}
 }
 
-func verifyUpdates(
+func VerifyUpdates(
 	require *require.Assertions,
 	testUpdates [][]*core.RelationTupleUpdate,
 	changes <-chan *datastore.RevisionChanges,
@@ -263,7 +263,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{
 			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom")),
 			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:sarah")),
@@ -307,7 +307,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))},
 	},
 		changes,
@@ -328,7 +328,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
 	},
 		changes,
@@ -368,7 +368,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{
 			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom")),
 			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:sarah")),
@@ -392,7 +392,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	verifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{tuple.Delete(tuple.Parse("document:firstdoc#viewer@user:tom"))},
 	},
 		changes,

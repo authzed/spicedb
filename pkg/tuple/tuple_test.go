@@ -583,12 +583,17 @@ func TestEqual(t *testing.T) {
 				},
 			},
 		),
+		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":\"there\"}]"),
+		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":123}}]"),
+		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":{\"hey\":true}}, \"hi2\":{\"yo2\":{\"hey2\":false}}}]"),
+		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":{\"hey\":true}}, \"hi2\":{\"yo2\":{\"hey2\":[1,2,3]}}}]"),
 	}
 
 	for _, tc := range equalTestCases {
 		t.Run(MustString(tc), func(t *testing.T) {
 			require := require.New(t)
 			require.True(Equal(tc, tc.CloneVT()))
+			require.True(Equal(tc, MustParse(MustString(tc))))
 		})
 	}
 
@@ -725,12 +730,40 @@ func TestEqual(t *testing.T) {
 				},
 			),
 		},
+		{
+			name: "missing caveat context via string",
+			lhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":\"there\"}]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat]"),
+		},
+		{
+			name: "mismatch caveat context via string",
+			lhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":\"there\"}]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":\"there2\"}]"),
+		},
+		{
+			name: "mismatch caveat name",
+			lhs:  MustParse("document:foo#viewer@user:tom[somecaveat]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat2]"),
+		},
+		{
+			name: "mismatch caveat context, deeply nested",
+			lhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":123}}]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":124}}]"),
+		},
+		{
+			name: "mismatch caveat context, deeply nested with array",
+			lhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":[1,2,3]}}]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":[1,2,4]}}]"),
+		},
 	}
 
 	for _, tc := range notEqualTestCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			require.False(Equal(tc.lhs, tc.rhs))
+			require.False(Equal(tc.rhs, tc.lhs))
+			require.False(Equal(tc.lhs, MustParse(MustString(tc.rhs))))
+			require.False(Equal(tc.rhs, MustParse(MustString(tc.lhs))))
 		})
 	}
 }
