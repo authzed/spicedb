@@ -6,9 +6,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// TODO(jschorr): See if there is a nice way we can combine this withn ONRByTypeSet and the multimap
-// used in Check to allow for a simple implementation.
-
 // SubjectByTypeSet is a set of SubjectSet's, grouped by their subject types.
 type SubjectByTypeSet struct {
 	byType map[string]SubjectSet

@@ -72,7 +72,6 @@ func generateConfig(options []Option) (spannerOptions, error) {
 	}
 
 	// Run any checks on the config that need to be done
-	// TODO set a limit to revision quantization?
 	if computed.revisionQuantization >= maxRevisionQuantization {
 		return computed, fmt.Errorf(
 			errQuantizationTooLarge,

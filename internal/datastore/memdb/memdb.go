@@ -304,7 +304,6 @@ func (mdb *memdbDatastore) Close() error {
 	mdb.Lock()
 	defer mdb.Unlock()
 
-	// TODO Make this nil once we have removed all access to closed datastores
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{

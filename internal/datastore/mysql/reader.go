@@ -35,7 +35,6 @@ const (
 	errUnableToQueryTuples    = "unable to query tuples: %w"
 )
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 var schema = common.NewSchemaInformation(
 	colNamespace,
 	colObjectID,
@@ -52,7 +51,6 @@ func (mr *mysqlReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
@@ -66,7 +64,6 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
@@ -91,7 +88,6 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 }
 
 func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
@@ -110,7 +106,6 @@ func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (
 }
 
 func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -138,7 +133,6 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 }
 
 func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -160,7 +154,6 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 		return nil, nil
 	}
 
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -183,7 +176,6 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 }
 
 func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
