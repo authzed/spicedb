@@ -10,9 +10,9 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/go-logr/zerologr"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	grpcauth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -78,7 +79,10 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		// Opt into OpenMetrics e.g. to support exemplars.
+		EnableOpenMetrics: true,
+	}))
 	if telemetryRegistry != nil {
 		mux.Handle("/telemetry", promhttp.HandlerFor(telemetryRegistry, promhttp.HandlerOpts{}))
 	}
@@ -148,6 +152,16 @@ type MiddlewareOption struct {
 	enableResponseLog     bool
 }
 
+// GRPCMetricsUnaryInterceptor creates the default prometheus metrics interceptor for unary gRPCs
+var GRPCMetricsUnaryInterceptor grpc.UnaryServerInterceptor
+
+// GRPCMetricsStreamingInterceptor creates the default prometheus metrics interceptor for streaming gRPCs
+var GRPCMetricsStreamingInterceptor grpc.StreamServerInterceptor
+
+func init() {
+	GRPCMetricsUnaryInterceptor, GRPCMetricsStreamingInterceptor = createServerMetrics()
+}
+
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
@@ -173,7 +187,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
-			WithInterceptor(grpcprom.UnaryServerInterceptor).
+			WithInterceptor(GRPCMetricsUnaryInterceptor).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -239,7 +253,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
-			WithInterceptor(grpcprom.StreamServerInterceptor).
+			WithInterceptor(GRPCMetricsStreamingInterceptor).
 			Done(),
 
 		NewStreamMiddleware().
@@ -303,7 +317,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
-			grpcprom.UnaryServerInterceptor,
+			GRPCMetricsUnaryInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
 			servicespecific.UnaryServerInterceptor,
@@ -312,7 +326,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultGRPCLogOptions...),
 			otelgrpc.StreamServerInterceptor(), // nolint: staticcheck
-			grpcprom.StreamServerInterceptor,
+			GRPCMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
@@ -337,4 +351,24 @@ func InterceptorLogger(l zerolog.Logger) grpclog.Logger {
 			l.Info().Msg(msg)
 		}
 	})
+}
+
+// initializes prometheus grpc interceptors with exemplar support enabled
+func createServerMetrics() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+	srvMetrics := grpcprom.NewServerMetrics(
+		grpcprom.WithServerHandlingTimeHistogram(
+			grpcprom.WithHistogramBuckets([]float64{.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5}),
+		),
+	)
+
+	prometheus.DefaultRegisterer.MustRegister(srvMetrics)
+	exemplarFromContext := func(ctx context.Context) prometheus.Labels {
+		if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
+			return prometheus.Labels{"traceID": span.TraceID().String()}
+		}
+		return nil
+	}
+
+	exemplarContext := grpcprom.WithExemplarFromContext(exemplarFromContext)
+	return srvMetrics.UnaryServerInterceptor(exemplarContext), srvMetrics.StreamServerInterceptor(exemplarContext)
 }
