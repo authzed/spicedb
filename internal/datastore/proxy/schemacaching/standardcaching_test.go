@@ -298,7 +298,7 @@ func TestSingleFlight(t *testing.T) {
 			dsMock.On("SnapshotReader", one).Return(oneReader)
 			oneReader.
 				On(tester.readSingleFunctionName, nsA).
-				WaitUntil(time.After(10*time.Millisecond)).
+				WaitUntil(time.After(50*time.Millisecond)).
 				Return(nil, old, nil).
 				Once()
 
