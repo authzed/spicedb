@@ -34,7 +34,7 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 
 		if stats.EstimatedRelationshipCount == uint64(0) && retryCount > 0 {
 			// Sleep for a bit to get the stats table to update.
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 

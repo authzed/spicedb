@@ -382,7 +382,6 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
 		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
-		crdb.DisableStats(opts.DisableStats),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),

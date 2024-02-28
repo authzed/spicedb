@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	CRDBTestVersionTag = "v22.2.0"
+	CRDBTestVersionTag = "v23.1.16"
 
 	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
 )
