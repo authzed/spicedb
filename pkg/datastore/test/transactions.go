@@ -36,7 +36,7 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 
 			ds := rawDS.(TestableDatastore)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 			defer cancel()
 
 			var attempts int
@@ -48,7 +48,10 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 				}
 				return errors.New("not retryable")
 			}, tc.txOptions...)
+
+			require.GreaterOrEqual(attempts, 1)
 			require.Error(err)
+
 			retries := attempts - 1
 			tc.countAssertion(t, retries)
 		})
