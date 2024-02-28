@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/go-logr/zerologr"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobragrpc"
 	"github.com/jzelinskie/cobrautil/v2/cobrahttp"
@@ -62,7 +61,7 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 		grpc.ChainUnaryInterceptor(
 			grpclog.UnaryServerInterceptor(server.InterceptorLogger(log.Logger)),
 			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
-			grpcprom.UnaryServerInterceptor,
+			server.GRPCMetricsUnaryInterceptor,
 		))
 	if err != nil {
 		log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed to create gRPC server")

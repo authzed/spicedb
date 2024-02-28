@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/authzed/consistent"
@@ -15,7 +14,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/ecordell/optgen/helpers"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
@@ -236,8 +234,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	ds = proxy.NewSingleflightDatastoreProxy(ds)
 	ds = schemacaching.NewCachingDatastoreProxy(ds, nscc, c.DatastoreConfig.GCWindow, cachingMode, c.SchemaWatchHeartbeat)
 	closeables.AddWithError(ds.Close)
-
-	enableGRPCHistogram()
 
 	specificConcurrencyLimits := c.DispatchConcurrencyLimits
 	concurrencyLimits := specificConcurrencyLimits.WithOverallDefaultLimit(c.GlobalDispatchConcurrencyLimit)
@@ -630,18 +626,4 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-var promOnce sync.Once
-
-// enableGRPCHistogram enables the standard time history for gRPC requests,
-// ensuring that it is only enabled once
-func enableGRPCHistogram() {
-	// EnableHandlingTimeHistogram is not thread safe and only needs to happen
-	// once
-	promOnce.Do(func() {
-		grpcprom.EnableHandlingTimeHistogram(grpcprom.WithHistogramBuckets(
-			[]float64{.006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1.000},
-		))
-	})
 }
