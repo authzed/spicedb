@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -213,7 +214,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
 	query := rwt.DeleteTupleQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
 	if filter.OptionalResourceId != "" {
@@ -236,16 +237,37 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 
 	query = query.Set(colDeletedTxn, rwt.newTxnID)
 
+	// Add the limit, if any.
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	var delLimit uint64
+	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
+		delLimit = *delOpts.DeleteLimit
+	}
+
+	if delLimit > 0 {
+		query = query.Limit(delLimit)
+	}
+
 	querySQL, args, err := query.ToSql()
 	if err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	if _, err := rwt.tx.ExecContext(ctx, querySQL, args...); err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+	modified, err := rwt.tx.ExecContext(ctx, querySQL, args...)
+	if err != nil {
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return nil
+	rowsAffected, err := modified.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+	}
+
+	if delLimit > 0 && uint64(rowsAffected) == delLimit {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces ...*core.NamespaceDefinition) error {

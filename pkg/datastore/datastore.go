@@ -285,8 +285,12 @@ type ReadWriteTransaction interface {
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
 	WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error
 
-	// DeleteRelationships deletes all Relationships that match the provided filter.
-	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error
+	// DeleteRelationships deletes relationships that match the provided filter, with
+	// the optional limit. If a limit is provided and reached, the method will return
+	// true as the first return value. Otherwise, the boolean can be ignored.
+	DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter,
+		options ...options.DeleteOptionsOption,
+	) (bool, error)
 
 	// WriteNamespaces takes proto namespace definitions and persists them.
 	WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error

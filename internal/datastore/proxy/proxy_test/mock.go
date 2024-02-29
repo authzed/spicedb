@@ -242,9 +242,9 @@ func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutati
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter) error {
+func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
 	args := dm.Called(filter)
-	return args.Error(0)
+	return false, args.Error(0)
 }
 
 func (dm *MockReadWriteTransaction) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {

@@ -5,6 +5,7 @@ import (
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.query_options.go . QueryOptions ReverseQueryOptions RWTOptions
+//go:generate go run github.com/ecordell/optgen -output zz_generated.delete_options.go . DeleteOptions
 
 // SortOrder is an enum which represents the order in which the caller would like
 // the data returned.
@@ -51,6 +52,12 @@ type ResourceRelation struct {
 // executed.
 type RWTOptions struct {
 	DisableRetries bool `debugmap:"visible"`
+}
+
+// DeleteOptions are the options that can affect the results of a delete relationships
+// operation.
+type DeleteOptions struct {
+	DeleteLimit *uint64 `debugmap:"visible"`
 }
 
 var (

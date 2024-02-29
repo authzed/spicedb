@@ -14,6 +14,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -197,7 +198,7 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	}
 }
 
-func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
 	query := queryDeleteTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
 	if filter.OptionalResourceId != "" {
@@ -219,19 +220,34 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 		}
 		rwt.addOverlapKey(subjectFilter.SubjectType)
 	}
+
+	// Add the limit, if any.
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	var delLimit uint64
+	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
+		delLimit = *delOpts.DeleteLimit
+	}
+
+	if delLimit > 0 {
+		query = query.Limit(delLimit)
+	}
+
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	modified, err := rwt.tx.Exec(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	rwt.relCountChange -= modified.RowsAffected()
+	if delLimit > 0 && uint64(modified.RowsAffected()) == delLimit {
+		return true, nil
+	}
 
-	return nil
+	return false, nil
 }
 
 func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {

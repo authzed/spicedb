@@ -237,7 +237,7 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Delete with DeleteRelationship
 			deletedAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+				_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 					ResourceType: testResourceNamespace,
 				})
 				require.NoError(err)
@@ -400,7 +400,7 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			deletedAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				err := rwt.DeleteRelationships(ctx, tt.filter)
+				_, err := rwt.DeleteRelationships(ctx, tt.filter)
 				require.NoError(err)
 				return err
 			})
@@ -671,6 +671,59 @@ func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTest
 	ensureTuples(ctx, require, ds, makeTestTuple("foo", "extra"))
 }
 
+// DeleteWithLimitTest tests deleting relationships with a limit.
+func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ctx := context.Background()
+
+	// Write the 1000 relationships.
+	tuples := make([]*core.RelationTuple, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		tpl := makeTestTuple("foo", fmt.Sprintf("user%d", i))
+		tuples = append(tuples, tpl)
+	}
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tuples...)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, tuples...)
+
+	// Delete 100 tuples.
+	var deleteLimit uint64 = 100
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		limitReached, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			ResourceType: testResourceNamespace,
+		}, options.WithDeleteLimit(&deleteLimit))
+		require.NoError(err)
+		require.True(limitReached)
+		return nil
+	})
+	require.NoError(err)
+
+	// Ensure 900 tuples remain.
+	found := countTuples(ctx, require, ds, testResourceNamespace)
+	require.Equal(900, found)
+
+	// Delete the remainder.
+	deleteLimit = 1000
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		limitReached, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			ResourceType: testResourceNamespace,
+		}, options.WithDeleteLimit(&deleteLimit))
+		require.NoError(err)
+		require.False(limitReached)
+		return nil
+	})
+	require.NoError(err)
+
+	found = countTuples(ctx, require, ds, testResourceNamespace)
+	require.Equal(0, found)
+}
+
 // DeleteCaveatedTupleTest tests deleting a relationship with a caveat.
 func DeleteCaveatedTupleTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
@@ -873,10 +926,11 @@ func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		t.Log(time.Now(), "deleting")
 		deleteCount++
-		return rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
 			ResourceType:     testResourceNamespace,
 			OptionalRelation: testReaderRelation,
 		})
+		return err
 	})
 	require.NoError(err)
 	require.Equal(1, deleteCount)
@@ -946,4 +1000,29 @@ func ensureTuplesStatus(ctx context.Context, require *require.Assertions, ds dat
 			require.Equal(tuple.MustString(tpl), tuple.MustString(found))
 		}
 	}
+}
+
+func countTuples(ctx context.Context, require *require.Assertions, ds datastore.Datastore, resourceType string) int {
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+
+	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType: resourceType,
+	})
+	require.NoError(err)
+	defer iter.Close()
+
+	counter := 0
+	for {
+		rel := iter.Next()
+		if rel == nil {
+			break
+		}
+
+		counter++
+	}
+
+	return counter
 }

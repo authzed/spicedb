@@ -398,7 +398,8 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			return rwt.WriteRelationships(ctx, deleteMutations)
 		}
 
-		return rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		_, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		return err
 	})
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
