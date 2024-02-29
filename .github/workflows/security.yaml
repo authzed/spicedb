@@ -32,8 +32,10 @@ jobs:
     name: "Analyze Code and Docker Image with Trivvy"
     runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
+      - name: "Install snapcraft"
+        run: "sudo snap install snapcraft --channel=7.x/stable --classic"
       - uses: "aquasecurity/trivy-action@master"
         with:
           scan-type: "fs"
