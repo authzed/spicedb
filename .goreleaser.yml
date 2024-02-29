@@ -2,6 +2,9 @@
 git:
   tag_sort: "-version:creatordate"
   prerelease_suffix: "-"
+before:
+  hooks:
+    - "go run mage.go gen:completions"
 builds:
   - main: "./cmd/spicedb"
     env:
@@ -17,6 +20,11 @@ builds:
     ldflags:
       - "-s -w"
       - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
+archives:
+  - files:
+      - "README.md"
+      - "LICENSE"
+      - "completions/*"
 nfpms:
   - vendor: "authzed inc."
     homepage: "https://spicedb.io"
@@ -28,6 +36,19 @@ nfpms:
       - "apk"
       - "deb"
       - "rpm"
+    contents:
+      - src: "./completions/spicedb.bash"
+        dst: "/usr/share/bash-completion/completions/spicedb"
+        file_info:
+          mode: 0644
+      - src: "./completions/spicedb.fish"
+        dst: "/usr/share/fish/vendor_completions.d/spicedb.fish"
+        file_info:
+          mode: 0644
+      - src: "./completions/spicedb.zsh"
+        dst: "/usr/share/zsh/vendor-completions/_spicedb"
+        file_info:
+          mode: 0644
 furies:
   - account: "authzed"
     secret_name: "GEMFURY_PUSH_TOKEN"
@@ -110,9 +131,9 @@ brews:
         system "go build --ldflags \"-s -w -X github.com/jzelinskie/cobrautil/v2.Version=$(git describe --always --abbrev=7 --dirty --tags)\" ./cmd/spicedb"
       end
       bin.install "spicedb"
-      (bash_completion/"spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "bash")
-      (zsh_completion/"_spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "zsh")
-      (fish_completion/"spicedb.fish").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "fish")
+      bash_completion.install "completions/spicedb.bash" => "spicedb"
+      zsh_completion.install "completions/spicedb.zsh" => "_spicedb"
+      fish_completion.install "completions/spicedb.fish"
 dockers:
   # AMD64
   - image_templates:
