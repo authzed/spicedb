@@ -1,4 +1,5 @@
 dist/
+completions/
 *.wasm
 .vscode/settings.json
 .env.local
