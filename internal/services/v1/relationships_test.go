@@ -1122,10 +1122,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				})
 				require.NoError(err)
 
-				headRev, err = ds.HeadRevision(context.Background())
-				require.NoError(err)
-
-				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevision(headRev))
+				afterDelete := readOfType(require, "document", client, resp.DeletedAt)
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
 				if i == 0 {
