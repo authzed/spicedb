@@ -96,6 +96,10 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	bulkTouch := queryTouchTuple
 	var bulkTouchCount int64
 
+	bulkDelete := queryDeleteTuples
+	bulkDeleteOr := sq.Or{}
+	var bulkDeleteCount int64
+
 	// Process the actual updates
 	for _, mutation := range mutations {
 		rel := mutation.Tuple
@@ -139,17 +143,24 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 			bulkWriteCount++
 		case core.RelationTupleUpdate_DELETE:
 			rwt.relCountChange--
-			sql, args, err := queryDeleteTuples.Where(exactRelationshipClause(rel)).ToSql()
-			if err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
+			bulkDeleteOr = append(bulkDeleteOr, exactRelationshipClause(rel))
+			bulkDeleteCount++
 
-			if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
 		default:
 			log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
 			return fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
+		}
+	}
+
+	if bulkDeleteCount > 0 {
+		bulkDelete = bulkDelete.Where(bulkDeleteOr)
+		sql, args, err := bulkDelete.ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 

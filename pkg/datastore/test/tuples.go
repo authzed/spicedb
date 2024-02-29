@@ -636,6 +636,65 @@ func CreateDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	ensureTuples(ctx, require, ds, tpl1, tpl2)
 }
 
+// DeleteOneThousandIndividualInOneCallTest tests deleting 1000 relationships, individually.
+func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	// Write the 1000 relationships.
+	tuples := make([]*core.RelationTuple, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		tpl := makeTestTuple("foo", fmt.Sprintf("user%d", i))
+		tuples = append(tuples, tpl)
+	}
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tuples...)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, tuples...)
+
+	// Add an extra tuple.
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, makeTestTuple("foo", "extra"))
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, makeTestTuple("foo", "extra"))
+
+	// Delete the first 1000 tuples.
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tuples...)
+	require.NoError(err)
+	ensureNotTuples(ctx, require, ds, tuples...)
+
+	// Ensure the extra tuple is still present.
+	ensureTuples(ctx, require, ds, makeTestTuple("foo", "extra"))
+}
+
+// DeleteCaveatedTupleTest tests deleting a relationship with a caveat.
+func DeleteCaveatedTupleTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl := tuple.Parse("test/resource:someresource#viewer@test/user:someuser[somecaveat]")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, tpl)
+
+	// Delete the tuple.
+	withoutCaveat := tuple.Parse("test/resource:someresource#viewer@test/user:someuser")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, withoutCaveat)
+	require.NoError(err)
+	ensureNotTuples(ctx, require, ds, tpl, withoutCaveat)
+}
+
 // CreateTouchDeleteTouchTest tests writing a relationship, touching it, deleting it, and then touching it.
 func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
