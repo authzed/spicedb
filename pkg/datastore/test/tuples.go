@@ -29,6 +29,7 @@ const (
 	testResourceNamespace = "test/resource"
 	testGroupNamespace    = "test/group"
 	testReaderRelation    = "reader"
+	testEditorRelation    = "editor"
 	testMemberRelation    = "member"
 	ellipsis              = "..."
 )
@@ -779,6 +780,60 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(g.Wait())
 	require.Less(time.Since(startTime), 10*time.Second)
+}
+
+func BulkDeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ctx := context.Background()
+
+	// Write a bunch of relationships.
+	t.Log(time.Now(), "starting write")
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(testResourceNamespace, testReaderRelation, testUserNamespace, 1000, t))
+		if err != nil {
+			return err
+		}
+
+		_, err = rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(testResourceNamespace, testEditorRelation, testUserNamespace, 1000, t))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	require.NoError(err)
+
+	// Issue a deletion for the first set of relationships.
+	t.Log(time.Now(), "starting delete")
+	deleteCount := 0
+	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		t.Log(time.Now(), "deleting")
+		deleteCount++
+		return rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			ResourceType:     testResourceNamespace,
+			OptionalRelation: testReaderRelation,
+		})
+	})
+	require.NoError(err)
+	require.Equal(1, deleteCount)
+	t.Log(time.Now(), "finished delete")
+
+	// Ensure the relationships were removed.
+	t.Log(time.Now(), "starting check")
+	reader := ds.SnapshotReader(deletedRev)
+	iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		ResourceType:             testResourceNamespace,
+		OptionalResourceRelation: testReaderRelation,
+	})
+	require.NoError(err)
+	defer iter.Close()
+
+	require.Nil(iter.Next(), "expected no results")
 }
 
 func onrToSubjectsFilter(onr *core.ObjectAndRelation) datastore.SubjectsFilter {

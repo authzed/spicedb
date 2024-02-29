@@ -53,6 +53,7 @@ func TestCRDBDatastore(t *testing.T) {
 				RevisionQuantization(revisionQuantization),
 				WatchBufferLength(watchBufferLength),
 				OverlapStrategy(overlapStrategyPrefix),
+				DebugAnalyzeBeforeStatistics(),
 			)
 			require.NoError(t, err)
 			return ds
@@ -84,6 +85,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 					GCWindow(gcWindow),
 					RevisionQuantization(quantization),
 					FollowerReadDelay(followerReadDelay),
+					DebugAnalyzeBeforeStatistics(),
 				)
 				require.NoError(err)
 				return ds
@@ -134,14 +136,18 @@ func TestWatchFeatureDetection(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectEnabled: false,
-			expectMessage: "Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: ERROR: user unprivileged does not have CHANGEFEED privilege on relation relation_tuple (SQLSTATE 42501)",
+			expectMessage: "(SQLSTATE 42501)",
 		},
 		{
 			name: "rangefeeds enabled, user has permission",
 			postInit: func(ctx context.Context, adminConn *pgx.Conn) {
 				_, err = adminConn.Exec(ctx, `SET CLUSTER SETTING kv.rangefeed.enabled = true;`)
 				require.NoError(t, err)
+
 				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT CHANGEFEED ON TABLE testspicedb.%s TO unprivileged;`, tableTuple))
+				require.NoError(t, err)
+
+				_, err = adminConn.Exec(ctx, fmt.Sprintf(`GRANT SELECT ON TABLE testspicedb.%s TO unprivileged;`, tableTuple))
 				require.NoError(t, err)
 			},
 			expectEnabled: true,

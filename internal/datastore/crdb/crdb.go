@@ -68,8 +68,10 @@ const (
 	errUnableToInstantiate = "unable to instantiate datastore"
 	errRevision            = "unable to find revision: %w"
 
-	querySelectNow      = "SELECT cluster_logical_timestamp()"
-	queryShowZoneConfig = "SHOW ZONE CONFIGURATION FOR RANGE default;"
+	querySelectNow            = "SELECT cluster_logical_timestamp()"
+	queryTransactionNowPreV23 = querySelectNow
+	queryTransactionNow       = "SHOW COMMIT TIMESTAMP"
+	queryShowZoneConfig       = "SHOW ZONE CONFIGURATION FOR RANGE default;"
 
 	livingTupleConstraint = "pk_relation_tuple"
 )
@@ -122,6 +124,12 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		changefeedQuery = queryChangefeedPreV22
 	}
 
+	transactionNowQuery := queryTransactionNow
+	if version.Major < 23 {
+		log.Info().Object("version", version).Msg("using transaction now query for CRDB version < 23")
+		transactionNowQuery = queryTransactionNowPreV23
+	}
+
 	clusterTTLNanos, err := readClusterTTLNanos(initCtx, initPool)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read cluster gc window: %w", err)
@@ -172,8 +180,9 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		writeOverlapKeyer:       keyer,
 		overlapKeyInit:          keySetInit,
-		disableStats:            config.disableStats,
 		beginChangefeedQuery:    changefeedQuery,
+		transactionNowQuery:     transactionNowQuery,
+		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -254,9 +263,10 @@ type crdbDatastore struct {
 	watchBufferWriteTimeout time.Duration
 	writeOverlapKeyer       overlapKeyer
 	overlapKeyInit          func(ctx context.Context) keySet
-	disableStats            bool
+	analyzeBeforeStatistics bool
 
 	beginChangefeedQuery string
+	transactionNowQuery  string
 
 	featureGroup singleflight.Group[string, *datastore.Features]
 
@@ -321,21 +331,11 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 		}
 
-		if cds.disableStats {
-			var err error
-			commitTimestamp, err = readCRDBNow(ctx, querier)
-			if err != nil {
-				return fmt.Errorf("error getting commit timestamp: %w", err)
-			}
-			return nil
-		}
-
 		var err error
-		commitTimestamp, err = updateCounter(ctx, tx, rwt.relCountChange)
+		commitTimestamp, err = cds.readTransactionCommitRev(ctx, querier)
 		if err != nil {
-			return fmt.Errorf("error updating relationship counter: %w", err)
+			return fmt.Errorf("error getting commit timestamp: %w", err)
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -371,7 +371,9 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return datastore.ReadyState{}, err
 	}
 
-	if version != headMigration {
+	// TODO(jschorr): Remove the check for the older migration once we are confident
+	// that all users have migrated past it.
+	if version != headMigration && version != "add-caveats" {
 		return datastore.ReadyState{
 			Message: fmt.Sprintf(
 				"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
@@ -465,6 +467,20 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 	<-streamCtx.Done()
 
 	return &features, nil
+}
+
+func (cds *crdbDatastore) readTransactionCommitRev(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, error) {
+	ctx, span := tracer.Start(ctx, "readTransactionCommitRev")
+	defer span.End()
+
+	var hlcNow decimal.Decimal
+	if err := reader.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&hlcNow)
+	}, cds.transactionNowQuery); err != nil {
+		return datastore.NoRevision, fmt.Errorf("unable to read timestamp: %w", err)
+	}
+
+	return revisions.NewForHLC(hlcNow)
 }
 
 func readCRDBNow(ctx context.Context, reader pgxcommon.DBFuncQuerier) (datastore.Revision, error) {

@@ -20,8 +20,8 @@ type crdbOptions struct {
 	maxRetries                  uint8
 	overlapStrategy             string
 	overlapKey                  string
-	disableStats                bool
 	enableConnectionBalancing   bool
+	analyzeBeforeStatistics     bool
 
 	enablePrometheusStats bool
 }
@@ -65,7 +65,6 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		maxRetries:                  defaultMaxRetries,
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
-		disableStats:                false,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		enableConnectionBalancing:   defaultEnableConnectionBalancing,
 		connectRate:                 defaultConnectRate,
@@ -283,11 +282,6 @@ func OverlapKey(key string) Option {
 	return func(po *crdbOptions) { po.overlapKey = key }
 }
 
-// DisableStats disables recording counts to the stats table
-func DisableStats(disable bool) Option {
-	return func(po *crdbOptions) { po.disableStats = disable }
-}
-
 // WithEnablePrometheusStats marks whether Prometheus metrics provided by the Postgres
 // clients being used by the datastore are enabled.
 //
@@ -302,4 +296,13 @@ func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 // Prometheus metrics are disabled by default.
 func WithEnableConnectionBalancing(connectionBalancing bool) Option {
 	return func(po *crdbOptions) { po.enableConnectionBalancing = connectionBalancing }
+}
+
+// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
+// run Analyze on the database before returning statistics. This should only be
+// used for debug and testing.
+//
+// Disabled by default.
+func DebugAnalyzeBeforeStatistics() Option {
+	return func(po *crdbOptions) { po.analyzeBeforeStatistics = true }
 }
