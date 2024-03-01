@@ -68,6 +68,7 @@ snapcrafts:
     apps:
       spicedb:
         command: "spicedb"
+        completer: "completions/spicedb.bash"
         plugs:
           - "network-bind"
           - "network"
