@@ -299,7 +299,7 @@ func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames ...strin
 	return rwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
-func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
 	ctx, closer := observe(ctx, "DeleteRelationships", trace.WithAttributes(
 		filterToAttributes(filter)...,
 	))

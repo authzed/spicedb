@@ -234,6 +234,15 @@ var queryTuples = sql.Select(
 	colCaveatContext,
 ).From(tableRelationship)
 
+var queryTuplesForDelete = sql.Select(
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+).From(tableRelationship)
+
 var schema = common.NewSchemaInformation(
 	colNamespace,
 	colObjectID,

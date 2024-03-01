@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-
-	"github.com/authzed/spicedb/pkg/tuple"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -18,6 +17,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -48,7 +48,15 @@ var (
 		colCaveatContext,
 	)
 
-	deleteTuple = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	deleteTuple     = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	selectForDelete = psql.Select(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+	).From(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
@@ -269,7 +277,71 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	return nil
 }
 
-func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
+		return rwt.deleteRelationshipsWithLimit(ctx, filter, *delOpts.DeleteLimit)
+	}
+
+	return false, rwt.deleteRelationships(ctx, filter)
+}
+
+func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (bool, error) {
+	// Construct a select query for the relationships to be removed.
+	query := selectForDelete.Where(sq.Eq{colNamespace: filter.ResourceType})
+	if filter.OptionalResourceId != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+	}
+	if filter.OptionalRelation != "" {
+		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+
+	// Add clauses for the SubjectFilter
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		if subjectFilter.OptionalSubjectId != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+		}
+		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+		}
+	}
+
+	query = query.Limit(limit)
+
+	selectSQL, args, err := query.ToSql()
+	if err != nil {
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+	}
+
+	args = append(args, rwt.newXID)
+	if len(args) != 3 {
+		return false, spiceerrors.MustBugf("expected 3 arguments, got %d", len(args))
+	}
+
+	// Construct a CTE to update the relationships as removed.
+	cteSQL := fmt.Sprintf(
+		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $3 WHERE (%s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
+		selectSQL,
+		tableTuple,
+		colDeletedXid,
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+	)
+
+	result, err := rwt.tx.Exec(ctx, cteSQL, args...)
+	if err != nil {
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
+	}
+
+	return result.RowsAffected() == int64(limit), nil
+}
+
+func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
 	// Add clauses for the ResourceFilter
 	query := deleteTuple.Where(sq.Eq{colNamespace: filter.ResourceType})
 	if filter.OptionalResourceId != "" {

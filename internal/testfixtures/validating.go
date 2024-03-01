@@ -205,12 +205,12 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	return vrwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
 	if err := filter.Validate(); err != nil {
-		return err
+		return false, err
 	}
 
-	return vrwt.delegate.DeleteRelationships(ctx, filter)
+	return vrwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {

@@ -28,7 +28,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/pagination"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -351,40 +350,6 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			return err
 		}
 
-		var deleteMutations []*core.RelationTupleUpdate
-
-		if req.OptionalLimit > 0 {
-			limit := uint64(req.OptionalLimit)
-			deleteMutations = make([]*core.RelationTupleUpdate, 0, limit)
-
-			limitPlusOne := limit + 1
-			filter := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
-
-			iter, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne))
-			if err != nil {
-				return ps.rewriteError(ctx, err)
-			}
-			defer iter.Close()
-
-			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-				if iter.Err() != nil {
-					return ps.rewriteError(ctx, err)
-				}
-
-				if len(deleteMutations) == int(limit) {
-					deletionProgress = v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL
-					if !req.OptionalAllowPartialDeletions {
-						return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
-					}
-
-					break
-				}
-
-				deleteMutations = append(deleteMutations, tuple.Delete(tpl))
-			}
-			iter.Close()
-		}
-
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
 			// One request per precondition and one request for the actual delete.
 			DispatchCount: uint32(len(req.OptionalPreconditions)) + 1,
@@ -394,11 +359,52 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			return err
 		}
 
-		if len(deleteMutations) > 0 {
-			return rwt.WriteRelationships(ctx, deleteMutations)
+		// If a limit was specified but partial deletion is not allowed, we need to check if the
+		// number of relationships to be deleted exceeds the limit.
+		if req.OptionalLimit > 0 && !req.OptionalAllowPartialDeletions {
+			limit := uint64(req.OptionalLimit)
+			limitPlusOne := limit + 1
+			filter := datastore.RelationshipsFilterFromPublicFilter(req.RelationshipFilter)
+
+			iter, err := rwt.QueryRelationships(ctx, filter, options.WithLimit(&limitPlusOne))
+			if err != nil {
+				return ps.rewriteError(ctx, err)
+			}
+			defer iter.Close()
+
+			counter := 0
+			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
+				if iter.Err() != nil {
+					return ps.rewriteError(ctx, err)
+				}
+
+				if counter == int(limit) {
+					return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
+				}
+
+				counter++
+			}
+			iter.Close()
 		}
 
-		return rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		// Delete with the specified limit.
+		if req.OptionalLimit > 0 {
+			deleteLimit := uint64(req.OptionalLimit)
+			reachedLimit, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter, options.WithDeleteLimit(&deleteLimit))
+			if err != nil {
+				return err
+			}
+
+			if reachedLimit {
+				deletionProgress = v1.DeleteRelationshipsResponse_DELETION_PROGRESS_PARTIAL
+			}
+
+			return nil
+		}
+
+		// Otherwise, kick off an unlimited deletion.
+		_, err := rwt.DeleteRelationships(ctx, req.RelationshipFilter)
+		return err
 	})
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)

@@ -12,7 +12,9 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type spannerReadWriteTXN struct {
@@ -20,6 +22,8 @@ type spannerReadWriteTXN struct {
 	spannerRWT   *spanner.ReadWriteTransaction
 	disableStats bool
 }
+
+const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
 
 func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	var rowCountChange int64
@@ -68,65 +72,140 @@ func spannerMutation(
 	return
 }
 
-func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
-	if err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.disableStats); err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
+	limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.disableStats, opts...)
+	if err != nil {
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return nil
+	return limitReached, nil
 }
 
-type selectAndDelete struct {
-	sel sq.SelectBuilder
-	del sq.DeleteBuilder
-}
-
-func (snd selectAndDelete) Where(pred any, args ...any) selectAndDelete {
-	snd.sel = snd.sel.Where(pred, args...)
-	snd.del = snd.del.Where(pred, args...)
-	return snd
-}
-
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) error {
-	queries := selectAndDelete{queryTuples, sql.Delete(tableRelationship)}
-
-	// Add clauses for the ResourceFilter
-	queries = queries.Where(sq.Eq{colNamespace: filter.ResourceType})
-	if filter.OptionalResourceId != "" {
-		queries = queries.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
-	}
-	if filter.OptionalRelation != "" {
-		queries = queries.Where(sq.Eq{colRelation: filter.OptionalRelation})
-	}
-
-	// Add clauses for the SubjectFilter
-	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
-		queries = queries.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
-		if subjectFilter.OptionalSubjectId != "" {
-			queries = queries.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
-		}
-		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
-			queries = queries.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool, opts ...options.DeleteOptionsOption) (bool, error) {
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	var delLimit uint64
+	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
+		delLimit = *delOpts.DeleteLimit
+		if delLimit > inLimit {
+			return false, spiceerrors.MustBugf("delete limit %d exceeds maximum of %d in spanner", delLimit, inLimit)
 		}
 	}
 
-	sql, args, err := queries.del.ToSql()
-	if err != nil {
-		return err
-	}
+	var numDeleted int64
+	if delLimit > 0 {
+		nu, err := deleteWithFilterAndLimit(ctx, rwt, filter, disableStats, delLimit)
+		if err != nil {
+			return false, err
+		}
+		numDeleted = nu
+	} else {
+		nu, err := deleteWithFilterAndNoLimit(ctx, rwt, filter, disableStats)
+		if err != nil {
+			return false, err
+		}
 
-	numDeleted, err := rwt.Update(ctx, statementFromSQL(sql, args))
-	if err != nil {
-		return err
+		numDeleted = nu
 	}
 
 	if !disableStats {
 		if err := updateCounter(ctx, rwt, -1*numDeleted); err != nil {
-			return err
+			return false, err
 		}
 	}
 
-	return nil
+	if delLimit > 0 && uint64(numDeleted) == delLimit {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool, delLimit uint64) (int64, error) {
+	query := queryTuplesForDelete
+	query = applyFilterToQuery(query, filter)
+	query = query.Limit(delLimit)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return -1, err
+	}
+
+	mutations := make([]*spanner.Mutation, 0, delLimit)
+
+	// Load the relationships to be deleted.
+	iter := rwt.Query(ctx, statementFromSQL(sql, args))
+	defer iter.Stop()
+
+	if err := iter.Do(func(row *spanner.Row) error {
+		nextTuple := &core.RelationTuple{
+			ResourceAndRelation: &core.ObjectAndRelation{},
+			Subject:             &core.ObjectAndRelation{},
+		}
+		err := row.Columns(
+			&nextTuple.ResourceAndRelation.Namespace,
+			&nextTuple.ResourceAndRelation.ObjectId,
+			&nextTuple.ResourceAndRelation.Relation,
+			&nextTuple.Subject.Namespace,
+			&nextTuple.Subject.ObjectId,
+			&nextTuple.Subject.Relation,
+		)
+		if err != nil {
+			return err
+		}
+
+		mutations = append(mutations, spanner.Delete(tableRelationship, keyFromRelationship(nextTuple)))
+		return nil
+	}); err != nil {
+		return -1, err
+	}
+
+	// Delete the relationships.
+	if err := rwt.BufferWrite(mutations); err != nil {
+		return -1, fmt.Errorf(errUnableToWriteRelationships, err)
+	}
+
+	return int64(len(mutations)), nil
+}
+
+func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) (int64, error) {
+	query := sql.Delete(tableRelationship)
+	query = applyFilterToQuery(query, filter)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return -1, err
+	}
+
+	deleteStatement := statementFromSQL(sql, args)
+	return rwt.Update(ctx, deleteStatement)
+}
+
+type builder[T any] interface {
+	Where(pred interface{}, args ...interface{}) T
+}
+
+func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) T {
+	// Add clauses for the ResourceFilter
+	query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	if filter.OptionalResourceId != "" {
+		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
+	}
+	if filter.OptionalRelation != "" {
+		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+
+	// Add clauses for the SubjectFilter
+	if subjectFilter := filter.OptionalSubjectFilter; subjectFilter != nil {
+		query = query.Where(sq.Eq{colUsersetNamespace: subjectFilter.SubjectType})
+		if subjectFilter.OptionalSubjectId != "" {
+			query = query.Where(sq.Eq{colUsersetObjectID: subjectFilter.OptionalSubjectId})
+		}
+		if relationFilter := subjectFilter.OptionalRelation; relationFilter != nil {
+			query = query.Where(sq.Eq{colUsersetRelation: stringz.DefaultEmpty(relationFilter.Relation, datastore.Ellipsis)})
+		}
+	}
+
+	return query
 }
 
 func upsertVals(r *core.RelationTuple) []any {
@@ -181,7 +260,7 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	for _, nsName := range nsNames {
 		relFilter := &v1.RelationshipFilter{ResourceType: nsName}
-		if err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter, rwt.disableStats); err != nil {
+		if _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter, rwt.disableStats); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 

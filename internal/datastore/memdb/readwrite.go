@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -117,38 +118,53 @@ func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdat
 	return cr
 }
 
-func (rwt *memdbReadWriteTx) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *memdbReadWriteTx) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return rwt.deleteWithLock(tx, filter)
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	var delLimit uint64
+	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
+		delLimit = *delOpts.DeleteLimit
+	}
+
+	return rwt.deleteWithLock(tx, filter, delLimit)
 }
 
 // caller must already hold the concurrent access lock
-func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter) error {
+func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter, limit uint64) (bool, error) {
 	// Create an iterator to find the relevant tuples
 	bestIter, err := iteratorForFilter(tx, datastore.RelationshipsFilterFromPublicFilter(filter))
 	if err != nil {
-		return err
+		return false, err
 	}
 	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
 
 	// Collect the tuples into a slice of mutations for the changelog
 	var mutations []*core.RelationTupleUpdate
+	var counter uint64
+
+	metLimit := false
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
 		rt, err := row.(*relationship).RelationTuple()
 		if err != nil {
-			return err
+			return false, err
 		}
 		mutations = append(mutations, tuple.Delete(rt))
+		counter++
+
+		if limit > 0 && counter == limit {
+			metLimit = true
+			break
+		}
 	}
 
-	return rwt.write(tx, mutations...)
+	return metLimit, rwt.write(tx, mutations...)
 }
 
 func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
@@ -201,9 +217,9 @@ func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames ...stri
 		}
 
 		// Delete the relationships from the namespace
-		if err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
+		if _, err := rwt.deleteWithLock(tx, &v1.RelationshipFilter{
 			ResourceType: nsName,
-		}); err != nil {
+		}, 0); err != nil {
 			return fmt.Errorf("unable to delete relationships from deleted namespace: %w", err)
 		}
 	}
