@@ -125,6 +125,12 @@ var defaultGRPCLogOptions = []grpclog.Option{
 	grpclog.WithDurationField(func(duration time.Duration) grpclog.Fields {
 		return grpclog.Fields{"grpc.time_ms", duration.Milliseconds()}
 	}),
+	grpclog.WithFieldsFromContext(func(ctx context.Context) grpclog.Fields {
+		if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
+			return grpclog.Fields{"traceID", span.TraceID().String()}
+		}
+		return nil
+	}),
 }
 
 const (
@@ -176,13 +182,14 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
-			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.UnaryServerInterceptor(InterceptorLogger(opts.logger), determineEventsToLog(opts)...)).
+			WithName(DefaultMiddlewareOTelGRPC).
+			WithInterceptor(otelgrpc.UnaryServerInterceptor()). // nolint: staticcheck
 			Done(),
 
 		NewUnaryMiddleware().
-			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.UnaryServerInterceptor()). // nolint: staticcheck
+			WithName(DefaultMiddlewareGRPCLog).
+			WithInterceptor(grpclog.UnaryServerInterceptor(InterceptorLogger(opts.logger), determineEventsToLog(opts)...)).
+			EnsureAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs
 			Done(),
 
 		NewUnaryMiddleware().
@@ -242,13 +249,14 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 
 		NewStreamMiddleware().
-			WithName(DefaultMiddlewareGRPCLog).
-			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(opts.logger), determineEventsToLog(opts)...)).
+			WithName(DefaultMiddlewareOTelGRPC).
+			WithInterceptor(otelgrpc.StreamServerInterceptor()). // nolint: staticcheck
 			Done(),
 
 		NewStreamMiddleware().
-			WithName(DefaultMiddlewareOTelGRPC).
-			WithInterceptor(otelgrpc.StreamServerInterceptor()). // nolint: staticcheck
+			WithName(DefaultMiddlewareGRPCLog).
+			WithInterceptor(grpclog.StreamServerInterceptor(InterceptorLogger(opts.logger), determineEventsToLog(opts)...)).
+			EnsureInterceptorAlreadyExecuted(DefaultMiddlewareOTelGRPC). // dependency so that OTel traceID is injected in logs
 			Done(),
 
 		NewStreamMiddleware().
