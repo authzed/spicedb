@@ -2,8 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
+	mcobra "github.com/muesli/mango-cobra"
+	"github.com/muesli/roff"
 	"github.com/rs/zerolog"
 	"github.com/sercand/kuberesolver/v5"
 	"github.com/spf13/cobra"
@@ -89,6 +92,25 @@ func main() {
 	testingCmd := cmd.NewTestingCommand(rootCmd.Use, &testServerConfig)
 	cmd.RegisterTestingFlags(testingCmd, &testServerConfig)
 	rootCmd.AddCommand(testingCmd)
+
+	rootCmd.AddCommand(&cobra.Command{
+		Use:                   "man",
+		Short:                 "Generate the SpiceDB manpage",
+		SilenceUsage:          true,
+		DisableFlagsInUseLine: true,
+		Hidden:                true,
+		Args:                  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			manPage, err := mcobra.NewManPage(1, cmd.Root())
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprint(os.Stdout, manPage.Build(roff.NewDocument()))
+			return err
+		},
+	})
+
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
