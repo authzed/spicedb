@@ -12,7 +12,7 @@ require (
 	github.com/ecordell/optgen v0.0.10-0.20230609182709-018141bf9698
 	github.com/jackc/pgx/v5 v5.5.2
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/tools v0.14.0
+	golang.org/x/tools v0.17.0
 	google.golang.org/grpc v1.61.0
 	mvdan.cc/gofumpt v0.5.0
 )
