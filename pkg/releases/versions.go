@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/jzelinskie/cobrautil/v2"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/mod/semver"
 )
 
@@ -59,6 +60,7 @@ func CheckIsLatestVersion(
 	}
 
 	if !semver.IsValid(release.Version) {
+		log.Warn().Str("version", release.Version).Msg("invalid version")
 		return Unknown, currentVersion, nil, err
 	}
 
