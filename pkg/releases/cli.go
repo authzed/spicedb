@@ -40,14 +40,29 @@ func CheckAndLogRunE() cobrautil.CobraRunFunc {
 			return nil
 
 		case UpdateAvailable:
+			if release == nil {
+				log.Ctx(ctx).Warn().Msg("unable to check for or load the new SpiceDB version")
+				return nil
+			}
+
 			log.Ctx(ctx).Warn().Str("this-version", currentVersion).Str("latest-released-version", release.Version).Msgf("this version of SpiceDB is out of date. See: %s", release.ViewURL)
 			return nil
 
 		case UpToDate:
+			if release == nil {
+				log.Ctx(ctx).Warn().Msg("unable to check for or load the new SpiceDB version")
+				return nil
+			}
+
 			log.Ctx(ctx).Info().Str("latest-released-version", release.Version).Msg("this is the latest released version of SpiceDB")
 			return nil
 
 		case Unknown:
+			if release == nil {
+				log.Ctx(ctx).Warn().Msg("unable to check for or load the new SpiceDB version")
+				return nil
+			}
+
 			log.Ctx(ctx).Warn().Str("unknown-released-version", release.Version).Msg("unable to check for a new SpiceDB version")
 			return nil
 
