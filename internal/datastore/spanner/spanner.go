@@ -102,11 +102,12 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
-	err = spanner.EnableStatViews()
+	// TODO(jschorr): Replace with OpenTelemetry instrumentation once available.
+	err = spanner.EnableStatViews() // nolint: staticcheck
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
 	}
-	err = spanner.EnableGfeLatencyAndHeaderMissingCountViews()
+	err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
 	}
