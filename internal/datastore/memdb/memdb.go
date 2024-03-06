@@ -27,7 +27,7 @@ const (
 	numAttempts              = 10
 )
 
-var errSerialization = errors.New("serialization error")
+var ErrSerialization = errors.New("serialization error")
 
 // DisableGC is a convenient constant for setting the garbage collection
 // interval high enough that it will never run.
@@ -154,7 +154,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 				defer mdb.Unlock()
 
 				if mdb.activeWriteTxn != nil {
-					err = errSerialization
+					err = ErrSerialization
 					return
 				}
 
@@ -181,7 +181,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			}
 
 			// If the error was a serialization error, retry the transaction
-			if errors.Is(err, errSerialization) {
+			if errors.Is(err, ErrSerialization) {
 				mdb.Unlock()
 
 				// If we don't sleep here, we run out of retries instantaneously

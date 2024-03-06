@@ -305,7 +305,7 @@ func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.Re
 	))
 	defer closer()
 
-	return rwt.delegate.DeleteRelationships(ctx, filter)
+	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 
 func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {

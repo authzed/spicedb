@@ -27,5 +27,5 @@ func TestHeadRevision(t *testing.T) {
 }
 
 func (mdb *memdbDatastore) ExampleRetryableError() error {
-	return errSerialization
+	return ErrSerialization
 }
