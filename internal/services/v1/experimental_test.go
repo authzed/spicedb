@@ -204,7 +204,7 @@ func TestBulkExportRelationships(t *testing.T) {
 					}
 
 					require.NoError(err)
-					require.LessOrEqual(uint32(len(batch.Relationships)), tc.batchSize)
+					require.LessOrEqual(uint64(len(batch.Relationships)), uint64(tc.batchSize))
 					require.NotNil(batch.AfterResultCursor)
 					require.NotEmpty(batch.AfterResultCursor.Token)
 

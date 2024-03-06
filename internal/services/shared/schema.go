@@ -75,7 +75,7 @@ func ValidateSchemaChanges(ctx context.Context, compiled *compiler.CompiledSchem
 type AppliedSchemaChanges struct {
 	// TotalOperationCount holds the total number of "dispatch" operations performed by the schema
 	// being applied.
-	TotalOperationCount uint32
+	TotalOperationCount int
 
 	// NewObjectDefNames contains the names of the newly added object definitions.
 	NewObjectDefNames []string
@@ -229,7 +229,7 @@ func ApplySchemaChangesOverExisting(
 		Msg("completed schema update")
 
 	return &AppliedSchemaChanges{
-		TotalOperationCount:   uint32(len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len()),
+		TotalOperationCount:   len(validated.compiled.ObjectDefinitions) + len(validated.compiled.CaveatDefinitions) + removedObjectDefNames.Len() + removedCaveatDefNames.Len(),
 		NewObjectDefNames:     validated.newObjectDefNames.Subtract(existingObjectDefNames).AsSlice(),
 		RemovedObjectDefNames: removedObjectDefNames.AsSlice(),
 		NewCaveatDefNames:     validated.newCaveatDefNames.Subtract(existingCaveatDefNames).AsSlice(),

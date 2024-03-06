@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/genutil"
 )
 
 var (
@@ -108,7 +109,7 @@ func (p *nodeConnectionBalancer[P, C]) Prune(ctx context.Context) {
 		case <-p.ticker.C:
 			if p.sem.TryAcquire(1) {
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				p.pruneConnections(ctx)
+				p.mustPruneConnections(ctx)
 				cancel()
 				p.sem.Release(1)
 			}
@@ -116,10 +117,10 @@ func (p *nodeConnectionBalancer[P, C]) Prune(ctx context.Context) {
 	}
 }
 
-// pruneConnections prunes connections to nodes that have more than MaxConns/(# of nodes)
+// mustPruneConnections prunes connections to nodes that have more than MaxConns/(# of nodes)
 // This causes the pool to reconnect, which over time will lead to a balanced number of connections
 // across each node.
-func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
+func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context) {
 	start := time.Now()
 	defer func() {
 		pruningTimeHistogram.WithLabelValues(p.pool.ID()).Observe(float64(time.Since(start).Milliseconds()))
@@ -224,8 +225,10 @@ func (p *nodeConnectionBalancer[P, C]) pruneConnections(ctx context.Context) {
 		if numToPrune > 1 {
 			numToPrune >>= 1
 		}
-		if uint32(len(healthyConns[node])) < numToPrune {
-			numToPrune = uint32(len(healthyConns[node]))
+
+		healthyNodeCount := genutil.MustEnsureUInt32(len(healthyConns[node]))
+		if healthyNodeCount < numToPrune {
+			numToPrune = healthyNodeCount
 		}
 		if numToPrune == 0 {
 			continue

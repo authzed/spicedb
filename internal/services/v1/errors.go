@@ -15,16 +15,52 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// ErrExceedsMaximumChecks occurs when too many checks are given to a call.
+type ErrExceedsMaximumChecks struct {
+	error
+	checkCount      uint64
+	maxCountAllowed uint64
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrExceedsMaximumChecks) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Uint64("checkCount", err.checkCount).Uint64("maxCountAllowed", err.maxCountAllowed)
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrExceedsMaximumChecks) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{
+				"check_count":            strconv.FormatUint(err.checkCount, 10),
+				"maximum_checks_allowed": strconv.FormatUint(err.maxCountAllowed, 10),
+			},
+		),
+	)
+}
+
+// NewExceedsMaximumChecksErr creates a new error representing that too many updates were given to a BulkCheckPermissions call.
+func NewExceedsMaximumChecksErr(checkCount uint64, maxCountAllowed uint64) ErrExceedsMaximumChecks {
+	return ErrExceedsMaximumChecks{
+		error:           fmt.Errorf("check count of %d is greater than maximum allowed of %d", checkCount, maxCountAllowed),
+		checkCount:      checkCount,
+		maxCountAllowed: maxCountAllowed,
+	}
+}
+
 // ErrExceedsMaximumUpdates occurs when too many updates are given to a call.
 type ErrExceedsMaximumUpdates struct {
 	error
-	updateCount     uint16
-	maxCountAllowed uint16
+	updateCount     uint64
+	maxCountAllowed uint64
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrExceedsMaximumUpdates) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err.error).Uint16("updateCount", err.updateCount).Uint16("maxCountAllowed", err.maxCountAllowed)
+	e.Err(err.error).Uint64("updateCount", err.updateCount).Uint64("maxCountAllowed", err.maxCountAllowed)
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
@@ -35,15 +71,15 @@ func (err ErrExceedsMaximumUpdates) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_TOO_MANY_UPDATES_IN_REQUEST,
 			map[string]string{
-				"update_count":            strconv.Itoa(int(err.updateCount)),
-				"maximum_updates_allowed": strconv.Itoa(int(err.maxCountAllowed)),
+				"update_count":            strconv.FormatUint(err.updateCount, 10),
+				"maximum_updates_allowed": strconv.FormatUint(err.maxCountAllowed, 10),
 			},
 		),
 	)
 }
 
 // NewExceedsMaximumUpdatesErr creates a new error representing that too many updates were given to a WriteRelationships call.
-func NewExceedsMaximumUpdatesErr(updateCount uint16, maxCountAllowed uint16) ErrExceedsMaximumUpdates {
+func NewExceedsMaximumUpdatesErr(updateCount uint64, maxCountAllowed uint64) ErrExceedsMaximumUpdates {
 	return ErrExceedsMaximumUpdates{
 		error:           fmt.Errorf("update count of %d is greater than maximum allowed of %d", updateCount, maxCountAllowed),
 		updateCount:     updateCount,
@@ -54,13 +90,13 @@ func NewExceedsMaximumUpdatesErr(updateCount uint16, maxCountAllowed uint16) Err
 // ErrExceedsMaximumPreconditions occurs when too many preconditions are given to a call.
 type ErrExceedsMaximumPreconditions struct {
 	error
-	preconditionCount uint16
-	maxCountAllowed   uint16
+	preconditionCount uint64
+	maxCountAllowed   uint64
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
 func (err ErrExceedsMaximumPreconditions) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err.error).Uint16("preconditionCount", err.preconditionCount).Uint16("maxCountAllowed", err.maxCountAllowed)
+	e.Err(err.error).Uint64("preconditionCount", err.preconditionCount).Uint64("maxCountAllowed", err.maxCountAllowed)
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
@@ -71,15 +107,15 @@ func (err ErrExceedsMaximumPreconditions) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_TOO_MANY_PRECONDITIONS_IN_REQUEST,
 			map[string]string{
-				"precondition_count":      strconv.Itoa(int(err.preconditionCount)),
-				"maximum_updates_allowed": strconv.Itoa(int(err.maxCountAllowed)),
+				"precondition_count":      strconv.FormatUint(err.preconditionCount, 10),
+				"maximum_updates_allowed": strconv.FormatUint(err.maxCountAllowed, 10),
 			},
 		),
 	)
 }
 
 // NewExceedsMaximumPreconditionsErr creates a new error representing that too many preconditions were given to a call.
-func NewExceedsMaximumPreconditionsErr(preconditionCount uint16, maxCountAllowed uint16) ErrExceedsMaximumPreconditions {
+func NewExceedsMaximumPreconditionsErr(preconditionCount uint64, maxCountAllowed uint64) ErrExceedsMaximumPreconditions {
 	return ErrExceedsMaximumPreconditions{
 		error: fmt.Errorf(
 			"precondition count of %d is greater than maximum allowed of %d",
