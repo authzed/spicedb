@@ -15,6 +15,14 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
+      - uses: "nowsprinting/check-version-format-action@v3"
+        id: "version"
+        with:
+          prefix: "v"
+      - name: "Fail for an invalid version"
+        if: "${{ !startsWith(github.ref_name, 'v') || steps.version.outputs.is_valid != 'true' }}"
+        run: 'echo "SpiceDB version must start with `v` and be a semver" && exit 1'
+        shell: "bash"
       - uses: "authzed/actions/docker-login@main"
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
