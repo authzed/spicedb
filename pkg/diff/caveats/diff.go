@@ -34,10 +34,8 @@ const (
 	// ParameterTypeChanged indicates that the type of the parameter was changed.
 	ParameterTypeChanged DeltaType = "parameter-type-changed"
 
-	// CaveatExpressionMayHaveChanged indicates that the expression of the caveat *may* have changed.
-	// This uses a direct byte comparison which can return that a change occurred, even when it has
-	// not.
-	CaveatExpressionMayHaveChanged DeltaType = "expression-may-have-changed"
+	// CaveatExpressionChanged indicates that the expression of the caveat has changed.
+	CaveatExpressionChanged DeltaType = "expression-has-changed"
 )
 
 // Diff holds the diff between two caveats.
@@ -154,7 +152,7 @@ func DiffCaveats(existing *core.CaveatDefinition, updated *core.CaveatDefinition
 
 	if !bytes.Equal(existing.SerializedExpression, updated.SerializedExpression) {
 		deltas = append(deltas, Delta{
-			Type: CaveatExpressionMayHaveChanged,
+			Type: CaveatExpressionChanged,
 		})
 	}
 

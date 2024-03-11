@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -52,7 +53,9 @@ func (cc CompiledCaveat) Serialize() ([]byte, error) {
 		Name: cc.name,
 	}
 
-	return caveat.MarshalVT()
+	// TODO(jschorr): change back to MarshalVT once stable is supported.
+	// See: https://github.com/planetscale/vtprotobuf/pull/133
+	return proto.MarshalOptions{Deterministic: true}.Marshal(caveat)
 }
 
 // ReferencedParameters returns the names of the parameters referenced in the expression.
