@@ -385,7 +385,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							requireSameSets(t, maps.Keys(accessibleResources), maps.Keys(resolvedResources))
 
 							// Ensure that every returned concrete object Checks directly.
-							bulkCheckItems := make([]*v1.BulkCheckPermissionRequestItem, 0, len(resolvedResources))
+							checkBulkItems := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(resolvedResources))
 							expectedBulkPermissions := map[string]v1.CheckPermissionResponse_Permissionship{}
 
 							for _, resolvedResource := range resolvedResources {
@@ -420,7 +420,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 									permissionship,
 								)
 
-								bulkCheckItems = append(bulkCheckItems, &v1.BulkCheckPermissionRequestItem{
+								checkBulkItems = append(checkBulkItems, &v1.CheckBulkPermissionsRequestItem{
 									Resource: &v1.ObjectReference{
 										ObjectType: resourceRelation.Namespace,
 										ObjectId:   resolvedResource.ResourceObjectId,
@@ -437,8 +437,8 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							}
 
 							// Ensure they are all found via bulk check as well.
-							results, err := vctx.serviceTester.BulkCheck(context.Background(),
-								bulkCheckItems,
+							results, err := vctx.serviceTester.CheckBulk(context.Background(),
+								checkBulkItems,
 								vctx.revision,
 							)
 							require.NoError(t, err)

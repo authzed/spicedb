@@ -69,6 +69,10 @@ type PermissionsServerConfig struct {
 	// MaxDatastoreReadPageSize defines the maximum number of relationships loaded from the
 	// datastore in one query.
 	MaxDatastoreReadPageSize uint64
+
+	// MaxCheckBulkConcurrency defines the maximum number of concurrent checks that can be
+	// made in a single CheckBulkPermissions call.
+	MaxCheckBulkConcurrency uint16
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -102,6 +106,12 @@ func NewPermissionsServer(
 				streamtimeout.MustStreamServerInterceptor(configWithDefaults.StreamingAPITimeout),
 			),
 		},
+		bulkChecker: &bulkChecker{
+			maxAPIDepth:          configWithDefaults.MaximumAPIDepth,
+			maxCaveatContextSize: configWithDefaults.MaxCaveatContextSize,
+			maxConcurrency:       configWithDefaults.MaxCheckBulkConcurrency,
+			dispatch:             dispatch,
+		},
 	}
 }
 
@@ -111,6 +121,8 @@ type permissionServer struct {
 
 	dispatch dispatch.Dispatcher
 	config   PermissionsServerConfig
+
+	bulkChecker *bulkChecker
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {

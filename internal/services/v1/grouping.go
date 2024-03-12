@@ -23,13 +23,13 @@ type groupingParameters struct {
 	maxCaveatContextSize int
 }
 
-// groupItems takes a slice of BulkCheckPermissionRequestItem and groups them based
+// groupItems takes a slice of CheckBulkPermissionsRequestItem and groups them based
 // on using the same permission, subject type, subject id, and caveat.
-func groupItems(ctx context.Context, params groupingParameters, items []*v1.BulkCheckPermissionRequestItem) (map[string]*groupedCheckParameters, error) {
+func groupItems(ctx context.Context, params groupingParameters, items []*v1.CheckBulkPermissionsRequestItem) (map[string]*groupedCheckParameters, error) {
 	res := make(map[string]*groupedCheckParameters)
 
 	for _, item := range items {
-		hash, err := computeBulkCheckPermissionItemHashWithoutResourceID(item)
+		hash, err := computeCheckBulkPermissionsItemHashWithoutResourceID(item)
 		if err != nil {
 			return nil, err
 		}
@@ -41,7 +41,7 @@ func groupItems(ctx context.Context, params groupingParameters, items []*v1.Bulk
 			}
 
 			res[hash] = &groupedCheckParameters{
-				params:      checkParametersFromBulkCheckPermissionRequestItem(item, params, caveatContext),
+				params:      checkParametersFromCheckBulkPermissionsRequestItem(item, params, caveatContext),
 				resourceIDs: []string{item.Resource.ObjectId},
 			}
 		} else {
@@ -52,8 +52,8 @@ func groupItems(ctx context.Context, params groupingParameters, items []*v1.Bulk
 	return res, nil
 }
 
-func checkParametersFromBulkCheckPermissionRequestItem(
-	bc *v1.BulkCheckPermissionRequestItem,
+func checkParametersFromCheckBulkPermissionsRequestItem(
+	bc *v1.CheckBulkPermissionsRequestItem,
 	params groupingParameters,
 	caveatContext map[string]any,
 ) *computed.CheckParameters {

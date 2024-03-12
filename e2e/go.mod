@@ -5,7 +5,7 @@ go 1.21
 toolchain go1.21.1
 
 require (
-	github.com/authzed/authzed-go v0.10.2-0.20240206183056-781a5f5d1b3c
+	github.com/authzed/authzed-go v0.10.2-0.20240312180602-9b3947de5a3d
 	github.com/authzed/grpcutil v0.0.0-20240123092924-129dc0a6a6e1
 	github.com/authzed/spicedb v1.29.1
 	github.com/brianvoe/gofakeit/v6 v6.23.2
