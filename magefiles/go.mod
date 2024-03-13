@@ -11,7 +11,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.5.1-0.20231212170721-e7d721933795
 	golang.org/x/tools v0.14.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.33.0
 	mvdan.cc/gofumpt v0.5.0
 )
 
