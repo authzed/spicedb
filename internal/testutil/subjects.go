@@ -68,12 +68,14 @@ func Wildcard(exclusions ...string) *v1.FoundSubject {
 
 // RequireEquivalentSets requires that the given sets of subjects are equivalent.
 func RequireEquivalentSets(t *testing.T, expected []*v1.FoundSubject, found []*v1.FoundSubject) {
+	t.Helper()
 	err := CheckEquivalentSets(expected, found)
 	require.NoError(t, err, "found different subject sets: %v", err)
 }
 
 // RequireExpectedSubject requires that the given expected and produced subjects match.
 func RequireExpectedSubject(t *testing.T, expected *v1.FoundSubject, produced **v1.FoundSubject) {
+	t.Helper()
 	if expected == nil {
 		require.Nil(t, produced)
 	} else {
