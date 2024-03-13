@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -67,11 +66,16 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	debugOption := computed.NoDebugging
+
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		_, isDebuggingEnabled := md[string(requestmeta.RequestDebugInformation)]
 		if isDebuggingEnabled {
 			debugOption = computed.BasicDebuggingEnabled
 		}
+	}
+
+	if req.WithTracing {
+		debugOption = computed.BasicDebuggingEnabled
 	}
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
@@ -94,21 +98,18 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 
+	var debugTrace *v1.DebugInformation
 	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
-		// Convert the dispatch debug information into API debug information and marshal into
-		// the footer.
+		// Convert the dispatch debug information into API debug information.
 		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata, ds)
 		if cerr != nil {
 			return nil, ps.rewriteError(ctx, cerr)
 		}
+		debugTrace = converted
 
-		marshaled, merr := protojson.Marshal(converted)
-		if merr != nil {
-			return nil, ps.rewriteError(ctx, merr)
-		}
-
+		// TODO(jschorr): Remove this once the trailer is not longer used by anyone.
 		serr := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-			responsemeta.DebugInformation: string(marshaled),
+			responsemeta.DebugInformation: `{"note": "debug information has been moved into the response object. See https://spicedb.dev/d/check-traces"}`,
 		})
 		if serr != nil {
 			return nil, ps.rewriteError(ctx, serr)
@@ -125,6 +126,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		CheckedAt:         checkedAt,
 		Permissionship:    permissionship,
 		PartialCaveatInfo: partialCaveat,
+		DebugTrace:        debugTrace,
 	}, nil
 }
 

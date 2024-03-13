@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -296,9 +295,7 @@ func TestCheckPermissions(t *testing.T) {
 								if debug {
 									require.NotNil(encodedDebugInfo)
 
-									debugInfo := &v1.DebugInformation{}
-									err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
-									require.NoError(err)
+									debugInfo := checkResp.DebugTrace
 									require.NotNil(debugInfo.Check)
 									require.NotNil(debugInfo.Check.Duration)
 									require.Equal(tuple.StringObjectRef(tc.resource), tuple.StringObjectRef(debugInfo.Check.Resource))
@@ -347,10 +344,7 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 
 	require.NotNil(encodedDebugInfo)
 
-	debugInfo := &v1.DebugInformation{}
-	err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
-	require.NoError(err)
-
+	debugInfo := checkResp.DebugTrace
 	require.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
 	require.NotEmpty(debugInfo.SchemaUsed)
 
