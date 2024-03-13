@@ -142,6 +142,50 @@ func checkResultToAPITypes(cr *dispatch.ResourceCheckResult) (v1.CheckPermission
 	return permissionship, partialCaveat
 }
 
+func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
+	res, err := ps.bulkChecker.checkBulkPermissions(ctx, req)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
+	return res, nil
+}
+
+func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult) *v1.CheckBulkPermissionsPair_Item {
+	permissionship, partialCaveat := checkResultToAPITypes(checkResult)
+	return &v1.CheckBulkPermissionsPair_Item{
+		Item: &v1.CheckBulkPermissionsResponseItem{
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partialCaveat,
+		},
+	}
+}
+
+func requestItemFromResourceAndParameters(params *computed.CheckParameters, resourceID string) (*v1.CheckBulkPermissionsRequestItem, error) {
+	item := &v1.CheckBulkPermissionsRequestItem{
+		Resource: &v1.ObjectReference{
+			ObjectType: params.ResourceType.Namespace,
+			ObjectId:   resourceID,
+		},
+		Permission: params.ResourceType.Relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: params.Subject.Namespace,
+				ObjectId:   params.Subject.ObjectId,
+			},
+			OptionalRelation: denormalizeSubjectRelation(params.Subject.Relation),
+		},
+	}
+	if len(params.CaveatContext) > 0 {
+		var err error
+		item.Context, err = structpb.NewStruct(params.CaveatContext)
+		if err != nil {
+			return nil, fmt.Errorf("caveat context wasn't properly validated: %w", err)
+		}
+	}
+	return item, nil
+}
+
 func (ps *permissionServer) ExpandPermissionTree(ctx context.Context, req *v1.ExpandPermissionTreeRequest) (*v1.ExpandPermissionTreeResponse, error) {
 	atRevision, expandedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {

@@ -398,15 +398,15 @@ func TestLRHashStability(t *testing.T) {
 	}
 }
 
-func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
+func TestCheckBulkPermissionsItemWithoutResourceIDHashStability(t *testing.T) {
 	tcs := []struct {
 		name         string
-		request      *v1.BulkCheckPermissionRequestItem
+		request      *v1.CheckBulkPermissionsRequestItem
 		expectedHash string
 	}{
 		{
 			"basic bulk check item",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -419,11 +419,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"4fe0404757f60c7b",
+			"f518629690bd9dc0",
 		},
 		{
 			"different resource ID, should still be the same hash",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid2",
@@ -436,11 +436,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"4fe0404757f60c7b",
+			"f518629690bd9dc0",
 		},
 		{
 			"basic bulk check item - transcribed letter",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resourc",
 					ObjectId:   "esomeid",
@@ -453,11 +453,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"9aa5ad05571cf7aa",
+			"60f1e177297e915e",
 		},
 		{
 			"different resource type",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource2",
 					ObjectId:   "someid",
@@ -470,11 +470,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"7e48b1946d209d19",
+			"5117abaee3adf638",
 		},
 		{
 			"different permission",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -487,11 +487,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"55001a108b0e1857",
+			"716f7be27e600292",
 		},
 		{
 			"different subject type",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -504,11 +504,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"f913ec03a38259ff",
+			"7cb5945314ccbdce",
 		},
 		{
 			"different subject id",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -521,11 +521,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"70ff03c2e3f8598c",
+			"b24ecacf87fd0bb8",
 		},
 		{
 			"different subject relation",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -539,11 +539,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					OptionalRelation: "foo",
 				},
 			},
-			"0bd57e3aa9d48e1e",
+			"ee8c34ab206c80d7",
 		},
 		{
 			"with context",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -564,11 +564,11 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"f7ae307d940c4984",
+			"7a5b1fec3cbed446",
 		},
 		{
 			"with different context",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -589,7 +589,7 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"d0ce3e8b8a7b8b5a",
+			"f17da513a6207c30",
 		},
 	}
 
@@ -599,22 +599,22 @@ func TestBulkCheckPermissionItemWithoutResourceIDHashStability(t *testing.T) {
 			verr := tc.request.Validate()
 			require.NoError(t, verr)
 
-			hash, err := computeBulkCheckPermissionItemHashWithoutResourceID(tc.request)
+			hash, err := computeCheckBulkPermissionsItemHashWithoutResourceID(tc.request)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedHash, hash)
 		})
 	}
 }
 
-func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
+func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 	tcs := []struct {
 		name         string
-		request      *v1.BulkCheckPermissionRequestItem
+		request      *v1.CheckBulkPermissionsRequestItem
 		expectedHash string
 	}{
 		{
 			"basic bulk check item",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -627,11 +627,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"29a0970e6e288823",
+			"5edbb3bbb8079754",
 		},
 		{
 			"different resource ID, should be a different hash",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid2",
@@ -644,11 +644,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"994a3681c5ed2ac3",
+			"e6711064500e65ba",
 		},
 		{
 			"basic bulk check item - transcribed letter",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resourc",
 					ObjectId:   "esomeid",
@@ -661,11 +661,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"ba4cdd3258637028",
+			"8cda00b7188572b7",
 		},
 		{
 			"different resource type",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource2",
 					ObjectId:   "someid",
@@ -678,11 +678,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"dbc6b81a0746e406",
+			"51df43a69e51d3b0",
 		},
 		{
 			"different permission",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -695,11 +695,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"cbb6d9b04f0f03bf",
+			"62aaa50b2821130d",
 		},
 		{
 			"different subject type",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -712,11 +712,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"ed3c04de90075403",
+			"82a445d3ffc0823a",
 		},
 		{
 			"different subject id",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -729,11 +729,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					},
 				},
 			},
-			"3042f00fc2bb4dbc",
+			"d3d624a310fa7781",
 		},
 		{
 			"different subject relation",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -747,11 +747,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					OptionalRelation: "foo",
 				},
 			},
-			"4839071c4b9804ac",
+			"a9d96f0572caef89",
 		},
 		{
 			"with context",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -772,11 +772,11 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"ecd2be822056deff",
+			"94dea3fccff039ed",
 		},
 		{
 			"with different context",
-			&v1.BulkCheckPermissionRequestItem{
+			&v1.CheckBulkPermissionsRequestItem{
 				Resource: &v1.ObjectReference{
 					ObjectType: "resource",
 					ObjectId:   "someid",
@@ -797,7 +797,7 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 					return s
 				}(),
 			},
-			"bc0be3336cc9ae97",
+			"7ffdedbe12d578ee",
 		},
 	}
 
@@ -807,7 +807,7 @@ func TestBulkCheckPermissionItemWIDHashStability(t *testing.T) {
 			verr := tc.request.Validate()
 			require.NoError(t, verr)
 
-			hash, err := computeBulkCheckPermissionItemHash(tc.request)
+			hash, err := computeCheckBulkPermissionsItemHash(tc.request)
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedHash, hash)
 		})

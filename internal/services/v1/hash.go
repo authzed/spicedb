@@ -11,8 +11,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func computeBulkCheckPermissionItemHashWithoutResourceID(req *v1.BulkCheckPermissionRequestItem) (string, error) {
-	return computeCallHash("v1.bulkcheckpermissionrequestitem", nil, map[string]any{
+func computeCheckBulkPermissionsItemHashWithoutResourceID(req *v1.CheckBulkPermissionsRequestItem) (string, error) {
+	return computeCallHash("v1.checkbulkpermissionsrequestitem", nil, map[string]any{
 		"resource-type":    req.Resource.ObjectType,
 		"permission":       req.Permission,
 		"subject-type":     req.Subject.Object.ObjectType,
@@ -22,8 +22,8 @@ func computeBulkCheckPermissionItemHashWithoutResourceID(req *v1.BulkCheckPermis
 	})
 }
 
-func computeBulkCheckPermissionItemHash(req *v1.BulkCheckPermissionRequestItem) (string, error) {
-	return computeCallHash("v1.bulkcheckpermissionrequestitem", nil, map[string]any{
+func computeCheckBulkPermissionsItemHash(req *v1.CheckBulkPermissionsRequestItem) (string, error) {
+	return computeCallHash("v1.checkbulkpermissionsrequestitem", nil, map[string]any{
 		"resource-type":    req.Resource.ObjectType,
 		"resource-id":      req.Resource.ObjectId,
 		"permission":       req.Permission,
