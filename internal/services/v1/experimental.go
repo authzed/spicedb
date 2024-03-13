@@ -287,11 +287,12 @@ func (es *experimentalServer) BulkExportRelationships(
 	ds := datastoremw.MustFromContext(ctx)
 
 	var atRevision datastore.Revision
+	var curNamespace string
 	var cur dsoptions.Cursor
 
 	if req.OptionalCursor != nil {
 		var err error
-		atRevision, cur, err = decodeCursor(ds, req.OptionalCursor)
+		atRevision, curNamespace, cur, err = decodeCursor(ds, req.OptionalCursor)
 		if err != nil {
 			return es.rewriteError(ctx, err)
 		}
@@ -319,7 +320,7 @@ func (es *experimentalServer) BulkExportRelationships(
 	})
 
 	// Skip the namespaces that are already fully returned
-	for cur != nil && len(namespaces) > 0 && namespaces[0].Definition.Name < cur.ResourceAndRelation.Namespace {
+	for cur != nil && len(namespaces) > 0 && namespaces[0].Definition.Name < curNamespace {
 		namespaces = namespaces[1:]
 	}
 
@@ -346,9 +347,33 @@ func (es *experimentalServer) BulkExportRelationships(
 	}
 
 	emptyRels := make([]*v1.Relationship, limit)
-
 	for _, ns := range namespaces {
 		rels := emptyRels
+
+		// Reset the cursor between namespaces.
+		if ns.Definition.Name != curNamespace {
+			cur = nil
+		}
+
+		// Skip this namespace if a resource type filter was specified.
+		if req.OptionalRelationshipFilter != nil && req.OptionalRelationshipFilter.ResourceType != "" {
+			if ns.Definition.Name != req.OptionalRelationshipFilter.ResourceType {
+				continue
+			}
+		}
+
+		// Setup the filter to use for the relationships.
+		relationshipFilter := datastore.RelationshipsFilter{OptionalResourceType: ns.Definition.Name}
+		if req.OptionalRelationshipFilter != nil {
+			rf, err := datastore.RelationshipsFilterFromPublicFilter(req.OptionalRelationshipFilter)
+			if err != nil {
+				return es.rewriteError(ctx, err)
+			}
+
+			// Overload the namespace name with the one from the request, because each iteration is for a different namespace.
+			rf.OptionalResourceType = ns.Definition.Name
+			relationshipFilter = rf
+		}
 
 		// We want to keep iterating as long as we're sending full batches.
 		// To bootstrap this loop, we enter the first time with a full rels
@@ -366,7 +391,7 @@ func (es *experimentalServer) BulkExportRelationships(
 			cur, err = queryForEach(
 				ctx,
 				reader,
-				datastore.RelationshipsFilter{ResourceType: ns.Definition.Name},
+				relationshipFilter,
 				tplFn,
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
@@ -385,6 +410,7 @@ func (es *experimentalServer) BulkExportRelationships(
 					V1: &implv1.V1Cursor{
 						Revision: atRevision.String(),
 						Sections: []string{
+							ns.Definition.Name,
 							tuple.MustString(cur),
 						},
 					},
@@ -401,10 +427,6 @@ func (es *experimentalServer) BulkExportRelationships(
 				return es.rewriteError(ctx, err)
 			}
 		}
-
-		// Datastore namespace order might not be exactly the same as go namespace order
-		// so we shouldn't assume cursors are valid across namespaces
-		cur = nil
 	}
 
 	return nil
@@ -647,29 +669,30 @@ func queryForEach(
 	return cur, nil
 }
 
-func decodeCursor(ds datastore.Datastore, encoded *v1.Cursor) (datastore.Revision, *core.RelationTuple, error) {
+func decodeCursor(ds datastore.Datastore, encoded *v1.Cursor) (datastore.Revision, string, *core.RelationTuple, error) {
 	decoded, err := cursor.Decode(encoded)
 	if err != nil {
-		return datastore.NoRevision, nil, err
+		return datastore.NoRevision, "", nil, err
 	}
 
 	if decoded.GetV1() == nil {
-		return datastore.NoRevision, nil, errors.New("malformed cursor: no V1 in OneOf")
+		return datastore.NoRevision, "", nil, errors.New("malformed cursor: no V1 in OneOf")
 	}
 
-	if len(decoded.GetV1().Sections) != 1 {
-		return datastore.NoRevision, nil, errors.New("malformed cursor: wrong number of components")
+	if len(decoded.GetV1().Sections) != 2 {
+		return datastore.NoRevision, "", nil, errors.New("malformed cursor: wrong number of components")
 	}
 
 	atRevision, err := ds.RevisionFromString(decoded.GetV1().Revision)
 	if err != nil {
-		return datastore.NoRevision, nil, err
+		return datastore.NoRevision, "", nil, err
 	}
 
-	cur := tuple.Parse(decoded.GetV1().GetSections()[0])
+	cur := tuple.Parse(decoded.GetV1().GetSections()[1])
 	if cur == nil {
-		return datastore.NoRevision, nil, errors.New("malformed cursor: invalid encoded relation tuple")
+		return datastore.NoRevision, "", nil, errors.New("malformed cursor: invalid encoded relation tuple")
 	}
 
-	return atRevision, cur, nil
+	// Returns the current namespace and the cursor.
+	return atRevision, decoded.GetV1().GetSections()[0], cur, nil
 }

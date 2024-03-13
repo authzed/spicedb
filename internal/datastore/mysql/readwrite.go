@@ -216,12 +216,22 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := rwt.DeleteTupleQuery.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := rwt.DeleteTupleQuery
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+	if filter.OptionalResourceIdPrefix != "" {
+		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
+			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		}
+
+		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
 	}
 
 	// Add clauses for the SubjectFilter

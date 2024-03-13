@@ -3,6 +3,7 @@ package spanner
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
@@ -122,7 +123,11 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 
 func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool, delLimit uint64) (int64, error) {
 	query := queryTuplesForDelete
-	query = applyFilterToQuery(query, filter)
+	filteredQuery, err := applyFilterToQuery(query, filter)
+	if err != nil {
+		return -1, err
+	}
+	query = filteredQuery
 	query = query.Limit(delLimit)
 
 	sql, args, err := query.ToSql()
@@ -169,7 +174,11 @@ func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransac
 
 func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) (int64, error) {
 	query := sql.Delete(tableRelationship)
-	query = applyFilterToQuery(query, filter)
+	filteredQuery, err := applyFilterToQuery(query, filter)
+	if err != nil {
+		return -1, err
+	}
+	query = filteredQuery
 
 	sql, args, err := query.ToSql()
 	if err != nil {
@@ -184,14 +193,23 @@ type builder[T any] interface {
 	Where(pred interface{}, args ...interface{}) T
 }
 
-func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) T {
+func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T, error) {
 	// Add clauses for the ResourceFilter
-	query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
+	}
+	if filter.OptionalResourceIdPrefix != "" {
+		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
+			return query, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		}
+
+		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
 	}
 
 	// Add clauses for the SubjectFilter
@@ -205,7 +223,7 @@ func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) T 
 		}
 	}
 
-	return query
+	return query, nil
 }
 
 func upsertVals(r *core.RelationTuple) []any {

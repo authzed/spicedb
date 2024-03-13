@@ -3,6 +3,7 @@ package memdb
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
@@ -139,7 +140,12 @@ func (rwt *memdbReadWriteTx) DeleteRelationships(_ context.Context, filter *v1.R
 // caller must already hold the concurrent access lock
 func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.RelationshipFilter, limit uint64) (bool, error) {
 	// Create an iterator to find the relevant tuples
-	bestIter, err := iteratorForFilter(tx, datastore.RelationshipsFilterFromPublicFilter(filter))
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
+	if err != nil {
+		return false, err
+	}
+
+	bestIter, err := iteratorForFilter(tx, dsFilter)
 	if err != nil {
 		return false, err
 	}
@@ -252,9 +258,11 @@ func relationshipFilterFilterFunc(filter *v1.RelationshipFilter) func(interface{
 
 		// If it doesn't match one of the resource filters, filter it.
 		switch {
-		case filter.ResourceType != tuple.namespace:
+		case filter.ResourceType != "" && filter.ResourceType != tuple.namespace:
 			return true
 		case filter.OptionalResourceId != "" && filter.OptionalResourceId != tuple.resourceID:
+			return true
+		case filter.OptionalResourceIdPrefix != "" && !strings.HasPrefix(tuple.resourceID, filter.OptionalResourceIdPrefix):
 			return true
 		case filter.OptionalRelation != "" && filter.OptionalRelation != tuple.relation:
 			return true

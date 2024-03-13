@@ -269,7 +269,7 @@ func sanityCheckCaveatChanges(
 func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTransaction, namespaceName string) error {
 	qy, qyErr := rwt.QueryRelationships(
 		ctx,
-		datastore.RelationshipsFilter{ResourceType: namespaceName},
+		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
 	)
 	if err := errorIfTupleIteratorReturnsTuples(
@@ -320,7 +320,7 @@ func sanityCheckNamespaceChanges(
 		switch delta.Type {
 		case nsdiff.RemovedRelation:
 			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				ResourceType:             nsdef.Name,
+				OptionalResourceType:     nsdef.Name,
 				OptionalResourceRelation: delta.RelationName,
 			})
 
@@ -370,7 +370,7 @@ func sanityCheckNamespaceChanges(
 			qyr, qyrErr := rwt.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
-					ResourceType:             nsdef.Name,
+					OptionalResourceType:     nsdef.Name,
 					OptionalResourceRelation: delta.RelationName,
 					OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 						{

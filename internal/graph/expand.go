@@ -59,7 +59,7 @@ func (ce *ConcurrentExpander) expandDirect(
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: req.ResourceAndRelation.Relation,
 		})
@@ -257,7 +257,7 @@ func (ce *ConcurrentExpander) expandTupleToUserset(_ context.Context, req Valida
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: ttu.Tupleset.Relation,
 		})

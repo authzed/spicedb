@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -200,13 +201,25 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 
 func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := queryDeleteTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := queryDeleteTuples
+
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
 	}
+	if filter.OptionalResourceIdPrefix != "" {
+		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
+			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		}
+
+		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+	}
+
 	rwt.addOverlapKey(filter.ResourceType)
 
 	// Add clauses for the SubjectFilter

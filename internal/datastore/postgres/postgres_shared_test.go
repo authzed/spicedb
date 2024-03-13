@@ -780,7 +780,7 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 
 	reader := ds.SnapshotReader(headRev)
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType: "resource",
+		OptionalResourceType: "resource",
 	})
 	require.NoError(err)
 	defer it.Close()
@@ -1178,7 +1178,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			iter, err := ds.SnapshotReader(revision).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-				ResourceType: testfixtures.DocumentNS.Name,
+				OptionalResourceType: testfixtures.DocumentNS.Name,
 			})
 			require.NoError(err)
 

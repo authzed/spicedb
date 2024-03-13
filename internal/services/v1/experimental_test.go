@@ -25,6 +25,7 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -220,6 +221,161 @@ func TestBulkExportRelationships(t *testing.T) {
 			}
 
 			require.Equal(totalToWrite, totalRead)
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
+		})
+	}
+}
+
+func TestBulkExportRelationshipsWithFilter(t *testing.T) {
+	testCases := []struct {
+		name          string
+		filter        *v1.RelationshipFilter
+		expectedCount int
+	}{
+		{
+			"basic filter",
+			&v1.RelationshipFilter{
+				ResourceType: tf.DocumentNS.Name,
+			},
+			500,
+		},
+		{
+			"filter by resource ID",
+			&v1.RelationshipFilter{
+				OptionalResourceId: "12",
+			},
+			1,
+		},
+		{
+			"filter by resource ID prefix",
+			&v1.RelationshipFilter{
+				OptionalResourceIdPrefix: "1",
+			},
+			111,
+		},
+		{
+			"filter by resource ID prefix and resource type",
+			&v1.RelationshipFilter{
+				ResourceType:             tf.DocumentNS.Name,
+				OptionalResourceIdPrefix: "1",
+			},
+			55,
+		},
+		{
+			"filter by invalid resource type",
+			&v1.RelationshipFilter{
+				ResourceType: "invalid",
+			},
+			0,
+		},
+	}
+
+	batchSize := 14
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			client := v1.NewExperimentalServiceClient(conn)
+			t.Cleanup(cleanup)
+
+			nsAndRels := []struct {
+				namespace string
+				relation  string
+			}{
+				{tf.DocumentNS.Name, "viewer"},
+				{tf.FolderNS.Name, "viewer"},
+				{tf.DocumentNS.Name, "owner"},
+				{tf.FolderNS.Name, "owner"},
+				{tf.DocumentNS.Name, "editor"},
+				{tf.FolderNS.Name, "editor"},
+			}
+
+			expectedRels := set.NewStringSetWithSize(1000)
+			batch := make([]*v1.Relationship, 1000)
+			for i := range batch {
+				nsAndRel := nsAndRels[i%len(nsAndRels)]
+				rel := rel(
+					nsAndRel.namespace,
+					strconv.Itoa(i),
+					nsAndRel.relation,
+					tf.UserNS.Name,
+					strconv.Itoa(i),
+					"",
+				)
+				batch[i] = rel
+
+				if tc.filter != nil {
+					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
+					require.NoError(err)
+					if !filter.Test(tuple.MustFromRelationship(rel)) {
+						continue
+					}
+				}
+
+				expectedRels.Add(tuple.MustStringRelationship(rel))
+			}
+
+			require.Equal(tc.expectedCount, expectedRels.Size())
+
+			ctx := context.Background()
+			writer, err := client.BulkImportRelationships(ctx)
+			require.NoError(err)
+
+			require.NoError(writer.Send(&v1.BulkImportRelationshipsRequest{
+				Relationships: batch,
+			}))
+
+			_, err = writer.CloseAndRecv()
+			require.NoError(err)
+
+			var totalRead uint64
+			remainingRels := expectedRels.Copy()
+			var cursor *v1.Cursor
+
+			foundRels := mapz.NewSet[string]()
+			for {
+				streamCtx, cancel := context.WithCancel(ctx)
+
+				stream, err := client.BulkExportRelationships(streamCtx, &v1.BulkExportRelationshipsRequest{
+					OptionalRelationshipFilter: tc.filter,
+					OptionalLimit:              uint32(batchSize),
+					OptionalCursor:             cursor,
+				})
+				require.NoError(err)
+
+				batch, err := stream.Recv()
+				if errors.Is(err, io.EOF) {
+					cancel()
+					break
+				}
+
+				require.NoError(err)
+				require.LessOrEqual(uint32(len(batch.Relationships)), uint32(batchSize))
+				require.NotNil(batch.AfterResultCursor)
+				require.NotEmpty(batch.AfterResultCursor.Token)
+
+				cursor = batch.AfterResultCursor
+				totalRead += uint64(len(batch.Relationships))
+
+				for _, rel := range batch.Relationships {
+					if tc.filter != nil {
+						filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
+						require.NoError(err)
+						require.True(filter.Test(tuple.MustFromRelationship(rel)), "relationship did not match filter: %s", rel)
+					}
+
+					require.True(remainingRels.Has(tuple.MustStringRelationship(rel)), "relationship was not expected or was repeated: %s", rel)
+					remainingRels.Remove(tuple.MustStringRelationship(rel))
+					foundRels.Add(tuple.MustStringRelationship(rel))
+				}
+
+				cancel()
+			}
+
+			require.Equal(uint64(tc.expectedCount), totalRead, "found: %v", foundRels.AsSlice())
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
 		})
 	}

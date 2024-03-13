@@ -187,7 +187,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	rev, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_DELETE, tpl)
 	req.NoError(err)
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-		ResourceType: tpl.ResourceAndRelation.Namespace,
+		OptionalResourceType: tpl.ResourceAndRelation.Namespace,
 	})
 	req.NoError(err)
 	defer iter.Close()
@@ -224,8 +224,8 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 
 	// filter by first caveat
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:       tpl.ResourceAndRelation.Namespace,
-		OptionalCaveatName: coreCaveat.Name,
+		OptionalResourceType: tpl.ResourceAndRelation.Namespace,
+		OptionalCaveatName:   coreCaveat.Name,
 	})
 	req.NoError(err)
 
@@ -233,8 +233,8 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 
 	// filter by second caveat
 	iter, err = ds.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:       anotherTpl.ResourceAndRelation.Namespace,
-		OptionalCaveatName: anotherCoreCaveat.Name,
+		OptionalResourceType: anotherTpl.ResourceAndRelation.Namespace,
+		OptionalCaveatName:   anotherCoreCaveat.Name,
 	})
 	req.NoError(err)
 
@@ -364,7 +364,7 @@ func expectTuple(req *require.Assertions, iter datastore.RelationshipIterator, t
 
 func assertTupleCorrectlyStored(req *require.Assertions, ds datastore.Datastore, rev datastore.Revision, expected *core.RelationTuple) {
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
-		ResourceType: expected.ResourceAndRelation.Namespace,
+		OptionalResourceType: expected.ResourceAndRelation.Namespace,
 	})
 	req.NoError(err)
 

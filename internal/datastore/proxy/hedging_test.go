@@ -320,7 +320,7 @@ func TestDatastoreE2E(t *testing.T) {
 
 	it, err := proxy.SnapshotReader(revisionKnown).QueryRelationships(
 		context.Background(), datastore.RelationshipsFilter{
-			ResourceType: "test",
+			OptionalResourceType: "test",
 		},
 	)
 	require.NoError(err)

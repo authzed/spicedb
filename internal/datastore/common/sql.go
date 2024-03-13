@@ -275,6 +275,32 @@ func (sqf SchemaQueryFilterer) MustFilterToResourceIDs(resourceIds []string) Sch
 	return updated
 }
 
+// FilterWithResourceIDPrefix returns new SchemaQueryFilterer that is limited to resources whose ID
+// starts with the specified prefix.
+func (sqf SchemaQueryFilterer) FilterWithResourceIDPrefix(prefix string) (SchemaQueryFilterer, error) {
+	if strings.Contains(prefix, "%") {
+		return sqf, spiceerrors.MustBugf("prefix cannot contain the percent sign")
+	}
+	if prefix == "" {
+		return sqf, spiceerrors.MustBugf("prefix cannot be empty")
+	}
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.colObjectID: prefix + "%"})
+	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(prefix+"*"))
+
+	// NOTE: we do *not* record the use of the resource ID column here, because it is not used
+	// statically and thus is necessary for sorting operations.
+	return sqf, nil
+}
+
+func (sqf SchemaQueryFilterer) MustFilterWithResourceIDPrefix(prefix string) SchemaQueryFilterer {
+	updated, err := sqf.FilterWithResourceIDPrefix(prefix)
+	if err != nil {
+		panic(err)
+	}
+	return updated
+}
+
 // FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
 // specified IDs.
 func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
@@ -325,33 +351,49 @@ func (sqf SchemaQueryFilterer) MustFilterWithRelationshipsFilter(filter datastor
 }
 
 func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.RelationshipsFilter) (SchemaQueryFilterer, error) {
-	sqf = sqf.FilterToResourceType(filter.ResourceType)
+	csqf := sqf
+
+	if filter.OptionalResourceType != "" {
+		csqf = csqf.FilterToResourceType(filter.OptionalResourceType)
+	}
 
 	if filter.OptionalResourceRelation != "" {
-		sqf = sqf.FilterToRelation(filter.OptionalResourceRelation)
+		csqf = csqf.FilterToRelation(filter.OptionalResourceRelation)
+	}
+
+	if len(filter.OptionalResourceIds) > 0 && filter.OptionalResourceIDPrefix != "" {
+		return csqf, spiceerrors.MustBugf("cannot filter by both resource IDs and ID prefix")
 	}
 
 	if len(filter.OptionalResourceIds) > 0 {
-		usqf, err := sqf.FilterToResourceIDs(filter.OptionalResourceIds)
+		usqf, err := csqf.FilterToResourceIDs(filter.OptionalResourceIds)
 		if err != nil {
-			return sqf, err
+			return csqf, err
 		}
-		sqf = usqf
+		csqf = usqf
+	}
+
+	if len(filter.OptionalResourceIDPrefix) > 0 {
+		usqf, err := csqf.FilterWithResourceIDPrefix(filter.OptionalResourceIDPrefix)
+		if err != nil {
+			return csqf, err
+		}
+		csqf = usqf
 	}
 
 	if len(filter.OptionalSubjectsSelectors) > 0 {
-		usqf, err := sqf.FilterWithSubjectsSelectors(filter.OptionalSubjectsSelectors...)
+		usqf, err := csqf.FilterWithSubjectsSelectors(filter.OptionalSubjectsSelectors...)
 		if err != nil {
-			return sqf, err
+			return csqf, err
 		}
-		sqf = usqf
+		csqf = usqf
 	}
 
 	if filter.OptionalCaveatName != "" {
-		sqf = sqf.FilterWithCaveatName(filter.OptionalCaveatName)
+		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatName)
 	}
 
-	return sqf, nil
+	return csqf, nil
 }
 
 // MustFilterWithSubjectsSelectors returns a new SchemaQueryFilterer that is limited to resources with

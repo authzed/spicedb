@@ -105,6 +105,8 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestBulkDeleteRelationships", func(t *testing.T) { BulkDeleteRelationshipsTest(t, tester) })
 	t.Run("TestDeleteCaveatedTuple", func(t *testing.T) { DeleteCaveatedTupleTest(t, tester) })
 	t.Run("TestDeleteWithLimit", func(t *testing.T) { DeleteWithLimitTest(t, tester) })
+	t.Run("TestQueryRelationshipsWithVariousFilters", func(t *testing.T) { QueryRelationshipsWithVariousFiltersTest(t, tester) })
+	t.Run("TestDeleteRelationshipsWithVariousFilters", func(t *testing.T) { DeleteRelationshipsWithVariousFiltersTest(t, tester) })
 
 	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
 	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
