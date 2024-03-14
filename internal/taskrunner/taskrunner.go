@@ -160,5 +160,8 @@ func (tr *TaskRunner) emptyForCancel() {
 // or the parent context to have been canceled.
 func (tr *TaskRunner) Wait() error {
 	tr.wg.Wait()
+
+	tr.lock.Lock()
+	defer tr.lock.Unlock()
 	return tr.err
 }
