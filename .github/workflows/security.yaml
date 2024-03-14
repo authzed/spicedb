@@ -42,6 +42,9 @@ jobs:
       - name: "Checkout repository"
         uses: "actions/checkout@v4"
 
+      # Uses centralized Go toolchain version.
+      - uses: "authzed/actions/setup-go@main"
+
       # Initializes the CodeQL tools for scanning.
       - name: "Initialize CodeQL"
         uses: "github/codeql-action/init@v3"
