@@ -97,7 +97,7 @@ func (Lint) Analyzers() error {
 // Vulncheck Run vulncheck
 func (Lint) Vulncheck() error {
 	fmt.Println("running vulncheck")
-	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "./...")
+	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "-show", "verbose", "./...")
 }
 
 // Buf Format

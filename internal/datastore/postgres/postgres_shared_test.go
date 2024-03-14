@@ -978,7 +978,6 @@ func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 			nexttx,
 			nexttx,
 		))
-
 		if err != nil {
 			return err
 		}
