@@ -55,7 +55,7 @@ furies:
     skip: "{{ gt (len .Prerelease) 0 }}"
 snapcrafts:
   - name: "spicedb"
-    publish: false
+    publish: true
     summary: "A database that stores, computes, and validates application permissions"
     description: |
       SpiceDB is an open source, Google Zanzibar-inspired database for creating and managing security-critical application permissions.
