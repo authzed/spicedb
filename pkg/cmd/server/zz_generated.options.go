@@ -92,6 +92,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TelemetryInterval = c.TelemetryInterval
 		to.EnableRequestLogs = c.EnableRequestLogs
 		to.EnableResponseLogs = c.EnableResponseLogs
+		to.DisableGRPCLatencyHistogram = c.DisableGRPCLatencyHistogram
 	}
 }
 
@@ -148,6 +149,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["TelemetryInterval"] = helpers.DebugValue(c.TelemetryInterval, false)
 	debugMap["EnableRequestLogs"] = helpers.DebugValue(c.EnableRequestLogs, false)
 	debugMap["EnableResponseLogs"] = helpers.DebugValue(c.EnableResponseLogs, false)
+	debugMap["DisableGRPCLatencyHistogram"] = helpers.DebugValue(c.DisableGRPCLatencyHistogram, false)
 	return debugMap
 }
 
@@ -598,5 +600,12 @@ func WithEnableRequestLogs(enableRequestLogs bool) ConfigOption {
 func WithEnableResponseLogs(enableResponseLogs bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableResponseLogs = enableResponseLogs
+	}
+}
+
+// WithDisableGRPCLatencyHistogram returns an option that can set DisableGRPCLatencyHistogram on a Config
+func WithDisableGRPCLatencyHistogram(disableGRPCLatencyHistogram bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableGRPCLatencyHistogram = disableGRPCLatencyHistogram
 	}
 }

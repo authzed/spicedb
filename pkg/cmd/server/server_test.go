@@ -230,7 +230,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false, false}
 	defaultMw, err := DefaultUnaryMiddleware(opt)
 	require.NoError(t, err)
 
@@ -256,7 +256,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false, false}
 	defaultMw, err := DefaultStreamingMiddleware(opt)
 	require.NoError(t, err)
 

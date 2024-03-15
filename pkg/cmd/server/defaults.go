@@ -163,6 +163,7 @@ type MiddlewareOption struct {
 	ds                    datastore.Datastore
 	enableRequestLog      bool
 	enableResponseLog     bool
+	disableGRPCHistogram  bool
 }
 
 // gRPCMetricsUnaryInterceptor creates the default prometheus metrics interceptor for unary gRPCs
@@ -174,9 +175,9 @@ var gRPCMetricsStreamingInterceptor grpc.StreamServerInterceptor
 var serverMetricsOnce sync.Once
 
 // GRPCMetrics returns the interceptors used for the default gRPC metrics from grpc-ecosystem/go-grpc-middleware
-func GRPCMetrics() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+func GRPCMetrics(disableLatencyHistogram bool) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	serverMetricsOnce.Do(func() {
-		gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor = createServerMetrics()
+		gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor = createServerMetrics(disableLatencyHistogram)
 	})
 
 	return gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor
@@ -198,7 +199,7 @@ func doesNotMatchRoute(route string) func(_ context.Context, c interceptors.Call
 
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
-	grpcMetricsUnaryInterceptor, _ := GRPCMetrics()
+	grpcMetricsUnaryInterceptor, _ := GRPCMetrics(opts.disableGRPCHistogram)
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -276,7 +277,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
 func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
-	_, grpcMetricsStreamingInterceptor := GRPCMetrics()
+	_, grpcMetricsStreamingInterceptor := GRPCMetrics(opts.disableGRPCHistogram)
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -366,8 +367,10 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 }
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
-func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
-	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics()
+func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore,
+	disableGRPCLatencyHistogram bool,
+) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
@@ -410,16 +413,17 @@ func InterceptorLogger(l zerolog.Logger) grpclog.Logger {
 }
 
 // initializes prometheus grpc interceptors with exemplar support enabled
-func createServerMetrics() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
-	srvMetrics := grpcprom.NewServerMetrics(
-		grpcprom.WithServerHandlingTimeHistogram(
+func createServerMetrics(disableHistogram bool) (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+	var opts []grpcprom.ServerMetricsOption
+	if !disableHistogram {
+		opts = append(opts, grpcprom.WithServerHandlingTimeHistogram(
 			grpcprom.WithHistogramBuckets([]float64{.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5}),
-		),
-	)
-
+		))
+	}
+	srvMetrics := grpcprom.NewServerMetrics(opts...)
 	// deliberately ignore if these metrics were already registered, so that
 	// custom builds of SpiceDB can register these metrics with custom labels
-	_ = prometheus.DefaultRegisterer.Register(srvMetrics)
+	_ = prometheus.Register(srvMetrics)
 
 	exemplarFromContext := func(ctx context.Context) prometheus.Labels {
 		if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
