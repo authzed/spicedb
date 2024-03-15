@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -164,14 +165,21 @@ type MiddlewareOption struct {
 	enableResponseLog     bool
 }
 
-// GRPCMetricsUnaryInterceptor creates the default prometheus metrics interceptor for unary gRPCs
-var GRPCMetricsUnaryInterceptor grpc.UnaryServerInterceptor
+// gRPCMetricsUnaryInterceptor creates the default prometheus metrics interceptor for unary gRPCs
+var gRPCMetricsUnaryInterceptor grpc.UnaryServerInterceptor
 
-// GRPCMetricsStreamingInterceptor creates the default prometheus metrics interceptor for streaming gRPCs
-var GRPCMetricsStreamingInterceptor grpc.StreamServerInterceptor
+// gRPCMetricsStreamingInterceptor creates the default prometheus metrics interceptor for streaming gRPCs
+var gRPCMetricsStreamingInterceptor grpc.StreamServerInterceptor
 
-func init() {
-	GRPCMetricsUnaryInterceptor, GRPCMetricsStreamingInterceptor = createServerMetrics()
+var serverMetricsOnce sync.Once
+
+// GRPCMetrics returns the interceptors used for the default gRPC metrics from grpc-ecosystem/go-grpc-middleware
+func GRPCMetrics() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
+	serverMetricsOnce.Do(func() {
+		gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor = createServerMetrics()
+	})
+
+	return gRPCMetricsUnaryInterceptor, gRPCMetricsStreamingInterceptor
 }
 
 const healthCheckRoute = "/grpc.health.v1.Health/Check"
@@ -190,6 +198,7 @@ func doesNotMatchRoute(route string) func(_ context.Context, c interceptors.Call
 
 // DefaultUnaryMiddleware generates the default middleware chain used for the public SpiceDB Unary gRPC methods
 func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryServerInterceptor], error) {
+	grpcMetricsUnaryInterceptor, _ := GRPCMetrics()
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -224,7 +233,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
-			WithInterceptor(GRPCMetricsUnaryInterceptor).
+			WithInterceptor(grpcMetricsUnaryInterceptor).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -267,6 +276,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 // DefaultStreamingMiddleware generates the default middleware chain used for the public SpiceDB Streaming gRPC methods
 func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.StreamServerInterceptor], error) {
+	_, grpcMetricsStreamingInterceptor := GRPCMetrics()
 	chain, err := NewMiddlewareChain([]ReferenceableMiddleware[grpc.StreamServerInterceptor]{
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
@@ -301,7 +311,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareGRPCProm).
-			WithInterceptor(GRPCMetricsStreamingInterceptor).
+			WithInterceptor(grpcMetricsStreamingInterceptor).
 			Done(),
 
 		NewStreamMiddleware().
@@ -357,12 +367,13 @@ func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
 
 // DefaultDispatchMiddleware generates the default middleware chain used for the internal dispatch SpiceDB gRPC API
 func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc, ds datastore.Datastore) ([]grpc.UnaryServerInterceptor, []grpc.StreamServerInterceptor) {
+	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics()
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
-			GRPCMetricsUnaryInterceptor,
+			grpcMetricsUnaryInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
 			servicespecific.UnaryServerInterceptor,
@@ -371,7 +382,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
 			otelgrpc.StreamServerInterceptor(), // nolint: staticcheck
 			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
-			GRPCMetricsStreamingInterceptor,
+			grpcMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
@@ -406,7 +417,10 @@ func createServerMetrics() (grpc.UnaryServerInterceptor, grpc.StreamServerInterc
 		),
 	)
 
-	prometheus.DefaultRegisterer.MustRegister(srvMetrics)
+	// deliberately ignore if these metrics were already registered, so that
+	// custom builds of SpiceDB can register these metrics with custom labels
+	_ = prometheus.DefaultRegisterer.Register(srvMetrics)
+
 	exemplarFromContext := func(ctx context.Context) prometheus.Labels {
 		if span := trace.SpanContextFromContext(ctx); span.IsSampled() {
 			return prometheus.Labels{"traceID": span.TraceID().String()}

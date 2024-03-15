@@ -56,12 +56,13 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 }
 
 func runfunc(cmd *cobra.Command, _ []string) error {
+	grpcUnaryInterceptor, _ := server.GRPCMetrics()
 	grpcBuilder := grpcServiceBuilder()
 	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
 		grpc.ChainUnaryInterceptor(
 			grpclog.UnaryServerInterceptor(server.InterceptorLogger(log.Logger)),
 			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
-			server.GRPCMetricsUnaryInterceptor,
+			grpcUnaryInterceptor,
 		))
 	if err != nil {
 		log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed to create gRPC server")
