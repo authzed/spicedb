@@ -9,6 +9,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 
@@ -230,7 +231,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false, consistency.TreatMismatchingTokensAsFullConsistency}
 	defaultMw, err := DefaultUnaryMiddleware(opt)
 	require.NoError(t, err)
 
@@ -256,7 +257,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false, consistency.TreatMismatchingTokensAsFullConsistency}
 	defaultMw, err := DefaultStreamingMiddleware(opt)
 	require.NoError(t, err)
 

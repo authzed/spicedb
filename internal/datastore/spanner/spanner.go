@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -78,6 +79,8 @@ type spannerDatastore struct {
 	client   *spanner.Client
 	config   spannerOptions
 	database string
+
+	uniqueID atomic.Pointer[string]
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -143,7 +146,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	ds := spannerDatastore{
+	ds := &spannerDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			defaultChangeStreamRetention,
 			maxRevisionStaleness,
@@ -195,7 +198,7 @@ func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *
 	return t.delegate.Query(ctx, statement)
 }
 
-func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
 	r := revisionRaw.(revisions.TimestampRevision)
 
 	txSource := func() readTX {
@@ -205,7 +208,7 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	return spannerReader{executor, txSource}
 }
 
-func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	config := options.NewRWTOptionsWithOptions(opts...)
 
 	ctx, span := tracer.Start(ctx, "ReadWriteTx")
@@ -248,7 +251,7 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 	return revisions.NewForTime(ts), nil
 }
 
-func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+func (sd *spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	headMigration, err := migrations.SpannerMigrations.HeadRevision()
 	if err != nil {
 		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for spanner: %w", err)
@@ -275,11 +278,11 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 	}, nil
 }
 
-func (sd spannerDatastore) Features(_ context.Context) (*datastore.Features, error) {
+func (sd *spannerDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
 }
 
-func (sd spannerDatastore) Close() error {
+func (sd *spannerDatastore) Close() error {
 	sd.client.Close()
 	return nil
 }
