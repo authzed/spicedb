@@ -131,6 +131,9 @@ type Config struct {
 	// Logs
 	EnableRequestLogs  bool `debugmap:"visible"`
 	EnableResponseLogs bool `debugmap:"visible"`
+
+	// Metrics
+	DisableGRPCLatencyHistogram bool `debugmap:"visible"`
 }
 
 type closeableStack struct {
@@ -289,9 +292,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	if len(c.DispatchUnaryMiddleware) == 0 && len(c.DispatchStreamingMiddleware) == 0 {
 		if c.GRPCAuthFunc == nil {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, auth.MustRequirePresharedKey(c.PresharedSecureKey), ds, c.DisableGRPCLatencyHistogram)
 		} else {
-			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds)
+			c.DispatchUnaryMiddleware, c.DispatchStreamingMiddleware = DefaultDispatchMiddleware(log.Logger, c.GRPCAuthFunc, ds, c.DisableGRPCLatencyHistogram)
 		}
 	}
 
@@ -360,6 +363,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		ds,
 		c.EnableRequestLogs,
 		c.EnableResponseLogs,
+		c.DisableGRPCLatencyHistogram,
 	}
 	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
 	if err != nil {

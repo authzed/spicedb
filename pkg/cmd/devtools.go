@@ -56,7 +56,7 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 }
 
 func runfunc(cmd *cobra.Command, _ []string) error {
-	grpcUnaryInterceptor, _ := server.GRPCMetrics()
+	grpcUnaryInterceptor, _ := server.GRPCMetrics(false)
 	grpcBuilder := grpcServiceBuilder()
 	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
 		grpc.ChainUnaryInterceptor(
