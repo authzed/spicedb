@@ -293,7 +293,7 @@ func TestCheckPermissions(t *testing.T) {
 								require.NoError(err)
 
 								if debug {
-									require.NotNil(encodedDebugInfo)
+									require.Nil(encodedDebugInfo)
 
 									debugInfo := checkResp.DebugTrace
 									require.NotNil(debugInfo.Check)
@@ -342,7 +342,8 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
 	require.NoError(err)
 
-	require.NotNil(encodedDebugInfo)
+	// debug info is returned empty to make sure clients are not broken with backward incompatible payloads
+	require.Nil(encodedDebugInfo)
 
 	debugInfo := checkResp.DebugTrace
 	require.GreaterOrEqual(len(debugInfo.Check.GetSubProblems().Traces), 1)
