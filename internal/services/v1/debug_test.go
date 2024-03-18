@@ -482,7 +482,8 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
 					req.NoError(err)
 
-					req.NotNil(encodedDebugInfo)
+					// DebugInfo No longer comes as part of the trailer
+					req.Nil(encodedDebugInfo)
 
 					debugInfo := checkResp.DebugTrace
 					req.NotEmpty(debugInfo.SchemaUsed)

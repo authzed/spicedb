@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
-	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc/codes"
@@ -106,14 +105,6 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			return nil, ps.rewriteError(ctx, cerr)
 		}
 		debugTrace = converted
-
-		// TODO(jschorr): Remove this once the trailer is not longer used by anyone.
-		serr := responsemeta.SetResponseTrailerMetadata(ctx, map[responsemeta.ResponseMetadataTrailerKey]string{
-			responsemeta.DebugInformation: `{"note": "debug information has been moved into the response object. See https://spicedb.dev/d/check-traces"}`,
-		})
-		if serr != nil {
-			return nil, ps.rewriteError(ctx, serr)
-		}
 	}
 
 	if err != nil {
