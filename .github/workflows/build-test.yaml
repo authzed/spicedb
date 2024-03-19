@@ -15,7 +15,7 @@ env:
   DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
 jobs:
   paths-filter:
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     outputs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
@@ -45,7 +45,7 @@ jobs:
               - "go.mod"
   build:
     name: "Build Binary & Image"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -62,7 +62,7 @@ jobs:
 
   unit:
     name: "Unit"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -74,7 +74,7 @@ jobs:
 
   integration:
     name: "Integration Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-4"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -90,7 +90,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-4"
     needs: "paths-filter"
     strategy:
       fail-fast: false
@@ -120,7 +120,7 @@ jobs:
 
   e2e:
     name: "E2E"
-    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-8"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -171,7 +171,7 @@ jobs:
           path: "e2e/newenemy/*.log"
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -185,7 +185,7 @@ jobs:
         run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.codechange == 'true'
@@ -197,7 +197,7 @@ jobs:
 
   protobuf:
     name: "Generate Protobufs"
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "ubicloud-standard-2"
     needs: "paths-filter"
     if: |
       needs.paths-filter.outputs.protochange == 'true'
