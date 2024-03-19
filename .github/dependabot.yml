@@ -13,3 +13,7 @@ updates:
       interval: "monthly"
     labels:
       - "area/dependencies"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
