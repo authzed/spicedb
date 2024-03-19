@@ -15,7 +15,7 @@ jobs:
     name: "Lint Go"
     runs-on: "buildjet-4vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
       - name: "Lint Go"
         run: "go run mage.go lint:go"
@@ -28,7 +28,7 @@ jobs:
     name: "Lint YAML & Markdown"
     runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - name: "Lint Everything Else"
         run: "go run mage.go lint:extra"
       - uses: "chainguard-dev/actions/nodiff@main"
