@@ -10,7 +10,7 @@ jobs:
     name: "Build WASM"
     runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
         with:
           ref: "${{ env.GITHUB_SHA }}"
       - uses: "authzed/actions/setup-go@main"

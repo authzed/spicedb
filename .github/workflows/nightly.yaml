@@ -11,7 +11,7 @@ jobs:
   goreleaser:
     runs-on: "buildjet-4vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
