@@ -21,7 +21,7 @@ jobs:
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
       - uses: "actions/checkout@v2"
-      - uses: "dorny/paths-filter@v2"
+      - uses: "dorny/paths-filter@v3"
         id: "code-filter"
         with:
           filters: |
@@ -34,7 +34,7 @@ jobs:
               - "pkg/**"
               - "e2e/**"
               - "internal/**"
-      - uses: "dorny/paths-filter@v2"
+      - uses: "dorny/paths-filter@v3"
         id: "proto-filter"
         with:
           filters: |
