@@ -162,7 +162,7 @@ jobs:
         working-directory: "e2e/newenemy"
         run: |
           go test -v -timeout 11m ./...
-      - uses: "actions/upload-artifact@v2"
+      - uses: "actions/upload-artifact@v4"
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
         continue-on-error: true
