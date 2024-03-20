@@ -229,8 +229,6 @@ jobs:
     steps:
       - uses: "actions/checkout@v3"
       - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
       - name: "Benchmark"
         run: |
           set -o pipefail  # Don't let tee replace the exit-code
