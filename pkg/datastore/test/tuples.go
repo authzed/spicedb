@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -600,7 +601,10 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 
 	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl1)
 	require.ErrorAs(err, &common.CreateRelationshipExistsError{})
-	require.Contains(err.Error(), "could not CREATE relationship ")
+	require.Condition(func() bool {
+		return strings.Contains(err.Error(), "could not CREATE relationship") || // mysql5
+			strings.Contains(err.Error(), "could not CREATE one or more relationships") // mysql8
+	})
 	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 
 	f := func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {

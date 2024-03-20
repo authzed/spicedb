@@ -11,9 +11,22 @@ on:  # yamllint disable-line rule:truthy
     types:
       - "checks_requested"
 jobs:
+  go-filter:
+    runs-on: "ubuntu-latest"
+    outputs:
+      gochange: "${{ steps.code-filter.outputs.gochange }}"
+    steps:
+      - uses: "actions/checkout@v3"
+      - uses: "dorny/paths-filter@v2"
+        id: "go-filter"
+        with:
+          filters: |
+            gochange:
+              - "**.go"
   go-lint:
     name: "Lint Go"
     runs-on: "buildjet-4vcpu-ubuntu-2204"
+    if: "needs.paths-filter.outputs.gochange == 'true'"
     steps:
       - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"

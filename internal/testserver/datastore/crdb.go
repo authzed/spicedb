@@ -46,24 +46,20 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForT
 		NetworkID:  bridgeNetworkName,
 	})
 	require.NoError(t, err)
-
-	builder := &crdbTester{
-		hostname: "localhost",
-		creds:    "root:fake",
-	}
 	t.Cleanup(func() {
 		require.NoError(t, pool.Purge(resource))
 	})
 
-	port := resource.GetPort(fmt.Sprintf("%d/tcp", 26257))
+	builder := &crdbTester{creds: "root:fake"}
 	if bridgeNetworkName != "" {
 		builder.hostname = name
 		builder.port = "26257"
 	} else {
-		builder.port = port
+		builder.hostname = "localhost"
+		builder.port = resource.GetPort("26257/tcp")
 	}
 
-	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, port)
+	uri := fmt.Sprintf("postgres://%s@localhost:%s/defaultdb?sslmode=disable", builder.creds, builder.port)
 	require.NoError(t, pool.Retry(func() error {
 		var err error
 		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
