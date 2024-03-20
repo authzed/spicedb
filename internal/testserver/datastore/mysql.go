@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,8 +23,8 @@ import (
 const (
 	mysqlPort     = "3306"
 	mysqlPortPair = mysqlPort + "/tcp"
-	defaultCreds = "root:secret"
-	testDBPrefix = "spicedb_test_"
+	defaultCreds  = "root:secret"
+	testDBPrefix  = "spicedb_test_"
 )
 
 type mysqlTester struct {
@@ -59,11 +58,10 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 
 	name := fmt.Sprintf("mysql-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       name,
-		Repository: "mysql",
-		Tag:        containerImageTag,
-		Platform:     "linux/amd64", // mysql:5 image does not have arm support
-		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+		Name:         name,
+		Repository:   "mysql",
+		Tag:          containerImageTag,
+		Env:          []string{"MYSQL_ROOT_PASSWORD=secret"},
 		ExposedPorts: []string{mysqlPortPair},
 		Cmd:          []string{"--max-connections=500"}, // accommodate tests using the same container
 		NetworkID:    bridgeNetworkName,
