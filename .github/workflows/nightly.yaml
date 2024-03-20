@@ -11,7 +11,7 @@ jobs:
   goreleaser:
     runs-on: "buildjet-4vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
@@ -21,8 +21,8 @@ jobs:
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
       - uses: "docker/setup-qemu-action@v3"
-      - uses: "docker/setup-buildx-action@v1"
-      - uses: "goreleaser/goreleaser-action@v4"
+      - uses: "docker/setup-buildx-action@v3"
+      - uses: "goreleaser/goreleaser-action@v5"
         with:
           distribution: "goreleaser-pro"
           version: "latest"

@@ -20,8 +20,8 @@ jobs:
       codechange: "${{ steps.code-filter.outputs.codechange }}"
       protochange: "${{ steps.proto-filter.outputs.protochange }}"
     steps:
-      - uses: "actions/checkout@v2"
-      - uses: "dorny/paths-filter@v2"
+      - uses: "actions/checkout@v4"
+      - uses: "dorny/paths-filter@v3"
         id: "code-filter"
         with:
           filters: |
@@ -34,7 +34,7 @@ jobs:
               - "pkg/**"
               - "e2e/**"
               - "internal/**"
-      - uses: "dorny/paths-filter@v2"
+      - uses: "dorny/paths-filter@v3"
         id: "proto-filter"
         with:
           filters: |
@@ -50,7 +50,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@v3"
         with:
@@ -67,7 +67,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests"
         run: "go run mage.go test:unit"
@@ -79,7 +79,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@v3"
         with:
@@ -97,7 +97,7 @@ jobs:
       matrix:
         datastore: ["crdb", "mysql", "postgres", "spanner", "pgbouncer"]
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
@@ -125,14 +125,14 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
       - name: "Cache Binaries"
         id: "cache-binaries"
-        uses: "buildjet/cache@v3"
+        uses: "buildjet/cache@v4"
         with:
           path: |
             e2e/newenemy/cockroach
@@ -146,7 +146,7 @@ jobs:
         run: |
           curl https://binaries.cockroachdb.com/cockroach-v22.1.5.linux-amd64.tgz | tar -xz && mv cockroach-v22.1.5.linux-amd64/cockroach ./cockroach
           curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
-      - uses: "buildjet/cache@v3"
+      - uses: "buildjet/cache@v4"
         with:
           path: |
             ~/.cache/go-build
@@ -162,7 +162,7 @@ jobs:
         working-directory: "e2e/newenemy"
         run: |
           go test -v -timeout 11m ./...
-      - uses: "actions/upload-artifact@v2"
+      - uses: "actions/upload-artifact@v4"
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
         continue-on-error: true
@@ -176,7 +176,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
         with:
           go-version-file: "tools/analyzers/go.mod"
@@ -190,7 +190,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
       - name: "WASM tests"
         run: "go run mage.go test:wasm"
@@ -202,7 +202,7 @@ jobs:
     if: |
       needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
       - name: "Generate Protos"
         run: "go run mage.go gen:proto"
@@ -211,7 +211,7 @@ jobs:
           path: ""
           fixup-command: "go run mage.go gen:proto"
       - uses: "bufbuild/buf-setup-action@v1"
-      - uses: "bufbuild/buf-breaking-action@v1.1.1"
+      - uses: "bufbuild/buf-breaking-action@v1.1.3"
         if: "github.event_name == 'pull_request'"
         env:
           BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"

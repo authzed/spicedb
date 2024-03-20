@@ -8,7 +8,7 @@ updates:
     labels:
       - "area/dependencies"
     groups:
-      gomod-version:
+      go-mod:
         patterns: ["*"]
   - package-ecosystem: "docker"
     directory: "/"
@@ -17,12 +17,12 @@ updates:
     labels:
       - "area/dependencies"
     groups:
-      gomod-version:
+      docker:
         patterns: ["*"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
     groups:
-      gomod-version:
+      github-actions:
         patterns: ["*"]
