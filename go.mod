@@ -8,7 +8,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v0.11.1
+	github.com/authzed/authzed-go v0.11.2-0.20240320204618-9622b72a72c6
 	github.com/authzed/cel-go v0.17.5
 	github.com/authzed/consistent v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20240123092924-129dc0a6a6e1

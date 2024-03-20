@@ -27,6 +27,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
 	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
@@ -208,7 +210,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareLog).
-			WithInterceptor(logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID"))).
+			WithInterceptor(logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID"))).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -286,7 +288,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareLog).
-			WithInterceptor(logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID"))).
+			WithInterceptor(logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID"))).
 			Done(),
 
 		NewStreamMiddleware().
@@ -373,7 +375,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
 			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
@@ -382,7 +384,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
-			logmw.StreamServerInterceptor(logmw.ExtractMetadataField("x-request-id", "requestID")),
+			logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
 			otelgrpc.StreamServerInterceptor(), // nolint: staticcheck
 			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsStreamingInterceptor,
