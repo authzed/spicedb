@@ -5,6 +5,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors"
 	"github.com/rs/xid"
@@ -12,8 +13,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// MetadataKey is the key in which request IDs are passed to metadata.
-const MetadataKey = "x-request-id"
+const metadataKey = string(requestmeta.RequestIDKey)
 
 // Option instances control how the middleware is initialized.
 type Option func(*handleRequestID)
@@ -47,7 +47,7 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
 		var requestIDs []string
-		requestIDs, haveRequestID = md[MetadataKey]
+		requestIDs, haveRequestID = md[metadataKey]
 		if haveRequestID {
 			requestID = requestIDs[0]
 		}
@@ -61,12 +61,12 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 			md = metadata.New(nil)
 		}
 
-		md.Set(MetadataKey, requestID)
+		md.Set(metadataKey, requestID)
 		ctx = metadata.NewIncomingContext(ctx, md)
 	}
 
 	if haveRequestID {
-		ctx = metadata.AppendToOutgoingContext(ctx, MetadataKey, requestID)
+		ctx = metadata.AppendToOutgoingContext(ctx, metadataKey, requestID)
 		err := responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
 			responsemeta.RequestID: requestID,
 		})
