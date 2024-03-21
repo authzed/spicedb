@@ -184,11 +184,19 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	}
 
 	collected, err := gc.DeleteBeforeTx(ctx, watermark)
+
+	// even if an error happened, garbage would have been collected. This makes sure these are reflected even if the
+	// worker eventually fails or times out.
+	gcRelationshipsCounter.Add(float64(collected.Relationships))
+	gcTransactionsCounter.Add(float64(collected.Transactions))
+	gcNamespacesCounter.Add(float64(collected.Namespaces))
+	collectionDuration := time.Since(startTime)
+	gcDurationHistogram.Observe(collectionDuration.Seconds())
+
 	if err != nil {
 		return fmt.Errorf("error deleting in gc: %w", err)
 	}
 
-	collectionDuration := time.Since(startTime)
 	log.Ctx(ctx).Info().
 		Stringer("highestTxID", watermark).
 		Dur("duration", collectionDuration).
@@ -196,10 +204,6 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		Interface("collected", collected).
 		Msg("datastore garbage collection completed successfully")
 
-	gcDurationHistogram.Observe(collectionDuration.Seconds())
-	gcRelationshipsCounter.Add(float64(collected.Relationships))
-	gcTransactionsCounter.Add(float64(collected.Transactions))
-	gcNamespacesCounter.Add(float64(collected.Namespaces))
 	gc.MarkGCCompleted()
 	return nil
 }
