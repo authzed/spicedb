@@ -468,6 +468,16 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.True(t, vts.IsPermission("edit"))
 					})
 
+					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+					})
+
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
 						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
 						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
@@ -544,6 +554,16 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.True(t, vts.IsPermission("view"))
 					})
 
+					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+					})
+
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
 						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
 						require.Equal(t, PublicSubjectAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
@@ -601,6 +621,16 @@ func TestTypeSystemAccessors(t *testing.T) {
 				"group": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
 					t.Run("IsPermission", func(t *testing.T) {
 						require.False(t, vts.IsPermission("member"))
+					})
+
+					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("member", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("member", "group")
+						require.NoError(t, err)
+						require.True(t, ok)
 					})
 
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
@@ -662,6 +692,20 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.False(t, vts.IsPermission("editor"))
 						require.False(t, vts.IsPermission("viewer"))
 						require.False(t, vts.IsPermission("onlycaveated"))
+					})
+
+					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.False(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("onlycaveated", "user")
+						require.NoError(t, err)
+						require.False(t, ok)
 					})
 
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {

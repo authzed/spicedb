@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/typesystem"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -88,13 +90,87 @@ func appendForInsertion(builder sq.InsertBuilder, tpl *core.RelationTuple) sq.In
 	return builder.Values(valuesToWrite...)
 }
 
+func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, mutations []*core.RelationTupleUpdate) (*mapz.Set[string], error) {
+	// Collect the list of namespaces used for resources for relationships being TOUCHed.
+	touchedResourceNamespaces := mapz.NewSet[string]()
+	for _, mut := range mutations {
+		if mut.Operation == core.RelationTupleUpdate_TOUCH {
+			touchedResourceNamespaces.Add(mut.Tuple.ResourceAndRelation.Namespace)
+		}
+	}
+
+	// Load the namespaces for any resources that are being TOUCHed and check if the relation being touched
+	// *can* have a caveat. If not, mark the relation as supported simplified TOUCH operations.
+	relationSupportSimplifiedTouch := mapz.NewSet[string]()
+	if touchedResourceNamespaces.IsEmpty() {
+		return relationSupportSimplifiedTouch, nil
+	}
+
+	namespaces, err := rwt.LookupNamespacesWithNames(ctx, touchedResourceNamespaces.AsSlice())
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToWriteRelationships, err)
+	}
+
+	if len(namespaces) == 0 {
+		return relationSupportSimplifiedTouch, nil
+	}
+
+	nsDefByName := make(map[string]*core.NamespaceDefinition, len(namespaces))
+	for _, ns := range namespaces {
+		nsDefByName[ns.Definition.Name] = ns.Definition
+	}
+
+	for _, mut := range mutations {
+		tpl := mut.Tuple
+
+		if mut.Operation != core.RelationTupleUpdate_TOUCH {
+			continue
+		}
+
+		nsDef, ok := nsDefByName[tpl.ResourceAndRelation.Namespace]
+		if !ok {
+			continue
+		}
+
+		vts, err := typesystem.NewNamespaceTypeSystem(nsDef, typesystem.ResolverForDatastoreReader(rwt))
+		if err != nil {
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		notAllowed, err := vts.RelationDoesNotAllowCaveatsForSubject(tpl.ResourceAndRelation.Relation, tpl.Subject.Namespace)
+		if err != nil {
+			// Ignore errors and just fallback to the less efficient path.
+			continue
+		}
+
+		if notAllowed {
+			relationSupportSimplifiedTouch.Add(nsDef.Name + "#" + tpl.ResourceAndRelation.Relation + "@" + tpl.Subject.Namespace)
+			continue
+		}
+	}
+
+	return relationSupportSimplifiedTouch, nil
+}
+
 func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	touchMutationsByNonCaveat := make(map[string]*core.RelationTupleUpdate, len(mutations))
 	hasCreateInserts := false
 
 	createInserts := writeTuple
 	touchInserts := writeTuple
+
 	deleteClauses := sq.Or{}
+
+	// Determine the set of relation+subject types for whom a "simplified" TOUCH operation can be used. A
+	// simplified TOUCH operation is one in which the relationship does not support caveats for the subject
+	// type. In such cases, the "DELETE" operation is unnecessary because the relationship does not support
+	// caveats for the subject type, and thus the relationship can be TOUCHed without needing to check for
+	// the existence of a relationship with a different caveat name and/or context which might need to be
+	// replaced.
+	relationSupportSimplifiedTouch, err := rwt.collectSimplifiedTouchTypes(ctx, mutations)
+	if err != nil {
+		return err
+	}
 
 	// Parse the updates, building inserts for CREATE/TOUCH and deletes for DELETE.
 	for _, mut := range mutations {
@@ -106,8 +182,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			hasCreateInserts = true
 
 		case core.RelationTupleUpdate_TOUCH:
-			touchMutationsByNonCaveat[tuple.StringWithoutCaveat(tpl)] = mut
 			touchInserts = appendForInsertion(touchInserts, tpl)
+			touchMutationsByNonCaveat[tuple.StringWithoutCaveat(tpl)] = mut
 
 		case core.RelationTupleUpdate_DELETE:
 			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
@@ -184,18 +260,24 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 		}
 		rows.Close()
 
-		// For each remaining TOUCH mutation, add a DELETE operation for the row iff the caveat and/or
-		// context has changed. For ones in which the caveat name and/or context did not change, there is
-		// no need to replace the row, as it is already present.
+		// For each remaining TOUCH mutation, add a "DELETE" operation for the row such that if the caveat and/or
+		// context has changed, the row will be deleted. For ones in which the caveat name and/or context did cause
+		// the deletion (because of a change), the row will be re-inserted with the new caveat name and/or context.
 		for _, mut := range touchMutationsByNonCaveat {
+			// If the relation support a simplified TOUCH operation, then skip the DELETE operation, as it is unnecessary
+			// because the relation does not support a caveat for a subject of this type.
+			if relationSupportSimplifiedTouch.Has(mut.Tuple.ResourceAndRelation.Namespace + "#" + mut.Tuple.ResourceAndRelation.Relation + "@" + mut.Tuple.Subject.Namespace) {
+				continue
+			}
+
 			deleteClauses = append(deleteClauses, exactRelationshipDifferentCaveatClause(mut.Tuple))
 		}
 	}
 
-	// Execute the DELETE operation for any DELETE mutations or TOUCH mutations that matched existing
-	// relationships and whose caveat name or context is different in some manner. We use RETURNING
-	// to determine which TOUCHed relationships were deleted by virtue of their caveat name and/or
-	// context being changed.
+	// Execute the "DELETE" operation (an UPDATE with setting the deletion ID to the current transaction ID)
+	// for any DELETE mutations or TOUCH mutations that matched existing relationships and whose caveat name
+	// or context is different in some manner. We use RETURNING to determine which TOUCHed relationships were
+	// deleted by virtue of their caveat name and/or context being changed.
 	if len(deleteClauses) == 0 {
 		// Nothing more to do.
 		return nil
