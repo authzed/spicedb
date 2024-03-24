@@ -1319,6 +1319,50 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 	}
 }
 
+// TypedTouchAlreadyExistingTest tests touching a relationship twice, when valid type information is provided.
+func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1 := tuple.Parse("document:foo#viewer@user:tom")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, tpl1)
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl1)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, tpl1)
+}
+
+// TypedTouchAlreadyExistingWithCaveatTest tests touching a relationship twice, when valid type information is provided.
+func TypedTouchAlreadyExistingWithCaveatTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	ctpl1 := tuple.Parse("document:foo#caveated_viewer@user:tom[test:{\"foo\":\"bar\"}]")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, ctpl1)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, ctpl1)
+
+	ctpl1Updated := tuple.Parse("document:foo#caveated_viewer@user:tom[test:{\"foo\":\"baz\"}]")
+
+	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, ctpl1Updated)
+	require.NoError(err)
+	ensureTuples(ctx, require, ds, ctpl1Updated)
+}
+
 // CreateTouchDeleteTouchTest tests writing a relationship, touching it, deleting it, and then touching it.
 func CreateTouchDeleteTouchTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
