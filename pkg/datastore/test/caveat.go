@@ -143,7 +143,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	_, err = writeCaveats(ctx, ds, coreCaveat, anotherCoreCaveat)
 	req.NoError(err)
 
-	tpl := createTestCaveatedTuple(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
+	tpl := createTestCaveatedTuple(t, "document:companyplan#somerelation@folder:company#...", coreCaveat.Name)
 	rev, err := common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 	assertTupleCorrectlyStored(req, ds, rev, tpl)
@@ -194,7 +194,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.Nil(iter.Next())
 
 	// Caveated tuple can reference non-existing caveat - controller layer is responsible for validation
-	tpl = createTestCaveatedTuple(t, "document:rando#parent@folder:company#...", "rando")
+	tpl = createTestCaveatedTuple(t, "document:rando#somerelation@folder:company#...", "rando")
 	_, err = common.WriteTuples(ctx, sds, core.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
 }
