@@ -350,6 +350,8 @@ func (m *DispatchLookupSubjectsRequest) CloneVT() *DispatchLookupSubjectsRequest
 	}
 	r := new(DispatchLookupSubjectsRequest)
 	r.Metadata = m.Metadata.CloneVT()
+	r.OptionalLimit = m.OptionalLimit
+	r.OptionalCursor = m.OptionalCursor.CloneVT()
 	if rhs := m.ResourceRelation; rhs != nil {
 		if vtpb, ok := interface{}(rhs).(interface{ CloneVT() *v1.RelationReference }); ok {
 			r.ResourceRelation = vtpb.CloneVT()
@@ -440,6 +442,7 @@ func (m *DispatchLookupSubjectsResponse) CloneVT() *DispatchLookupSubjectsRespon
 	}
 	r := new(DispatchLookupSubjectsResponse)
 	r.Metadata = m.Metadata.CloneVT()
+	r.AfterResponseCursor = m.AfterResponseCursor.CloneVT()
 	if rhs := m.FoundSubjectsByResourceId; rhs != nil {
 		tmpContainer := make(map[string]*FoundSubjects, len(rhs))
 		for k, v := range rhs {
@@ -1014,6 +1017,12 @@ func (this *DispatchLookupSubjectsRequest) EqualVT(that *DispatchLookupSubjectsR
 	} else if !proto.Equal(this.SubjectRelation, that.SubjectRelation) {
 		return false
 	}
+	if this.OptionalLimit != that.OptionalLimit {
+		return false
+	}
+	if !this.OptionalCursor.EqualVT(that.OptionalCursor) {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1129,6 +1138,9 @@ func (this *DispatchLookupSubjectsResponse) EqualVT(that *DispatchLookupSubjects
 		}
 	}
 	if !this.Metadata.EqualVT(that.Metadata) {
+		return false
+	}
+	if !this.AfterResponseCursor.EqualVT(that.AfterResponseCursor) {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -2190,6 +2202,21 @@ func (m *DispatchLookupSubjectsRequest) MarshalToSizedBufferVT(dAtA []byte) (int
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.OptionalCursor != nil {
+		size, err := m.OptionalCursor.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x32
+	}
+	if m.OptionalLimit != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OptionalLimit))
+		i--
+		dAtA[i] = 0x28
+	}
 	if m.SubjectRelation != nil {
 		if vtmsg, ok := interface{}(m.SubjectRelation).(interface {
 			MarshalToSizedBufferVT([]byte) (int, error)
@@ -2404,6 +2431,16 @@ func (m *DispatchLookupSubjectsResponse) MarshalToSizedBufferVT(dAtA []byte) (in
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.AfterResponseCursor != nil {
+		size, err := m.AfterResponseCursor.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if m.Metadata != nil {
 		size, err := m.Metadata.MarshalToSizedBufferVT(dAtA[:i])
@@ -3092,6 +3129,13 @@ func (m *DispatchLookupSubjectsRequest) SizeVT() (n int) {
 		}
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.OptionalLimit != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.OptionalLimit))
+	}
+	if m.OptionalCursor != nil {
+		l = m.OptionalCursor.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3163,6 +3207,10 @@ func (m *DispatchLookupSubjectsResponse) SizeVT() (n int) {
 	}
 	if m.Metadata != nil {
 		l = m.Metadata.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.AfterResponseCursor != nil {
+		l = m.AfterResponseCursor.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -5563,6 +5611,61 @@ func (m *DispatchLookupSubjectsRequest) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OptionalLimit", wireType)
+			}
+			m.OptionalLimit = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.OptionalLimit |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OptionalCursor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OptionalCursor == nil {
+				m.OptionalCursor = &Cursor{}
+			}
+			if err := m.OptionalCursor.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -6022,6 +6125,42 @@ func (m *DispatchLookupSubjectsResponse) UnmarshalVT(dAtA []byte) error {
 				m.Metadata = &ResponseMeta{}
 			}
 			if err := m.Metadata.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AfterResponseCursor", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AfterResponseCursor == nil {
+				m.AfterResponseCursor = &Cursor{}
+			}
+			if err := m.AfterResponseCursor.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

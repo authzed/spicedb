@@ -458,6 +458,21 @@ func TestTypeSystemAccessors(t *testing.T) {
 					require.False(t, vts.IsPermission("somenonpermission"))
 				},
 				"resource": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					t.Run("GetRelationOrError", func(t *testing.T) {
+						require.NotNil(t, noError(vts.GetRelationOrError("editor")))
+						require.NotNil(t, noError(vts.GetRelationOrError("viewer")))
+
+						_, err := vts.GetRelationOrError("someunknownrel")
+						require.Error(t, err)
+						require.ErrorAs(t, err, &ErrRelationNotFound{})
+						require.ErrorContains(t, err, "relation/permission `someunknownrel` not found")
+					})
+
+					t.Run("HasIndirectSubjects", func(t *testing.T) {
+						require.False(t, noError(vts.HasIndirectSubjects("editor")))
+						require.False(t, noError(vts.HasIndirectSubjects("viewer")))
+					})
+
 					t.Run("IsPermission", func(t *testing.T) {
 						require.False(t, vts.IsPermission("somenonpermission"))
 
@@ -544,6 +559,11 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.True(t, vts.IsPermission("view"))
 					})
 
+					t.Run("HasIndirectSubjects", func(t *testing.T) {
+						require.False(t, noError(vts.HasIndirectSubjects("editor")))
+						require.False(t, noError(vts.HasIndirectSubjects("viewer")))
+					})
+
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
 						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
 						require.Equal(t, PublicSubjectAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
@@ -601,6 +621,10 @@ func TestTypeSystemAccessors(t *testing.T) {
 				"group": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
 					t.Run("IsPermission", func(t *testing.T) {
 						require.False(t, vts.IsPermission("member"))
+					})
+
+					t.Run("HasIndirectSubjects", func(t *testing.T) {
+						require.True(t, noError(vts.HasIndirectSubjects("member")))
 					})
 
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
@@ -662,6 +686,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.False(t, vts.IsPermission("editor"))
 						require.False(t, vts.IsPermission("viewer"))
 						require.False(t, vts.IsPermission("onlycaveated"))
+					})
+
+					t.Run("HasIndirectSubjects", func(t *testing.T) {
+						require.False(t, noError(vts.HasIndirectSubjects("editor")))
+						require.False(t, noError(vts.HasIndirectSubjects("viewer")))
+						require.False(t, noError(vts.HasIndirectSubjects("onlycaveated")))
 					})
 
 					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {

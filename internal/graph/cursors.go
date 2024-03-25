@@ -136,8 +136,6 @@ func (ci cursorInformation) clearIncoming() cursorInformation {
 	}
 }
 
-type cursorHandler func(c cursorInformation) error
-
 // itemAndPostCursor represents an item and the cursor to be used for all items after it.
 type itemAndPostCursor[T any] struct {
 	item   T
@@ -208,7 +206,10 @@ func withDatastoreCursorInCursor[T any, Q any](
 	)
 }
 
-type afterResponseCursor func(nextOffset int) *v1.Cursor
+type (
+	afterResponseCursor func(nextOffset int) *v1.Cursor
+	cursorHandler       func(c cursorInformation) error
+)
 
 // withSubsetInCursor executes the given handler with the offset index found at the beginning of the
 // cursor. If the offset is not found, executes with 0. The handler is given the current offset as

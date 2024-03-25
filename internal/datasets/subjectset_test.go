@@ -243,6 +243,13 @@ func TestSubjectSetAdd(t *testing.T) {
 			expectedSet := tc.expectedSet
 			computedSet := existingSet.AsSlice()
 			testutil.RequireEquivalentSets(t, expectedSet, computedSet)
+
+			require.Equal(t, len(expectedSet), existingSet.SubjectCount())
+			if existingSet.HasWildcard() {
+				require.Equal(t, len(expectedSet), existingSet.ConcreteSubjectCount()+1)
+			} else {
+				require.Equal(t, len(expectedSet), existingSet.ConcreteSubjectCount())
+			}
 		})
 	}
 }
