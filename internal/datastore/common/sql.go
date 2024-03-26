@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	log "github.com/authzed/spicedb/internal/logging"
 	"math"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"

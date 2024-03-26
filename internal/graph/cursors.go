@@ -3,11 +3,11 @@ package graph
 import (
 	"context"
 	"errors"
-	log "github.com/authzed/spicedb/internal/logging"
 	"strconv"
 	"sync"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
