@@ -7,6 +7,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
 
 // branchContext returns a context disconnected from the parent context, but populated with the datastore.
@@ -25,6 +26,8 @@ func branchContext(ctx context.Context) (context.Context, func(cancelErr error))
 	if loggerFromContext != nil {
 		detachedContext = loggerFromContext.WithContext(detachedContext)
 	}
+
+	detachedContext = requestid.PropagateIfExists(ctx, detachedContext)
 
 	return context.WithCancelCause(detachedContext)
 }
