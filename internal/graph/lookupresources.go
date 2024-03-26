@@ -83,7 +83,9 @@ func (cl *CursoredLookupResources) LookupResources(
 		}
 
 		reachableResourcesCursor = newCursor
-		if reachableCount == 0 {
+
+		// If no additional reachable results were found or the request was unlimited, then we can stop.
+		if reachableCount == 0 || req.OptionalLimit == 0 {
 			return nil
 		}
 	}
