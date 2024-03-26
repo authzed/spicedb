@@ -41,6 +41,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -274,9 +275,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
-				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()), // nolint: staticcheck
-				grpc.WithDefaultServiceConfig(hashringConfigJSON),
-				grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()), // nolint: staticcheck
+				grpc.WithChainUnaryInterceptor(
+					otelgrpc.UnaryClientInterceptor(), // nolint: staticcheck
+					requestid.UnaryClientInterceptor(),
+				),
+				grpc.WithChainStreamInterceptor(
+					otelgrpc.StreamClientInterceptor(), // nolint: staticcheck
+					requestid.StreamClientInterceptor(),
+				),
 			),
 			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),

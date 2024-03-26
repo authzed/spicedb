@@ -41,7 +41,39 @@ type handleRequestID struct {
 	requestIDGenerator IDGenerator
 }
 
+func (r *handleRequestID) ClientReporter(ctx context.Context, meta interceptors.CallMeta) (interceptors.Reporter, context.Context) {
+	haveRequestID, requestID, ctx := r.requestIDFromContext(ctx)
+
+	if haveRequestID {
+		ctx = requestmeta.SetRequestHeaders(ctx, map[requestmeta.RequestMetadataHeaderKey]string{
+			requestmeta.RequestIDKey: requestID,
+		})
+	}
+
+	return interceptors.NoopReporter{}, ctx
+}
+
 func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
+	haveRequestID, requestID, ctx := r.requestIDFromContext(ctx)
+
+	if haveRequestID {
+		err := responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
+			responsemeta.RequestID: requestID,
+		})
+		// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
+		// this prevents logging unnecessary error messages
+		if ctx.Err() != nil {
+			return interceptors.NoopReporter{}, ctx
+		}
+		if err != nil {
+			log.Ctx(ctx).Warn().Err(err).Msg("requestid: could not report metadata")
+		}
+	}
+
+	return interceptors.NoopReporter{}, ctx
+}
+
+func (r *handleRequestID) requestIDFromContext(ctx context.Context) (bool, string, context.Context) {
 	var requestID string
 	var haveRequestID bool
 	md, ok := metadata.FromIncomingContext(ctx)
@@ -65,34 +97,31 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 		ctx = metadata.NewIncomingContext(ctx, md)
 	}
 
-	if haveRequestID {
-		ctx = metadata.AppendToOutgoingContext(ctx, metadataKey, requestID)
-		err := responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
-			responsemeta.RequestID: requestID,
-		})
-		// if context is cancelled, the stream will be closed, and gRPC will return ErrIllegalHeaderWrite
-		// this prevents logging unnecessary error messages
-		if ctx.Err() != nil {
-			return interceptors.NoopReporter{}, ctx
-		}
-		if err != nil {
-			log.Ctx(ctx).Warn().Err(err).Msg("requestid: could not report metadata")
-		}
-	}
-
-	return interceptors.NoopReporter{}, ctx
+	return haveRequestID, requestID, ctx
 }
 
-// UnaryServerInterceptor returns a new interceptor which handles request IDs according
+// UnaryServerInterceptor returns a new interceptor which handles server request IDs according
 // to the provided options.
 func UnaryServerInterceptor(opts ...Option) grpc.UnaryServerInterceptor {
 	return interceptors.UnaryServerInterceptor(createReporter(opts))
 }
 
-// StreamServerInterceptor returns a new interceptor which handles request IDs according
+// StreamServerInterceptor returns a new interceptor which handles server request IDs according
 // to the provided options.
 func StreamServerInterceptor(opts ...Option) grpc.StreamServerInterceptor {
 	return interceptors.StreamServerInterceptor(createReporter(opts))
+}
+
+// UnaryClientInterceptor returns a new interceptor which handles client request IDs according
+// to the provided options.
+func UnaryClientInterceptor(opts ...Option) grpc.UnaryClientInterceptor {
+	return interceptors.UnaryClientInterceptor(createReporter(opts))
+}
+
+// StreamClientInterceptor returns a new interceptor which handles client requestIDs according
+// to the provided options.
+func StreamClientInterceptor(opts ...Option) grpc.StreamClientInterceptor {
+	return interceptors.StreamClientInterceptor(createReporter(opts))
 }
 
 func createReporter(opts []Option) *handleRequestID {
