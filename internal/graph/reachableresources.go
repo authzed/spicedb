@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -264,6 +265,12 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
 		// Find the target resources for the subject.
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap], error) {
+			log.Ctx(ctx).Trace().
+				Str("ns", config.sourceResourceType.Namespace).
+				Str("cursor", tuple.MustString(queryCursor)).
+				Str("relation", config.sourceResourceType.Relation).
+				Strs("optional-subject-ids", config.subjectsFilter.OptionalSubjectIds).
+				Msg("reverse query relationship")
 			it, err := config.reader.ReverseQueryRelationships(
 				ctx,
 				config.subjectsFilter,
@@ -284,7 +291,7 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 			rsm := newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap], 0)
 			currentCursor := queryCursor
-
+			log.Ctx(ctx).Trace().Msg("starting reverse query iteration")
 			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 				if it.Err() != nil {
 					return nil, it.Err()
@@ -305,6 +312,7 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 			}
 			it.Close()
 
+			log.Ctx(ctx).Trace().Msg("finished reverse query iteration")
 			if rsm.len() > 0 {
 				toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{
 					item:   rsm.asReadOnly(),
@@ -414,6 +422,7 @@ func (crr *CursoredReachableResources) redispatchOrReport(
 	parentRequest ValidatedReachableResourcesRequest,
 	dispatched *syncONRSet,
 ) error {
+	log.Ctx(ctx).Trace().Any("resources-and-subject", foundResources.resourcesAndSubjects).Msg("redispatchOrReport")
 	if foundResources.isEmpty() {
 		// Nothing more to do.
 		return nil

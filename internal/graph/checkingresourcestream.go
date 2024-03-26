@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -279,21 +280,25 @@ func newCheckingResourceStream(
 // waitForPublishing waits for the publishing goroutine to complete its work, and returns the number
 // of published *reachable* resources or the error that occurred during checking or publishing.
 func (crs *checkingResourceStream) waitForPublishing() (uint64, *v1.Cursor, error) {
+	log.Ctx(crs.ctx).Trace().Msg("marking reachable resources completed")
 	// Mark that no new items will come in from the reachable resources stream.
 	for i := 0; i < int(crs.concurrencyLimit); i++ {
 		crs.reachableResourcesCompleted <- struct{}{}
 	}
 
 	// Wait for all existing processing to complete.
+	log.Ctx(crs.ctx).Trace().Msg("waiting for all existing processing to complete")
 	crs.processingWaitGroup.Wait()
 
 	// Run a final processing call to ensure there are no remaining items.
+	log.Ctx(crs.ctx).Trace().Msg("making sure there are no remaining items in the checking stream")
 	_, err := crs.runProcess(true)
 	if err != nil {
 		return 0, nil, err
 	}
 
 	// Mark publishing as ready for final publishing.
+	log.Ctx(crs.ctx).Trace().Msg("marking publishing as ready for final publishing")
 	select {
 	case crs.availableForPublishing <- false:
 		break
@@ -304,6 +309,7 @@ func (crs *checkingResourceStream) waitForPublishing() (uint64, *v1.Cursor, erro
 	}
 
 	// Wait for any remaining publishing to complete.
+	log.Ctx(crs.ctx).Trace().Msg("waiting for any remaining publishing to complete")
 	crs.publishingWaitGroup.Wait()
 
 	return crs.reachableResourcesCount, crs.lastReachableResourceCursor, crs.err

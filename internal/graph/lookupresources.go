@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -77,11 +78,13 @@ func (cl *CursoredLookupResources) LookupResources(
 			}
 		}
 
+		log.Ctx(parentStream.Context()).Trace().Msg("waiting for checking stream publishing")
 		reachableCount, newCursor, err := checkingStream.waitForPublishing()
 		if err != nil {
 			return err
 		}
 
+		log.Ctx(parentStream.Context()).Trace().Uint64("reachable-count", reachableCount).Msg("completed checking stream publishing")
 		reachableResourcesCursor = newCursor
 		if reachableCount == 0 {
 			return nil

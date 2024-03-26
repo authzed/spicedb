@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	log "github.com/authzed/spicedb/internal/logging"
 	"strconv"
 	"sync"
 
@@ -346,6 +347,7 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 	getItemCursor func(taskIndex int) (cursorInformation, error),
 	handler func(ctx context.Context, ci cursorInformation, item T, stream dispatch.Stream[Q]) error,
 ) error {
+	log.Ctx(ctx).Trace().Int("items-to-run", len(itemsToRun)).Msg("starting withInternalParallelizedStreamingIterableInCursor")
 	// Queue up each iteration's worth of items to be run by the task runner.
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, len(itemsToRun))
 	stream, err := newParallelLimitedIndexedStream(ctx, ci, parentStream, len(itemsToRun))

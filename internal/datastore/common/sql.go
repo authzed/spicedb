@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	log "github.com/authzed/spicedb/internal/logging"
 	"math"
 	"strings"
 
@@ -559,6 +560,7 @@ func (tqs QueryExecutor) ExecuteQuery(
 		return nil, err
 	}
 
+	log.Ctx(ctx).Trace().Str("sql", sql).Any("args", args).Msg("about to execute query")
 	queryTuples, err := tqs.Executor(ctx, sql, args)
 	if err != nil {
 		return nil, err
