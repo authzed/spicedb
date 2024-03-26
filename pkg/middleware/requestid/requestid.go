@@ -42,7 +42,7 @@ type handleRequestID struct {
 }
 
 func (r *handleRequestID) ClientReporter(ctx context.Context, meta interceptors.CallMeta) (interceptors.Reporter, context.Context) {
-	haveRequestID, requestID, ctx := r.requestIDFromContext(ctx)
+	haveRequestID, requestID, ctx := r.fromContextOrGenerate(ctx)
 
 	if haveRequestID {
 		ctx = requestmeta.SetRequestHeaders(ctx, map[requestmeta.RequestMetadataHeaderKey]string{
@@ -54,7 +54,7 @@ func (r *handleRequestID) ClientReporter(ctx context.Context, meta interceptors.
 }
 
 func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.CallMeta) (interceptors.Reporter, context.Context) {
-	haveRequestID, requestID, ctx := r.requestIDFromContext(ctx)
+	haveRequestID, requestID, ctx := r.fromContextOrGenerate(ctx)
 
 	if haveRequestID {
 		err := responsemeta.SetResponseHeaderMetadata(ctx, map[responsemeta.ResponseMetadataHeaderKey]string{
@@ -73,17 +73,8 @@ func (r *handleRequestID) ServerReporter(ctx context.Context, _ interceptors.Cal
 	return interceptors.NoopReporter{}, ctx
 }
 
-func (r *handleRequestID) requestIDFromContext(ctx context.Context) (bool, string, context.Context) {
-	var requestID string
-	var haveRequestID bool
-	md, ok := metadata.FromIncomingContext(ctx)
-	if ok {
-		var requestIDs []string
-		requestIDs, haveRequestID = md[metadataKey]
-		if haveRequestID {
-			requestID = requestIDs[0]
-		}
-	}
+func (r *handleRequestID) fromContextOrGenerate(ctx context.Context) (bool, string, context.Context) {
+	haveRequestID, requestID, md := fromContext(ctx)
 
 	if !haveRequestID && r.generateIfMissing {
 		requestID, haveRequestID = r.requestIDGenerator(), true
@@ -98,6 +89,39 @@ func (r *handleRequestID) requestIDFromContext(ctx context.Context) (bool, strin
 	}
 
 	return haveRequestID, requestID, ctx
+}
+
+func fromContext(ctx context.Context) (bool, string, metadata.MD) {
+	var requestID string
+	var haveRequestID bool
+	md, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		var requestIDs []string
+		requestIDs, haveRequestID = md[metadataKey]
+		if haveRequestID {
+			requestID = requestIDs[0]
+		}
+	}
+
+	return haveRequestID, requestID, md
+}
+
+// PropagateIfExists copies the request ID from the source context to the target context if it exists.
+// The updated target context is returned.
+func PropagateIfExists(source, target context.Context) context.Context {
+	exists, requestID, _ := fromContext(source)
+
+	if exists {
+		targetMD, _ := metadata.FromIncomingContext(target)
+		if targetMD == nil {
+			targetMD = metadata.New(nil)
+		}
+
+		targetMD.Set(metadataKey, requestID)
+		return metadata.NewIncomingContext(target, targetMD)
+	}
+
+	return target
 }
 
 // UnaryServerInterceptor returns a new interceptor which handles server request IDs according
