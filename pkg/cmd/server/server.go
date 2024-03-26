@@ -276,6 +276,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.GrpcDialOpts(
 				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()), // nolint: staticcheck
 				grpc.WithDefaultServiceConfig(hashringConfigJSON),
+				grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()), // nolint: staticcheck
 			),
 			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
