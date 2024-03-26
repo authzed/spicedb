@@ -59,9 +59,9 @@ func runfunc(cmd *cobra.Command, _ []string) error {
 	grpcUnaryInterceptor, _ := server.GRPCMetrics(false)
 	grpcBuilder := grpcServiceBuilder()
 	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			grpclog.UnaryServerInterceptor(server.InterceptorLogger(log.Logger)),
-			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
 			grpcUnaryInterceptor,
 		))
 	if err != nil {
