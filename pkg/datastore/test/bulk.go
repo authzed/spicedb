@@ -7,9 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -75,6 +79,88 @@ func BulkUploadErrorsTest(t *testing.T, tester DatastoreTester) {
 		return err
 	})
 	require.Error(err)
+}
+
+func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+	ctx := context.Background()
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+			testfixtures.DocumentNS.Name,
+			"viewer",
+			testfixtures.UserNS.Name,
+			1,
+			t,
+		))
+		require.NoError(err)
+		require.Equal(uint64(1), inserted)
+
+		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+			testfixtures.DocumentNS.Name,
+			"viewer",
+			testfixtures.UserNS.Name,
+			1,
+			t,
+		))
+		return serr
+	}, options.WithDisableRetries(true))
+
+	// NOTE: spanner does not return an error for duplicates.
+	if err == nil {
+		return
+	}
+
+	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
+}
+
+func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+	ctx := context.Background()
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+
+	// Bulk write a single relationship.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+			testfixtures.DocumentNS.Name,
+			"viewer",
+			testfixtures.UserNS.Name,
+			1,
+			t,
+		))
+		require.NoError(err)
+		require.Equal(uint64(1), inserted)
+		return nil
+	}, options.WithDisableRetries(true))
+	require.NoError(err)
+
+	// Bulk write it again and ensure we get the expected error.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+			testfixtures.DocumentNS.Name,
+			"viewer",
+			testfixtures.UserNS.Name,
+			1,
+			t,
+		))
+		return serr
+	}, options.WithDisableRetries(true))
+
+	// NOTE: spanner does not return an error for duplicates.
+	if err == nil {
+		return
+	}
+
+	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
 type onlyErrorSource struct{}
