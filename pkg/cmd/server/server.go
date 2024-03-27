@@ -274,7 +274,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
-				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()), // nolint: staticcheck
+				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 				grpc.WithDefaultServiceConfig(hashringConfigJSON),
 			),
 			combineddispatch.MetricsEnabled(c.DispatchClientMetricsEnabled),
@@ -331,6 +331,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		},
 		grpc.ChainUnaryInterceptor(c.DispatchUnaryMiddleware...),
 		grpc.ChainStreamInterceptor(c.DispatchStreamingMiddleware...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dispatch gRPC server: %w", err)
@@ -614,7 +615,11 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		}
 	}
 
-	grpcServer := c.gRPCServer.WithOpts(grpc.ChainUnaryInterceptor(c.unaryMiddleware...), grpc.ChainStreamInterceptor(c.streamingMiddleware...))
+	grpcServer := c.gRPCServer.WithOpts(
+		grpc.ChainUnaryInterceptor(c.unaryMiddleware...),
+		grpc.ChainStreamInterceptor(c.streamingMiddleware...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()))
+
 	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen(ctx))
 	g.Go(c.dispatchGRPCServer.Listen(ctx))

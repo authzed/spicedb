@@ -376,7 +376,6 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			otelgrpc.UnaryServerInterceptor(), // nolint: staticcheck
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
@@ -385,7 +384,6 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			otelgrpc.StreamServerInterceptor(), // nolint: staticcheck
 			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
