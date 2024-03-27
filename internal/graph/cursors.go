@@ -394,6 +394,9 @@ func withInternalParallelizedStreamingIterableInCursor[T any, Q any](
 	if err != nil {
 		return err
 	}
+
+	log.Ctx(ctx).Trace().Msg("finished withInternalParallelizedStreamingIterableInCursor")
+
 	return nil
 }
 

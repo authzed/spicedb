@@ -309,8 +309,9 @@ func (crs *checkingResourceStream) waitForPublishing() (uint64, *v1.Cursor, erro
 	}
 
 	// Wait for any remaining publishing to complete.
-	log.Ctx(crs.ctx).Trace().Msg("waiting for any remaining publishing to complete")
+	log.Ctx(crs.ctx).Trace().Msg("waitForPublishing - waiting for any remaining publishing to complete")
 	crs.publishingWaitGroup.Wait()
+	log.Ctx(crs.ctx).Trace().Msg("waitForPublishing - completed")
 
 	return crs.reachableResourcesCount, crs.lastReachableResourceCursor, crs.err
 }
@@ -345,12 +346,14 @@ func (crs *checkingResourceStream) resourcePublisher() {
 func (crs *checkingResourceStream) publishResourcesIfPossible() error {
 	for {
 		toPublish := crs.rq.resourcesToPossiblyPublish()
+		log.Ctx(crs.ctx).Trace().Int("toPublishCount", len(toPublish)).Msg("publishResourcesIfPossible - resources to publish")
 		if len(toPublish) == 0 {
 			return nil
 		}
 
 		for {
 			if len(toPublish) == 0 {
+				log.Ctx(crs.ctx).Trace().Msg("publishResourcesIfPossible - no more resources to publish")
 				break
 			}
 

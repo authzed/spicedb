@@ -84,6 +84,7 @@ func (cl *CursoredLookupResources) LookupResources(
 			return err
 		}
 
+		// FIXME(alecmerdler): Looks like we only log this once, meaning we never get back 0 reachable resources needed to exit...
 		log.Ctx(parentStream.Context()).Trace().Uint64("reachable-count", reachableCount).Msg("completed checking stream publishing")
 		reachableResourcesCursor = newCursor
 		if reachableCount == 0 {
