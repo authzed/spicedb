@@ -74,9 +74,9 @@ const (
 	tracingDriverName = "postgres-tracing"
 
 	gcBatchDeleteSize = 1000
-
-	livingTupleConstraint = "uq_relation_tuple_living_xid"
 )
+
+var livingTupleConstraints = []string{"uq_relation_tuple_living_xid", "pk_relation_tuple"}
 
 func init() {
 	dbsql.Register(tracingDriverName, sqlmw.Driver(stdlib.GetDefaultDriver(), new(traceInterceptor)))
@@ -476,7 +476,7 @@ func (pgd *pgDatastore) RepairOperations() []datastore.RepairOperation {
 func wrapError(err error) error {
 	// If a unique constraint violation is returned, then its likely that the cause
 	// was an existing relationship given as a CREATE.
-	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraints, err); cerr != nil {
 		return cerr
 	}
 

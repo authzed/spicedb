@@ -3,6 +3,7 @@ package common
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -24,9 +25,10 @@ var (
 
 // ConvertToWriteConstraintError converts the given Postgres error into a CreateRelationshipExistsError
 // if applicable. If not applicable, returns nils.
-func ConvertToWriteConstraintError(livingTupleConstraint string, err error) error {
+func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) error {
 	var pgerr *pgconn.PgError
-	if errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation && pgerr.ConstraintName == livingTupleConstraint {
+
+	if errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation && slices.Contains(livingTupleConstraints, pgerr.ConstraintName) {
 		found := createConflictDetailsRegex.FindStringSubmatch(pgerr.Detail)
 		if found != nil {
 			return dscommon.NewCreateRelationshipExistsError(&core.RelationTuple{

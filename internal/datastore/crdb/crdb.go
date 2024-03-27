@@ -72,9 +72,9 @@ const (
 	queryTransactionNowPreV23 = querySelectNow
 	queryTransactionNow       = "SHOW COMMIT TIMESTAMP"
 	queryShowZoneConfig       = "SHOW ZONE CONFIGURATION FOR RANGE default;"
-
-	livingTupleConstraint = "pk_relation_tuple"
 )
+
+var livingTupleConstraints = []string{"pk_relation_tuple"}
 
 func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datastore.Datastore, error) {
 	config, err := generateConfig(options)
@@ -348,7 +348,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 func wrapError(err error) error {
 	// If a unique constraint violation is returned, then its likely that the cause
 	// was an existing relationship.
-	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
+	if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraints, err); cerr != nil {
 		return cerr
 	}
 	return err

@@ -152,3 +152,15 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 	require.GreaterOrEqual(t, count, 1)
 	require.Less(t, count, 9)
 }
+
+func TestPreloadedTaskRunnerEmpty(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	tr := NewPreloadedTaskRunner(ctx, 3, 10)
+	err := tr.StartAndWait()
+	require.NoError(t, err)
+}
