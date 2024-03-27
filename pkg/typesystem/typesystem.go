@@ -81,7 +81,7 @@ const (
 // NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
 // system is not validated until Validate is called.
 func NewNamespaceTypeSystem(nsDef *core.NamespaceDefinition, resolver Resolver) (*TypeSystem, error) {
-	relationMap := map[string]*core.Relation{}
+	relationMap := make(map[string]*core.Relation, len(nsDef.GetRelation()))
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
 		if existing {
@@ -99,7 +99,7 @@ func NewNamespaceTypeSystem(nsDef *core.NamespaceDefinition, resolver Resolver) 
 		resolver:           resolver,
 		nsDef:              nsDef,
 		relationMap:        relationMap,
-		wildcardCheckCache: map[string]*WildcardTypeReference{},
+		wildcardCheckCache: nil,
 	}, nil
 }
 
@@ -297,6 +297,10 @@ func (nts *TypeSystem) referencesWildcardType(ctx context.Context, relationName 
 }
 
 func (nts *TypeSystem) referencesWildcardTypeWithEncountered(ctx context.Context, relationName string, encountered map[string]bool) (*WildcardTypeReference, error) {
+	if nts.wildcardCheckCache == nil {
+		nts.wildcardCheckCache = make(map[string]*WildcardTypeReference, 1)
+	}
+
 	cached, isCached := nts.wildcardCheckCache[relationName]
 	if isCached {
 		return cached, nil
