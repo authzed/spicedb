@@ -862,6 +862,17 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom#something"},
 			expectedDeleted: []string{"document:second#viewer@user:tom#something"},
 		},
+		{
+			name: "full match",
+			filter: &v1.RelationshipFilter{
+				ResourceType:          "document",
+				OptionalResourceId:    "first",
+				OptionalRelation:      "viewer",
+				OptionalSubjectFilter: &v1.SubjectFilter{SubjectType: "user", OptionalSubjectId: "tom"},
+			},
+			relationships:   []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom", "document:first#editor@user:tom", "document:firster#viewer@user:tom"},
+			expectedDeleted: []string{"document:first#viewer@user:tom"},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -886,6 +897,9 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 						_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 						require.NoError(err)
 					}
+
+					writtenRev, err := ds.HeadRevision(ctx)
+					require.NoError(err)
 
 					var delLimit *uint64
 					if withLimit {
@@ -945,6 +959,28 @@ func DeleteRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTes
 
 					deletedRelationships := allRelationships.Subtract(allRemainingRelationships).AsSlice()
 					require.ElementsMatch(tc.expectedDeleted, deletedRelationships)
+
+					// Ensure the initial relationships are still present at the previous revision.
+					allInitialRelationships := mapz.NewSet[string]()
+					olderReader := ds.SnapshotReader(writtenRev)
+					for _, resourceType := range resourceTypes.AsSlice() {
+						iter, err := olderReader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+							OptionalResourceType: resourceType,
+						})
+						require.NoError(err)
+						t.Cleanup(iter.Close)
+
+						for {
+							rel := iter.Next()
+							if rel == nil {
+								break
+							}
+							allInitialRelationships.Add(tuple.MustString(rel))
+						}
+						iter.Close()
+					}
+
+					require.ElementsMatch(tc.relationships, allInitialRelationships.AsSlice())
 				})
 			}
 		})
