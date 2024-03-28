@@ -59,6 +59,7 @@ var (
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCreatedXid,
 	).From(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
@@ -412,7 +413,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 
 	// Construct a CTE to update the relationships as removed.
 	cteSQL := fmt.Sprintf(
-		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $%d WHERE (%s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
+		"WITH found_tuples AS (%s)\nUPDATE %s SET %s = $%d WHERE (%s, %s, %s, %s, %s, %s, %s) IN (select * from found_tuples)",
 		selectSQL,
 		tableTuple,
 		colDeletedXid,
@@ -423,6 +424,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colCreatedXid,
 	)
 
 	result, err := rwt.tx.Exec(ctx, cteSQL, args...)
