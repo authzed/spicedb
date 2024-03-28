@@ -146,11 +146,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
 	}
 
 	a.current.Caveat = &a.caveat
-	tuple.CopyRelationshipToRelationTuple[
-		*v1.ObjectReference,
-		*v1.SubjectReference,
-		*v1.ContextualizedCaveat,
-	](a.currentBatch[a.numSent], &a.current)
+	tuple.CopyRelationshipToRelationTuple(a.currentBatch[a.numSent], &a.current)
 
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
@@ -170,8 +166,8 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 	existingNamespaces map[string]*typesystem.TypeSystem,
 	existingCaveats map[string]*core.CaveatDefinition,
 ) ([]string, []string) {
-	newNamespaces := make(map[string]struct{})
-	newCaveats := make(map[string]struct{})
+	newNamespaces := make(map[string]struct{}, 2)
+	newCaveats := make(map[string]struct{}, 0)
 	for _, rel := range batch {
 		if _, ok := existingNamespaces[rel.Resource.ObjectType]; !ok {
 			newNamespaces[rel.Resource.ObjectType] = struct{}{}
@@ -198,8 +194,8 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 
 	var numWritten uint64
 	if _, err := ds.ReadWriteTx(stream.Context(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		loadedNamespaces := make(map[string]*typesystem.TypeSystem)
-		loadedCaveats := make(map[string]*core.CaveatDefinition)
+		loadedNamespaces := make(map[string]*typesystem.TypeSystem, 2)
+		loadedCaveats := make(map[string]*core.CaveatDefinition, 0)
 
 		adapter := &bulkLoadAdapter{
 			stream:                 stream,
@@ -211,13 +207,14 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			},
 			caveat: core.ContextualizedCaveat{},
 		}
+		resolver := typesystem.ResolverForDatastoreReader(rwt)
 
 		var streamWritten uint64
 		var err error
 		for ; adapter.err == nil && err == nil; streamWritten, err = rwt.BulkLoad(stream.Context(), adapter) {
 			numWritten += streamWritten
 
-			// The stream has terminated because we're awaiting namespace and caveat information
+			// The stream has terminated because we're awaiting namespace and/or caveat information
 			if len(adapter.awaitingNamespaces) > 0 {
 				nsDefs, err := rwt.LookupNamespacesWithNames(stream.Context(), adapter.awaitingNamespaces)
 				if err != nil {
@@ -225,7 +222,7 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 				}
 
 				for _, nsDef := range nsDefs {
-					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, typesystem.ResolverForDatastoreReader(rwt))
+					nts, err := typesystem.NewNamespaceTypeSystem(nsDef.Definition, resolver)
 					if err != nil {
 						return err
 					}
