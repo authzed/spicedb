@@ -39,6 +39,9 @@ type CompiledSchema struct {
 	// OrderedDefinitions holds the object and caveat definitions in the schema, in the
 	// order in which they were found.
 	OrderedDefinitions []SchemaDefinition
+
+	rootNode *dslNode
+	mapper   input.PositionMapper
 }
 
 type config struct {
