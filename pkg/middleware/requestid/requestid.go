@@ -77,7 +77,8 @@ func (r *handleRequestID) fromContextOrGenerate(ctx context.Context) (bool, stri
 	haveRequestID, requestID, md := fromContext(ctx)
 
 	if !haveRequestID && r.generateIfMissing {
-		requestID, haveRequestID = r.requestIDGenerator(), true
+		requestID = r.requestIDGenerator()
+		haveRequestID = true
 
 		// Inject the newly generated request ID into the metadata
 		if md == nil {
