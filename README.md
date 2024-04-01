@@ -182,7 +182,8 @@ kubectl apply -f https://raw.githubusercontent.com/authzed/examples/main/kuberne
 
 ### Developing your own schema
 
-You can try both SpiceDB and zed entirely in your browser on the [playground] thanks to the power of WebAssembly.
+You can try both SpiceDB and zed entirely in your browser in the [hosted Playground] thanks to the power of WebAssembly.
+The [Playground app is open source] and can also be self-hosted.
 
 If you don't want to start with the examples loadable from the Playground, you can follow a guide for [developing a schema] or review the the schema language [design documentation].
 
@@ -190,6 +191,8 @@ Watch the SpiceDB primer video to get started with schema development:
 
 <a href="https://www.youtube.com/watch?v=AoK0LrkGFDY" target="_blank"><img width="600" alt="SpiceDB Primer YouTube Thumbnail" src="https://github.com/authzed/spicedb/assets/343539/7784dfa2-b330-4c5e-b32a-090759e48392"></a>
 
+[hosted Playground]: https://play.authzed.com
+[Playground app is open source]: https://github.com/authzed/playground
 [developing a schema]: https://docs.authzed.com/guides/schema
 [design documentation]: https://docs.authzed.com/reference/schema-lang
 
