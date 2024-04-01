@@ -19901,7 +19901,7 @@ NodeTypeFile
               start-rune = 106047
               type-ref-type =>
                 NodeTypeSpecificTypeReference
-                  end-rune = 106052
+                  end-rune = 106073
                   input-source = super large test
                   start-rune = 106047
                   type-name = person

@@ -26,7 +26,7 @@ NodeTypeFile
               start-rune = 75
               type-ref-type =>
                 NodeTypeSpecificTypeReference
-                  end-rune = 87
+                  end-rune = 116
                   input-source = multiple slashes in object type
                   start-rune = 75
                   type-name = org/team/user

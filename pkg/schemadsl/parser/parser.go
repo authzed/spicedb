@@ -321,18 +321,6 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 	return refNode
 }
 
-// consumeSpecificType consumes an identifier as a specific type reference, with optional caveat.
-func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
-	specificNode := p.consumeSpecificType()
-
-	caveatNode, ok := p.tryConsumeWithCaveat()
-	if ok {
-		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
-	}
-
-	return specificNode
-}
-
 // tryConsumeWithCaveat tries to consume a caveat `with` expression.
 func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 	if !p.isKeyword("with") {
@@ -355,10 +343,22 @@ func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 	return caveatNode, true
 }
 
-// consumeSpecificType consumes an identifier as a specific type reference.
-func (p *sourceParser) consumeSpecificType() AstNode {
-	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
+// consumeSpecificTypeWithCaveat consumes an identifier as a specific type reference, with optional caveat.
+func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
+	specificNode := p.consumeSpecificTypeWithoutFinish()
 	defer p.mustFinishNode()
+
+	caveatNode, ok := p.tryConsumeWithCaveat()
+	if ok {
+		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
+	}
+
+	return specificNode
+}
+
+// consumeSpecificTypeOpen consumes an identifier as a specific type reference.
+func (p *sourceParser) consumeSpecificTypeWithoutFinish() AstNode {
+	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
 
 	typeName, ok := p.consumeTypePath()
 	if !ok {
