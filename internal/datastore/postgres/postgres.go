@@ -468,7 +468,7 @@ func (pgd *pgDatastore) RepairOperations() []datastore.RepairOperation {
 	return []datastore.RepairOperation{
 		{
 			Name:        repairTransactionIDsOperation,
-			Description: "Brings the Postgres database up to the expected transaction ID (Postgres v14+ only)",
+			Description: "Brings the Postgres database up to the expected transaction ID (Postgres v15+ only)",
 		},
 	}
 }
