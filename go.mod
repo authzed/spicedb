@@ -59,7 +59,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/client_model v0.6.0
-	github.com/prometheus/common v0.50.0
+	github.com/prometheus/common v0.51.1
 	github.com/rs/cors v1.10.1
 	github.com/rs/xid v1.5.0
 	github.com/rs/zerolog v1.32.0
