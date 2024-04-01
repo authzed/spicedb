@@ -9,6 +9,7 @@ import (
 type DSLNode interface {
 	GetType() dslshape.NodeType
 	GetString(predicateName string) (string, error)
+	Lookup(predicateName string) (DSLNode, error)
 }
 
 // NodeChain is a chain of nodes in the DSL AST.
@@ -98,9 +99,30 @@ func runePositionToAstNodeChain(node *dslNode, runePosition int) ([]DSLNode, err
 		}
 
 		if childChain != nil {
-			return append(childChain, node), nil
+			return append(childChain, wrapper{node}), nil
 		}
 	}
 
-	return []DSLNode{node}, nil
+	return []DSLNode{wrapper{node}}, nil
+}
+
+type wrapper struct {
+	node *dslNode
+}
+
+func (w wrapper) GetType() dslshape.NodeType {
+	return w.node.GetType()
+}
+
+func (w wrapper) GetString(predicateName string) (string, error) {
+	return w.node.GetString(predicateName)
+}
+
+func (w wrapper) Lookup(predicateName string) (DSLNode, error) {
+	found, err := w.node.Lookup(predicateName)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapper{found}, nil
 }
