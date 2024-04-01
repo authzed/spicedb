@@ -494,6 +494,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Error(t, err)
 					})
 
+					t.Run("GetAllowedDirectNamespaceSubjectRelations", func(t *testing.T) {
+						require.Equal(t, []string{"..."}, noError(vts.GetAllowedDirectNamespaceSubjectRelations("editor", "user")).AsSlice())
+						_, err := vts.GetAllowedDirectNamespaceSubjectRelations("unknown", "user")
+						require.Error(t, err)
+					})
+
 					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
 						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
 						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
@@ -574,6 +580,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
 					})
 
+					t.Run("GetAllowedDirectNamespaceSubjectRelations", func(t *testing.T) {
+						require.Equal(t, []string{"..."}, noError(vts.GetAllowedDirectNamespaceSubjectRelations("viewer", "user")).AsSlice())
+						_, err := vts.GetAllowedDirectNamespaceSubjectRelations("unknown", "user")
+						require.Error(t, err)
+					})
+
 					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
 						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
 						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
@@ -616,6 +628,8 @@ func TestTypeSystemAccessors(t *testing.T) {
 
 			definition group {
 				relation member: user | group#member
+				relation other: user
+				relation three: user | group#member | group#other
 			}`,
 			map[string]tsTester{
 				"group": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
@@ -641,6 +655,14 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("member", "user")))
 						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("member", "group")))
 						require.Equal(t, AllowedNamespaceNotValid, noError(vts.IsAllowedDirectNamespace("member", "thirdtype")))
+					})
+
+					t.Run("GetAllowedDirectNamespaceSubjectRelations", func(t *testing.T) {
+						require.Equal(t, []string{"..."}, noError(vts.GetAllowedDirectNamespaceSubjectRelations("member", "user")).AsSlice())
+						require.Equal(t, []string{"member"}, noError(vts.GetAllowedDirectNamespaceSubjectRelations("member", "group")).AsSlice())
+						require.ElementsMatch(t, []string{"member", "other"}, noError(vts.GetAllowedDirectNamespaceSubjectRelations("three", "group")).AsSlice())
+						_, err := vts.GetAllowedDirectNamespaceSubjectRelations("unknown", "user")
+						require.Error(t, err)
 					})
 
 					t.Run("IsAllowedDirectRelation", func(t *testing.T) {

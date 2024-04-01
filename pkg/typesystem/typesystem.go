@@ -149,6 +149,30 @@ func (nts *TypeSystem) IsPermission(relationName string) bool {
 	return nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION
 }
 
+// GetAllowedDirectNamespaceSubjectRelations returns the subject relations for the target namespace, if it is defined as appearing
+// somewhere on the right side of a relation (except public). Returns nil if there is no type information or it is not allowed.
+func (nts *TypeSystem) GetAllowedDirectNamespaceSubjectRelations(sourceRelationName string, targetNamespaceName string) (*mapz.Set[string], error) {
+	found, ok := nts.relationMap[sourceRelationName]
+	if !ok {
+		return nil, asTypeError(NewRelationNotFoundErr(nts.nsDef.Name, sourceRelationName))
+	}
+
+	typeInfo := found.GetTypeInformation()
+	if typeInfo == nil {
+		return nil, nil
+	}
+
+	allowedRelations := typeInfo.GetAllowedDirectRelations()
+	allowedSubjectRelations := mapz.NewSet[string]()
+	for _, allowedRelation := range allowedRelations {
+		if allowedRelation.GetNamespace() == targetNamespaceName && allowedRelation.GetPublicWildcard() == nil {
+			allowedSubjectRelations.Add(allowedRelation.GetRelation())
+		}
+	}
+
+	return allowedSubjectRelations, nil
+}
+
 // IsAllowedDirectNamespace returns whether the target namespace is defined as appearing somewhere on the
 // right side of a relation (except public).
 func (nts *TypeSystem) IsAllowedDirectNamespace(sourceRelationName string, targetNamespaceName string) (AllowedNamespaceOption, error) {
