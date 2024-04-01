@@ -148,6 +148,7 @@ type nameAndValue struct {
 }
 
 func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.SortOrder) SchemaQueryFilterer {
+	// NOTE: The ordering of these columns can affect query performance, be aware when changing.
 	columnsAndValues := map[options.SortOrder][]nameAndValue{
 		options.ByResource: {
 			{
@@ -177,9 +178,6 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectId,
 			},
 			{
-				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
-			},
-			{
 				sqf.schema.colNamespace, cursor.ResourceAndRelation.Namespace,
 			},
 			{
@@ -187,6 +185,9 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 			},
 			{
 				sqf.schema.colRelation, cursor.ResourceAndRelation.Relation,
+			},
+			{
+				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
 			},
 		},
 	}[order]
