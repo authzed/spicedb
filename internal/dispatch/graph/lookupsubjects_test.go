@@ -640,6 +640,73 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				},
 			},
 		},
+		{
+			"arrow over different relations of the same subject",
+			`definition user {}
+	
+			 definition folder {
+				relation parent: folder
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder | folder#parent
+				permission view = folder->view
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder2#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+				tuple.MustParse("document:somedoc#folder@folder:folder2#parent"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+				{
+					SubjectId: "fred",
+				},
+			},
+		},
+		{
+			"caveated arrow over different relations of the same subject",
+			`definition user {}
+	
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 definition folder {
+				relation parent: folder
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder | folder#parent with somecaveat
+				permission view = folder->view
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder2#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+				tuple.MustWithCaveat(tuple.MustParse("document:somedoc#folder@folder:folder2#parent"), "somecaveat"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+				{
+					SubjectId:        "fred",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
