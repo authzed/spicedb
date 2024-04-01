@@ -134,7 +134,7 @@ func (p *sourceParser) consumeCaveat() AstNode {
 }
 
 func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
-	exprNode := p.startNode(dslshape.NodeTypeCaveatExpession)
+	exprNode := p.startNode(dslshape.NodeTypeCaveatExpression)
 	defer p.mustFinishNode()
 
 	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching

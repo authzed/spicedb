@@ -110,7 +110,7 @@ func TestPositionToAstNode(t *testing.T) {
 			line:   2,
 			column: 6,
 			expected: []dslshape.NodeType{
-				dslshape.NodeTypeCaveatExpession,
+				dslshape.NodeTypeCaveatExpression,
 				dslshape.NodeTypeCaveatDefinition,
 				dslshape.NodeTypeFile,
 			},

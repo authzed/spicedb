@@ -42,7 +42,7 @@ NodeTypeFile
       input-source = multiple slashes in object type
       start-rune = 121
       caveat-definition-expression =>
-        NodeTypeCaveatExpession
+        NodeTypeCaveatExpression
           caveat-expression-expressionstr = day_of_week == 'tuesday'
           end-rune = 199
           input-source = multiple slashes in object type

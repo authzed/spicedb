@@ -19854,7 +19854,7 @@ NodeTypeFile
       input-source = super large test
       start-rune = 105929
       caveat-definition-expression =>
-        NodeTypeCaveatExpession
+        NodeTypeCaveatExpression
           caveat-expression-expressionstr = now < expires_at
 
           end-rune = 106008

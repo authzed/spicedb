@@ -14,7 +14,7 @@ func _() {
 	_ = x[NodeTypeDefinition-3]
 	_ = x[NodeTypeCaveatDefinition-4]
 	_ = x[NodeTypeCaveatParameter-5]
-	_ = x[NodeTypeCaveatExpession-6]
+	_ = x[NodeTypeCaveatExpression-6]
 	_ = x[NodeTypeRelation-7]
 	_ = x[NodeTypePermission-8]
 	_ = x[NodeTypeTypeReference-9]
@@ -29,9 +29,9 @@ func _() {
 	_ = x[NodeTypeCaveatTypeReference-18]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpessionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 128, 144, 162, 183, 212, 235, 258, 285, 312, 335, 353, 374, 401}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 129, 145, 163, 184, 213, 236, 259, 286, 313, 336, 354, 375, 402}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {
