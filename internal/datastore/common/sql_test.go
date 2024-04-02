@@ -621,8 +621,8 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "somesubjectype",
 				}).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?)",
-			[]any{"somesubjectype", "bar", "...", "someresourcetype", "foo", "viewer"},
+			"SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
+			[]any{"somesubjectype", "bar", "someresourcetype", "foo", "viewer", "..."},
 			map[string]int{
 				"subject_ns": 1,
 			},
@@ -635,8 +635,8 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"foo"},
 				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:bar"), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (subject_relation,ns,object_id,relation) > (?,?,?,?)",
-			[]any{"somesubjectype", "foo", "...", "someresourcetype", "someresource", "viewer"},
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (ns,object_id,relation,subject_relation) > (?,?,?,?)",
+			[]any{"somesubjectype", "foo", "someresourcetype", "someresource", "viewer", "..."},
 			map[string]int{"subject_ns": 1, "subject_object_id": 1},
 		},
 		{
@@ -647,8 +647,8 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"foo", "bar"},
 				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:next"), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?))) AND (subject_object_id,subject_relation,ns,object_id,relation) > (?,?,?,?,?)",
-			[]any{"somesubjectype", "foo", "bar", "next", "...", "someresourcetype", "someresource", "viewer"},
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
+			[]any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},
 			map[string]int{"subject_ns": 1, "subject_object_id": 2},
 		},
 	}
