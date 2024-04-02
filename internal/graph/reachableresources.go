@@ -361,12 +361,12 @@ func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
 	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
 	// for the subject namespace as a whole.
-	isAllowed, err := ttuTypeSystem.IsAllowedDirectNamespace(tuplesetRelation, req.SubjectRelation.Namespace)
+	allowedRelations, err := ttuTypeSystem.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, req.SubjectRelation.Namespace)
 	if err != nil {
 		return err
 	}
 
-	if isAllowed != typesystem.AllowedNamespaceValid {
+	if allowedRelations == nil {
 		return nil
 	}
 
@@ -374,6 +374,13 @@ func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
 	subjectsFilter := datastore.SubjectsFilter{
 		SubjectType:        req.SubjectRelation.Namespace,
 		OptionalSubjectIds: req.SubjectIds,
+	}
+
+	// Optimization: if there is a single allowed relation, pass it as a subject relation filter to make things faster
+	// on querying.
+	if allowedRelations.Len() == 1 {
+		allowedRelationName := allowedRelations.AsSlice()[0]
+		subjectsFilter.RelationFilter = datastore.SubjectRelationFilter{}.WithRelation(allowedRelationName)
 	}
 
 	tuplesetRelationReference := &core.RelationReference{
