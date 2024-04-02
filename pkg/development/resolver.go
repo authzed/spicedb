@@ -2,7 +2,9 @@ package development
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/authzed/spicedb/pkg/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -19,6 +21,7 @@ const (
 	ReferenceTypeCaveat
 	ReferenceTypeRelation
 	ReferenceTypePermission
+	ReferenceTypeCaveatParameter
 )
 
 // SchemaReference represents a reference to a schema node.
@@ -153,6 +156,26 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		}, nil
 	}
 
+	// Caveat parameter used in expression.
+	if caveatParamName, caveatDef, ok := r.caveatParamChain(nodeChain, source, position); ok {
+		caveatPosition := input.Position{
+			LineNumber:     int(caveatDef.SourcePosition.ZeroIndexedLineNumber),
+			ColumnPosition: int(caveatDef.SourcePosition.ZeroIndexedColumnPosition),
+		}
+
+		return &SchemaReference{
+			Source:   source,
+			Position: position,
+			Text:     caveatParamName,
+
+			ReferenceType:     ReferenceTypeCaveatParameter,
+			ReferenceMarkdown: fmt.Sprintf("%s %s", caveatParamName, caveats.ParameterTypeString(caveatDef.ParameterTypes[caveatParamName])),
+
+			TargetSource:   &source,
+			TargetPosition: &caveatPosition,
+		}, nil
+	}
+
 	return nil, nil
 }
 
@@ -183,6 +206,65 @@ func (r *Resolver) lookupRelation(defName, relationName string) (*core.Relation,
 	}
 
 	return rel, ts, true
+}
+
+func (r *Resolver) caveatParamChain(nodeChain *compiler.NodeChain, source input.Source, position input.Position) (string, *core.CaveatDefinition, bool) {
+	if !nodeChain.HasHeadType(dslshape.NodeTypeCaveatExpression) {
+		return "", nil, false
+	}
+
+	caveatDefNode := nodeChain.FindNodeOfType(dslshape.NodeTypeCaveatDefinition)
+	if caveatDefNode == nil {
+		return "", nil, false
+	}
+
+	caveatName, err := caveatDefNode.GetString(dslshape.NodeCaveatDefinitionPredicateName)
+	if err != nil {
+		return "", nil, false
+	}
+
+	caveatDef, ok := r.lookupCaveat(caveatName)
+	if !ok {
+		return "", nil, false
+	}
+
+	runePosition, err := r.schema.SourcePositionToRunePosition(source, position)
+	if err != nil {
+		return "", nil, false
+	}
+
+	exprRunePosition, err := nodeChain.Head().GetInt(dslshape.NodePredicateStartRune)
+	if err != nil {
+		return "", nil, false
+	}
+
+	if exprRunePosition > runePosition {
+		return "", nil, false
+	}
+
+	relationRunePosition := runePosition - exprRunePosition
+
+	caveatExpr, err := nodeChain.Head().GetString(dslshape.NodeCaveatExpressionPredicateExpression)
+	if err != nil {
+		return "", nil, false
+	}
+
+	// Split the expression into tokens and find the associated token.
+	tokens := strings.FieldsFunc(caveatExpr, splitCELToken)
+	currentIndex := 0
+	for _, token := range tokens {
+		if currentIndex <= relationRunePosition && currentIndex+len(token) >= relationRunePosition {
+			if _, ok := caveatDef.ParameterTypes[token]; ok {
+				return token, caveatDef, true
+			}
+		}
+	}
+
+	return "", caveatDef, true
+}
+
+func splitCELToken(r rune) bool {
+	return r == ' ' || r == '(' || r == ')' || r == '.' || r == ',' || r == '[' || r == ']' || r == '{' || r == '}' || r == ':' || r == '='
 }
 
 func (r *Resolver) caveatTypeReferenceChain(nodeChain *compiler.NodeChain) (*core.CaveatDefinition, bool) {

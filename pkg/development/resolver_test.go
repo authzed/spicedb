@@ -3,9 +3,10 @@ package development
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
-	"github.com/stretchr/testify/require"
 )
 
 func TestResolver(t *testing.T) {
@@ -141,6 +142,31 @@ func TestResolver(t *testing.T) {
 			line:              4,
 			column:            31,
 			expectedReference: nil,
+		},
+		{
+			name: "caveat parameter reference",
+			schema: `definition user {}
+
+			caveat somecaveat(someparam int) {
+				someparam < 42
+			}
+
+			definition resource {
+				relation viewer: user with somecaveat
+				permission view = viewer
+			}
+			`,
+			line:   3,
+			column: 6,
+			expectedReference: &SchemaReference{
+				Source:            input.Source("test"),
+				Position:          input.Position{LineNumber: 3, ColumnPosition: 6},
+				Text:              "someparam",
+				ReferenceType:     ReferenceTypeCaveatParameter,
+				ReferenceMarkdown: "someparam int",
+				TargetSource:      &testSource,
+				TargetPosition:    &input.Position{LineNumber: 2, ColumnPosition: 3},
+			},
 		},
 	}
 

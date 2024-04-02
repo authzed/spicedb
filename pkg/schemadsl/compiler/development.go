@@ -9,6 +9,7 @@ import (
 type DSLNode interface {
 	GetType() dslshape.NodeType
 	GetString(predicateName string) (string, error)
+	GetInt(predicateName string) (int, error)
 	Lookup(predicateName string) (DSLNode, error)
 }
 
@@ -44,7 +45,6 @@ func (nc *NodeChain) String() string {
 		out += node.GetType().String() + " "
 	}
 	return out
-
 }
 
 // PositionToAstNodeChain returns the AST node, and its parents (if any), found at the given position in the source, if any.
@@ -116,6 +116,10 @@ func (w wrapper) GetType() dslshape.NodeType {
 
 func (w wrapper) GetString(predicateName string) (string, error) {
 	return w.node.GetString(predicateName)
+}
+
+func (w wrapper) GetInt(predicateName string) (int, error) {
+	return w.node.GetInt(predicateName)
 }
 
 func (w wrapper) Lookup(predicateName string) (DSLNode, error) {
