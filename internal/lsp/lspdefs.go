@@ -33,3 +33,28 @@ type FullDocumentDiagnosticReport struct {
 	Items    []baselsp.Diagnostic `json:"items"`
 	ResultID string               `json:"resultId,omitempty"`
 }
+
+type InitializeParams struct {
+	ProcessID int `json:"processId,omitempty"`
+
+	// RootPath is DEPRECATED in favor of the RootURI field.
+	RootPath string `json:"rootPath,omitempty"`
+
+	RootURI               baselsp.DocumentURI `json:"rootUri,omitempty"`
+	ClientInfo            baselsp.ClientInfo  `json:"clientInfo,omitempty"`
+	Trace                 baselsp.Trace       `json:"trace,omitempty"`
+	InitializationOptions interface{}         `json:"initializationOptions,omitempty"`
+	Capabilities          ClientCapabilities  `json:"capabilities"`
+
+	WorkDoneToken string `json:"workDoneToken,omitempty"`
+}
+
+type ClientCapabilities struct {
+	Diagnostics DiagnosticWorkspaceClientCapabilities `json:"diagnostics,omitempty"`
+}
+
+type DiagnosticWorkspaceClientCapabilities struct {
+	// RefreshSupport indicates whether the client supports the new
+	// `textDocument/diagnostic` request.
+	RefreshSupport bool `json:"refreshSupport,omitempty"`
+}

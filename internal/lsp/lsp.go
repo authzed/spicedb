@@ -27,6 +27,8 @@ const (
 type Server struct {
 	files *persistent.Map[lsp.DocumentURI, string]
 	state serverState
+
+	requestsDiagnostics bool
 }
 
 // NewServer returns a new Server.
@@ -75,11 +77,11 @@ func (s *Server) handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Re
 	case "exit":
 		result, err = nil, conn.Close()
 	case "textDocument/didOpen":
-		result, err = s.textDocDidOpen(ctx, r)
+		result, err = s.textDocDidOpen(ctx, r, conn)
 	case "textDocument/didClose":
 		result, err = s.textDocDidClose(ctx, r)
 	case "textDocument/didChange":
-		result, err = s.textDocDidChange(ctx, r)
+		result, err = s.textDocDidChange(ctx, r, conn)
 	case "textDocument/diagnostic":
 		result, err = s.textDocDiagnostic(ctx, r)
 	case "textDocument/formatting":

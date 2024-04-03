@@ -47,8 +47,12 @@ type lspTester struct {
 }
 
 func (lt *lspTester) initialize() {
-	resp, serverState := sendAndReceive[lsp.InitializeResult](lt, "initialize", lsp.InitializeParams{
-		Capabilities: lsp.ClientCapabilities{},
+	resp, serverState := sendAndReceive[lsp.InitializeResult](lt, "initialize", InitializeParams{
+		Capabilities: ClientCapabilities{
+			Diagnostics: DiagnosticWorkspaceClientCapabilities{
+				RefreshSupport: true,
+			},
+		},
 	})
 	require.Equal(lt.t, serverStateInitialized, serverState)
 	require.True(lt.t, resp.Capabilities.DocumentFormattingProvider)

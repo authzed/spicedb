@@ -3,6 +3,7 @@ package lsp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jzelinskie/persistent"
@@ -26,12 +27,29 @@ func (s *Server) textDocDiagnostic(ctx context.Context, r *jsonrpc2.Request) (Fu
 		Str("uri", string(params.TextDocument.URI)).
 		Msg("textDocDiagnostic")
 
+	diagnostics, err := s.computeDiagnostics(ctx, params.TextDocument.URI)
+	if err != nil {
+		return FullDocumentDiagnosticReport{}, err
+	}
+
+	log.Info().
+		Str("uri", string(params.TextDocument.URI)).
+		Int("diagnostics", len(diagnostics)).
+		Msg("diagnostics complete")
+
+	return FullDocumentDiagnosticReport{
+		Kind:  "full",
+		Items: diagnostics,
+	}, nil
+}
+
+func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([]lsp.Diagnostic, error) {
 	diagnostics := make([]lsp.Diagnostic, 0) // Important: must not be nil for the consumer on the client side
 	if err := s.withFiles(func(files *persistent.Map[lsp.DocumentURI, string]) error {
-		file, ok := files.Get(params.TextDocument.URI)
+		file, ok := files.Get(uri)
 		if !ok {
 			log.Warn().
-				Str("uri", string(params.TextDocument.URI)).
+				Str("uri", string(uri)).
 				Msg("file not found for diagnostics")
 
 			return &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: "file not found"}
@@ -58,27 +76,24 @@ func (s *Server) textDocDiagnostic(ctx context.Context, r *jsonrpc2.Request) (Fu
 
 		return nil
 	}); err != nil {
-		return FullDocumentDiagnosticReport{}, err
+		return nil, err
 	}
 
-	log.Info().
-		Str("uri", string(params.TextDocument.URI)).
-		Int("diagnostics", len(diagnostics)).
-		Msg("diagnostics complete")
-
-	return FullDocumentDiagnosticReport{
-		Kind:  "full",
-		Items: diagnostics,
-	}, nil
+	return diagnostics, nil
 }
 
-func (s *Server) textDocDidChange(_ context.Context, r *jsonrpc2.Request) (any, error) {
+func (s *Server) textDocDidChange(ctx context.Context, r *jsonrpc2.Request, conn *jsonrpc2.Conn) (any, error) {
 	params, err := unmarshalParams[lsp.DidChangeTextDocumentParams](r)
 	if err != nil {
 		return nil, err
 	}
 
 	s.files.Set(params.TextDocument.URI, params.ContentChanges[0].Text, nil)
+
+	if err := s.publishDiagnosticsIfNecessary(ctx, conn, params.TextDocument.URI); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
@@ -92,7 +107,7 @@ func (s *Server) textDocDidClose(_ context.Context, r *jsonrpc2.Request) (any, e
 	return nil, nil
 }
 
-func (s *Server) textDocDidOpen(_ context.Context, r *jsonrpc2.Request) (any, error) {
+func (s *Server) textDocDidOpen(ctx context.Context, r *jsonrpc2.Request, conn *jsonrpc2.Conn) (any, error) {
 	params, err := unmarshalParams[lsp.DidOpenTextDocumentParams](r)
 	if err != nil {
 		return nil, err
@@ -102,12 +117,37 @@ func (s *Server) textDocDidOpen(_ context.Context, r *jsonrpc2.Request) (any, er
 	contents := params.TextDocument.Text
 	s.files.Set(uri, contents, nil)
 
+	if err := s.publishDiagnosticsIfNecessary(ctx, conn, uri); err != nil {
+		return nil, err
+	}
+
 	log.Debug().
 		Str("uri", string(uri)).
 		Str("path", strings.TrimPrefix(string(uri), "file://")).
 		Msg("refreshed file")
 
 	return nil, nil
+}
+
+func (s *Server) publishDiagnosticsIfNecessary(ctx context.Context, conn *jsonrpc2.Conn, uri lsp.DocumentURI) error {
+	requestsDiagnostics := s.requestsDiagnostics
+	if requestsDiagnostics {
+		return nil
+	}
+
+	log.Debug().
+		Str("uri", string(uri)).
+		Msg("publishing diagnostics")
+
+	diagnostics, err := s.computeDiagnostics(ctx, uri)
+	if err != nil {
+		return fmt.Errorf("failed to compute diagnostics: %w", err)
+	}
+
+	return conn.Notify(ctx, "textDocument/publishDiagnostics", lsp.PublishDiagnosticsParams{
+		URI:         uri,
+		Diagnostics: diagnostics,
+	})
 }
 
 func (s *Server) textDocFormat(ctx context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
@@ -174,10 +214,15 @@ func (s *Server) initialized(_ context.Context, _ *jsonrpc2.Request) (any, error
 }
 
 func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error) {
-	_, err := unmarshalParams[lsp.InitializeParams](r)
+	ip, err := unmarshalParams[InitializeParams](r)
 	if err != nil {
 		return nil, err
 	}
+
+	s.requestsDiagnostics = ip.Capabilities.Diagnostics.RefreshSupport
+	log.Debug().
+		Bool("requestsDiagnostics", s.requestsDiagnostics).
+		Msg("initialize")
 
 	if s.state != serverStateNotInitialized {
 		return nil, invalidRequest(errors.New("already initialized"))
