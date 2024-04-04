@@ -1,8 +1,6 @@
 module github.com/authzed/spicedb/e2e
 
-go 1.21.0
-
-toolchain go1.21.8
+go 1.22.2
 
 require (
 	github.com/authzed/authzed-go v0.11.2-0.20240320204618-9622b72a72c6
