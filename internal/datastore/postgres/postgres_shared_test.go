@@ -1377,12 +1377,22 @@ func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
 	// Break the datastore by adding a transaction entry with an XID greater the current one.
 	pds := ds.(*pgDatastore)
 
+	getVersionQuery := fmt.Sprintf("SELECT version()")
+	var version string
+	err := pds.writePool.QueryRow(context.Background(), getVersionQuery).Scan(&version)
+	require.NoError(t, err)
+
+	if strings.HasPrefix(version, "PostgreSQL 13.") || strings.HasPrefix(version, "PostgreSQL 14.") {
+		t.Skip("Skipping test on PostgreSQL 13 and 14 as they do not support xid8 max")
+		return
+	}
+
 	createLaterTxn := fmt.Sprintf(
 		"INSERT INTO %s (\"xid\") VALUES (12345::text::xid8)",
 		tableTransaction,
 	)
 
-	_, err := pds.writePool.Exec(context.Background(), createLaterTxn)
+	_, err = pds.writePool.Exec(context.Background(), createLaterTxn)
 	require.NoError(t, err)
 
 	// Run the repair code.
