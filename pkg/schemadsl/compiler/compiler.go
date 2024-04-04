@@ -39,6 +39,14 @@ type CompiledSchema struct {
 	// OrderedDefinitions holds the object and caveat definitions in the schema, in the
 	// order in which they were found.
 	OrderedDefinitions []SchemaDefinition
+
+	rootNode *dslNode
+	mapper   input.PositionMapper
+}
+
+// SourcePositionToRunePosition converts a source position to a rune position.
+func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, position input.Position) (int, error) {
+	return cs.mapper.LineAndColToRunePosition(position.LineNumber, position.ColumnPosition, source)
 }
 
 type config struct {

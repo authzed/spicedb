@@ -83,6 +83,8 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 		CaveatDefinitions:  caveatDefinitions,
 		ObjectDefinitions:  objectDefinitions,
 		OrderedDefinitions: orderedDefinitions,
+		rootNode:           root,
+		mapper:             tctx.mapper,
 	}, nil
 }
 
@@ -220,6 +222,7 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 	if len(relationsAndPermissions) == 0 {
 		ns := namespace.Namespace(nspath)
 		ns.Metadata = addComments(ns.Metadata, defNode)
+		ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
 		if !tctx.skipValidate {
 			if err = ns.Validate(); err != nil {

@@ -19854,7 +19854,7 @@ NodeTypeFile
       input-source = super large test
       start-rune = 105929
       caveat-definition-expression =>
-        NodeTypeCaveatExpession
+        NodeTypeCaveatExpression
           caveat-expression-expressionstr = now < expires_at
 
           end-rune = 106008
@@ -19901,7 +19901,7 @@ NodeTypeFile
               start-rune = 106047
               type-ref-type =>
                 NodeTypeSpecificTypeReference
-                  end-rune = 106052
+                  end-rune = 106073
                   input-source = super large test
                   start-rune = 106047
                   type-name = person

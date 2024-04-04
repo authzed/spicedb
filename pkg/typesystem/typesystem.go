@@ -129,6 +129,12 @@ func (nts *TypeSystem) HasRelation(relationName string) bool {
 	return ok
 }
 
+// GetRelation returns the relation that's defined with the give name in the type system or returns false.
+func (nts *TypeSystem) GetRelation(relationName string) (*core.Relation, bool) {
+	rel, ok := nts.relationMap[relationName]
+	return rel, ok
+}
+
 // MustGetRelation returns the relation that's defined with the give name in the type system or panics.
 func (nts *TypeSystem) MustGetRelation(relationName string) *core.Relation {
 	rel, ok := nts.relationMap[relationName]

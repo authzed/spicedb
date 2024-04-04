@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -59,4 +60,22 @@ func ConvertContextToParameters(
 		converted[key] = convertedParam
 	}
 	return converted, nil
+}
+
+// ParameterTypeString returns the string form of the type reference.
+func ParameterTypeString(typeRef *core.CaveatTypeReference) string {
+	var sb strings.Builder
+	sb.WriteString(typeRef.TypeName)
+	if len(typeRef.ChildTypes) > 0 {
+		sb.WriteString("<")
+		for idx, childType := range typeRef.ChildTypes {
+			if idx > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(ParameterTypeString(childType))
+		}
+		sb.WriteString(">")
+	}
+
+	return sb.String()
 }
