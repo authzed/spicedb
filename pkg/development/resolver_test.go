@@ -168,6 +168,29 @@ func TestResolver(t *testing.T) {
 				TargetPosition:    &input.Position{LineNumber: 2, ColumnPosition: 3},
 			},
 		},
+		{
+			name: "longer test",
+			schema: `definition user {}
+
+definition document {
+	relation viewer: user
+	relation editor: user
+	relation third: user
+	permission another = viewer
+	permission view = third + editor + another
+}`,
+			line:   7,
+			column: 19,
+			expectedReference: &SchemaReference{
+				Source:            input.Source("test"),
+				Position:          input.Position{LineNumber: 7, ColumnPosition: 19},
+				Text:              "third",
+				ReferenceType:     ReferenceTypeRelation,
+				ReferenceMarkdown: "relation third",
+				TargetSource:      &testSource,
+				TargetPosition:    &input.Position{LineNumber: 5, ColumnPosition: 1},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
