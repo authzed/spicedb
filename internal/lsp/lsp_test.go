@@ -28,13 +28,13 @@ func TestDocumentChange(t *testing.T) {
 
 	contents, ok := tester.server.files.Get("file:///test")
 	require.True(t, ok)
-	require.Equal(t, "test", contents)
+	require.Equal(t, "test", contents.contents)
 
 	tester.setFileContents("file:///test", "test2")
 
 	contents, ok = tester.server.files.Get("file:///test")
 	require.True(t, ok)
-	require.Equal(t, "test2", contents)
+	require.Equal(t, "test2", contents.contents)
 }
 
 func TestDocumentNoDiagnostics(t *testing.T) {
@@ -138,7 +138,7 @@ func TestDocumentOpenedClosed(t *testing.T) {
 
 	contents, ok := tester.server.files.Get(lsp.DocumentURI("file:///test"))
 	require.True(t, ok)
-	require.Equal(t, "definition user{}", contents)
+	require.Equal(t, "definition user{}", contents.contents)
 
 	sendAndReceive[any](tester, "textDocument/didClose", lsp.DidCloseTextDocumentParams{
 		TextDocument: lsp.TextDocumentIdentifier{
@@ -148,4 +148,33 @@ func TestDocumentOpenedClosed(t *testing.T) {
 
 	_, ok = tester.server.files.Get(lsp.DocumentURI("file:///test"))
 	require.False(t, ok)
+}
+
+func TestDocumentHover(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	sendAndReceive[any](tester, "textDocument/didOpen", lsp.DidOpenTextDocumentParams{
+		TextDocument: lsp.TextDocumentItem{
+			URI:        lsp.DocumentURI("file:///test"),
+			LanguageID: "test",
+			Version:    1,
+			Text: `definition user {}
+
+definition resource {
+	relation viewer: user
+}
+`,
+		},
+	})
+
+	resp, _ := sendAndReceive[Hover](tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///test"),
+		},
+		Position: lsp.Position{Line: 3, Character: 18},
+	})
+
+	require.Equal(t, "definition user {}", resp.Contents.Value)
+	require.Equal(t, "spicedb", resp.Contents.Language)
 }

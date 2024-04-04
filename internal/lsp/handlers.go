@@ -13,7 +13,9 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/development"
 	developerv1 "github.com/authzed/spicedb/pkg/proto/developer/v1"
+	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
 
 func (s *Server) textDocDiagnostic(ctx context.Context, r *jsonrpc2.Request) (FullDocumentDiagnosticReport, error) {
@@ -45,7 +47,7 @@ func (s *Server) textDocDiagnostic(ctx context.Context, r *jsonrpc2.Request) (Fu
 
 func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([]lsp.Diagnostic, error) {
 	diagnostics := make([]lsp.Diagnostic, 0) // Important: must not be nil for the consumer on the client side
-	if err := s.withFiles(func(files *persistent.Map[lsp.DocumentURI, string]) error {
+	if err := s.withFiles(func(files *persistent.Map[lsp.DocumentURI, trackedFile]) error {
 		file, ok := files.Get(uri)
 		if !ok {
 			log.Warn().
@@ -56,7 +58,7 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 		}
 
 		_, devErrs, err := development.NewDevContext(ctx, &developerv1.RequestContext{
-			Schema:        file,
+			Schema:        file.contents,
 			Relationships: nil,
 		})
 		if err != nil {
@@ -88,7 +90,7 @@ func (s *Server) textDocDidChange(ctx context.Context, r *jsonrpc2.Request, conn
 		return nil, err
 	}
 
-	s.files.Set(params.TextDocument.URI, params.ContentChanges[0].Text, nil)
+	s.files.Set(params.TextDocument.URI, trackedFile{params.ContentChanges[0].Text, nil}, nil)
 
 	if err := s.publishDiagnosticsIfNecessary(ctx, conn, params.TextDocument.URI); err != nil {
 		return nil, err
@@ -115,7 +117,7 @@ func (s *Server) textDocDidOpen(ctx context.Context, r *jsonrpc2.Request, conn *
 
 	uri := params.TextDocument.URI
 	contents := params.TextDocument.Text
-	s.files.Set(uri, contents, nil)
+	s.files.Set(uri, trackedFile{contents, nil}, nil)
 
 	if err := s.publishDiagnosticsIfNecessary(ctx, conn, uri); err != nil {
 		return nil, err
@@ -150,36 +152,113 @@ func (s *Server) publishDiagnosticsIfNecessary(ctx context.Context, conn *jsonrp
 	})
 }
 
-func (s *Server) textDocFormat(ctx context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
+func (s *Server) getCompiledContents(path lsp.DocumentURI, files *persistent.Map[lsp.DocumentURI, trackedFile]) (*compiler.CompiledSchema, error) {
+	file, ok := files.Get(path)
+	if !ok {
+		return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: "file not found"}
+	}
+
+	compiled := file.parsed
+	if compiled != nil {
+		return compiled, nil
+	}
+
+	justCompiled, derr, err := development.CompileSchema(file.contents)
+	if err != nil || derr != nil {
+		return nil, err
+	}
+
+	files.Set(path, trackedFile{file.contents, justCompiled}, nil)
+	return justCompiled, nil
+}
+
+func (s *Server) textDocHover(_ context.Context, r *jsonrpc2.Request) (*Hover, error) {
+	params, err := unmarshalParams[lsp.TextDocumentPositionParams](r)
+	if err != nil {
+		return nil, err
+	}
+
+	var hoverContents *Hover
+	err = s.withFiles(func(files *persistent.Map[lsp.DocumentURI, trackedFile]) error {
+		compiled, err := s.getCompiledContents(params.TextDocument.URI, files)
+		if err != nil {
+			return err
+		}
+
+		resolver, err := development.NewResolver(compiled)
+		if err != nil {
+			return err
+		}
+
+		position := input.Position{
+			LineNumber:     params.Position.Line,
+			ColumnPosition: params.Position.Character,
+		}
+
+		resolved, err := resolver.ReferenceAtPosition(input.Source("schema"), position)
+		if err != nil {
+			return err
+		}
+
+		if resolved == nil {
+			return nil
+		}
+
+		var lspRange *lsp.Range
+		if resolved.TargetPosition != nil {
+			lspRange = &lsp.Range{
+				Start: lsp.Position{
+					Line:      resolved.TargetPosition.LineNumber,
+					Character: resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset,
+				},
+				End: lsp.Position{
+					Line:      resolved.TargetPosition.LineNumber,
+					Character: resolved.TargetPosition.ColumnPosition + resolved.TargetNamePositionOffset + len(resolved.Text),
+				},
+			}
+		}
+
+		if resolved.TargetSourceCode != "" {
+			hoverContents = &Hover{
+				Contents: MarkupContent{
+					Language: "spicedb",
+					Value:    resolved.TargetSourceCode,
+				},
+				Range: lspRange,
+			}
+		} else {
+			hoverContents = &Hover{
+				Contents: MarkupContent{
+					Kind:  "markdown",
+					Value: resolved.ReferenceMarkdown,
+				},
+				Range: lspRange,
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return hoverContents, nil
+}
+
+func (s *Server) textDocFormat(_ context.Context, r *jsonrpc2.Request) ([]lsp.TextEdit, error) {
 	params, err := unmarshalParams[lsp.DocumentFormattingParams](r)
 	if err != nil {
 		return nil, err
 	}
 
 	var formatted string
-	err = s.withFiles(func(files *persistent.Map[lsp.DocumentURI, string]) error {
-		file, ok := files.Get(params.TextDocument.URI)
-		if !ok {
-			log.Warn().
-				Str("uri", string(params.TextDocument.URI)).
-				Msg("file not found for formatting")
-
-			return &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: "file not found"}
-		}
-
-		dctx, devErrs, err := development.NewDevContext(ctx, &developerv1.RequestContext{
-			Schema:        file,
-			Relationships: nil,
-		})
+	err = s.withFiles(func(files *persistent.Map[lsp.DocumentURI, trackedFile]) error {
+		compiled, err := s.getCompiledContents(params.TextDocument.URI, files)
 		if err != nil {
 			return err
 		}
 
-		if len(devErrs.GetInputErrors()) > 0 {
-			return nil
-		}
-
-		formattedSchema, _, err := generator.GenerateSchema(dctx.CompiledSchema.OrderedDefinitions)
+		formattedSchema, _, err := generator.GenerateSchema(compiled.OrderedDefinitions)
 		if err != nil {
 			return err
 		}
@@ -236,6 +315,7 @@ func (s *Server) initialize(_ context.Context, r *jsonrpc2.Request) (any, error)
 			CompletionProvider:         &lsp.CompletionOptions{TriggerCharacters: []string{"."}},
 			DocumentFormattingProvider: true,
 			DiagnosticProvider:         &DiagnosticOptions{Identifier: "spicedb", InterFileDependencies: false, WorkspaceDiagnostics: false},
+			HoverProvider:              true,
 		},
 	}, nil
 }
@@ -247,7 +327,12 @@ func (s *Server) shutdown() error {
 	return nil
 }
 
-func (s *Server) withFiles(fn func(*persistent.Map[lsp.DocumentURI, string]) error) error {
+type trackedFile struct {
+	contents string
+	parsed   *compiler.CompiledSchema
+}
+
+func (s *Server) withFiles(fn func(*persistent.Map[lsp.DocumentURI, trackedFile]) error) error {
 	clone := s.files.Clone()
 	defer clone.Destroy()
 	return fn(clone)

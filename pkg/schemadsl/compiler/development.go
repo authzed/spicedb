@@ -15,7 +15,8 @@ type DSLNode interface {
 
 // NodeChain is a chain of nodes in the DSL AST.
 type NodeChain struct {
-	nodes []DSLNode
+	nodes        []DSLNode
+	runePosition int
 }
 
 // Head returns the head node of the chain.
@@ -26,6 +27,11 @@ func (nc *NodeChain) Head() DSLNode {
 // HasHeadType returns true if the head node of the chain is of the given type.
 func (nc *NodeChain) HasHeadType(nodeType dslshape.NodeType) bool {
 	return nc.nodes[0].GetType() == nodeType
+}
+
+// ForRunePosition returns the rune position of the chain.
+func (nc *NodeChain) ForRunePosition() int {
+	return nc.runePosition
 }
 
 // FindNodeOfType returns the first node of the given type in the chain, if any.
@@ -74,7 +80,7 @@ func PositionToAstNodeChain(schema *CompiledSchema, source input.Source, positio
 		return nil, nil
 	}
 
-	return &NodeChain{nodes: found}, nil
+	return &NodeChain{nodes: found, runePosition: runePosition}, nil
 }
 
 func runePositionToAstNodeChain(node *dslNode, runePosition int) ([]DSLNode, error) {
