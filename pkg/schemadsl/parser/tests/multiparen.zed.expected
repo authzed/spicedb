@@ -18,12 +18,12 @@ NodeTypeFile
             NodeTypeUnionExpression
               end-rune = 76
               input-source = multiple parens test
-              start-rune = 48
+              start-rune = 38
               left-expr =>
                 NodeTypeUnionExpression
                   end-rune = 62
                   input-source = multiple parens test
-                  start-rune = 42
+                  start-rune = 38
                   left-expr =>
                     NodeTypeUnionExpression
                       end-rune = 46

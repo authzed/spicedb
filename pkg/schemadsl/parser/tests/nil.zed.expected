@@ -28,7 +28,7 @@ NodeTypeFile
             NodeTypeUnionExpression
               end-rune = 92
               input-source = nil test
-              start-rune = 82
+              start-rune = 78
               left-expr =>
                 NodeTypeUnionExpression
                   end-rune = 86
@@ -60,7 +60,7 @@ NodeTypeFile
             NodeTypeExclusionExpression
               end-rune = 139
               input-source = nil test
-              start-rune = 131
+              start-rune = 117
               left-expr =>
                 NodeTypeExclusionExpression
                   end-rune = 133
@@ -70,7 +70,7 @@ NodeTypeFile
                     NodeTypeUnionExpression
                       end-rune = 128
                       input-source = nil test
-                      start-rune = 120
+                      start-rune = 118
                       left-expr =>
                         NodeTypeUnionExpression
                           end-rune = 122

@@ -18,7 +18,7 @@ NodeTypeFile
             NodeTypeUnionExpression
               end-rune = 53
               input-source = associativity test
-              start-rune = 47
+              start-rune = 45
               left-expr =>
                 NodeTypeUnionExpression
                   end-rune = 49
@@ -51,7 +51,7 @@ NodeTypeFile
             NodeTypeExclusionExpression
               end-rune = 90
               input-source = associativity test
-              start-rune = 84
+              start-rune = 82
               left-expr =>
                 NodeTypeExclusionExpression
                   end-rune = 86
@@ -84,7 +84,7 @@ NodeTypeFile
             NodeTypeIntersectExpression
               end-rune = 130
               input-source = associativity test
-              start-rune = 124
+              start-rune = 122
               left-expr =>
                 NodeTypeIntersectExpression
                   end-rune = 126

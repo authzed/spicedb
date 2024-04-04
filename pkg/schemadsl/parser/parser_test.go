@@ -117,6 +117,7 @@ func TestParser(t *testing.T) {
 		{"associativity test", "associativity"},
 		{"super large test", "superlarge"},
 		{"invalid permission name test", "invalid_perm_name"},
+		{"union positions test", "unionpos"},
 	}
 
 	for _, test := range parserTests {
