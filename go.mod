@@ -84,7 +84,7 @@ require (
 	golang.org/x/mod v0.16.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/time v0.5.0
-	golang.org/x/vuln v1.0.4
+	golang.org/x/vuln v1.0.5-0.20240403200752-f1b1098b2215
 	google.golang.org/api v0.172.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311132316-a219d84964c2
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237
