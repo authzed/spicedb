@@ -1,6 +1,8 @@
 package lsp
 
-import baselsp "github.com/sourcegraph/go-lsp"
+import (
+	baselsp "github.com/sourcegraph/go-lsp"
+)
 
 type InitializeResult struct {
 	Capabilities ServerCapabilities `json:"capabilities,omitempty"`
@@ -11,6 +13,7 @@ type ServerCapabilities struct {
 	CompletionProvider         *baselsp.CompletionOptions             `json:"completionProvider,omitempty"`
 	DocumentFormattingProvider bool                                   `json:"documentFormattingProvider,omitempty"`
 	DiagnosticProvider         *DiagnosticOptions                     `json:"diagnosticProvider,omitempty"`
+	HoverProvider              bool                                   `json:"hoverProvider,omitempty"`
 }
 
 type DiagnosticOptions struct {
@@ -57,4 +60,15 @@ type DiagnosticWorkspaceClientCapabilities struct {
 	// RefreshSupport indicates whether the client supports the new
 	// `textDocument/diagnostic` request.
 	RefreshSupport bool `json:"refreshSupport,omitempty"`
+}
+
+type Hover struct {
+	Contents MarkupContent  `json:"contents"`
+	Range    *baselsp.Range `json:"range,omitempty"`
+}
+
+type MarkupContent struct {
+	Kind     string `json:"kind,omitempty"`
+	Language string `json:"language,omitempty"`
+	Value    string `json:"value"`
 }

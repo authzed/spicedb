@@ -8,6 +8,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
+	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
@@ -46,6 +47,13 @@ type SchemaReference struct {
 
 	// TargetPosition is the position of the target node, if any.
 	TargetPosition *input.Position
+
+	// TargetSourceCode is the source code representation of the target, if any.
+	TargetSourceCode string
+
+	// TargetNamePositionOffset is the offset from the target position from where the
+	// *name* of the target is found.
+	TargetNamePositionOffset int
 }
 
 // Resolver resolves references to schema nodes from source positions.
@@ -81,52 +89,15 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		return nil, nil
 	}
 
-	// Type reference.
-	if ts, ok := r.typeReferenceChain(nodeChain); ok {
-		def := ts.Namespace()
-		defPosition := input.Position{
-			LineNumber:     int(def.SourcePosition.ZeroIndexedLineNumber),
-			ColumnPosition: int(def.SourcePosition.ZeroIndexedColumnPosition),
-		}
-
-		return &SchemaReference{
-			Source:   source,
-			Position: position,
-			Text:     def.Name,
-
-			ReferenceType:     ReferenceTypeDefinition,
-			ReferenceMarkdown: fmt.Sprintf("definition %s", def.Name),
-
-			TargetSource:   &source,
-			TargetPosition: &defPosition,
-		}, nil
-	}
-
-	// Caveat Type reference.
-	if caveatDef, ok := r.caveatTypeReferenceChain(nodeChain); ok {
-		defPosition := input.Position{
-			LineNumber:     int(caveatDef.SourcePosition.ZeroIndexedLineNumber),
-			ColumnPosition: int(caveatDef.SourcePosition.ZeroIndexedColumnPosition),
-		}
-
-		return &SchemaReference{
-			Source:   source,
-			Position: position,
-			Text:     caveatDef.Name,
-
-			ReferenceType:     ReferenceTypeCaveat,
-			ReferenceMarkdown: fmt.Sprintf("caveat %s", caveatDef.Name),
-
-			TargetSource:   &source,
-			TargetPosition: &defPosition,
-		}, nil
-	}
-
-	// Relation reference.
-	if relation, ts, ok := r.relationReferenceChain(nodeChain); ok {
+	relationReference := func(relation *core.Relation, ts *typesystem.TypeSystem) (*SchemaReference, error) {
 		relationPosition := input.Position{
 			LineNumber:     int(relation.SourcePosition.ZeroIndexedLineNumber),
 			ColumnPosition: int(relation.SourcePosition.ZeroIndexedColumnPosition),
+		}
+
+		targetSourceCode, err := generator.GenerateRelationSource(relation)
+		if err != nil {
+			return nil, err
 		}
 
 		if ts.IsPermission(relation.Name) {
@@ -138,8 +109,10 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 				ReferenceType:     ReferenceTypePermission,
 				ReferenceMarkdown: fmt.Sprintf("permission %s", relation.Name),
 
-				TargetSource:   &source,
-				TargetPosition: &relationPosition,
+				TargetSource:             &source,
+				TargetPosition:           &relationPosition,
+				TargetSourceCode:         targetSourceCode,
+				TargetNamePositionOffset: len("permission "),
 			}, nil
 		}
 
@@ -151,17 +124,88 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			ReferenceType:     ReferenceTypeRelation,
 			ReferenceMarkdown: fmt.Sprintf("relation %s", relation.Name),
 
-			TargetSource:   &source,
-			TargetPosition: &relationPosition,
+			TargetSource:             &source,
+			TargetPosition:           &relationPosition,
+			TargetSourceCode:         targetSourceCode,
+			TargetNamePositionOffset: len("relation "),
 		}, nil
+	}
+
+	// Type reference.
+	if ts, relation, ok := r.typeReferenceChain(nodeChain); ok {
+		if relation != nil {
+			return relationReference(relation, ts)
+		}
+
+		def := ts.Namespace()
+		defPosition := input.Position{
+			LineNumber:     int(def.SourcePosition.ZeroIndexedLineNumber),
+			ColumnPosition: int(def.SourcePosition.ZeroIndexedColumnPosition),
+		}
+
+		targetSourceCode := fmt.Sprintf("definition %s {\n\t// ...\n}", def.Name)
+		if len(def.Relation) == 0 {
+			targetSourceCode = fmt.Sprintf("definition %s {}", def.Name)
+		}
+
+		return &SchemaReference{
+			Source:   source,
+			Position: position,
+			Text:     def.Name,
+
+			ReferenceType:     ReferenceTypeDefinition,
+			ReferenceMarkdown: fmt.Sprintf("definition %s", def.Name),
+
+			TargetSource:             &source,
+			TargetPosition:           &defPosition,
+			TargetSourceCode:         targetSourceCode,
+			TargetNamePositionOffset: len("definition "),
+		}, nil
+	}
+
+	// Caveat Type reference.
+	if caveatDef, ok := r.caveatTypeReferenceChain(nodeChain); ok {
+		defPosition := input.Position{
+			LineNumber:     int(caveatDef.SourcePosition.ZeroIndexedLineNumber),
+			ColumnPosition: int(caveatDef.SourcePosition.ZeroIndexedColumnPosition),
+		}
+
+		var caveatSourceCode strings.Builder
+		caveatSourceCode.WriteString(fmt.Sprintf("caveat %s(", caveatDef.Name))
+		index := 0
+		for paramName, paramType := range caveatDef.ParameterTypes {
+			if index > 0 {
+				caveatSourceCode.WriteString(", ")
+			}
+
+			caveatSourceCode.WriteString(fmt.Sprintf("%s %s", paramName, caveats.ParameterTypeString(paramType)))
+			index++
+		}
+		caveatSourceCode.WriteString(") {\n\t// ...\n}")
+
+		return &SchemaReference{
+			Source:   source,
+			Position: position,
+			Text:     caveatDef.Name,
+
+			ReferenceType:     ReferenceTypeCaveat,
+			ReferenceMarkdown: fmt.Sprintf("caveat %s", caveatDef.Name),
+
+			TargetSource:             &source,
+			TargetPosition:           &defPosition,
+			TargetSourceCode:         caveatSourceCode.String(),
+			TargetNamePositionOffset: len("caveat "),
+		}, nil
+	}
+
+	// Relation reference.
+	if relation, ts, ok := r.relationReferenceChain(nodeChain); ok {
+		return relationReference(relation, ts)
 	}
 
 	// Caveat parameter used in expression.
 	if caveatParamName, caveatDef, ok := r.caveatParamChain(nodeChain, source, position); ok {
-		caveatPosition := input.Position{
-			LineNumber:     int(caveatDef.SourcePosition.ZeroIndexedLineNumber),
-			ColumnPosition: int(caveatDef.SourcePosition.ZeroIndexedColumnPosition),
-		}
+		targetSourceCode := fmt.Sprintf("%s %s", caveatParamName, caveats.ParameterTypeString(caveatDef.ParameterTypes[caveatParamName]))
 
 		return &SchemaReference{
 			Source:   source,
@@ -169,10 +213,10 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			Text:     caveatParamName,
 
 			ReferenceType:     ReferenceTypeCaveatParameter,
-			ReferenceMarkdown: fmt.Sprintf("%s %s", caveatParamName, caveats.ParameterTypeString(caveatDef.ParameterTypes[caveatParamName])),
+			ReferenceMarkdown: targetSourceCode,
 
-			TargetSource:   &source,
-			TargetPosition: &caveatPosition,
+			TargetSource:     &source,
+			TargetSourceCode: targetSourceCode,
 		}, nil
 	}
 
@@ -280,17 +324,42 @@ func (r *Resolver) caveatTypeReferenceChain(nodeChain *compiler.NodeChain) (*cor
 	return r.lookupCaveat(caveatName)
 }
 
-func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*typesystem.TypeSystem, bool) {
+func (r *Resolver) typeReferenceChain(nodeChain *compiler.NodeChain) (*typesystem.TypeSystem, *core.Relation, bool) {
 	if !nodeChain.HasHeadType(dslshape.NodeTypeSpecificTypeReference) {
-		return nil, false
+		return nil, nil, false
 	}
 
 	defName, err := nodeChain.Head().GetString(dslshape.NodeSpecificReferencePredicateType)
 	if err != nil {
-		return nil, false
+		return nil, nil, false
 	}
 
-	return r.lookupDefinition(defName)
+	def, ok := r.lookupDefinition(defName)
+	if !ok {
+		return nil, nil, false
+	}
+
+	relationName, err := nodeChain.Head().GetString(dslshape.NodeSpecificReferencePredicateRelation)
+	if err != nil {
+		return def, nil, true
+	}
+
+	startingRune, err := nodeChain.Head().GetInt(dslshape.NodePredicateStartRune)
+	if err != nil {
+		return def, nil, true
+	}
+
+	// If hover over the definition name, return the definition.
+	if nodeChain.ForRunePosition() < startingRune+len(defName) {
+		return def, nil, true
+	}
+
+	relation, ok := def.GetRelation(relationName)
+	if !ok {
+		return nil, nil, false
+	}
+
+	return def, relation, true
 }
 
 func (r *Resolver) relationReferenceChain(nodeChain *compiler.NodeChain) (*core.Relation, *typesystem.TypeSystem, bool) {

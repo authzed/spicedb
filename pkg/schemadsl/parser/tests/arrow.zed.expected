@@ -29,7 +29,7 @@ NodeTypeFile
                 NodeTypeArrowExpression
                   end-rune = 66
                   input-source = arrow test
-                  start-rune = 57
+                  start-rune = 54
                   left-expr =>
                     NodeTypeArrowExpression
                       end-rune = 61

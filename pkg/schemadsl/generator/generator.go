@@ -89,6 +89,23 @@ func GenerateSource(namespace *core.NamespaceDefinition) (string, bool, error) {
 	return generator.buf.String(), !generator.hasIssue, nil
 }
 
+// GenerateRelationSource generates a DSL view of the given relation definition.
+func GenerateRelationSource(relation *core.Relation) (string, error) {
+	generator := &sourceGenerator{
+		indentationLevel: 0,
+		hasNewline:       true,
+		hasBlankline:     true,
+		hasNewScope:      true,
+	}
+
+	err := generator.emitRelation(relation)
+	if err != nil {
+		return "", err
+	}
+
+	return generator.buf.String(), nil
+}
+
 func (sg *sourceGenerator) emitCaveat(caveat *core.CaveatDefinition) error {
 	sg.emitComments(caveat.Metadata)
 	sg.append("caveat ")

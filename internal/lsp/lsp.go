@@ -25,7 +25,7 @@ const (
 
 // Server is a Language Server Protocol server for SpiceDB schema development.
 type Server struct {
-	files *persistent.Map[lsp.DocumentURI, string]
+	files *persistent.Map[lsp.DocumentURI, trackedFile]
 	state serverState
 
 	requestsDiagnostics bool
@@ -35,7 +35,7 @@ type Server struct {
 func NewServer() *Server {
 	return &Server{
 		state: serverStateNotInitialized,
-		files: persistent.NewMap[lsp.DocumentURI, string](func(x, y lsp.DocumentURI) bool {
+		files: persistent.NewMap[lsp.DocumentURI, trackedFile](func(x, y lsp.DocumentURI) bool {
 			return string(x) < string(y)
 		}),
 	}
@@ -86,6 +86,8 @@ func (s *Server) handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Re
 		result, err = s.textDocDiagnostic(ctx, r)
 	case "textDocument/formatting":
 		result, err = s.textDocFormat(ctx, r)
+	case "textDocument/hover":
+		result, err = s.textDocHover(ctx, r)
 	default:
 		log.Ctx(ctx).Warn().
 			Str("method", r.Method).
