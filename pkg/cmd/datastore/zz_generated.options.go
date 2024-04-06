@@ -37,6 +37,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.LegacyFuzzing = c.LegacyFuzzing
 		to.RevisionQuantization = c.RevisionQuantization
 		to.MaxRevisionStalenessPercent = c.MaxRevisionStalenessPercent
+		to.CredentialsProviderName = c.CredentialsProviderName
 		to.ReadConnPool = c.ReadConnPool
 		to.WriteConnPool = c.WriteConnPool
 		to.ReadOnly = c.ReadOnly
@@ -78,6 +79,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["LegacyFuzzing"] = helpers.DebugValue(c.LegacyFuzzing, false)
 	debugMap["RevisionQuantization"] = helpers.DebugValue(c.RevisionQuantization, false)
 	debugMap["MaxRevisionStalenessPercent"] = helpers.DebugValue(c.MaxRevisionStalenessPercent, false)
+	debugMap["CredentialsProviderName"] = helpers.DebugValue(c.CredentialsProviderName, false)
 	debugMap["ReadConnPool"] = helpers.DebugValue(c.ReadConnPool, false)
 	debugMap["WriteConnPool"] = helpers.DebugValue(c.WriteConnPool, false)
 	debugMap["ReadOnly"] = helpers.DebugValue(c.ReadOnly, false)
@@ -165,6 +167,13 @@ func WithRevisionQuantization(revisionQuantization time.Duration) ConfigOption {
 func WithMaxRevisionStalenessPercent(maxRevisionStalenessPercent float64) ConfigOption {
 	return func(c *Config) {
 		c.MaxRevisionStalenessPercent = maxRevisionStalenessPercent
+	}
+}
+
+// WithCredentialsProviderName returns an option that can set CredentialsProviderName on a Config
+func WithCredentialsProviderName(credentialsProviderName string) ConfigOption {
+	return func(c *Config) {
+		c.CredentialsProviderName = credentialsProviderName
 	}
 }
 

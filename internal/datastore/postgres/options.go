@@ -12,6 +12,8 @@ type postgresOptions struct {
 
 	maxRevisionStalenessPercent float64
 
+	credentialsProviderName string
+
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	revisionQuantization    time.Duration
@@ -58,6 +60,7 @@ const (
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 10
 	defaultGCEnabled                         = true
+	defaultCredentialsProviderName           = ""
 )
 
 // Option provides the facility to configure how clients within the
@@ -76,6 +79,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
+		credentialsProviderName:     defaultCredentialsProviderName,
 		queryInterceptor:            nil,
 	}
 
@@ -331,4 +335,8 @@ func WithQueryInterceptor(interceptor pgxcommon.QueryInterceptor) Option {
 // Steady-state configuration (e.g. fully migrated) by default
 func MigrationPhase(phase string) Option {
 	return func(po *postgresOptions) { po.migrationPhase = phase }
+}
+
+func CredentialsProviderName(credentialsProviderName string) Option {
+	return func(po *postgresOptions) { po.credentialsProviderName = credentialsProviderName }
 }
