@@ -15,20 +15,10 @@ import (
 var (
 	_ common.GarbageCollector = (*pgDatastore)(nil)
 
-	relationTuplePKCols = []string{
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCreatedXid,
-		colDeletedXid,
-	}
-
-	namespacePKCols = []string{colNamespace, colCreatedXid, colDeletedXid}
-
-	transactionPKCols = []string{colXID}
+	// we are using "tableoid" to globally identify the row through the "ctid" in partitioned environments
+	// as it's not guaranteed 2 rows in different partitions have different "ctid" values
+	// See https://www.postgresql.org/docs/current/ddl-system-columns.html#DDL-SYSTEM-COLUMNS-TABLEOID
+	gcPKCols = []string{"tableoid", "ctid"}
 )
 
 func (pgd *pgDatastore) HasGCRun() bool {
@@ -88,7 +78,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	removed.Relationships, err = pgd.batchDelete(
 		ctx,
 		tableTuple,
-		relationTuplePKCols,
+		gcPKCols,
 		sq.Lt{colDeletedXid: minTxAlive},
 	)
 	if err != nil {
@@ -102,7 +92,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	removed.Transactions, err = pgd.batchDelete(
 		ctx,
 		tableTransaction,
-		transactionPKCols,
+		gcPKCols,
 		sq.Lt{colXID: minTxAlive},
 	)
 	if err != nil {
@@ -113,7 +103,7 @@ func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revis
 	removed.Namespaces, err = pgd.batchDelete(
 		ctx,
 		tableNamespace,
-		namespacePKCols,
+		gcPKCols,
 		sq.Lt{colDeletedXid: minTxAlive},
 	)
 	if err != nil {
@@ -135,7 +125,6 @@ func (pgd *pgDatastore) batchDelete(
 	}
 
 	pkColsExpression := strings.Join(pkCols, ", ")
-
 	query := fmt.Sprintf(`WITH rows AS (%[1]s)
 		  DELETE FROM %[2]s
 		  WHERE (%[3]s) IN (SELECT %[3]s FROM rows);
