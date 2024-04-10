@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -103,4 +104,30 @@ func TestSubjectSetByTypeWithCaveats(t *testing.T) {
 		caveatexpr("first"),
 		tom.GetCaveatExpression(),
 	)
+}
+
+func TestSubjectSetMapOverSameSubjectDifferentRelation(t *testing.T) {
+	set := NewSubjectByTypeSet()
+	require.True(t, set.IsEmpty())
+
+	err := set.AddSubjectOf(tuple.MustParse("document:foo#folder@folder:folder1"))
+	require.NoError(t, err)
+
+	err = set.AddSubjectOf(tuple.MustParse("document:foo#folder@folder:folder2#parent"))
+	require.NoError(t, err)
+
+	mapped, err := set.Map(func(rr *core.RelationReference) (*core.RelationReference, error) {
+		return &core.RelationReference{
+			Namespace: rr.Namespace,
+			Relation:  "shared",
+		}, nil
+	})
+	require.NoError(t, err)
+
+	foundSubjectIDs := mapz.NewSet[string]()
+	for _, sub := range mapped.byType["folder#shared"].AsSlice() {
+		foundSubjectIDs.Add(sub.SubjectId)
+	}
+
+	require.ElementsMatch(t, []string{"folder1", "folder2"}, foundSubjectIDs.AsSlice())
 }
