@@ -303,7 +303,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 	require.NoError(t, rootCertFile.Close())
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "cockroachdb/cockroach",
+		Repository: "mirror.gcr.io/cockroachdb/cockroach",
 		Tag:        testdatastore.CRDBTestVersionTag,
 		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
 		Mounts:     []string{certDir + ":/certs"},
