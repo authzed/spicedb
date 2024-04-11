@@ -118,13 +118,24 @@ func MetricsHandler(telemetryRegistry *prometheus.Registry, c *Config) http.Hand
 	return mux
 }
 
-// the server has a deadline set, so we consider it a normal condition
-// this makes sure we don't log them as errors
 var defaultCodeToLevel = grpclog.WithLevels(func(code codes.Code) grpclog.Level {
 	if code == codes.DeadlineExceeded {
+		// The server has a deadline set, so we consider it a normal condition.
+		// This ensures that we don't log them as errors.
 		return grpclog.LevelInfo
 	}
 	return grpclog.DefaultServerCodeToLevel(code)
+})
+
+var dispatchDefaultCodeToLevel = grpclog.WithLevels(func(code codes.Code) grpclog.Level {
+	switch code {
+	case codes.OK, codes.Canceled:
+		return grpclog.LevelDebug
+	case codes.NotFound, codes.AlreadyExists, codes.InvalidArgument, codes.Unauthenticated:
+		return grpclog.LevelWarn
+	default:
+		return grpclog.DefaultServerCodeToLevel(code)
+	}
 })
 
 var durationFieldOption = grpclog.WithDurationField(func(duration time.Duration) grpclog.Fields {
@@ -376,7 +387,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
 			grpcauth.UnaryServerInterceptor(authFunc),
 			datastoremw.UnaryServerInterceptor(ds),
@@ -384,7 +395,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
-			grpclog.StreamServerInterceptor(InterceptorLogger(logger), defaultCodeToLevel, durationFieldOption, traceIDFieldOption),
+			grpclog.StreamServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsStreamingInterceptor,
 			grpcauth.StreamServerInterceptor(authFunc),
 			datastoremw.StreamServerInterceptor(ds),
