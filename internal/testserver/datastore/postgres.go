@@ -69,7 +69,7 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 
 	postgres, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       postgresContainerHostname,
-		Repository: "postgres",
+		Repository: "mirror.gcr.io/library/postgres",
 		Tag:        pgVersion,
 		Env: []string{
 			"POSTGRES_USER=" + POSTGRES_TEST_USER,
@@ -173,7 +173,7 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pool *dockertest.P
 
 	pgbouncer, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       pgbouncerContainerHostname,
-		Repository: "edoburu/pgbouncer",
+		Repository: "mirror.gcr.io/edoburu/pgbouncer",
 		Tag:        "latest",
 		Env: []string{
 			"DB_USER=" + POSTGRES_TEST_USER,
