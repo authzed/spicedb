@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel"
 
+	log "github.com/authzed/spicedb/internal/logging"
+
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
@@ -39,6 +41,7 @@ func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvid
 	pgxcommon.ConfigureOTELTracer(connConfig)
 
 	if credentialsProvider != nil {
+		log.Ctx(ctx).Debug().Str("name", credentialsProvider.Name()).Msg("using credentials provider")
 		connConfig.User, connConfig.Password, err = credentialsProvider.Get(ctx, connConfig.Host, connConfig.Port, connConfig.User)
 		if err != nil {
 			return nil, err
