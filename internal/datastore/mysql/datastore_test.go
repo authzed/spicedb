@@ -711,6 +711,23 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 	req.NoError(rows.Err())
 }
 
+func TestMySQLWithAWSIAMCredentialsProvider(t *testing.T) {
+	// set up the environment, so we don't make any external calls to AWS
+	t.Setenv("AWS_CONFIG_FILE", "file_not_exists")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "file_not_exists")
+	t.Setenv("AWS_ENDPOINT_URL", "http://169.254.169.254/aws")
+	t.Setenv("AWS_ACCESS_KEY", "access_key")
+	t.Setenv("AWS_SECRET_KEY", "secret_key")
+	t.Setenv("AWS_REGION", "us-east-1")
+
+	// initialize the datastore using the AWS IAM credentials provider, and point it to a database that does not exist
+	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql?parseTime=True&tls=skip-verify", CredentialsProviderName("aws-iam"))
+
+	// we expect the connection attempt to fail
+	// which means that the credentials provider was wired and called successfully before making the connection attempt
+	require.ErrorContains(t, err, ":1234: connect: connection refused")
+}
+
 func datastoreDB(t *testing.T, migrate bool) *sql.DB {
 	var databaseURI string
 	testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: migrate}, "").NewDatastore(t, func(engine, uri string) datastore.Datastore {

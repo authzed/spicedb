@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/dlmiddlecote/sqlstats"
 	"github.com/go-sql-driver/mysql"
@@ -118,7 +120,22 @@ func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Dat
 		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see https://spicedb.dev/d/parse-time-mysql for more details")
 	}
 
-	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
+	// Setup the credentials provider
+	var credentialsProvider datastore.CredentialsProvider
+	if config.credentialsProviderName != "" {
+		credentialsProvider, err = datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = mysqlCommon.MaybeAddCredentialsProviderHook(parsedURI, credentialsProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
+	connector, err := mysql.NewConnector(parsedURI)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
 	}

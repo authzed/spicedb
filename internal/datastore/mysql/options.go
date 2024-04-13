@@ -21,6 +21,7 @@ const (
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 8
 	defaultGCEnabled                         = true
+	defaultCredentialsProviderName           = ""
 )
 
 type mysqlOptions struct {
@@ -40,6 +41,7 @@ type mysqlOptions struct {
 	maxRetries                  uint8
 	lockWaitTimeoutSeconds      *uint8
 	gcEnabled                   bool
+	credentialsProviderName     string
 }
 
 // Option provides the facility to configure how clients within the
@@ -61,6 +63,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
+		credentialsProviderName:     defaultCredentialsProviderName,
 	}
 
 	for _, option := range options {
@@ -235,4 +238,12 @@ func GCMaxOperationTime(time time.Duration) Option {
 	return func(mo *mysqlOptions) {
 		mo.gcMaxOperationTime = time
 	}
+}
+
+// CredentialsProviderName is the name of the CredentialsProvider implementation to use
+// for dynamically retrieving the datastore credentials at runtime
+//
+// Empty by default.
+func CredentialsProviderName(credentialsProviderName string) Option {
+	return func(mo *mysqlOptions) { mo.credentialsProviderName = credentialsProviderName }
 }

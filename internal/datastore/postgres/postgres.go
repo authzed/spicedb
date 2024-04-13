@@ -175,7 +175,7 @@ func newPostgresDatastore(
 	if credentialsProvider != nil {
 		// add before connect callbacks to trigger the token
 		getToken := func(ctx context.Context, config *pgx.ConnConfig) error {
-			config.User, config.Password, err = credentialsProvider.Get(ctx, config.Host, config.Port, config.User)
+			config.User, config.Password, err = credentialsProvider.Get(ctx, fmt.Sprintf("%s:%d", config.Host, config.Port), config.User)
 			return err
 		}
 		readPoolConfig.BeforeConnect = getToken
