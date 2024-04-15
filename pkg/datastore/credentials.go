@@ -16,9 +16,9 @@ import (
 
 // CredentialsProvider allows datastore credentials to be retrieved dynamically
 type CredentialsProvider interface {
-	// Name return the name of the provider
+	// Name returns the name of the provider
 	Name() string
-	// Get return the username and password to use when connecting to the underlying datastore
+	// Get returns the username and password to use when connecting to the underlying datastore
 	Get(ctx context.Context, dbHostname string, dbPort uint16, dbUser string) (string, string, error)
 }
 
@@ -47,8 +47,8 @@ func CredentialsProviderOptions() string {
 }
 
 // NewCredentialsProvider create a new CredentialsProvider for the given name
-// return nil if no match is found
-// return an error if there is a problem initializing the given CredentialsProvider
+// returns nil if no match is found
+// returns an error if there is a problem initializing the given CredentialsProvider
 func NewCredentialsProvider(ctx context.Context, name string) (CredentialsProvider, error) {
 	builder, ok := BuilderForCredentialProvider[name]
 	if !ok {
