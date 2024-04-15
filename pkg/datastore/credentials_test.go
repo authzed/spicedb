@@ -7,13 +7,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNoCredentialsProvider(t *testing.T) {
+	credentialsProvider, err := NewCredentialsProvider(context.Background(), "")
+	require.Equal(t, NoCredentialsProvider, credentialsProvider)
+	require.NoError(t, err)
+}
+
 func TestUnknownCredentialsProvider(t *testing.T) {
-	unknownCredentialsProviders := []string{"", "some-unknown-credentials-provider"}
+	unknownCredentialsProviders := []string{"some-unknown-credentials-provider", "  "}
 	for _, unknownCredentialsProvider := range unknownCredentialsProviders {
 		t.Run(unknownCredentialsProvider, func(t *testing.T) {
 			credentialsProvider, err := NewCredentialsProvider(context.Background(), unknownCredentialsProvider)
 			require.Nil(t, credentialsProvider)
-			require.NoError(t, err)
+			require.Error(t, err)
 		})
 	}
 }
