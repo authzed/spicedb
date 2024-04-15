@@ -49,9 +49,6 @@ func CredentialsProviderOptions() string {
 // NewCredentialsProvider create a new CredentialsProvider for the given name
 // returns an error if no match is found, of if there is a problem creating the given CredentialsProvider
 func NewCredentialsProvider(ctx context.Context, name string) (CredentialsProvider, error) {
-	if name == "" {
-		return NoCredentialsProvider, nil
-	}
 	builder, ok := BuilderForCredentialProvider[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown credentials provider: %s", name)

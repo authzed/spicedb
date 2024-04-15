@@ -60,10 +60,14 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	} else if datastoreEngine == "postgres" {
 		log.Ctx(cmd.Context()).Info().Msg("migrating postgres datastore")
 
+		var credentialsProvider datastore.CredentialsProvider
 		credentialsProviderName := cobrautil.MustGetString(cmd, "datastore-credentials-provider-name")
-		credentialsProvider, err := datastore.NewCredentialsProvider(cmd.Context(), credentialsProviderName)
-		if err != nil {
-			return err
+		if credentialsProviderName != "" {
+			var err error
+			credentialsProvider, err = datastore.NewCredentialsProvider(cmd.Context(), credentialsProviderName)
+			if err != nil {
+				return err
+			}
 		}
 
 		migrationDriver, err := migrations.NewAlembicPostgresDriver(cmd.Context(), dbURL, credentialsProvider)

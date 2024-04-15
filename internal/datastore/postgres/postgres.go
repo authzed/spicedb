@@ -146,10 +146,13 @@ func newPostgresDatastore(
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
-	// Setup the credential provider
-	credentialsProvider, err := datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
-	if err != nil {
-		return nil, err
+	// Setup the credentials provider
+	var credentialsProvider datastore.CredentialsProvider
+	if config.credentialsProviderName != "" {
+		credentialsProvider, err = datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Setup the config for each of the read and write pools.
