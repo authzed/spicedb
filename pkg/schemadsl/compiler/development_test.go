@@ -154,7 +154,6 @@ func TestPositionToAstNode(t *testing.T) {
 				dslshape.NodeTypeFile,
 			},
 		},
-
 		{
 			name: "reference to caveat",
 			schema: `
@@ -172,6 +171,42 @@ func TestPositionToAstNode(t *testing.T) {
 				dslshape.NodeTypeCaveatReference,
 				dslshape.NodeTypeSpecificTypeReference,
 				dslshape.NodeTypeTypeReference,
+				dslshape.NodeTypeRelation,
+				dslshape.NodeTypeDefinition,
+				dslshape.NodeTypeFile,
+			},
+		},
+		{
+			name: "multiline doc comment",
+			schema: `
+				definition user {}
+
+				/**
+				 * This is a doc comment
+				 */
+				definition resource {
+					relation viewer: user
+				}
+			`,
+			line:   4,
+			column: 2,
+			expected: []dslshape.NodeType{
+				dslshape.NodeTypeFile,
+			},
+		},
+		{
+			name: "reference to commented",
+			schema: `
+				definition user {}
+
+				definition resource {
+					// viewer is some sort of relation
+					relation viewer: user
+				}
+			`,
+			line:   5,
+			column: 10,
+			expected: []dslshape.NodeType{
 				dslshape.NodeTypeRelation,
 				dslshape.NodeTypeDefinition,
 				dslshape.NodeTypeFile,
