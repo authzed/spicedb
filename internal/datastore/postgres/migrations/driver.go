@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
-	"github.com/authzed/spicedb/pkg/migrate"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel"
+
+	log "github.com/authzed/spicedb/internal/logging"
+
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 const postgresMissingTableErrorCode = "42P01"
@@ -26,7 +29,7 @@ type AlembicPostgresDriver struct {
 }
 
 // NewAlembicPostgresDriver creates a new driver with active connections to the database specified.
-func NewAlembicPostgresDriver(ctx context.Context, url string) (*AlembicPostgresDriver, error) {
+func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvider datastore.CredentialsProvider) (*AlembicPostgresDriver, error) {
 	ctx, span := tracer.Start(ctx, "NewAlembicPostgresDriver")
 	defer span.End()
 
@@ -36,6 +39,14 @@ func NewAlembicPostgresDriver(ctx context.Context, url string) (*AlembicPostgres
 	}
 	pgxcommon.ConfigurePGXLogger(connConfig)
 	pgxcommon.ConfigureOTELTracer(connConfig)
+
+	if credentialsProvider != nil {
+		log.Ctx(ctx).Debug().Str("name", credentialsProvider.Name()).Msg("using credentials provider")
+		connConfig.User, connConfig.Password, err = credentialsProvider.Get(ctx, connConfig.Host, connConfig.Port, connConfig.User)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	db, err := pgx.ConnectConfig(ctx, connConfig)
 	if err != nil {

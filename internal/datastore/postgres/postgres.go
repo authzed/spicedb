@@ -146,6 +146,15 @@ func newPostgresDatastore(
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
+	// Setup the credentials provider
+	var credentialsProvider datastore.CredentialsProvider
+	if config.credentialsProviderName != "" {
+		credentialsProvider, err = datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Setup the config for each of the read and write pools.
 	readPoolConfig := pgConfig.Copy()
 	config.readPoolOpts.ConfigurePgx(readPoolConfig)
@@ -161,6 +170,16 @@ func newPostgresDatastore(
 	writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		RegisterTypes(conn.TypeMap())
 		return nil
+	}
+
+	if credentialsProvider != nil {
+		// add before connect callbacks to trigger the token
+		getToken := func(ctx context.Context, config *pgx.ConnConfig) error {
+			config.User, config.Password, err = credentialsProvider.Get(ctx, config.Host, config.Port, config.User)
+			return err
+		}
+		readPoolConfig.BeforeConnect = getToken
+		writePoolConfig.BeforeConnect = getToken
 	}
 
 	if config.migrationPhase != "" {
@@ -260,6 +279,7 @@ func newPostgresDatastore(
 		cancelGc:                cancelGc,
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
+		credentialsProvider:     credentialsProvider,
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -299,6 +319,8 @@ type pgDatastore struct {
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
 	watchEnabled            bool
+
+	credentialsProvider datastore.CredentialsProvider
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -534,7 +556,7 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for postgres: %w", err)
 	}
 
-	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl)
+	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl, pgd.credentialsProvider)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}

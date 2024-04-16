@@ -99,6 +99,7 @@ type Config struct {
 	LegacyFuzzing               time.Duration `debugmap:"visible"`
 	RevisionQuantization        time.Duration `debugmap:"visible"`
 	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
+	CredentialsProviderName     string        `debugmap:"visible"`
 
 	// Options
 	ReadConnPool           ConnPoolConfig `debugmap:"visible"`
@@ -166,6 +167,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	var legacyConnPool ConnPoolConfig
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultReadConnPool(), &legacyConnPool)
@@ -390,6 +392,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 
 func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	pgOpts := []postgres.Option{
+		postgres.CredentialsProviderName(opts.CredentialsProviderName),
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
