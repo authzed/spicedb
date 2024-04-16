@@ -84,6 +84,19 @@ func (s *Server) computeDiagnostics(ctx context.Context, uri lsp.DocumentURI) ([
 	return diagnostics, nil
 }
 
+func (s *Server) textDocDidSave(ctx context.Context, r *jsonrpc2.Request, conn *jsonrpc2.Conn) (any, error) {
+	params, err := unmarshalParams[lsp.DidSaveTextDocumentParams](r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.publishDiagnosticsIfNecessary(ctx, conn, params.TextDocument.URI); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
 func (s *Server) textDocDidChange(ctx context.Context, r *jsonrpc2.Request, conn *jsonrpc2.Conn) (any, error) {
 	params, err := unmarshalParams[lsp.DidChangeTextDocumentParams](r)
 	if err != nil {
