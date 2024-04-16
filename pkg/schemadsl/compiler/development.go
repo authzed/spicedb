@@ -84,6 +84,10 @@ func PositionToAstNodeChain(schema *CompiledSchema, source input.Source, positio
 }
 
 func runePositionToAstNodeChain(node *dslNode, runePosition int) ([]DSLNode, error) {
+	if !node.Has(dslshape.NodePredicateStartRune) {
+		return nil, nil
+	}
+
 	startRune, err := node.GetInt(dslshape.NodePredicateStartRune)
 	if err != nil {
 		return nil, err
