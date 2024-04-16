@@ -4,6 +4,7 @@ package lsp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 
@@ -45,11 +46,18 @@ func (s *Server) Handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Re
 	jsonrpc2.HandlerWithError(s.handle).Handle(ctx, conn, r)
 }
 
+func logJSONPtr(msg *json.RawMessage) string {
+	if msg == nil {
+		return "nil"
+	}
+	return string(*msg)
+}
+
 func (s *Server) handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Request) (result any, err error) {
 	log.Ctx(ctx).Debug().
 		Stringer("id", r.ID).
 		Str("method", r.Method).
-		Str("params", string(*r.Params)).
+		Str("params", logJSONPtr(r.Params)).
 		Msg("received LSP request")
 
 	if s.state == serverStateShuttingDown {
@@ -99,7 +107,7 @@ func (s *Server) handle(ctx context.Context, conn *jsonrpc2.Conn, r *jsonrpc2.Re
 	log.Ctx(ctx).Info().
 		Stringer("id", r.ID).
 		Str("method", r.Method).
-		Str("params", string(*r.Params)).
+		Str("params", logJSONPtr(r.Params)).
 		Interface("response", result).
 		Msg("responded to LSP request")
 	return result, err
