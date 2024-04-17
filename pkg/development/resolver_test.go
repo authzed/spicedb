@@ -349,6 +349,56 @@ definition document {
 			column:            5,
 			expectedReference: nil,
 		},
+		{
+			name: "reference to commented type",
+			schema: `
+				/** user is a user */
+				definition user {}
+
+				definition resource {
+					relation viewer: user
+				}
+			`,
+			line:   5,
+			column: 22,
+			expectedReference: &SchemaReference{
+				Source:                   "test",
+				Position:                 input.Position{LineNumber: 5, ColumnPosition: 22},
+				Text:                     "user",
+				ReferenceType:            1,
+				ReferenceMarkdown:        "definition user",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 2, ColumnPosition: 4},
+				TargetSourceCode:         "/** user is a user */\ndefinition user {}",
+				TargetNamePositionOffset: 11,
+			},
+		},
+		{
+			name: "reference to commented relation",
+			schema: `
+				definition user {}
+
+				definition resource {
+					// viewer is a relation for viewing
+					relation viewer: user
+
+					permission view = viewer
+				}
+			`,
+			line:   7,
+			column: 25,
+			expectedReference: &SchemaReference{
+				Source:                   "test",
+				Position:                 input.Position{LineNumber: 7, ColumnPosition: 25},
+				Text:                     "viewer",
+				ReferenceType:            ReferenceTypeRelation,
+				ReferenceMarkdown:        "relation viewer",
+				TargetSource:             &testSource,
+				TargetPosition:           &input.Position{LineNumber: 5, ColumnPosition: 5},
+				TargetSourceCode:         "// viewer is a relation for viewing\nrelation viewer: user\n",
+				TargetNamePositionOffset: 9,
+			},
+		},
 	}
 
 	for _, tc := range tcs {
