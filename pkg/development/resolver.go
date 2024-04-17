@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/authzed/spicedb/pkg/caveats"
+	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -143,9 +144,15 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 			ColumnPosition: int(def.SourcePosition.ZeroIndexedColumnPosition),
 		}
 
-		targetSourceCode := fmt.Sprintf("definition %s {\n\t// ...\n}", def.Name)
+		docComment := ""
+		comments := namespace.GetComments(def.Metadata)
+		if len(comments) > 0 {
+			docComment = strings.Join(comments, "\n") + "\n"
+		}
+
+		targetSourceCode := fmt.Sprintf("%sdefinition %s {\n\t// ...\n}", docComment, def.Name)
 		if len(def.Relation) == 0 {
-			targetSourceCode = fmt.Sprintf("definition %s {}", def.Name)
+			targetSourceCode = fmt.Sprintf("%sdefinition %s {}", docComment, def.Name)
 		}
 
 		return &SchemaReference{
