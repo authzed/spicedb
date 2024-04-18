@@ -97,16 +97,16 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount:            defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:               defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:                  defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:              defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:             defaultIfZero(config.MaxCaveatContextSize, 4096),
-		MaxRelationshipContextSize:       defaultIfZero(config.MaxRelationshipContextSize, 25_000),
-		MaxDatastoreReadPageSize:         defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
-		MaxReadRelationshipsLimit:        defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
-		MaxDeleteRelationshipsLimit:      defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
-		MaxLookupResourcesLimit:          defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
+		MaxPreconditionsCount:           defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:              defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:                 defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:             defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:            defaultIfZero(config.MaxCaveatContextSize, 4096),
+		MaxRelationshipContextSize:      defaultIfZero(config.MaxRelationshipContextSize, 25_000),
+		MaxDatastoreReadPageSize:        defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxReadRelationshipsLimit:       defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
+		MaxDeleteRelationshipsLimit:     defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
+		MaxLookupResourcesLimit:         defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
 	}
 
