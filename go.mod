@@ -8,7 +8,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v0.11.2-0.20240320204618-9622b72a72c6
+	github.com/authzed/authzed-go v0.11.2-0.20240418174337-42f221719227
 	github.com/authzed/cel-go v0.17.5
 	github.com/authzed/consistent v0.1.0
 	github.com/authzed/grpcutil v0.0.0-20240123092924-129dc0a6a6e1
@@ -87,13 +87,13 @@ require (
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20240112132812-db7319d0e0e3
 	golang.org/x/mod v0.16.0
-	golang.org/x/sync v0.6.0
+	golang.org/x/sync v0.7.0
 	golang.org/x/time v0.5.0
 	golang.org/x/vuln v1.0.5-0.20240403200752-f1b1098b2215
 	google.golang.org/api v0.172.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311132316-a219d84964c2
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237
-	google.golang.org/grpc v1.62.1
+	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -166,7 +166,6 @@ require (
 	github.com/charithe/durationcheck v0.0.10 // indirect
 	github.com/chavacava/garif v0.1.0 // indirect
 	github.com/ckaznocha/intrange v0.1.1 // indirect
-	github.com/cncf/udpa/go v0.0.0-20220112060539-c52dc94e7fbe // indirect
 	github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/curioswitch/go-reassign v0.2.0 // indirect
@@ -359,7 +358,7 @@ require (
 	golang.org/x/tools v0.19.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
+	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	honnef.co/go/tools v0.4.7 // indirect

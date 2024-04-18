@@ -133,6 +133,11 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	cmd.Flags().DurationVar(&config.StreamingAPITimeout, "streaming-api-response-delay-timeout", 30*time.Second, "max duration time elapsed between messages sent by the server-side to the client (responses) before the stream times out")
 	cmd.Flags().DurationVar(&config.WatchHeartbeat, "watch-api-heartbeat", 1*time.Second, "heartbeat time on the watch in the API. 0 means to default to the datastore's minimum.")
 
+	cmd.Flags().Uint32Var(&config.MaxReadRelationshipsLimit, "max-read-relationships-limit", 1000, "maximum number of relationships that can be read in a single request")
+	cmd.Flags().Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", 1000, "maximum number of relationships that can be deleted in a single request")
+	cmd.Flags().Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
+	cmd.Flags().Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
+
 	cmd.Flags().BoolVar(&config.V1SchemaAdditiveOnly, "testing-only-schema-additive-writes", false, "append new definitions to the existing schema, rather than overwriting it")
 	if err := cmd.Flags().MarkHidden("testing-only-schema-additive-writes"); err != nil {
 		return fmt.Errorf("failed to mark flag as required: %w", err)

@@ -1631,6 +1631,25 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 	require.Equal(t, []string{"first"}, foundObjectIds.AsSlice())
 }
 
+func TestLookupResourcesBeyondAllowedLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	resp, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+		ResourceObjectType: "document",
+		Permission:         "view",
+		Subject:            sub("user", "tom", ""),
+		OptionalLimit:      1005,
+	})
+	require.NoError(err)
+
+	_, err = resp.Recv()
+	require.Error(err)
+	require.Contains(err.Error(), "provided limit 1005 is greater than maximum allowed of 1000")
+}
+
 func TestCheckBulkPermissions(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 

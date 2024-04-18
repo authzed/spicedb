@@ -73,6 +73,22 @@ type PermissionsServerConfig struct {
 	// MaxCheckBulkConcurrency defines the maximum number of concurrent checks that can be
 	// made in a single CheckBulkPermissions call.
 	MaxCheckBulkConcurrency uint16
+
+	// MaxReadRelationshipsLimit defines the maximum number of relationships that can be read
+	// in a single ReadRelationships call.
+	MaxReadRelationshipsLimit uint32
+
+	// MaxDeleteRelationshipsLimit defines the maximum number of relationships that can be deleted
+	// in a single DeleteRelationships call.
+	MaxDeleteRelationshipsLimit uint32
+
+	// MaxLookupResourcesLimit defines the maximum number of resources that can be looked up in a
+	// single LookupResources call.
+	MaxLookupResourcesLimit uint32
+
+	// MaxBulkExportRelationshipsLimit defines the maximum number of relationships that can be
+	// exported in a single BulkExportRelationships call.
+	MaxBulkExportRelationshipsLimit uint32
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -81,13 +97,17 @@ func NewPermissionsServer(
 	config PermissionsServerConfig,
 ) v1.PermissionsServiceServer {
 	configWithDefaults := PermissionsServerConfig{
-		MaxPreconditionsCount:      defaultIfZero(config.MaxPreconditionsCount, 1000),
-		MaxUpdatesPerWrite:         defaultIfZero(config.MaxUpdatesPerWrite, 1000),
-		MaximumAPIDepth:            defaultIfZero(config.MaximumAPIDepth, 50),
-		StreamingAPITimeout:        defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
-		MaxCaveatContextSize:       defaultIfZero(config.MaxCaveatContextSize, 4096),
-		MaxRelationshipContextSize: defaultIfZero(config.MaxRelationshipContextSize, 25_000),
-		MaxDatastoreReadPageSize:   defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxPreconditionsCount:            defaultIfZero(config.MaxPreconditionsCount, 1000),
+		MaxUpdatesPerWrite:               defaultIfZero(config.MaxUpdatesPerWrite, 1000),
+		MaximumAPIDepth:                  defaultIfZero(config.MaximumAPIDepth, 50),
+		StreamingAPITimeout:              defaultIfZero(config.StreamingAPITimeout, 30*time.Second),
+		MaxCaveatContextSize:             defaultIfZero(config.MaxCaveatContextSize, 4096),
+		MaxRelationshipContextSize:       defaultIfZero(config.MaxRelationshipContextSize, 25_000),
+		MaxDatastoreReadPageSize:         defaultIfZero(config.MaxDatastoreReadPageSize, 1_000),
+		MaxReadRelationshipsLimit:        defaultIfZero(config.MaxReadRelationshipsLimit, 1_000),
+		MaxDeleteRelationshipsLimit:      defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
+		MaxLookupResourcesLimit:          defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
+		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
 	}
 
 	return &permissionServer{
@@ -126,6 +146,10 @@ type permissionServer struct {
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
+	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxReadRelationshipsLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxReadRelationshipsLimit)))
+	}
+
 	ctx := resp.Context()
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
@@ -340,6 +364,10 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			ctx,
 			NewExceedsMaximumPreconditionsErr(uint64(len(req.OptionalPreconditions)), uint64(ps.config.MaxPreconditionsCount)),
 		)
+	}
+
+	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxDeleteRelationshipsLimit {
+		return nil, ps.rewriteError(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxDeleteRelationshipsLimit)))
 	}
 
 	ds := datastoremw.MustFromContext(ctx)

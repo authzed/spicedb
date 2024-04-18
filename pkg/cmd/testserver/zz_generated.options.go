@@ -40,6 +40,10 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
 		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
+		to.MaxReadRelationshipsLimit = c.MaxReadRelationshipsLimit
+		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
+		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
+		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 	}
 }
 
@@ -55,6 +59,10 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
 	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
 	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
+	debugMap["MaxReadRelationshipsLimit"] = helpers.DebugValue(c.MaxReadRelationshipsLimit, false)
+	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
+	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
+	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	return debugMap
 }
 
@@ -141,5 +149,33 @@ func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
 func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption {
 	return func(c *Config) {
 		c.MaxRelationshipContextSize = maxRelationshipContextSize
+	}
+}
+
+// WithMaxReadRelationshipsLimit returns an option that can set MaxReadRelationshipsLimit on a Config
+func WithMaxReadRelationshipsLimit(maxReadRelationshipsLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxReadRelationshipsLimit = maxReadRelationshipsLimit
+	}
+}
+
+// WithMaxDeleteRelationshipsLimit returns an option that can set MaxDeleteRelationshipsLimit on a Config
+func WithMaxDeleteRelationshipsLimit(maxDeleteRelationshipsLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxDeleteRelationshipsLimit = maxDeleteRelationshipsLimit
+	}
+}
+
+// WithMaxLookupResourcesLimit returns an option that can set MaxLookupResourcesLimit on a Config
+func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxLookupResourcesLimit = maxLookupResourcesLimit
+	}
+}
+
+// WithMaxBulkExportRelationshipsLimit returns an option that can set MaxBulkExportRelationshipsLimit on a Config
+func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxBulkExportRelationshipsLimit = maxBulkExportRelationshipsLimit
 	}
 }

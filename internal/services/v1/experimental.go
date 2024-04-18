@@ -35,7 +35,7 @@ import (
 
 const (
 	defaultExportBatchSizeFallback   = 1_000
-	maxExportBatchSizeFallback       = 1_000
+	maxExportBatchSizeFallback       = 10_000
 	streamReadTimeoutFallbackSeconds = 600
 )
 
@@ -52,12 +52,17 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		config.DefaultExportBatchSize = defaultExportBatchSizeFallback
 	}
 	if config.MaxExportBatchSize == 0 {
+		fallback := permServerConfig.MaxBulkExportRelationshipsLimit
+		if fallback == 0 {
+			fallback = maxExportBatchSizeFallback
+		}
+
 		log.
 			Warn().
 			Uint32("specified", config.MaxExportBatchSize).
-			Uint32("fallback", maxExportBatchSizeFallback).
+			Uint32("fallback", fallback).
 			Msg("experimental server config specified invalid MaxExportBatchSize, setting to fallback")
-		config.MaxExportBatchSize = maxExportBatchSizeFallback
+		config.MaxExportBatchSize = fallback
 	}
 	if config.StreamReadTimeout == 0 {
 		log.
@@ -265,6 +270,10 @@ func (es *experimentalServer) BulkExportRelationships(
 	req *v1.BulkExportRelationshipsRequest,
 	resp v1.ExperimentalService_BulkExportRelationshipsServer,
 ) error {
+	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > es.maxBatchSize {
+		return es.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), es.maxBatchSize))
+	}
+
 	ctx := resp.Context()
 	ds := datastoremw.MustFromContext(ctx)
 
@@ -309,10 +318,6 @@ func (es *experimentalServer) BulkExportRelationships(
 	limit := es.defaultBatchSize
 	if req.OptionalLimit > 0 {
 		limit = uint64(req.OptionalLimit)
-	}
-
-	if limit > es.maxBatchSize {
-		limit = es.maxBatchSize
 	}
 
 	// Pre-allocate all of the relationships that we might need in order to

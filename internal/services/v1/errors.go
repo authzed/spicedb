@@ -15,6 +15,43 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+// ErrExceedsMaximumLimit occurs when a limit that is too large is given to a call.
+type ErrExceedsMaximumLimit struct {
+	error
+	providedLimit   uint64
+	maxLimitAllowed uint64
+}
+
+// MarshalZerologObject implements zerolog object marshalling.
+func (err ErrExceedsMaximumLimit) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Uint64("providedLimit", err.providedLimit).Uint64("maxLimitAllowed", err.maxLimitAllowed)
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrExceedsMaximumLimit) GRPCStatus() *status.Status {
+	// TODO(jschorr): Make this a specific error.
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			map[string]string{
+				"limit_provided":        strconv.FormatUint(err.providedLimit, 10),
+				"maximum_limit_allowed": strconv.FormatUint(err.maxLimitAllowed, 10),
+			},
+		),
+	)
+}
+
+// NewExceedsMaximumLimitErr creates a new error representing that the limit specified was too large.
+func NewExceedsMaximumLimitErr(providedLimit uint64, maxLimitAllowed uint64) ErrExceedsMaximumLimit {
+	return ErrExceedsMaximumLimit{
+		error:           fmt.Errorf("provided limit %d is greater than maximum allowed of %d", providedLimit, maxLimitAllowed),
+		providedLimit:   providedLimit,
+		maxLimitAllowed: maxLimitAllowed,
+	}
+}
+
 // ErrExceedsMaximumChecks occurs when too many checks are given to a call.
 type ErrExceedsMaximumChecks struct {
 	error

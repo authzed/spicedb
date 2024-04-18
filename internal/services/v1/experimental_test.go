@@ -121,6 +121,22 @@ func randomBatch(min, max int) func() int {
 	}
 }
 
+func TestBulkExportRelationshipsBeyondAllowedLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewExperimentalServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	resp, err := client.BulkExportRelationships(context.Background(), &v1.BulkExportRelationshipsRequest{
+		OptionalLimit: 10000005,
+	})
+	require.NoError(err)
+
+	_, err = resp.Recv()
+	require.Error(err)
+	require.Contains(err.Error(), "provided limit 10000005 is greater than maximum allowed of 100000")
+}
+
 func TestBulkExportRelationships(t *testing.T) {
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
 	client := v1.NewExperimentalServiceClient(conn)
