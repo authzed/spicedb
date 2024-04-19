@@ -1191,7 +1191,26 @@ func TestDeleteRelationshipsBeyondAllowedLimit(t *testing.T) {
 		OptionalAllowPartialDeletions: false,
 	})
 	require.Error(err)
-	require.Contains(err.Error(), "value must be inside range [0, 1000]")
+	require.Contains(err.Error(), "provided limit 1005 is greater than maximum allowed of 1000")
+}
+
+func TestReadRelationshipsBeyondAllowedLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	resp, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: "document",
+		},
+		OptionalLimit: 1005,
+	})
+	require.NoError(err)
+
+	_, err = resp.Recv()
+	require.Error(err)
+	require.Contains(err.Error(), "provided limit 1005 is greater than maximum allowed of 1000")
 }
 
 func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {

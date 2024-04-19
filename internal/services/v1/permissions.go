@@ -369,6 +369,10 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 }
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+	}
+
 	ctx := resp.Context()
 
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
