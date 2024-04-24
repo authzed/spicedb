@@ -15,6 +15,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
+      - name: "Install snapcraft"
+        run: "sudo snap install snapcraft --channel=7.x/stable --classic"
       - uses: "authzed/actions/docker-login@main"
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
@@ -26,7 +28,7 @@ jobs:
         with:
           distribution: "goreleaser-pro"
           version: "latest"
-          args: "release -f nightly.goreleaser.yml --clean --nightly"
+          args: "release -f .goreleaser.nightly.yml --clean --nightly"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"

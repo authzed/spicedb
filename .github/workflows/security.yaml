@@ -47,6 +47,8 @@ jobs:
         with:
           username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
           password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Install snapcraft"
+        run: "sudo snap install snapcraft --channel=7.x/stable --classic"
       - uses: "aquasecurity/trivy-action@master"
         with:
           scan-type: "fs"
