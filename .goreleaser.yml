@@ -52,7 +52,7 @@ nfpms:
 furies:
   - account: "authzed"
     secret_name: "GEMFURY_PUSH_TOKEN"
-    skip: "{{ gt (len .Prerelease) 0 }}"
+    disable: "{{ gt (len .Prerelease) 0 }}"
 snapcrafts:
   - name: "spicedb"
     publish: true
@@ -87,7 +87,7 @@ brews:
     homepage: "https://authzed.com/"
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache-2.0"
-    folder: "Formula"
+    directory: "Formula"
     skip_upload: "auto"
     custom_block: |
       head "https://github.com/authzed/spicedb.git", :branch => "main"
@@ -118,7 +118,7 @@ brews:
     homepage: "https://authzed.com/"
     description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
     license: "Apache-2.0"
-    folder: "Formula"
+    directory: "Formula"
     skip_upload: "auto"
     custom_block: |
       head "https://github.com/authzed/spicedb.git", :branch => "main"
