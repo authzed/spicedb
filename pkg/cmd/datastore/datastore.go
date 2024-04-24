@@ -459,6 +459,7 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		mysql.MaxRetries(uint8(opts.MaxRetries)),
 		mysql.OverrideLockWaitTimeout(1),
+		mysql.CredentialsProviderName(opts.CredentialsProviderName),
 	}
 	return mysql.NewMySQLDatastore(ctx, opts.URI, mysqlOpts...)
 }

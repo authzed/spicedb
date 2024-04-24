@@ -98,7 +98,17 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			log.Ctx(cmd.Context()).Fatal().Msg(fmt.Sprintf("unable to get table prefix: %s", err))
 		}
 
-		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix)
+		var credentialsProvider datastore.CredentialsProvider
+		credentialsProviderName := cobrautil.MustGetString(cmd, "datastore-credentials-provider-name")
+		if credentialsProviderName != "" {
+			var err error
+			credentialsProvider, err = datastore.NewCredentialsProvider(cmd.Context(), credentialsProviderName)
+			if err != nil {
+				return err
+			}
+		}
+
+		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix, credentialsProvider)
 		if err != nil {
 			return fmt.Errorf("unable to create migration driver for %s: %w", datastoreEngine, err)
 		}

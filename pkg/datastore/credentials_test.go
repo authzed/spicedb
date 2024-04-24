@@ -31,7 +31,9 @@ func TestAWSIAMCredentialsProvider(t *testing.T) {
 	require.NotNil(t, credentialsProvider)
 	require.NoError(t, err)
 
-	username, password, err := credentialsProvider.Get(context.Background(), "some-hostname", 5432, "some-user")
+	require.True(t, credentialsProvider.IsCleartextToken(), "AWS IAM tokens should be communicated in cleartext")
+
+	username, password, err := credentialsProvider.Get(context.Background(), "some-hostname:5432", "some-user")
 	require.NoError(t, err)
 	require.Equal(t, "some-user", username)
 	require.Containsf(t, password, "X-Amz-Algorithm", "signed token should contain algorithm attribute")

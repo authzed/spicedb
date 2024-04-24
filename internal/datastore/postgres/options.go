@@ -337,6 +337,10 @@ func MigrationPhase(phase string) Option {
 	return func(po *postgresOptions) { po.migrationPhase = phase }
 }
 
+// CredentialsProviderName is the name of the CredentialsProvider implementation to use
+// for dynamically retrieving the datastore credentials at runtime
+//
+// Empty by default.
 func CredentialsProviderName(credentialsProviderName string) Option {
 	return func(po *postgresOptions) { po.credentialsProviderName = credentialsProviderName }
 }

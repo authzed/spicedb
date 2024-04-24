@@ -18,8 +18,12 @@ import (
 type CredentialsProvider interface {
 	// Name returns the name of the provider
 	Name() string
+	// IsCleartextToken returns true if the token returned represents a token (rather than a password) that must be sent in cleartext to the datastore, or false otherwise.
+	// This may be used to configure the datastore options to avoid sending a hash of the token instead of its value.
+	// Note that it is always recommended that communication channel be encrypted.
+	IsCleartextToken() bool
 	// Get returns the username and password to use when connecting to the underlying datastore
-	Get(ctx context.Context, dbHostname string, dbPort uint16, dbUser string) (string, string, error)
+	Get(ctx context.Context, dbEndpoint string, dbUser string) (string, string, error)
 }
 
 var NoCredentialsProvider CredentialsProvider = nil
@@ -74,8 +78,13 @@ func (d awsIamCredentialsProvider) Name() string {
 	return AWSIAMCredentialProvider
 }
 
-func (d awsIamCredentialsProvider) Get(ctx context.Context, dbHostname string, dbPort uint16, dbUser string) (string, string, error) {
-	dbEndpoint := fmt.Sprintf("%s:%d", dbHostname, dbPort)
+func (d awsIamCredentialsProvider) IsCleartextToken() bool {
+	// The AWS IAM token can be of an arbitrary length and must not be hashed or truncated by the datastore driver
+	// See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html
+	return true
+}
+
+func (d awsIamCredentialsProvider) Get(ctx context.Context, dbEndpoint string, dbUser string) (string, string, error) {
 	authToken, err := rdsauth.BuildAuthToken(ctx, dbEndpoint, d.awsSdkConfig.Region, dbUser, d.awsSdkConfig.Credentials)
 	if err != nil {
 		log.Ctx(ctx).Trace().Str("region", d.awsSdkConfig.Region).Str("endpoint", dbEndpoint).Str("user", dbUser).Msg("successfully retrieved IAM auth token for DB")

@@ -42,7 +42,7 @@ func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvid
 
 	if credentialsProvider != nil {
 		log.Ctx(ctx).Debug().Str("name", credentialsProvider.Name()).Msg("using credentials provider")
-		connConfig.User, connConfig.Password, err = credentialsProvider.Get(ctx, connConfig.Host, connConfig.Port, connConfig.User)
+		connConfig.User, connConfig.Password, err = credentialsProvider.Get(ctx, fmt.Sprintf("%s:%d", connConfig.Host, connConfig.Port), connConfig.User)
 		if err != nil {
 			return nil, err
 		}
