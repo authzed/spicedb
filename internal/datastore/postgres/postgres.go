@@ -31,6 +31,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func init() {
@@ -81,6 +82,8 @@ const (
 	tracingDriverName = "postgres-tracing"
 
 	gcBatchDeleteSize = 1000
+
+	primaryInstanceID = -1
 )
 
 var livingTupleConstraints = []string{"uq_relation_tuple_living_xid", "pk_relation_tuple"}
@@ -123,7 +126,7 @@ func NewPostgresDatastore(
 	url string,
 	options ...Option,
 ) (datastore.Datastore, error) {
-	ds, err := newPostgresDatastore(ctx, url, -1 /* is primary */, options...)
+	ds, err := newPostgresDatastore(ctx, url, primaryInstanceID, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +157,7 @@ func newPostgresDatastore(
 	replicaIndex int,
 	options ...Option,
 ) (datastore.Datastore, error) {
-	isPrimary := replicaIndex < 0
+	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
@@ -254,7 +257,7 @@ func newPostgresDatastore(
 	if config.enablePrometheusStats {
 		replicaIndexStr := strconv.Itoa(replicaIndex)
 		dbname := "spicedb"
-		if replicaIndex >= 0 {
+		if replicaIndex != primaryInstanceID {
 			dbname = fmt.Sprintf("spicedb_replica_%s", replicaIndexStr)
 		}
 
@@ -326,6 +329,7 @@ func newPostgresDatastore(
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
 		credentialsProvider:     credentialsProvider,
+		isPrimary:               isPrimary,
 	}
 
 	if isPrimary {
@@ -371,6 +375,7 @@ type pgDatastore struct {
 	readTxOptions           pgx.TxOptions
 	maxRetries              uint8
 	watchEnabled            bool
+	isPrimary               bool
 
 	credentialsProvider datastore.CredentialsProvider
 
@@ -402,6 +407,10 @@ func (pgd *pgDatastore) ReadWriteTx(
 	fn datastore.TxUserFunc,
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
+	if !pgd.isPrimary {
+		return datastore.NoRevision, spiceerrors.MustBugf("read-write transaction not supported on read-only datastore")
+	}
+
 	config := options.NewRWTOptionsWithOptions(opts...)
 
 	var err error

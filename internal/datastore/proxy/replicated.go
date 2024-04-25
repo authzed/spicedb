@@ -21,10 +21,15 @@ func NewReplicatedDatastore(primary datastore.Datastore, replicas ...datastore.R
 		return primary, nil
 	}
 
+	cachingReplicas := make([]datastore.ReadOnlyDatastore, 0, len(replicas))
+	for _, replica := range replicas {
+		cachingReplicas = append(cachingReplicas, newCachedCheckRevision(replica))
+	}
+
 	log.Debug().Int("replica-count", len(replicas)).Msg("Using replicas for reads.")
 	return &replicatedDatastore{
 		primary,
-		replicas,
+		cachingReplicas,
 		0,
 	}, nil
 }
@@ -68,7 +73,7 @@ type replicatedReader struct {
 }
 
 func (rr *replicatedReader) ReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
@@ -76,7 +81,7 @@ func (rr *replicatedReader) ReadCaveatByName(ctx context.Context, name string) (
 }
 
 func (rr *replicatedReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +89,7 @@ func (rr *replicatedReader) ListAllCaveats(ctx context.Context) ([]datastore.Rev
 }
 
 func (rr *replicatedReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
@@ -96,7 +101,7 @@ func (rr *replicatedReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
@@ -108,7 +113,7 @@ func (rr *replicatedReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	options ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
@@ -116,7 +121,7 @@ func (rr *replicatedReader) ReverseQueryRelationships(
 }
 
 func (rr *replicatedReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, datastore.NoRevision, err
 	}
 
@@ -124,7 +129,7 @@ func (rr *replicatedReader) ReadNamespaceByName(ctx context.Context, nsName stri
 }
 
 func (rr *replicatedReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
@@ -132,14 +137,30 @@ func (rr *replicatedReader) ListAllNamespaces(ctx context.Context) ([]datastore.
 }
 
 func (rr *replicatedReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
-	if err := rr.chooseSource(ctx); err != nil {
+	if err := rr.determineSource(ctx); err != nil {
 		return nil, err
 	}
 
 	return rr.chosenReader.LookupNamespacesWithNames(ctx, nsNames)
 }
 
-func (rr *replicatedReader) chooseSource(ctx context.Context) error {
+func (rr *replicatedReader) CountRelationships(ctx context.Context, filter string) (int, error) {
+	if err := rr.determineSource(ctx); err != nil {
+		return 0, err
+	}
+
+	return rr.chosenReader.CountRelationships(ctx, filter)
+}
+
+func (rr *replicatedReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	if err := rr.determineSource(ctx); err != nil {
+		return nil, err
+	}
+
+	return rr.chosenReader.LookupCounters(ctx)
+}
+
+func (rr *replicatedReader) determineSource(ctx context.Context) error {
 	var finalError error
 	rr.choose.Do(func() {
 		// If the revision is not known to the replica, use the primary instead.
@@ -160,5 +181,6 @@ func (rr *replicatedReader) chooseSource(ctx context.Context) error {
 		rr.chosenReader = rr.replica.SnapshotReader(rr.rev)
 		rr.chosePrimary = false
 	})
+
 	return finalError
 }

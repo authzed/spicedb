@@ -172,6 +172,46 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.Error(ds.CheckRevision(ctx, previousRev), "expected revision head-1 to be outside GC Window")
 }
 
+func CheckRevisionsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, 1000*time.Second, 300*time.Minute, 1)
+	require.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Write a new revision.
+	writtenRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, ns.Namespace("foo/somethingnew1"))
+	})
+	require.NoError(err)
+	require.NoError(ds.CheckRevision(ctx, writtenRev), "expected written revision to be valid in GC Window")
+
+	head, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Check the head revision is valid
+	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
+
+	// Write a new revision.
+	writtenRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, ns.Namespace("foo/somethingnew2"))
+	})
+	require.NoError(err)
+	require.NoError(ds.CheckRevision(ctx, writtenRev), "expected written revision to be valid in GC Window")
+
+	// Check the previous head revision is still valid
+	require.NoError(ds.CheckRevision(ctx, head), "expected previous revision to be valid in GC Window")
+
+	// Get the updated head revision.
+	head, err = ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Check the new head revision is valid.
+	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
+}
+
 func SequentialRevisionsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 

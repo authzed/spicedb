@@ -13,6 +13,15 @@ import (
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
+func TestReplicatedReaderWithOnlyPrimary(t *testing.T) {
+	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
+
+	replicated, err := NewReplicatedDatastore(primary)
+	require.NoError(t, err)
+
+	require.Equal(t, primary, replicated)
+}
+
 func TestReplicatedReaderFallsbackToPrimary(t *testing.T) {
 	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
 	replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
@@ -121,5 +130,13 @@ func (fakeSnapshotReader) QueryRelationships(context.Context, datastore.Relation
 }
 
 func (fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string) (int, error) {
+	return -1, fmt.Errorf("not implemented")
+}
+
+func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return nil, fmt.Errorf("not implemented")
 }

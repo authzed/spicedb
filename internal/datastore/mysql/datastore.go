@@ -62,6 +62,8 @@ const (
 	noLastInsertID         = 0
 	seedingTimeout         = 10 * time.Second
 
+	primaryInstanceID = -1
+
 	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_lock_wait_timeout
 	errMysqlLockWaitTimeout = 1205
 
@@ -102,7 +104,7 @@ type sqlFilter interface {
 // URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
 // See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
 func NewMySQLDatastore(ctx context.Context, uri string, options ...Option) (datastore.Datastore, error) {
-	ds, err := newMySQLDatastore(ctx, uri, -1 /* primary */, options...)
+	ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +127,7 @@ func NewReadOnlyMySQLDatastore(
 }
 
 func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, options ...Option) (*Datastore, error) {
-	isPrimary := replicaIndex < 0
+	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -178,7 +180,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		}
 
 		dbName := "spicedb"
-		if replicaIndex >= 0 {
+		if replicaIndex != primaryInstanceID {
 			dbName = fmt.Sprintf("spicedb_replica_%d", replicaIndex)
 		}
 

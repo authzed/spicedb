@@ -430,20 +430,26 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 	return proxy.NewReplicatedDatastore(primary, replicas...)
 }
 
+func commonPostgresDatastoreOptions(opts Config) []postgres.Option {
+	return []postgres.Option{
+		postgres.EnableTracing(),
+		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		postgres.MaxRetries(uint8(opts.MaxRetries)),
+	}
+}
+
 func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 		postgres.ReadConnsMaxOpen(opts.ReadReplicaConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadReplicaConnPool.MinOpenConns),
 		postgres.ReadConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
-		postgres.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
+		postgres.ReadConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
 		postgres.ReadConnMaxLifetimeJitter(opts.ReadReplicaConnPool.MaxLifetimeJitter),
 		postgres.ReadConnHealthCheckInterval(opts.ReadReplicaConnPool.HealthCheckInterval),
-		postgres.EnableTracing(),
-		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		postgres.MaxRetries(uint8(opts.MaxRetries)),
-		postgres.MigrationPhase(opts.MigrationPhase),
 	}
+
+	pgOpts = append(pgOpts, commonPostgresDatastoreOptions(opts)...)
 	return postgres.NewReadOnlyPostgresDatastore(ctx, replicaURI, replicaIndex, pgOpts...)
 }
 
@@ -468,13 +474,12 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
-		postgres.EnableTracing(),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
 		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
-		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		postgres.MaxRetries(uint8(opts.MaxRetries)),
 		postgres.MigrationPhase(opts.MigrationPhase),
 	}
+
+	pgOpts = append(pgOpts, commonPostgresDatastoreOptions(opts)...)
 	return postgres.NewPostgresDatastore(ctx, opts.URI, pgOpts...)
 }
 

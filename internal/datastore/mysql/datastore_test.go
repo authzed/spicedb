@@ -48,7 +48,7 @@ type datastoreTester struct {
 func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
 	ctx := context.Background()
 	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
-		ds, err := newMySQLDatastore(ctx, uri, -1,
+		ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID,
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(gcInterval),
@@ -82,7 +82,7 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 	return func(t *testing.T) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := newMySQLDatastore(ctx, uri, -1, options...)
+			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
 			return ds
 		})
@@ -568,7 +568,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				ds, err := newMySQLDatastore(
 					ctx,
 					uri,
-					-1,
+					primaryInstanceID,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
