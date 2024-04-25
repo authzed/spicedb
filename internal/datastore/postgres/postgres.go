@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -122,7 +123,24 @@ func NewPostgresDatastore(
 	url string,
 	options ...Option,
 ) (datastore.Datastore, error) {
-	ds, err := newPostgresDatastore(ctx, url, options...)
+	ds, err := newPostgresDatastore(ctx, url, -1 /* is primary */, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+}
+
+// NewReadOnlyPostgresDatastore initializes a SpiceDB datastore that uses a PostgreSQL
+// database by leveraging manual book-keeping to implement revisioning. This version is
+// read only and does not allow for write transactions.
+func NewReadOnlyPostgresDatastore(
+	ctx context.Context,
+	url string,
+	index uint32,
+	options ...Option,
+) (datastore.ReadOnlyDatastore, error) {
+	ds, err := newPostgresDatastore(ctx, url, int(index), options...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +151,10 @@ func NewPostgresDatastore(
 func newPostgresDatastore(
 	ctx context.Context,
 	pgURL string,
+	replicaIndex int,
 	options ...Option,
 ) (datastore.Datastore, error) {
+	isPrimary := replicaIndex < 0
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
@@ -170,12 +190,15 @@ func newPostgresDatastore(
 		return nil
 	}
 
-	writePoolConfig := pgConfig.Copy()
-	config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	var writePoolConfig *pgxpool.Config
+	if isPrimary {
+		writePoolConfig = pgConfig.Copy()
+		config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
-	writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		RegisterTypes(conn.TypeMap())
-		return nil
+		writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			RegisterTypes(conn.TypeMap())
+			return nil
+		}
 	}
 
 	if credentialsProvider != nil {
@@ -185,7 +208,10 @@ func newPostgresDatastore(
 			return err
 		}
 		readPoolConfig.BeforeConnect = getToken
-		writePoolConfig.BeforeConnect = getToken
+
+		if isPrimary {
+			writePoolConfig.BeforeConnect = getToken
+		}
 	}
 
 	if config.migrationPhase != "" {
@@ -202,9 +228,14 @@ func newPostgresDatastore(
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
 
-	writePool, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
-	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+	var writePool *pgxpool.Pool
+
+	if isPrimary {
+		wp, err := pgxpool.NewWithConfig(initializationContext, writePoolConfig)
+		if err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+		}
+		writePool = wp
 	}
 
 	// Verify that the server supports commit timestamps
@@ -221,20 +252,29 @@ func newPostgresDatastore(
 	}
 
 	if config.enablePrometheusStats {
+		replicaIndexStr := strconv.Itoa(replicaIndex)
+		dbname := "spicedb"
+		if replicaIndex >= 0 {
+			dbname = fmt.Sprintf("spicedb_replica_%s", replicaIndexStr)
+		}
+
 		if err := prometheus.Register(pgxpoolprometheus.NewCollector(readPool, map[string]string{
-			"db_name":    "spicedb",
+			"db_name":    dbname,
 			"pool_usage": "read",
 		})); err != nil {
 			return nil, err
 		}
-		if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
-			"db_name":    "spicedb",
-			"pool_usage": "write",
-		})); err != nil {
-			return nil, err
-		}
-		if err := common.RegisterGCMetrics(); err != nil {
-			return nil, err
+
+		if isPrimary {
+			if err := prometheus.Register(pgxpoolprometheus.NewCollector(writePool, map[string]string{
+				"db_name":    "spicedb",
+				"pool_usage": "write",
+			})); err != nil {
+				return nil, err
+			}
+			if err := common.RegisterGCMetrics(); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -271,7 +311,7 @@ func newPostgresDatastore(
 		),
 		dburl:                   pgURL,
 		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
-		writePool:               pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor),
+		writePool:               nil, /* disabled by default */
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
@@ -288,22 +328,28 @@ func newPostgresDatastore(
 		credentialsProvider:     credentialsProvider,
 	}
 
+	if isPrimary {
+		datastore.writePool = pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor)
+	}
+
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
 
 	// Start a goroutine for garbage collection.
-	if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
-		datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
-		datastore.gcGroup.Go(func() error {
-			return common.StartGarbageCollector(
-				datastore.gcCtx,
-				datastore,
-				datastore.gcInterval,
-				datastore.gcWindow,
-				datastore.gcTimeout,
-			)
-		})
-	} else {
-		log.Warn().Msg("datastore background garbage collection disabled")
+	if isPrimary {
+		if datastore.gcInterval > 0*time.Minute && config.gcEnabled {
+			datastore.gcGroup, datastore.gcCtx = errgroup.WithContext(datastore.gcCtx)
+			datastore.gcGroup.Go(func() error {
+				return common.StartGarbageCollector(
+					datastore.gcCtx,
+					datastore,
+					datastore.gcInterval,
+					datastore.gcWindow,
+					datastore.gcTimeout,
+				)
+			})
+		} else {
+			log.Warn().Msg("datastore background garbage collection disabled")
+		}
 	}
 
 	return datastore, nil

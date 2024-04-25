@@ -23,6 +23,8 @@ import (
 
 type engineBuilderFunc func(ctx context.Context, options Config) (datastore.Datastore, error)
 
+const MaxReplicaCount = 16
+
 const (
 	MemoryEngine    = "memory"
 	PostgresEngine  = "postgres"
@@ -108,6 +110,11 @@ type Config struct {
 	EnableDatastoreMetrics bool           `debugmap:"visible"`
 	DisableStats           bool           `debugmap:"visible"`
 
+	// Read Replicas
+	ReadReplicaConnPool                ConnPoolConfig `debugmap:"visible"`
+	ReadReplicaURIs                    []string       `debugmap:"sensitive"`
+	ReadReplicaCredentialsProviderName string         `debugmap:"visible"`
+
 	// Bootstrap
 	BootstrapFiles        []string          `debugmap:"visible-format"`
 	BootstrapFileContents map[string][]byte `debugmap:"visible"`
@@ -170,11 +177,15 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
+	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\")")
+	flagSet.StringVar(&opts.ReadReplicaCredentialsProviderName, flagName("datastore-read-replica-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
+
 	var legacyConnPool ConnPoolConfig
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultReadConnPool(), &legacyConnPool)
 	deprecateUnifiedConnFlags(flagSet)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-read", &legacyConnPool, &opts.ReadConnPool)
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-read-replica-conn-pool", DefaultReadConnPool(), &opts.ReadReplicaConnPool)
 
 	normalizeFunc := flagSet.GetNormalizeFunc()
 	flagSet.SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
@@ -247,6 +258,8 @@ func DefaultDatastoreConfig() *Config {
 		MaxRevisionStalenessPercent:    .1, // 10%
 		ReadConnPool:                   *DefaultReadConnPool(),
 		WriteConnPool:                  *DefaultWriteConnPool(),
+		ReadReplicaConnPool:            *DefaultReadConnPool(),
+		ReadReplicaURIs:                []string{},
 		ReadOnly:                       false,
 		MaxRetries:                     10,
 		OverlapKey:                     "key",
@@ -361,6 +374,10 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 }
 
 func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the CockroachDB datastore engine")
+	}
+
 	return crdb.NewCRDBDatastore(
 		ctx,
 		opts.URI,
@@ -392,6 +409,45 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 }
 
 func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	primary, err := newPostgresPrimaryDatastore(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create primary datastore: %w", err)
+	}
+
+	if len(opts.ReadReplicaURIs) > MaxReplicaCount {
+		return nil, fmt.Errorf("too many read replicas, max is %d", MaxReplicaCount)
+	}
+
+	replicas := make([]datastore.ReadOnlyDatastore, 0, len(opts.ReadReplicaURIs))
+	for index, replicaURI := range opts.ReadReplicaURIs {
+		replica, err := newPostgresReplicaDatastore(ctx, uint32(index), replicaURI, opts)
+		if err != nil {
+			return nil, err
+		}
+		replicas = append(replicas, replica)
+	}
+
+	return proxy.NewReplicatedDatastore(primary, replicas...)
+}
+
+func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
+	pgOpts := []postgres.Option{
+		postgres.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
+		postgres.ReadConnsMaxOpen(opts.ReadReplicaConnPool.MaxOpenConns),
+		postgres.ReadConnsMinOpen(opts.ReadReplicaConnPool.MinOpenConns),
+		postgres.ReadConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
+		postgres.ReadConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
+		postgres.ReadConnMaxLifetimeJitter(opts.ReadReplicaConnPool.MaxLifetimeJitter),
+		postgres.ReadConnHealthCheckInterval(opts.ReadReplicaConnPool.HealthCheckInterval),
+		postgres.EnableTracing(),
+		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		postgres.MaxRetries(uint8(opts.MaxRetries)),
+		postgres.MigrationPhase(opts.MigrationPhase),
+	}
+	return postgres.NewReadOnlyPostgresDatastore(ctx, replicaURI, replicaIndex, pgOpts...)
+}
+
+func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.CredentialsProviderName(opts.CredentialsProviderName),
 		postgres.GCWindow(opts.GCWindow),
@@ -423,6 +479,10 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 }
 
 func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the Spanner datastore engine")
+	}
+
 	return spanner.NewSpannerDatastore(
 		ctx,
 		opts.URI,
@@ -444,6 +504,46 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 }
 
 func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	primary, err := newMySQLPrimaryDatastore(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(opts.ReadReplicaURIs) > MaxReplicaCount {
+		return nil, fmt.Errorf("too many read replicas, max is %d", MaxReplicaCount)
+	}
+
+	replicas := make([]datastore.ReadOnlyDatastore, 0, len(opts.ReadReplicaURIs))
+	for index, replicaURI := range opts.ReadReplicaURIs {
+		replica, err := newMySQLReplicaDatastore(ctx, uint32(index), replicaURI, opts)
+		if err != nil {
+			return nil, err
+		}
+		replicas = append(replicas, replica)
+	}
+
+	return proxy.NewReplicatedDatastore(primary, replicas...)
+}
+
+func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
+	mysqlOpts := []mysql.Option{
+		mysql.MaxOpenConns(opts.ReadReplicaConnPool.MaxOpenConns),
+		mysql.ConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
+		mysql.ConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
+		mysql.RevisionQuantization(opts.RevisionQuantization),
+		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
+		mysql.TablePrefix(opts.TablePrefix),
+		mysql.WatchBufferLength(opts.WatchBufferLength),
+		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		mysql.MaxRetries(uint8(opts.MaxRetries)),
+		mysql.OverrideLockWaitTimeout(1),
+		mysql.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
+	}
+	return mysql.NewReadOnlyMySQLDatastore(ctx, replicaURI, replicaIndex, mysqlOpts...)
+}
+
+func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	mysqlOpts := []mysql.Option{
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
@@ -467,6 +567,10 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 }
 
 func newMemoryDatstore(_ context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the in-memory datastore engine")
+	}
+
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
 }
