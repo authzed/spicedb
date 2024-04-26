@@ -45,4 +45,7 @@ jobs:
           HOMEBREW_TAP_GITHUB_TOKEN: "${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}"
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
           GEMFURY_PUSH_TOKEN: "${{ secrets.GEMFURY_PUSH_TOKEN }}"
+          CHOCOLATEY_API_KEY: "${{ secrets.CHOCOLATEY_API_KEY }}"
+      - name: "Release snap"
+        env:
           SNAPCRAFT_STORE_CREDENTIALS: "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}"
