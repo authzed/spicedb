@@ -1075,6 +1075,112 @@ var _ interface {
 	ErrorName() string
 } = OperationResultValidationError{}
 
+// Validate checks the field values on DeveloperWarning with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *DeveloperWarning) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeveloperWarning with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeveloperWarningMultiError, or nil if none found.
+func (m *DeveloperWarning) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeveloperWarning) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Message
+
+	// no validation rules for Line
+
+	// no validation rules for Column
+
+	if len(errors) > 0 {
+		return DeveloperWarningMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeveloperWarningMultiError is an error wrapping multiple validation errors
+// returned by DeveloperWarning.ValidateAll() if the designated constraints
+// aren't met.
+type DeveloperWarningMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeveloperWarningMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeveloperWarningMultiError) AllErrors() []error { return m }
+
+// DeveloperWarningValidationError is the validation error returned by
+// DeveloperWarning.Validate if the designated constraints aren't met.
+type DeveloperWarningValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeveloperWarningValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeveloperWarningValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeveloperWarningValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeveloperWarningValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeveloperWarningValidationError) ErrorName() string { return "DeveloperWarningValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DeveloperWarningValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeveloperWarning.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeveloperWarningValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeveloperWarningValidationError{}
+
 // Validate checks the field values on DeveloperError with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
