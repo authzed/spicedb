@@ -25,14 +25,18 @@ var allChecks = checkers{
 }
 
 func warningForMetadata(message string, metadata namespace.WithSourcePosition) *devinterface.DeveloperWarning {
-	if metadata.GetSourcePosition() == nil {
+	return warningForPosition(message, metadata.GetSourcePosition())
+}
+
+func warningForPosition(message string, sourcePosition *corev1.SourcePosition) *devinterface.DeveloperWarning {
+	if sourcePosition == nil {
 		return &devinterface.DeveloperWarning{
 			Message: message,
 		}
 	}
 
-	lineNumber := metadata.GetSourcePosition().ZeroIndexedLineNumber + 1
-	columnNumber := metadata.GetSourcePosition().ZeroIndexedColumnPosition + 1
+	lineNumber := sourcePosition.ZeroIndexedLineNumber + 1
+	columnNumber := sourcePosition.ZeroIndexedColumnPosition + 1
 
 	return &devinterface.DeveloperWarning{
 		Message: message,
@@ -96,8 +100,8 @@ func addDefinitionWarnings(ctx context.Context, def *corev1.NamespaceDefinition,
 
 type (
 	relationChecker        func(ctx context.Context, relation *corev1.Relation, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
-	computedUsersetChecker func(ctx context.Context, computedUserset *corev1.ComputedUserset, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
-	ttuChecker             func(ctx context.Context, ttu *corev1.TupleToUserset, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
+	computedUsersetChecker func(ctx context.Context, computedUserset *corev1.ComputedUserset, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
+	ttuChecker             func(ctx context.Context, ttu *corev1.TupleToUserset, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
 )
 
 type checkers struct {
@@ -135,7 +139,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 
 		case *corev1.SetOperation_Child_ComputedUserset:
 			for _, checker := range checkers.computedUsersetCheckers {
-				checkerWarning, err := checker(ctx, t.ComputedUserset, ts)
+				checkerWarning, err := checker(ctx, t.ComputedUserset, op.SourcePosition, ts)
 				if err != nil {
 					return nil, err
 				}
@@ -155,7 +159,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 
 		case *corev1.SetOperation_Child_TupleToUserset:
 			for _, checker := range checkers.ttuCheckers {
-				checkerWarning, err := checker(ctx, t.TupleToUserset, ts)
+				checkerWarning, err := checker(ctx, t.TupleToUserset, op.SourcePosition, ts)
 				if err != nil {
 					return nil, err
 				}

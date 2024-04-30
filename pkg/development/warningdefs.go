@@ -37,14 +37,15 @@ var lintRelationReferencesParentType = func(
 var lintPermissionReferencingItself = func(
 	ctx context.Context,
 	computedUserset *corev1.ComputedUserset,
+	sourcePosition *corev1.SourcePosition,
 	ts *typesystem.TypeSystem,
 ) (*devinterface.DeveloperWarning, error) {
 	parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 	permName := parentRelation.Name
 	if computedUserset.Relation == permName {
-		return warningForMetadata(
+		return warningForPosition(
 			fmt.Sprintf("Permission %q references itself, which will cause an error to be raised due to infinite recursion", permName),
-			parentRelation,
+			sourcePosition,
 		), nil
 	}
 
@@ -54,6 +55,7 @@ var lintPermissionReferencingItself = func(
 var lintArrowReferencingUnreachable = func(
 	ctx context.Context,
 	ttu *corev1.TupleToUserset,
+	sourcePosition *corev1.SourcePosition,
 	ts *typesystem.TypeSystem,
 ) (*devinterface.DeveloperWarning, error) {
 	parentRelation := ctx.Value(relationKey).(*corev1.Relation)
@@ -82,7 +84,7 @@ var lintArrowReferencingUnreachable = func(
 	}
 
 	if !wasFound {
-		return warningForMetadata(
+		return warningForPosition(
 			fmt.Sprintf(
 				"Arrow `%s->%s` under permission %q references relation/permission %q that does not exist on any subject types of relation %q",
 				ttu.Tupleset.Relation,
@@ -91,7 +93,7 @@ var lintArrowReferencingUnreachable = func(
 				ttu.ComputedUserset.Relation,
 				ttu.Tupleset.Relation,
 			),
-			parentRelation,
+			sourcePosition,
 		), nil
 	}
 
@@ -101,6 +103,7 @@ var lintArrowReferencingUnreachable = func(
 var lintArrowOverSubRelation = func(
 	ctx context.Context,
 	ttu *corev1.TupleToUserset,
+	sourcePosition *corev1.SourcePosition,
 	ts *typesystem.TypeSystem,
 ) (*devinterface.DeveloperWarning, error) {
 	parentRelation := ctx.Value(relationKey).(*corev1.Relation)
@@ -117,7 +120,7 @@ var lintArrowOverSubRelation = func(
 
 	for _, subjectType := range allowedSubjectTypes {
 		if subjectType.Relation != tuple.Ellipsis {
-			return warningForMetadata(
+			return warningForPosition(
 				fmt.Sprintf(
 					"Arrow `%s->%s` under permission %q references relation %q that has relation %q on subject %q: *the subject relation will be ignored for the arrow*",
 					ttu.Tupleset.Relation,
@@ -127,7 +130,7 @@ var lintArrowOverSubRelation = func(
 					subjectType.Relation,
 					subjectType.Namespace,
 				),
-				parentRelation,
+				sourcePosition,
 			), nil
 		}
 	}
@@ -138,6 +141,7 @@ var lintArrowOverSubRelation = func(
 var lintArrowReferencingRelation = func(
 	ctx context.Context,
 	ttu *corev1.TupleToUserset,
+	sourcePosition *corev1.SourcePosition,
 	ts *typesystem.TypeSystem,
 ) (*devinterface.DeveloperWarning, error) {
 	parentRelation := ctx.Value(relationKey).(*corev1.Relation)
@@ -166,7 +170,7 @@ var lintArrowReferencingRelation = func(
 		}
 
 		if !nts.IsPermission(targetRelation.Name) {
-			return warningForMetadata(
+			return warningForPosition(
 				fmt.Sprintf(
 					"Arrow `%s->%s` under permission %q references relation %q on definition %q; it is recommended to point to a permission",
 					ttu.Tupleset.Relation,
@@ -175,7 +179,7 @@ var lintArrowReferencingRelation = func(
 					targetRelation.Name,
 					subjectType.Namespace,
 				),
-				parentRelation,
+				sourcePosition,
 			), nil
 		}
 	}
