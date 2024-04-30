@@ -51,7 +51,7 @@ func TestDocumentNoDiagnostics(t *testing.T) {
 	require.Len(t, resp.Items, 0)
 }
 
-func TestDocumentDiagnostics(t *testing.T) {
+func TestDocumentErrorDiagnostics(t *testing.T) {
 	tester := newLSPTester(t)
 	tester.initialize()
 
@@ -78,6 +78,33 @@ func TestDocumentDiagnostics(t *testing.T) {
 		})
 	require.Equal(t, "full", resp.Kind)
 	require.Len(t, resp.Items, 0)
+}
+
+func TestDocumentWarningDiagnostics(t *testing.T) {
+	tester := newLSPTester(t)
+	tester.initialize()
+
+	tester.setFileContents("file:///test", `
+		definition user {}
+
+		definition resource {
+			relation viewer: user
+			permission view_resource = viewer
+		}
+	`)
+
+	resp, _ := sendAndReceive[FullDocumentDiagnosticReport](tester, "textDocument/diagnostic",
+		TextDocumentDiagnosticParams{
+			TextDocument: TextDocument{URI: "file:///test"},
+		})
+	require.Equal(t, "full", resp.Kind)
+	require.Len(t, resp.Items, 1)
+	require.Equal(t, lsp.DiagnosticSeverity(lsp.Warning), resp.Items[0].Severity)
+	require.Equal(t, `Permission "view_resource" references parent type "resource" in its name; it is recommended to drop the suffix`, resp.Items[0].Message)
+	require.Equal(t, lsp.Range{
+		Start: lsp.Position{Line: 5, Character: 3},
+		End:   lsp.Position{Line: 5, Character: 3},
+	}, resp.Items[0].Range)
 }
 
 func TestDocumentDiagnosticsForTypeError(t *testing.T) {
