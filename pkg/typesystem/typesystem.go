@@ -381,7 +381,7 @@ func (nts *TypeSystem) computeReferencesWildcardType(ctx context.Context, relati
 				continue
 			}
 
-			subjectTS, err := nts.typeSystemForNamespace(ctx, allowedRelation.GetNamespace())
+			subjectTS, err := nts.TypeSystemForNamespace(ctx, allowedRelation.GetNamespace())
 			if err != nil {
 				return nil, asTypeError(err)
 			}
@@ -535,7 +535,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 					}
 				}
 			} else {
-				subjectTS, err := nts.typeSystemForNamespace(ctx, allowedRelation.GetNamespace())
+				subjectTS, err := nts.TypeSystemForNamespace(ctx, allowedRelation.GetNamespace())
 				if err != nil {
 					return nil, NewTypeErrorWithSource(
 						fmt.Errorf("could not lookup definition `%s` for relation `%s`: %w", allowedRelation.GetNamespace(), relation.Name, err),
@@ -615,7 +615,8 @@ func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
 	return allowedRelation.Namespace + caveatStr
 }
 
-func (nts *TypeSystem) typeSystemForNamespace(ctx context.Context, namespaceName string) (*TypeSystem, error) {
+// TypeSystemForNamespace returns a type system for the given namespace.
+func (nts *TypeSystem) TypeSystemForNamespace(ctx context.Context, namespaceName string) (*TypeSystem, error) {
 	if nts.nsDef.Name == namespaceName {
 		return nts, nil
 	}

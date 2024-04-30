@@ -135,7 +135,7 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 				// right side of the arrow.
 
 				// Check if the relation does exist on the allowed type, and only add the entrypoint if present.
-				relTypeSystem, err := ts.typeSystemForNamespace(ctx, allowedRelationType.Namespace)
+				relTypeSystem, err := ts.TypeSystemForNamespace(ctx, allowedRelationType.Namespace)
 				if err != nil {
 					return err
 				}
