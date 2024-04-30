@@ -38,7 +38,7 @@ func TestWarnings(t *testing.T) {
 			expectedWarning: &developerv1.DeveloperWarning{
 				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion",
 				Line:    2,
-				Column:  5,
+				Column:  23,
 			},
 		},
 		{
@@ -51,7 +51,7 @@ func TestWarnings(t *testing.T) {
 			expectedWarning: &developerv1.DeveloperWarning{
 				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion",
 				Line:    4,
-				Column:  5,
+				Column:  42,
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func TestWarnings(t *testing.T) {
 			expectedWarning: &developerv1.DeveloperWarning{
 				Message: "Arrow `group->member` under permission \"view\" references relation \"member\" on definition \"group\"; it is recommended to point to a permission",
 				Line:    9,
-				Column:  5,
+				Column:  23,
 			},
 		},
 		{
@@ -88,7 +88,7 @@ func TestWarnings(t *testing.T) {
 			expectedWarning: &developerv1.DeveloperWarning{
 				Message: "Arrow `group->member` under permission \"view\" references relation/permission \"member\" that does not exist on any subject types of relation \"group\"",
 				Line:    8,
-				Column:  5,
+				Column:  23,
 			},
 		},
 		{
@@ -108,7 +108,7 @@ func TestWarnings(t *testing.T) {
 			expectedWarning: &developerv1.DeveloperWarning{
 				Message: "Arrow `parent_group->member` under permission \"view\" references relation \"parent_group\" that has relation \"member\" on subject \"group\": *the subject relation will be ignored for the arrow*",
 				Line:    10,
-				Column:  5,
+				Column:  23,
 			},
 		},
 		{
