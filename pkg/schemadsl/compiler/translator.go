@@ -150,12 +150,12 @@ func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core
 		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
 	}
 
-	source, err := caveats.NewSource(expressionString, rnge.Start(), caveatPath)
+	source, err := caveats.NewSource(expressionString, caveatPath)
 	if err != nil {
 		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
 	}
 
-	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source)
+	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source, rnge.Start())
 	if err != nil {
 		return nil, expressionStringNode.ErrorWithSourcef(expressionString, "invalid expression for caveat `%s`: %w", definitionName, err)
 	}

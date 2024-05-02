@@ -62,6 +62,18 @@ message OperationResult {
   FormatSchemaResult format_schema_result = 4;
 }
 
+// DeveloperWarning represents a single warning raised by the development package.
+message DeveloperWarning {
+  // message is the message for the developer warning.
+  string message = 1;
+
+  // line is the 1-indexed line for the developer warning.
+  uint32 line = 2;
+
+  // column is the 1-indexed column on the line for the developer warning.
+  uint32 column = 3;
+}
+
 // DeveloperError represents a single error raised by the development package. Unlike an internal
 // error, it represents an issue with the entered information by the calling developer.
 message DeveloperError {

@@ -41,7 +41,11 @@ func ValidateCaveatDefinition(caveat *core.CaveatDefinition) error {
 		)
 	}
 
-	referencedNames := deserialized.ReferencedParameters(maps.Keys(caveat.ParameterTypes))
+	referencedNames, err := deserialized.ReferencedParameters(maps.Keys(caveat.ParameterTypes))
+	if err != nil {
+		return err
+	}
+
 	for paramName, paramType := range caveat.ParameterTypes {
 		_, err := caveattypes.DecodeParameterType(paramType)
 		if err != nil {
