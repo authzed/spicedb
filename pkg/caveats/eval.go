@@ -8,7 +8,6 @@ import (
 	"github.com/authzed/cel-go/cel"
 	"github.com/authzed/cel-go/common/types"
 	"github.com/authzed/cel-go/common/types/ref"
-	"github.com/authzed/cel-go/interpreter"
 )
 
 // EvaluationConfig is configuration given to an EvaluateCaveatWithConfig call.
@@ -47,8 +46,12 @@ func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 		return nil, fmt.Errorf("result is fully evaluated")
 	}
 
-	expr := interpreter.PruneAst(cr.parentCaveat.ast.Expr(), cr.parentCaveat.ast.SourceInfo().GetMacroCalls(), cr.details.State())
-	return &CompiledCaveat{cr.parentCaveat.celEnv, cel.ParsedExprToAst(expr), cr.parentCaveat.name}, nil
+	ast, err := cr.parentCaveat.celEnv.ResidualAst(cr.parentCaveat.ast, cr.details)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CompiledCaveat{cr.parentCaveat.celEnv, ast, cr.parentCaveat.name}, nil
 }
 
 // ContextValues returns the context values used when computing this result.
