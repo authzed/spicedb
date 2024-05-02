@@ -78,7 +78,7 @@ func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 
 	// EnableMacroCallTracking: enables tracking of call macros so when we call AstToString we get
 	// back out the expected expressions.
-	// See: https://github.com/google/cel-go/issues/474
+	// See: https://github.com/authzed/cel-go/issues/474
 	opts = append(opts, cel.EnableMacroCallTracking())
 
 	// ParserExpressionSizeLimit: disable the size limit for codepoints in expressions.
