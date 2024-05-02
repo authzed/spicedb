@@ -772,3 +772,211 @@ func TestExperimentalSchemaDiff(t *testing.T) {
 		})
 	}
 }
+
+func TestExperimentalReflectSchema(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	expClient := v1.NewExperimentalServiceClient(conn)
+	schemaClient := v1.NewSchemaServiceClient(conn)
+	defer cleanup()
+
+	testCases := []struct {
+		name             string
+		schema           string
+		expectedResponse *v1.ExperimentalReflectSchemaResponse
+	}{
+		{
+			name:   "simple schema",
+			schema: `definition user {}`,
+			expectedResponse: &v1.ExperimentalReflectSchemaResponse{
+				Definitions: []*v1.ExpDefinition{
+					{
+						Name:    "user",
+						Comment: "",
+					},
+				},
+			},
+		},
+		{
+			name: "schema with comment",
+			schema: `// this is a user
+definition user {}`,
+			expectedResponse: &v1.ExperimentalReflectSchemaResponse{
+				Definitions: []*v1.ExpDefinition{
+					{
+						Name:    "user",
+						Comment: "// this is a user",
+					},
+				},
+			},
+		},
+		{
+			name: "full schema",
+			schema: `
+				/** user represents a user */
+				definition user {}
+
+				/** group represents a group */
+				definition group {
+					relation direct_member: user | group#member
+					relation admin: user
+					permission member = direct_member + admin
+				}
+
+				caveat somecaveat(first int, second string) {
+					first == 1 && second == "two"
+				}
+
+				/** document is a protected document */
+				definition document {
+					// editor is a relation
+					relation editor: user | group#member
+					relation viewer: user | user with somecaveat | group#member
+
+					// read all the things
+					permission read = viewer + editor
+				}
+			`,
+			expectedResponse: &v1.ExperimentalReflectSchemaResponse{
+				Definitions: []*v1.ExpDefinition{
+					{
+						Name:    "document",
+						Comment: "/** document is a protected document */",
+						Relations: []*v1.ExpRelation{
+							{
+								Name:                 "editor",
+								Comment:              "// editor is a relation",
+								ParentDefinitionName: "document",
+								SubjectTypes: []*v1.ExpTypeReference{
+									{
+										SubjectDefinitionName: "user",
+										Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
+									},
+									{
+										SubjectDefinitionName: "group",
+										Typeref: &v1.ExpTypeReference_OptionalRelationName{
+											OptionalRelationName: "member",
+										},
+									},
+								},
+							},
+							{
+								Name:                 "viewer",
+								Comment:              "",
+								ParentDefinitionName: "document",
+								SubjectTypes: []*v1.ExpTypeReference{
+									{
+										SubjectDefinitionName: "user",
+										Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
+									},
+									{
+										SubjectDefinitionName: "user",
+										OptionalCaveatName:    "somecaveat",
+										Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
+									},
+									{
+										SubjectDefinitionName: "group",
+										Typeref: &v1.ExpTypeReference_OptionalRelationName{
+											OptionalRelationName: "member",
+										},
+									},
+								},
+							},
+						},
+						Permissions: []*v1.ExpPermission{
+							{
+								Name:                 "read",
+								Comment:              "// read all the things",
+								ParentDefinitionName: "document",
+							},
+						},
+					},
+					{
+						Name:    "group",
+						Comment: "/** group represents a group */",
+						Relations: []*v1.ExpRelation{
+							{
+								Name:                 "direct_member",
+								Comment:              "",
+								ParentDefinitionName: "group",
+								SubjectTypes: []*v1.ExpTypeReference{
+									{
+										SubjectDefinitionName: "user",
+										Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
+									},
+									{
+										SubjectDefinitionName: "group",
+										Typeref:               &v1.ExpTypeReference_OptionalRelationName{OptionalRelationName: "member"},
+									},
+								},
+							},
+							{
+								Name:                 "admin",
+								Comment:              "",
+								ParentDefinitionName: "group",
+								SubjectTypes: []*v1.ExpTypeReference{
+									{
+										SubjectDefinitionName: "user",
+										Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
+									},
+								},
+							},
+						},
+						Permissions: []*v1.ExpPermission{
+							{
+								Name:                 "member",
+								Comment:              "",
+								ParentDefinitionName: "group",
+							},
+						},
+					},
+					{
+						Name:    "user",
+						Comment: "/** user represents a user */",
+					},
+				},
+				Caveats: []*v1.ExpCaveat{
+					{
+						Name:       "somecaveat",
+						Comment:    "",
+						Expression: "first == 1 && second == \"two\"",
+						Parameters: []*v1.ExpCaveatParameter{
+							{
+								Name:             "first",
+								Type:             "int",
+								ParentCaveatName: "somecaveat",
+							},
+							{
+								Name:             "second",
+								Type:             "string",
+								ParentCaveatName: "somecaveat",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Write the schema.
+			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: tt.schema,
+			})
+			require.NoError(t, err)
+
+			actual, err := expClient.ExperimentalReflectSchema(context.Background(), &v1.ExperimentalReflectSchemaRequest{
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+				},
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, actual.ReadAt)
+			actual.ReadAt = nil
+
+			testutil.RequireProtoEqual(t, tt.expectedResponse, actual, "mismatch in response")
+		})
+	}
+}

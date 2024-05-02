@@ -2,9 +2,11 @@ package v1
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -32,7 +34,7 @@ func convertDiff(
 
 	// Add/remove namespaces.
 	for _, ns := range diff.AddedNamespaces {
-		nsDef, err := namespaceAPIRepr(ns, comparisonSchema)
+		nsDef, err := namespaceAPIReprForName(ns, comparisonSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +47,7 @@ func convertDiff(
 	}
 
 	for _, ns := range diff.RemovedNamespaces {
-		nsDef, err := namespaceAPIRepr(ns, existingSchema)
+		nsDef, err := namespaceAPIReprForName(ns, existingSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -59,7 +61,7 @@ func convertDiff(
 
 	// Add/remove caveats.
 	for _, caveat := range diff.AddedCaveats {
-		caveatDef, err := caveatAPIRepr(caveat, comparisonSchema)
+		caveatDef, err := caveatAPIReprForName(caveat, comparisonSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +74,7 @@ func convertDiff(
 	}
 
 	for _, caveat := range diff.RemovedCaveats {
-		caveatDef, err := caveatAPIRepr(caveat, existingSchema)
+		caveatDef, err := caveatAPIReprForName(caveat, existingSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +179,7 @@ func convertDiff(
 				return nil, spiceerrors.MustBugf("legacy relation implementation changes are not supported")
 
 			case nsdiff.NamespaceCommentsChanged:
-				def, err := namespaceAPIRepr(nsName, comparisonSchema)
+				def, err := namespaceAPIReprForName(nsName, comparisonSchema)
 				if err != nil {
 					return nil, err
 				}
@@ -279,7 +281,7 @@ func convertDiff(
 		for _, delta := range caveatDiff.Deltas() {
 			switch delta.Type {
 			case caveatdiff.CaveatCommentsChanged:
-				caveat, err := caveatAPIRepr(caveatName, comparisonSchema)
+				caveat, err := caveatAPIReprForName(caveatName, comparisonSchema)
 				if err != nil {
 					return nil, err
 				}
@@ -335,7 +337,7 @@ func convertDiff(
 				})
 
 			case caveatdiff.CaveatExpressionChanged:
-				caveat, err := caveatAPIRepr(caveatName, comparisonSchema)
+				caveat, err := caveatAPIReprForName(caveatName, comparisonSchema)
 				if err != nil {
 					return nil, err
 				}
@@ -364,13 +366,17 @@ func convertDiff(
 	}, nil
 }
 
-// namespaceAPIRepr builds an API representation of a namespace.
-func namespaceAPIRepr(namespaceName string, schema *diff.DiffableSchema) (*v1.ExpDefinition, error) {
+// namespaceAPIReprForName builds an API representation of a namespace.
+func namespaceAPIReprForName(namespaceName string, schema *diff.DiffableSchema) (*v1.ExpDefinition, error) {
 	nsDef, ok := schema.GetNamespace(namespaceName)
 	if !ok {
 		return nil, fmt.Errorf("namespace %q not found in schema", namespaceName)
 	}
 
+	return namespaceAPIRepr(nsDef)
+}
+
+func namespaceAPIRepr(nsDef *core.NamespaceDefinition) (*v1.ExpDefinition, error) {
 	relations := make([]*v1.ExpRelation, 0, len(nsDef.Relation))
 	permissions := make([]*v1.ExpPermission, 0, len(nsDef.Relation))
 
@@ -395,7 +401,7 @@ func namespaceAPIRepr(namespaceName string, schema *diff.DiffableSchema) (*v1.Ex
 
 	comments := namespace.GetComments(nsDef.Metadata)
 	return &v1.ExpDefinition{
-		Name:        namespaceName,
+		Name:        nsDef.Name,
 		Comment:     strings.Join(comments, "\n"),
 		Relations:   relations,
 		Permissions: permissions,
@@ -455,15 +461,28 @@ func typeAPIRepr(subjectType *core.AllowedRelation) *v1.ExpTypeReference {
 	return typeref
 }
 
-// caveatAPIRepr builds an API representation of a caveat.
-func caveatAPIRepr(caveatName string, schema *diff.DiffableSchema) (*v1.ExpCaveat, error) {
+// caveatAPIReprForName builds an API representation of a caveat.
+func caveatAPIReprForName(caveatName string, schema *diff.DiffableSchema) (*v1.ExpCaveat, error) {
 	caveatDef, ok := schema.GetCaveat(caveatName)
 	if !ok {
 		return nil, fmt.Errorf("caveat %q not found in schema", caveatName)
 	}
 
+	return caveatAPIRepr(caveatDef)
+}
+
+// caveatAPIRepr builds an API representation of a caveat.
+func caveatAPIRepr(caveatDef *core.CaveatDefinition) (*v1.ExpCaveat, error) {
 	parameters := make([]*v1.ExpCaveatParameter, 0, len(caveatDef.ParameterTypes))
-	for paramName, paramType := range caveatDef.ParameterTypes {
+	paramNames := maps.Keys(caveatDef.ParameterTypes)
+	sort.Strings(paramNames)
+
+	for _, paramName := range paramNames {
+		paramType, ok := caveatDef.ParameterTypes[paramName]
+		if !ok {
+			return nil, fmt.Errorf("parameter %q not found in caveat %q", paramName, caveatDef.Name)
+		}
+
 		decoded, err := caveattypes.DecodeParameterType(paramType)
 		if err != nil {
 			return nil, fmt.Errorf("invalid parameter type on caveat: %w", err)
@@ -472,7 +491,7 @@ func caveatAPIRepr(caveatName string, schema *diff.DiffableSchema) (*v1.ExpCavea
 		parameters = append(parameters, &v1.ExpCaveatParameter{
 			Name:             paramName,
 			Type:             decoded.String(),
-			ParentCaveatName: caveatName,
+			ParentCaveatName: caveatDef.Name,
 		})
 	}
 
@@ -493,7 +512,7 @@ func caveatAPIRepr(caveatName string, schema *diff.DiffableSchema) (*v1.ExpCavea
 
 	comments := namespace.GetComments(caveatDef.Metadata)
 	return &v1.ExpCaveat{
-		Name:       caveatName,
+		Name:       caveatDef.Name,
 		Comment:    strings.Join(comments, "\n"),
 		Parameters: parameters,
 		Expression: exprString,
