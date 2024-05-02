@@ -430,6 +430,25 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	return toBulkCheckPermissionResponse(res), nil
 }
 
+func (es *experimentalServer) ExperimentalSchemaDiff(ctx context.Context, req *v1.ExperimentalSchemaDiffRequest) (*v1.ExperimentalSchemaDiffResponse, error) {
+	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema)
+	if err != nil {
+		return nil, es.rewriteError(ctx, err)
+	}
+
+	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	if err != nil {
+		return nil, es.rewriteError(ctx, err)
+	}
+
+	return resp, nil
+}
+
 func queryForEach(
 	ctx context.Context,
 	reader datastore.Reader,

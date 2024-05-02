@@ -681,3 +681,94 @@ func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 	}
 	return item
 }
+
+func TestExperimentalSchemaDiff(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	expClient := v1.NewExperimentalServiceClient(conn)
+	schemaClient := v1.NewSchemaServiceClient(conn)
+	defer cleanup()
+
+	testCases := []struct {
+		name             string
+		existingSchema   string
+		comparisonSchema string
+		expectedError    string
+		expectedResponse *v1.ExperimentalSchemaDiffResponse
+	}{
+		{
+			name:             "no changes",
+			existingSchema:   `definition user {}`,
+			comparisonSchema: `definition user {}`,
+			expectedResponse: &v1.ExperimentalSchemaDiffResponse{},
+		},
+		{
+			name:             "addition from existing schema",
+			existingSchema:   `definition user {}`,
+			comparisonSchema: `definition user {} definition document {}`,
+			expectedResponse: &v1.ExperimentalSchemaDiffResponse{
+				Diffs: []*v1.ExpSchemaDiff{
+					{
+						Diff: &v1.ExpSchemaDiff_DefinitionAdded{
+							DefinitionAdded: &v1.ExpDefinition{
+								Name:    "document",
+								Comment: "",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:             "removal from existing schema",
+			existingSchema:   `definition user {} definition document {}`,
+			comparisonSchema: `definition user {}`,
+			expectedResponse: &v1.ExperimentalSchemaDiffResponse{
+				Diffs: []*v1.ExpSchemaDiff{
+					{
+						Diff: &v1.ExpSchemaDiff_DefinitionRemoved{
+							DefinitionRemoved: &v1.ExpDefinition{
+								Name:    "document",
+								Comment: "",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:             "invalid comparison schema",
+			existingSchema:   `definition user {}`,
+			comparisonSchema: `definition user { invalid`,
+			expectedError:    "Expected end of statement or definition, found: TokenTypeIdentifier",
+		},
+	}
+
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Write the existing schema.
+			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: tt.existingSchema,
+			})
+			require.NoError(t, err)
+
+			actual, err := expClient.ExperimentalSchemaDiff(context.Background(), &v1.ExperimentalSchemaDiffRequest{
+				ComparisonSchema: tt.comparisonSchema,
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+				},
+			})
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, actual.ReadAt)
+				actual.ReadAt = nil
+
+				testutil.RequireProtoEqual(t, tt.expectedResponse, actual, "mismatch in response")
+			}
+		})
+	}
+}

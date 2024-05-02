@@ -3,11 +3,12 @@ package diff
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/authzed/spicedb/pkg/diff/caveats"
 	"github.com/authzed/spicedb/pkg/diff/namespace"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDiffSchemas(t *testing.T) {

@@ -8,7 +8,7 @@ require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v0.11.2-0.20240418174337-42f221719227
+	github.com/authzed/authzed-go v0.11.2-0.20240501223711-10d4e60e2a07
 
 	// NOTE: We are using a *copy* of `cel-go` here to ensure there isn't a conflict
 	// with the version used in Kubernetes. This is a temporary measure until we can
