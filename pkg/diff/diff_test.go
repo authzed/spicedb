@@ -1,6 +1,7 @@
 package diff
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -173,4 +174,85 @@ func TestDiffSchemasWithChangedCaveatComment(t *testing.T) {
 	require.Contains(t, diff.ChangedCaveats, "someCaveat")
 	require.Len(t, diff.ChangedCaveats["someCaveat"].Deltas(), 1)
 	require.Equal(t, caveats.CaveatCommentsChanged, diff.ChangedCaveats["someCaveat"].Deltas()[0].Type)
+}
+
+type checker func(*testing.T, *DiffableSchema)
+
+func TestDiffableSchema(t *testing.T) {
+	tcs := []struct {
+		name     string
+		schema   string
+		checkers []checker
+	}{
+		{
+			name: "basic schema",
+			schema: `
+			definition user {}
+
+			caveat someCaveat(someparam int) { someparam < 42 }
+
+			definition resource {
+				relation owner: user
+				relation viewer: user
+				permission view = owner + viewer
+			}
+			`,
+			checkers: []checker{
+				func(t *testing.T, ds *DiffableSchema) {
+					ns, ok := ds.GetNamespace("user")
+					require.True(t, ok)
+					require.Equal(t, "user", ns.Name)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					ns, ok := ds.GetNamespace("resource")
+					require.True(t, ok)
+					require.Equal(t, "resource", ns.Name)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					caveat, ok := ds.GetCaveat("someCaveat")
+					require.True(t, ok)
+					require.Equal(t, "someCaveat", caveat.Name)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					_, ok := ds.GetRelation("user", "owner")
+					require.False(t, ok)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					_, ok := ds.GetRelation("resource", "owner")
+					require.True(t, ok)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					_, ok := ds.GetRelation("resource", "viewer")
+					require.True(t, ok)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					_, ok := ds.GetNamespace("nonexistent")
+					require.False(t, ok)
+				},
+				func(t *testing.T, ds *DiffableSchema) {
+					_, ok := ds.GetCaveat("nonexistent")
+					require.False(t, ok)
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			schema, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: tc.schema,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(t, err)
+
+			diffableSchema := NewDiffableSchemaFromCompiledSchema(schema)
+			for index, check := range tc.checkers {
+				check := check
+				t.Run(fmt.Sprintf("check-%d", index), func(t *testing.T) {
+					check(t, &diffableSchema)
+				})
+			}
+		})
+	}
 }

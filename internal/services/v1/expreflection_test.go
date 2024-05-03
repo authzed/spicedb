@@ -22,13 +22,13 @@ func TestConvertDiff(t *testing.T) {
 		name             string
 		existingSchema   string
 		comparisonSchema string
-		expectedResponse *v1.ExperimentalSchemaDiffResponse
+		expectedResponse *v1.ExperimentalDiffSchemaResponse
 	}{
 		{
 			"no diff",
 			`definition user {}`,
 			`definition user {}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{},
 			},
 		},
@@ -36,7 +36,7 @@ func TestConvertDiff(t *testing.T) {
 			"add namespace",
 			``,
 			`definition user {}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_DefinitionAdded{
@@ -53,7 +53,7 @@ func TestConvertDiff(t *testing.T) {
 			"remove namespace",
 			`definition user {}`,
 			``,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_DefinitionRemoved{
@@ -71,7 +71,7 @@ func TestConvertDiff(t *testing.T) {
 			`definition user {}`,
 			`// user has a comment
 			definition user {}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_DefinitionDocCommentChanged{
@@ -88,7 +88,7 @@ func TestConvertDiff(t *testing.T) {
 			"add caveat",
 			``,
 			`caveat someCaveat(someparam int) { someparam < 42 }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatAdded{
@@ -113,7 +113,7 @@ func TestConvertDiff(t *testing.T) {
 			"remove caveat",
 			`caveat someCaveat(someparam int) { someparam < 42 }`,
 			``,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatRemoved{
@@ -140,7 +140,7 @@ func TestConvertDiff(t *testing.T) {
 			caveat someCaveat(someparam int) { someparam < 42 }`,
 			`// someCaveat has b comment
 			caveat someCaveat(someparam int) { someparam < 42 }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatDocCommentChanged{
@@ -165,7 +165,7 @@ func TestConvertDiff(t *testing.T) {
 			"added relation",
 			`definition user {}`,
 			`definition user { relation somerel: user; }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_RelationAdded{
@@ -189,7 +189,7 @@ func TestConvertDiff(t *testing.T) {
 			"removed relation",
 			`definition user { relation somerel: user; }`,
 			`definition user {}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_RelationRemoved{
@@ -227,7 +227,7 @@ func TestConvertDiff(t *testing.T) {
 			   relation viewer: user | anon
 			}
 		   `,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_RelationSubjectTypeAdded{
@@ -275,7 +275,7 @@ func TestConvertDiff(t *testing.T) {
 			   relation viewer: user
 			}
 		   `,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_RelationSubjectTypeRemoved{
@@ -314,7 +314,7 @@ func TestConvertDiff(t *testing.T) {
 				// viewer has a comment
 				relation viewer: user
 			}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_RelationDocCommentChanged{
@@ -346,7 +346,7 @@ func TestConvertDiff(t *testing.T) {
 			definition resource {
 				permission foo = nil
 			}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_PermissionAdded{
@@ -371,7 +371,7 @@ func TestConvertDiff(t *testing.T) {
 
 			definition resource {
 			}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_PermissionRemoved{
@@ -399,7 +399,7 @@ func TestConvertDiff(t *testing.T) {
 				// foo has a new comment
 				permission foo = nil
 			}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_PermissionDocCommentChanged{
@@ -421,7 +421,7 @@ func TestConvertDiff(t *testing.T) {
 			`definition resource {
 				permission foo = foo
 			}`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_PermissionExprChanged{
@@ -439,7 +439,7 @@ func TestConvertDiff(t *testing.T) {
 			"caveat parameter added",
 			`caveat someCaveat(someparam int) { someparam < 42 }`,
 			`caveat someCaveat(someparam int, someparam2 string) { someparam < 42 }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatParameterAdded{
@@ -457,7 +457,7 @@ func TestConvertDiff(t *testing.T) {
 			"caveat parameter removed",
 			`caveat someCaveat(someparam int, someparam2 string) { someparam < 42 }`,
 			`caveat someCaveat(someparam int) { someparam < 42 }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatParameterRemoved{
@@ -475,7 +475,7 @@ func TestConvertDiff(t *testing.T) {
 			"caveat parameter type changed",
 			`caveat someCaveat(someparam int) { someparam < 42 }`,
 			`caveat someCaveat(someparam uint) { someparam < 42 }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatParameterTypeChanged{
@@ -496,7 +496,7 @@ func TestConvertDiff(t *testing.T) {
 			"caveat expression changes",
 			`caveat someCaveat(someparam int) { someparam < 42 }`,
 			`caveat someCaveat(someparam int) { someparam < 43 }`,
-			&v1.ExperimentalSchemaDiffResponse{
+			&v1.ExperimentalDiffSchemaResponse{
 				Diffs: []*v1.ExpSchemaDiff{
 					{
 						Diff: &v1.ExpSchemaDiff_CaveatExprChanged{
@@ -575,5 +575,323 @@ func TestConvertDiff(t *testing.T) {
 		}
 
 		require.Empty(t, allDiffTypes.Subtract(encounteredDiffTypes).AsSlice())
+	}
+}
+
+type filterCheck func(sf *schemaFilters) bool
+
+func TestSchemaFiltering(t *testing.T) {
+	tcs := []struct {
+		name     string
+		filters  []*v1.ExpSchemaFilter
+		checkers []filterCheck
+	}{
+		{
+			"no filters",
+			[]*v1.ExpSchemaFilter{},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("foo") },
+				func(sf *schemaFilters) bool { return sf.HasCaveat("foo") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
+			},
+		},
+		{
+			"namespace filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return !sf.HasNamespace("foo") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
+			},
+		},
+		{
+			"caveat filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalCaveatNameFilter: "somec",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return !sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat") },
+				func(sf *schemaFilters) bool { return !sf.HasCaveat("foo") },
+			},
+		},
+		{
+			"multiple namespace filters",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+				},
+				{
+					OptionalDefinitionNameFilter: "user",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("user") },
+				func(sf *schemaFilters) bool { return !sf.HasNamespace("foo") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("user", "viewer") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("user", "view") },
+			},
+		},
+		{
+			"multiple caveat filters",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalCaveatNameFilter: "somec",
+				},
+				{
+					OptionalCaveatNameFilter: "somec2",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return !sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat") },
+				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat2") },
+				func(sf *schemaFilters) bool { return !sf.HasCaveat("foo") },
+			},
+		},
+		{
+			"namespace and caveat filters",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+				},
+				{
+					OptionalCaveatNameFilter: "somec",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat") },
+				func(sf *schemaFilters) bool { return !sf.HasNamespace("foo") },
+				func(sf *schemaFilters) bool { return !sf.HasCaveat("foo") },
+			},
+		},
+		{
+			"relation filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalRelationNameFilter:   "v",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *schemaFilters) bool { return !sf.HasRelation("document", "foo") },
+			},
+		},
+		{
+			"permission filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalPermissionNameFilter: "v",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
+				func(sf *schemaFilters) bool { return !sf.HasPermission("document", "foo") },
+			},
+		},
+		{
+			"permission and relation filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalPermissionNameFilter: "r",
+				},
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalRelationNameFilter:   "v",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("document", "read") },
+				func(sf *schemaFilters) bool { return !sf.HasRelation("document", "foo") },
+				func(sf *schemaFilters) bool { return !sf.HasPermission("document", "foo") },
+			},
+		},
+		{
+			"permission and relation filter over different definitions",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalPermissionNameFilter: "r",
+				},
+				{
+					OptionalDefinitionNameFilter: "user",
+					OptionalRelationNameFilter:   "v",
+				},
+			},
+			[]filterCheck{
+				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *schemaFilters) bool { return sf.HasNamespace("user") },
+				func(sf *schemaFilters) bool { return sf.HasRelation("user", "viewer") },
+				func(sf *schemaFilters) bool { return sf.HasPermission("document", "read") },
+				func(sf *schemaFilters) bool { return !sf.HasRelation("document", "viewer") },
+				func(sf *schemaFilters) bool { return !sf.HasPermission("user", "read") },
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			sf, err := newSchemaFilters(tc.filters)
+			require.NoError(t, err)
+
+			for index, check := range tc.checkers {
+				require.True(t, check(sf), "check failed: #%d", index)
+			}
+		})
+	}
+}
+
+func TestNewSchemaFilters(t *testing.T) {
+	tcs := []struct {
+		name    string
+		filters []*v1.ExpSchemaFilter
+		err     string
+	}{
+		{
+			"no filters",
+			[]*v1.ExpSchemaFilter{},
+			"",
+		},
+		{
+			"namespace filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+				},
+			},
+			"",
+		},
+		{
+			"caveat filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalCaveatNameFilter: "somec",
+				},
+			},
+			"",
+		},
+		{
+			"relation filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalRelationNameFilter:   "v",
+				},
+			},
+			"",
+		},
+		{
+			"permission filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalPermissionNameFilter: "v",
+				},
+			},
+			"",
+		},
+		{
+			"permission and relation filter",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalPermissionNameFilter: "r",
+				},
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalRelationNameFilter:   "v",
+				},
+			},
+			"",
+		},
+		{
+			"relation filter without definition",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalRelationNameFilter: "v",
+				},
+			},
+			"relation name match requires definition name match",
+		},
+		{
+			"permission filter without definition",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalPermissionNameFilter: "v",
+				},
+			},
+			"permission name match requires definition name match",
+		},
+		{
+			"filter with both definition and caveat",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalCaveatNameFilter:     "somec",
+				},
+			},
+			"cannot filter by both definition and caveat name",
+		},
+		{
+			"filter with both relation and permission",
+			[]*v1.ExpSchemaFilter{
+				{
+					OptionalDefinitionNameFilter: "doc",
+					OptionalRelationNameFilter:   "v",
+					OptionalPermissionNameFilter: "r",
+				},
+			},
+			"cannot filter by both relation and permission name",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := newSchemaFilters(tc.filters)
+			if tc.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tc.err)
+			}
+		})
 	}
 }

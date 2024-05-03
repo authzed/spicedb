@@ -437,24 +437,37 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	definitions := make([]*v1.ExpDefinition, 0, len(schema.ObjectDefinitions))
-	for _, ns := range schema.ObjectDefinitions {
-		def, err := namespaceAPIRepr(ns)
-		if err != nil {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
-		}
+	filters, err := newSchemaFilters(req.OptionalFilters)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
 
-		definitions = append(definitions, def)
+	definitions := make([]*v1.ExpDefinition, 0, len(schema.ObjectDefinitions))
+	if filters.HasNamespaces() {
+		for _, ns := range schema.ObjectDefinitions {
+			def, err := namespaceAPIRepr(ns, filters)
+			if err != nil {
+				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+			}
+
+			if def != nil {
+				definitions = append(definitions, def)
+			}
+		}
 	}
 
 	caveats := make([]*v1.ExpCaveat, 0, len(schema.CaveatDefinitions))
-	for _, cd := range schema.CaveatDefinitions {
-		caveat, err := caveatAPIRepr(cd)
-		if err != nil {
-			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
-		}
+	if filters.HasCaveats() {
+		for _, cd := range schema.CaveatDefinitions {
+			caveat, err := caveatAPIRepr(cd, filters)
+			if err != nil {
+				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+			}
 
-		caveats = append(caveats, caveat)
+			if caveat != nil {
+				caveats = append(caveats, caveat)
+			}
+		}
 	}
 
 	return &v1.ExperimentalReflectSchemaResponse{
@@ -464,7 +477,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	}, nil
 }
 
-func (es *experimentalServer) ExperimentalSchemaDiff(ctx context.Context, req *v1.ExperimentalSchemaDiffRequest) (*v1.ExperimentalSchemaDiffResponse, error) {
+func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return nil, err

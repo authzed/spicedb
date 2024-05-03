@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -22,13 +21,167 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
+type schemaFilters struct {
+	filters []*v1.ExpSchemaFilter
+}
+
+func newSchemaFilters(filters []*v1.ExpSchemaFilter) (*schemaFilters, error) {
+	for _, filter := range filters {
+		if filter.OptionalDefinitionNameFilter != "" {
+			if filter.OptionalCaveatNameFilter != "" {
+				return nil, NewInvalidFilterErr("cannot filter by both definition and caveat name", filter.String())
+			}
+		}
+
+		if filter.OptionalRelationNameFilter != "" {
+			if filter.OptionalDefinitionNameFilter == "" {
+				return nil, NewInvalidFilterErr("relation name match requires definition name match", filter.String())
+			}
+
+			if filter.OptionalPermissionNameFilter != "" {
+				return nil, NewInvalidFilterErr("cannot filter by both relation and permission name", filter.String())
+			}
+		}
+
+		if filter.OptionalPermissionNameFilter != "" {
+			if filter.OptionalDefinitionNameFilter == "" {
+				return nil, NewInvalidFilterErr("permission name match requires definition name match", filter.String())
+			}
+		}
+	}
+
+	return &schemaFilters{filters: filters}, nil
+}
+
+func (sf *schemaFilters) HasNamespaces() bool {
+	if len(sf.filters) == 0 {
+		return true
+	}
+
+	for _, filter := range sf.filters {
+		if filter.OptionalDefinitionNameFilter != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (sf *schemaFilters) HasCaveats() bool {
+	if len(sf.filters) == 0 {
+		return true
+	}
+
+	for _, filter := range sf.filters {
+		if filter.OptionalCaveatNameFilter != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (sf *schemaFilters) HasNamespace(namespaceName string) bool {
+	if len(sf.filters) == 0 {
+		return true
+	}
+
+	hasDefinitionFilter := false
+	for _, filter := range sf.filters {
+		if filter.OptionalDefinitionNameFilter == "" {
+			continue
+		}
+
+		hasDefinitionFilter = true
+		isMatch := strings.HasPrefix(namespaceName, filter.OptionalDefinitionNameFilter)
+		if isMatch {
+			return true
+		}
+	}
+
+	return !hasDefinitionFilter
+}
+
+func (sf *schemaFilters) HasCaveat(caveatName string) bool {
+	if len(sf.filters) == 0 {
+		return true
+	}
+
+	hasCaveatFilter := false
+	for _, filter := range sf.filters {
+		if filter.OptionalCaveatNameFilter == "" {
+			continue
+		}
+
+		hasCaveatFilter = true
+		isMatch := strings.HasPrefix(caveatName, filter.OptionalCaveatNameFilter)
+		if isMatch {
+			return true
+		}
+	}
+
+	return !hasCaveatFilter
+}
+
+func (sf *schemaFilters) HasRelation(namespaceName, relationName string) bool {
+	if len(sf.filters) == 0 {
+		return true
+	}
+
+	hasRelationFilter := false
+	for _, filter := range sf.filters {
+		if filter.OptionalRelationNameFilter == "" {
+			continue
+		}
+
+		hasRelationFilter = true
+		isMatch := strings.HasPrefix(relationName, filter.OptionalRelationNameFilter)
+		if !isMatch {
+			continue
+		}
+
+		isMatch = strings.HasPrefix(namespaceName, filter.OptionalDefinitionNameFilter)
+		if isMatch {
+			return true
+		}
+	}
+
+	return !hasRelationFilter
+}
+
+func (sf *schemaFilters) HasPermission(namespaceName, permissionName string) bool {
+	if len(sf.filters) == 0 {
+		return true
+	}
+
+	hasPermissionFilter := false
+	for _, filter := range sf.filters {
+		if filter.OptionalPermissionNameFilter == "" {
+			continue
+		}
+
+		hasPermissionFilter = true
+		isMatch := strings.HasPrefix(permissionName, filter.OptionalPermissionNameFilter)
+		if !isMatch {
+			continue
+		}
+
+		isMatch = strings.HasPrefix(namespaceName, filter.OptionalDefinitionNameFilter)
+		if isMatch {
+			return true
+		}
+	}
+
+	return !hasPermissionFilter
+}
+
 // convertDiff converts a schema diff into an API response.
 func convertDiff(
 	diff *diff.SchemaDiff,
 	existingSchema *diff.DiffableSchema,
 	comparisonSchema *diff.DiffableSchema,
 	atRevision datastore.Revision,
-) (*v1.ExperimentalSchemaDiffResponse, error) {
+) (*v1.ExperimentalDiffSchemaResponse, error) {
 	size := len(diff.AddedNamespaces) + len(diff.RemovedNamespaces) + len(diff.AddedCaveats) + len(diff.RemovedCaveats) + len(diff.ChangedNamespaces) + len(diff.ChangedCaveats)
 	diffs := make([]*v1.ExpSchemaDiff, 0, size)
 
@@ -93,10 +246,10 @@ func convertDiff(
 			case nsdiff.AddedPermission:
 				permission, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("permission %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				perm, err := permissionAPIRepr(permission, nsName)
+				perm, err := permissionAPIRepr(permission, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -110,10 +263,10 @@ func convertDiff(
 			case nsdiff.AddedRelation:
 				relation, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("relation %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				rel, err := relationAPIRepr(relation, nsName)
+				rel, err := relationAPIRepr(relation, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -127,10 +280,10 @@ func convertDiff(
 			case nsdiff.ChangedPermissionComment:
 				permission, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("permission %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				perm, err := permissionAPIRepr(permission, nsName)
+				perm, err := permissionAPIRepr(permission, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -144,10 +297,10 @@ func convertDiff(
 			case nsdiff.ChangedPermissionImpl:
 				permission, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("permission %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				perm, err := permissionAPIRepr(permission, nsName)
+				perm, err := permissionAPIRepr(permission, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -161,10 +314,10 @@ func convertDiff(
 			case nsdiff.ChangedRelationComment:
 				relation, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("relation %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				rel, err := relationAPIRepr(relation, nsName)
+				rel, err := relationAPIRepr(relation, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -193,10 +346,10 @@ func convertDiff(
 			case nsdiff.RelationAllowedTypeRemoved:
 				relation, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("relation %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				rel, err := relationAPIRepr(relation, nsName)
+				rel, err := relationAPIRepr(relation, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -213,10 +366,10 @@ func convertDiff(
 			case nsdiff.RelationAllowedTypeAdded:
 				relation, ok := comparisonSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("relation %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				rel, err := relationAPIRepr(relation, nsName)
+				rel, err := relationAPIRepr(relation, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -233,10 +386,10 @@ func convertDiff(
 			case nsdiff.RemovedPermission:
 				permission, ok := existingSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("relation %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				perm, err := permissionAPIRepr(permission, nsName)
+				perm, err := permissionAPIRepr(permission, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -250,10 +403,10 @@ func convertDiff(
 			case nsdiff.RemovedRelation:
 				relation, ok := existingSchema.GetRelation(nsName, delta.RelationName)
 				if !ok {
-					return nil, fmt.Errorf("relation %q not found in namespace %q", delta.RelationName, nsName)
+					return nil, spiceerrors.MustBugf("relation %q not found in namespace %q", delta.RelationName, nsName)
 				}
 
-				rel, err := relationAPIRepr(relation, nsName)
+				rel, err := relationAPIRepr(relation, nsName, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -360,7 +513,7 @@ func convertDiff(
 		}
 	}
 
-	return &v1.ExperimentalSchemaDiffResponse{
+	return &v1.ExperimentalDiffSchemaResponse{
 		Diffs:  diffs,
 		ReadAt: zedtoken.MustNewFromRevision(atRevision),
 	}, nil
@@ -370,33 +523,41 @@ func convertDiff(
 func namespaceAPIReprForName(namespaceName string, schema *diff.DiffableSchema) (*v1.ExpDefinition, error) {
 	nsDef, ok := schema.GetNamespace(namespaceName)
 	if !ok {
-		return nil, fmt.Errorf("namespace %q not found in schema", namespaceName)
+		return nil, spiceerrors.MustBugf("namespace %q not found in schema", namespaceName)
 	}
 
-	return namespaceAPIRepr(nsDef)
+	return namespaceAPIRepr(nsDef, nil)
 }
 
-func namespaceAPIRepr(nsDef *core.NamespaceDefinition) (*v1.ExpDefinition, error) {
+func namespaceAPIRepr(nsDef *core.NamespaceDefinition, schemaFilters *schemaFilters) (*v1.ExpDefinition, error) {
+	if schemaFilters != nil && !schemaFilters.HasNamespace(nsDef.Name) {
+		return nil, nil
+	}
+
 	relations := make([]*v1.ExpRelation, 0, len(nsDef.Relation))
 	permissions := make([]*v1.ExpPermission, 0, len(nsDef.Relation))
 
 	for _, rel := range nsDef.Relation {
 		if namespace.GetRelationKind(rel) == iv1.RelationMetadata_PERMISSION {
-			permission, err := permissionAPIRepr(rel, nsDef.Name)
+			permission, err := permissionAPIRepr(rel, nsDef.Name, schemaFilters)
 			if err != nil {
 				return nil, err
 			}
 
-			permissions = append(permissions, permission)
+			if permission != nil {
+				permissions = append(permissions, permission)
+			}
 			continue
 		}
 
-		relation, err := relationAPIRepr(rel, nsDef.Name)
+		relation, err := relationAPIRepr(rel, nsDef.Name, schemaFilters)
 		if err != nil {
 			return nil, err
 		}
 
-		relations = append(relations, relation)
+		if relation != nil {
+			relations = append(relations, relation)
+		}
 	}
 
 	comments := namespace.GetComments(nsDef.Metadata)
@@ -409,7 +570,11 @@ func namespaceAPIRepr(nsDef *core.NamespaceDefinition) (*v1.ExpDefinition, error
 }
 
 // permissionAPIRepr builds an API representation of a permission.
-func permissionAPIRepr(relation *core.Relation, parentDefName string) (*v1.ExpPermission, error) {
+func permissionAPIRepr(relation *core.Relation, parentDefName string, schemaFilters *schemaFilters) (*v1.ExpPermission, error) {
+	if schemaFilters != nil && !schemaFilters.HasPermission(parentDefName, relation.Name) {
+		return nil, nil
+	}
+
 	comments := namespace.GetComments(relation.Metadata)
 	return &v1.ExpPermission{
 		Name:                 relation.Name,
@@ -419,7 +584,11 @@ func permissionAPIRepr(relation *core.Relation, parentDefName string) (*v1.ExpPe
 }
 
 // relationAPIRepresentation builds an API representation of a relation.
-func relationAPIRepr(relation *core.Relation, parentDefName string) (*v1.ExpRelation, error) {
+func relationAPIRepr(relation *core.Relation, parentDefName string, schemaFilters *schemaFilters) (*v1.ExpRelation, error) {
+	if schemaFilters != nil && !schemaFilters.HasRelation(parentDefName, relation.Name) {
+		return nil, nil
+	}
+
 	comments := namespace.GetComments(relation.Metadata)
 
 	var subjectTypes []*v1.ExpTypeReference
@@ -446,12 +615,14 @@ func typeAPIRepr(subjectType *core.AllowedRelation) *v1.ExpTypeReference {
 		Typeref:               &v1.ExpTypeReference_IsTerminalSubject{},
 	}
 
-	if subjectType.GetRelation() != tuple.Ellipsis {
+	if subjectType.GetRelation() != tuple.Ellipsis && subjectType.GetRelation() != "" {
 		typeref.Typeref = &v1.ExpTypeReference_OptionalRelationName{
 			OptionalRelationName: subjectType.GetRelation(),
 		}
 	} else if subjectType.GetPublicWildcard() != nil {
-		typeref.Typeref = &v1.ExpTypeReference_IsPublicWildcard{}
+		typeref.Typeref = &v1.ExpTypeReference_IsPublicWildcard{
+			IsPublicWildcard: true,
+		}
 	}
 
 	if subjectType.GetRequiredCaveat() != nil {
@@ -465,14 +636,18 @@ func typeAPIRepr(subjectType *core.AllowedRelation) *v1.ExpTypeReference {
 func caveatAPIReprForName(caveatName string, schema *diff.DiffableSchema) (*v1.ExpCaveat, error) {
 	caveatDef, ok := schema.GetCaveat(caveatName)
 	if !ok {
-		return nil, fmt.Errorf("caveat %q not found in schema", caveatName)
+		return nil, spiceerrors.MustBugf("caveat %q not found in schema", caveatName)
 	}
 
-	return caveatAPIRepr(caveatDef)
+	return caveatAPIRepr(caveatDef, nil)
 }
 
 // caveatAPIRepr builds an API representation of a caveat.
-func caveatAPIRepr(caveatDef *core.CaveatDefinition) (*v1.ExpCaveat, error) {
+func caveatAPIRepr(caveatDef *core.CaveatDefinition, schemaFilters *schemaFilters) (*v1.ExpCaveat, error) {
+	if schemaFilters != nil && !schemaFilters.HasCaveat(caveatDef.Name) {
+		return nil, nil
+	}
+
 	parameters := make([]*v1.ExpCaveatParameter, 0, len(caveatDef.ParameterTypes))
 	paramNames := maps.Keys(caveatDef.ParameterTypes)
 	sort.Strings(paramNames)
@@ -480,12 +655,12 @@ func caveatAPIRepr(caveatDef *core.CaveatDefinition) (*v1.ExpCaveat, error) {
 	for _, paramName := range paramNames {
 		paramType, ok := caveatDef.ParameterTypes[paramName]
 		if !ok {
-			return nil, fmt.Errorf("parameter %q not found in caveat %q", paramName, caveatDef.Name)
+			return nil, spiceerrors.MustBugf("parameter %q not found in caveat %q", paramName, caveatDef.Name)
 		}
 
 		decoded, err := caveattypes.DecodeParameterType(paramType)
 		if err != nil {
-			return nil, fmt.Errorf("invalid parameter type on caveat: %w", err)
+			return nil, spiceerrors.MustBugf("invalid parameter type on caveat: %v", err)
 		}
 
 		parameters = append(parameters, &v1.ExpCaveatParameter{
@@ -497,17 +672,17 @@ func caveatAPIRepr(caveatDef *core.CaveatDefinition) (*v1.ExpCaveat, error) {
 
 	parameterTypes, err := caveattypes.DecodeParameterTypes(caveatDef.ParameterTypes)
 	if err != nil {
-		return nil, fmt.Errorf("invalid caveat parameters: %w", err)
+		return nil, spiceerrors.MustBugf("invalid caveat parameters: %v", err)
 	}
 
 	deserializedExpression, err := caveats.DeserializeCaveat(caveatDef.SerializedExpression, parameterTypes)
 	if err != nil {
-		return nil, fmt.Errorf("invalid caveat expression bytes: %w", err)
+		return nil, spiceerrors.MustBugf("invalid caveat expression bytes: %v", err)
 	}
 
 	exprString, err := deserializedExpression.ExprString()
 	if err != nil {
-		return nil, fmt.Errorf("invalid caveat expression: %w", err)
+		return nil, spiceerrors.MustBugf("invalid caveat expression: %v", err)
 	}
 
 	comments := namespace.GetComments(caveatDef.Metadata)
@@ -523,17 +698,17 @@ func caveatAPIRepr(caveatDef *core.CaveatDefinition) (*v1.ExpCaveat, error) {
 func caveatAPIParamRepr(paramName, parentCaveatName string, schema *diff.DiffableSchema) (*v1.ExpCaveatParameter, error) {
 	caveatDef, ok := schema.GetCaveat(parentCaveatName)
 	if !ok {
-		return nil, fmt.Errorf("caveat %q not found in schema", parentCaveatName)
+		return nil, spiceerrors.MustBugf("caveat %q not found in schema", parentCaveatName)
 	}
 
 	paramType, ok := caveatDef.ParameterTypes[paramName]
 	if !ok {
-		return nil, fmt.Errorf("parameter %q not found in caveat %q", paramName, parentCaveatName)
+		return nil, spiceerrors.MustBugf("parameter %q not found in caveat %q", paramName, parentCaveatName)
 	}
 
 	decoded, err := caveattypes.DecodeParameterType(paramType)
 	if err != nil {
-		return nil, fmt.Errorf("invalid parameter type on caveat: %w", err)
+		return nil, spiceerrors.MustBugf("invalid parameter type on caveat: %v", err)
 	}
 
 	return &v1.ExpCaveatParameter{
