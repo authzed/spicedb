@@ -118,6 +118,10 @@ type ConfigForErrors struct {
 	MaximumAPIDepth uint32
 }
 
+func RewriteErrorWithoutConfig(ctx context.Context, err error) error {
+	return RewriteError(ctx, err, nil)
+}
+
 func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error {
 	// Check if the error can be directly used.
 	if _, ok := status.FromError(err); ok {
