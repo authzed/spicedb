@@ -42,6 +42,14 @@ jobs:
     runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
       - uses: "actions/checkout@v4"
+        with:
+          # Only a single commit is fetched by default, for the ref/SHA that triggered the workflow. Set fetch-depth: 0
+          # to fetch all history for all branches and tags. Refer here to learn which commit $GITHUB_SHA
+          # points to for different events.
+          #
+          # this is used so goreleaser generates the right version out of the tags, which we need so that
+          # trivy does not flag an old SpiceDB version
+          fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
       - uses: "docker/login-action@v3"
         with:
@@ -73,4 +81,4 @@ jobs:
       - name: "Obtain container image to scan"
         run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64/metadata.json --raw-output)" >> $GITHUB_ENV'
       - name: "run trivy on release image"
-        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.50.4 image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64"
+        run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64"
