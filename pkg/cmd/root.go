@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
@@ -13,12 +15,24 @@ import (
 	"github.com/authzed/spicedb/pkg/runtime"
 )
 
-func RegisterRootFlags(cmd *cobra.Command) {
-	cobrazerolog.New().RegisterFlags(cmd.PersistentFlags())
-	cobraotel.New(cmd.Use).RegisterFlags(cmd.PersistentFlags())
+func RegisterRootFlags(cmd *cobra.Command) error {
+	zl := cobrazerolog.New()
+	zl.RegisterFlags(cmd.PersistentFlags())
+	if err := zl.RegisterFlagCompletion(cmd); err != nil {
+		return fmt.Errorf("failed to register zerolog flag completion: %w", err)
+	}
+
+	ot := cobraotel.New(cmd.Use)
+	ot.RegisterFlags(cmd.PersistentFlags())
+	if err := ot.RegisterFlagCompletion(cmd); err != nil {
+		return fmt.Errorf("failed to register otel flag completion: %w", err)
+	}
+
 	releases.RegisterFlags(cmd.PersistentFlags())
 	termination.RegisterFlags(cmd.PersistentFlags())
 	runtime.RegisterFlags(cmd.PersistentFlags())
+
+	return nil
 }
 
 // DeprecatedRunE wraps the RunFunc with a warning log statement.

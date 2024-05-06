@@ -39,7 +39,9 @@ func main() {
 		cmd.Println(cmd.UsageString())
 		return errParsing
 	})
-	cmd.RegisterRootFlags(rootCmd)
+	if err := cmd.RegisterRootFlags(rootCmd); err != nil {
+		log.Fatal().Err(err).Msg("failed to register root flags")
+	}
 
 	// Add a version command
 	versionCmd := cmd.NewVersionCommand(rootCmd.Use)
