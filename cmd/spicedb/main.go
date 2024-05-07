@@ -16,6 +16,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/postgres"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 	_ "github.com/authzed/spicedb/pkg/runtime"
@@ -73,6 +74,14 @@ func main() {
 	migrateCmd.RunE = cmd.DeprecatedRunE(migrateCmd.RunE, "spicedb datastore migrate")
 	cmd.RegisterMigrateFlags(migrateCmd)
 	rootCmd.AddCommand(migrateCmd)
+
+	// Add datastore commands
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "datastores",
+		Title: "Datastores",
+	})
+	pgCmd := postgres.NewPostgresCommand(rootCmd.Use)
+	rootCmd.AddCommand(pgCmd)
 
 	// Add server commands
 	serverConfig := cmdutil.NewConfigWithOptionsAndDefaults()
