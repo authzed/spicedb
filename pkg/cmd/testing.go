@@ -37,6 +37,7 @@ func NewTestingCommand(programName string, config *testserver.Config) *cobra.Com
 		Use:     "serve-testing",
 		Short:   "test server with an in-memory datastore",
 		Long:    "An in-memory spicedb server which serves completely isolated datastores per client-supplied auth token used.",
+		GroupID: "devtools",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE: termination.PublishError(func(cmd *cobra.Command, args []string) error {
 			signalctx := SignalContextWithGracePeriod(
