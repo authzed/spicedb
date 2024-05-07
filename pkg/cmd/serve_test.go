@@ -18,7 +18,8 @@ import (
 func RunServeTest(t *testing.T, args []string, assertConfig func(t *testing.T, mergedConfig *server.Config)) {
 	config := server.NewConfigWithOptionsAndDefaults()
 	cmd := NewServeCommand("spicedb", config)
-	RegisterRootFlags(cmd)
+	err := RegisterRootFlags(cmd)
+	require.Nil(t, err)
 	require.Nil(t, RegisterServeFlags(cmd, config))
 	// Disable all metrics as they are singletons
 	config.DispatchClusterMetricsEnabled = false
