@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -210,4 +211,26 @@ func collectMigrationsInRange[C any, T any](starting, through string, all map[st
 	}
 
 	return found, nil
+}
+
+func RunMigration[D Driver[C, T], C any, T any](
+	ctx context.Context,
+	driver D,
+	manager *Manager[D, C, T],
+	targetRevision string,
+	timeout time.Duration,
+	backfillBatchSize uint64,
+) error {
+	log.Ctx(ctx).Info().Str("targetRevision", targetRevision).Msg("running migrations")
+	ctxWithBatch := context.WithValue(ctx, BackfillBatchSize, backfillBatchSize)
+	ctx, cancel := context.WithTimeout(ctxWithBatch, timeout)
+	defer cancel()
+	if err := manager.Run(ctx, driver, targetRevision, LiveRun); err != nil {
+		return fmt.Errorf("unable to migrate to `%s` revision: %w", targetRevision, err)
+	}
+
+	if err := driver.Close(ctx); err != nil {
+		return fmt.Errorf("unable to close migration driver: %w", err)
+	}
+	return nil
 }

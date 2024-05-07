@@ -118,6 +118,7 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 	return fmt.Errorf("cannot migrate datastore engine type: %s", datastoreEngine)
 }
 
+// TODO(jzelinskie): deprecated, replace with migrate.RunMigration()
 func runMigration[D migrate.Driver[C, T], C any, T any](
 	ctx context.Context,
 	driver D,
