@@ -18,7 +18,6 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/selector"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
-	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
@@ -65,15 +64,7 @@ func ServeExample(programName string) string {
 // command.
 func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 	return cobrautil.CommandStack(
-		cobrautil.SyncViperDotEnvPreRunE(programName, "spicedb.env", zerologr.New(&logging.Logger)),
-		cobrazerolog.New(
-			cobrazerolog.WithTarget(func(logger zerolog.Logger) {
-				logging.SetGlobalLogger(logger)
-			}),
-		).RunE(),
-		cobraotel.New("spicedb",
-			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
-		).RunE(),
+		cobraotel.New("spicedb", cobraotel.WithLogger(zerologr.New(&logging.Logger))).RunE(),
 		releases.CheckAndLogRunE(),
 		runtime.RunE(),
 	)

@@ -15,6 +15,9 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/cockroachdb"
+	"github.com/authzed/spicedb/pkg/cmd/memory"
+	"github.com/authzed/spicedb/pkg/cmd/mysql"
 	"github.com/authzed/spicedb/pkg/cmd/postgres"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
@@ -54,6 +57,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to register datastore command")
 	}
+	datastoreCmd.Hidden = true
 
 	cmd.RegisterDatastoreRootFlags(datastoreCmd)
 	rootCmd.AddCommand(datastoreCmd)
@@ -75,10 +79,16 @@ func main() {
 	// Add datastore commands
 	rootCmd.AddGroup(&cobra.Group{
 		ID:    "datastores",
-		Title: "Datastores",
+		Title: "Datastores:",
 	})
 	pgCmd := postgres.NewPostgresCommand(rootCmd.Use)
 	rootCmd.AddCommand(pgCmd)
+	crdbCmd := cockroachdb.NewCommand(rootCmd.Use)
+	rootCmd.AddCommand(crdbCmd)
+	memCmd := memory.NewCommand(rootCmd.Use)
+	rootCmd.AddCommand(memCmd)
+	myCmd := mysql.NewCommand(rootCmd.Use)
+	rootCmd.AddCommand(myCmd)
 
 	// Add server commands
 	serverConfig := cmdutil.NewConfigWithOptionsAndDefaults()
@@ -86,7 +96,14 @@ func main() {
 	if err := cmd.RegisterServeFlags(serveCmd, serverConfig); err != nil {
 		log.Fatal().Err(err).Msg("failed to register server flags")
 	}
+	serveCmd.Hidden = true
 	rootCmd.AddCommand(serveCmd)
+
+	// Add developer tools
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "devtools",
+		Title: "Developer Tools:",
+	})
 
 	devtoolsCmd := cmd.NewDevtoolsCommand(rootCmd.Use)
 	cmd.RegisterDevtoolsFlags(devtoolsCmd)
@@ -123,6 +140,11 @@ func main() {
 	})
 
 	if err := rootCmd.Execute(); err != nil {
+		// Ensure that logging has been set-up before printing an error.
+		if preRunErr := rootCmd.PersistentPreRunE(rootCmd, nil); preRunErr != nil {
+			panic(preRunErr)
+		}
+
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
 		}

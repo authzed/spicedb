@@ -49,6 +49,7 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 		Use:     "serve-devtools",
 		Short:   "runs the developer tools service",
 		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
+		GroupID: "devtools",
 		PreRunE: server.DefaultPreRunE(programName),
 		RunE:    termination.PublishError(runfunc),
 		Args:    cobra.ExactArgs(0),
