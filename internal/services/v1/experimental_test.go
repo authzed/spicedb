@@ -1191,3 +1191,238 @@ definition user {}`,
 		})
 	}
 }
+
+func TestExperimentalDependentRelations(t *testing.T) {
+	tcs := []struct {
+		name             string
+		schema           string
+		definitionName   string
+		permissionName   string
+		expectedCode     codes.Code
+		expectedError    string
+		expectedResponse []*v1.ExpRelationReference
+	}{
+		{
+			name:           "invalid definition",
+			schema:         `definition user {}`,
+			definitionName: "invalid",
+			expectedCode:   codes.FailedPrecondition,
+			expectedError:  "object definition `invalid` not found",
+		},
+		{
+			name:           "invalid permission",
+			schema:         `definition user {}`,
+			definitionName: "user",
+			permissionName: "invalid",
+			expectedCode:   codes.FailedPrecondition,
+			expectedError:  "permission `invalid` not found",
+		},
+		{
+			name: "specified relation",
+			schema: `
+				definition user {}
+
+				definition document {
+					relation editor: user
+				}
+			`,
+			definitionName: "document",
+			permissionName: "editor",
+			expectedCode:   codes.InvalidArgument,
+			expectedError:  "is not a permission",
+		},
+		{
+			name: "simple schema",
+			schema: `
+				definition user {}
+
+				definition document {
+					relation unused: user
+					relation editor: user
+					relation viewer: user
+					permission view = viewer + editor
+				}
+			`,
+			definitionName: "document",
+			permissionName: "view",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "document",
+					RelationName:   "editor",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "viewer",
+					IsPermission:   false,
+				},
+			},
+		},
+		{
+			name: "schema with nested relation",
+			schema: `
+				definition user {}
+
+				definition group {
+					relation direct_member: user | group#member
+					relation admin: user
+					permission member = direct_member + admin
+				}
+
+				definition document {
+					relation unused: user
+					relation viewer: user | group#member
+					permission view = viewer
+				}
+			`,
+			definitionName: "document",
+			permissionName: "view",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "document",
+					RelationName:   "viewer",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "group",
+					RelationName:   "admin",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "group",
+					RelationName:   "direct_member",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "group",
+					RelationName:   "member",
+					IsPermission:   true,
+				},
+			},
+		},
+		{
+			name: "schema with arrow",
+			schema: `
+				definition user {}
+
+				definition folder {
+					relation alsounused: user
+					relation viewer: user
+					permission view = viewer
+				}
+
+				definition document {
+					relation unused: user
+					relation parent: folder
+					relation viewer: user
+					permission view = viewer + parent->view
+				}
+			`,
+			definitionName: "document",
+			permissionName: "view",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "document",
+					RelationName:   "parent",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "viewer",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "folder",
+					RelationName:   "view",
+					IsPermission:   true,
+				},
+				{
+					DefinitionName: "folder",
+					RelationName:   "viewer",
+					IsPermission:   false,
+				},
+			},
+		},
+		{
+			name: "empty response",
+			schema: `
+				definition user {}
+
+				definition folder {
+					relation alsounused: user
+					relation viewer: user
+					permission view = viewer
+				}
+
+				definition document {
+					relation unused: user
+					relation parent: folder
+					relation viewer: user
+					permission view = viewer + parent->view
+					permission empty = nil
+				}
+			`,
+			definitionName:   "document",
+			permissionName:   "empty",
+			expectedResponse: []*v1.ExpRelationReference{},
+		},
+		{
+			name: "empty definition",
+			schema: `
+				definition user {}
+			`,
+			definitionName: "",
+			permissionName: "empty",
+			expectedCode:   codes.FailedPrecondition,
+			expectedError:  "object definition `` not found",
+		},
+		{
+			name: "empty permission",
+			schema: `
+				definition user {}
+			`,
+			definitionName: "user",
+			permissionName: "",
+			expectedCode:   codes.FailedPrecondition,
+			expectedError:  "permission `` not found",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			expClient := v1.NewExperimentalServiceClient(conn)
+			schemaClient := v1.NewSchemaServiceClient(conn)
+			defer cleanup()
+
+			// Write the schema.
+			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: tc.schema,
+			})
+			require.NoError(t, err)
+
+			actual, err := expClient.ExperimentalDependentRelations(context.Background(), &v1.ExperimentalDependentRelationsRequest{
+				DefinitionName: tc.definitionName,
+				PermissionName: tc.permissionName,
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+				},
+			})
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+				grpcutil.RequireStatus(t, tc.expectedCode, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, actual.ReadAt)
+				actual.ReadAt = nil
+
+				testutil.RequireProtoEqual(t, &v1.ExperimentalDependentRelationsResponse{
+					Relations: tc.expectedResponse,
+				}, actual, "mismatch in response")
+			}
+		})
+	}
+}

@@ -438,6 +438,36 @@ func (err ErrEmptyPrecondition) GRPCStatus() *status.Status {
 	)
 }
 
+// NewNotAPermissionError constructs a new not a permission error.
+func NewNotAPermissionError(relationName string) ErrNotAPermission {
+	return ErrNotAPermission{
+		error: fmt.Errorf(
+			"the relation `%s` is not a permission", relationName,
+		),
+		relationName: relationName,
+	}
+}
+
+// ErrNotAPermission indicates that the relation is not a permission.
+type ErrNotAPermission struct {
+	error
+	relationName string
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrNotAPermission) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_UNKNOWN_RELATION_OR_PERMISSION,
+			map[string]string{
+				"relationName": err.relationName,
+			},
+		),
+	)
+}
+
 func defaultIfZero[T comparable](value T, defaultValue T) T {
 	var zero T
 	if value == zero {
