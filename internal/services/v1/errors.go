@@ -29,12 +29,11 @@ func (err ErrExceedsMaximumLimit) MarshalZerologObject(e *zerolog.Event) {
 
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err ErrExceedsMaximumLimit) GRPCStatus() *status.Status {
-	// TODO(jschorr): Make this a specific error.
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
 		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
+			v1.ErrorReason_ERROR_REASON_EXCEEDS_MAXIMUM_ALLOWABLE_LIMIT,
 			map[string]string{
 				"limit_provided":        strconv.FormatUint(err.providedLimit, 10),
 				"maximum_limit_allowed": strconv.FormatUint(err.maxLimitAllowed, 10),
@@ -384,27 +383,31 @@ func (err ErrInvalidCursor) GRPCStatus() *status.Status {
 // ErrInvalidFilter indicates the specified relationship filter was invalid.
 type ErrInvalidFilter struct {
 	error
+
+	filter string
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err ErrInvalidFilter) GRPCStatus() *status.Status {
-	// TODO(jschorr): Put a proper error reason in here.
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
 		spiceerrors.ForReason(
-			v1.ErrorReason_ERROR_REASON_UNSPECIFIED,
-			map[string]string{},
+			v1.ErrorReason_ERROR_REASON_INVALID_FILTER,
+			map[string]string{
+				"filter": err.filter,
+			},
 		),
 	)
 }
 
 // NewInvalidFilterErr constructs a new invalid filter error.
-func NewInvalidFilterErr(reason string) ErrInvalidFilter {
+func NewInvalidFilterErr(reason string, filter string) ErrInvalidFilter {
 	return ErrInvalidFilter{
 		error: fmt.Errorf(
 			"the relationship filter provided is not valid: %s", reason,
 		),
+		filter: filter,
 	}
 }
 

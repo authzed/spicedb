@@ -499,7 +499,7 @@ func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFil
 
 	// Ensure the resource ID and the resource ID prefix are not set at the same time.
 	if filter.OptionalResourceId != "" && filter.OptionalResourceIdPrefix != "" {
-		return NewInvalidFilterErr("resource_id and resource_id_prefix cannot be set at the same time")
+		return NewInvalidFilterErr("resource_id and resource_id_prefix cannot be set at the same time", filter.String())
 	}
 
 	// Ensure that at least one field is set.
@@ -508,7 +508,7 @@ func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFil
 		filter.OptionalResourceIdPrefix == "" &&
 		filter.OptionalRelation == "" &&
 		filter.OptionalSubjectFilter == nil {
-		return NewInvalidFilterErr("at least one field must be set")
+		return NewInvalidFilterErr("at least one field must be set", filter.String())
 	}
 
 	return nil

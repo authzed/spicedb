@@ -8,19 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/authzed/spicedb/pkg/cursor"
-	"github.com/authzed/spicedb/pkg/datastore"
-	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
-
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
-	"github.com/samber/lo"
-
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -32,6 +19,19 @@ import (
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/internal/services/v1/options"
+	"github.com/authzed/spicedb/pkg/cursor"
+	"github.com/authzed/spicedb/pkg/datastore"
+	dsoptions "github.com/authzed/spicedb/pkg/datastore/options"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
+	"github.com/authzed/spicedb/pkg/zedtoken"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
+	"github.com/samber/lo"
 )
 
 const (
@@ -428,6 +428,72 @@ func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.B
 	}
 
 	return toBulkCheckPermissionResponse(res), nil
+}
+
+func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req *v1.ExperimentalReflectSchemaRequest) (*v1.ExperimentalReflectSchemaResponse, error) {
+	// Get the current schema.
+	schema, atRevision, err := loadCurrentSchema(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	filters, err := newSchemaFilters(req.OptionalFilters)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	definitions := make([]*v1.ExpDefinition, 0, len(schema.ObjectDefinitions))
+	if filters.HasNamespaces() {
+		for _, ns := range schema.ObjectDefinitions {
+			def, err := namespaceAPIRepr(ns, filters)
+			if err != nil {
+				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+			}
+
+			if def != nil {
+				definitions = append(definitions, def)
+			}
+		}
+	}
+
+	caveats := make([]*v1.ExpCaveat, 0, len(schema.CaveatDefinitions))
+	if filters.HasCaveats() {
+		for _, cd := range schema.CaveatDefinitions {
+			caveat, err := caveatAPIRepr(cd, filters)
+			if err != nil {
+				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+			}
+
+			if caveat != nil {
+				caveats = append(caveats, caveat)
+			}
+		}
+	}
+
+	return &v1.ExperimentalReflectSchemaResponse{
+		Definitions: definitions,
+		Caveats:     caveats,
+		ReadAt:      zedtoken.MustNewFromRevision(atRevision),
+	}, nil
+}
+
+func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v1.ExperimentalDiffSchemaRequest) (*v1.ExperimentalDiffSchemaResponse, error) {
+	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return resp, nil
 }
 
 func queryForEach(
