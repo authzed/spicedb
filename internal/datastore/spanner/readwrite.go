@@ -20,8 +20,7 @@ import (
 
 type spannerReadWriteTXN struct {
 	spannerReader
-	spannerRWT   *spanner.ReadWriteTransaction
-	disableStats bool
+	spannerRWT *spanner.ReadWriteTransaction
 }
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
@@ -36,12 +35,6 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 		rowCountChange += countChange
 
 		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
-		}
-	}
-
-	if !rwt.disableStats {
-		if err := updateCounter(ctx, rwt.spannerRWT, rowCountChange); err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
@@ -74,7 +67,7 @@ func spannerMutation(
 }
 
 func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
-	limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, rwt.disableStats, opts...)
+	limitReached, err := deleteWithFilter(ctx, rwt.spannerRWT, filter, opts...)
 	if err != nil {
 		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
@@ -82,7 +75,7 @@ func (rwt spannerReadWriteTXN) DeleteRelationships(ctx context.Context, filter *
 	return limitReached, nil
 }
 
-func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool, opts ...options.DeleteOptionsOption) (bool, error) {
+func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
 	var delLimit uint64
 	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
@@ -94,24 +87,18 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 
 	var numDeleted int64
 	if delLimit > 0 {
-		nu, err := deleteWithFilterAndLimit(ctx, rwt, filter, disableStats, delLimit)
+		nu, err := deleteWithFilterAndLimit(ctx, rwt, filter, delLimit)
 		if err != nil {
 			return false, err
 		}
 		numDeleted = nu
 	} else {
-		nu, err := deleteWithFilterAndNoLimit(ctx, rwt, filter, disableStats)
+		nu, err := deleteWithFilterAndNoLimit(ctx, rwt, filter)
 		if err != nil {
 			return false, err
 		}
 
 		numDeleted = nu
-	}
-
-	if !disableStats {
-		if err := updateCounter(ctx, rwt, -1*numDeleted); err != nil {
-			return false, err
-		}
 	}
 
 	if delLimit > 0 && uint64(numDeleted) == delLimit {
@@ -121,7 +108,7 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 	return false, nil
 }
 
-func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool, delLimit uint64) (int64, error) {
+func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, delLimit uint64) (int64, error) {
 	query := queryTuplesForDelete
 	filteredQuery, err := applyFilterToQuery(query, filter)
 	if err != nil {
@@ -172,7 +159,7 @@ func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransac
 	return int64(len(mutations)), nil
 }
 
-func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter, disableStats bool) (int64, error) {
+func deleteWithFilterAndNoLimit(ctx context.Context, rwt *spanner.ReadWriteTransaction, filter *v1.RelationshipFilter) (int64, error) {
 	query := sql.Delete(tableRelationship)
 	filteredQuery, err := applyFilterToQuery(query, filter)
 	if err != nil {
@@ -278,7 +265,7 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
 	for _, nsName := range nsNames {
 		relFilter := &v1.RelationshipFilter{ResourceType: nsName}
-		if _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter, rwt.disableStats); err != nil {
+		if _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)
 		}
 
@@ -311,12 +298,6 @@ func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.Bulk
 
 	if err != nil {
 		return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
-	}
-
-	if !rwt.disableStats {
-		if err := updateCounter(ctx, rwt.spannerRWT, int64(numLoaded)); err != nil {
-			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
-		}
 	}
 
 	return numLoaded, nil

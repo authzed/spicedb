@@ -46,6 +46,11 @@ func (c Categories) GC() bool {
 	return ok
 }
 
+func (c Categories) Stats() bool {
+	_, ok := c[StatsCategory]
+	return ok
+}
+
 func (c Categories) Watch() bool {
 	_, ok := c[WatchCategory]
 	return ok
@@ -68,6 +73,7 @@ const (
 	WatchCategory            = "Watch"
 	WatchSchemaCategory      = "WatchSchema"
 	WatchCheckpointsCategory = "WatchCheckpoints"
+	StatsCategory            = "Stats"
 )
 
 func WithCategories(cats ...string) Categories {
@@ -135,7 +141,9 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestBulkUploadAlreadyExistsError", func(t *testing.T) { BulkUploadAlreadyExistsErrorTest(t, tester) })
 	t.Run("TestBulkUploadAlreadyExistsSameCallError", func(t *testing.T) { BulkUploadAlreadyExistsSameCallErrorTest(t, tester) })
 
-	t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
+	if !except.Stats() {
+		t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
+	}
 
 	t.Run("TestRetries", func(t *testing.T) { RetryTest(t, tester) })
 

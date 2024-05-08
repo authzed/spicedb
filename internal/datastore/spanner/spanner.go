@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -61,6 +62,8 @@ const (
 	defaultChangeStreamRetention = 24 * time.Hour
 )
 
+const tableSizesStatsTable = "spanner_sys.table_sizes_stats_1hour"
+
 var (
 	sql    = sq.StatementBuilder.PlaceholderFormat(sq.AtP)
 	tracer = otel.Tracer("spicedb/internal/datastore/spanner")
@@ -78,6 +81,11 @@ type spannerDatastore struct {
 	client   *spanner.Client
 	config   spannerOptions
 	database string
+
+	cachedEstimatedBytesPerRelationshipLock sync.RWMutex
+	cachedEstimatedBytesPerRelationship     uint64
+
+	tableSizesStatsTable string
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -143,7 +151,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	ds := spannerDatastore{
+	ds := &spannerDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			defaultChangeStreamRetention,
 			maxRevisionStaleness,
@@ -153,11 +161,14 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
-		client:                  client,
-		config:                  config,
-		database:                database,
-		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
-		watchBufferLength:       config.watchBufferLength,
+		client:                                  client,
+		config:                                  config,
+		database:                                database,
+		watchBufferWriteTimeout:                 config.watchBufferWriteTimeout,
+		watchBufferLength:                       config.watchBufferLength,
+		cachedEstimatedBytesPerRelationship:     0,
+		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
+		tableSizesStatsTable:                    tableSizesStatsTable,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -195,7 +206,7 @@ func (t *traceableRTX) Query(ctx context.Context, statement spanner.Statement) *
 	return t.delegate.Query(ctx, statement)
 }
 
-func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
+func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
 	r := revisionRaw.(revisions.TimestampRevision)
 
 	txSource := func() readTX {
@@ -205,7 +216,7 @@ func (sd spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	return spannerReader{executor, txSource}
 }
 
-func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
+func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	config := options.NewRWTOptionsWithOptions(opts...)
 
 	ctx, span := tracer.Start(ctx, "ReadWriteTx")
@@ -221,7 +232,6 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 		rwt := spannerReadWriteTXN{
 			spannerReader{executor, txSource},
 			spannerRWT,
-			sd.config.disableStats,
 		}
 		err := func() error {
 			innerCtx, innerSpan := tracer.Start(ctx, "TxUserFunc")
@@ -248,7 +258,7 @@ func (sd spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserF
 	return revisions.NewForTime(ts), nil
 }
 
-func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
+func (sd *spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	headMigration, err := migrations.SpannerMigrations.HeadRevision()
 	if err != nil {
 		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for spanner: %w", err)
@@ -275,11 +285,11 @@ func (sd spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState
 	}, nil
 }
 
-func (sd spannerDatastore) Features(_ context.Context) (*datastore.Features, error) {
+func (sd *spannerDatastore) Features(_ context.Context) (*datastore.Features, error) {
 	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
 }
 
-func (sd spannerDatastore) Close() error {
+func (sd *spannerDatastore) Close() error {
 	sd.client.Close()
 	return nil
 }

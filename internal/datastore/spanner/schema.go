@@ -24,10 +24,6 @@ const (
 
 	tableMetadata = "metadata"
 	colUniqueID   = "unique_id"
-
-	tableCounters = "relationship_estimate_counters"
-	colID         = "id"
-	colCount      = "count"
 )
 
 var allRelationshipCols = []string{
