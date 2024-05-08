@@ -1426,3 +1426,204 @@ func TestExperimentalDependentRelations(t *testing.T) {
 		})
 	}
 }
+
+func TestExperimentalComputablePermissions(t *testing.T) {
+	tcs := []struct {
+		name             string
+		schema           string
+		definitionName   string
+		relationName     string
+		filter           string
+		expectedCode     codes.Code
+		expectedError    string
+		expectedResponse []*v1.ExpRelationReference
+	}{
+		{
+			name:           "invalid definition",
+			schema:         `definition user {}`,
+			definitionName: "invalid",
+			expectedCode:   codes.FailedPrecondition,
+			expectedError:  "object definition `invalid` not found",
+		},
+		{
+			name:           "invalid relation",
+			schema:         `definition user {}`,
+			definitionName: "user",
+			relationName:   "invalid",
+			expectedCode:   codes.FailedPrecondition,
+			expectedError:  "relation/permission `invalid` not found",
+		},
+		{
+			name: "basic",
+			schema: `
+				definition user {}
+
+				definition document {
+					relation unused: user
+					relation editor: user
+					relation viewer: user
+					permission view = viewer + editor
+					permission another = unused
+				}`,
+			definitionName: "user",
+			relationName:   "",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "document",
+					RelationName:   "another",
+					IsPermission:   true,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "editor",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "unused",
+					IsPermission:   false,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "view",
+					IsPermission:   true,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "viewer",
+					IsPermission:   false,
+				},
+			},
+		},
+		{
+			name: "filtered",
+			schema: `
+				definition user {}
+
+				definition folder {
+					relation viewer: user
+				}
+
+				definition document {
+					relation unused: user
+					relation editor: user
+					relation viewer: user
+					permission view = viewer + editor
+					permission another = unused
+				}`,
+			definitionName: "user",
+			relationName:   "",
+			filter:         "folder",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "folder",
+					RelationName:   "viewer",
+					IsPermission:   false,
+				},
+			},
+		},
+		{
+			name: "basic relation",
+			schema: `
+				definition user {}
+
+				definition document {
+					relation unused: user
+					relation editor: user
+					relation viewer: user
+					permission view = viewer + editor
+					permission another = unused
+				}`,
+			definitionName: "document",
+			relationName:   "viewer",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "document",
+					RelationName:   "view",
+					IsPermission:   true,
+				},
+			},
+		},
+		{
+			name: "multiple permissions",
+			schema: `
+				definition user {}
+
+				definition document {
+					relation unused: user
+					relation editor: user
+					relation viewer: user
+					permission view = viewer + editor
+					permission only_view = viewer
+					permission another = unused
+				}`,
+			definitionName: "document",
+			relationName:   "viewer",
+			expectedResponse: []*v1.ExpRelationReference{
+				{
+					DefinitionName: "document",
+					RelationName:   "only_view",
+					IsPermission:   true,
+				},
+				{
+					DefinitionName: "document",
+					RelationName:   "view",
+					IsPermission:   true,
+				},
+			},
+		},
+		{
+			name: "empty response",
+			schema: `
+				definition user {}
+
+				definition document {
+					relation unused: user
+					permission empty = nil
+				}
+			`,
+			definitionName:   "document",
+			relationName:     "unused",
+			expectedResponse: []*v1.ExpRelationReference{},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+			expClient := v1.NewExperimentalServiceClient(conn)
+			schemaClient := v1.NewSchemaServiceClient(conn)
+			defer cleanup()
+
+			// Write the schema.
+			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: tc.schema,
+			})
+			require.NoError(t, err)
+
+			actual, err := expClient.ExperimentalComputablePermissions(context.Background(), &v1.ExperimentalComputablePermissionsRequest{
+				DefinitionName:               tc.definitionName,
+				RelationName:                 tc.relationName,
+				OptionalDefinitionNameFilter: tc.filter,
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+				},
+			})
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+				grpcutil.RequireStatus(t, tc.expectedCode, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, actual.ReadAt)
+				actual.ReadAt = nil
+
+				testutil.RequireProtoEqual(t, &v1.ExperimentalComputablePermissionsResponse{
+					Permissions: tc.expectedResponse,
+				}, actual, "mismatch in response")
+			}
+		})
+	}
+}

@@ -17,6 +17,215 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+func TestRelationsEncounteredForSubject(t *testing.T) {
+	tcs := []struct {
+		name                string
+		schema              string
+		subjectType         string
+		relation            string
+		expectedPermissions []string
+	}{
+		{
+			"simple permission",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				permission view = viewer
+			}`,
+
+			"document",
+			"viewer",
+			[]string{"document#view"},
+		},
+		{
+			"simple permission and user",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				permission view = viewer
+			}`,
+
+			"user",
+			"...",
+			[]string{"document#view", "document#viewer"},
+		},
+		{
+			"multiple permissions using the same relation",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+
+				permission edit = editor
+				permission view = viewer + editor
+			}`,
+
+			"document",
+			"editor",
+			[]string{"document#view", "document#edit"},
+		},
+		{
+			"multiple permissions using the same relation indirectly",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+
+				permission edit = editor
+				permission view = viewer + edit
+			}`,
+
+			"document",
+			"editor",
+			[]string{"document#view", "document#edit"},
+		},
+		{
+			"permission referencing subject relation",
+			`definition user {}
+
+			definition group {
+				relation member: user
+			}
+
+			definition document {
+				relation viewer: user | group#member
+				permission view = viewer
+			}`,
+			"group",
+			"member",
+			[]string{"document#view", "document#viewer"},
+		},
+		{
+			"simple arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				permission view = org->admin
+			}`,
+			"organization",
+			"admin",
+			[]string{"document#view"},
+		},
+		{
+			"complex schema",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+				relation direct_member: user
+
+				permission member = direct_member + admin
+			}
+
+			definition group {
+				relation admin: user
+				relation direct_member: user | group#member
+				permission member = direct_member + admin
+			}
+
+			definition document {
+				relation viewer: user | group#member
+				relation owner: user
+				relation org: organization
+
+				permission view = viewer + owner + org->admin
+			}`,
+			"user",
+			"...",
+			[]string{
+				"document#viewer", "document#owner", "document#view",
+				"group#admin", "group#direct_member", "group#member",
+				"organization#member", "organization#admin",
+				"organization#direct_member",
+			},
+		},
+		{
+			"schema with different user types",
+			`definition user {}
+
+			definition platformuser {}
+
+			definition document {
+				relation viewer: user | platformuser
+				relation editor: platformuser
+
+				permission edit = editor
+				permission view = viewer + edit
+			}`,
+
+			"user",
+			"...",
+
+			[]string{"document#view", "document#viewer"},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
+
+			compiled, err := compiler.Compile(compiler.InputSchema{
+				Source:       input.Source("schema"),
+				SchemaString: tc.schema,
+			}, compiler.AllowUnprefixedObjectType())
+			require.NoError(err)
+
+			// Write the schema.
+			_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+				for _, nsDef := range compiled.ObjectDefinitions {
+					if err := tx.WriteNamespaces(ctx, nsDef); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			})
+			require.NoError(err)
+
+			lastRevision, err := ds.HeadRevision(context.Background())
+			require.NoError(err)
+
+			reader := ds.SnapshotReader(lastRevision)
+
+			_, vts, err := ReadNamespaceAndTypes(ctx, tc.subjectType, reader)
+			require.NoError(err)
+
+			rg := ReachabilityGraphFor(vts)
+
+			relations, err := rg.RelationsEncounteredForSubject(ctx, compiled.ObjectDefinitions, &core.RelationReference{
+				Namespace: tc.subjectType,
+				Relation:  tc.relation,
+			})
+			require.NoError(err)
+
+			relationStrs := make([]string, 0, len(relations))
+			for _, relation := range relations {
+				relationStrs = append(relationStrs, tuple.StringRR(relation))
+			}
+
+			sort.Strings(relationStrs)
+			sort.Strings(tc.expectedPermissions)
+
+			require.Equal(tc.expectedPermissions, relationStrs)
+		})
+	}
+}
+
 func TestRelationsEncounteredForResource(t *testing.T) {
 	tcs := []struct {
 		name              string

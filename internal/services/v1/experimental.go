@@ -497,6 +497,81 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 	return resp, nil
 }
 
+func (es *experimentalServer) ExperimentalComputablePermissions(ctx context.Context, req *v1.ExperimentalComputablePermissionsRequest) (*v1.ExperimentalComputablePermissionsResponse, error) {
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	relationName := req.RelationName
+	if relationName == "" {
+		relationName = tuple.Ellipsis
+	} else {
+		if _, ok := vts.GetRelation(relationName); !ok {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, relationName))
+		}
+	}
+
+	allNamespaces, err := ds.ListAllNamespaces(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	allDefinitions := make([]*core.NamespaceDefinition, 0, len(allNamespaces))
+	for _, ns := range allNamespaces {
+		allDefinitions = append(allDefinitions, ns.Definition)
+	}
+
+	rg := typesystem.ReachabilityGraphFor(vts)
+	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
+		Namespace: req.DefinitionName,
+		Relation:  relationName,
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	relations := make([]*v1.ExpRelationReference, 0, len(rr))
+	for _, r := range rr {
+		if r.Namespace == req.DefinitionName && r.Relation == req.RelationName {
+			continue
+		}
+
+		if req.OptionalDefinitionNameFilter != "" && !strings.HasPrefix(r.Namespace, req.OptionalDefinitionNameFilter) {
+			continue
+		}
+
+		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		if err != nil {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+		}
+
+		relations = append(relations, &v1.ExpRelationReference{
+			DefinitionName: r.Namespace,
+			RelationName:   r.Relation,
+			IsPermission:   ts.IsPermission(r.Relation),
+		})
+	}
+
+	sort.Slice(relations, func(i, j int) bool {
+		if relations[i].DefinitionName == relations[j].DefinitionName {
+			return relations[i].RelationName < relations[j].RelationName
+		}
+		return relations[i].DefinitionName < relations[j].DefinitionName
+	})
+
+	return &v1.ExperimentalComputablePermissionsResponse{
+		Permissions: relations,
+		ReadAt:      revisionReadAt,
+	}, nil
+}
+
 func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context, req *v1.ExperimentalDependentRelationsRequest) (*v1.ExperimentalDependentRelationsResponse, error) {
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
