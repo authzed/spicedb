@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -494,6 +495,68 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 	}
 
 	return resp, nil
+}
+
+func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context, req *v1.ExperimentalDependentRelationsRequest) (*v1.ExperimentalDependentRelationsResponse, error) {
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	_, ok := vts.GetRelation(req.PermissionName)
+	if !ok {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+	}
+
+	if !vts.IsPermission(req.PermissionName) {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
+	}
+
+	rg := typesystem.ReachabilityGraphFor(vts)
+	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
+		Namespace: req.DefinitionName,
+		Relation:  req.PermissionName,
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	relations := make([]*v1.ExpRelationReference, 0, len(rr))
+	for _, r := range rr {
+		if r.Namespace == req.DefinitionName && r.Relation == req.PermissionName {
+			continue
+		}
+
+		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		if err != nil {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+		}
+
+		relations = append(relations, &v1.ExpRelationReference{
+			DefinitionName: r.Namespace,
+			RelationName:   r.Relation,
+			IsPermission:   ts.IsPermission(r.Relation),
+		})
+	}
+
+	sort.Slice(relations, func(i, j int) bool {
+		if relations[i].DefinitionName == relations[j].DefinitionName {
+			return relations[i].RelationName < relations[j].RelationName
+		}
+
+		return relations[i].DefinitionName < relations[j].DefinitionName
+	})
+
+	return &v1.ExperimentalDependentRelationsResponse{
+		Relations: relations,
+		ReadAt:    revisionReadAt,
+	}, nil
 }
 
 func queryForEach(
