@@ -5,7 +5,6 @@ package util
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -18,9 +17,7 @@ import (
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/test/bufconn"
 
 	// Register Snappy S2 compression
 	_ "github.com/mostynb/go-grpc-compression/experimental/s2"
@@ -29,12 +26,9 @@ import (
 	// Register cert watcher metrics
 	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
 
-	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
-	"github.com/authzed/spicedb/pkg/x509util"
+	"github.com/authzed/spicedb/pkg/grpcutil"
 )
-
-const BufferedNetwork string = "buffnet"
 
 type GRPCServerConfig struct {
 	Address      string        `debugmap:"visible"`
@@ -71,35 +65,28 @@ func RegisterGRPCServerFlags(flags *pflag.FlagSet, config *GRPCServerConfig, fla
 	flags.Uint32Var(&config.MaxWorkers, flagPrefix+"-max-workers", 0, "set the number of workers for this server (0 value means 1 worker per request)")
 }
 
-type (
-	DialFunc    func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-	NetDialFunc func(ctx context.Context, s string) (net.Conn, error)
-)
-
 // Complete takes a set of default options and returns a completed server
 func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(server *grpc.Server), opts ...grpc.ServerOption) (RunnableGRPCServer, error) {
 	if !c.Enabled {
 		return &disabledGrpcServer{}, nil
 	}
-	if c.BufferSize == 0 {
-		c.BufferSize = 1024 * 1024
-	}
+
 	opts = append(opts, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: c.MaxConnAge,
 	}), grpc.NumStreamWorkers(c.MaxWorkers))
 
-	tlsOpts, certWatcher, err := c.tlsOpts()
+	creds, certWatcher, err := grpcutil.TLSServerCreds(c.TLSCertPath, c.TLSKeyPath)
 	if err != nil {
 		return nil, err
 	}
-	opts = append(opts, tlsOpts...)
+	opts = append(opts, grpc.Creds(creds))
 
-	clientCreds, err := c.clientCreds()
+	clientCreds, err := grpcutil.TLSClientCreds(c.ClientCAPath, c.TLSCertPath, c.TLSKeyPath)
 	if err != nil {
 		return nil, err
 	}
 
-	l, dial, netDial, err := c.listenerAndDialer()
+	l, dial, netDial, err := grpcutil.ListenerDialers(c.BufferSize, c.Network, c.Address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on addr for gRPC server: %w", err)
 	}
@@ -133,69 +120,6 @@ func (c *GRPCServerConfig) Complete(level zerolog.Level, svcRegistrationFn func(
 		creds:       clientCreds,
 		certWatcher: certWatcher,
 	}, nil
-}
-
-func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialFunc, error) {
-	if c.Network == BufferedNetwork {
-		bl := bufconn.Listen(c.BufferSize)
-		return bl, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-				opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-					return bl.DialContext(ctx)
-				}))
-
-				return grpchelpers.Dial(ctx, BufferedNetwork, opts...)
-			}, func(ctx context.Context, s string) (net.Conn, error) {
-				return bl.DialContext(ctx)
-			}, nil
-	}
-	l, err := net.Listen(c.Network, c.Address)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return l, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		return grpchelpers.Dial(ctx, c.Address, opts...)
-	}, nil, nil
-}
-
-func (c *GRPCServerConfig) tlsOpts() ([]grpc.ServerOption, *certwatcher.CertWatcher, error) {
-	switch {
-	case c.TLSCertPath == "" && c.TLSKeyPath == "":
-		return nil, nil, nil
-	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		watcher, err := certwatcher.New(c.TLSCertPath, c.TLSKeyPath)
-		if err != nil {
-			return nil, nil, err
-		}
-		creds := credentials.NewTLS(&tls.Config{
-			GetCertificate: watcher.GetCertificate,
-			MinVersion:     tls.VersionTLS12,
-		})
-		return []grpc.ServerOption{grpc.Creds(creds)}, watcher, nil
-	default:
-		return nil, nil, nil
-	}
-}
-
-func (c *GRPCServerConfig) clientCreds() (credentials.TransportCredentials, error) {
-	switch {
-	case c.TLSCertPath == "" && c.TLSKeyPath == "":
-		return insecure.NewCredentials(), nil
-	case c.TLSCertPath != "" && c.TLSKeyPath != "":
-		var err error
-		var pool *x509.CertPool
-		if c.ClientCAPath != "" {
-			pool, err = x509util.CustomCertPool(c.ClientCAPath)
-		} else {
-			pool, err = x509.SystemCertPool()
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		return credentials.NewTLS(&tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}), nil
-	default:
-		return nil, nil
-	}
 }
 
 type RunnableGRPCServer interface {
