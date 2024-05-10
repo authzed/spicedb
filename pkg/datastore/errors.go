@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 // ErrNotFound is a shared interface for not found errors.
@@ -194,6 +196,84 @@ func NewCaveatNameNotFoundErr(name string) error {
 func (err ErrCaveatNameNotFound) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"caveat_name": err.name,
+	}
+}
+
+// ErrFilterNotRegistered indicates that a counting filter was not registered.
+type ErrFilterNotRegistered struct {
+	error
+	filter *core.RelationshipFilter
+}
+
+// NewFilterNotRegisteredErr constructs a new filter not registered error.
+func NewFilterNotRegisteredErr(filter *core.RelationshipFilter) error {
+	return ErrFilterNotRegistered{
+		error:  fmt.Errorf("the specified filter was not registered"),
+		filter: filter,
+	}
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrFilterNotRegistered) DetailsMetadata() map[string]string {
+	subjectType := ""
+	subjectID := ""
+	subjectRelation := ""
+	if err.filter.OptionalSubjectFilter != nil {
+		subjectType = err.filter.OptionalSubjectFilter.SubjectType
+		subjectID = err.filter.OptionalSubjectFilter.OptionalSubjectId
+
+		if err.filter.OptionalSubjectFilter.GetOptionalRelation() != nil {
+			subjectRelation = err.filter.OptionalSubjectFilter.GetOptionalRelation().Relation
+		}
+	}
+
+	return map[string]string{
+		"filter_resource_type":      err.filter.ResourceType,
+		"filter_resource_id":        err.filter.OptionalResourceId,
+		"filter_resource_id_prefix": err.filter.OptionalResourceIdPrefix,
+		"filter_relation":           err.filter.OptionalRelation,
+		"filter_subject_type":       subjectType,
+		"filter_subject_id":         subjectID,
+		"filter_subject_relation":   subjectRelation,
+	}
+}
+
+// ErrFilterAlreadyRegistered indicates that a counting filter was already registered.
+type ErrFilterAlreadyRegistered struct {
+	error
+	filter *core.RelationshipFilter
+}
+
+// NewFilterAlreadyRegisteredErr constructs a new filter not registered error.
+func NewFilterAlreadyRegisteredErr(filter *core.RelationshipFilter) error {
+	return ErrFilterNotRegistered{
+		error:  fmt.Errorf("the specified filter was already registered"),
+		filter: filter,
+	}
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrFilterAlreadyRegistered) DetailsMetadata() map[string]string {
+	subjectType := ""
+	subjectID := ""
+	subjectRelation := ""
+	if err.filter.OptionalSubjectFilter != nil {
+		subjectType = err.filter.OptionalSubjectFilter.SubjectType
+		subjectID = err.filter.OptionalSubjectFilter.OptionalSubjectId
+
+		if err.filter.OptionalSubjectFilter.GetOptionalRelation() != nil {
+			subjectRelation = err.filter.OptionalSubjectFilter.GetOptionalRelation().Relation
+		}
+	}
+
+	return map[string]string{
+		"filter_resource_type":      err.filter.ResourceType,
+		"filter_resource_id":        err.filter.OptionalResourceId,
+		"filter_resource_id_prefix": err.filter.OptionalResourceIdPrefix,
+		"filter_relation":           err.filter.OptionalRelation,
+		"filter_subject_type":       subjectType,
+		"filter_subject_id":         subjectID,
+		"filter_subject_relation":   subjectRelation,
 	}
 }
 

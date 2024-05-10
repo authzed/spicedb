@@ -173,6 +173,90 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	return metLimit, rwt.write(tx, mutations...)
 }
 
+func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	rwt.mustLock()
+	defer rwt.Unlock()
+
+	tx, err := rwt.txSource()
+	if err != nil {
+		return err
+	}
+
+	// Check if the counter already exists
+	filterName := datastore.FilterStableName(filter)
+	foundRaw, err := tx.First(tableCounters, indexID, filterName)
+	if err != nil {
+		return err
+	}
+
+	if foundRaw != nil {
+		return datastore.NewFilterAlreadyRegisteredErr(filter)
+	}
+
+	filterBytes, err := filter.MarshalVT()
+	if err != nil {
+		return err
+	}
+
+	// Insert the counter
+	counter := &counter{
+		filterName,
+		filterBytes,
+		0,
+		datastore.NoRevision,
+	}
+
+	return tx.Insert(tableCounters, counter)
+}
+
+func (rwt *memdbReadWriteTx) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	rwt.mustLock()
+	defer rwt.Unlock()
+
+	tx, err := rwt.txSource()
+	if err != nil {
+		return err
+	}
+
+	// Check if the counter exists
+	foundRaw, err := tx.First(tableCounters, indexID, datastore.FilterStableName(filter))
+	if err != nil {
+		return err
+	}
+
+	if foundRaw == nil {
+		return datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	return tx.Delete(tableCounters, foundRaw)
+}
+
+func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+	rwt.mustLock()
+	defer rwt.Unlock()
+
+	tx, err := rwt.txSource()
+	if err != nil {
+		return err
+	}
+
+	// Check if the counter exists
+	foundRaw, err := tx.First(tableCounters, indexID, datastore.FilterStableName(filter))
+	if err != nil {
+		return err
+	}
+
+	if foundRaw == nil {
+		return datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	counter := foundRaw.(*counter)
+	counter.count = value
+	counter.updated = computedAtRevision
+
+	return tx.Insert(tableCounters, counter)
+}
+
 func (rwt *memdbReadWriteTx) WriteNamespaces(_ context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
