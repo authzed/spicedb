@@ -4,17 +4,27 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/zerologr"
 	"github.com/jzelinskie/cobrautil/v2"
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/datastore/postgres"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
-	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/logging"
+	pkgcmd "github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
+	"github.com/authzed/spicedb/pkg/releases"
+	"github.com/authzed/spicedb/pkg/runtime"
 )
 
-func NewPostgresCommand(programName string) *cobra.Command {
+const (
+	exampleWithoutTLS = "pg serve-grpc --grpc-preshared-key secretKeyHere --pg-uri postgres://postgres:password@localhost:5432"
+)
+
+func NewPostgresCommand(programName string) (*cobra.Command, error) {
 	pgCmd := &cobra.Command{
 		Use:     "postgres",
 		Aliases: []string{"pg", "postgresql"},
@@ -25,11 +35,43 @@ func NewPostgresCommand(programName string) *cobra.Command {
 	migrationsCmd := NewMigrationCommand(programName)
 	pgCmd.AddCommand(migrationsCmd)
 
-	RegisterFlags(pgCmd)
-	return pgCmd
-}
+	cfg := &server.Config{}
+	cfg.DatastoreConfig.Engine = "postgres"
+	cfg.NamespaceCacheConfig = pkgcmd.NamespaceCacheConfig
+	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+	cfg.DispatchCacheConfig = server.CacheConfig{}
 
-func RegisterFlags(cmd *cobra.Command) {
+	serveCmd := &cobra.Command{
+		Use:     "serve-grpc",
+		Short:   "Serve the SpiceDB gRPC API services",
+		Example: pkgcmd.ServeExample(programName, exampleWithoutTLS),
+		PreRunE: cobrautil.CommandStack(
+			cobraotel.New("spicedb", cobraotel.WithLogger(zerologr.New(&logging.Logger))).RunE(),
+			releases.CheckAndLogRunE(),
+			runtime.RunE(),
+		),
+		RunE: pkgcmd.ServeGRPCRunE(cfg),
+	}
+
+	nfs := cobrautil.NewNamedFlagSets(serveCmd)
+	if err := pkgcmd.RegisterPostgresDatastoreFlags(serveCmd, nfs.FlagSet("Postgres Datastore"), cfg); err != nil {
+		return nil, err
+	}
+
+	postRegisterFn, err := pkgcmd.RegisterCommonServeFlags(programName, serveCmd, nfs, cfg, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Flags must be registered to the command after flags are set.
+	nfs.AddFlagSets(serveCmd)
+	if err := postRegisterFn(); err != nil {
+		return nil, err
+	}
+
+	pgCmd.AddCommand(serveCmd)
+
+	return pgCmd, nil
 }
 
 func NewMigrationCommand(programName string) *cobra.Command {
@@ -83,7 +125,7 @@ func NewMigrationCommand(programName string) *cobra.Command {
 			}
 			repairDuration := time.Since(start)
 
-			log.Ctx(ctx).Info().Dur("duration", repairDuration).Msg("datastore repair completed")
+			logging.Ctx(ctx).Info().Dur("duration", repairDuration).Msg("datastore repair completed")
 			return nil
 		},
 	}
@@ -109,7 +151,7 @@ func ExecMigrationRunE(cmd *cobra.Command, args []string) error {
 		revision = head
 	}
 
-	log.Ctx(cmd.Context()).Info().Str("target", revision).Msg("executing migrations")
+	logging.Ctx(cmd.Context()).Info().Str("target", revision).Msg("executing migrations")
 
 	var credentialsProvider datastore.CredentialsProvider
 	credentialsProviderName := cobrautil.MustGetString(cmd, "datastore-credentials-provider-name")

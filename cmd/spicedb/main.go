@@ -84,11 +84,20 @@ func main() {
 		ID:    "datastores",
 		Title: "Datastores:",
 	})
-	pgCmd := postgres.NewPostgresCommand(rootCmd.Use)
+	pgCmd, err := postgres.NewPostgresCommand(rootCmd.Use)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to register serve flags")
+	}
 	rootCmd.AddCommand(pgCmd)
-	crdbCmd := cockroachdb.NewCommand(rootCmd.Use)
+	crdbCmd, err := cockroachdb.NewCommand(rootCmd.Use)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to register serve flags")
+	}
 	rootCmd.AddCommand(crdbCmd)
-	memCmd := memory.NewCommand(rootCmd.Use)
+	memCmd, err := memory.NewCommand(rootCmd.Use)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to register serve flags")
+	}
 	rootCmd.AddCommand(memCmd)
 	myCmd := mysql.NewCommand(rootCmd.Use)
 	rootCmd.AddCommand(myCmd)

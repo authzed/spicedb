@@ -4,15 +4,21 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/zerologr"
 	"github.com/jzelinskie/cobrautil/v2"
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
-	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/logging"
+	pkgcmd "github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/migrate"
+	"github.com/authzed/spicedb/pkg/releases"
+	"github.com/authzed/spicedb/pkg/runtime"
 )
 
-func NewCommand(programName string) *cobra.Command {
+func NewCommand(programName string) (*cobra.Command, error) {
 	crdbCmd := &cobra.Command{
 		Use:     "cockroachdb",
 		Aliases: []string{"cockroach", "crdb"},
@@ -23,7 +29,43 @@ func NewCommand(programName string) *cobra.Command {
 	migrationsCmd := NewMigrationCommand(programName)
 	crdbCmd.AddCommand(migrationsCmd)
 
-	return crdbCmd
+	cfg := &server.Config{}
+	cfg.DatastoreConfig.Engine = "cockroachdb"
+	cfg.NamespaceCacheConfig = pkgcmd.NamespaceCacheConfig
+	cfg.ClusterDispatchCacheConfig = server.CacheConfig{}
+	cfg.DispatchCacheConfig = server.CacheConfig{}
+
+	serveCmd := &cobra.Command{
+		Use:     "serve-grpc",
+		Short:   "Serve the SpiceDB gRPC API services",
+		Example: pkgcmd.ServeExample(programName),
+		PreRunE: cobrautil.CommandStack(
+			cobraotel.New("spicedb", cobraotel.WithLogger(zerologr.New(&logging.Logger))).RunE(),
+			releases.CheckAndLogRunE(),
+			runtime.RunE(),
+		),
+		RunE: pkgcmd.ServeGRPCRunE(cfg),
+	}
+
+	nfs := cobrautil.NewNamedFlagSets(serveCmd)
+	if err := pkgcmd.RegisterCRDBDatastoreFlags(serveCmd, nfs.FlagSet("CockroachDB Datastore"), cfg); err != nil {
+		return nil, err
+	}
+
+	postRegisterFn, err := pkgcmd.RegisterCommonServeFlags(programName, serveCmd, nfs, cfg, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Flags must be registered to the command after flags are set.
+	nfs.AddFlagSets(serveCmd)
+	if err := postRegisterFn(); err != nil {
+		return nil, err
+	}
+
+	crdbCmd.AddCommand(serveCmd)
+
+	return crdbCmd, nil
 }
 
 func NewMigrationCommand(programName string) *cobra.Command {
@@ -77,7 +119,7 @@ func ExecMigrationRunE(cmd *cobra.Command, args []string) error {
 		revision = head
 	}
 
-	log.Ctx(ctx).Info().Str("target", revision).Msg("executing migrations")
+	logging.Ctx(ctx).Info().Str("target", revision).Msg("executing migrations")
 
 	migrationDriver, err := migrations.NewCRDBDriver(cobrautil.MustGetStringExpanded(cmd, "crdb-uri"))
 	if err != nil {
