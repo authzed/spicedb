@@ -142,6 +142,22 @@ func (p *observableProxy) Close() error { return p.delegate.Close() }
 
 type observableReader struct{ delegate datastore.Reader }
 
+func (r *observableReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	ctx, closer := observe(ctx, "CountRelationships", trace.WithAttributes(
+		attribute.String("filter", datastore.FilterStableName(filter)),
+	))
+	defer closer()
+
+	return r.delegate.CountRelationships(ctx, filter)
+}
+
+func (r *observableReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	ctx, closer := observe(ctx, "LookupCounters")
+	defer closer()
+
+	return r.delegate.LookupCounters(ctx)
+}
+
 func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	ctx, closer := observe(ctx, "ReadCaveatByName", trace.WithAttributes(
 		attribute.String("name", name),
@@ -242,6 +258,35 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 type observableRWT struct {
 	*observableReader
 	delegate datastore.ReadWriteTransaction
+}
+
+func (rwt *observableRWT) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	ctx, closer := observe(ctx, "RegisterCounter", trace.WithAttributes(
+		attribute.String("filter", datastore.FilterStableName(filter)),
+	))
+	defer closer()
+
+	return rwt.delegate.RegisterCounter(ctx, filter)
+}
+
+func (rwt *observableRWT) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	ctx, closer := observe(ctx, "UnregisterCounter", trace.WithAttributes(
+		attribute.String("filter", datastore.FilterStableName(filter)),
+	))
+	defer closer()
+
+	return rwt.delegate.UnregisterCounter(ctx, filter)
+}
+
+func (rwt *observableRWT) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+	ctx, closer := observe(ctx, "StoreCounterValue", trace.WithAttributes(
+		attribute.String("filter", datastore.FilterStableName(filter)),
+		attribute.Int("value", value),
+		attribute.String("revision", computedAtRevision.String()),
+	))
+	defer closer()
+
+	return rwt.delegate.StoreCounterValue(ctx, filter, value, computedAtRevision)
 }
 
 func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {

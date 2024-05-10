@@ -98,6 +98,16 @@ func (dm *MockReader) ReadNamespaceByName(
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
+func (dm *MockReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	args := dm.Called(filter)
+	return args.Get(0).(int), args.Error(1)
+}
+
+func (dm *MockReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	args := dm.Called()
+	return args.Get(0).([]datastore.RelationshipCounter), args.Error(1)
+}
+
 func (dm *MockReader) QueryRelationships(
 	_ context.Context,
 	filter datastore.RelationshipsFilter,
@@ -171,6 +181,16 @@ func (dm *MockReader) ListAllCaveats(_ context.Context) ([]datastore.RevisionedC
 
 type MockReadWriteTransaction struct {
 	mock.Mock
+}
+
+func (dm *MockReadWriteTransaction) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	args := dm.Called(filter)
+	return args.Get(0).(int), args.Error(1)
+}
+
+func (dm *MockReadWriteTransaction) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	args := dm.Called()
+	return args.Get(0).([]datastore.RelationshipCounter), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) ReadNamespaceByName(
@@ -295,6 +315,21 @@ func (dm *MockReadWriteTransaction) WriteCaveats(_ context.Context, caveats []*c
 
 func (dm *MockReadWriteTransaction) DeleteCaveats(_ context.Context, _ []string) error {
 	panic("not used")
+}
+
+func (dm *MockReadWriteTransaction) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	args := dm.Called(filter)
+	return args.Error(0)
+}
+
+func (dm *MockReadWriteTransaction) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	args := dm.Called(filter)
+	return args.Error(0)
+}
+
+func (dm *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+	args := dm.Called(filter, value, computedAtRevision)
+	return args.Error(0)
 }
 
 var (
