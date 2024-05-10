@@ -698,6 +698,8 @@ github.com/authzed/authzed-go v0.11.2-0.20240506164352-1e5f214fc4f5 h1:gsc5jhIea
 github.com/authzed/authzed-go v0.11.2-0.20240506164352-1e5f214fc4f5/go.mod h1:6cIxOivUQPOstQnt0jJ7sRtW91Y0e548zZpy7h8w+mU=
 github.com/authzed/authzed-go v0.11.2-0.20240507202708-8b150c491e4a h1:jQFRCVWTfisWRbs2C3Nmn8RoI0/pCSnsdXmHv01EOYg=
 github.com/authzed/authzed-go v0.11.2-0.20240507202708-8b150c491e4a/go.mod h1:6cIxOivUQPOstQnt0jJ7sRtW91Y0e548zZpy7h8w+mU=
+github.com/authzed/authzed-go v0.11.2-0.20240509204522-7f367c12236e h1:VYcp9vvFxVkyRuRu+W3U/A2BQTsfuZIiBtcSqywxhyQ=
+github.com/authzed/authzed-go v0.11.2-0.20240509204522-7f367c12236e/go.mod h1:6cIxOivUQPOstQnt0jJ7sRtW91Y0e548zZpy7h8w+mU=
 github.com/authzed/cel-go v0.20.2 h1:GlmLecGry7Z8HU0k+hmaHHUV05ZHrsFxduXHtIePvck=
 github.com/authzed/cel-go v0.20.2/go.mod h1:pJHVFWbqUHV1J+klQoZubdKswlbxcsbojda3mye9kiU=
 github.com/authzed/consistent v0.1.0 h1:tlh1wvKoRbjRhMm2P+X5WQQyR54SRoS4MyjLOg17Mp8=

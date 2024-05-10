@@ -330,6 +330,7 @@ type RevisionedNamespace = RevisionedDefinition[*core.NamespaceDefinition]
 // Reader is an interface for reading relationships from the datastore.
 type Reader interface {
 	CaveatReader
+	CounterReader
 
 	// QueryRelationships reads relationships, starting from the resource side.
 	QueryRelationships(
@@ -359,6 +360,7 @@ type Reader interface {
 type ReadWriteTransaction interface {
 	Reader
 	CaveatStorer
+	CounterRegisterer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
 	WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error
