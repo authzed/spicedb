@@ -10,7 +10,9 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"golang.org/x/exp/maps"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -133,6 +135,78 @@ func (rg *ReachabilityGraph) RelationsEncounteredForResource(
 
 	relationRefs := make([]*core.RelationReference, 0, len(relationNames))
 	for _, relationName := range relationNames {
+		namespace, relation := tuple.MustSplitRelRef(relationName)
+		relationRefs = append(relationRefs, &core.RelationReference{
+			Namespace: namespace,
+			Relation:  relation,
+		})
+	}
+	return relationRefs, nil
+}
+
+// RelationsEncounteredForSubject returns all relations that are encountered when walking outward from a subject+relation.
+func (rg *ReachabilityGraph) RelationsEncounteredForSubject(
+	ctx context.Context,
+	allDefinitions []*core.NamespaceDefinition,
+	startingSubjectType *core.RelationReference,
+) ([]*core.RelationReference, error) {
+	if startingSubjectType.Namespace != rg.ts.nsDef.Name {
+		return nil, spiceerrors.MustBugf("gave mismatching namespace name for subject type to reachability graph")
+	}
+
+	allRelationNames := mapz.NewSet[string]()
+
+	subjectTypesToCheck := []*core.RelationReference{startingSubjectType}
+
+	// TODO(jschorr): optimize this to not require walking over all types recursively.
+	added := mapz.NewSet[string]()
+	for {
+		if len(subjectTypesToCheck) == 0 {
+			break
+		}
+
+		collected := &[]ReachabilityEntrypoint{}
+		for _, nsDef := range allDefinitions {
+			nts, err := rg.ts.TypeSystemForNamespace(ctx, nsDef.Name)
+			if err != nil {
+				return nil, err
+			}
+
+			nrg := ReachabilityGraphFor(&ValidatedNamespaceTypeSystem{nts})
+
+			for _, relation := range nsDef.Relation {
+				for _, subjectType := range subjectTypesToCheck {
+					if subjectType.Namespace == nsDef.Name && subjectType.Relation == relation.Name {
+						continue
+					}
+
+					encounteredRelations := map[string]struct{}{}
+					err := nrg.collectEntrypoints(ctx, &core.RelationReference{
+						Namespace: nsDef.Name,
+						Relation:  relation.Name,
+					}, subjectType, collected, encounteredRelations, reachabilityFull, entrypointLookupFindAll)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+
+		subjectTypesToCheck = make([]*core.RelationReference, 0, len(*collected))
+
+		for _, entrypoint := range *collected {
+			st := tuple.JoinRelRef(entrypoint.re.TargetRelation.Namespace, entrypoint.re.TargetRelation.Relation)
+			if !added.Add(st) {
+				continue
+			}
+
+			allRelationNames.Add(st)
+			subjectTypesToCheck = append(subjectTypesToCheck, entrypoint.re.TargetRelation)
+		}
+	}
+
+	relationRefs := make([]*core.RelationReference, 0, allRelationNames.Len())
+	for _, relationName := range allRelationNames.AsSlice() {
 		namespace, relation := tuple.MustSplitRelRef(relationName)
 		relationRefs = append(relationRefs, &core.RelationReference{
 			Namespace: namespace,
