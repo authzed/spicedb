@@ -1,31 +1,34 @@
 package migrations
 
 const (
-	tableNamespaceDefault   = "namespace_config"
-	tableTransactionDefault = "relation_tuple_transaction"
-	tableTupleDefault       = "relation_tuple"
-	tableMigrationVersion   = "mysql_migration_version"
-	tableMetadataDefault    = "mysql_metadata"
-	tableCaveatDefault      = "caveat"
+	tableNamespaceDefault     = "namespace_config"
+	tableTransactionDefault   = "relation_tuple_transaction"
+	tableTupleDefault         = "relation_tuple"
+	tableMigrationVersion     = "mysql_migration_version"
+	tableMetadataDefault      = "mysql_metadata"
+	tableCaveatDefault        = "caveat"
+	tableRelationshipCounters = "relationship_counters"
 )
 
 type tables struct {
-	tableMigrationVersion string
-	tableTransaction      string
-	tableTuple            string
-	tableNamespace        string
-	tableMetadata         string
-	tableCaveat           string
+	tableMigrationVersion     string
+	tableTransaction          string
+	tableTuple                string
+	tableNamespace            string
+	tableMetadata             string
+	tableCaveat               string
+	tableRelationshipCounters string
 }
 
 func newTables(prefix string) *tables {
 	return &tables{
-		tableMigrationVersion: prefix + tableMigrationVersion,
-		tableTransaction:      prefix + tableTransactionDefault,
-		tableTuple:            prefix + tableTupleDefault,
-		tableNamespace:        prefix + tableNamespaceDefault,
-		tableMetadata:         prefix + tableMetadataDefault,
-		tableCaveat:           prefix + tableCaveatDefault,
+		tableMigrationVersion:     prefix + tableMigrationVersion,
+		tableTransaction:          prefix + tableTransactionDefault,
+		tableTuple:                prefix + tableTupleDefault,
+		tableNamespace:            prefix + tableNamespaceDefault,
+		tableMetadata:             prefix + tableMetadataDefault,
+		tableCaveat:               prefix + tableCaveatDefault,
+		tableRelationshipCounters: prefix + tableRelationshipCounters,
 	}
 }
 
@@ -54,4 +57,8 @@ func (tn *tables) Metadata() string {
 
 func (tn *tables) Caveat() string {
 	return tn.tableCaveat
+}
+
+func (tn *tables) RelationshipCounters() string {
+	return tn.tableRelationshipCounters
 }

@@ -30,9 +30,12 @@ type mysqlReader struct {
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
 
 const (
-	errUnableToReadConfig     = "unable to read namespace config: %w"
-	errUnableToListNamespaces = "unable to list namespaces: %w"
-	errUnableToQueryTuples    = "unable to query tuples: %w"
+	errUnableToReadConfig        = "unable to read namespace config: %w"
+	errUnableToListNamespaces    = "unable to list namespaces: %w"
+	errUnableToQueryTuples       = "unable to query tuples: %w"
+	errUnableToReadCounters      = "unable to read counters: %w"
+	errUnableToReadCounterFilter = "unable to read counter filter: %w"
+	errUnableToReadCount         = "unable to read count: %w"
 )
 
 var schema = common.NewSchemaInformation(
@@ -45,6 +48,117 @@ var schema = common.NewSchemaInformation(
 	colCaveatName,
 	common.ExpandedLogicComparison,
 )
+
+func (mr *mysqlReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	// Ensure the counter is registered.
+	counters, err := mr.lookupCounters(ctx, datastore.FilterStableName(filter))
+	if err != nil {
+		return 0, err
+	}
+
+	if len(counters) == 0 {
+		return 0, datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.CountTupleQuery)).FilterWithRelationshipsFilter(relFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	sql, args, err := qBuilder.UnderlyingQueryBuilder().ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("unable to count relationships: %w", err)
+	}
+
+	tx, txCleanup, err := mr.txSource(ctx)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToReadCount, err)
+	}
+	defer common.LogOnError(ctx, txCleanup)
+
+	var count int
+	rows, err := tx.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	defer common.LogOnError(ctx, rows.Close)
+
+	if rows.Err() != nil {
+		return 0, rows.Err()
+	}
+
+	if !rows.Next() {
+		if rows.Err() != nil {
+			return 0, rows.Err()
+		}
+
+		return 0, datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	if err := rows.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (mr *mysqlReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return mr.lookupCounters(ctx, "")
+}
+
+func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
+	query := mr.filterer(mr.ReadCounterQuery)
+	if optionalName != "" {
+		query = query.Where(sq.Eq{colCounterName: optionalName})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("unable to lookup counters: %w", err)
+	}
+
+	tx, txCleanup, err := mr.txSource(ctx)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToReadCounters, err)
+	}
+	defer common.LogOnError(ctx, txCleanup)
+
+	rows, err := tx.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer common.LogOnError(ctx, rows.Close)
+
+	var counters []datastore.RelationshipCounter
+	for rows.Next() {
+		var config []byte
+		var currentCount int
+		var txID uint64
+		if err := rows.Scan(&config, &currentCount, &txID); err != nil {
+			return nil, err
+		}
+
+		filter := &core.RelationshipFilter{}
+		if err := filter.UnmarshalVT(config); err != nil {
+			return nil, fmt.Errorf(errUnableToReadCounterFilter, err)
+		}
+
+		counters = append(counters, datastore.RelationshipCounter{
+			Filter:             filter,
+			Count:              currentCount,
+			ComputedAtRevision: revisions.NewForTransactionID(txID),
+		})
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return counters, nil
+}
 
 func (mr *mysqlReader) QueryRelationships(
 	ctx context.Context,
