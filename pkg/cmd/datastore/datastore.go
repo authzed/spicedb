@@ -133,11 +133,10 @@ type Config struct {
 	GCMaxOperationTime time.Duration `debugmap:"visible"`
 
 	// Spanner
-	SpannerCredentialsFile               string `debugmap:"visible"`
-	SpannerEmulatorHost                  string `debugmap:"visible"`
-	SpannerMinSessions                   uint64 `debugmap:"visible"`
-	SpannerMaxSessions                   uint64 `debugmap:"visible"`
-	SpannerEstimatedBytesPerRelationship uint64 `debugmap:"visible"`
+	SpannerCredentialsFile string `debugmap:"visible"`
+	SpannerEmulatorHost    string `debugmap:"visible"`
+	SpannerMinSessions     uint64 `debugmap:"visible"`
+	SpannerMaxSessions     uint64 `debugmap:"visible"`
 
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
