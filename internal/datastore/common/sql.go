@@ -116,6 +116,10 @@ func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuil
 	}
 }
 
+func (sqf SchemaQueryFilterer) UnderlyingQueryBuilder() sq.SelectBuilder {
+	return sqf.queryBuilder
+}
+
 func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFilterer {
 	switch order {
 	case options.ByResource:

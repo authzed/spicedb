@@ -34,19 +34,23 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 		})
 		require.NoError(t, err)
 
-		// Try to register again.
-		err = tx.RegisterCounter(ctx, &core.RelationshipFilter{
-			ResourceType: testfixtures.DocumentNS.Name,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "the specified filter was already registered")
-
 		// Register another filter.
 		err = tx.RegisterCounter(ctx, &core.RelationshipFilter{
 			ResourceType: testfixtures.FolderNS.Name,
 		})
 		require.NoError(t, err)
 
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Try to register again.
+	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		err := tx.RegisterCounter(ctx, &core.RelationshipFilter{
+			ResourceType: testfixtures.DocumentNS.Name,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "the specified filter was already registered")
 		return nil
 	})
 	require.NoError(t, err)
@@ -97,17 +101,19 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 			ResourceType: testfixtures.DocumentNS.Name,
 		})
 		require.NoError(t, err)
+		return nil
+	})
+	require.NoError(t, err)
 
-		// Try to unregister again.
+	// Try to unregister again.
+	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		err = tx.UnregisterCounter(ctx, &core.RelationshipFilter{
 			ResourceType: testfixtures.DocumentNS.Name,
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "the specified filter was not registered")
-
 		return nil
 	})
-	require.NoError(t, err)
 
 	// Call the filter at the previous revision.
 	count, err = reader.CountRelationships(context.Background(), &core.RelationshipFilter{

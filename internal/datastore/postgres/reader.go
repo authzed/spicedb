@@ -35,6 +35,8 @@ var (
 		colCaveatContext,
 	).From(tableTuple)
 
+	countTuples = psql.Select("COUNT(*)").From(tableTuple)
+
 	schema = common.NewSchemaInformation(
 		colNamespace,
 		colObjectID,
@@ -49,12 +51,112 @@ var (
 	readNamespace = psql.
 			Select(colConfig, colCreatedXid).
 			From(tableNamespace)
+
+	readCounters = psql.
+			Select(colCounterFilter, colCounterCurrentCount, colCounterSnapshot).
+			From(tableRelationshipCounter)
 )
 
 const (
 	errUnableToReadConfig     = "unable to read namespace config: %w"
+	errUnableToReadFilter     = "unable to read relationship filter: %w"
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
+
+func (r *pgReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	// Ensure the counter is registered.
+	counters, err := r.lookupCounters(ctx, datastore.FilterStableName(filter))
+	if err != nil {
+		return 0, err
+	}
+
+	if len(counters) == 0 {
+		return 0, datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countTuples)).FilterWithRelationshipsFilter(relFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	sql, args, err := qBuilder.UnderlyingQueryBuilder().ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("unable to count relationships: %w", err)
+	}
+
+	var count int
+	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		if !rows.Next() {
+			return datastore.NewFilterNotRegisteredErr(filter)
+		}
+
+		if err := rows.Scan(&count); err != nil {
+			return fmt.Errorf("unable to read counter: %w", err)
+		}
+		return rows.Err()
+	}, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *pgReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return r.lookupCounters(ctx, "")
+}
+
+func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
+	query := readCounters
+	if optionalName != "" {
+		query = query.Where(sq.Eq{colCounterName: optionalName})
+	}
+
+	sql, args, err := r.filterer(query).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("unable to lookup counters: %w", err)
+	}
+
+	var counters []datastore.RelationshipCounter
+	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var filter []byte
+			var snapshot *pgSnapshot
+			var currentCount int
+
+			if err := rows.Scan(&filter, &currentCount, &snapshot); err != nil {
+				return fmt.Errorf("unable to read counter: %w", err)
+			}
+
+			loaded := &core.RelationshipFilter{}
+			if err := loaded.UnmarshalVT(filter); err != nil {
+				return fmt.Errorf(errUnableToReadFilter, err)
+			}
+
+			revision := datastore.NoRevision
+			if snapshot != nil {
+				revision = postgresRevision{*snapshot}
+			}
+
+			counters = append(counters, datastore.RelationshipCounter{
+				Filter:             loaded,
+				Count:              currentCount,
+				ComputedAtRevision: revision,
+			})
+		}
+		return rows.Err()
+	}, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to query counters: %w", err)
+	}
+
+	return counters, nil
+}
 
 func (r *pgReader) QueryRelationships(
 	ctx context.Context,
