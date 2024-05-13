@@ -34,7 +34,7 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	name := fmt.Sprintf("postgres-%s", uuid.New().String())
+	name := fmt.Sprintf("spanner-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "gcr.io/cloud-spanner-emulator/emulator",

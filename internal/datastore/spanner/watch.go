@@ -51,7 +51,7 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 	return matches[1], matches[2], matches[3], nil
 }
 
-func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := opts.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = sd.watchBufferLength
@@ -65,7 +65,7 @@ func (sd spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errs
 }
 
-func (sd spannerDatastore) watch(
+func (sd *spannerDatastore) watch(
 	ctx context.Context,
 	afterRevisionRaw datastore.Revision,
 	opts datastore.WatchOptions,

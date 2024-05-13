@@ -63,6 +63,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
+		to.SpannerEstimatedBytesPerRelationship = c.SpannerEstimatedBytesPerRelationship
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
@@ -105,6 +106,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
 	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
+	debugMap["SpannerEstimatedBytesPerRelationship"] = helpers.DebugValue(c.SpannerEstimatedBytesPerRelationship, false)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
 	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
@@ -363,6 +365,13 @@ func WithSpannerMinSessions(spannerMinSessions uint64) ConfigOption {
 func WithSpannerMaxSessions(spannerMaxSessions uint64) ConfigOption {
 	return func(c *Config) {
 		c.SpannerMaxSessions = spannerMaxSessions
+	}
+}
+
+// WithSpannerEstimatedBytesPerRelationship returns an option that can set SpannerEstimatedBytesPerRelationship on a Config
+func WithSpannerEstimatedBytesPerRelationship(spannerEstimatedBytesPerRelationship uint64) ConfigOption {
+	return func(c *Config) {
+		c.SpannerEstimatedBytesPerRelationship = spannerEstimatedBytesPerRelationship
 	}
 }
 
