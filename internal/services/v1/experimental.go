@@ -634,6 +634,61 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 	}, nil
 }
 
+func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalRegisterRelationshipCounterRequest) (*v1.ExperimentalRegisterRelationshipCounterResponse, error) {
+	ds := datastoremw.MustFromContext(ctx)
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
+			return err
+		}
+
+		coreFilter := datastore.CoreFilterFromRelationshipFilter(req.RelationshipFilter)
+		return rwt.RegisterCounter(ctx, coreFilter)
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return &v1.ExperimentalRegisterRelationshipCounterResponse{}, nil
+}
+
+func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalUnregisterRelationshipCounterRequest) (*v1.ExperimentalUnregisterRelationshipCounterResponse, error) {
+	ds := datastoremw.MustFromContext(ctx)
+
+	if err := checkIfFilterIsEmpty(req.RelationshipFilter); err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		coreFilter := datastore.CoreFilterFromRelationshipFilter(req.RelationshipFilter)
+		return rwt.UnregisterCounter(ctx, coreFilter)
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return &v1.ExperimentalUnregisterRelationshipCounterResponse{}, nil
+}
+
+func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context, req *v1.ExperimentalCountRelationshipsRequest) (*v1.ExperimentalCountRelationshipsResponse, error) {
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	count, err := ds.CountRelationships(ctx, datastore.CoreFilterFromRelationshipFilter(req.RelationshipFilter))
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return &v1.ExperimentalCountRelationshipsResponse{
+		RelationshipCount: uint64(count),
+		ReadAt:            revisionReadAt,
+	}, nil
+}
+
 func queryForEach(
 	ctx context.Context,
 	reader datastore.Reader,

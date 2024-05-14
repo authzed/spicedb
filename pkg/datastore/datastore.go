@@ -143,6 +143,39 @@ func (rf RelationshipsFilter) Test(relationship *core.RelationTuple) bool {
 	return true
 }
 
+// CoreFilterFromRelationshipFilter constructs a core RelationshipFilter from a V1 RelationshipsFilter.
+func CoreFilterFromRelationshipFilter(filter *v1.RelationshipFilter) *core.RelationshipFilter {
+	return &core.RelationshipFilter{
+		ResourceType:             filter.ResourceType,
+		OptionalResourceId:       filter.OptionalResourceId,
+		OptionalResourceIdPrefix: filter.OptionalResourceIdPrefix,
+		OptionalRelation:         filter.OptionalRelation,
+		OptionalSubjectFilter:    coreFilterFromSubjectsFilter(filter.OptionalSubjectFilter),
+	}
+}
+
+func coreFilterFromSubjectsFilter(filter *v1.SubjectFilter) *core.SubjectFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &core.SubjectFilter{
+		SubjectType:       filter.SubjectType,
+		OptionalSubjectId: filter.OptionalSubjectId,
+		OptionalRelation:  coreFilterFromSubjectRelationFilter(filter.OptionalRelation),
+	}
+}
+
+func coreFilterFromSubjectRelationFilter(filter *v1.SubjectFilter_RelationFilter) *core.SubjectFilter_RelationFilter {
+	if filter == nil {
+		return nil
+	}
+
+	return &core.SubjectFilter_RelationFilter{
+		Relation: filter.Relation,
+	}
+}
+
 // RelationshipsFilterFromCoreFilter constructs a datastore RelationshipsFilter from a core RelationshipFilter.
 func RelationshipsFilterFromCoreFilter(filter *core.RelationshipFilter) (RelationshipsFilter, error) {
 	var resourceIds []string
