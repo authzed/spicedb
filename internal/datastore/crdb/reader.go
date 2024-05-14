@@ -8,6 +8,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -129,8 +130,8 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 		for rows.Next() {
 			var serializedFilter []byte
 			var currentCount int
-			var timestamp *time.Time
-			if err := rows.Scan(&serializedFilter, &currentCount, &timestamp); err != nil {
+			var revisionDecimal *decimal.Decimal
+			if err := rows.Scan(&serializedFilter, &currentCount, &revisionDecimal); err != nil {
 				return err
 			}
 
@@ -140,8 +141,13 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 			}
 
 			revision := datastore.NoRevision
-			if timestamp != nil {
-				revisions.NewHLCForTime(*timestamp)
+			if revisionDecimal != nil {
+				rev, err := revisions.NewForHLC(*revisionDecimal)
+				if err != nil {
+					return fmt.Errorf(errUnableToReadCounter, err)
+				}
+
+				revision = rev
 			}
 
 			counters = append(counters, datastore.RelationshipCounter{

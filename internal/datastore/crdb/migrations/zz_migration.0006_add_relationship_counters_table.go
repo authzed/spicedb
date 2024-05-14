@@ -12,7 +12,7 @@ const (
 			name TEXT PRIMARY KEY,
 			serialized_filter BYTEA NOT NULL,
 			current_count BIGINT NOT NULL DEFAULT 0,
-			updated_at_timestamp TIMESTAMPTZ DEFAULT NULL
+			updated_at_timestamp DECIMAL DEFAULT NULL
 		);
 	`
 )

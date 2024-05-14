@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -196,20 +195,16 @@ func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core
 		return datastore.NewFilterNotRegisteredErr(filter)
 	}
 
-	var existingTimestamp *time.Time
-	if counters[0].ComputedAtRevision != datastore.NoRevision {
-		ett := counters[0].ComputedAtRevision.(revisions.TimestampRevision).Time()
-		existingTimestamp = &ett
+	computedAtRevisionTimestamp, err := computedAtRevision.(revisions.HLCRevision).AsDecimal()
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
 	}
-
-	computedAtRevisionTimestamp := computedAtRevision.(revisions.TimestampRevision).Time()
 
 	// Update the counter in the table.
 	sql, args, err := queryUpdateCounter.
 		Set(colCounterCurrentCount, value).
 		Set(colCounterUpdatedAt, computedAtRevisionTimestamp).
 		Where(sq.Eq{colCounterName: filterName}).
-		Where(sq.Eq{colCounterUpdatedAt: existingTimestamp}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("unable to store counter value: %w", err)

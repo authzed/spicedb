@@ -161,13 +161,11 @@ func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, filter *cor
 		return datastore.NewFilterNotRegisteredErr(filter)
 	}
 
-	existingRevisionID := counters[0].ComputedAtRevision.(revisions.TransactionIDRevision).TransactionID()
 	updateRevisionID := computedAtRevision.(revisions.TransactionIDRevision).TransactionID()
 
 	// Update the counter.
 	query, args, err := rwt.UpdateCounterQuery.
 		Where(sq.Eq{colName: filterName}).
-		Where(sq.Eq{colCounterUpdatedAtRevision: existingRevisionID}).
 		Set(colCounterCurrentCount, value).
 		Set(colCounterUpdatedAtRevision, updateRevisionID).
 		ToSql()

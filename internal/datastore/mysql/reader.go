@@ -152,10 +152,15 @@ func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) 
 			return nil, fmt.Errorf(errUnableToReadCounterFilter, err)
 		}
 
+		var rev datastore.Revision = revisions.NewForTransactionID(txID)
+		if txID == 0 {
+			rev = datastore.NoRevision
+		}
+
 		counters = append(counters, datastore.RelationshipCounter{
 			Filter:             filter,
 			Count:              currentCount,
-			ComputedAtRevision: revisions.NewForTransactionID(txID),
+			ComputedAtRevision: rev,
 		})
 	}
 	if rows.Err() != nil {

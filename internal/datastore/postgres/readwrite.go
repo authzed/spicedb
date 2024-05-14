@@ -675,7 +675,7 @@ func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.R
 		return datastore.NewFilterNotRegisteredErr(filter)
 	}
 
-	computedAtRevisionSnapshot := computedAtRevision.(*postgresRevision).snapshot
+	computedAtRevisionSnapshot := computedAtRevision.(postgresRevision).snapshot
 
 	// Update the counter.
 	updateQuery := updateRelationshipCounter.
@@ -684,7 +684,6 @@ func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.R
 
 	sql, args, err := updateQuery.
 		Where(sq.Eq{colCounterName: filterName}).
-		Where(sq.Eq{colCounterSnapshot: counters[0].ComputedAtRevision}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteRelationshipsCounter, err)

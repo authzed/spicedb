@@ -171,6 +171,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	}
 
 	t.Run("TestRelationshipCounters", func(t *testing.T) { RelationshipCountersTest(t, tester) })
+	t.Run("TestUpdateRelationshipCounter", func(t *testing.T) { UpdateRelationshipCounterTest(t, tester) })
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
