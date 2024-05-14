@@ -143,8 +143,13 @@ func (p *observableProxy) Close() error { return p.delegate.Close() }
 type observableReader struct{ delegate datastore.Reader }
 
 func (r *observableReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return 0, err
+	}
+
 	ctx, closer := observe(ctx, "CountRelationships", trace.WithAttributes(
-		attribute.String("filter", datastore.FilterStableName(filter)),
+		attribute.String("filter", filterName),
 	))
 	defer closer()
 
@@ -261,8 +266,13 @@ type observableRWT struct {
 }
 
 func (rwt *observableRWT) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	ctx, closer := observe(ctx, "RegisterCounter", trace.WithAttributes(
-		attribute.String("filter", datastore.FilterStableName(filter)),
+		attribute.String("filter", filterName),
 	))
 	defer closer()
 
@@ -270,8 +280,13 @@ func (rwt *observableRWT) RegisterCounter(ctx context.Context, filter *core.Rela
 }
 
 func (rwt *observableRWT) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	ctx, closer := observe(ctx, "UnregisterCounter", trace.WithAttributes(
-		attribute.String("filter", datastore.FilterStableName(filter)),
+		attribute.String("filter", filterName),
 	))
 	defer closer()
 
@@ -279,8 +294,13 @@ func (rwt *observableRWT) UnregisterCounter(ctx context.Context, filter *core.Re
 }
 
 func (rwt *observableRWT) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	ctx, closer := observe(ctx, "StoreCounterValue", trace.WithAttributes(
-		attribute.String("filter", datastore.FilterStableName(filter)),
+		attribute.String("filter", filterName),
 		attribute.Int("value", value),
 		attribute.String("revision", computedAtRevision.String()),
 	))

@@ -35,7 +35,12 @@ type spannerReader struct {
 
 func (sr spannerReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
 	// Ensure the counter exists.
-	counters, err := sr.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	counters, err := sr.lookupCounters(ctx, filterName)
 	if err != nil {
 		return 0, err
 	}

@@ -51,7 +51,12 @@ var schema = common.NewSchemaInformation(
 
 func (mr *mysqlReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
 	// Ensure the counter is registered.
-	counters, err := mr.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	counters, err := mr.lookupCounters(ctx, filterName)
 	if err != nil {
 		return 0, err
 	}

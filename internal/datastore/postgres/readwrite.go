@@ -587,7 +587,12 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 
 func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
 	// Ensure the counter exists.
-	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
 	}
@@ -601,10 +606,8 @@ func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.Rel
 		return fmt.Errorf("unable to serialize filter: %w", err)
 	}
 
-	name := datastore.FilterStableName(filter)
-
 	writeQuery := writeRelationshipCounter
-	writeQuery = writeQuery.Values(name, serializedFilter, 0, nil)
+	writeQuery = writeQuery.Values(filterName, serializedFilter, 0, nil)
 
 	sql, args, err := writeQuery.ToSql()
 	if err != nil {
@@ -625,7 +628,12 @@ func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.Rel
 
 func (rwt *pgReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
 	// Ensure the counter exists.
-	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
 	}
@@ -634,7 +642,7 @@ func (rwt *pgReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.R
 		return datastore.NewFilterNotRegisteredErr(filter)
 	}
 
-	deleteQuery := deleteRelationshipCounter.Where(sq.Eq{colCounterName: datastore.FilterStableName(filter)})
+	deleteQuery := deleteRelationshipCounter.Where(sq.Eq{colCounterName: filterName})
 
 	delSQL, delArgs, err := deleteQuery.
 		Set(colDeletedXid, rwt.newXID).
@@ -653,7 +661,12 @@ func (rwt *pgReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.R
 
 func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
 	// Ensure the counter exists.
-	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
 	}
@@ -670,7 +683,7 @@ func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.R
 		Set(colCounterSnapshot, computedAtRevisionSnapshot)
 
 	sql, args, err := updateQuery.
-		Where(sq.Eq{colCounterName: datastore.FilterStableName(filter)}).
+		Where(sq.Eq{colCounterName: filterName}).
 		Where(sq.Eq{colCounterSnapshot: counters[0].ComputedAtRevision}).
 		ToSql()
 	if err != nil {

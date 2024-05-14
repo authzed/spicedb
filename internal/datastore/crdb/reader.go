@@ -67,7 +67,12 @@ type crdbReader struct {
 
 func (cr *crdbReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
 	// Ensure the counter exists.
-	counters, err := cr.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	counters, err := cr.lookupCounters(ctx, filterName)
 	if err != nil {
 		return 0, err
 	}

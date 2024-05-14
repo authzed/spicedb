@@ -183,7 +183,11 @@ func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, filter *core.R
 	}
 
 	// Check if the counter already exists
-	filterName := datastore.FilterStableName(filter)
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	foundRaw, err := tx.First(tableCounters, indexID, filterName)
 	if err != nil {
 		return err
@@ -219,7 +223,12 @@ func (rwt *memdbReadWriteTx) UnregisterCounter(ctx context.Context, filter *core
 	}
 
 	// Check if the counter exists
-	foundRaw, err := tx.First(tableCounters, indexID, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	foundRaw, err := tx.First(tableCounters, indexID, filterName)
 	if err != nil {
 		return err
 	}
@@ -241,7 +250,12 @@ func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, filter *core
 	}
 
 	// Check if the counter exists
-	foundRaw, err := tx.First(tableCounters, indexID, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	foundRaw, err := tx.First(tableCounters, indexID, filterName)
 	if err != nil {
 		return err
 	}

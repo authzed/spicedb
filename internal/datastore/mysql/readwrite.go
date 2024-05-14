@@ -67,7 +67,11 @@ func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 
 func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
 	// Check if the counter already exists.
-	filterName := datastore.FilterStableName(filter)
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
@@ -110,7 +114,11 @@ func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.
 
 func (rwt *mysqlReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
 	// Ensure the counter exists.
-	filterName := datastore.FilterStableName(filter)
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
@@ -139,7 +147,11 @@ func (rwt *mysqlReadWriteTXN) UnregisterCounter(ctx context.Context, filter *cor
 
 func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
 	// Ensure the counter exists.
-	filterName := datastore.FilterStableName(filter)
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
 	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err

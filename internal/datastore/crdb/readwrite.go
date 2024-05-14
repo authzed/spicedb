@@ -107,7 +107,12 @@ var (
 
 func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
 	// Ensure the counter doesn't already exist.
-	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
 	}
@@ -123,7 +128,7 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.R
 	}
 
 	sql, args, err := queryWriteCounter.Values(
-		datastore.FilterStableName(filter),
+		filterName,
 		serialized,
 		0,
 		nil,
@@ -147,7 +152,12 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.R
 
 func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
 	// Ensure the counter exists.
-	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
 	}
@@ -157,7 +167,7 @@ func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core
 	}
 
 	// Remove the counter from the table.
-	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: datastore.FilterStableName(filter)}).ToSql()
+	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: filterName}).ToSql()
 	if err != nil {
 		return fmt.Errorf("unable to unregister counter: %w", err)
 	}
@@ -172,7 +182,12 @@ func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core
 
 func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
 	// Ensure the counter exists.
-	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return err
+	}
+
+	counters, err := rwt.lookupCounters(ctx, filterName)
 	if err != nil {
 		return err
 	}
@@ -193,7 +208,7 @@ func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core
 	sql, args, err := queryUpdateCounter.
 		Set(colCounterCurrentCount, value).
 		Set(colCounterUpdatedAt, computedAtRevisionTimestamp).
-		Where(sq.Eq{colCounterName: datastore.FilterStableName(filter)}).
+		Where(sq.Eq{colCounterName: filterName}).
 		Where(sq.Eq{colCounterUpdatedAt: existingTimestamp}).
 		ToSql()
 	if err != nil {

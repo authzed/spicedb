@@ -65,7 +65,12 @@ const (
 
 func (r *pgReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
 	// Ensure the counter is registered.
-	counters, err := r.lookupCounters(ctx, datastore.FilterStableName(filter))
+	filterName, err := datastore.FilterStableName(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	counters, err := r.lookupCounters(ctx, filterName)
 	if err != nil {
 		return 0, err
 	}

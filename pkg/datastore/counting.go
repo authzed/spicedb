@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // RelationshipCounter is a struct that represents a count of relationships that match a filter.
@@ -45,11 +46,17 @@ type CounterReader interface {
 	LookupCounters(ctx context.Context) ([]RelationshipCounter, error)
 }
 
+const stableFilterPrefix = "f$"
+
 // FilterStableName returns a string representation of a filter that can be used as a key in a map.
 // This is guaranteed to be stable across versions and can be used to store and retrieve counters.
-func FilterStableName(filter *core.RelationshipFilter) string {
+func FilterStableName(filter *core.RelationshipFilter) (string, error) {
+	if strings.Contains(filter.GetOptionalResourceId(), "%") {
+		return "", spiceerrors.MustBugf("resource ID cannot contain the percent character")
+	}
+
 	var sb strings.Builder
-	sb.WriteString("f::")
+	sb.WriteString(stableFilterPrefix)
 	sb.WriteString(filter.ResourceType)
 	sb.WriteString(":")
 	sb.WriteString(filter.OptionalResourceId)
@@ -72,5 +79,5 @@ func FilterStableName(filter *core.RelationshipFilter) string {
 		}
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }
