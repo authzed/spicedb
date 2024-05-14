@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -24,6 +26,7 @@ const (
 	errUnableToDeleteConfig        = "unable to delete namespace config: %w"
 	errUnableToWriteRelationships  = "unable to write relationships: %w"
 	errUnableToDeleteRelationships = "unable to delete relationships: %w"
+	errUnableToSerializeFilter     = "unable to serialize relationship filter: %w"
 )
 
 var (
@@ -89,7 +92,121 @@ var (
 		colTransactionKey,
 		colTimestamp,
 	)
+
+	queryWriteCounter = psql.Insert(tableRelationshipCounter).Columns(
+		colCounterName,
+		colCounterSerializedFilter,
+		colCounterCurrentCount,
+		colCounterUpdatedAt,
+	)
+
+	queryUpdateCounter = psql.Update(tableRelationshipCounter)
+
+	queryDeleteCounter = psql.Delete(tableRelationshipCounter)
 )
+
+func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	// Ensure the counter doesn't already exist.
+	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	if err != nil {
+		return err
+	}
+
+	if len(counters) > 0 {
+		return datastore.NewFilterAlreadyRegisteredErr(filter)
+	}
+
+	// Add the counter to the table.
+	serialized, err := filter.MarshalVT()
+	if err != nil {
+		return fmt.Errorf(errUnableToSerializeFilter, err)
+	}
+
+	sql, args, err := queryWriteCounter.Values(
+		datastore.FilterStableName(filter),
+		serialized,
+		0,
+		nil,
+	).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to create counter SQL: %w", err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		// If this is a constraint violation, return that the filter is already registered.
+		if pgxcommon.IsConstraintFailureError(err) {
+			return datastore.NewFilterAlreadyRegisteredErr(filter)
+		}
+
+		return fmt.Errorf("unable to register counter: %w", err)
+	}
+
+	return nil
+}
+
+func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	// Remove the counter from the table.
+	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: datastore.FilterStableName(filter)}).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to unregister counter: %w", err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to unregister counter: %w", err)
+	}
+
+	return nil
+}
+
+func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, datastore.FilterStableName(filter))
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	var existingTimestamp *time.Time
+	if counters[0].ComputedAtRevision != datastore.NoRevision {
+		ett := counters[0].ComputedAtRevision.(revisions.TimestampRevision).Time()
+		existingTimestamp = &ett
+	}
+
+	computedAtRevisionTimestamp := computedAtRevision.(revisions.TimestampRevision).Time()
+
+	// Update the counter in the table.
+	sql, args, err := queryUpdateCounter.
+		Set(colCounterCurrentCount, value).
+		Set(colCounterUpdatedAt, computedAtRevisionTimestamp).
+		Where(sq.Eq{colCounterName: datastore.FilterStableName(filter)}).
+		Where(sq.Eq{colCounterUpdatedAt: existingTimestamp}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	return nil
+}
 
 func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	bulkWrite := queryWriteTuple

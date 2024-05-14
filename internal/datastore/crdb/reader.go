@@ -20,6 +20,7 @@ import (
 const (
 	errUnableToReadConfig     = "unable to read namespace config: %w"
 	errUnableToListNamespaces = "unable to list namespaces: %w"
+	errUnableToReadCounter    = "unable to read relationship counter: %w"
 )
 
 var (
@@ -36,6 +37,8 @@ var (
 		colCaveatContext,
 	)
 
+	countTuples = psql.Select("count(*)")
+
 	schema = common.NewSchemaInformation(
 		colNamespace,
 		colObjectID,
@@ -46,6 +49,12 @@ var (
 		colCaveatContextName,
 		common.ExpandedLogicComparison,
 	)
+
+	queryCounters = psql.Select(
+		colCounterSerializedFilter,
+		colCounterCurrentCount,
+		colCounterUpdatedAt,
+	)
 )
 
 type crdbReader struct {
@@ -54,6 +63,99 @@ type crdbReader struct {
 	keyer         overlapKeyer
 	overlapKeySet keySet
 	fromBuilder   func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
+}
+
+func (cr *crdbReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+	// Ensure the counter exists.
+	counters, err := cr.lookupCounters(ctx, datastore.FilterStableName(filter))
+	if err != nil {
+		return 0, err
+	}
+
+	if len(counters) == 0 {
+		return 0, datastore.NewFilterNotRegisteredErr(filter)
+	}
+
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	query := cr.fromBuilder(countTuples, tableTuple)
+	builder, err := common.NewSchemaQueryFilterer(schema, query).FilterWithRelationshipsFilter(relFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	sql, args, err := builder.UnderlyingQueryBuilder().ToSql()
+	if err != nil {
+		return 0, err
+	}
+
+	var count int
+	err = cr.query.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
+		return row.Scan(&count)
+	}, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (cr *crdbReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return cr.lookupCounters(ctx, "")
+}
+
+func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
+	query := cr.fromBuilder(queryCounters, tableRelationshipCounter)
+
+	if optionalFilterName != "" {
+		query = query.Where(sq.Eq{colCounterName: optionalFilterName})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var counters []datastore.RelationshipCounter
+	err = cr.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var serializedFilter []byte
+			var currentCount int
+			var timestamp *time.Time
+			if err := rows.Scan(&serializedFilter, &currentCount, &timestamp); err != nil {
+				return err
+			}
+
+			loaded := &core.RelationshipFilter{}
+			if err := loaded.UnmarshalVT(serializedFilter); err != nil {
+				return fmt.Errorf(errUnableToReadCounter, err)
+			}
+
+			revision := datastore.NoRevision
+			if timestamp != nil {
+				revisions.NewHLCForTime(*timestamp)
+			}
+
+			counters = append(counters, datastore.RelationshipCounter{
+				Filter:             loaded,
+				Count:              currentCount,
+				ComputedAtRevision: revision,
+			})
+		}
+
+		if rows.Err() != nil {
+			return fmt.Errorf(errUnableToReadConfig, rows.Err())
+		}
+		return nil
+	}, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return counters, nil
 }
 
 func (cr *crdbReader) ReadNamespaceByName(
