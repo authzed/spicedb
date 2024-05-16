@@ -17,7 +17,7 @@ If you have any questions about this process, feel free [ask in our our Discord]
 [RFC-style]: https://en.wikipedia.org/wiki/Request_for_Comments
 [discord]: https://discord.gg/spicedb
 
-### Functionality not represented by proposals
+### 🟣 Functionality not represented by proposals
 
 Not all contributions require in-depth proposals, but they do require consensus and an opportunity for opinions to be raised before development begins.
 The rest of this document does not track the development of this type of functionality, but only the larger initiatives.
@@ -25,7 +25,7 @@ You can find this functionality being discussed and developed in less structured
 
 You can find a running list of non-proposals [here](https://github.com/authzed/spicedb/issues?q=is%3Aopen+is%3Aissue+-label%3Akind%2Fproposal).
 
-### Open Proposals
+### ⚪ Open Proposals
 
 Proposals can be opened by anyone at any time.
 
@@ -38,19 +38,19 @@ Although there is no required format, a good proposal contains:
 
 You can find a running list of open proposals [here](https://github.com/authzed/spicedb/issues?q=is%3Aopen+label%3A%22state%2Fneeds+discussion%22%2C%22state%2Fgauging+interest%22).
 
-### Accepted Proposals
+### 🔵 Accepted Proposals
 
 Accepted proposals have reached consensus and are ready to have someone begin implementation.
 
 You can find a running list of accepted proposals [here](https://github.com/authzed/spicedb/issues?q=is%3Aopen+is%3Aissue+label%3Akind%2Fproposal+label%3A%22state%2Fimplementation+ready%22).
 
-### Completed Proposals
+### 🟢 Completed Proposals
 
 Completed proposals have been implemented in the past.
 
 You can find a running list of completed proposals [here](https://github.com/authzed/spicedb/issues?q=is%3Aissue+label%3Akind%2Fproposal+reason%3Acompleted).
 
-### Rejected Proposals
+### 🔴 Rejected Proposals
 
 Rejected proposals have not reached consensus or have reached consensus not to be implemented.
 
