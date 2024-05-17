@@ -26,6 +26,7 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var tracer = otel.Tracer("spicedb/internal/graph/check")
@@ -173,8 +174,29 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		return checkResultsForMembership(membershipSet, emptyMetadata)
 	}
 
+	// Filter for check hints, if any.
+	if len(req.CheckHints) > 0 {
+		filteredResourcesIdsSet := mapz.NewSet(filteredResourcesIds...)
+		for _, resourceID := range filteredResourcesIds {
+			checkHintKey := typesystem.CheckHint(
+				typesystem.ResourceCheckHintForRelation(
+					req.ResourceRelation.Namespace,
+					resourceID,
+					req.ResourceRelation.Relation,
+				),
+				req.Subject,
+			)
+
+			if _, ok := req.CheckHints[checkHintKey]; ok {
+				filteredResourcesIdsSet.Delete(resourceID)
+			}
+		}
+
+		filteredResourcesIds = filteredResourcesIdsSet.AsSlice()
+	}
+
 	if len(filteredResourcesIds) == 0 {
-		return noMembers()
+		return combineWithCheckHints(combineResultWithFoundResources(noMembers(), membershipSet), req)
 	}
 
 	// NOTE: We can always allow a single result if we're only trying to find the results for a
@@ -196,10 +218,66 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	}
 
 	if relation.UsersetRewrite == nil {
-		return combineResultWithFoundResources(cc.checkDirect(ctx, crc, relation), membershipSet)
+		return combineWithCheckHints(combineResultWithFoundResources(cc.checkDirect(ctx, crc, relation), membershipSet), req)
 	}
 
-	return combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet)
+	return combineWithCheckHints(combineResultWithFoundResources(cc.checkUsersetRewrite(ctx, crc, relation.UsersetRewrite), membershipSet), req)
+}
+
+func combineWithComputedHints(result CheckResult, hints map[string]*v1.ResourceCheckResult) CheckResult {
+	if len(hints) == 0 {
+		return result
+	}
+
+	for resourceID, hint := range hints {
+		if _, ok := result.Resp.ResultsByResourceId[resourceID]; ok {
+			return checkResultError(
+				spiceerrors.MustBugf("check hint for resource ID %q, which already exists", resourceID),
+				emptyMetadata,
+			)
+		}
+
+		if result.Resp.ResultsByResourceId == nil {
+			result.Resp.ResultsByResourceId = make(map[string]*v1.ResourceCheckResult)
+		}
+		result.Resp.ResultsByResourceId[resourceID] = hint
+	}
+
+	return result
+}
+
+func combineWithCheckHints(result CheckResult, req ValidatedCheckRequest) CheckResult {
+	if len(req.CheckHints) == 0 {
+		return result
+	}
+
+	for checkHintKey, checkHintValue := range req.CheckHints {
+		parsed, err := typesystem.ParseCheckHint(checkHintKey)
+		if err != nil {
+			return checkResultError(err, emptyMetadata)
+		}
+
+		if parsed.Type == typesystem.CheckHintTypeRelation {
+			if parsed.Resource.Namespace == req.ResourceRelation.Namespace &&
+				parsed.Resource.Relation == req.ResourceRelation.Relation &&
+				parsed.Subject.EqualVT(req.Subject) {
+				if result.Resp.ResultsByResourceId == nil {
+					result.Resp.ResultsByResourceId = make(map[string]*v1.ResourceCheckResult)
+				}
+
+				if _, ok := result.Resp.ResultsByResourceId[parsed.Resource.ObjectId]; ok {
+					return checkResultError(
+						spiceerrors.MustBugf("check hint for resource ID %q, which already exists", parsed.Resource.ObjectId),
+						emptyMetadata,
+					)
+				}
+
+				result.Resp.ResultsByResourceId[parsed.Resource.ObjectId] = checkHintValue
+			}
+		}
+	}
+
+	return result
 }
 
 type directDispatch struct {
@@ -408,8 +486,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 				Subject:          crc.parentReq.Subject,
 				ResultsSetting:   crc.resultsSetting,
 
-				Metadata: decrementDepth(crc.parentReq.Metadata),
-				Debug:    crc.parentReq.Debug,
+				Metadata:   decrementDepth(crc.parentReq.Metadata),
+				Debug:      crc.parentReq.Debug,
+				CheckHints: crc.parentReq.CheckHints,
 			},
 			crc.parentReq.Revision,
 		})
@@ -560,6 +639,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 			ResultsSetting:   crc.resultsSetting,
 			Metadata:         decrementDepth(crc.parentReq.Metadata),
 			Debug:            crc.parentReq.Debug,
+			CheckHints:       crc.parentReq.CheckHints,
 		},
 		crc.parentReq.Revision,
 	})
@@ -609,6 +689,7 @@ func checkIntersectionTupleToUserset(
 	crc currentRequestContext,
 	ttu *core.FunctionedTupleToUserset,
 ) CheckResult {
+	// TODO(jschorr): use check hints here
 	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"-(all)->"+ttu.GetComputedUserset().Relation)
 	defer span.End()
 
@@ -767,6 +848,34 @@ func checkTupleToUserset[T relation](
 	crc currentRequestContext,
 	ttu ttu[T],
 ) CheckResult {
+	filteredResourceIDs := crc.filteredResourceIDs
+	hintsToReturn := make(map[string]*v1.ResourceCheckResult, len(crc.parentReq.CheckHints))
+	if len(crc.parentReq.CheckHints) > 0 {
+		filteredResourceIDs = make([]string, 0, len(crc.filteredResourceIDs))
+
+		for _, resourceID := range crc.filteredResourceIDs {
+			checkHintKey := typesystem.CheckHint(
+				typesystem.ResourceCheckHintForArrow(
+					crc.parentReq.ResourceRelation.Namespace,
+					resourceID,
+					ttu.GetTupleset().GetRelation(),
+					ttu.GetComputedUserset().Relation,
+				),
+				crc.parentReq.Subject,
+			)
+
+			if hint, ok := crc.parentReq.CheckHints[checkHintKey]; ok {
+				hintsToReturn[resourceID] = hint
+			} else {
+				filteredResourceIDs = append(filteredResourceIDs, resourceID)
+			}
+		}
+	}
+
+	if len(filteredResourceIDs) == 0 {
+		return combineWithComputedHints(noMembers(), hintsToReturn)
+	}
+
 	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"->"+ttu.GetComputedUserset().Relation)
 	defer span.End()
 
@@ -774,7 +883,7 @@ func checkTupleToUserset[T relation](
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
-		OptionalResourceIds:      crc.filteredResourceIDs,
+		OptionalResourceIds:      filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 	})
 	if err != nil {
@@ -811,7 +920,7 @@ func checkTupleToUserset[T relation](
 		dispatchChunkCountHistogram.Observe(chunkCount)
 	})
 
-	return union(
+	return combineWithComputedHints(union(
 		ctx,
 		crc,
 		toDispatch,
@@ -824,7 +933,7 @@ func checkTupleToUserset[T relation](
 			return mapFoundResources(childResult, dd.resourceType, relationshipsBySubjectONR)
 		},
 		cc.concurrencyLimit,
-	)
+	), hintsToReturn)
 }
 
 func withDistinctMetadata(result CheckResult) CheckResult {
