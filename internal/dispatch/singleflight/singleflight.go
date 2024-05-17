@@ -143,6 +143,10 @@ func (d *Dispatcher) DispatchLookupResources(req *v1.DispatchLookupResourcesRequ
 	return d.delegate.DispatchLookupResources(req, stream)
 }
 
+func (d *Dispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
+	return d.delegate.DispatchLookupResources2(req, stream)
+}
+
 func (d *Dispatcher) DispatchLookupSubjects(req *v1.DispatchLookupSubjectsRequest, stream dispatch.LookupSubjectsStream) error {
 	return d.delegate.DispatchLookupSubjects(req, stream)
 }

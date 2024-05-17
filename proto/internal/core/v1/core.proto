@@ -348,6 +348,12 @@ message ReachabilityEntrypoint {
    * represents, if applicable.
    */
   string tupleset_relation = 5;
+
+  /**
+    * computed_userset_relation is the name of the computed userset relation on the ComputedUserset
+    * this entrypoint represents, if applicable.
+    */  
+  string computed_userset_relation = 6;
 }
 
 /**

@@ -67,6 +67,15 @@ func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_Re
 	return re.re.Kind
 }
 
+// ComputedUsersetRelation returns the tupleset relation of the computed userset, if a TUPLESET_TO_USERSET_ENTRYPOINT.
+func (re ReachabilityEntrypoint) ComputedUsersetRelation() (string, error) {
+	if re.EntrypointKind() != core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT {
+		return "", fmt.Errorf("cannot call ComputedUsersetRelation for kind %v", re.EntrypointKind())
+	}
+
+	return re.re.ComputedUsersetRelation, nil
+}
+
 // TuplesetRelation returns the tupleset relation of the TTU, if a TUPLESET_TO_USERSET_ENTRYPOINT.
 func (re ReachabilityEntrypoint) TuplesetRelation() (string, error) {
 	if re.EntrypointKind() != core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT {
@@ -83,6 +92,24 @@ func (re ReachabilityEntrypoint) DirectRelation() (*core.RelationReference, erro
 	}
 
 	return re.re.TargetRelation, nil
+}
+
+// CheckHintForResource returns the key that can be used for this entrypoint as the resource in a check hint
+// when this entrypoint has been computed.
+func (re ReachabilityEntrypoint) CheckHintForResource(resourceID string) (string, error) {
+	switch re.EntrypointKind() {
+	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
+		return "", spiceerrors.MustBugf("cannot call CheckHintResourceKey for kind %v", re.EntrypointKind())
+
+	case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
+		return ResourceCheckHintForArrow(re.re.TargetRelation.Namespace, resourceID, re.re.TuplesetRelation, re.re.ComputedUsersetRelation), nil
+
+	case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
+		return ResourceCheckHintForRelation(re.re.TargetRelation.Namespace, resourceID, re.re.ComputedUsersetRelation), nil
+
+	default:
+		return "", spiceerrors.MustBugf("unknown relation entrypoint kind")
+	}
 }
 
 // ContainingRelationOrPermission is the relation or permission containing this entrypoint.

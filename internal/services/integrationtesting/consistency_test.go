@@ -23,6 +23,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/development"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -62,16 +63,26 @@ func TestConsistency(t *testing.T) {
 				dispatcherKind := dispatcherKind
 
 				t.Run(dispatcherKind, func(t *testing.T) {
-					t.Parallel()
-					runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching")
+					for _, useLRV2 := range []bool{false, true} {
+						useLRV2 := useLRV2
+						t.Run(fmt.Sprintf("lrv2-%t", useLRV2), func(t *testing.T) {
+							t.Parallel()
+							runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching", useLRV2)
+						})
+					}
 				})
 			}
 		})
 	}
 }
 
-func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool) {
-	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta)
+func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, useLRV2 bool) {
+	options := []server.ConfigOption{}
+	if useLRV2 {
+		options = append(options, server.WithEnableExperimentalLookupResources(true))
+	}
+
+	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 
 	// Validate the type system for each namespace.
 	headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)
