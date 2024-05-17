@@ -405,6 +405,266 @@ func TestStableCacheKeys(t *testing.T) {
 			},
 			"d699c5b5d3a6dfade601",
 		},
+		{
+			"lookup resources 2",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+				}, computeBothHashes)
+			},
+			"f49fbafef9c489abe601",
+		},
+		{
+			"lookup resources 2 with zero limit",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalLimit: 0,
+				}, computeBothHashes)
+			},
+			"f49fbafef9c489abe601",
+		},
+		{
+			"lookup resources 2 with non-zero limit",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalLimit: 42,
+				}, computeBothHashes)
+			},
+			"ea88adb1c1dfa6ebab01",
+		},
+		{
+			"lookup resources 2 with nil context",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					Context: nil,
+				}, computeBothHashes)
+			},
+			"f49fbafef9c489abe601",
+		},
+		{
+			"lookup resources 2 with empty context",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					Context: func() *structpb.Struct {
+						v, _ := structpb.NewStruct(map[string]any{})
+						return v
+					}(),
+				}, computeBothHashes)
+			},
+			"f49fbafef9c489abe601",
+		},
+		{
+			"lookup resources 2 with context",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					Context: func() *structpb.Struct {
+						v, _ := structpb.NewStruct(map[string]any{
+							"foo": 1,
+							"bar": true,
+						})
+						return v
+					}(),
+				}, computeBothHashes)
+			},
+			"bbd78884eff9edbebd01",
+		},
+		{
+			"lookup resources 2 with different context",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					Context: func() *structpb.Struct {
+						v, _ := structpb.NewStruct(map[string]any{
+							"foo": 2,
+							"bar": true,
+						})
+						return v
+					}(),
+				}, computeBothHashes)
+			},
+			"94d0faa5feaaa4dc17",
+		},
+		{
+			"lookup resources 2 with escaped string",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					Context: func() *structpb.Struct {
+						v, _ := structpb.NewStruct(map[string]any{
+							"foo": "this is an `escaped` string\nhi",
+						})
+						return v
+					}(),
+				}, computeBothHashes)
+			},
+			"cdffc895cb9299b9da01",
+		},
+		{
+			"lookup resources 2 with nested context",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					Context: func() *structpb.Struct {
+						v, _ := structpb.NewStruct(map[string]any{
+							"foo": 1,
+							"bar": map[string]any{
+								"meh": "hiya",
+								"baz": "yo",
+							},
+						})
+						return v
+					}(),
+				}, computeBothHashes)
+			},
+			"84d8d38ff9fadbb36d",
+		},
+		{
+			"lookup resources 2 with empty cursor",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{},
+				}, computeBothHashes)
+			},
+			"f49fbafef9c489abe601",
+		},
+		{
+			"lookup resources 2 with non-empty cursor",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{
+						Sections: []string{"foo"},
+					},
+				}, computeBothHashes)
+			},
+			"f09894c0d9a0b8ff7f",
+		},
+		{
+			"lookup resources 2 with different cursor",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "mariah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{
+						Sections: []string{"foo", "bar"},
+					},
+				}, computeBothHashes)
+			},
+			"badfd7c59cdbcef671",
+		},
+		{
+			"lookup resources 2 with different terminal subject",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah"},
+					TerminalSubject:  ONR("user", "sarah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{
+						Sections: []string{"foo", "bar"},
+					},
+				}, computeBothHashes)
+			},
+			"8787b685e9cea993a901",
+		},
+		{
+			"lookup resources 2 with different subject IDs",
+			func() DispatchCacheKey {
+				return lookupResourcesRequest2ToKey(&v1.DispatchLookupResources2Request{
+					ResourceRelation: RR("document", "view"),
+					SubjectRelation:  RR("user", "..."),
+					SubjectIds:       []string{"mariah", "tom"},
+					TerminalSubject:  ONR("user", "sarah", "..."),
+					Metadata: &v1.ResolverMeta{
+						AtRevision: "1234",
+					},
+					OptionalCursor: &v1.Cursor{
+						Sections: []string{"foo", "bar"},
+					},
+				}, computeBothHashes)
+			},
+			"f4d6d884eaa5e4b4ed01",
+		},
 	}
 
 	for _, tc := range tcs {

@@ -69,6 +69,14 @@ func (ds *dispatchServer) DispatchLookupResources(
 		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResourcesResponse](resp))
 }
 
+func (ds *dispatchServer) DispatchLookupResources2(
+	req *dispatchv1.DispatchLookupResources2Request,
+	resp dispatchv1.DispatchService_DispatchLookupResources2Server,
+) error {
+	return ds.localDispatch.DispatchLookupResources2(req,
+		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResources2Response](resp))
+}
+
 func (ds *dispatchServer) DispatchLookupSubjects(
 	req *dispatchv1.DispatchLookupSubjectsRequest,
 	resp dispatchv1.DispatchService_DispatchLookupSubjectsServer,
