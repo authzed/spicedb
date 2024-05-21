@@ -162,6 +162,18 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 
 	deleteClauses := sq.Or{}
 
+	var statusMap map[string]*core.RelationTupleUpdateStatus
+	var statuses []*core.RelationTupleUpdateStatus
+	if returnStatus {
+		// If we are returning status, we need to track the status of each mutation.
+		// We will use a map to track the status of each mutation by the tuple string.
+		// We will also use a slice to track the order of the statuses.
+		// The slice will never be mutated, but the map will be updated as we process, however they both
+		// use pointers to the same status objects, therefore modifying the map also modifies the slice.
+		statusMap = make(map[string]*core.RelationTupleUpdateStatus, len(mutations))
+		statuses = make([]*core.RelationTupleUpdateStatus, 0, len(mutations))
+	}
+
 	// Determine the set of relation+subject types for whom a "simplified" TOUCH operation can be used. A
 	// simplified TOUCH operation is one in which the relationship does not support caveats for the subject
 	// type. In such cases, the "DELETE" operation is unnecessary because the relationship does not support
@@ -182,12 +194,48 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			createInserts = appendForInsertion(createInserts, tpl)
 			hasCreateInserts = true
 
+			if returnStatus {
+				// For a CREATE operation we can just return the original tuple with a "CREATED" status.
+				// This is because the operation fails in all other scenarios.
+				status := &core.RelationTupleUpdateStatus{
+					Status: &core.RelationTupleUpdateStatus_Created{
+						Created: tpl,
+					},
+				}
+				statusMap[tuple.StringWithoutCaveat(tpl)] = status
+				statuses = append(statuses, status)
+			}
+
 		case core.RelationTupleUpdate_TOUCH:
 			touchInserts = appendForInsertion(touchInserts, tpl)
 			touchMutationsByNonCaveat[tuple.StringWithoutCaveat(tpl)] = mut
 
+			if returnStatus {
+				// For a TOUCH operation we initialize a "NOOP" status with the original tuple.
+				// We will update the status later if the operation was an insert or a replacement.
+				status := &core.RelationTupleUpdateStatus{
+					Status: &core.RelationTupleUpdateStatus_Noop{
+						Noop: tpl,
+					},
+				}
+				statusMap[tuple.StringWithoutCaveat(tpl)] = status
+				statuses = append(statuses, status)
+			}
+
 		case core.RelationTupleUpdate_DELETE:
 			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
+
+			if returnStatus {
+				// For a DELETE operation we initialize a "NOOP" status with the original tuple.
+				// We will update the status later if the tuple was actually deleted.
+				status := &core.RelationTupleUpdateStatus{
+					Status: &core.RelationTupleUpdateStatus_Noop{
+						Noop: tpl,
+					},
+				}
+				statusMap[tuple.StringWithoutCaveat(tpl)] = status
+				statuses = append(statuses, status)
+			}
 
 		default:
 			return nil, spiceerrors.MustBugf("unknown tuple mutation: %v", mut)
@@ -252,9 +300,18 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			}
 
 			tplString := tuple.StringWithoutCaveat(tpl)
-			_, ok := touchMutationsByNonCaveat[tplString]
+			original, ok := touchMutationsByNonCaveat[tplString]
 			if !ok {
 				return nil, spiceerrors.MustBugf("missing expected completed TOUCH mutation")
+			}
+
+			if returnStatus {
+				// If the tuple was inserted, then update the status to "CREATED".
+				// The tuple referenced is the original tuple from the map, not the one returned from the query
+				// as the original one might contain a caveat that the one returned from the query does not.
+				statusMap[tplString].Status = &core.RelationTupleUpdateStatus_Created{
+					Created: original.Tuple,
+				}
 			}
 
 			delete(touchMutationsByNonCaveat, tplString)
@@ -281,12 +338,27 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	// deleted by virtue of their caveat name and/or context being changed.
 	if len(deleteClauses) == 0 {
 		// Nothing more to do.
-		return nil, nil
+		return statuses, nil
 	}
 
 	builder := deleteTuple.
-		Where(deleteClauses).
-		Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
+		Where(deleteClauses)
+
+	if returnStatus {
+		// If we are returning status, we need to return the old caveat name and context.
+		// This is so that we can populate the `old` field of the "UPDATED" status.
+		builder = builder.Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s, %s, %s",
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatContextName,
+			colCaveatContext,
+		))
+	} else {
+		builder = builder.Suffix(fmt.Sprintf("RETURNING %s, %s, %s, %s, %s, %s",
 			colNamespace,
 			colObjectID,
 			colRelation,
@@ -294,6 +366,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			colUsersetObjectID,
 			colUsersetRelation,
 		))
+	}
 
 	sql, args, err := builder.
 		Set(colDeletedXid, rwt.newXID).
@@ -318,33 +391,74 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	}
 
 	for rows.Next() {
-		err := rows.Scan(
+		if returnStatus {
+			// If we are returning statuses, then we are redefining `deletedTpl` for each row for 2 reasons:
+			// 1. To ensure that we have a new variable for each row, so that we can safely use it in the status map,
+			//    otherwise all the "UPDATED" statuses would reference the same `Old` tuple pointer.
+			// 2. To populate the old caveat name and context which will be used in the "UPDATED" status.
+			deletedTpl = &core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{},
+				Subject:             &core.ObjectAndRelation{},
+				Caveat:              &core.ContextualizedCaveat{},
+			}
+		}
+
+		dest := []interface{}{
 			&deletedTpl.ResourceAndRelation.Namespace,
 			&deletedTpl.ResourceAndRelation.ObjectId,
 			&deletedTpl.ResourceAndRelation.Relation,
 			&deletedTpl.Subject.Namespace,
 			&deletedTpl.Subject.ObjectId,
 			&deletedTpl.Subject.Relation,
-		)
+		}
+
+		if returnStatus {
+			dest = append(dest,
+				&deletedTpl.Caveat.CaveatName,
+				&deletedTpl.Caveat.Context,
+			)
+		}
+
+		err := rows.Scan(dest...)
 		if err != nil {
 			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		if returnStatus && deletedTpl.Caveat.CaveatName == "" {
+			// If the caveat name is empty, then remove the `Caveat` field from the tuple.
+			deletedTpl.Caveat = nil
 		}
 
 		tplString := tuple.StringWithoutCaveat(deletedTpl)
 		mutation, ok := touchMutationsByNonCaveat[tplString]
 		if !ok {
 			// This did not represent a TOUCH operation.
+			if returnStatus {
+				statusMap[tplString].Status = &core.RelationTupleUpdateStatus_Deleted{
+					Deleted: deletedTpl,
+				}
+			}
+
 			continue
 		}
 
 		touchWrite = appendForInsertion(touchWrite, mutation.Tuple)
 		touchWriteHasValues = true
+
+		if returnStatus {
+			statusMap[tplString].Status = &core.RelationTupleUpdateStatus_Updated{
+				Updated: &core.RelationTupleUpdateStatus_Update{
+					Old: deletedTpl,
+					New: mutation.Tuple,
+				},
+			}
+		}
 	}
 	rows.Close()
 
 	// If no INSERTs are necessary to update caveats, then nothing more to do.
 	if !touchWriteHasValues {
-		return nil, nil
+		return statuses, nil
 	}
 
 	// Otherwise execute the INSERTs for the caveated-changes TOUCHed relationships.
@@ -358,7 +472,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 		return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
-	return nil, nil
+	return statuses, nil
 }
 
 func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
