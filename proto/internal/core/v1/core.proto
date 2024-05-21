@@ -123,7 +123,7 @@ message RelationTupleUpdateStatus {
   }
 
   oneof status {
-    RelationTuple noop = 1;
+    RelationTuple no_op = 1;
     RelationTuple created = 2;
     RelationTuple deleted = 3;
     Update updated = 4;

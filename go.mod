@@ -2,7 +2,7 @@ module github.com/authzed/spicedb
 
 go 1.22.2
 
-replace github.com/authzed/authzed-go => github.com/benvernier-sc/authzed-go v0.0.0-20240521010112-e88e55c84655
+replace github.com/authzed/authzed-go => github.com/benvernier-sc/authzed-go v0.0.0-20240521040029-d2224ffbdaef
 
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.34.0-20240501143545-f1e8a42c91ac.1

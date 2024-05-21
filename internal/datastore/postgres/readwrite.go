@@ -214,8 +214,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 				// For a TOUCH operation we initialize a "NOOP" status with the original tuple.
 				// We will update the status later if the operation was an insert or a replacement.
 				status := &core.RelationTupleUpdateStatus{
-					Status: &core.RelationTupleUpdateStatus_Noop{
-						Noop: tpl,
+					Status: &core.RelationTupleUpdateStatus_NoOp{
+						NoOp: tpl,
 					},
 				}
 				statusMap[tuple.StringWithoutCaveat(tpl)] = status
@@ -229,8 +229,8 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 				// For a DELETE operation we initialize a "NOOP" status with the original tuple.
 				// We will update the status later if the tuple was actually deleted.
 				status := &core.RelationTupleUpdateStatus{
-					Status: &core.RelationTupleUpdateStatus_Noop{
-						Noop: tpl,
+					Status: &core.RelationTupleUpdateStatus_NoOp{
+						NoOp: tpl,
 					},
 				}
 				statusMap[tuple.StringWithoutCaveat(tpl)] = status

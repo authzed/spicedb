@@ -734,8 +734,8 @@ github.com/aws/smithy-go v1.20.2/go.mod h1:krry+ya/rV9RDcV/Q16kpu6ypI4K2czasz0NC
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
-github.com/benvernier-sc/authzed-go v0.0.0-20240521010112-e88e55c84655 h1:Gd32KRYo70BGYifLMG4YHpgzTAunK2nXC4M6orvl5F8=
-github.com/benvernier-sc/authzed-go v0.0.0-20240521010112-e88e55c84655/go.mod h1:YhXiglakXojf4tqu0yr4vqd1151x1ES9iKczbsNlXZs=
+github.com/benvernier-sc/authzed-go v0.0.0-20240521040029-d2224ffbdaef h1:8Y4V7C+9VOytNyz+M/YF4VsdN5ygf5WgrreuS6I1dsk=
+github.com/benvernier-sc/authzed-go v0.0.0-20240521040029-d2224ffbdaef/go.mod h1:YhXiglakXojf4tqu0yr4vqd1151x1ES9iKczbsNlXZs=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=

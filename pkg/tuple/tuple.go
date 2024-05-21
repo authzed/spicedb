@@ -445,13 +445,15 @@ func UpdateToRelationshipUpdate(update *core.RelationTupleUpdate) *v1.Relationsh
 	}
 }
 
+// UpdateStatusToRelationshipUpdateStatus converts a RelationTupleUpdateStatus into a
+// RelationshipUpdateStatus.
 func UpdateStatusToRelationshipUpdateStatus(status *core.RelationTupleUpdateStatus) *v1.RelationshipUpdateStatus {
 	updateStatus := &v1.RelationshipUpdateStatus{}
 
 	switch status.Status.(type) {
-	case *core.RelationTupleUpdateStatus_Noop:
-		updateStatus.Status = &v1.RelationshipUpdateStatus_Noop{
-			Noop: ToRelationship(status.GetNoop()),
+	case *core.RelationTupleUpdateStatus_NoOp:
+		updateStatus.Status = &v1.RelationshipUpdateStatus_NoOp{
+			NoOp: ToRelationship(status.GetNoOp()),
 		}
 	case *core.RelationTupleUpdateStatus_Created:
 		updateStatus.Status = &v1.RelationshipUpdateStatus_Created{
@@ -475,6 +477,8 @@ func UpdateStatusToRelationshipUpdateStatus(status *core.RelationTupleUpdateStat
 	return updateStatus
 }
 
+// UpdateStatusesToRelationshipUpdateStatuses converts a slice of RelationTupleUpdateStatus into a
+// slice of RelationshipUpdateStatus.
 func UpdateStatusesToRelationshipUpdateStatuses(statuses []*core.RelationTupleUpdateStatus) []*v1.RelationshipUpdateStatus {
 	updateStatuses := make([]*v1.RelationshipUpdateStatus, 0, len(statuses))
 
