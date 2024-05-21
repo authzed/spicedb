@@ -153,7 +153,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 	return relationSupportSimplifiedTouch, nil
 }
 
-func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	touchMutationsByNonCaveat := make(map[string]*core.RelationTupleUpdate, len(mutations))
 	hasCreateInserts := false
 
@@ -170,7 +170,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	// replaced.
 	relationSupportSimplifiedTouch, err := rwt.collectSimplifiedTouchTypes(ctx, mutations)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Parse the updates, building inserts for CREATE/TOUCH and deletes for DELETE.
@@ -190,7 +190,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
 
 		default:
-			return spiceerrors.MustBugf("unknown tuple mutation: %v", mut)
+			return nil, spiceerrors.MustBugf("unknown tuple mutation: %v", mut)
 		}
 	}
 
@@ -198,12 +198,12 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	if hasCreateInserts {
 		sql, args, err := createInserts.ToSql()
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		_, err = rwt.tx.Exec(ctx, sql, args...)
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
@@ -221,12 +221,12 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 
 		sql, args, err := touchInserts.ToSql()
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		rows, err := rwt.tx.Query(ctx, sql, args...)
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 		defer rows.Close()
 
@@ -248,13 +248,13 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 				&tpl.Subject.Relation,
 			)
 			if err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
+				return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 
 			tplString := tuple.StringWithoutCaveat(tpl)
 			_, ok := touchMutationsByNonCaveat[tplString]
 			if !ok {
-				return spiceerrors.MustBugf("missing expected completed TOUCH mutation")
+				return nil, spiceerrors.MustBugf("missing expected completed TOUCH mutation")
 			}
 
 			delete(touchMutationsByNonCaveat, tplString)
@@ -281,7 +281,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	// deleted by virtue of their caveat name and/or context being changed.
 	if len(deleteClauses) == 0 {
 		// Nothing more to do.
-		return nil
+		return nil, nil
 	}
 
 	builder := deleteTuple.
@@ -299,12 +299,12 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 		Set(colDeletedXid, rwt.newXID).
 		ToSql()
 	if err != nil {
-		return fmt.Errorf(errUnableToWriteRelationships, err)
+		return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
 	rows, err := rwt.tx.Query(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf(errUnableToWriteRelationships, err)
+		return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 	defer rows.Close()
 
@@ -327,7 +327,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			&deletedTpl.Subject.Relation,
 		)
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		tplString := tuple.StringWithoutCaveat(deletedTpl)
@@ -344,21 +344,21 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 
 	// If no INSERTs are necessary to update caveats, then nothing more to do.
 	if !touchWriteHasValues {
-		return nil
+		return nil, nil
 	}
 
 	// Otherwise execute the INSERTs for the caveated-changes TOUCHed relationships.
 	sql, args, err = touchWrite.ToSql()
 	if err != nil {
-		return fmt.Errorf(errUnableToWriteRelationships, err)
+		return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
 	_, err = rwt.tx.Exec(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf(errUnableToWriteRelationships, err)
+		return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {

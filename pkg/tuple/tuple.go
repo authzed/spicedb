@@ -445,6 +445,46 @@ func UpdateToRelationshipUpdate(update *core.RelationTupleUpdate) *v1.Relationsh
 	}
 }
 
+func UpdateStatusToRelationshipUpdateStatus(status *core.RelationTupleUpdateStatus) *v1.RelationshipUpdateStatus {
+	updateStatus := &v1.RelationshipUpdateStatus{}
+
+	switch status.Status.(type) {
+	case *core.RelationTupleUpdateStatus_Noop:
+		updateStatus.Status = &v1.RelationshipUpdateStatus_Noop{
+			Noop: ToRelationship(status.GetNoop()),
+		}
+	case *core.RelationTupleUpdateStatus_Created:
+		updateStatus.Status = &v1.RelationshipUpdateStatus_Created{
+			Created: ToRelationship(status.GetCreated()),
+		}
+	case *core.RelationTupleUpdateStatus_Deleted:
+		updateStatus.Status = &v1.RelationshipUpdateStatus_Deleted{
+			Deleted: ToRelationship(status.GetDeleted()),
+		}
+	case *core.RelationTupleUpdateStatus_Updated:
+		updateStatus.Status = &v1.RelationshipUpdateStatus_Updated{
+			Updated: &v1.RelationshipUpdateStatus_Update{
+				Old: ToRelationship(status.GetUpdated().Old),
+				New: ToRelationship(status.GetUpdated().New),
+			},
+		}
+	default:
+		panic("unknown tuple mutation status")
+	}
+
+	return updateStatus
+}
+
+func UpdateStatusesToRelationshipUpdateStatuses(statuses []*core.RelationTupleUpdateStatus) []*v1.RelationshipUpdateStatus {
+	updateStatuses := make([]*v1.RelationshipUpdateStatus, 0, len(statuses))
+
+	for _, status := range statuses {
+		updateStatuses = append(updateStatuses, UpdateStatusToRelationshipUpdateStatus(status))
+	}
+
+	return updateStatuses
+}
+
 // MustFromRelationship converts a Relationship into a RelationTuple.
 func MustFromRelationship[R objectReference, S subjectReference[R], C caveat](r relationship[R, S, C]) *core.RelationTuple {
 	if err := r.Validate(); err != nil {

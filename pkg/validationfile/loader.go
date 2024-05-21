@@ -160,7 +160,8 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 				return err
 			}
 
-			return rwt.WriteRelationships(ctx, chunked)
+			_, err = rwt.WriteRelationships(ctx, chunked, false)
+			return err
 		})
 	})
 

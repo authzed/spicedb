@@ -958,7 +958,8 @@ func writeCaveatedTuples(ctx context.Context, _ *testing.T, ds datastore.Datasto
 			})
 		}
 
-		return rwt.WriteRelationships(ctx, rtu)
+		_, err := rwt.WriteRelationships(ctx, rtu, false)
+		return err
 	})
 }
 

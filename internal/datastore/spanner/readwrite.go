@@ -25,21 +25,21 @@ type spannerReadWriteTXN struct {
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
 
-func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	var rowCountChange int64
 	for _, mutation := range mutations {
 		txnMut, countChange, err := spannerMutation(ctx, mutation.Operation, mutation.Tuple)
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 		rowCountChange += countChange
 
 		if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{txnMut}); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func spannerMutation(

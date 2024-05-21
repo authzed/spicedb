@@ -267,13 +267,14 @@ func (rwt *observableRWT) DeleteCaveats(ctx context.Context, names []string) err
 	return rwt.delegate.DeleteCaveats(ctx, names)
 }
 
-func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	ctx, closer := observe(ctx, "WriteRelationships", trace.WithAttributes(
 		attribute.Int("mutations", len(mutations)),
+		attribute.Bool("returnStatus", returnStatus),
 	))
 	defer closer()
 
-	return rwt.delegate.WriteRelationships(ctx, mutations)
+	return rwt.delegate.WriteRelationships(ctx, mutations, returnStatus)
 }
 
 func (rwt *observableRWT) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {

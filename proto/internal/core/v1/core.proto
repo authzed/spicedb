@@ -116,6 +116,20 @@ message RelationTupleUpdate {
   RelationTuple tuple = 2 [(validate.rules).message.required = true];
 }
 
+message RelationTupleUpdateStatus {
+  message Update {
+    RelationTuple old = 1;
+    RelationTuple new = 2;
+  }
+
+  oneof status {
+    RelationTuple noop = 1;
+    RelationTuple created = 2;
+    RelationTuple deleted = 3;
+    Update updated = 4;
+  }
+}
+
 message RelationTupleTreeNode {
   oneof node_type {
     SetOperationUserset intermediate_node = 1;

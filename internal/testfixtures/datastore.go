@@ -229,7 +229,7 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 		for _, rel := range relationships {
 			mutations = append(mutations, tuple.Create(rel.CloneVT()))
 		}
-		err = rwt.WriteRelationships(ctx, mutations)
+		_, err = rwt.WriteRelationships(ctx, mutations, false)
 		require.NoError(err)
 
 		return nil

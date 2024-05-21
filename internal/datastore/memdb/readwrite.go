@@ -22,16 +22,16 @@ type memdbReadWriteTx struct {
 	newRevision datastore.Revision
 }
 
-func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
 	tx, err := rwt.txSource()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return rwt.write(tx, mutations...)
+	return nil, rwt.write(tx, mutations...)
 }
 
 // Caller must already hold the concurrent access lock!
@@ -243,7 +243,7 @@ func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWr
 	var err error
 	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
 		updates[0].Tuple = next
-		if err := rwt.WriteRelationships(ctx, updates); err != nil {
+		if _, err := rwt.WriteRelationships(ctx, updates, false); err != nil {
 			return 0, err
 		}
 		numCopied++

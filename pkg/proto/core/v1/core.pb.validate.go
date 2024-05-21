@@ -1384,6 +1384,277 @@ var _ interface {
 	ErrorName() string
 } = RelationTupleUpdateValidationError{}
 
+// Validate checks the field values on RelationTupleUpdateStatus with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RelationTupleUpdateStatus) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RelationTupleUpdateStatus with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RelationTupleUpdateStatusMultiError, or nil if none found.
+func (m *RelationTupleUpdateStatus) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RelationTupleUpdateStatus) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.Status.(type) {
+	case *RelationTupleUpdateStatus_Noop:
+		if v == nil {
+			err := RelationTupleUpdateStatusValidationError{
+				field:  "Status",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetNoop()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Noop",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Noop",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetNoop()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RelationTupleUpdateStatusValidationError{
+					field:  "Noop",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *RelationTupleUpdateStatus_Created:
+		if v == nil {
+			err := RelationTupleUpdateStatusValidationError{
+				field:  "Status",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetCreated()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Created",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Created",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetCreated()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RelationTupleUpdateStatusValidationError{
+					field:  "Created",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *RelationTupleUpdateStatus_Deleted:
+		if v == nil {
+			err := RelationTupleUpdateStatusValidationError{
+				field:  "Status",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetDeleted()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Deleted",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Deleted",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetDeleted()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RelationTupleUpdateStatusValidationError{
+					field:  "Deleted",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *RelationTupleUpdateStatus_Updated:
+		if v == nil {
+			err := RelationTupleUpdateStatusValidationError{
+				field:  "Status",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetUpdated()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Updated",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RelationTupleUpdateStatusValidationError{
+						field:  "Updated",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetUpdated()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RelationTupleUpdateStatusValidationError{
+					field:  "Updated",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return RelationTupleUpdateStatusMultiError(errors)
+	}
+
+	return nil
+}
+
+// RelationTupleUpdateStatusMultiError is an error wrapping multiple validation
+// errors returned by RelationTupleUpdateStatus.ValidateAll() if the
+// designated constraints aren't met.
+type RelationTupleUpdateStatusMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RelationTupleUpdateStatusMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RelationTupleUpdateStatusMultiError) AllErrors() []error { return m }
+
+// RelationTupleUpdateStatusValidationError is the validation error returned by
+// RelationTupleUpdateStatus.Validate if the designated constraints aren't met.
+type RelationTupleUpdateStatusValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RelationTupleUpdateStatusValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RelationTupleUpdateStatusValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RelationTupleUpdateStatusValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RelationTupleUpdateStatusValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RelationTupleUpdateStatusValidationError) ErrorName() string {
+	return "RelationTupleUpdateStatusValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RelationTupleUpdateStatusValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRelationTupleUpdateStatus.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RelationTupleUpdateStatusValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RelationTupleUpdateStatusValidationError{}
+
 // Validate checks the field values on RelationTupleTreeNode with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
@@ -4924,6 +5195,169 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = CaveatOperationValidationError{}
+
+// Validate checks the field values on RelationTupleUpdateStatus_Update with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *RelationTupleUpdateStatus_Update) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RelationTupleUpdateStatus_Update with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// RelationTupleUpdateStatus_UpdateMultiError, or nil if none found.
+func (m *RelationTupleUpdateStatus_Update) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RelationTupleUpdateStatus_Update) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetOld()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationTupleUpdateStatus_UpdateValidationError{
+					field:  "Old",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationTupleUpdateStatus_UpdateValidationError{
+					field:  "Old",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOld()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationTupleUpdateStatus_UpdateValidationError{
+				field:  "Old",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetNew()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationTupleUpdateStatus_UpdateValidationError{
+					field:  "New",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationTupleUpdateStatus_UpdateValidationError{
+					field:  "New",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetNew()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationTupleUpdateStatus_UpdateValidationError{
+				field:  "New",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return RelationTupleUpdateStatus_UpdateMultiError(errors)
+	}
+
+	return nil
+}
+
+// RelationTupleUpdateStatus_UpdateMultiError is an error wrapping multiple
+// validation errors returned by
+// RelationTupleUpdateStatus_Update.ValidateAll() if the designated
+// constraints aren't met.
+type RelationTupleUpdateStatus_UpdateMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RelationTupleUpdateStatus_UpdateMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RelationTupleUpdateStatus_UpdateMultiError) AllErrors() []error { return m }
+
+// RelationTupleUpdateStatus_UpdateValidationError is the validation error
+// returned by RelationTupleUpdateStatus_Update.Validate if the designated
+// constraints aren't met.
+type RelationTupleUpdateStatus_UpdateValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RelationTupleUpdateStatus_UpdateValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RelationTupleUpdateStatus_UpdateValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RelationTupleUpdateStatus_UpdateValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RelationTupleUpdateStatus_UpdateValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RelationTupleUpdateStatus_UpdateValidationError) ErrorName() string {
+	return "RelationTupleUpdateStatus_UpdateValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RelationTupleUpdateStatus_UpdateValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRelationTupleUpdateStatus_Update.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RelationTupleUpdateStatus_UpdateValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RelationTupleUpdateStatus_UpdateValidationError{}
 
 // Validate checks the field values on AllowedRelation_PublicWildcard with the
 // rules defined in the proto definition for this message. If any rules are

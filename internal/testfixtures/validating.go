@@ -185,24 +185,24 @@ func (vrwt validatingReadWriteTransaction) DeleteNamespaces(ctx context.Context,
 	return vrwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	if err := validateUpdatesToWrite(mutations...); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Ensure there are no duplicate mutations.
 	tupleSet := mapz.NewSet[string]()
 	for _, mutation := range mutations {
 		if err := mutation.Validate(); err != nil {
-			return err
+			return nil, err
 		}
 
 		if !tupleSet.Add(tuple.StringWithoutCaveat(mutation.Tuple)) {
-			return fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveat(mutation.Tuple))
+			return nil, fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveat(mutation.Tuple))
 		}
 	}
 
-	return vrwt.delegate.WriteRelationships(ctx, mutations)
+	return vrwt.delegate.WriteRelationships(ctx, mutations, returnStatus)
 }
 
 func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {

@@ -29,6 +29,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -304,6 +305,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	// Execute the write operation(s).
 	span.AddEvent("read write transaction")
 	tupleUpdates := tuple.UpdateFromRelationshipUpdates(req.Updates)
+	var statuses []*corev1.RelationTupleUpdateStatus
 	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		span.AddEvent("preconditions")
 
@@ -337,7 +339,8 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 
 		span.AddEvent("write relationships")
-		return rwt.WriteRelationships(ctx, tupleUpdates)
+		statuses, err = rwt.WriteRelationships(ctx, tupleUpdates, req.WithStatus)
+		return err
 	})
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
@@ -353,8 +356,14 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
 	}
 
+	var updateStatuses []*v1.RelationshipUpdateStatus
+	if req.WithStatus {
+		updateStatuses = tuple.UpdateStatusesToRelationshipUpdateStatuses(statuses)
+	}
+
 	return &v1.WriteRelationshipsResponse{
 		WrittenAt: zedtoken.MustNewFromRevision(revision),
+		Updates:   updateStatuses,
 	}, nil
 }
 

@@ -361,7 +361,7 @@ type ReadWriteTransaction interface {
 	CaveatStorer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
-	WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error
+	WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error)
 
 	// DeleteRelationships deletes relationships that match the provided filter, with
 	// the optional limit. If a limit is provided and reached, the method will return

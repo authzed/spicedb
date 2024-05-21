@@ -91,7 +91,7 @@ var (
 	)
 )
 
-func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	bulkWrite := queryWriteTuple
 	var bulkWriteCount int64
 
@@ -150,7 +150,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 
 		default:
 			log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
-			return fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
+			return nil, fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
 		}
 	}
 
@@ -158,11 +158,11 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		bulkDelete = bulkDelete.Where(bulkDeleteOr)
 		sql, args, err := bulkDelete.ToSql()
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
@@ -177,15 +177,15 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	for _, updateQuery := range bulkUpdateQueries {
 		sql, args, err := updateQuery.ToSql()
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func exactRelationshipClause(r *core.RelationTuple) sq.Eq {

@@ -237,9 +237,9 @@ func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(_ context.Context,
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate) error {
-	args := dm.Called(mutations)
-	return args.Error(0)
+func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
+	args := dm.Called(mutations, returnStatus)
+	return args.Get(0).([]*core.RelationTupleUpdateStatus), args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) DeleteRelationships(_ context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {

@@ -66,7 +66,7 @@ func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
-func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate, returnStatus bool) ([]*core.RelationTupleUpdateStatus, error) {
 	// TODO(jschorr): Determine if we can do this in a more efficient manner using ON CONFLICT UPDATE
 	// rather than SELECT FOR UPDATE as we've been doing.
 	bulkWrite := rwt.WriteTupleQuery
@@ -94,7 +94,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 			clauses = append(clauses, exactRelationshipClause(tpl))
 
 		default:
-			return spiceerrors.MustBugf("unknown mutation operation")
+			return nil, spiceerrors.MustBugf("unknown mutation operation")
 		}
 	}
 
@@ -104,12 +104,12 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 			Where(sq.GtOrEq{colDeletedTxn: rwt.newTxnID}).
 			ToSql()
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		rows, err := rwt.tx.QueryContext(ctx, query, args...)
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 		defer common.LogOnError(ctx, rows.Close)
 
@@ -135,7 +135,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 				&caveatName,
 				&caveatContext,
 			); err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
+				return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 
 			// if the relationship to be deleted is for a TOUCH operation and the caveat
@@ -144,7 +144,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 			if mut, ok := createAndTouchMutationsByTuple[tplString]; ok {
 				foundTpl.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 				if err != nil {
-					return fmt.Errorf(errUnableToQueryTuples, err)
+					return nil, fmt.Errorf(errUnableToQueryTuples, err)
 				}
 
 				// Ensure the tuples are the same.
@@ -158,7 +158,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		}
 
 		if rows.Err() != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, rows.Err())
+			return nil, fmt.Errorf(errUnableToWriteRelationships, rows.Err())
 		}
 
 		if len(tupleIdsToDelete) > 0 {
@@ -168,10 +168,10 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 				Set(colDeletedTxn, rwt.newTxnID).
 				ToSql()
 			if err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
+				return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 			if _, err := rwt.tx.ExecContext(ctx, query, args...); err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
+				return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 		}
 	}
@@ -202,16 +202,16 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	if bulkWriteHasValues {
 		query, args, err := bulkWrite.ToSql()
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
 		_, err = rwt.tx.ExecContext(ctx, query, args...)
 		if err != nil {
-			return fmt.Errorf(errUnableToWriteRelationships, err)
+			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {

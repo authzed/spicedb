@@ -103,7 +103,8 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 					})
 				}
 
-				return rwt.WriteRelationships(ctx, updates)
+				_, err := rwt.WriteRelationships(ctx, updates, false)
+				return err
 			}, options.WithDisableRetries(true))
 			return err
 		})
