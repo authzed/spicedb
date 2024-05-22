@@ -1669,19 +1669,15 @@ func TestExperimentalCountRelationships(t *testing.T) {
 
 	// Try to read the count on an unregistered filter.
 	_, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
-		RelationshipFilter: &v1.RelationshipFilter{
-			ResourceType: "document",
-		},
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
-		},
+		Name: "unregistered",
 	})
 	require.Error(t, err)
-	require.ErrorContains(t, err, "filter was not registered")
+	require.ErrorContains(t, err, "counter with name `unregistered` not found")
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
 	// Register some filters.
 	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "somedocfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
 		},
@@ -1689,15 +1685,17 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "somedocfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: "document",
 		},
 	})
 	require.Error(t, err)
-	require.ErrorContains(t, err, "filter was already registered")
+	require.ErrorContains(t, err, "counter with name `somedocfilter` already registered")
 	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
 
 	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "someotherfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType:     "document",
 			OptionalRelation: "viewer",
@@ -1707,31 +1705,21 @@ func TestExperimentalCountRelationships(t *testing.T) {
 
 	// Read the counts on the registered filers.
 	actual, err := expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
-		RelationshipFilter: &v1.RelationshipFilter{
-			ResourceType: "document",
-		},
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
-		},
+		Name: "somedocfilter",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint64(9), actual.RelationshipCount)
-	require.NotNil(t, actual.ReadAt)
+	require.Equal(t, uint64(9), actual.GetReadCounterValue().RelationshipCount)
+	require.NotNil(t, actual.GetReadCounterValue().ReadAt)
 
 	actual, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
-		RelationshipFilter: &v1.RelationshipFilter{
-			ResourceType:     "document",
-			OptionalRelation: "viewer",
-		},
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
-		},
+		Name: "someotherfilter",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint64(7), actual.RelationshipCount)
+	require.Equal(t, uint64(7), actual.GetReadCounterValue().RelationshipCount)
 
 	// Register one more filter.
 	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "somethirdfilter",
 		RelationshipFilter: &v1.RelationshipFilter{
 			OptionalResourceIdPrefix: "a",
 		},
@@ -1740,13 +1728,8 @@ func TestExperimentalCountRelationships(t *testing.T) {
 
 	// Get the count.
 	actual, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
-		RelationshipFilter: &v1.RelationshipFilter{
-			OptionalResourceIdPrefix: "a",
-		},
-		Consistency: &v1.Consistency{
-			Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
-		},
+		Name: "somethirdfilter",
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint64(2), actual.RelationshipCount)
+	require.Equal(t, uint64(2), actual.GetReadCounterValue().RelationshipCount)
 }

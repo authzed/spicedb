@@ -539,7 +539,7 @@ type fakeSnapshotReader struct {
 	rev datastore.Revision
 }
 
-func (fsr *fakeSnapshotReader) CountRelationships(ctx context.Context, filter *corev1.RelationshipFilter) (int, error) {
+func (fsr *fakeSnapshotReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	return -1, fmt.Errorf("not implemented")
 }
 

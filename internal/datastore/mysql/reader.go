@@ -49,23 +49,18 @@ var schema = common.NewSchemaInformation(
 	common.ExpandedLogicComparison,
 )
 
-func (mr *mysqlReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	// Ensure the counter is registered.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return 0, err
-	}
-
-	counters, err := mr.lookupCounters(ctx, filterName)
+	counters, err := mr.lookupCounters(ctx, name)
 	if err != nil {
 		return 0, err
 	}
 
 	if len(counters) == 0 {
-		return 0, datastore.NewFilterNotRegisteredErr(filter)
+		return 0, datastore.NewCounterNotRegisteredErr(name)
 	}
 
-	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(counters[0].Filter)
 	if err != nil {
 		return 0, err
 	}
@@ -102,7 +97,7 @@ func (mr *mysqlReader) CountRelationships(ctx context.Context, filter *core.Rela
 			return 0, rows.Err()
 		}
 
-		return 0, datastore.NewFilterNotRegisteredErr(filter)
+		return 0, datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	if err := rows.Scan(&count); err != nil {
@@ -111,13 +106,15 @@ func (mr *mysqlReader) CountRelationships(ctx context.Context, filter *core.Rela
 	return count, nil
 }
 
+const noFilterOnCounterName = ""
+
 func (mr *mysqlReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return mr.lookupCounters(ctx, "")
+	return mr.lookupCounters(ctx, noFilterOnCounterName)
 }
 
 func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
 	query := mr.filterer(mr.ReadCounterQuery)
-	if optionalName != "" {
+	if optionalName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{colCounterName: optionalName})
 	}
 
@@ -140,10 +137,11 @@ func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) 
 
 	var counters []datastore.RelationshipCounter
 	for rows.Next() {
+		var name string
 		var config []byte
 		var currentCount int
 		var txID uint64
-		if err := rows.Scan(&config, &currentCount, &txID); err != nil {
+		if err := rows.Scan(&name, &config, &currentCount, &txID); err != nil {
 			return nil, err
 		}
 
@@ -158,6 +156,7 @@ func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) 
 		}
 
 		counters = append(counters, datastore.RelationshipCounter{
+			Name:               name,
 			Filter:             filter,
 			Count:              currentCount,
 			ComputedAtRevision: rev,

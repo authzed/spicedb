@@ -33,21 +33,18 @@ type spannerReader struct {
 	txSource txFactory
 }
 
-func (sr spannerReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+func (sr spannerReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return 0, err
-	}
-
-	counters, err := sr.lookupCounters(ctx, filterName)
+	counters, err := sr.lookupCounters(ctx, name)
 	if err != nil {
 		return 0, err
 	}
 
 	if len(counters) == 0 {
-		return 0, datastore.NewFilterNotRegisteredErr(filter)
+		return 0, datastore.NewCounterNotRegisteredErr(name)
 	}
+
+	filter := counters[0].Filter
 
 	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
 	if err != nil {
@@ -74,13 +71,15 @@ func (sr spannerReader) CountRelationships(ctx context.Context, filter *core.Rel
 	return int(count), nil
 }
 
+const noFilterOnCounterName = ""
+
 func (sr spannerReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return sr.lookupCounters(ctx, "")
+	return sr.lookupCounters(ctx, noFilterOnCounterName)
 }
 
 func (sr spannerReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
 	key := spanner.AllKeys()
-	if optionalFilterName != "" {
+	if optionalFilterName != noFilterOnCounterName {
 		key = spanner.Key{optionalFilterName}
 	}
 
@@ -88,16 +87,17 @@ func (sr spannerReader) lookupCounters(ctx context.Context, optionalFilterName s
 		ctx,
 		tableRelationshipCounter,
 		key,
-		[]string{colCounterSerializedFilter, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
+		[]string{colCounterName, colCounterSerializedFilter, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
 	)
 	defer iter.Stop()
 
 	var counters []datastore.RelationshipCounter
 	if err := iter.Do(func(row *spanner.Row) error {
+		var name string
 		var serializedFilter []byte
 		var currentCount int64
 		var updatedAt *time.Time
-		if err := row.Columns(&serializedFilter, &currentCount, &updatedAt); err != nil {
+		if err := row.Columns(&name, &serializedFilter, &currentCount, &updatedAt); err != nil {
 			return err
 		}
 
@@ -112,6 +112,7 @@ func (sr spannerReader) lookupCounters(ctx context.Context, optionalFilterName s
 		}
 
 		counters = append(counters, datastore.RelationshipCounter{
+			Name:               name,
 			Filter:             filter,
 			Count:              int(currentCount),
 			ComputedAtRevision: computedAtRevision,

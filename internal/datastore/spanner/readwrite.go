@@ -26,20 +26,15 @@ type spannerReadWriteTXN struct {
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
 
-func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	// Ensure the counter doesn't already exist.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) > 0 {
-		return datastore.NewFilterAlreadyRegisteredErr(filter)
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
 	}
 
 	// Add the counter to the table.
@@ -52,7 +47,7 @@ func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, filter *core
 		spanner.InsertOrUpdate(
 			tableRelationshipCounter,
 			[]string{colCounterName, colCounterSerializedFilter, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
-			[]any{filterName, serialized, 0, nil},
+			[]any{name, serialized, 0, nil},
 		),
 	}); err != nil {
 		return fmt.Errorf(errUnableToWriteCounter, err)
@@ -61,24 +56,19 @@ func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, filter *core
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+func (rwt spannerReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
 	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) == 0 {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	// Delete the counter from the table.
-	key := spanner.Key{filterName}
+	key := spanner.Key{name}
 	if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
 		spanner.Delete(tableRelationshipCounter, spanner.KeySetFromKeys(key)),
 	}); err != nil {
@@ -88,20 +78,15 @@ func (rwt spannerReadWriteTXN) UnregisterCounter(ctx context.Context, filter *co
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) == 0 {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	// Update the counter's count and revision in the table.
@@ -109,7 +94,7 @@ func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, filter *co
 
 	mutation := spanner.Update(tableRelationshipCounter,
 		[]string{colCounterName, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
-		[]any{filterName, value, updatedTimestampTime},
+		[]any{name, value, updatedTimestampTime},
 	)
 
 	if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {

@@ -105,6 +105,7 @@ func getRevisionRange(tableTransaction string) sq.SelectBuilder {
 
 func readCounter(tableRelationshipCounters string) sq.SelectBuilder {
 	return sb.Select(
+		colCounterName,
 		colCounterSerializedFilter,
 		colCounterCurrentCount,
 		colCounterUpdatedAtRevision,

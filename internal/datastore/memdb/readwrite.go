@@ -173,7 +173,7 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	return metLimit, rwt.write(tx, mutations...)
 }
 
-func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -182,19 +182,13 @@ func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, filter *core.R
 		return err
 	}
 
-	// Check if the counter already exists
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	foundRaw, err := tx.First(tableCounters, indexID, filterName)
+	foundRaw, err := tx.First(tableCounters, indexID, name)
 	if err != nil {
 		return err
 	}
 
 	if foundRaw != nil {
-		return datastore.NewFilterAlreadyRegisteredErr(filter)
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
 	}
 
 	filterBytes, err := filter.MarshalVT()
@@ -204,7 +198,7 @@ func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, filter *core.R
 
 	// Insert the counter
 	counter := &counter{
-		filterName,
+		name,
 		filterBytes,
 		0,
 		datastore.NoRevision,
@@ -213,7 +207,7 @@ func (rwt *memdbReadWriteTx) RegisterCounter(ctx context.Context, filter *core.R
 	return tx.Insert(tableCounters, counter)
 }
 
-func (rwt *memdbReadWriteTx) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+func (rwt *memdbReadWriteTx) UnregisterCounter(ctx context.Context, name string) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -223,24 +217,19 @@ func (rwt *memdbReadWriteTx) UnregisterCounter(ctx context.Context, filter *core
 	}
 
 	// Check if the counter exists
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	foundRaw, err := tx.First(tableCounters, indexID, filterName)
+	foundRaw, err := tx.First(tableCounters, indexID, name)
 	if err != nil {
 		return err
 	}
 
 	if foundRaw == nil {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	return tx.Delete(tableCounters, foundRaw)
 }
 
-func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -250,18 +239,13 @@ func (rwt *memdbReadWriteTx) StoreCounterValue(ctx context.Context, filter *core
 	}
 
 	// Check if the counter exists
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	foundRaw, err := tx.First(tableCounters, indexID, filterName)
+	foundRaw, err := tx.First(tableCounters, indexID, name)
 	if err != nil {
 		return err
 	}
 
 	if foundRaw == nil {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	counter := foundRaw.(*counter)

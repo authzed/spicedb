@@ -65,20 +65,15 @@ func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 	return json.Marshal(&cc)
 }
 
-func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	// Check if the counter already exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) > 0 {
-		return datastore.NewFilterAlreadyRegisteredErr(filter)
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
 	}
 
 	serializedFilter, err := filter.MarshalVT()
@@ -89,7 +84,7 @@ func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.
 	// Insert the counter.
 	query, args, err := rwt.InsertCounterQuery.
 		Values(
-			filterName,
+			name,
 			serializedFilter,
 			0,
 			0,
@@ -103,7 +98,7 @@ func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.
 	if err != nil {
 		var mysqlErr *mysql.MySQLError
 		if errors.As(err, &mysqlErr) && mysqlErr.Number == errMysqlDuplicateEntry {
-			return datastore.NewFilterAlreadyRegisteredErr(filter)
+			return datastore.NewCounterAlreadyRegisteredErr(name, filter)
 		}
 
 		return fmt.Errorf("unable to register counter: %w", err)
@@ -112,25 +107,20 @@ func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
+func (rwt *mysqlReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
 	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) == 0 {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	// Delete the counter.
 	query, args, err := rwt.DeleteCounterQuery.
-		Where(sq.Eq{colName: filterName}).
+		Where(sq.Eq{colName: name}).
 		Set(colDeletedTxn, rwt.newTxnID).
 		ToSql()
 	if err != nil {
@@ -145,27 +135,22 @@ func (rwt *mysqlReadWriteTXN) UnregisterCounter(ctx context.Context, filter *cor
 	return nil
 }
 
-func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
+func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) == 0 {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	updateRevisionID := computedAtRevision.(revisions.TransactionIDRevision).TransactionID()
 
 	// Update the counter.
 	query, args, err := rwt.UpdateCounterQuery.
-		Where(sq.Eq{colName: filterName}).
+		Where(sq.Eq{colName: name}).
 		Set(colCounterCurrentCount, value).
 		Set(colCounterUpdatedAtRevision, updateRevisionID).
 		ToSql()

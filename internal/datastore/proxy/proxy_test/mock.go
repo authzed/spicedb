@@ -98,8 +98,8 @@ func (dm *MockReader) ReadNamespaceByName(
 	return def, args.Get(1).(datastore.Revision), args.Error(2)
 }
 
-func (dm *MockReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
-	args := dm.Called(filter)
+func (dm *MockReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	args := dm.Called(name)
 	return args.Get(0).(int), args.Error(1)
 }
 
@@ -183,8 +183,8 @@ type MockReadWriteTransaction struct {
 	mock.Mock
 }
 
-func (dm *MockReadWriteTransaction) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
-	args := dm.Called(filter)
+func (dm *MockReadWriteTransaction) CountRelationships(ctx context.Context, name string) (int, error) {
+	args := dm.Called(name)
 	return args.Get(0).(int), args.Error(1)
 }
 
@@ -317,18 +317,18 @@ func (dm *MockReadWriteTransaction) DeleteCaveats(_ context.Context, _ []string)
 	panic("not used")
 }
 
-func (dm *MockReadWriteTransaction) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
-	args := dm.Called(filter)
+func (dm *MockReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	args := dm.Called(name, filter)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
-	args := dm.Called(filter)
+func (dm *MockReadWriteTransaction) UnregisterCounter(ctx context.Context, name string) error {
+	args := dm.Called(name)
 	return args.Error(0)
 }
 
-func (dm *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
-	args := dm.Called(filter, value, computedAtRevision)
+func (dm *MockReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	args := dm.Called(name, value, computedAtRevision)
 	return args.Error(0)
 }
 

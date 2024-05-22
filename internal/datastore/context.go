@@ -97,8 +97,8 @@ func (p *ctxProxy) ExampleRetryableError() error {
 
 type ctxReader struct{ delegate datastore.Reader }
 
-func (r *ctxReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
-	return r.delegate.CountRelationships(SeparateContextWithTracing(ctx), filter)
+func (r *ctxReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	return r.delegate.CountRelationships(SeparateContextWithTracing(ctx), name)
 }
 
 func (r *ctxReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {

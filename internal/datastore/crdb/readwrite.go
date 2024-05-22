@@ -104,20 +104,14 @@ var (
 	queryDeleteCounter = psql.Delete(tableRelationshipCounter)
 )
 
-func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
-	// Ensure the counter doesn't already exist.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) > 0 {
-		return datastore.NewFilterAlreadyRegisteredErr(filter)
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
 	}
 
 	// Add the counter to the table.
@@ -127,7 +121,7 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.R
 	}
 
 	sql, args, err := queryWriteCounter.Values(
-		filterName,
+		name,
 		serialized,
 		0,
 		nil,
@@ -140,7 +134,7 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.R
 	if err != nil {
 		// If this is a constraint violation, return that the filter is already registered.
 		if pgxcommon.IsConstraintFailureError(err) {
-			return datastore.NewFilterAlreadyRegisteredErr(filter)
+			return datastore.NewCounterAlreadyRegisteredErr(name, filter)
 		}
 
 		return fmt.Errorf("unable to register counter: %w", err)
@@ -149,24 +143,18 @@ func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, filter *core.R
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
-	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) == 0 {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	// Remove the counter from the table.
-	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: filterName}).ToSql()
+	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: name}).ToSql()
 	if err != nil {
 		return fmt.Errorf("unable to unregister counter: %w", err)
 	}
@@ -179,20 +167,14 @@ func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, filter *core
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
-	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
-	counters, err := rwt.lookupCounters(ctx, filterName)
+func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	counters, err := rwt.lookupCounters(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if len(counters) == 0 {
-		return datastore.NewFilterNotRegisteredErr(filter)
+		return datastore.NewCounterNotRegisteredErr(name)
 	}
 
 	computedAtRevisionTimestamp, err := computedAtRevision.(revisions.HLCRevision).AsDecimal()
@@ -204,7 +186,7 @@ func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, filter *core
 	sql, args, err := queryUpdateCounter.
 		Set(colCounterCurrentCount, value).
 		Set(colCounterUpdatedAt, computedAtRevisionTimestamp).
-		Where(sq.Eq{colCounterName: filterName}).
+		Where(sq.Eq{colCounterName: name}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("unable to store counter value: %w", err)

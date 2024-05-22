@@ -52,6 +52,7 @@ var (
 	)
 
 	queryCounters = psql.Select(
+		colCounterName,
 		colCounterSerializedFilter,
 		colCounterCurrentCount,
 		colCounterUpdatedAt,
@@ -66,23 +67,17 @@ type crdbReader struct {
 	fromBuilder   func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
 }
 
-func (cr *crdbReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
-	// Ensure the counter exists.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return 0, err
-	}
-
-	counters, err := cr.lookupCounters(ctx, filterName)
+func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	counters, err := cr.lookupCounters(ctx, name)
 	if err != nil {
 		return 0, err
 	}
 
 	if len(counters) == 0 {
-		return 0, datastore.NewFilterNotRegisteredErr(filter)
+		return 0, datastore.NewCounterNotRegisteredErr(name)
 	}
 
-	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(counters[0].Filter)
 	if err != nil {
 		return 0, err
 	}
@@ -109,14 +104,16 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, filter *core.Relat
 	return count, nil
 }
 
+const noFilterOnCounterName = ""
+
 func (cr *crdbReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return cr.lookupCounters(ctx, "")
+	return cr.lookupCounters(ctx, noFilterOnCounterName)
 }
 
 func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
 	query := cr.fromBuilder(queryCounters, tableRelationshipCounter)
 
-	if optionalFilterName != "" {
+	if optionalFilterName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{colCounterName: optionalFilterName})
 	}
 
@@ -128,10 +125,11 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 	var counters []datastore.RelationshipCounter
 	err = cr.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		for rows.Next() {
+			var name string
 			var serializedFilter []byte
 			var currentCount int
 			var revisionDecimal *decimal.Decimal
-			if err := rows.Scan(&serializedFilter, &currentCount, &revisionDecimal); err != nil {
+			if err := rows.Scan(&name, &serializedFilter, &currentCount, &revisionDecimal); err != nil {
 				return err
 			}
 
@@ -151,6 +149,7 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 			}
 
 			counters = append(counters, datastore.RelationshipCounter{
+				Name:               name,
 				Filter:             loaded,
 				Count:              currentCount,
 				ComputedAtRevision: revision,

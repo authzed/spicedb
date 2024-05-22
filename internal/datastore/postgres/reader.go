@@ -53,7 +53,7 @@ var (
 			From(tableNamespace)
 
 	readCounters = psql.
-			Select(colCounterFilter, colCounterCurrentCount, colCounterSnapshot).
+			Select(colCounterName, colCounterFilter, colCounterCurrentCount, colCounterSnapshot).
 			From(tableRelationshipCounter)
 )
 
@@ -63,21 +63,18 @@ const (
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
 
-func (r *pgReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+func (r *pgReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	// Ensure the counter is registered.
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return 0, err
-	}
-
-	counters, err := r.lookupCounters(ctx, filterName)
+	counters, err := r.lookupCounters(ctx, name)
 	if err != nil {
 		return 0, err
 	}
 
 	if len(counters) == 0 {
-		return 0, datastore.NewFilterNotRegisteredErr(filter)
+		return 0, datastore.NewCounterNotRegisteredErr(name)
 	}
+
+	filter := counters[0].Filter
 
 	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
 	if err != nil {
@@ -97,7 +94,7 @@ func (r *pgReader) CountRelationships(ctx context.Context, filter *core.Relation
 	var count int
 	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		if !rows.Next() {
-			return datastore.NewFilterNotRegisteredErr(filter)
+			return datastore.NewCounterNotRegisteredErr(name)
 		}
 
 		if err := rows.Scan(&count); err != nil {
@@ -112,13 +109,15 @@ func (r *pgReader) CountRelationships(ctx context.Context, filter *core.Relation
 	return count, nil
 }
 
+const noFilterOnCounterName = ""
+
 func (r *pgReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
-	return r.lookupCounters(ctx, "")
+	return r.lookupCounters(ctx, noFilterOnCounterName)
 }
 
 func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
 	query := readCounters
-	if optionalName != "" {
+	if optionalName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{colCounterName: optionalName})
 	}
 
@@ -130,11 +129,12 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 	var counters []datastore.RelationshipCounter
 	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		for rows.Next() {
+			var name string
 			var filter []byte
 			var snapshot *pgSnapshot
 			var currentCount int
 
-			if err := rows.Scan(&filter, &currentCount, &snapshot); err != nil {
+			if err := rows.Scan(&name, &filter, &currentCount, &snapshot); err != nil {
 				return fmt.Errorf("unable to read counter: %w", err)
 			}
 
@@ -149,6 +149,7 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 			}
 
 			counters = append(counters, datastore.RelationshipCounter{
+				Name:               name,
 				Filter:             loaded,
 				Count:              currentCount,
 				ComputedAtRevision: revision,

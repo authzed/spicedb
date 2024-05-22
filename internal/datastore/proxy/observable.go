@@ -142,18 +142,13 @@ func (p *observableProxy) Close() error { return p.delegate.Close() }
 
 type observableReader struct{ delegate datastore.Reader }
 
-func (r *observableReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return 0, err
-	}
-
+func (r *observableReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	ctx, closer := observe(ctx, "CountRelationships", trace.WithAttributes(
-		attribute.String("filter", filterName),
+		attribute.String("name", name),
 	))
 	defer closer()
 
-	return r.delegate.CountRelationships(ctx, filter)
+	return r.delegate.CountRelationships(ctx, name)
 }
 
 func (r *observableReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
@@ -265,48 +260,33 @@ type observableRWT struct {
 	delegate datastore.ReadWriteTransaction
 }
 
-func (rwt *observableRWT) RegisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
+func (rwt *observableRWT) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	ctx, closer := observe(ctx, "RegisterCounter", trace.WithAttributes(
-		attribute.String("filter", filterName),
+		attribute.String("name", name),
 	))
 	defer closer()
 
-	return rwt.delegate.RegisterCounter(ctx, filter)
+	return rwt.delegate.RegisterCounter(ctx, name, filter)
 }
 
-func (rwt *observableRWT) UnregisterCounter(ctx context.Context, filter *core.RelationshipFilter) error {
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
+func (rwt *observableRWT) UnregisterCounter(ctx context.Context, name string) error {
 	ctx, closer := observe(ctx, "UnregisterCounter", trace.WithAttributes(
-		attribute.String("filter", filterName),
+		attribute.String("name", name),
 	))
 	defer closer()
 
-	return rwt.delegate.UnregisterCounter(ctx, filter)
+	return rwt.delegate.UnregisterCounter(ctx, name)
 }
 
-func (rwt *observableRWT) StoreCounterValue(ctx context.Context, filter *core.RelationshipFilter, value int, computedAtRevision datastore.Revision) error {
-	filterName, err := datastore.FilterStableName(filter)
-	if err != nil {
-		return err
-	}
-
+func (rwt *observableRWT) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
 	ctx, closer := observe(ctx, "StoreCounterValue", trace.WithAttributes(
-		attribute.String("filter", filterName),
+		attribute.String("name", name),
 		attribute.Int("value", value),
 		attribute.String("revision", computedAtRevision.String()),
 	))
 	defer closer()
 
-	return rwt.delegate.StoreCounterValue(ctx, filter, value, computedAtRevision)
+	return rwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
 }
 
 func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {

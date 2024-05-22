@@ -247,7 +247,7 @@ func (m *mockedReader) ReverseQueryRelationships(
 	panic("not implemented")
 }
 
-func (m *mockedReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+func (m *mockedReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	panic("not implemented")
 }
 

@@ -25,25 +25,25 @@ type memdbReader struct {
 	initErr  error
 }
 
-func (r *memdbReader) CountRelationships(ctx context.Context, filter *core.RelationshipFilter) (int, error) {
+func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	counters, err := r.LookupCounters(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	found := false
+	var found *core.RelationshipFilter
 	for _, counter := range counters {
-		if counter.Filter.EqualVT(filter) {
-			found = true
+		if counter.Name == name {
+			found = counter.Filter
 			break
 		}
 	}
 
-	if !found {
-		return 0, datastore.NewFilterNotRegisteredErr(filter)
+	if found == nil {
+		return 0, datastore.NewCounterNotRegisteredErr(name)
 	}
 
-	coreFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	coreFilter, err := datastore.RelationshipsFilterFromCoreFilter(found)
 	if err != nil {
 		return 0, err
 	}
@@ -96,6 +96,7 @@ func (r *memdbReader) LookupCounters(ctx context.Context) ([]datastore.Relations
 		}
 
 		counters = append(counters, datastore.RelationshipCounter{
+			Name:               found.name,
 			Filter:             loaded,
 			Count:              found.count,
 			ComputedAtRevision: found.updated,
