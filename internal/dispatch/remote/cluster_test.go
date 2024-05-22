@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -72,14 +73,13 @@ func TestDispatchTimeout(t *testing.T) {
 				_ = s.Serve(listener)
 			}()
 
-			conn, err := grpc.DialContext(
+			conn, err := grpchelpers.DialAndWait(
 				context.Background(),
 				"",
 				grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 					return listener.Dial()
 				}),
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpc.WithBlock(),
 			)
 			require.NoError(t, err)
 
@@ -253,14 +253,13 @@ func connectionForDispatching(t *testing.T, svc v1.DispatchServiceServer) *grpc.
 		_ = s.Serve(listener)
 	}()
 
-	conn, err := grpc.DialContext(
+	conn, err := grpchelpers.DialAndWait(
 		context.Background(),
 		"",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return listener.Dial()
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	require.NoError(t, err)
 

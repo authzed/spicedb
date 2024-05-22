@@ -129,7 +129,8 @@ func NewTestServerWithConfig(require *require.Assertions,
 		require.NoError(srv.Run(ctx))
 	}()
 
-	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock())
+	// TODO: move off of WithBlock
+	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock()) // nolint: staticcheck
 	require.NoError(err)
 
 	return conn, func() {

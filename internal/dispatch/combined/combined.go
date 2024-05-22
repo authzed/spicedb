@@ -3,6 +3,7 @@
 package combined
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/dispatch/singleflight"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -159,14 +161,14 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 
 		opts.grpcDialOpts = append(opts.grpcDialOpts, grpc.WithDefaultCallOptions(grpc.UseCompressor("s2")))
 
-		conn, err := grpc.Dial(opts.upstreamAddr, opts.grpcDialOpts...)
+		conn, err := grpchelpers.Dial(context.Background(), opts.upstreamAddr, opts.grpcDialOpts...)
 		if err != nil {
 			return nil, err
 		}
 
 		secondaryClients := make(map[string]remote.SecondaryDispatch, len(opts.secondaryUpstreamAddrs))
 		for name, addr := range opts.secondaryUpstreamAddrs {
-			secondaryConn, err := grpc.Dial(addr, opts.grpcDialOpts...)
+			secondaryConn, err := grpchelpers.Dial(context.Background(), addr, opts.grpcDialOpts...)
 			if err != nil {
 				return nil, err
 			}

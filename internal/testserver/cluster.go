@@ -223,9 +223,11 @@ func TestClusterWithDispatchAndCacheConfig(t testing.TB, size uint, ds datastore
 		cancelFuncs = append(cancelFuncs, cancel)
 
 		dialers = append(dialers, srv.DispatchNetDialContext)
+
+		// TODO: move off of WithBlock and WithReturnConnectionError
 		conn, err := srv.GRPCDialContext(ctx,
-			grpc.WithReturnConnectionError(),
-			grpc.WithBlock(),
+			grpc.WithReturnConnectionError(), // nolint: staticcheck
+			grpc.WithBlock(),                 // nolint: staticcheck
 			grpc.WithConnectParams(grpc.ConnectParams{
 				Backoff: backoff.Config{
 					BaseDelay:  1 * time.Second,
