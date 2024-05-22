@@ -11,6 +11,8 @@ import (
 // TimestampRevision is a revision that is a timestamp.
 type TimestampRevision int64
 
+var zeroTimestampRevision = TimestampRevision(0)
+
 // NewForTime creates a new revision for the given time.
 func NewForTime(time time.Time) TimestampRevision {
 	return TimestampRevision(time.UnixNano())
@@ -31,16 +33,28 @@ func parseTimestampRevisionString(revisionStr string) (rev datastore.Revision, e
 	return TimestampRevision(parsed), nil
 }
 
-func (ir TimestampRevision) Equal(other datastore.Revision) bool {
-	return int64(ir) == int64(other.(TimestampRevision))
+func (ir TimestampRevision) Equal(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		rhs = zeroTimestampRevision
+	}
+
+	return int64(ir) == int64(rhs.(TimestampRevision))
 }
 
-func (ir TimestampRevision) GreaterThan(other datastore.Revision) bool {
-	return int64(ir) > int64(other.(TimestampRevision))
+func (ir TimestampRevision) GreaterThan(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		rhs = zeroTimestampRevision
+	}
+
+	return int64(ir) > int64(rhs.(TimestampRevision))
 }
 
-func (ir TimestampRevision) LessThan(other datastore.Revision) bool {
-	return int64(ir) < int64(other.(TimestampRevision))
+func (ir TimestampRevision) LessThan(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		rhs = zeroTimestampRevision
+	}
+
+	return int64(ir) < int64(rhs.(TimestampRevision))
 }
 
 func (ir TimestampRevision) TimestampNanoSec() int64 {
