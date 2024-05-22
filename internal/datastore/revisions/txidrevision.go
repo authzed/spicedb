@@ -10,6 +10,8 @@ import (
 // TransactionIDRevision is a revision that is a transaction ID.
 type TransactionIDRevision uint64
 
+var zeroTransactionIDRevision = TransactionIDRevision(0)
+
 // NewForTransactionID creates a new revision for the given transaction ID.
 func NewForTransactionID(transactionID uint64) TransactionIDRevision {
 	return TransactionIDRevision(transactionID)
@@ -25,16 +27,28 @@ func parseTransactionIDRevisionString(revisionStr string) (rev datastore.Revisio
 	return TransactionIDRevision(parsed), nil
 }
 
-func (ir TransactionIDRevision) Equal(other datastore.Revision) bool {
-	return uint64(ir) == uint64(other.(TransactionIDRevision))
+func (ir TransactionIDRevision) Equal(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		rhs = zeroTransactionIDRevision
+	}
+
+	return uint64(ir) == uint64(rhs.(TransactionIDRevision))
 }
 
-func (ir TransactionIDRevision) GreaterThan(other datastore.Revision) bool {
-	return uint64(ir) > uint64(other.(TransactionIDRevision))
+func (ir TransactionIDRevision) GreaterThan(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		rhs = zeroTransactionIDRevision
+	}
+
+	return uint64(ir) > uint64(rhs.(TransactionIDRevision))
 }
 
-func (ir TransactionIDRevision) LessThan(other datastore.Revision) bool {
-	return uint64(ir) < uint64(other.(TransactionIDRevision))
+func (ir TransactionIDRevision) LessThan(rhs datastore.Revision) bool {
+	if rhs == datastore.NoRevision {
+		rhs = zeroTransactionIDRevision
+	}
+
+	return uint64(ir) < uint64(rhs.(TransactionIDRevision))
 }
 
 func (ir TransactionIDRevision) TransactionID() uint64 {
