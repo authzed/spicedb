@@ -85,7 +85,7 @@ brews:
         head "https://github.com/authzed/spicedb.git", :branch => "main"
       url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
       install: |
-        unless File.exist? "spicedb"
+        if build.head?
           versionVar = "github.com/jzelinskie/cobrautil/v2.Version"
           versionCmd = "$(git describe --always --abbrev=7 --dirty --tags)"
           system "go build --ldflags '-s -w -X #{versionVar}=#{versionCmd}' ./cmd/spicedb"
