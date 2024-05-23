@@ -16,6 +16,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
+
+	"github.com/authzed/spicedb/internal/grpchelpers"
 )
 
 func TestOverlapKeyAddition(t *testing.T) {
@@ -139,14 +141,13 @@ func TestOverlapKeysFromContext(t *testing.T) {
 			_ = s.Serve(listener)
 		}()
 
-		conn, err := grpc.DialContext(
+		conn, err := grpchelpers.DialAndWait(
 			context.Background(),
 			"",
 			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 				return listener.Dial()
 			}),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
 		)
 		require.NoError(t, err)
 

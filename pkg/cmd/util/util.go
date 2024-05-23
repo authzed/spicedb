@@ -29,6 +29,7 @@ import (
 	// Register cert watcher metrics
 	_ "sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics"
 
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
@@ -142,7 +143,7 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 					return bl.DialContext(ctx)
 				}))
 
-				return grpc.DialContext(ctx, BufferedNetwork, opts...)
+				return grpchelpers.Dial(ctx, BufferedNetwork, opts...)
 			}, func(ctx context.Context, s string) (net.Conn, error) {
 				return bl.DialContext(ctx)
 			}, nil
@@ -152,7 +153,7 @@ func (c *GRPCServerConfig) listenerAndDialer() (net.Listener, DialFunc, NetDialF
 		return nil, nil, nil, err
 	}
 	return l, func(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		return grpc.DialContext(ctx, c.Address, opts...)
+		return grpchelpers.Dial(ctx, c.Address, opts...)
 	}, nil, nil
 }
 

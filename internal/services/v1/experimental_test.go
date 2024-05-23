@@ -28,6 +28,7 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -1626,4 +1627,109 @@ func TestExperimentalComputablePermissions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExperimentalCountRelationships(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	expClient := v1.NewExperimentalServiceClient(conn)
+	schemaClient := v1.NewSchemaServiceClient(conn)
+	permsClient := v1.NewPermissionsServiceClient(conn)
+	defer cleanup()
+
+	// Write the schema.
+	_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition user {}
+		
+		definition document {
+			relation viewer: user
+			relation editor: user
+			permission view = viewer + editor
+		}
+		`,
+	})
+	require.NoError(t, err)
+
+	// Write some relationships.
+	_, err = permsClient.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: tuple.UpdatesToRelationshipUpdates([]*core.RelationTupleUpdate{
+			tuple.Create(tuple.MustParse("document:doc1#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:doc1#viewer@user:bob")),
+			tuple.Create(tuple.MustParse("document:doc1#viewer@user:charlie")),
+			tuple.Create(tuple.MustParse("document:doc1#editor@user:alice")),
+			tuple.Create(tuple.MustParse("document:doc1#editor@user:bob")),
+
+			tuple.Create(tuple.MustParse("document:doc2#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:doc2#viewer@user:adam")),
+
+			tuple.Create(tuple.MustParse("document:adoc#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:anotherdoc#viewer@user:alice")),
+		}),
+	})
+	require.NoError(t, err)
+
+	// Try to read the count on an unregistered filter.
+	_, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+		Name: "unregistered",
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "counter with name `unregistered` not found")
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+
+	// Register some filters.
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "somedocfilter",
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: "document",
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "somedocfilter",
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType: "document",
+		},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "counter with name `somedocfilter` already registered")
+	grpcutil.RequireStatus(t, codes.FailedPrecondition, err)
+
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "someotherfilter",
+		RelationshipFilter: &v1.RelationshipFilter{
+			ResourceType:     "document",
+			OptionalRelation: "viewer",
+		},
+	})
+	require.NoError(t, err)
+
+	// Read the counts on the registered filers.
+	actual, err := expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+		Name: "somedocfilter",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), actual.GetReadCounterValue().RelationshipCount)
+	require.NotNil(t, actual.GetReadCounterValue().ReadAt)
+
+	actual, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+		Name: "someotherfilter",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(7), actual.GetReadCounterValue().RelationshipCount)
+
+	// Register one more filter.
+	_, err = expClient.ExperimentalRegisterRelationshipCounter(context.Background(), &v1.ExperimentalRegisterRelationshipCounterRequest{
+		Name: "somethirdfilter",
+		RelationshipFilter: &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: "a",
+		},
+	})
+	require.NoError(t, err)
+
+	// Get the count.
+	actual, err = expClient.ExperimentalCountRelationships(context.Background(), &v1.ExperimentalCountRelationshipsRequest{
+		Name: "somethirdfilter",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), actual.GetReadCounterValue().RelationshipCount)
 }

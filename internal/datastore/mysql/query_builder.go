@@ -17,6 +17,11 @@ type QueryBuilder struct {
 	DeleteNamespaceQuery       sq.UpdateBuilder
 	DeleteNamespaceTuplesQuery sq.UpdateBuilder
 
+	ReadCounterQuery   sq.SelectBuilder
+	InsertCounterQuery sq.InsertBuilder
+	DeleteCounterQuery sq.UpdateBuilder
+	UpdateCounterQuery sq.UpdateBuilder
+
 	QueryTuplesWithIdsQuery sq.SelectBuilder
 	QueryTuplesQuery        sq.SelectBuilder
 	DeleteTupleQuery        sq.UpdateBuilder
@@ -44,6 +49,12 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.WriteNamespaceQuery = writeNamespace(driver.Namespace())
 	builder.ReadNamespaceQuery = readNamespace(driver.Namespace())
 	builder.DeleteNamespaceQuery = deleteNamespace(driver.Namespace())
+
+	// counters builders
+	builder.ReadCounterQuery = readCounter(driver.RelationshipCounters())
+	builder.InsertCounterQuery = insertCounter(driver.RelationshipCounters())
+	builder.DeleteCounterQuery = deleteCounter(driver.RelationshipCounters())
+	builder.UpdateCounterQuery = updateCounter(driver.RelationshipCounters())
 
 	// tuple builders
 	builder.QueryTuplesWithIdsQuery = queryTuplesWithIds(driver.RelationTuple())
@@ -90,6 +101,33 @@ func getLastRevision(tableTransaction string) sq.SelectBuilder {
 
 func getRevisionRange(tableTransaction string) sq.SelectBuilder {
 	return sb.Select("MIN(id)", "MAX(id)").From(tableTransaction)
+}
+
+func readCounter(tableRelationshipCounters string) sq.SelectBuilder {
+	return sb.Select(
+		colCounterName,
+		colCounterSerializedFilter,
+		colCounterCurrentCount,
+		colCounterUpdatedAtRevision,
+	).From(tableRelationshipCounters)
+}
+
+func insertCounter(tableRelationshipCounters string) sq.InsertBuilder {
+	return sb.Insert(tableRelationshipCounters).Columns(
+		colCounterName,
+		colCounterSerializedFilter,
+		colCounterCurrentCount,
+		colCounterUpdatedAtRevision,
+		colCreatedTxn,
+	)
+}
+
+func deleteCounter(tableRelationshipCounters string) sq.UpdateBuilder {
+	return sb.Update(tableRelationshipCounters).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+}
+
+func updateCounter(tableRelationshipCounters string) sq.UpdateBuilder {
+	return sb.Update(tableRelationshipCounters).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }
 
 func writeNamespace(tableNamespace string) sq.InsertBuilder {

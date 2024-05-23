@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 // ErrNotFound is a shared interface for not found errors.
@@ -194,6 +196,70 @@ func NewCaveatNameNotFoundErr(name string) error {
 func (err ErrCaveatNameNotFound) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"caveat_name": err.name,
+	}
+}
+
+// ErrCounterNotRegistered indicates that a counter was not registered.
+type ErrCounterNotRegistered struct {
+	error
+	counterName string
+}
+
+// NewCounterNotRegisteredErr constructs a new counter not registered error.
+func NewCounterNotRegisteredErr(counterName string) error {
+	return ErrCounterNotRegistered{
+		error:       fmt.Errorf("counter with name `%s` not found", counterName),
+		counterName: counterName,
+	}
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrCounterNotRegistered) DetailsMetadata() map[string]string {
+	return map[string]string{
+		"counter_name": err.counterName,
+	}
+}
+
+// ErrCounterAlreadyRegistered indicates that a counter  was already registered.
+type ErrCounterAlreadyRegistered struct {
+	error
+
+	counterName string
+	filter      *core.RelationshipFilter
+}
+
+// NewCounterAlreadyRegisteredErr constructs a new filter not registered error.
+func NewCounterAlreadyRegisteredErr(counterName string, filter *core.RelationshipFilter) error {
+	return ErrCounterAlreadyRegistered{
+		error:       fmt.Errorf("counter with name `%s` already registered", counterName),
+		counterName: counterName,
+		filter:      filter,
+	}
+}
+
+// DetailsMetadata returns the metadata for details for this error.
+func (err ErrCounterAlreadyRegistered) DetailsMetadata() map[string]string {
+	subjectType := ""
+	subjectID := ""
+	subjectRelation := ""
+	if err.filter.OptionalSubjectFilter != nil {
+		subjectType = err.filter.OptionalSubjectFilter.SubjectType
+		subjectID = err.filter.OptionalSubjectFilter.OptionalSubjectId
+
+		if err.filter.OptionalSubjectFilter.GetOptionalRelation() != nil {
+			subjectRelation = err.filter.OptionalSubjectFilter.GetOptionalRelation().Relation
+		}
+	}
+
+	return map[string]string{
+		"counter_name":                  err.counterName,
+		"new_filter_resource_type":      err.filter.ResourceType,
+		"new_filter_resource_id":        err.filter.OptionalResourceId,
+		"new_filter_resource_id_prefix": err.filter.OptionalResourceIdPrefix,
+		"new_filter_relation":           err.filter.OptionalRelation,
+		"new_filter_subject_type":       subjectType,
+		"new_filter_subject_id":         subjectID,
+		"new_filter_subject_relation":   subjectRelation,
 	}
 }
 

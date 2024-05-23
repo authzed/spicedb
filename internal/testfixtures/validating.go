@@ -88,6 +88,14 @@ func (vsr validatingSnapshotReader) LookupNamespacesWithNames(
 	return read, nil
 }
 
+func (vsr validatingSnapshotReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	return vsr.delegate.CountRelationships(ctx, name)
+}
+
+func (vsr validatingSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return vsr.delegate.LookupCounters(ctx)
+}
+
 func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
@@ -170,6 +178,22 @@ func (vsr validatingSnapshotReader) ListAllCaveats(ctx context.Context) ([]datas
 type validatingReadWriteTransaction struct {
 	validatingSnapshotReader
 	delegate datastore.ReadWriteTransaction
+}
+
+func (vrwt validatingReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	if err := filter.Validate(); err != nil {
+		return err
+	}
+
+	return vrwt.delegate.RegisterCounter(ctx, name, filter)
+}
+
+func (vrwt validatingReadWriteTransaction) UnregisterCounter(ctx context.Context, name string) error {
+	return vrwt.delegate.UnregisterCounter(ctx, name)
+}
+
+func (vrwt validatingReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	return vrwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {

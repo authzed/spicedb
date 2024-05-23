@@ -11,6 +11,7 @@ import (
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -24,6 +25,84 @@ type spannerReadWriteTXN struct {
 }
 
 const inLimit = 10_000 // https://cloud.google.com/spanner/quotas#query-limits
+
+func (rwt spannerReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	// Ensure the counter doesn't already exist.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) > 0 {
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+	}
+
+	// Add the counter to the table.
+	serialized, err := filter.MarshalVT()
+	if err != nil {
+		return fmt.Errorf(errUnableToSerializeFilter, err)
+	}
+
+	if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
+		spanner.InsertOrUpdate(
+			tableRelationshipCounter,
+			[]string{colCounterName, colCounterSerializedFilter, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
+			[]any{name, serialized, 0, nil},
+		),
+	}); err != nil {
+		return fmt.Errorf(errUnableToWriteCounter, err)
+	}
+
+	return nil
+}
+
+func (rwt spannerReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	// Delete the counter from the table.
+	key := spanner.Key{name}
+	if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{
+		spanner.Delete(tableRelationshipCounter, spanner.KeySetFromKeys(key)),
+	}); err != nil {
+		return fmt.Errorf(errUnableToDeleteCounter, err)
+	}
+
+	return nil
+}
+
+func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	// Update the counter's count and revision in the table.
+	updatedTimestampTime := computedAtRevision.(revisions.TimestampRevision).Time()
+
+	mutation := spanner.Update(tableRelationshipCounter,
+		[]string{colCounterName, colCounterCurrentCount, colCounterUpdatedAtTimestamp},
+		[]any{name, value, updatedTimestampTime},
+	)
+
+	if err := rwt.spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
+		return fmt.Errorf(errUnableToUpdateCounter, err)
+	}
+
+	return nil
+}
 
 func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
 	var rowCountChange int64

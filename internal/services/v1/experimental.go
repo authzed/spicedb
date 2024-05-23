@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc/codes"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -26,6 +28,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -631,6 +634,72 @@ func (es *experimentalServer) ExperimentalDependentRelations(ctx context.Context
 	return &v1.ExperimentalDependentRelationsResponse{
 		Relations: relations,
 		ReadAt:    revisionReadAt,
+	}, nil
+}
+
+func (es *experimentalServer) ExperimentalRegisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalRegisterRelationshipCounterRequest) (*v1.ExperimentalRegisterRelationshipCounterResponse, error) {
+	ds := datastoremw.MustFromContext(ctx)
+
+	if req.Name == "" {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
+	}
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		if err := validateRelationshipsFilter(ctx, req.RelationshipFilter, rwt); err != nil {
+			return err
+		}
+
+		coreFilter := datastore.CoreFilterFromRelationshipFilter(req.RelationshipFilter)
+		return rwt.RegisterCounter(ctx, req.Name, coreFilter)
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return &v1.ExperimentalRegisterRelationshipCounterResponse{}, nil
+}
+
+func (es *experimentalServer) ExperimentalUnregisterRelationshipCounter(ctx context.Context, req *v1.ExperimentalUnregisterRelationshipCounterRequest) (*v1.ExperimentalUnregisterRelationshipCounterResponse, error) {
+	ds := datastoremw.MustFromContext(ctx)
+
+	if req.Name == "" {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
+	}
+
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.UnregisterCounter(ctx, req.Name)
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return &v1.ExperimentalUnregisterRelationshipCounterResponse{}, nil
+}
+
+func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context, req *v1.ExperimentalCountRelationshipsRequest) (*v1.ExperimentalCountRelationshipsResponse, error) {
+	if req.Name == "" {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, spiceerrors.WithCodeAndReason(errors.New("name must be provided"), codes.InvalidArgument, v1.ErrorReason_ERROR_REASON_UNSPECIFIED))
+	}
+
+	ds := datastoremw.MustFromContext(ctx)
+	headRev, err := ds.HeadRevision(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	snapshotReader := ds.SnapshotReader(headRev)
+	count, err := snapshotReader.CountRelationships(ctx, req.Name)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return &v1.ExperimentalCountRelationshipsResponse{
+		CounterResult: &v1.ExperimentalCountRelationshipsResponse_ReadCounterValue{
+			ReadCounterValue: &v1.ReadCounterValue{
+				RelationshipCount: uint64(count),
+				ReadAt:            zedtoken.MustNewFromRevision(headRev),
+			},
+		},
 	}, nil
 }
 

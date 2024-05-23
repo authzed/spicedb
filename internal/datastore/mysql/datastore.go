@@ -51,6 +51,11 @@ const (
 	colCaveatName       = "caveat_name"
 	colCaveatContext    = "caveat_context"
 
+	colCounterName              = "name"
+	colCounterSerializedFilter  = "serialized_filter"
+	colCounterCurrentCount      = "current_count"
+	colCounterUpdatedAtRevision = "count_updated_at_revision"
+
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	liveDeletedTxnID       = uint64(math.MaxInt64)
 	batchDeleteSize        = 1000

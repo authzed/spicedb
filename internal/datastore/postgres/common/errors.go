@@ -23,6 +23,13 @@ var (
 	createConflictDetailsRegexWithoutCaveat = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
 )
 
+// IsConstraintFailureError returns true if the error is a Postgres error indicating a constraint
+// failure.
+func IsConstraintFailureError(err error) bool {
+	var pgerr *pgconn.PgError
+	return errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation
+}
+
 // ConvertToWriteConstraintError converts the given Postgres error into a CreateRelationshipExistsError
 // if applicable. If not applicable, returns nils.
 func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) error {

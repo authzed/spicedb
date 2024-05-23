@@ -503,6 +503,10 @@ func validateRelationshipsFilter(ctx context.Context, filter *v1.RelationshipFil
 	}
 
 	// Ensure that at least one field is set.
+	return checkIfFilterIsEmpty(filter)
+}
+
+func checkIfFilterIsEmpty(filter *v1.RelationshipFilter) error {
 	if filter.ResourceType == "" &&
 		filter.OptionalResourceId == "" &&
 		filter.OptionalResourceIdPrefix == "" &&

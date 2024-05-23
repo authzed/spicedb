@@ -4925,6 +4925,410 @@ var _ interface {
 	ErrorName() string
 } = CaveatOperationValidationError{}
 
+// Validate checks the field values on RelationshipFilter with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RelationshipFilter) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RelationshipFilter with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RelationshipFilterMultiError, or nil if none found.
+func (m *RelationshipFilter) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RelationshipFilter) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(m.GetResourceType()) > 128 {
+		err := RelationshipFilterValidationError{
+			field:  "ResourceType",
+			reason: "value length must be at most 128 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_RelationshipFilter_ResourceType_Pattern.MatchString(m.GetResourceType()) {
+		err := RelationshipFilterValidationError{
+			field:  "ResourceType",
+			reason: "value does not match regex pattern \"^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(m.GetOptionalResourceId()) > 1024 {
+		err := RelationshipFilterValidationError{
+			field:  "OptionalResourceId",
+			reason: "value length must be at most 1024 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_RelationshipFilter_OptionalResourceId_Pattern.MatchString(m.GetOptionalResourceId()) {
+		err := RelationshipFilterValidationError{
+			field:  "OptionalResourceId",
+			reason: "value does not match regex pattern \"^([a-zA-Z0-9/_|\\\\-=+]{1,})?$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(m.GetOptionalResourceIdPrefix()) > 1024 {
+		err := RelationshipFilterValidationError{
+			field:  "OptionalResourceIdPrefix",
+			reason: "value length must be at most 1024 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_RelationshipFilter_OptionalResourceIdPrefix_Pattern.MatchString(m.GetOptionalResourceIdPrefix()) {
+		err := RelationshipFilterValidationError{
+			field:  "OptionalResourceIdPrefix",
+			reason: "value does not match regex pattern \"^([a-zA-Z0-9/_|\\\\-=+]{1,})?$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(m.GetOptionalRelation()) > 64 {
+		err := RelationshipFilterValidationError{
+			field:  "OptionalRelation",
+			reason: "value length must be at most 64 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_RelationshipFilter_OptionalRelation_Pattern.MatchString(m.GetOptionalRelation()) {
+		err := RelationshipFilterValidationError{
+			field:  "OptionalRelation",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9])?$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetOptionalSubjectFilter()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RelationshipFilterValidationError{
+					field:  "OptionalSubjectFilter",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RelationshipFilterValidationError{
+					field:  "OptionalSubjectFilter",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOptionalSubjectFilter()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RelationshipFilterValidationError{
+				field:  "OptionalSubjectFilter",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return RelationshipFilterMultiError(errors)
+	}
+
+	return nil
+}
+
+// RelationshipFilterMultiError is an error wrapping multiple validation errors
+// returned by RelationshipFilter.ValidateAll() if the designated constraints
+// aren't met.
+type RelationshipFilterMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RelationshipFilterMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RelationshipFilterMultiError) AllErrors() []error { return m }
+
+// RelationshipFilterValidationError is the validation error returned by
+// RelationshipFilter.Validate if the designated constraints aren't met.
+type RelationshipFilterValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RelationshipFilterValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RelationshipFilterValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RelationshipFilterValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RelationshipFilterValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RelationshipFilterValidationError) ErrorName() string {
+	return "RelationshipFilterValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RelationshipFilterValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRelationshipFilter.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RelationshipFilterValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RelationshipFilterValidationError{}
+
+var _RelationshipFilter_ResourceType_Pattern = regexp.MustCompile("^(([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9])?$")
+
+var _RelationshipFilter_OptionalResourceId_Pattern = regexp.MustCompile("^([a-zA-Z0-9/_|\\-=+]{1,})?$")
+
+var _RelationshipFilter_OptionalResourceIdPrefix_Pattern = regexp.MustCompile("^([a-zA-Z0-9/_|\\-=+]{1,})?$")
+
+var _RelationshipFilter_OptionalRelation_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,62}[a-z0-9])?$")
+
+// Validate checks the field values on SubjectFilter with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *SubjectFilter) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SubjectFilter with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in SubjectFilterMultiError, or
+// nil if none found.
+func (m *SubjectFilter) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SubjectFilter) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(m.GetSubjectType()) > 128 {
+		err := SubjectFilterValidationError{
+			field:  "SubjectType",
+			reason: "value length must be at most 128 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_SubjectFilter_SubjectType_Pattern.MatchString(m.GetSubjectType()) {
+		err := SubjectFilterValidationError{
+			field:  "SubjectType",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(m.GetOptionalSubjectId()) > 1024 {
+		err := SubjectFilterValidationError{
+			field:  "OptionalSubjectId",
+			reason: "value length must be at most 1024 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_SubjectFilter_OptionalSubjectId_Pattern.MatchString(m.GetOptionalSubjectId()) {
+		err := SubjectFilterValidationError{
+			field:  "OptionalSubjectId",
+			reason: "value does not match regex pattern \"^(([a-zA-Z0-9/_|\\\\-=+]{1,})|\\\\*)?$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if all {
+		switch v := interface{}(m.GetOptionalRelation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SubjectFilterValidationError{
+					field:  "OptionalRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SubjectFilterValidationError{
+					field:  "OptionalRelation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOptionalRelation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SubjectFilterValidationError{
+				field:  "OptionalRelation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return SubjectFilterMultiError(errors)
+	}
+
+	return nil
+}
+
+// SubjectFilterMultiError is an error wrapping multiple validation errors
+// returned by SubjectFilter.ValidateAll() if the designated constraints
+// aren't met.
+type SubjectFilterMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SubjectFilterMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SubjectFilterMultiError) AllErrors() []error { return m }
+
+// SubjectFilterValidationError is the validation error returned by
+// SubjectFilter.Validate if the designated constraints aren't met.
+type SubjectFilterValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SubjectFilterValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SubjectFilterValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SubjectFilterValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SubjectFilterValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SubjectFilterValidationError) ErrorName() string { return "SubjectFilterValidationError" }
+
+// Error satisfies the builtin error interface
+func (e SubjectFilterValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSubjectFilter.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SubjectFilterValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SubjectFilterValidationError{}
+
+var _SubjectFilter_SubjectType_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+
+var _SubjectFilter_OptionalSubjectId_Pattern = regexp.MustCompile("^(([a-zA-Z0-9/_|\\-=+]{1,})|\\*)?$")
+
 // Validate checks the field values on AllowedRelation_PublicWildcard with the
 // rules defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
@@ -5747,3 +6151,130 @@ var _ interface {
 } = TupleToUserset_TuplesetValidationError{}
 
 var _TupleToUserset_Tupleset_Relation_Pattern = regexp.MustCompile("^[a-z][a-z0-9_]{1,62}[a-z0-9]$")
+
+// Validate checks the field values on SubjectFilter_RelationFilter with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SubjectFilter_RelationFilter) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SubjectFilter_RelationFilter with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SubjectFilter_RelationFilterMultiError, or nil if none found.
+func (m *SubjectFilter_RelationFilter) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SubjectFilter_RelationFilter) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(m.GetRelation()) > 64 {
+		err := SubjectFilter_RelationFilterValidationError{
+			field:  "Relation",
+			reason: "value length must be at most 64 bytes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_SubjectFilter_RelationFilter_Relation_Pattern.MatchString(m.GetRelation()) {
+		err := SubjectFilter_RelationFilterValidationError{
+			field:  "Relation",
+			reason: "value does not match regex pattern \"^([a-z][a-z0-9_]{1,62}[a-z0-9])?$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return SubjectFilter_RelationFilterMultiError(errors)
+	}
+
+	return nil
+}
+
+// SubjectFilter_RelationFilterMultiError is an error wrapping multiple
+// validation errors returned by SubjectFilter_RelationFilter.ValidateAll() if
+// the designated constraints aren't met.
+type SubjectFilter_RelationFilterMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SubjectFilter_RelationFilterMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SubjectFilter_RelationFilterMultiError) AllErrors() []error { return m }
+
+// SubjectFilter_RelationFilterValidationError is the validation error returned
+// by SubjectFilter_RelationFilter.Validate if the designated constraints
+// aren't met.
+type SubjectFilter_RelationFilterValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SubjectFilter_RelationFilterValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SubjectFilter_RelationFilterValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SubjectFilter_RelationFilterValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SubjectFilter_RelationFilterValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SubjectFilter_RelationFilterValidationError) ErrorName() string {
+	return "SubjectFilter_RelationFilterValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SubjectFilter_RelationFilterValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSubjectFilter_RelationFilter.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SubjectFilter_RelationFilterValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SubjectFilter_RelationFilterValidationError{}
+
+var _SubjectFilter_RelationFilter_Relation_Pattern = regexp.MustCompile("^([a-z][a-z0-9_]{1,62}[a-z0-9])?$")

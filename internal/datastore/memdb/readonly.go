@@ -25,6 +25,87 @@ type memdbReader struct {
 	initErr  error
 }
 
+func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	counters, err := r.LookupCounters(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var found *core.RelationshipFilter
+	for _, counter := range counters {
+		if counter.Name == name {
+			found = counter.Filter
+			break
+		}
+	}
+
+	if found == nil {
+		return 0, datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	coreFilter, err := datastore.RelationshipsFilterFromCoreFilter(found)
+	if err != nil {
+		return 0, err
+	}
+
+	iter, err := r.QueryRelationships(ctx, coreFilter)
+	if err != nil {
+		return 0, err
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() != nil {
+		if iter.Err() != nil {
+			return 0, iter.Err()
+		}
+
+		count++
+	}
+	iter.Close()
+
+	return count, nil
+}
+
+func (r *memdbReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	if r.initErr != nil {
+		return nil, r.initErr
+	}
+
+	r.mustLock()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
+	if err != nil {
+		return nil, err
+	}
+
+	var counters []datastore.RelationshipCounter
+
+	it, err := tx.LowerBound(tableCounters, indexID)
+	if err != nil {
+		return nil, err
+	}
+
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		found := foundRaw.(*counter)
+
+		loaded := &core.RelationshipFilter{}
+		if err := loaded.UnmarshalVT(found.filterBytes); err != nil {
+			return nil, err
+		}
+
+		counters = append(counters, datastore.RelationshipCounter{
+			Name:               found.name,
+			Filter:             loaded,
+			Count:              found.count,
+			ComputedAtRevision: found.updated,
+		})
+	}
+
+	return counters, nil
+}
+
 // QueryRelationships reads relationships starting from the resource side.
 func (r *memdbReader) QueryRelationships(
 	_ context.Context,

@@ -247,6 +247,14 @@ func (m *mockedReader) ReverseQueryRelationships(
 	panic("not implemented")
 }
 
+func (m *mockedReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	panic("not implemented")
+}
+
+func (m *mockedReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	panic("not implemented")
+}
+
 func (m *mockedReader) ReadCaveatByName(_ context.Context, _ string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
 	panic("not implemented")
 }

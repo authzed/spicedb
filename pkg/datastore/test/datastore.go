@@ -169,6 +169,9 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	if !except.Watch() && !except.WatchCheckpoints() {
 		t.Run("TestWatchCheckpoints", func(t *testing.T) { WatchCheckpointsTest(t, tester) })
 	}
+
+	t.Run("TestRelationshipCounters", func(t *testing.T) { RelationshipCountersTest(t, tester) })
+	t.Run("TestUpdateRelationshipCounter", func(t *testing.T) { UpdateRelationshipCounterTest(t, tester) })
 }
 
 // All runs all generic datastore tests on a DatastoreTester.

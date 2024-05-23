@@ -206,6 +206,35 @@ func TestHLCKeyLessThanFunc(t *testing.T) {
 	}
 }
 
+func TestHLCToFromDecimal(t *testing.T) {
+	tcs := []string{
+		"1",
+		"2",
+		"42",
+		"1257894000000000000",
+		"-1",
+		"1.0000000023",
+		"1703283409994227985.0000000004",
+		"1703283409994227985.0000000040",
+		"1703283409994227985.0010000000",
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc, func(t *testing.T) {
+			rev, err := HLCRevisionFromString(tc)
+			require.NoError(t, err)
+
+			d, err := rev.AsDecimal()
+			require.NoError(t, err)
+
+			rev2, err := NewForHLC(d)
+			require.NoError(t, err)
+
+			require.Equal(t, rev, rev2)
+		})
+	}
+}
+
 func BenchmarkHLCParsing(b *testing.B) {
 	tcs := []string{
 		"1",

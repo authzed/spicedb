@@ -539,6 +539,14 @@ type fakeSnapshotReader struct {
 	rev datastore.Revision
 }
 
+func (fsr *fakeSnapshotReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	return -1, fmt.Errorf("not implemented")
+}
+
+func (fsr *fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (fsr *fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
 	return fsr.fds.readNamespaces(nsNames, fsr.rev)
 }

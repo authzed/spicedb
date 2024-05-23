@@ -144,6 +144,10 @@ func (hlc HLCRevision) IntegerRepresentation() (int64, uint32) {
 	return hlc.time, hlc.logicalclock
 }
 
+func (hlc HLCRevision) AsDecimal() (decimal.Decimal, error) {
+	return decimal.NewFromString(hlc.String())
+}
+
 var (
 	_ datastore.Revision    = HLCRevision{}
 	_ WithTimestampRevision = HLCRevision{}

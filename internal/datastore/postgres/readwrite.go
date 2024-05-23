@@ -24,10 +24,12 @@ import (
 )
 
 const (
-	errUnableToWriteConfig         = "unable to write namespace config: %w"
-	errUnableToDeleteConfig        = "unable to delete namespace config: %w"
-	errUnableToWriteRelationships  = "unable to write relationships: %w"
-	errUnableToDeleteRelationships = "unable to delete relationships: %w"
+	errUnableToWriteConfig                = "unable to write namespace config: %w"
+	errUnableToDeleteConfig               = "unable to delete namespace config: %w"
+	errUnableToWriteRelationships         = "unable to write relationships: %w"
+	errUnableToDeleteRelationships        = "unable to delete relationships: %w"
+	errUnableToWriteRelationshipsCounter  = "unable to write relationships counter: %w"
+	errUnableToDeleteRelationshipsCounter = "unable to delete relationships counter: %w"
 )
 
 var (
@@ -61,6 +63,17 @@ var (
 		colUsersetRelation,
 		colCreatedXid,
 	).From(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+
+	writeRelationshipCounter = psql.Insert(tableRelationshipCounter).Columns(
+		colCounterName,
+		colCounterFilter,
+		colCounterCurrentCount,
+		colCounterSnapshot,
+	)
+
+	updateRelationshipCounter = psql.Update(tableRelationshipCounter).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+
+	deleteRelationshipCounter = psql.Update(tableRelationshipCounter).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 )
 
 type pgReadWriteTXN struct {
@@ -567,6 +580,102 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	_, err = rwt.tx.Exec(ctx, deleteTupleSQL, deleteTupleArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	return nil
+}
+
+func (rwt *pgReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) != 0 {
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+	}
+
+	serializedFilter, err := filter.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("unable to serialize filter: %w", err)
+	}
+
+	writeQuery := writeRelationshipCounter
+	writeQuery = writeQuery.Values(name, serializedFilter, 0, nil)
+
+	sql, args, err := writeQuery.ToSql()
+	if err != nil {
+		return fmt.Errorf(errUnableToWriteRelationshipsCounter, err)
+	}
+
+	if _, err = rwt.tx.Exec(ctx, sql, args...); err != nil {
+		// If this is a constraint violation, return that the filter is already registered.
+		if pgxcommon.IsConstraintFailureError(err) {
+			return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+		}
+
+		return fmt.Errorf(errUnableToWriteConfig, err)
+	}
+
+	return nil
+}
+
+func (rwt *pgReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	deleteQuery := deleteRelationshipCounter.Where(sq.Eq{colCounterName: name})
+
+	delSQL, delArgs, err := deleteQuery.
+		Set(colDeletedXid, rwt.newXID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, delSQL, delArgs...)
+	if err != nil {
+		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	return nil
+}
+
+func (rwt *pgReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	computedAtRevisionSnapshot := computedAtRevision.(postgresRevision).snapshot
+
+	// Update the counter.
+	updateQuery := updateRelationshipCounter.
+		Set(colCounterCurrentCount, value).
+		Set(colCounterSnapshot, computedAtRevisionSnapshot)
+
+	sql, args, err := updateQuery.
+		Where(sq.Eq{colCounterName: name}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf(errUnableToWriteRelationshipsCounter, err)
+	}
+
+	if _, err = rwt.tx.Exec(ctx, sql, args...); err != nil {
+		return fmt.Errorf(errUnableToWriteRelationshipsCounter, err)
 	}
 
 	return nil

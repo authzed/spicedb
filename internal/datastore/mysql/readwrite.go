@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -62,6 +63,107 @@ func (cc *caveatContextWrapper) Scan(val any) error {
 
 func (cc *caveatContextWrapper) Value() (driver.Value, error) {
 	return json.Marshal(&cc)
+}
+
+func (rwt *mysqlReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	// Check if the counter already exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) > 0 {
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+	}
+
+	serializedFilter, err := filter.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("unable to serialize filter: %w", err)
+	}
+
+	// Insert the counter.
+	query, args, err := rwt.InsertCounterQuery.
+		Values(
+			name,
+			serializedFilter,
+			0,
+			0,
+			rwt.newTxnID,
+		).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to register counter: %w", err)
+	}
+
+	_, err = rwt.tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == errMysqlDuplicateEntry {
+			return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+		}
+
+		return fmt.Errorf("unable to register counter: %w", err)
+	}
+
+	return nil
+}
+
+func (rwt *mysqlReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	// Delete the counter.
+	query, args, err := rwt.DeleteCounterQuery.
+		Where(sq.Eq{colName: name}).
+		Set(colDeletedTxn, rwt.newTxnID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to unregister counter: %w", err)
+	}
+
+	_, err = rwt.tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("unable to unregister counter: %w", err)
+	}
+
+	return nil
+}
+
+func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	// Ensure the counter exists.
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	updateRevisionID := computedAtRevision.(revisions.TransactionIDRevision).TransactionID()
+
+	// Update the counter.
+	query, args, err := rwt.UpdateCounterQuery.
+		Where(sq.Eq{colName: name}).
+		Set(colCounterCurrentCount, value).
+		Set(colCounterUpdatedAtRevision, updateRevisionID).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	_, err = rwt.tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	return nil
 }
 
 // WriteRelationships takes a list of existing relationships that must exist, and a list of

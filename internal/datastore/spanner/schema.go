@@ -24,6 +24,12 @@ const (
 
 	tableMetadata = "metadata"
 	colUniqueID   = "unique_id"
+
+	tableRelationshipCounter     = "relationship_counter"
+	colCounterName               = "name"
+	colCounterSerializedFilter   = "serialized_filter"
+	colCounterCurrentCount       = "current_count"
+	colCounterUpdatedAtTimestamp = "updated_at_timestamp"
 )
 
 var allRelationshipCols = []string{

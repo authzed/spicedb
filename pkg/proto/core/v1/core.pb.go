@@ -2246,6 +2246,160 @@ func (x *CaveatOperation) GetChildren() []*CaveatExpression {
 	return nil
 }
 
+type RelationshipFilter struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// resource_type is the *optional* resource type of the relationship.
+	// NOTE: It is not prefixed with "optional_" for legacy compatibility.
+	ResourceType string `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
+	// optional_resource_id is the *optional* resource ID of the relationship.
+	// If specified, optional_resource_id_prefix cannot be specified.
+	OptionalResourceId string `protobuf:"bytes,2,opt,name=optional_resource_id,json=optionalResourceId,proto3" json:"optional_resource_id,omitempty"`
+	// optional_resource_id_prefix is the *optional* prefix for the resource ID of the relationship.
+	// If specified, optional_resource_id cannot be specified.
+	OptionalResourceIdPrefix string `protobuf:"bytes,5,opt,name=optional_resource_id_prefix,json=optionalResourceIdPrefix,proto3" json:"optional_resource_id_prefix,omitempty"`
+	// relation is the *optional* relation of the relationship.
+	OptionalRelation string `protobuf:"bytes,3,opt,name=optional_relation,json=optionalRelation,proto3" json:"optional_relation,omitempty"`
+	// optional_subject_filter is the optional filter for the subjects of the relationships.
+	OptionalSubjectFilter *SubjectFilter `protobuf:"bytes,4,opt,name=optional_subject_filter,json=optionalSubjectFilter,proto3" json:"optional_subject_filter,omitempty"`
+}
+
+func (x *RelationshipFilter) Reset() {
+	*x = RelationshipFilter{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_core_v1_core_proto_msgTypes[28]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RelationshipFilter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RelationshipFilter) ProtoMessage() {}
+
+func (x *RelationshipFilter) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[28]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RelationshipFilter.ProtoReflect.Descriptor instead.
+func (*RelationshipFilter) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RelationshipFilter) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+func (x *RelationshipFilter) GetOptionalResourceId() string {
+	if x != nil {
+		return x.OptionalResourceId
+	}
+	return ""
+}
+
+func (x *RelationshipFilter) GetOptionalResourceIdPrefix() string {
+	if x != nil {
+		return x.OptionalResourceIdPrefix
+	}
+	return ""
+}
+
+func (x *RelationshipFilter) GetOptionalRelation() string {
+	if x != nil {
+		return x.OptionalRelation
+	}
+	return ""
+}
+
+func (x *RelationshipFilter) GetOptionalSubjectFilter() *SubjectFilter {
+	if x != nil {
+		return x.OptionalSubjectFilter
+	}
+	return nil
+}
+
+// SubjectFilter specifies a filter on the subject of a relationship.
+//
+// subject_type is required and all other fields are optional, and will not
+// impose any additional requirements if left unspecified.
+type SubjectFilter struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SubjectType       string                        `protobuf:"bytes,1,opt,name=subject_type,json=subjectType,proto3" json:"subject_type,omitempty"`
+	OptionalSubjectId string                        `protobuf:"bytes,2,opt,name=optional_subject_id,json=optionalSubjectId,proto3" json:"optional_subject_id,omitempty"`
+	OptionalRelation  *SubjectFilter_RelationFilter `protobuf:"bytes,3,opt,name=optional_relation,json=optionalRelation,proto3" json:"optional_relation,omitempty"`
+}
+
+func (x *SubjectFilter) Reset() {
+	*x = SubjectFilter{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_core_v1_core_proto_msgTypes[29]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SubjectFilter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubjectFilter) ProtoMessage() {}
+
+func (x *SubjectFilter) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[29]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubjectFilter.ProtoReflect.Descriptor instead.
+func (*SubjectFilter) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *SubjectFilter) GetSubjectType() string {
+	if x != nil {
+		return x.SubjectType
+	}
+	return ""
+}
+
+func (x *SubjectFilter) GetOptionalSubjectId() string {
+	if x != nil {
+		return x.OptionalSubjectId
+	}
+	return ""
+}
+
+func (x *SubjectFilter) GetOptionalRelation() *SubjectFilter_RelationFilter {
+	if x != nil {
+		return x.OptionalRelation
+	}
+	return nil
+}
+
 type AllowedRelation_PublicWildcard struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2255,7 +2409,7 @@ type AllowedRelation_PublicWildcard struct {
 func (x *AllowedRelation_PublicWildcard) Reset() {
 	*x = AllowedRelation_PublicWildcard{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[31]
+		mi := &file_core_v1_core_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2268,7 +2422,7 @@ func (x *AllowedRelation_PublicWildcard) String() string {
 func (*AllowedRelation_PublicWildcard) ProtoMessage() {}
 
 func (x *AllowedRelation_PublicWildcard) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[31]
+	mi := &file_core_v1_core_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2309,7 +2463,7 @@ type SetOperation_Child struct {
 func (x *SetOperation_Child) Reset() {
 	*x = SetOperation_Child{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[32]
+		mi := &file_core_v1_core_proto_msgTypes[34]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2322,7 +2476,7 @@ func (x *SetOperation_Child) String() string {
 func (*SetOperation_Child) ProtoMessage() {}
 
 func (x *SetOperation_Child) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[32]
+	mi := &file_core_v1_core_proto_msgTypes[34]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2437,7 +2591,7 @@ type SetOperation_Child_This struct {
 func (x *SetOperation_Child_This) Reset() {
 	*x = SetOperation_Child_This{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[33]
+		mi := &file_core_v1_core_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2450,7 +2604,7 @@ func (x *SetOperation_Child_This) String() string {
 func (*SetOperation_Child_This) ProtoMessage() {}
 
 func (x *SetOperation_Child_This) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[33]
+	mi := &file_core_v1_core_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2475,7 +2629,7 @@ type SetOperation_Child_Nil struct {
 func (x *SetOperation_Child_Nil) Reset() {
 	*x = SetOperation_Child_Nil{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[34]
+		mi := &file_core_v1_core_proto_msgTypes[36]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2488,7 +2642,7 @@ func (x *SetOperation_Child_Nil) String() string {
 func (*SetOperation_Child_Nil) ProtoMessage() {}
 
 func (x *SetOperation_Child_Nil) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[34]
+	mi := &file_core_v1_core_proto_msgTypes[36]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2515,7 +2669,7 @@ type TupleToUserset_Tupleset struct {
 func (x *TupleToUserset_Tupleset) Reset() {
 	*x = TupleToUserset_Tupleset{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_core_v1_core_proto_msgTypes[35]
+		mi := &file_core_v1_core_proto_msgTypes[37]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2528,7 +2682,7 @@ func (x *TupleToUserset_Tupleset) String() string {
 func (*TupleToUserset_Tupleset) ProtoMessage() {}
 
 func (x *TupleToUserset_Tupleset) ProtoReflect() protoreflect.Message {
-	mi := &file_core_v1_core_proto_msgTypes[35]
+	mi := &file_core_v1_core_proto_msgTypes[37]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2545,6 +2699,53 @@ func (*TupleToUserset_Tupleset) Descriptor() ([]byte, []int) {
 }
 
 func (x *TupleToUserset_Tupleset) GetRelation() string {
+	if x != nil {
+		return x.Relation
+	}
+	return ""
+}
+
+type SubjectFilter_RelationFilter struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Relation string `protobuf:"bytes,1,opt,name=relation,proto3" json:"relation,omitempty"`
+}
+
+func (x *SubjectFilter_RelationFilter) Reset() {
+	*x = SubjectFilter_RelationFilter{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_core_v1_core_proto_msgTypes[38]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SubjectFilter_RelationFilter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubjectFilter_RelationFilter) ProtoMessage() {}
+
+func (x *SubjectFilter_RelationFilter) ProtoReflect() protoreflect.Message {
+	mi := &file_core_v1_core_proto_msgTypes[38]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubjectFilter_RelationFilter.ProtoReflect.Descriptor instead.
+func (*SubjectFilter_RelationFilter) Descriptor() ([]byte, []int) {
+	return file_core_v1_core_proto_rawDescGZIP(), []int{29, 0}
+}
+
+func (x *SubjectFilter_RelationFilter) GetRelation() string {
 	if x != nil {
 		return x.Relation
 	}
@@ -3009,17 +3210,72 @@ var file_core_v1_core_proto_rawDesc = []byte{
 	0x6e, 0x52, 0x08, 0x63, 0x68, 0x69, 0x6c, 0x64, 0x72, 0x65, 0x6e, 0x22, 0x32, 0x0a, 0x09, 0x4f,
 	0x70, 0x65, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e,
 	0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x06, 0x0a, 0x02, 0x4f, 0x52, 0x10, 0x01, 0x12, 0x07, 0x0a,
-	0x03, 0x41, 0x4e, 0x44, 0x10, 0x02, 0x12, 0x07, 0x0a, 0x03, 0x4e, 0x4f, 0x54, 0x10, 0x03, 0x42,
-	0x8a, 0x01, 0x0a, 0x0b, 0x63, 0x6f, 0x6d, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x42,
-	0x09, 0x43, 0x6f, 0x72, 0x65, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x33, 0x67, 0x69,
-	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x75, 0x74, 0x68, 0x7a, 0x65, 0x64,
-	0x2f, 0x73, 0x70, 0x69, 0x63, 0x65, 0x64, 0x62, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x76, 0x31, 0x3b, 0x63, 0x6f, 0x72, 0x65, 0x76,
-	0x31, 0xa2, 0x02, 0x03, 0x43, 0x58, 0x58, 0xaa, 0x02, 0x07, 0x43, 0x6f, 0x72, 0x65, 0x2e, 0x56,
-	0x31, 0xca, 0x02, 0x07, 0x43, 0x6f, 0x72, 0x65, 0x5c, 0x56, 0x31, 0xe2, 0x02, 0x13, 0x43, 0x6f,
-	0x72, 0x65, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74,
-	0x61, 0xea, 0x02, 0x08, 0x43, 0x6f, 0x72, 0x65, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x03, 0x41, 0x4e, 0x44, 0x10, 0x02, 0x12, 0x07, 0x0a, 0x03, 0x4e, 0x4f, 0x54, 0x10, 0x03, 0x22,
+	0xee, 0x03, 0x0a, 0x12, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x68, 0x69, 0x70,
+	0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x12, 0x70, 0x0a, 0x0d, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72,
+	0x63, 0x65, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x4b, 0xfa,
+	0x42, 0x48, 0x72, 0x46, 0x28, 0x80, 0x01, 0x32, 0x41, 0x5e, 0x28, 0x28, 0x5b, 0x61, 0x2d, 0x7a,
+	0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x31, 0x7d,
+	0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x2f, 0x29, 0x2a, 0x5b, 0x61, 0x2d, 0x7a, 0x5d,
+	0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x32, 0x7d, 0x5b,
+	0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x29, 0x3f, 0x24, 0x52, 0x0c, 0x72, 0x65, 0x73, 0x6f,
+	0x75, 0x72, 0x63, 0x65, 0x54, 0x79, 0x70, 0x65, 0x12, 0x57, 0x0a, 0x14, 0x6f, 0x70, 0x74, 0x69,
+	0x6f, 0x6e, 0x61, 0x6c, 0x5f, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x69, 0x64,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x42, 0x25, 0xfa, 0x42, 0x22, 0x72, 0x20, 0x28, 0x80, 0x08,
+	0x32, 0x1b, 0x5e, 0x28, 0x5b, 0x61, 0x2d, 0x7a, 0x41, 0x2d, 0x5a, 0x30, 0x2d, 0x39, 0x2f, 0x5f,
+	0x7c, 0x5c, 0x2d, 0x3d, 0x2b, 0x5d, 0x7b, 0x31, 0x2c, 0x7d, 0x29, 0x3f, 0x24, 0x52, 0x12, 0x6f,
+	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x49,
+	0x64, 0x12, 0x64, 0x0a, 0x1b, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x5f, 0x72, 0x65,
+	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x5f, 0x70, 0x72, 0x65, 0x66, 0x69, 0x78,
+	0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x42, 0x25, 0xfa, 0x42, 0x22, 0x72, 0x20, 0x28, 0x80, 0x08,
+	0x32, 0x1b, 0x5e, 0x28, 0x5b, 0x61, 0x2d, 0x7a, 0x41, 0x2d, 0x5a, 0x30, 0x2d, 0x39, 0x2f, 0x5f,
+	0x7c, 0x5c, 0x2d, 0x3d, 0x2b, 0x5d, 0x7b, 0x31, 0x2c, 0x7d, 0x29, 0x3f, 0x24, 0x52, 0x18, 0x6f,
+	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x49,
+	0x64, 0x50, 0x72, 0x65, 0x66, 0x69, 0x78, 0x12, 0x57, 0x0a, 0x11, 0x6f, 0x70, 0x74, 0x69, 0x6f,
+	0x6e, 0x61, 0x6c, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x09, 0x42, 0x2a, 0xfa, 0x42, 0x27, 0x72, 0x25, 0x28, 0x40, 0x32, 0x21, 0x5e, 0x28, 0x5b,
+	0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c,
+	0x36, 0x32, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x29, 0x3f, 0x24, 0x52, 0x10,
+	0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x12, 0x4e, 0x0a, 0x17, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x5f, 0x73, 0x75, 0x62,
+	0x6a, 0x65, 0x63, 0x74, 0x5f, 0x66, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x16, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x75, 0x62, 0x6a,
+	0x65, 0x63, 0x74, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x52, 0x15, 0x6f, 0x70, 0x74, 0x69, 0x6f,
+	0x6e, 0x61, 0x6c, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72,
+	0x22, 0x86, 0x03, 0x0a, 0x0d, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x46, 0x69, 0x6c, 0x74,
+	0x65, 0x72, 0x12, 0x6b, 0x0a, 0x0c, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x74, 0x79,
+	0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x48, 0xfa, 0x42, 0x45, 0x72, 0x43, 0x28,
+	0x80, 0x01, 0x32, 0x3e, 0x5e, 0x28, 0x5b, 0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30,
+	0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x31, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d,
+	0x39, 0x5d, 0x2f, 0x29, 0x2a, 0x5b, 0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d,
+	0x39, 0x5f, 0x5d, 0x7b, 0x31, 0x2c, 0x36, 0x32, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39,
+	0x5d, 0x24, 0x52, 0x0b, 0x73, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x54, 0x79, 0x70, 0x65, 0x12,
+	0x5a, 0x0a, 0x13, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x5f, 0x73, 0x75, 0x62, 0x6a,
+	0x65, 0x63, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x42, 0x2a, 0xfa, 0x42,
+	0x27, 0x72, 0x25, 0x28, 0x80, 0x08, 0x32, 0x20, 0x5e, 0x28, 0x28, 0x5b, 0x61, 0x2d, 0x7a, 0x41,
+	0x2d, 0x5a, 0x30, 0x2d, 0x39, 0x2f, 0x5f, 0x7c, 0x5c, 0x2d, 0x3d, 0x2b, 0x5d, 0x7b, 0x31, 0x2c,
+	0x7d, 0x29, 0x7c, 0x5c, 0x2a, 0x29, 0x3f, 0x24, 0x52, 0x11, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e,
+	0x61, 0x6c, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x49, 0x64, 0x12, 0x52, 0x0a, 0x11, 0x6f,
+	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x5f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x25, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31,
+	0x2e, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x52,
+	0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x52, 0x10, 0x6f,
+	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x1a,
+	0x58, 0x0a, 0x0e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65,
+	0x72, 0x12, 0x46, 0x0a, 0x08, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x42, 0x2a, 0xfa, 0x42, 0x27, 0x72, 0x25, 0x28, 0x40, 0x32, 0x21, 0x5e, 0x28,
+	0x5b, 0x61, 0x2d, 0x7a, 0x5d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5f, 0x5d, 0x7b, 0x31,
+	0x2c, 0x36, 0x32, 0x7d, 0x5b, 0x61, 0x2d, 0x7a, 0x30, 0x2d, 0x39, 0x5d, 0x29, 0x3f, 0x24, 0x52,
+	0x08, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x8a, 0x01, 0x0a, 0x0b, 0x63, 0x6f,
+	0x6d, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x2e, 0x76, 0x31, 0x42, 0x09, 0x43, 0x6f, 0x72, 0x65, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x33, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
+	0x6f, 0x6d, 0x2f, 0x61, 0x75, 0x74, 0x68, 0x7a, 0x65, 0x64, 0x2f, 0x73, 0x70, 0x69, 0x63, 0x65,
+	0x64, 0x62, 0x2f, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x72,
+	0x65, 0x2f, 0x76, 0x31, 0x3b, 0x63, 0x6f, 0x72, 0x65, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x43, 0x58,
+	0x58, 0xaa, 0x02, 0x07, 0x43, 0x6f, 0x72, 0x65, 0x2e, 0x56, 0x31, 0xca, 0x02, 0x07, 0x43, 0x6f,
+	0x72, 0x65, 0x5c, 0x56, 0x31, 0xe2, 0x02, 0x13, 0x43, 0x6f, 0x72, 0x65, 0x5c, 0x56, 0x31, 0x5c,
+	0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x08, 0x43, 0x6f,
+	0x72, 0x65, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -3035,7 +3291,7 @@ func file_core_v1_core_proto_rawDescGZIP() []byte {
 }
 
 var file_core_v1_core_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
+var file_core_v1_core_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_core_v1_core_proto_goTypes = []interface{}{
 	(RelationTupleUpdate_Operation)(0),                     // 0: core.v1.RelationTupleUpdate.Operation
 	(SetOperationUserset_Operation)(0),                     // 1: core.v1.SetOperationUserset.Operation
@@ -3071,23 +3327,26 @@ var file_core_v1_core_proto_goTypes = []interface{}{
 	(*SourcePosition)(nil),                                 // 31: core.v1.SourcePosition
 	(*CaveatExpression)(nil),                               // 32: core.v1.CaveatExpression
 	(*CaveatOperation)(nil),                                // 33: core.v1.CaveatOperation
-	nil,                                                    // 34: core.v1.CaveatDefinition.ParameterTypesEntry
-	nil,                                                    // 35: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
-	nil,                                                    // 36: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
-	(*AllowedRelation_PublicWildcard)(nil),                 // 37: core.v1.AllowedRelation.PublicWildcard
-	(*SetOperation_Child)(nil),                             // 38: core.v1.SetOperation.Child
-	(*SetOperation_Child_This)(nil),                        // 39: core.v1.SetOperation.Child.This
-	(*SetOperation_Child_Nil)(nil),                         // 40: core.v1.SetOperation.Child.Nil
-	(*TupleToUserset_Tupleset)(nil),                        // 41: core.v1.TupleToUserset.Tupleset
-	(*structpb.Struct)(nil),                                // 42: google.protobuf.Struct
-	(*anypb.Any)(nil),                                      // 43: google.protobuf.Any
+	(*RelationshipFilter)(nil),                             // 34: core.v1.RelationshipFilter
+	(*SubjectFilter)(nil),                                  // 35: core.v1.SubjectFilter
+	nil,                                                    // 36: core.v1.CaveatDefinition.ParameterTypesEntry
+	nil,                                                    // 37: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	nil,                                                    // 38: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	(*AllowedRelation_PublicWildcard)(nil),                 // 39: core.v1.AllowedRelation.PublicWildcard
+	(*SetOperation_Child)(nil),                             // 40: core.v1.SetOperation.Child
+	(*SetOperation_Child_This)(nil),                        // 41: core.v1.SetOperation.Child.This
+	(*SetOperation_Child_Nil)(nil),                         // 42: core.v1.SetOperation.Child.Nil
+	(*TupleToUserset_Tupleset)(nil),                        // 43: core.v1.TupleToUserset.Tupleset
+	(*SubjectFilter_RelationFilter)(nil),                   // 44: core.v1.SubjectFilter.RelationFilter
+	(*structpb.Struct)(nil),                                // 45: google.protobuf.Struct
+	(*anypb.Any)(nil),                                      // 46: google.protobuf.Any
 }
 var file_core_v1_core_proto_depIdxs = []int32{
 	10, // 0: core.v1.RelationTuple.resource_and_relation:type_name -> core.v1.ObjectAndRelation
 	10, // 1: core.v1.RelationTuple.subject:type_name -> core.v1.ObjectAndRelation
 	7,  // 2: core.v1.RelationTuple.caveat:type_name -> core.v1.ContextualizedCaveat
-	42, // 3: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
-	34, // 4: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
+	45, // 3: core.v1.ContextualizedCaveat.context:type_name -> google.protobuf.Struct
+	36, // 4: core.v1.CaveatDefinition.parameter_types:type_name -> core.v1.CaveatDefinition.ParameterTypesEntry
 	18, // 5: core.v1.CaveatDefinition.metadata:type_name -> core.v1.Metadata
 	31, // 6: core.v1.CaveatDefinition.source_position:type_name -> core.v1.SourcePosition
 	9,  // 7: core.v1.CaveatTypeReference.child_types:type_name -> core.v1.CaveatTypeReference
@@ -3102,7 +3361,7 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	10, // 16: core.v1.DirectSubject.subject:type_name -> core.v1.ObjectAndRelation
 	32, // 17: core.v1.DirectSubject.caveat_expression:type_name -> core.v1.CaveatExpression
 	16, // 18: core.v1.DirectSubjects.subjects:type_name -> core.v1.DirectSubject
-	43, // 19: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
+	46, // 19: core.v1.Metadata.metadata_message:type_name -> google.protobuf.Any
 	20, // 20: core.v1.NamespaceDefinition.relation:type_name -> core.v1.Relation
 	18, // 21: core.v1.NamespaceDefinition.metadata:type_name -> core.v1.Metadata
 	31, // 22: core.v1.NamespaceDefinition.source_position:type_name -> core.v1.SourcePosition
@@ -3110,23 +3369,23 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	24, // 24: core.v1.Relation.type_information:type_name -> core.v1.TypeInformation
 	18, // 25: core.v1.Relation.metadata:type_name -> core.v1.Metadata
 	31, // 26: core.v1.Relation.source_position:type_name -> core.v1.SourcePosition
-	35, // 27: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
-	36, // 28: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
+	37, // 27: core.v1.ReachabilityGraph.entrypoints_by_subject_type:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry
+	38, // 28: core.v1.ReachabilityGraph.entrypoints_by_subject_relation:type_name -> core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry
 	23, // 29: core.v1.ReachabilityEntrypoints.entrypoints:type_name -> core.v1.ReachabilityEntrypoint
 	11, // 30: core.v1.ReachabilityEntrypoints.subject_relation:type_name -> core.v1.RelationReference
 	2,  // 31: core.v1.ReachabilityEntrypoint.kind:type_name -> core.v1.ReachabilityEntrypoint.ReachabilityEntrypointKind
 	11, // 32: core.v1.ReachabilityEntrypoint.target_relation:type_name -> core.v1.RelationReference
 	3,  // 33: core.v1.ReachabilityEntrypoint.result_status:type_name -> core.v1.ReachabilityEntrypoint.EntrypointResultStatus
 	25, // 34: core.v1.TypeInformation.allowed_direct_relations:type_name -> core.v1.AllowedRelation
-	37, // 35: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
+	39, // 35: core.v1.AllowedRelation.public_wildcard:type_name -> core.v1.AllowedRelation.PublicWildcard
 	31, // 36: core.v1.AllowedRelation.source_position:type_name -> core.v1.SourcePosition
 	26, // 37: core.v1.AllowedRelation.required_caveat:type_name -> core.v1.AllowedCaveat
 	28, // 38: core.v1.UsersetRewrite.union:type_name -> core.v1.SetOperation
 	28, // 39: core.v1.UsersetRewrite.intersection:type_name -> core.v1.SetOperation
 	28, // 40: core.v1.UsersetRewrite.exclusion:type_name -> core.v1.SetOperation
 	31, // 41: core.v1.UsersetRewrite.source_position:type_name -> core.v1.SourcePosition
-	38, // 42: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
-	41, // 43: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
+	40, // 42: core.v1.SetOperation.child:type_name -> core.v1.SetOperation.Child
+	43, // 43: core.v1.TupleToUserset.tupleset:type_name -> core.v1.TupleToUserset.Tupleset
 	30, // 44: core.v1.TupleToUserset.computed_userset:type_name -> core.v1.ComputedUserset
 	31, // 45: core.v1.TupleToUserset.source_position:type_name -> core.v1.SourcePosition
 	4,  // 46: core.v1.ComputedUserset.object:type_name -> core.v1.ComputedUserset.Object
@@ -3135,20 +3394,22 @@ var file_core_v1_core_proto_depIdxs = []int32{
 	7,  // 49: core.v1.CaveatExpression.caveat:type_name -> core.v1.ContextualizedCaveat
 	5,  // 50: core.v1.CaveatOperation.op:type_name -> core.v1.CaveatOperation.Operation
 	32, // 51: core.v1.CaveatOperation.children:type_name -> core.v1.CaveatExpression
-	9,  // 52: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
-	22, // 53: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
-	22, // 54: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
-	39, // 55: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
-	30, // 56: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
-	29, // 57: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
-	27, // 58: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
-	40, // 59: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
-	31, // 60: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
-	61, // [61:61] is the sub-list for method output_type
-	61, // [61:61] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	35, // 52: core.v1.RelationshipFilter.optional_subject_filter:type_name -> core.v1.SubjectFilter
+	44, // 53: core.v1.SubjectFilter.optional_relation:type_name -> core.v1.SubjectFilter.RelationFilter
+	9,  // 54: core.v1.CaveatDefinition.ParameterTypesEntry.value:type_name -> core.v1.CaveatTypeReference
+	22, // 55: core.v1.ReachabilityGraph.EntrypointsBySubjectTypeEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	22, // 56: core.v1.ReachabilityGraph.EntrypointsBySubjectRelationEntry.value:type_name -> core.v1.ReachabilityEntrypoints
+	41, // 57: core.v1.SetOperation.Child._this:type_name -> core.v1.SetOperation.Child.This
+	30, // 58: core.v1.SetOperation.Child.computed_userset:type_name -> core.v1.ComputedUserset
+	29, // 59: core.v1.SetOperation.Child.tuple_to_userset:type_name -> core.v1.TupleToUserset
+	27, // 60: core.v1.SetOperation.Child.userset_rewrite:type_name -> core.v1.UsersetRewrite
+	42, // 61: core.v1.SetOperation.Child._nil:type_name -> core.v1.SetOperation.Child.Nil
+	31, // 62: core.v1.SetOperation.Child.source_position:type_name -> core.v1.SourcePosition
+	63, // [63:63] is the sub-list for method output_type
+	63, // [63:63] is the sub-list for method input_type
+	63, // [63:63] is the sub-list for extension type_name
+	63, // [63:63] is the sub-list for extension extendee
+	0,  // [0:63] is the sub-list for field type_name
 }
 
 func init() { file_core_v1_core_proto_init() }
@@ -3493,8 +3754,8 @@ func file_core_v1_core_proto_init() {
 				return nil
 			}
 		}
-		file_core_v1_core_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AllowedRelation_PublicWildcard); i {
+		file_core_v1_core_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RelationshipFilter); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3505,8 +3766,8 @@ func file_core_v1_core_proto_init() {
 				return nil
 			}
 		}
-		file_core_v1_core_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SetOperation_Child); i {
+		file_core_v1_core_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SubjectFilter); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3518,7 +3779,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SetOperation_Child_This); i {
+			switch v := v.(*AllowedRelation_PublicWildcard); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3530,7 +3791,7 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SetOperation_Child_Nil); i {
+			switch v := v.(*SetOperation_Child); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3542,7 +3803,43 @@ func file_core_v1_core_proto_init() {
 			}
 		}
 		file_core_v1_core_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SetOperation_Child_This); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_core_v1_core_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SetOperation_Child_Nil); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_core_v1_core_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TupleToUserset_Tupleset); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_core_v1_core_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SubjectFilter_RelationFilter); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3571,7 +3868,7 @@ func file_core_v1_core_proto_init() {
 		(*CaveatExpression_Operation)(nil),
 		(*CaveatExpression_Caveat)(nil),
 	}
-	file_core_v1_core_proto_msgTypes[32].OneofWrappers = []interface{}{
+	file_core_v1_core_proto_msgTypes[34].OneofWrappers = []interface{}{
 		(*SetOperation_Child_XThis)(nil),
 		(*SetOperation_Child_ComputedUserset)(nil),
 		(*SetOperation_Child_TupleToUserset)(nil),
@@ -3584,7 +3881,7 @@ func file_core_v1_core_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_core_v1_core_proto_rawDesc,
 			NumEnums:      6,
-			NumMessages:   36,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

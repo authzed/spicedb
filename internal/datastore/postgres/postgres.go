@@ -37,11 +37,12 @@ func init() {
 }
 
 const (
-	Engine           = "postgres"
-	tableNamespace   = "namespace_config"
-	tableTransaction = "relation_tuple_transaction"
-	tableTuple       = "relation_tuple"
-	tableCaveat      = "caveat"
+	Engine                   = "postgres"
+	tableNamespace           = "namespace_config"
+	tableTransaction         = "relation_tuple_transaction"
+	tableTuple               = "relation_tuple"
+	tableCaveat              = "caveat"
+	tableRelationshipCounter = "relationship_counter"
 
 	colXID               = "xid"
 	colTimestamp         = "timestamp"
@@ -59,6 +60,11 @@ const (
 	colCaveatDefinition  = "definition"
 	colCaveatContextName = "caveat_name"
 	colCaveatContext     = "caveat_context"
+
+	colCounterName         = "name"
+	colCounterFilter       = "serialized_filter"
+	colCounterCurrentCount = "current_count"
+	colCounterSnapshot     = "updated_revision_snapshot"
 
 	errUnableToInstantiate = "unable to instantiate datastore"
 

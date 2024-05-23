@@ -57,6 +57,11 @@ const (
 	errUnableToListCaveats  = "unable to list caveats: %w"
 	errUnableToDeleteCaveat = "unable to delete caveat: %w"
 
+	errUnableToSerializeFilter = "unable to serialize filter: %w"
+	errUnableToWriteCounter    = "unable to write counter: %w"
+	errUnableToDeleteCounter   = "unable to delete counter: %w"
+	errUnableToUpdateCounter   = "unable to update counter: %w"
+
 	// See https://cloud.google.com/spanner/docs/change-streams#data-retention
 	// See https://github.com/authzed/spicedb/issues/1457
 	defaultChangeStreamRetention = 24 * time.Hour
