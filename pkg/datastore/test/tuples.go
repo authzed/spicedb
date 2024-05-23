@@ -1069,6 +1069,34 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			expected:      []string{"document:first#viewer@user:tom"},
 		},
 		{
+			name: "resource id prefix with underscore",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIDPrefix: "first_",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first_foo#viewer@user:tom",
+				"document:first_bar#viewer@user:tom",
+				"document:firstmeh#viewer@user:tom",
+				"document:second#viewer@user:tom",
+			},
+			expected: []string{"document:first_foo#viewer@user:tom", "document:first_bar#viewer@user:tom"},
+		},
+		{
+			name: "resource id prefix with multiple underscores",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceIDPrefix: "first_f_",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first_f_oo#viewer@user:tom",
+				"document:first_bar#viewer@user:tom",
+				"document:firstmeh#viewer@user:tom",
+				"document:second#viewer@user:tom",
+			},
+			expected: []string{"document:first_f_oo#viewer@user:tom"},
+		},
+		{
 			name: "resource id different prefix",
 			filter: datastore.RelationshipsFilter{
 				OptionalResourceIDPrefix: "s",

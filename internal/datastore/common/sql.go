@@ -290,6 +290,9 @@ func (sqf SchemaQueryFilterer) FilterWithResourceIDPrefix(prefix string) (Schema
 		return sqf, spiceerrors.MustBugf("prefix cannot be empty")
 	}
 
+	prefix = strings.ReplaceAll(prefix, `\`, `\\`)
+	prefix = strings.ReplaceAll(prefix, "_", `\_`)
+
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.colObjectID: prefix + "%"})
 	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(prefix+"*"))
 
