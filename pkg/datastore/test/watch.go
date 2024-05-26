@@ -13,9 +13,11 @@ import (
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -166,6 +168,50 @@ func VerifyUpdates(
 
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
+
+			time.Sleep(1 * time.Millisecond)
+		case <-changeWait.C:
+			require.Fail("Timed out", "waited for changes: %s", expected)
+		}
+	}
+
+	require.False(expectDisconnect, "all changes verified without expected disconnect")
+}
+
+func VerifyUpdatesWithMetadata(
+	require *require.Assertions,
+	testUpdates []updateWithMetadata,
+	changes <-chan *datastore.RevisionChanges,
+	errchan <-chan error,
+	expectDisconnect bool,
+) {
+	for _, expected := range testUpdates {
+		changeWait := time.NewTimer(waitForChangesTimeout)
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				require.True(expectDisconnect, "unexpected disconnect")
+				errWait := time.NewTimer(waitForChangesTimeout)
+				select {
+				case err := <-errchan:
+					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					return
+				case <-errWait.C:
+					require.Fail("Timed out waiting for ErrWatchDisconnected")
+				}
+				return
+			}
+
+			expectedChangeSet := setOfChanges(expected.updates)
+			actualChangeSet := setOfChanges(change.RelationshipChanges)
+
+			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
+			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+
+			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
+			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
+
+			require.Equal(expected.metadata, change.Metadata.AsMap(), "metadata mismatch")
 
 			time.Sleep(1 * time.Millisecond)
 		case <-changeWait.C:
@@ -330,6 +376,50 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 
 	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
 		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
+	},
+		changes,
+		errchan,
+		false,
+	)
+}
+
+type updateWithMetadata struct {
+	updates  []*core.RelationTupleUpdate
+	metadata map[string]any
+}
+
+func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	require.Zero(len(errchan))
+
+	metadata, err := structpb.NewStruct(map[string]any{"somekey": "somevalue"})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
+		})
+	}, options.WithMetadata(metadata))
+	require.NoError(err)
+
+	VerifyUpdatesWithMetadata(require, []updateWithMetadata{
+		{
+			updates:  []*core.RelationTupleUpdate{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom"))},
+			metadata: map[string]any{"somekey": "somevalue"},
+		},
 	},
 		changes,
 		errchan,

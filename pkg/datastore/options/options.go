@@ -1,6 +1,8 @@
 package options
 
 import (
+	"google.golang.org/protobuf/types/known/structpb"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -51,7 +53,8 @@ type ResourceRelation struct {
 // RWTOptions are options that can affect the way a read-write transaction is
 // executed.
 type RWTOptions struct {
-	DisableRetries bool `debugmap:"visible"`
+	DisableRetries bool             `debugmap:"visible"`
+	Metadata       *structpb.Struct `debugmap:"visible"`
 }
 
 // DeleteOptions are the options that can affect the results of a delete relationships

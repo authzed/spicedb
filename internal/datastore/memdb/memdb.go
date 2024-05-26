@@ -200,6 +200,12 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
 		if tx != nil {
+			if config.Metadata != nil {
+				if err := tracked.SetRevisionMetadata(ctx, newRevision, config.Metadata.AsMap()); err != nil {
+					return datastore.NoRevision, err
+				}
+			}
+
 			for _, change := range tx.Changes() {
 				switch change.Table {
 				case tableRelationship:
@@ -254,7 +260,11 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			}
 
 			var rc datastore.RevisionChanges
-			changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+			changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+			if err != nil {
+				return datastore.NoRevision, err
+			}
+
 			if len(changes) > 1 {
 				return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
 			} else if len(changes) == 1 {

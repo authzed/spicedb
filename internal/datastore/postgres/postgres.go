@@ -46,6 +46,7 @@ const (
 
 	colXID               = "xid"
 	colTimestamp         = "timestamp"
+	colMetadata          = "metadata"
 	colNamespace         = "namespace"
 	colConfig            = "serialized_config"
 	colCreatedXid        = "created_xid"
@@ -97,12 +98,7 @@ var (
 			OrderByClause(fmt.Sprintf("%s DESC", colXID)).
 			Limit(1)
 
-	createTxn = fmt.Sprintf(
-		"INSERT INTO %s DEFAULT VALUES RETURNING %s, %s",
-		tableTransaction,
-		colXID,
-		colSnapshot,
-	)
+	createTxn = psql.Insert(tableTransaction).Columns(colMetadata)
 
 	getNow = psql.Select("NOW()")
 
@@ -364,7 +360,12 @@ func (pgd *pgDatastore) ReadWriteTx(
 		var newSnapshot pgSnapshot
 		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
-			newXID, newSnapshot, err = createNewTransaction(ctx, tx)
+			var metadata map[string]any
+			if config.Metadata != nil {
+				metadata = config.Metadata.AsMap()
+			}
+
+			newXID, newSnapshot, err = createNewTransaction(ctx, tx, metadata)
 			if err != nil {
 				return err
 			}
