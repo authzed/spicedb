@@ -77,8 +77,6 @@ func (mds *Datastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revi
 }
 
 func (mds *Datastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
-	// implementation deviates slightly from PSQL implementation in order to support
-	// database seeding in runtime, instead of through migrate command
 	revision, err := mds.loadRevision(ctx)
 	if err != nil {
 		return datastore.NoRevision, err
@@ -159,16 +157,26 @@ func (mds *Datastore) checkValidTransaction(ctx context.Context, revisionTx uint
 	return freshEnough.Bool, unknown.Bool, nil
 }
 
-func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (newTxnID uint64, err error) {
+func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx, metadata map[string]any) (newTxnID uint64, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	createQuery := mds.createTxn
+	var wrappedMetadata structpbWrapper
+	if len(metadata) > 0 {
+		wrappedMetadata = metadata
+	}
+
+	createQuery := mds.createTxn.Values(&wrappedMetadata)
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}
 
-	result, err := tx.ExecContext(ctx, createQuery)
+	sql, args, err := createQuery.ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("createNewTransaction: %w", err)
+	}
+
+	result, err := tx.ExecContext(ctx, sql, args...)
 	if err != nil {
 		return 0, fmt.Errorf("createNewTransaction: %w", err)
 	}

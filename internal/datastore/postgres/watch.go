@@ -27,10 +27,10 @@ var (
 	// xid8 is one of the last ~2 billion transaction IDs generated. We should be garbage
 	// collecting these transactions long before we get to that point.
 	newRevisionsQuery = fmt.Sprintf(`
-	SELECT %[1]s, %[2]s, %[3]s FROM %[4]s
+	SELECT %[1]s, %[2]s, %[3]s, %[4]s FROM %[5]s
 	WHERE %[1]s >= pg_snapshot_xmax($1) OR (
 		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
-	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, colTimestamp, tableTransaction)
+	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, colMetadata, colTimestamp, tableTransaction)
 
 	queryChangedTuples = psql.Select(
 		colNamespace,
@@ -201,8 +201,9 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 		for rows.Next() {
 			var nextXID xid8
 			var nextSnapshot pgSnapshot
+			var metadata map[string]any
 			var timestamp time.Time
-			if err := rows.Scan(&nextXID, &nextSnapshot, &timestamp); err != nil {
+			if err := rows.Scan(&nextXID, &nextSnapshot, &metadata, &timestamp); err != nil {
 				return fmt.Errorf("unable to decode new revision: %w", err)
 			}
 
@@ -215,6 +216,7 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 				snapshot:               nextSnapshot.markComplete(nextXID.Uint64),
 				optionalTxID:           nextXID,
 				optionalNanosTimestamp: nanosTimestamp,
+				optionalMetadata:       metadata,
 			})
 		}
 		if rows.Err() != nil {
@@ -234,6 +236,8 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 	filter := make(map[uint64]int, len(revisions))
 	txidToRevision := make(map[uint64]postgresRevision, len(revisions))
 
+	tracked := common.NewChanges(revisionKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
+
 	for i, rev := range revisions {
 		if rev.optionalTxID.Uint64 < xmin {
 			xmin = rev.optionalTxID.Uint64
@@ -243,9 +247,13 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 		}
 		filter[rev.optionalTxID.Uint64] = i
 		txidToRevision[rev.optionalTxID.Uint64] = rev
-	}
 
-	tracked := common.NewChanges(revisionKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
+		if len(rev.optionalMetadata) > 0 {
+			if err := tracked.SetRevisionMetadata(ctx, rev, rev.optionalMetadata); err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	// Load relationship changes.
 	if options.Content&datastore.WatchRelationships == datastore.WatchRelationships {
@@ -272,10 +280,9 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 	}
 
 	// Reconcile the changes.
-	reconciledChanges := tracked.AsRevisionChanges(func(lhs, rhs uint64) bool {
+	return tracked.AsRevisionChanges(func(lhs, rhs uint64) bool {
 		return filter[lhs] < filter[rhs]
 	})
-	return reconciledChanges, nil
 }
 
 func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {

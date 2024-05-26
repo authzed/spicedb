@@ -54,6 +54,7 @@ const (
 	tableTransactions        = "transactions"
 	tableCaveat              = "caveat"
 	tableRelationshipCounter = "relationship_counter"
+	tableTransactionMetadata = "transaction_metadata"
 
 	colNamespace      = "namespace"
 	colConfig         = "serialized_config"
@@ -79,6 +80,8 @@ const (
 	colCounterSerializedFilter = "serialized_filter"
 	colCounterCurrentCount     = "current_count"
 	colCounterUpdatedAt        = "updated_at_timestamp"
+	colExpiresAt               = "expires_at"
+	colMetadata                = "metadata"
 
 	errUnableToInstantiate = "unable to instantiate datastore"
 	errRevision            = "unable to find revision: %w"
@@ -207,6 +210,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
+		gcWindow:                config.gcWindow,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -289,6 +293,7 @@ type crdbDatastore struct {
 	writeOverlapKeyer       overlapKeyer
 	overlapKeyInit          func(ctx context.Context) keySet
 	analyzeBeforeStatistics bool
+	gcWindow                time.Duration
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
@@ -330,6 +335,23 @@ func (cds *crdbDatastore) ReadWriteTx(
 		querier := pgxcommon.QuerierFuncsFor(tx)
 		executor := common.QueryExecutor{
 			Executor: pgxcommon.NewPGXExecutorWithIntegrityOption(querier, cds.supportsIntegrity),
+		}
+
+		// If metadata is to be attached, write that row now.
+		if config.Metadata != nil {
+			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
+			insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
+				Columns(colExpiresAt, colMetadata).
+				Values(expiresAt, config.Metadata.AsMap())
+
+			sql, args, err := insertTransactionMetadata.ToSql()
+			if err != nil {
+				return fmt.Errorf("error building metadata insert: %w", err)
+			}
+
+			if _, err := tx.Exec(ctx, sql, args...); err != nil {
+				return fmt.Errorf("error writing metadata: %w", err)
+			}
 		}
 
 		rwt := &crdbReadWriteTXN{

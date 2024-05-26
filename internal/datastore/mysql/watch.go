@@ -125,14 +125,13 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	sql, args, err := mds.QueryChangedQuery.Where(sq.Or{
+	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
+
+	// Load any metadata for the revision range.
+	sql, args, err := mds.LoadRevisionRange.Where(sq.Or{
 		sq.And{
-			sq.Gt{colCreatedTxn: afterRevision},
-			sq.LtOrEq{colCreatedTxn: newRevision},
-		},
-		sq.And{
-			sq.Gt{colDeletedTxn: afterRevision},
-			sq.LtOrEq{colDeletedTxn: newRevision},
+			sq.Gt{colID: afterRevision},
+			sq.LtOrEq{colID: newRevision},
 		},
 	}).ToSql()
 	if err != nil {
@@ -148,7 +147,51 @@ func (mds *Datastore) loadChanges(
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
+	for rows.Next() {
+		var txnID uint64
+		var metadata structpbWrapper
+		err = rows.Scan(
+			&txnID,
+			&metadata,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		if len(metadata) > 0 {
+			if err := stagedChanges.SetRevisionMetadata(ctx, revisions.NewForTransactionID(txnID), metadata); err != nil {
+				return nil, 0, err
+			}
+		}
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return
+	}
+
+	// Load the changes relationships for the revision range.
+	sql, args, err = mds.QueryChangedQuery.Where(sq.Or{
+		sq.And{
+			sq.Gt{colCreatedTxn: afterRevision},
+			sq.LtOrEq{colCreatedTxn: newRevision},
+		},
+		sq.And{
+			sq.Gt{colDeletedTxn: afterRevision},
+			sq.LtOrEq{colDeletedTxn: newRevision},
+		},
+	}).ToSql()
+	if err != nil {
+		return
+	}
+
+	rows, err = mds.db.QueryContext(ctx, sql, args...)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			err = datastore.NewWatchCanceledErr()
+		}
+		return
+	}
+	defer common.LogOnError(ctx, rows.Close)
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{
@@ -159,7 +202,7 @@ func (mds *Datastore) loadChanges(
 		var createdTxn uint64
 		var deletedTxn uint64
 		var caveatName string
-		var caveatContext caveatContextWrapper
+		var caveatContext structpbWrapper
 		err = rows.Scan(
 			&nextTuple.ResourceAndRelation.Namespace,
 			&nextTuple.ResourceAndRelation.ObjectId,
@@ -196,6 +239,6 @@ func (mds *Datastore) loadChanges(
 		return
 	}
 
-	changes = stagedChanges.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+	changes, err = stagedChanges.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
 	return
 }

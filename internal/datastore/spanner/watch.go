@@ -156,6 +156,23 @@ func (sd *spannerDatastore) watch(
 	}
 	defer reader.Close()
 
+	metadataForTransactionTag := map[string]map[string]any{}
+
+	addMetadataForTransactionTag := func(ctx context.Context, tracked *common.Changes[revisions.TimestampRevision, int64], revision revisions.TimestampRevision, transactionTag string) error {
+		if metadata, ok := metadataForTransactionTag[transactionTag]; ok {
+			return tracked.SetRevisionMetadata(ctx, revision, metadata)
+		}
+
+		// Otherwise, load the metadata from the transactions metadata table.
+		transactionMetadata, err := sd.readTransactionMetadata(ctx, transactionTag)
+		if err != nil {
+			return err
+		}
+
+		metadataForTransactionTag[transactionTag] = transactionMetadata
+		return tracked.SetRevisionMetadata(ctx, revision, transactionMetadata)
+	}
+
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
 		for _, record := range result.ChangeRecords {
@@ -164,6 +181,12 @@ func (sd *spannerDatastore) watch(
 			for _, dcr := range record.DataChangeRecords {
 				changeRevision := revisions.NewForTime(dcr.CommitTimestamp)
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
+
+				if len(dcr.TransactionTag) > 0 {
+					if err := addMetadataForTransactionTag(ctx, tracked, changeRevision, dcr.TransactionTag); err != nil {
+						return err
+					}
+				}
 
 				for _, mod := range dcr.Mods {
 					primaryKeyColumnValues, ok := mod.Keys.Value.(map[string]any)
@@ -312,7 +335,12 @@ func (sd *spannerDatastore) watch(
 			}
 
 			if !tracked.IsEmpty() {
-				for _, revChange := range tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc) {
+				changes, err := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+				if err != nil {
+					return err
+				}
+
+				for _, revChange := range changes {
 					revChange := revChange
 					if !sendChange(&revChange) {
 						return datastore.NewWatchDisconnectedErr()

@@ -37,6 +37,7 @@ const (
 
 	colID               = "id"
 	colTimestamp        = "timestamp"
+	colMetadata         = "metadata"
 	colNamespace        = "namespace"
 	colConfig           = "serialized_config"
 	colCreatedTxn       = "created_transaction"
@@ -207,10 +208,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	driver := migrations.NewMySQLDriverFromDB(db, config.tablePrefix)
 	queryBuilder := NewQueryBuilder(driver)
 
-	createTxn, _, err := sb.Insert(driver.RelationTupleTransaction()).Values().ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("NewMySQLDatastore: %w", err)
-	}
+	createTxn := sb.Insert(driver.RelationTupleTransaction()).Columns(colMetadata)
 
 	// used for seeding the initial relation_tuple_transaction. using INSERT IGNORE on a known
 	// ID value makes this idempotent (i.e. safe to execute concurrently).
@@ -339,7 +337,12 @@ func (mds *Datastore) ReadWriteTx(
 	for i := uint8(0); i <= mds.maxRetries; i++ {
 		var newTxnID uint64
 		if err = migrations.BeginTxFunc(ctx, mds.db, &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sql.Tx) error {
-			newTxnID, err = mds.createNewTransaction(ctx, tx)
+			var metadata map[string]any
+			if config.Metadata != nil {
+				metadata = config.Metadata.AsMap()
+			}
+
+			newTxnID, err = mds.createNewTransaction(ctx, tx, metadata)
 			if err != nil {
 				return fmt.Errorf("unable to create new txn ID: %w", err)
 			}
@@ -442,7 +445,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 			}
 
 			var caveatName string
-			var caveatContext caveatContextWrapper
+			var caveatContext structpbWrapper
 			err := rows.Scan(
 				&nextTuple.ResourceAndRelation.Namespace,
 				&nextTuple.ResourceAndRelation.ObjectId,
@@ -497,7 +500,7 @@ type Datastore struct {
 	cancelGc context.CancelFunc
 	gcHasRun atomic.Bool
 
-	createTxn     string
+	createTxn     sq.InsertBuilder
 	createBaseTxn string
 
 	*QueryBuilder

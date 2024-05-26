@@ -110,6 +110,7 @@ require (
 )
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/Yiling-J/theine-go v0.4.1
 	github.com/ccoveille/go-safecast v1.1.0
 	github.com/gosimple/slug v1.14.0

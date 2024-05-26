@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"golang.org/x/exp/maps"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/ccoveille/go-safecast"
 
@@ -37,6 +38,7 @@ type changeRecord[R datastore.Revision] struct {
 	definitionsChanged map[string]datastore.SchemaDefinition
 	namespacesDeleted  map[string]struct{}
 	caveatsDeleted     map[string]struct{}
+	metadata           map[string]any
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
@@ -132,6 +134,25 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 	return nil
 }
 
+// SetRevisionMetadata sets the metadata for the given revision.
+func (ch *Changes[R, K]) SetRevisionMetadata(ctx context.Context, rev R, metadata map[string]any) error {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	record, err := ch.recordForRevision(rev)
+	if err != nil {
+		return err
+	}
+
+	if len(record.metadata) > 0 {
+		return spiceerrors.MustBugf("metadata already set for revision")
+	}
+
+	maps.Copy(record.metadata, metadata)
+	return nil
+}
+
 func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
 	k := ch.keyFunc(rev)
 	revisionChanges, ok := ch.records[k]
@@ -143,6 +164,7 @@ func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
 			make(map[string]datastore.SchemaDefinition),
 			make(map[string]struct{}),
 			make(map[string]struct{}),
+			make(map[string]any),
 		}
 		ch.records[k] = revisionChanges
 	}
@@ -248,21 +270,25 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
 // compatible, ordered, changelist.
-func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) []datastore.RevisionChanges {
+func (ch *Changes[R, K]) AsRevisionChanges(lessThanFunc func(lhs, rhs K) bool) ([]datastore.RevisionChanges, error) {
 	return ch.revisionChanges(lessThanFunc, *new(R), false)
 }
 
 // FilterAndRemoveRevisionChanges filters a list of changes processed up to the bound revision from the changes list, removing them
 // and returning the filtered changes.
-func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) []datastore.RevisionChanges {
-	changes := ch.revisionChanges(lessThanFunc, boundRev, true)
+func (ch *Changes[R, K]) FilterAndRemoveRevisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R) ([]datastore.RevisionChanges, error) {
+	changes, err := ch.revisionChanges(lessThanFunc, boundRev, true)
+	if err != nil {
+		return nil, err
+	}
+
 	ch.removeAllChangesBefore(boundRev)
-	return changes
+	return changes, nil
 }
 
-func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R, withBound bool) []datastore.RevisionChanges {
+func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, boundRev R, withBound bool) ([]datastore.RevisionChanges, error) {
 	if ch.IsEmpty() {
-		return nil
+		return nil, nil
 	}
 
 	revisionsWithChanges := make([]K, 0, len(ch.records))
@@ -273,7 +299,7 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 	}
 
 	if len(revisionsWithChanges) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	sort.Slice(revisionsWithChanges, func(i int, j int) bool {
@@ -299,9 +325,18 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 		changes[i].ChangedDefinitions = maps.Values(revisionChangeRecord.definitionsChanged)
 		changes[i].DeletedNamespaces = maps.Keys(revisionChangeRecord.namespacesDeleted)
 		changes[i].DeletedCaveats = maps.Keys(revisionChangeRecord.caveatsDeleted)
+
+		if len(revisionChangeRecord.metadata) > 0 {
+			metadata, err := structpb.NewStruct(revisionChangeRecord.metadata)
+			if err != nil {
+				return nil, spiceerrors.MustBugf("failed to convert metadata to structpb: %v", err)
+			}
+
+			changes[i].Metadata = metadata
+		}
 	}
 
-	return changes
+	return changes, nil
 }
 
 func (ch *Changes[R, K]) removeAllChangesBefore(boundRev R) {

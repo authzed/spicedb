@@ -4,6 +4,7 @@ package options
 import (
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 type QueryOptionsOption func(q *QueryOptions)
@@ -192,6 +193,7 @@ func NewRWTOptionsWithOptionsAndDefaults(opts ...RWTOptionsOption) *RWTOptions {
 func (r *RWTOptions) ToOption() RWTOptionsOption {
 	return func(to *RWTOptions) {
 		to.DisableRetries = r.DisableRetries
+		to.Metadata = r.Metadata
 	}
 }
 
@@ -199,6 +201,7 @@ func (r *RWTOptions) ToOption() RWTOptionsOption {
 func (r RWTOptions) DebugMap() map[string]any {
 	debugMap := map[string]any{}
 	debugMap["DisableRetries"] = helpers.DebugValue(r.DisableRetries, false)
+	debugMap["Metadata"] = helpers.DebugValue(r.Metadata, false)
 	return debugMap
 }
 
@@ -222,5 +225,12 @@ func (r *RWTOptions) WithOptions(opts ...RWTOptionsOption) *RWTOptions {
 func WithDisableRetries(disableRetries bool) RWTOptionsOption {
 	return func(r *RWTOptions) {
 		r.DisableRetries = disableRetries
+	}
+}
+
+// WithMetadata returns an option that can set Metadata on a RWTOptions
+func WithMetadata(metadata *structpb.Struct) RWTOptionsOption {
+	return func(r *RWTOptions) {
+		r.Metadata = metadata
 	}
 }

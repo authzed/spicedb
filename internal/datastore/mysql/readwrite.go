@@ -50,10 +50,10 @@ type mysqlReadWriteTXN struct {
 	newTxnID       uint64
 }
 
-// caveatContextWrapper is used to marshall maps into MySQLs JSON data type
-type caveatContextWrapper map[string]any
+// structpbWrapper is used to marshall maps into MySQLs JSON data type
+type structpbWrapper map[string]any
 
-func (cc *caveatContextWrapper) Scan(val any) error {
+func (cc *structpbWrapper) Scan(val any) error {
 	v, ok := val.([]byte)
 	if !ok {
 		return fmt.Errorf("unsupported type: %T", v)
@@ -61,7 +61,7 @@ func (cc *caveatContextWrapper) Scan(val any) error {
 	return json.Unmarshal(v, &cc)
 }
 
-func (cc *caveatContextWrapper) Value() (driver.Value, error) {
+func (cc *structpbWrapper) Value() (driver.Value, error) {
 	return json.Marshal(&cc)
 }
 
@@ -221,7 +221,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		}
 
 		var caveatName string
-		var caveatContext caveatContextWrapper
+		var caveatContext structpbWrapper
 
 		tupleIdsToDelete := make([]int64, 0, len(clauses))
 		for rows.Next() {
@@ -282,7 +282,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		tpl := mut.Tuple
 
 		var caveatName string
-		var caveatContext caveatContextWrapper
+		var caveatContext structpbWrapper
 		if tpl.Caveat != nil {
 			caveatName = tpl.Caveat.CaveatName
 			caveatContext = tpl.Caveat.Context.AsMap()
@@ -503,7 +503,7 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 			}
 
 			var caveatName string
-			var caveatContext caveatContextWrapper
+			var caveatContext structpbWrapper
 			if tpl.Caveat != nil {
 				caveatName = tpl.Caveat.CaveatName
 				caveatContext = tpl.Caveat.Context.AsMap()
