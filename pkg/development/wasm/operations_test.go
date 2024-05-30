@@ -965,6 +965,34 @@ assertFalse:
 `,
 		},
 		{
+			"wildcard multiple exclusion",
+			`
+		   			definition user {}
+		   			definition document {
+		   				relation banned: user
+		   				relation viewer: user | user:*
+		   				permission view = viewer - banned
+		   			}
+		   			`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:somedoc#banned@user:jimmy"),
+				tuple.MustParse("document:somedoc#banned@user:fred"),
+				tuple.MustParse("document:somedoc#viewer@user:*"),
+			},
+			`"document:somedoc#view":
+- "[user:* - {user:fred, user:jimmy}] is <document:somedoc#viewer>"`,
+			`assertTrue:
+- document:somedoc#view@user:somegal
+assertFalse:
+- document:somedoc#view@user:jimmy
+- document:somedoc#view@user:fred`,
+			nil,
+			false,
+			`document:somedoc#view:
+- '[user:* - {user:fred, user:jimmy}] is <document:somedoc#viewer>'
+`,
+		},
+		{
 			"wildcard exclusion under intersection",
 			`
 		   			definition user {}
