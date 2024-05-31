@@ -75,7 +75,7 @@ In order to protect the project, all contributors are required to sign our [Cont
 
 The signing process has been automated by [CLA Assistant][cla-assistant] during the Pull Request review process and only requires responding with a comment acknowledging the agreement.
 
-[cla]: https://github.com/authzed/cla/blob/main/v1/icla.md
+[cla]: https://github.com/authzed/cla/blob/main/v2/icla.md
 [cla-assistant]: https://github.com/cla-assistant/cla-assistant
 
 ## Common tasks
