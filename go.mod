@@ -7,6 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.63.0
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.1
+	github.com/KimMachineGun/automemlimit v0.6.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/authzed/authzed-go v0.12.0
 
@@ -74,6 +75,7 @@ require (
 	github.com/rs/xid v1.5.0
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/lo v1.39.0
+	github.com/samber/slog-zerolog/v2 v2.3.0
 	github.com/schollz/progressbar/v3 v3.14.3
 	github.com/scylladb/go-set v1.0.2
 	github.com/sean-/sysexits v1.0.0
@@ -126,11 +128,17 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.10 // indirect
 	github.com/aws/smithy-go v1.20.2 // indirect
 	github.com/bombsimon/wsl/v4 v4.2.1 // indirect
+	github.com/cilium/ebpf v0.9.1 // indirect
+	github.com/containerd/cgroups/v3 v3.0.1 // indirect
+	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
+	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/golangci/modinfo v0.3.4 // indirect
 	github.com/jjti/go-spancheck v0.6.1 // indirect
 	github.com/lasiar/canonicalheader v1.1.1 // indirect
+	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22 // indirect
+	github.com/samber/slog-common v0.16.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	go-simpler.org/musttag v0.12.2 // indirect
 )
@@ -358,7 +366,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.22.0 // indirect
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	go.uber.org/automaxprocs v1.5.3 // indirect
+	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
