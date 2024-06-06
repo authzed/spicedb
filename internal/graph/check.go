@@ -770,7 +770,12 @@ func difference[T any](
 	othersChan := make(chan CheckResult, len(children)-1)
 
 	go func() {
-		result := handler(childCtx, crc, children[0])
+		result := handler(childCtx, currentRequestContext{
+			parentReq:           crc.parentReq,
+			filteredResourceIDs: crc.filteredResourceIDs,
+			resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+			maxDispatchCount:    crc.maxDispatchCount,
+		}, children[0])
 		baseChan <- result
 	}()
 

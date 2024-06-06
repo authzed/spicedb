@@ -705,6 +705,34 @@ func TestMembershipSetSubtract(t *testing.T) {
 			false,
 			false,
 		},
+		{
+			"non overlapping",
+			map[string]*core.CaveatExpression{
+				"resource1": nil,
+				"resource2": nil,
+			},
+			map[string]*core.CaveatExpression{
+				"resource2": nil,
+			},
+			map[string]*core.CaveatExpression{
+				"resource1": nil,
+			},
+			true,
+			false,
+		},
+		{
+			"non overlapping reversed",
+			map[string]*core.CaveatExpression{
+				"resource2": nil,
+			},
+			map[string]*core.CaveatExpression{
+				"resource1": nil,
+				"resource2": nil,
+			},
+			map[string]*core.CaveatExpression{},
+			false,
+			true,
+		},
 	}
 
 	for _, tc := range tcs {
