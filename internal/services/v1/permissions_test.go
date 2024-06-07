@@ -315,6 +315,31 @@ func TestCheckPermissions(t *testing.T) {
 	}
 }
 
+func TestCheckPermissionWithWildcardSubject(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(require, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+			},
+		},
+		Resource:   obj("document", "masterplan"),
+		Permission: "view",
+		Subject:    sub("user", "*", ""),
+	})
+
+	require.Error(err)
+	require.ErrorContains(err, "invalid argument: cannot perform check on wildcard subject")
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+}
+
 func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	require := require.New(t)
 	conn, cleanup, _, revision := testserver.NewTestServer(require, testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)

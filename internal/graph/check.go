@@ -156,7 +156,7 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 
 	// Ensure that we are not performing a check for a wildcard as the subject.
 	if req.Subject.ObjectId == tuple.PublicWildcard {
-		return checkResultError(NewErrInvalidArgument(errors.New("cannot perform check on wildcard")), emptyMetadata)
+		return checkResultError(NewWildcardNotAllowedErr("cannot perform check on wildcard subject", "subject.object_id"), emptyMetadata)
 	}
 
 	// Deduplicate any incoming resource IDs.
