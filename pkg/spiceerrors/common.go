@@ -1,6 +1,9 @@
 package spiceerrors
 
-import "errors"
+import (
+	"errors"
+	"maps"
+)
 
 // SourcePosition is a position in the input source.
 type SourcePosition struct {
@@ -50,4 +53,36 @@ func AsErrorWithSource(err error) (*ErrorWithSource, bool) {
 		return serr, true
 	}
 	return nil, false
+}
+
+// ErrorWithAdditionalDetails is an error that includes additional details.
+type ErrorWithAdditionalDetails struct {
+	error
+
+	// AdditionalDetails is a map of additional details for the error.
+	AdditionalDetails map[string]string
+}
+
+func NewErrorWithAdditionalDetails(err error) *ErrorWithAdditionalDetails {
+	return &ErrorWithAdditionalDetails{err, nil}
+}
+
+// Unwrap returns the inner, wrapped error.
+func (err *ErrorWithAdditionalDetails) Unwrap() error {
+	return err.error
+}
+
+func (err *ErrorWithAdditionalDetails) WithAdditionalDetails(key string, value string) {
+	if err.AdditionalDetails == nil {
+		err.AdditionalDetails = make(map[string]string)
+	}
+	err.AdditionalDetails[key] = value
+}
+
+func (err *ErrorWithAdditionalDetails) AddToDetails(details map[string]string) map[string]string {
+	if err.AdditionalDetails != nil {
+		maps.Copy(details, err.AdditionalDetails)
+	}
+
+	return details
 }

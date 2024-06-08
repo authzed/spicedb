@@ -35,6 +35,13 @@ func (ps *permissionServer) rewriteError(ctx context.Context, err error) error {
 	})
 }
 
+func (ps *permissionServer) rewriteErrorWithOptionalDebugTrace(ctx context.Context, err error, debugTrace *v1.DebugInformation) error {
+	return shared.RewriteError(ctx, err, &shared.ConfigForErrors{
+		MaximumAPIDepth: ps.config.MaximumAPIDepth,
+		DebugTrace:      debugTrace,
+	})
+}
+
 func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPermissionRequest) (*v1.CheckPermissionResponse, error) {
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
@@ -108,7 +115,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	if err != nil {
-		return nil, ps.rewriteError(ctx, err)
+		return nil, ps.rewriteErrorWithOptionalDebugTrace(ctx, err, debugTrace)
 	}
 
 	permissionship, partialCaveat := checkResultToAPITypes(cr)

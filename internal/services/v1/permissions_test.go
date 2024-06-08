@@ -18,10 +18,12 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -356,6 +358,73 @@ func TestCheckPermissionWithDebugInfo(t *testing.T) {
 	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err, "Invalid schema: %s", debugInfo.SchemaUsed)
 	require.Equal(4, len(compiled.OrderedDefinitions))
+}
+
+func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
+	req := require.New(t)
+	conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+		func(ds datastore.Datastore, assertions *require.Assertions) (datastore.Datastore, datastore.Revision) {
+			return tf.DatastoreFromSchemaAndTestRelationships(
+				ds,
+				`definition user {}
+				
+				 definition document {
+					relation viewer: user | document#view
+					permission view = viewer
+				 }
+				`,
+				[]*core.RelationTuple{
+					tuple.MustParse("document:doc1#viewer@user:tom"),
+					tuple.MustParse("document:doc1#viewer@document:doc2#view"),
+					tuple.MustParse("document:doc2#viewer@document:doc3#view"),
+					tuple.MustParse("document:doc3#viewer@document:doc1#view"),
+				},
+				assertions,
+			)
+		},
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+	_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+			},
+		},
+		Resource:   obj("document", "doc1"),
+		Permission: "view",
+		Subject:    sub("user", "fred", ""),
+	})
+
+	req.Error(err)
+	grpcutil.RequireStatus(t, codes.ResourceExhausted, err)
+
+	s, ok := status.FromError(err)
+	req.True(ok)
+
+	foundDebugInfo := false
+	for _, d := range s.Details() {
+		if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
+			req.NotNil(errInfo.Metadata)
+			req.NotNil(errInfo.Metadata[shared.DebugTraceErrorDetailsKey])
+			req.NotEmpty(errInfo.Metadata[shared.DebugTraceErrorDetailsKey])
+
+			debugInfo := &v1.DebugInformation{}
+			err = prototext.Unmarshal([]byte(errInfo.Metadata[shared.DebugTraceErrorDetailsKey]), debugInfo)
+			req.NoError(err)
+
+			req.Equal(1, len(debugInfo.Check.GetSubProblems().Traces))
+			req.Equal(1, len(debugInfo.Check.GetSubProblems().Traces[0].GetSubProblems().Traces))
+
+			foundDebugInfo = true
+		}
+	}
+
+	req.True(foundDebugInfo)
 }
 
 func TestLookupResources(t *testing.T) {
