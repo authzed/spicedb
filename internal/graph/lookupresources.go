@@ -36,7 +36,7 @@ func (cl *CursoredLookupResources) LookupResources(
 	parentStream dispatch.LookupResourcesStream,
 ) error {
 	if req.Subject.ObjectId == tuple.PublicWildcard {
-		return NewErrInvalidArgument(errors.New("cannot perform lookup resources on wildcard"))
+		return NewWildcardNotAllowedErr("cannot perform lookup resources on wildcard subject", "subject.object_id")
 	}
 
 	lookupContext := parentStream.Context()

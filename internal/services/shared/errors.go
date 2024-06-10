@@ -176,8 +176,6 @@ func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 	case errors.As(err, &datastore.ErrCounterNotRegistered{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_COUNTER_NOT_REGISTERED)
 
-	case errors.As(err, &graph.ErrInvalidArgument{}):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
 	case errors.As(err, &graph.ErrRelationMissingTypeInfo{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 	case errors.As(err, &graph.ErrAlwaysFail{}):

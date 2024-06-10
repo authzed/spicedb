@@ -386,9 +386,6 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &relNotFoundError):
 		fallthrough
 
-	case errors.As(err, &maingraph.ErrInvalidArgument{}):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 

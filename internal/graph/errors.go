@@ -141,20 +141,33 @@ func NewRelationMissingTypeInfoErr(nsName string, relationName string) error {
 	}
 }
 
-// ErrInvalidArgument occurs when a request sent has an invalid argument.
-type ErrInvalidArgument struct {
+// ErrWildcardNotAllowed occurs when a request sent has an invalid wildcard argument.
+type ErrWildcardNotAllowed struct {
 	error
+
+	fieldName string
 }
 
-// NewErrInvalidArgument constructs a request sent has an invalid argument.
-func NewErrInvalidArgument(baseErr error) error {
-	return ErrInvalidArgument{
-		error: baseErr,
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrWildcardNotAllowed) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_WILDCARD_NOT_ALLOWED,
+			map[string]string{
+				"field": err.fieldName,
+			},
+		),
+	)
+}
+
+// NewWildcardNotAllowedErr constructs an error indicating that a wildcard was not allowed.
+func NewWildcardNotAllowedErr(message string, fieldName string) error {
+	return ErrWildcardNotAllowed{
+		error:     fmt.Errorf("invalid argument: %s", message),
+		fieldName: fieldName,
 	}
-}
-
-func (e ErrInvalidArgument) Unwrap() error {
-	return e.error
 }
 
 // ErrUnimplemented is returned when some functionality is not yet supported.
