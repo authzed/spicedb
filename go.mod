@@ -60,7 +60,7 @@ require (
 	github.com/lthibault/jitterbug v2.0.0+incompatible
 	github.com/magefile/mage v1.15.0
 	github.com/mattn/go-isatty v0.0.20
-	github.com/mostynb/go-grpc-compression v1.2.2
+	github.com/mostynb/go-grpc-compression v1.2.3
 	github.com/muesli/mango-cobra v1.2.0
 	github.com/muesli/roff v0.1.0
 	github.com/ngrok/sqlmw v0.0.0-20220520173518-97c9c04efc79
@@ -266,7 +266,7 @@ require (
 	github.com/karamaru-alpha/copyloopvar v1.1.0 // indirect
 	github.com/kisielk/errcheck v1.7.0 // indirect
 	github.com/kkHAIKE/contextcheck v1.1.5 // indirect
-	github.com/klauspost/compress v1.17.4 // indirect
+	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/kulti/thelper v0.6.3 // indirect
 	github.com/kunwardeep/paralleltest v1.0.10 // indirect
 	github.com/kyoh86/exportloopref v0.1.11 // indirect
