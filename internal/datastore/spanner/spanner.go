@@ -175,7 +175,11 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
 		tableSizesStatsTable:                    tableSizesStatsTable,
 	}
-	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
+	// Optimized revision and revision checking use a stale read for the
+	// current timestamp.
+	// TODO: Still investigating whether a stale read can be used for
+	//       HeadRevision for FullConsistency queries.
+	ds.RemoteClockRevisions.SetNowFunc(ds.staleHeadRevision)
 
 	return ds, nil
 }

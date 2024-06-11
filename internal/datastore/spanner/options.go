@@ -113,7 +113,7 @@ func RevisionQuantization(bucketSize time.Duration) Option {
 	}
 }
 
-// FollowerReadDelay is the time delay to apply to enable historial reads.
+// FollowerReadDelay is the time delay to apply to enable historical reads.
 //
 // This value defaults to 0 seconds.
 func FollowerReadDelay(delay time.Duration) Option {
