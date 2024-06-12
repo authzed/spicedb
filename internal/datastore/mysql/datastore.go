@@ -107,7 +107,13 @@ func NewMySQLDatastore(ctx context.Context, uri string, options ...Option) (data
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	if ds.enableContextSevering {
+		log.Info().Msg("context severing enabled")
+		return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	}
+
+	log.Info().Msg("context severing disabled")
+	return ds, nil
 }
 
 func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Datastore, error) {
@@ -244,6 +250,7 @@ func newMySQLDatastore(ctx context.Context, uri string, options ...Option) (*Dat
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.TransactionID,
 		},
+		enableContextSevering: config.enableContextSevering,
 	}
 
 	store.SetOptimizedRevisionFunc(store.optimizedRevisionFunc)
@@ -473,6 +480,8 @@ type Datastore struct {
 	*QueryBuilder
 	*revisions.CachedOptimizedRevisions
 	revisions.CommonDecoder
+
+	enableContextSevering bool
 }
 
 // Close closes the data store.

@@ -174,7 +174,10 @@ func readAndCache[T schemaDefinition](
 		loadedRaw, err, _ = r.p.readGroup.Do(cacheRevisionKey, func() (any, error) {
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
-			loaded, updatedRev, err := reader(internaldatastore.SeparateContextWithTracing(ctx), name)
+			separatedCtx, cancel := internaldatastore.SeparateContextWithTracing(ctx)
+			defer cancel()
+
+			loaded, updatedRev, err := reader(separatedCtx, name)
 			if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
 				// Propagate this error to the caller
 				return nil, err

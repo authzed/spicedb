@@ -127,14 +127,20 @@ func NewPostgresDatastore(
 		return nil, err
 	}
 
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	if ds.enableContextSevering {
+		log.Info().Msg("context severing enabled")
+		return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	}
+
+	log.Info().Msg("context severing disabled")
+	return ds, nil
 }
 
 func newPostgresDatastore(
 	ctx context.Context,
 	pgURL string,
 	options ...Option,
-) (datastore.Datastore, error) {
+) (*pgDatastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
@@ -286,6 +292,7 @@ func newPostgresDatastore(
 		readTxOptions:           pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly},
 		maxRetries:              config.maxRetries,
 		credentialsProvider:     credentialsProvider,
+		enableContextSevering:   config.enableContextSevering,
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -332,6 +339,8 @@ type pgDatastore struct {
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
 	gcHasRun atomic.Bool
+
+	enableContextSevering bool
 }
 
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {

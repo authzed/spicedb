@@ -67,6 +67,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.WatchBufferLength = c.WatchBufferLength
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.MigrationPhase = c.MigrationPhase
+		to.ConnectionCancelationOptimization = c.ConnectionCancelationOptimization
 	}
 }
 
@@ -109,6 +110,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
 	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
+	debugMap["ConnectionCancelationOptimization"] = helpers.DebugValue(c.ConnectionCancelationOptimization, false)
 	return debugMap
 }
 
@@ -391,5 +393,12 @@ func WithWatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) ConfigOp
 func WithMigrationPhase(migrationPhase string) ConfigOption {
 	return func(c *Config) {
 		c.MigrationPhase = migrationPhase
+	}
+}
+
+// WithDisableConnectionCancelationOptimization returns an option that can set ConnectionCancelationOptimization on a Config
+func WithDisableConnectionCancelationOptimization(disableConnectionCancelationOptimization bool) ConfigOption {
+	return func(c *Config) {
+		c.ConnectionCancelationOptimization = disableConnectionCancelationOptimization
 	}
 }

@@ -31,6 +31,8 @@ type postgresOptions struct {
 	logger *tracingLogger
 
 	queryInterceptor pgxcommon.QueryInterceptor
+
+	enableContextSevering bool
 }
 
 type migrationPhase uint8
@@ -61,6 +63,7 @@ const (
 	defaultMaxRetries                        = 10
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
+	defaultEnableContextSevering             = true
 )
 
 // Option provides the facility to configure how clients within the
@@ -81,6 +84,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		gcEnabled:                   defaultGCEnabled,
 		credentialsProviderName:     defaultCredentialsProviderName,
 		queryInterceptor:            nil,
+		enableContextSevering:       defaultEnableContextSevering,
 	}
 
 	for _, option := range options {
@@ -343,4 +347,19 @@ func MigrationPhase(phase string) Option {
 // Empty by default.
 func CredentialsProviderName(credentialsProviderName string) Option {
 	return func(po *postgresOptions) { po.credentialsProviderName = credentialsProviderName }
+}
+
+// ConnectionCancelationOptimization enables the removal of connection cancelation on reads
+// in order to minimize the amount of connections destroyed as a consequence of SpiceDBs
+// concurrent subproblem evaluation. Some paths of evaluation may be canceled if another
+// path completes first, which then leads to canceling every other in flight path. Depending
+// on the schema, this can lead to connection pool starvation as canceling an in flight query
+// means the connection has to be destroyed and removed from the pool.
+//
+// Enabling this option will prevent the connection from being destroyed and instead will let the queries
+// run until completion, which means the connection will be eventually returned to the pool.
+//
+// Enabled by default.
+func ConnectionCancelationOptimization(enableConnectionCancelation bool) Option {
+	return func(po *postgresOptions) { po.enableContextSevering = enableConnectionCancelation }
 }

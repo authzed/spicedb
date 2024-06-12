@@ -24,6 +24,8 @@ type crdbOptions struct {
 	analyzeBeforeStatistics     bool
 
 	enablePrometheusStats bool
+
+	enableContextSevering bool
 }
 
 const (
@@ -305,4 +307,19 @@ func WithEnableConnectionBalancing(connectionBalancing bool) Option {
 // Disabled by default.
 func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *crdbOptions) { po.analyzeBeforeStatistics = true }
+}
+
+// ConnectionCancelationOptimization enables the removal of connection cancelation on reads
+// in order to minimize the amount of connections destroyed as a consequence of SpiceDBs
+// concurrent subproblem evaluation. Some paths of evaluation may be canceled if another
+// path completes first, which then leads to canceling every other in flight path. Depending
+// on the schema, this can lead to connection pool starvation as canceling an in flight query
+// means the connection has to be destroyed and removed from the pool.
+//
+// Enabling this option will prevent the connection from being destroyed and instead will let the queries
+// run until completion, which means the connection will be eventually returned to the pool.
+//
+// Enabled by default.
+func ConnectionCancelationOptimization(enableConnectionCancelation bool) Option {
+	return func(po *crdbOptions) { po.enableContextSevering = enableConnectionCancelation }
 }

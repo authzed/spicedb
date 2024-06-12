@@ -22,6 +22,7 @@ const (
 	defaultMaxRetries                        = 8
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
+	defaultEnableContextSevering             = true
 )
 
 type mysqlOptions struct {
@@ -42,6 +43,7 @@ type mysqlOptions struct {
 	lockWaitTimeoutSeconds      *uint8
 	gcEnabled                   bool
 	credentialsProviderName     string
+	enableContextSevering       bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -64,6 +66,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
 		credentialsProviderName:     defaultCredentialsProviderName,
+		enableContextSevering:       defaultEnableContextSevering,
 	}
 
 	for _, option := range options {
@@ -246,4 +249,19 @@ func GCMaxOperationTime(time time.Duration) Option {
 // Empty by default.
 func CredentialsProviderName(credentialsProviderName string) Option {
 	return func(mo *mysqlOptions) { mo.credentialsProviderName = credentialsProviderName }
+}
+
+// ConnectionCancelationOptimization enables the removal of connection cancelation on reads
+// in order to minimize the amount of connections destroyed as a consequence of SpiceDBs
+// concurrent subproblem evaluation. Some paths of evaluation may be canceled if another
+// path completes first, which then leads to canceling every other in flight path. Depending
+// on the schema, this can lead to connection pool starvation as canceling an in flight query
+// means the connection has to be destroyed and removed from the pool.
+//
+// Enabling this option will prevent the connection from being destroyed and instead will let the queries
+// run until completion, which means the connection will be eventually returned to the pool.
+//
+// Enabled by default.
+func ConnectionCancelationOptimization(enableConnectionCancelation bool) Option {
+	return func(po *mysqlOptions) { po.enableContextSevering = enableConnectionCancelation }
 }

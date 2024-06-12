@@ -81,7 +81,7 @@ const (
 
 var livingTupleConstraints = []string{"pk_relation_tuple"}
 
-func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datastore.Datastore, error) {
+func newCRDBDatastore(ctx context.Context, url string, options ...Option) (*crdbDatastore, error) {
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
@@ -188,6 +188,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		beginChangefeedQuery:    changefeedQuery,
 		transactionNowQuery:     transactionNowQuery,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
+		enableContextSevering:   config.enableContextSevering,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -255,7 +256,14 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, err
 	}
-	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+
+	if ds.enableContextSevering {
+		log.Info().Msg("context severing enabled")
+		return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+	}
+
+	log.Info().Msg("context severing disabled")
+	return ds, nil
 }
 
 type crdbDatastore struct {
@@ -278,6 +286,8 @@ type crdbDatastore struct {
 	pruneGroup *errgroup.Group
 	ctx        context.Context
 	cancel     context.CancelFunc
+
+	enableContextSevering bool
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {

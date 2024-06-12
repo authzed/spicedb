@@ -147,6 +147,8 @@ type Config struct {
 
 	// Migrations
 	MigrationPhase string `debugmap:"visible"`
+
+	ConnectionCancelationOptimization bool `debugmap:"visible"`
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
@@ -217,6 +219,10 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
+	flagSet.BoolVar(&opts.ConnectionCancelationOptimization, flagName("datastore-connection-cancelation-optimization"), defaults.ConnectionCancelationOptimization, "if set to true, the datastore will not cancel in flight connections that have been requested to be canceled in order to avoid starving the conn pool. Only applies to read connections.")
+	if err := flagSet.MarkHidden(flagName("datastore-connection-cancelation-optimization")); err != nil {
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
+	}
 
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
@@ -239,39 +245,40 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
-		Engine:                         MemoryEngine,
-		GCWindow:                       24 * time.Hour,
-		LegacyFuzzing:                  -1,
-		RevisionQuantization:           5 * time.Second,
-		MaxRevisionStalenessPercent:    .1, // 10%
-		ReadConnPool:                   *DefaultReadConnPool(),
-		WriteConnPool:                  *DefaultWriteConnPool(),
-		ReadOnly:                       false,
-		MaxRetries:                     10,
-		OverlapKey:                     "key",
-		OverlapStrategy:                "static",
-		ConnectRate:                    100 * time.Millisecond,
-		EnableConnectionBalancing:      true,
-		GCInterval:                     3 * time.Minute,
-		GCMaxOperationTime:             1 * time.Minute,
-		WatchBufferLength:              1024,
-		WatchBufferWriteTimeout:        1 * time.Second,
-		EnableDatastoreMetrics:         true,
-		DisableStats:                   false,
-		BootstrapFiles:                 []string{},
-		BootstrapTimeout:               10 * time.Second,
-		BootstrapOverwrite:             false,
-		RequestHedgingEnabled:          false,
-		RequestHedgingInitialSlowValue: 10000000,
-		RequestHedgingMaxRequests:      1_000_000,
-		RequestHedgingQuantile:         0.95,
-		SpannerCredentialsFile:         "",
-		SpannerEmulatorHost:            "",
-		TablePrefix:                    "",
-		MigrationPhase:                 "",
-		FollowerReadDelay:              4_800 * time.Millisecond,
-		SpannerMinSessions:             100,
-		SpannerMaxSessions:             400,
+		Engine:                            MemoryEngine,
+		GCWindow:                          24 * time.Hour,
+		LegacyFuzzing:                     -1,
+		RevisionQuantization:              5 * time.Second,
+		MaxRevisionStalenessPercent:       .1, // 10%
+		ReadConnPool:                      *DefaultReadConnPool(),
+		WriteConnPool:                     *DefaultWriteConnPool(),
+		ReadOnly:                          false,
+		MaxRetries:                        10,
+		OverlapKey:                        "key",
+		OverlapStrategy:                   "static",
+		ConnectRate:                       100 * time.Millisecond,
+		EnableConnectionBalancing:         true,
+		GCInterval:                        3 * time.Minute,
+		GCMaxOperationTime:                1 * time.Minute,
+		WatchBufferLength:                 1024,
+		WatchBufferWriteTimeout:           1 * time.Second,
+		EnableDatastoreMetrics:            true,
+		DisableStats:                      false,
+		BootstrapFiles:                    []string{},
+		BootstrapTimeout:                  10 * time.Second,
+		BootstrapOverwrite:                false,
+		RequestHedgingEnabled:             false,
+		RequestHedgingInitialSlowValue:    10000000,
+		RequestHedgingMaxRequests:         1_000_000,
+		RequestHedgingQuantile:            0.95,
+		SpannerCredentialsFile:            "",
+		SpannerEmulatorHost:               "",
+		TablePrefix:                       "",
+		MigrationPhase:                    "",
+		FollowerReadDelay:                 4_800 * time.Millisecond,
+		SpannerMinSessions:                100,
+		SpannerMaxSessions:                400,
+		ConnectionCancelationOptimization: true,
 	}
 }
 
@@ -387,6 +394,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
+		crdb.ConnectionCancelationOptimization(opts.ConnectionCancelationOptimization),
 	)
 }
 
@@ -417,6 +425,7 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(uint8(opts.MaxRetries)),
 		postgres.MigrationPhase(opts.MigrationPhase),
+		postgres.ConnectionCancelationOptimization(opts.ConnectionCancelationOptimization),
 	}
 	return postgres.NewPostgresDatastore(ctx, opts.URI, pgOpts...)
 }
@@ -460,6 +469,7 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 		mysql.MaxRetries(uint8(opts.MaxRetries)),
 		mysql.OverrideLockWaitTimeout(1),
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
+		mysql.ConnectionCancelationOptimization(opts.ConnectionCancelationOptimization),
 	}
 	return mysql.NewMySQLDatastore(ctx, opts.URI, mysqlOpts...)
 }
