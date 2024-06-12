@@ -176,12 +176,24 @@ func newPostgresDatastore(
 		return nil
 	}
 
+	readPoolConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		newCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		return conn.Ping(newCtx) == nil
+	}
+
 	writePoolConfig := pgConfig.Copy()
 	config.writePoolOpts.ConfigurePgx(writePoolConfig)
 
 	writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		RegisterTypes(conn.TypeMap())
 		return nil
+	}
+
+	writePoolConfig.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		newCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		return conn.Ping(newCtx) == nil
 	}
 
 	if credentialsProvider != nil {
