@@ -520,6 +520,15 @@ func translateExpressionOperationDirect(tctx translationContext, expressionOpNod
 			return nil, err
 		}
 
+		if expressionOpNode.Has(dslshape.NodeArrowExpressionFunctionName) {
+			functionName, err := expressionOpNode.GetString(dslshape.NodeArrowExpressionFunctionName)
+			if err != nil {
+				return nil, err
+			}
+
+			return namespace.MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation), nil
+		}
+
 		return namespace.TupleToUserset(tuplesetRelation, usersetRelation), nil
 
 	case dslshape.NodeTypeUnionExpression:

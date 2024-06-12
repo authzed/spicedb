@@ -682,6 +682,15 @@ func (m *SetOperation_Child_UsersetRewrite) CloneVT() isSetOperation_Child_Child
 	return r
 }
 
+func (m *SetOperation_Child_FunctionedTupleToUserset) CloneVT() isSetOperation_Child_ChildType {
+	if m == nil {
+		return (*SetOperation_Child_FunctionedTupleToUserset)(nil)
+	}
+	r := new(SetOperation_Child_FunctionedTupleToUserset)
+	r.FunctionedTupleToUserset = m.FunctionedTupleToUserset.CloneVT()
+	return r
+}
+
 func (m *SetOperation_Child_XNil) CloneVT() isSetOperation_Child_ChildType {
 	if m == nil {
 		return (*SetOperation_Child_XNil)(nil)
@@ -747,6 +756,43 @@ func (m *TupleToUserset) CloneVT() *TupleToUserset {
 }
 
 func (m *TupleToUserset) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *FunctionedTupleToUserset_Tupleset) CloneVT() *FunctionedTupleToUserset_Tupleset {
+	if m == nil {
+		return (*FunctionedTupleToUserset_Tupleset)(nil)
+	}
+	r := new(FunctionedTupleToUserset_Tupleset)
+	r.Relation = m.Relation
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *FunctionedTupleToUserset_Tupleset) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *FunctionedTupleToUserset) CloneVT() *FunctionedTupleToUserset {
+	if m == nil {
+		return (*FunctionedTupleToUserset)(nil)
+	}
+	r := new(FunctionedTupleToUserset)
+	r.Function = m.Function
+	r.Tupleset = m.Tupleset.CloneVT()
+	r.ComputedUserset = m.ComputedUserset.CloneVT()
+	r.SourcePosition = m.SourcePosition.CloneVT()
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *FunctionedTupleToUserset) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -1986,6 +2032,31 @@ func (this *SetOperation_Child_XNil) EqualVT(thatIface isSetOperation_Child_Chil
 	return true
 }
 
+func (this *SetOperation_Child_FunctionedTupleToUserset) EqualVT(thatIface isSetOperation_Child_ChildType) bool {
+	that, ok := thatIface.(*SetOperation_Child_FunctionedTupleToUserset)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.FunctionedTupleToUserset, that.FunctionedTupleToUserset; p != q {
+		if p == nil {
+			p = &FunctionedTupleToUserset{}
+		}
+		if q == nil {
+			q = &FunctionedTupleToUserset{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
 func (this *SetOperation) EqualVT(that *SetOperation) bool {
 	if this == that {
 		return true
@@ -2058,6 +2129,53 @@ func (this *TupleToUserset) EqualVT(that *TupleToUserset) bool {
 
 func (this *TupleToUserset) EqualMessageVT(thatMsg proto.Message) bool {
 	that, ok := thatMsg.(*TupleToUserset)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *FunctionedTupleToUserset_Tupleset) EqualVT(that *FunctionedTupleToUserset_Tupleset) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Relation != that.Relation {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *FunctionedTupleToUserset_Tupleset) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*FunctionedTupleToUserset_Tupleset)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *FunctionedTupleToUserset) EqualVT(that *FunctionedTupleToUserset) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Function != that.Function {
+		return false
+	}
+	if !this.Tupleset.EqualVT(that.Tupleset) {
+		return false
+	}
+	if !this.ComputedUserset.EqualVT(that.ComputedUserset) {
+		return false
+	}
+	if !this.SourcePosition.EqualVT(that.SourcePosition) {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *FunctionedTupleToUserset) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*FunctionedTupleToUserset)
 	if !ok {
 		return false
 	}
@@ -3962,6 +4080,25 @@ func (m *SetOperation_Child_XNil) MarshalToSizedBufferVT(dAtA []byte) (int, erro
 	}
 	return len(dAtA) - i, nil
 }
+func (m *SetOperation_Child_FunctionedTupleToUserset) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *SetOperation_Child_FunctionedTupleToUserset) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.FunctionedTupleToUserset != nil {
+		size, err := m.FunctionedTupleToUserset.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x42
+	}
+	return len(dAtA) - i, nil
+}
 func (m *SetOperation) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -4106,6 +4243,114 @@ func (m *TupleToUserset) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
 		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *FunctionedTupleToUserset_Tupleset) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FunctionedTupleToUserset_Tupleset) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *FunctionedTupleToUserset_Tupleset) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Relation) > 0 {
+		i -= len(m.Relation)
+		copy(dAtA[i:], m.Relation)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Relation)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *FunctionedTupleToUserset) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FunctionedTupleToUserset) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *FunctionedTupleToUserset) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.SourcePosition != nil {
+		size, err := m.SourcePosition.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.ComputedUserset != nil {
+		size, err := m.ComputedUserset.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Tupleset != nil {
+		size, err := m.Tupleset.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Function != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Function))
+		i--
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -5184,6 +5429,18 @@ func (m *SetOperation_Child_XNil) SizeVT() (n int) {
 	}
 	return n
 }
+func (m *SetOperation_Child_FunctionedTupleToUserset) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.FunctionedTupleToUserset != nil {
+		l = m.FunctionedTupleToUserset.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	return n
+}
 func (m *SetOperation) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -5220,6 +5477,45 @@ func (m *TupleToUserset) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
+	if m.Tupleset != nil {
+		l = m.Tupleset.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.ComputedUserset != nil {
+		l = m.ComputedUserset.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.SourcePosition != nil {
+		l = m.SourcePosition.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *FunctionedTupleToUserset_Tupleset) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Relation)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *FunctionedTupleToUserset) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Function != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.Function))
+	}
 	if m.Tupleset != nil {
 		l = m.Tupleset.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
@@ -9365,6 +9661,47 @@ func (m *SetOperation_Child) UnmarshalVT(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field OperationPath", wireType)
 			}
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FunctionedTupleToUserset", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if oneof, ok := m.ChildType.(*SetOperation_Child_FunctionedTupleToUserset); ok {
+				if err := oneof.FunctionedTupleToUserset.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+			} else {
+				v := &FunctionedTupleToUserset{}
+				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+					return err
+				}
+				m.ChildType = &SetOperation_Child_FunctionedTupleToUserset{FunctionedTupleToUserset: v}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -9657,6 +9994,267 @@ func (m *TupleToUserset) UnmarshalVT(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SourcePosition", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.SourcePosition == nil {
+				m.SourcePosition = &SourcePosition{}
+			}
+			if err := m.SourcePosition.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FunctionedTupleToUserset_Tupleset) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FunctionedTupleToUserset_Tupleset: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FunctionedTupleToUserset_Tupleset: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Relation", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Relation = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FunctionedTupleToUserset) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FunctionedTupleToUserset: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FunctionedTupleToUserset: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Function", wireType)
+			}
+			m.Function = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Function |= FunctionedTupleToUserset_Function(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Tupleset", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Tupleset == nil {
+				m.Tupleset = &FunctionedTupleToUserset_Tupleset{}
+			}
+			if err := m.Tupleset.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ComputedUserset", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ComputedUserset == nil {
+				m.ComputedUserset = &ComputedUserset{}
+			}
+			if err := m.ComputedUserset.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SourcePosition", wireType)
 			}

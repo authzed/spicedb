@@ -938,6 +938,40 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"any arrow",
+			withTenantPrefix,
+			`definition simple {
+				permission foo = bar.any(baz)
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foo",
+						namespace.Union(
+							namespace.MustFunctionedTupleToUserset("bar", "any", "baz"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"all arrow",
+			withTenantPrefix,
+			`definition simple {
+				permission foo = bar.all(baz)
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("foo",
+						namespace.Union(
+							namespace.MustFunctionedTupleToUserset("bar", "all", "baz"),
+						),
+					),
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {
