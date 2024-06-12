@@ -187,6 +187,25 @@ func (p *sourceParser) consumeKeyword(keyword string) bool {
 	return true
 }
 
+// consumeKeywords consumes an expected keyword token(s) or adds an error node.
+func (p *sourceParser) consumeKeywords(keywords ...string) (string, bool) {
+	keyword, ok := p.tryConsumeKeywords(keywords...)
+	if !ok {
+		p.emitErrorf("Expected one of: %v, found: %v", keywords, p.currentToken.Kind)
+	}
+	return keyword, ok
+}
+
+// tryConsumeKeywords consumes an expected keyword token(s) or adds an error node.
+func (p *sourceParser) tryConsumeKeywords(keywords ...string) (string, bool) {
+	for _, keyword := range keywords {
+		if p.tryConsumeKeyword(keyword) {
+			return keyword, true
+		}
+	}
+	return "", false
+}
+
 // tryConsumeKeyword attempts to consume an expected keyword token.
 func (p *sourceParser) tryConsumeKeyword(keyword string) bool {
 	if !p.isKeyword(keyword) {

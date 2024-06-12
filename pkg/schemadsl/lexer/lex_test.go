@@ -247,6 +247,16 @@ var lexerTests = []lexerTest{
 			},
 		},
 	},
+
+	{"dot access", "foo.all(something)", []Lexeme{
+		{TokenTypeIdentifier, 0, "foo", ""},
+		{TokenTypePeriod, 0, ".", ""},
+		{TokenTypeIdentifier, 0, "all", ""},
+		{TokenTypeLeftParen, 0, "(", ""},
+		{TokenTypeIdentifier, 0, "something", ""},
+		{TokenTypeRightParen, 0, ")", ""},
+		tEOF,
+	}},
 }
 
 func TestLexer(t *testing.T) {

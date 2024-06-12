@@ -118,6 +118,10 @@ func TestParser(t *testing.T) {
 		{"super large test", "superlarge"},
 		{"invalid permission name test", "invalid_perm_name"},
 		{"union positions test", "unionpos"},
+		{"arrow operations test", "arrowops"},
+		{"arrow illegal operations test", "arrowillegalops"},
+		{"arrow illegal function test", "arrowillegalfunc"},
+		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
 	}
 
 	for _, test := range parserTests {

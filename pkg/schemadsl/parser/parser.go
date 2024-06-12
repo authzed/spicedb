@@ -478,7 +478,40 @@ func (p *sourceParser) tryConsumeComputeExpression(subTryExprFn tryParserFn, bin
 // ```foo->bar->baz->meh```
 func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 	rightNodeBuilder := func(leftNode AstNode, operatorToken lexer.Lexeme) (AstNode, bool) {
-		rightNode, ok := p.tryConsumeBaseExpression()
+		// Check for an arrow function.
+		if operatorToken.Kind == lexer.TokenTypePeriod {
+			functionName, ok := p.consumeIdentifier()
+			if !ok {
+				return nil, false
+			}
+
+			// TODO(jschorr): Change to keywords in schema v2.
+			if functionName != "any" && functionName != "all" {
+				p.emitErrorf("Expected 'any' or 'all' for arrow function, found: %s", functionName)
+				return nil, false
+			}
+
+			if _, ok := p.consume(lexer.TokenTypeLeftParen); !ok {
+				return nil, false
+			}
+
+			rightNode, ok := p.tryConsumeIdentifierLiteral()
+			if !ok {
+				return nil, false
+			}
+
+			if _, ok := p.consume(lexer.TokenTypeRightParen); !ok {
+				return nil, false
+			}
+
+			exprNode := p.createNode(dslshape.NodeTypeArrowExpression)
+			exprNode.Connect(dslshape.NodeExpressionPredicateLeftExpr, leftNode)
+			exprNode.Connect(dslshape.NodeExpressionPredicateRightExpr, rightNode)
+			exprNode.MustDecorate(dslshape.NodeArrowExpressionFunctionName, functionName)
+			return exprNode, true
+		}
+
+		rightNode, ok := p.tryConsumeIdentifierLiteral()
 		if !ok {
 			return nil, false
 		}
@@ -489,7 +522,7 @@ func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 		exprNode.Connect(dslshape.NodeExpressionPredicateRightExpr, rightNode)
 		return exprNode, true
 	}
-	return p.performLeftRecursiveParsing(p.tryConsumeIdentifierLiteral, rightNodeBuilder, nil, lexer.TokenTypeRightArrow)
+	return p.performLeftRecursiveParsing(p.tryConsumeIdentifierLiteral, rightNodeBuilder, nil, lexer.TokenTypeRightArrow, lexer.TokenTypePeriod)
 }
 
 // tryConsumeBaseExpression attempts to consume base compute expressions (identifiers, parenthesis).

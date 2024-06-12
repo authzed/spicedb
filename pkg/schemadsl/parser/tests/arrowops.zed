@@ -1,0 +1,4 @@
+definition resource {
+    permission view = parent1.any(member1) + parent2.all(member2)
+    permission chained = parent1.any(member1).all(member2)->member3
+}
