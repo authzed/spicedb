@@ -30,7 +30,7 @@ func SeparateContextWithTracing(ctx context.Context) (context.Context, func()) {
 		ctxWithObservability = loggerFromContext.WithContext(ctxWithObservability)
 	}
 
-	return context.WithTimeout(ctxWithObservability, defaultTimeout)
+	return ctxWithObservability, func() {}
 }
 
 // NewSeparatingContextDatastoreProxy severs any timeouts in the context being
