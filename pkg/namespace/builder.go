@@ -272,7 +272,7 @@ func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelatio
 
 	switch functionName {
 	case "any":
-		function = core.FunctionedTupleToUserset_FUNCTION_ANY
+		// already set to any
 
 	case "all":
 		function = core.FunctionedTupleToUserset_FUNCTION_ALL

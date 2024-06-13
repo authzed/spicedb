@@ -544,6 +544,46 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 15100),
 		},
+		{
+			"all arrow",
+			`definition user {}
+		
+			 definition folder {
+				relation viewer: user
+			 }
+
+		 	 definition document {
+			 	relation parent: folder
+				relation viewer: user
+				permission view = parent.all(viewer) + viewer
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:doc0#parent@folder:folder0"),
+				tuple.MustParse("folder:folder0#viewer@user:tom"),
+
+				tuple.MustParse("document:doc1#parent@folder:folder1-1"),
+				tuple.MustParse("document:doc1#parent@folder:folder1-2"),
+				tuple.MustParse("document:doc1#parent@folder:folder1-3"),
+				tuple.MustParse("folder:folder1-1#viewer@user:tom"),
+				tuple.MustParse("folder:folder1-2#viewer@user:tom"),
+				tuple.MustParse("folder:folder1-3#viewer@user:tom"),
+
+				tuple.MustParse("document:doc2#parent@folder:folder2-1"),
+				tuple.MustParse("document:doc2#parent@folder:folder2-2"),
+				tuple.MustParse("document:doc2#parent@folder:folder2-3"),
+				tuple.MustParse("folder:folder2-1#viewer@user:tom"),
+				tuple.MustParse("folder:folder2-2#viewer@user:tom"),
+
+				tuple.MustParse("document:doc3#parent@folder:folder3-1"),
+
+				tuple.MustParse("document:doc4#viewer@user:tom"),
+
+				tuple.MustParse("document:doc5#viewer@user:fred"),
+			},
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			[]string{"doc0", "doc1", "doc4"},
+		},
 	}
 
 	for _, tc := range testCases {

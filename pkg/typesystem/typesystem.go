@@ -407,7 +407,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 
 		// Validate the usersets's.
 		usersetRewrite := relation.GetUsersetRewrite()
-		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) interface{} {
+		rerr, err := graph.WalkRewrite(usersetRewrite, func(childOneof *core.SetOperation_Child) (interface{}, error) {
 			switch child := childOneof.ChildType.(type) {
 			case *core.SetOperation_Child_ComputedUserset:
 				relationName := child.ComputedUserset.GetRelation()
@@ -417,17 +417,18 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 						NewRelationNotFoundErr(nts.nsDef.Name, relationName),
 						childOneof,
 						relationName,
-					)
+					), nil
 				}
+
 			case *core.SetOperation_Child_TupleToUserset:
 				ttu := child.TupleToUserset
 				if ttu == nil {
-					return nil
+					return nil, nil
 				}
 
 				tupleset := ttu.GetTupleset()
 				if tupleset == nil {
-					return nil
+					return nil, nil
 				}
 
 				relationName := tupleset.GetRelation()
@@ -437,19 +438,19 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 						NewRelationNotFoundErr(nts.nsDef.Name, relationName),
 						childOneof,
 						relationName,
-					)
+					), nil
 				}
 
 				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
 					return NewTypeErrorWithSource(
 						NewPermissionUsedOnLeftOfArrowErr(nts.nsDef.Name, relation.Name, relationName),
-						childOneof, relationName)
+						childOneof, relationName), nil
 				}
 
 				// Ensure the tupleset relation doesn't itself import wildcard.
 				referencedWildcard, err := nts.referencesWildcardType(ctx, relationName)
 				if err != nil {
-					return err
+					return err, nil
 				}
 
 				if referencedWildcard != nil {
@@ -462,10 +463,56 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 							tuple.StringRR(referencedWildcard.ReferencingRelation),
 						),
 						childOneof, relationName,
-					)
+					), nil
+				}
+
+			case *core.SetOperation_Child_FunctionedTupleToUserset:
+				ttu := child.FunctionedTupleToUserset
+				if ttu == nil {
+					return nil, nil
+				}
+
+				tupleset := ttu.GetTupleset()
+				if tupleset == nil {
+					return nil, nil
+				}
+
+				relationName := tupleset.GetRelation()
+				found, ok := nts.relationMap[relationName]
+				if !ok {
+					return NewTypeErrorWithSource(
+						NewRelationNotFoundErr(nts.nsDef.Name, relationName),
+						childOneof,
+						relationName,
+					), nil
+				}
+
+				if nspkg.GetRelationKind(found) == iv1.RelationMetadata_PERMISSION {
+					return NewTypeErrorWithSource(
+						NewPermissionUsedOnLeftOfArrowErr(nts.nsDef.Name, relation.Name, relationName),
+						childOneof, relationName), nil
+				}
+
+				// Ensure the tupleset relation doesn't itself import wildcard.
+				referencedWildcard, err := nts.referencesWildcardType(ctx, relationName)
+				if err != nil {
+					return err, nil
+				}
+
+				if referencedWildcard != nil {
+					return NewTypeErrorWithSource(
+						NewWildcardUsedInArrowErr(
+							nts.nsDef.Name,
+							relation.Name,
+							relationName,
+							referencedWildcard.WildcardType.GetNamespace(),
+							tuple.StringRR(referencedWildcard.ReferencingRelation),
+						),
+						childOneof, relationName,
+					), nil
 				}
 			}
-			return nil
+			return nil, nil
 		})
 		if rerr != nil {
 			return nil, asTypeError(rerr.(error))

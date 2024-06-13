@@ -98,59 +98,29 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 
 		case *core.SetOperation_Child_TupleToUserset:
 			tuplesetRelation := child.TupleToUserset.Tupleset.Relation
-			directRelationTypes, err := ts.AllowedDirectRelationsAndWildcards(tuplesetRelation)
-			if err != nil {
+			computedUsersetRelation := child.TupleToUserset.ComputedUserset.Relation
+			if err := computeTTUReachability(ctx, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, ts); err != nil {
 				return err
 			}
 
-			computedUsersetRelation := child.TupleToUserset.ComputedUserset.Relation
-			for _, allowedRelationType := range directRelationTypes {
-				// For each namespace allowed to be found on the right hand side of the
-				// tupleset relation, include the *computed userset* relation as an entrypoint.
-				//
-				// For example, given a schema:
-				//
-				// ```
-				// definition user {}
-				//
-				// definition parent1 {
-				//   relation somerel: user
-				// }
-				//
-				// definition parent2 {
-				//   relation somerel: user
-				// }
-				//
-				// definition child {
-				//   relation parent: parent1 | parent2
-				//   permission someperm = parent->somerel
-				// }
-				// ```
-				//
-				// We will add an entrypoint for the arrow itself, keyed to the relation type
-				// included from the computed userset.
-				//
-				// Using the above example, this will add entrypoints for `parent1#somerel`
-				// and `parent2#somerel`, which are the subjects reached after resolving the
-				// right side of the arrow.
+		case *core.SetOperation_Child_FunctionedTupleToUserset:
+			tuplesetRelation := child.FunctionedTupleToUserset.Tupleset.Relation
+			computedUsersetRelation := child.FunctionedTupleToUserset.ComputedUserset.Relation
 
-				// Check if the relation does exist on the allowed type, and only add the entrypoint if present.
-				relTypeSystem, err := ts.TypeSystemForNamespace(ctx, allowedRelationType.Namespace)
-				if err != nil {
-					return err
-				}
+			switch child.FunctionedTupleToUserset.Function {
+			case core.FunctionedTupleToUserset_FUNCTION_ANY:
+				// Nothing to change.
 
-				if relTypeSystem.HasRelation(computedUsersetRelation) {
-					err := addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
-						Kind:             core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
-						TargetRelation:   rr,
-						ResultStatus:     operationResultState,
-						TuplesetRelation: tuplesetRelation,
-					})
-					if err != nil {
-						return err
-					}
-				}
+			case core.FunctionedTupleToUserset_FUNCTION_ALL:
+				// Mark as a conditional result.
+				operationResultState = core.ReachabilityEntrypoint_REACHABLE_CONDITIONAL_RESULT
+
+			default:
+				return spiceerrors.MustBugf("unknown function type `%T` in reachability graph building", child.FunctionedTupleToUserset.Function)
+			}
+
+			if err := computeTTUReachability(ctx, graph, tuplesetRelation, computedUsersetRelation, operationResultState, rr, ts); err != nil {
+				return err
 			}
 
 		case *core.SetOperation_Child_XNil:
@@ -158,7 +128,73 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 			return nil
 
 		default:
-			return fmt.Errorf("unknown set operation child `%T` in reachability graph building", child)
+			return spiceerrors.MustBugf("unknown set operation child `%T` in reachability graph building", child)
+		}
+	}
+
+	return nil
+}
+
+func computeTTUReachability(
+	ctx context.Context,
+	graph *core.ReachabilityGraph,
+	tuplesetRelation string,
+	computedUsersetRelation string,
+	operationResultState core.ReachabilityEntrypoint_EntrypointResultStatus,
+	rr *core.RelationReference,
+	ts *TypeSystem,
+) error {
+	directRelationTypes, err := ts.AllowedDirectRelationsAndWildcards(tuplesetRelation)
+	if err != nil {
+		return err
+	}
+
+	for _, allowedRelationType := range directRelationTypes {
+		// For each namespace allowed to be found on the right hand side of the
+		// tupleset relation, include the *computed userset* relation as an entrypoint.
+		//
+		// For example, given a schema:
+		//
+		// ```
+		// definition user {}
+		//
+		// definition parent1 {
+		//   relation somerel: user
+		// }
+		//
+		// definition parent2 {
+		//   relation somerel: user
+		// }
+		//
+		// definition child {
+		//   relation parent: parent1 | parent2
+		//   permission someperm = parent->somerel
+		// }
+		// ```
+		//
+		// We will add an entrypoint for the arrow itself, keyed to the relation type
+		// included from the computed userset.
+		//
+		// Using the above example, this will add entrypoints for `parent1#somerel`
+		// and `parent2#somerel`, which are the subjects reached after resolving the
+		// right side of the arrow.
+
+		// Check if the relation does exist on the allowed type, and only add the entrypoint if present.
+		relTypeSystem, err := ts.TypeSystemForNamespace(ctx, allowedRelationType.Namespace)
+		if err != nil {
+			return err
+		}
+
+		if relTypeSystem.HasRelation(computedUsersetRelation) {
+			err := addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
+				Kind:             core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
+				TargetRelation:   rr,
+				ResultStatus:     operationResultState,
+				TuplesetRelation: tuplesetRelation,
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 
