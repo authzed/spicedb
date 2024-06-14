@@ -630,7 +630,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 	return ref, nil
 }
 
-func addWithCaveats(_ translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
 	caveats := typeRefNode.List(dslshape.NodeSpecificReferencePredicateCaveat)
 	if len(caveats) == 0 {
 		return nil
@@ -645,8 +645,13 @@ func addWithCaveats(_ translationContext, typeRefNode *dslNode, ref *core.Allowe
 		return err
 	}
 
+	nspath, err := tctx.prefixedPath(name)
+	if err != nil {
+		return err
+	}
+
 	ref.RequiredCaveat = &core.AllowedCaveat{
-		CaveatName: name,
+		CaveatName: nspath,
 	}
 	return nil
 }
