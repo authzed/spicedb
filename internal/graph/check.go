@@ -413,6 +413,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			},
 			crc.parentReq.Revision,
 		})
+
 		if childResult.Err != nil {
 			return childResult
 		}

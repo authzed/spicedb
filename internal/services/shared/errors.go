@@ -71,7 +71,7 @@ func (err ErrSchemaWriteDataValidation) GRPCStatus() *status.Status {
 
 // MaxDepthExceededError is an error returned when the maximum depth for dispatching has been exceeded.
 type MaxDepthExceededError struct {
-	error
+	*spiceerrors.ErrorWithAdditionalDetails
 
 	// AllowedMaximumDepth is the configured allowed maximum depth.
 	AllowedMaximumDepth uint32
@@ -84,9 +84,9 @@ func (err MaxDepthExceededError) GRPCStatus() *status.Status {
 		codes.ResourceExhausted,
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED,
-			map[string]string{
+			err.AddToDetails(map[string]string{
 				"maximum_depth_allowed": strconv.Itoa(int(err.AllowedMaximumDepth)),
-			},
+			}),
 		),
 	)
 }
@@ -95,13 +95,13 @@ func (err MaxDepthExceededError) GRPCStatus() *status.Status {
 func NewMaxDepthExceededError(allowedMaximumDepth uint32, isCheckRequest bool) error {
 	if isCheckRequest {
 		return MaxDepthExceededError{
-			fmt.Errorf("the check request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. Try running zed with --explain to see the dependency. See: https://spicedb.dev/d/debug-max-depth-check", allowedMaximumDepth),
+			spiceerrors.NewErrorWithAdditionalDetails(fmt.Errorf("the check request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. Try running zed with --explain to see the dependency. See: https://spicedb.dev/d/debug-max-depth-check", allowedMaximumDepth)),
 			allowedMaximumDepth,
 		}
 	}
 
 	return MaxDepthExceededError{
-		fmt.Errorf("the request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth", allowedMaximumDepth),
+		spiceerrors.NewErrorWithAdditionalDetails(fmt.Errorf("the request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth", allowedMaximumDepth)),
 		allowedMaximumDepth,
 	}
 }
@@ -116,13 +116,26 @@ func AsValidationError(err error) *ErrSchemaWriteDataValidation {
 
 type ConfigForErrors struct {
 	MaximumAPIDepth uint32
+	DebugTrace      *v1.DebugInformation
 }
 
+// DebugTraceErrorDetailsKey is the key used to store the debug trace in the error details.
+// The value is expected to be a string containing the proto text of a DebugInformation message.
+const DebugTraceErrorDetailsKey = "debug_trace_proto_text"
+
 func RewriteErrorWithoutConfig(ctx context.Context, err error) error {
-	return RewriteError(ctx, err, nil)
+	return rewriteError(ctx, err, nil)
 }
 
 func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error {
+	rerr := rewriteError(ctx, err, config)
+	if config != nil && config.DebugTrace != nil {
+		spiceerrors.WithAdditionalDetails(rerr, DebugTraceErrorDetailsKey, config.DebugTrace.String())
+	}
+	return rerr
+}
+
+func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error {
 	// Check if the error can be directly used.
 	if _, ok := status.FromError(err); ok {
 		return err

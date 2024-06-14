@@ -57,6 +57,21 @@ func WithCodeAndReason(err error, code codes.Code, reason v1.ErrorReason) error 
 	return errWithStatus{err, status}
 }
 
+type SupportsAdditionalMetadata interface {
+	WithAdditionalDetails(key string, value string)
+}
+
+// WithAdditionalDetails adds an additional details field to the error if it is possible.
+func WithAdditionalDetails(err error, key string, value string) bool {
+	var supportsAdditionalDetails SupportsAdditionalMetadata
+	if ok := errors.As(err, &supportsAdditionalDetails); ok {
+		supportsAdditionalDetails.WithAdditionalDetails(key, value)
+		return true
+	}
+
+	return false
+}
+
 type errWithStatus struct {
 	error
 	status *status.Status
