@@ -119,6 +119,79 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
+func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
+	tc := 10
+	require := require.New(t)
+	ctx := context.Background()
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	bulkSource := testfixtures.NewBulkTupleGenerator(
+		testfixtures.DocumentNS.Name,
+		"caveated_viewer",
+		testfixtures.UserNS.Name,
+		tc,
+		t,
+	)
+
+	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		loaded, err := rwt.BulkLoad(ctx, bulkSource)
+		require.NoError(err)
+		require.Equal(uint64(tc), loaded)
+		return err
+	})
+	require.NoError(err)
+
+	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: testfixtures.DocumentNS.Name,
+	})
+	require.NoError(err)
+	defer iter.Close()
+
+	updates := make([]*core.RelationTupleUpdate, 0, tc)
+
+	for found := iter.Next(); found != nil; found = iter.Next() {
+		updates = append(updates, &core.RelationTupleUpdate{
+			Operation: core.RelationTupleUpdate_TOUCH,
+			Tuple: &core.RelationTuple{
+				ResourceAndRelation: found.ResourceAndRelation,
+				Subject:             found.Subject,
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: testfixtures.CaveatDef.Name,
+					Context:    nil,
+				},
+			},
+		})
+	}
+
+	require.Equal(tc, len(updates))
+
+	lastRevision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteRelationships(ctx, updates)
+		require.NoError(err)
+		return err
+	})
+	require.NoError(err)
+
+	iter, err = ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: testfixtures.DocumentNS.Name,
+	})
+	require.NoError(err)
+	defer iter.Close()
+
+	foundChanged := 0
+
+	for found := iter.Next(); found != nil; found = iter.Next() {
+		require.NotNil(found.Caveat)
+		require.NotEmpty(found.Caveat.CaveatName)
+		foundChanged++
+	}
+
+	require.Equal(tc, foundChanged)
+}
+
 func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 	ctx := context.Background()
