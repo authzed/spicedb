@@ -14,6 +14,7 @@ type spannerOptions struct {
 	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
 	credentialsFilePath         string
+	credentialsJSON             []byte
 	emulatorHost                string
 	disableStats                bool
 	readMaxOpen                 int
@@ -138,6 +139,14 @@ func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
 func CredentialsFile(path string) Option {
 	return func(so *spannerOptions) {
 		so.credentialsFilePath = path
+	}
+}
+
+// CredentialsJSON is the json containing credentials for a service
+// account that can access the cloud spanner instance
+func CredentialsJSON(json []byte) Option {
+	return func(so *spannerOptions) {
+		so.credentialsJSON = json
 	}
 }
 
