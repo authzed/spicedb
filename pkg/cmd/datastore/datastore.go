@@ -134,6 +134,7 @@ type Config struct {
 
 	// Spanner
 	SpannerCredentialsFile string `debugmap:"visible"`
+	SpannerCredentialsJSON []byte `debugmap:"sensitive"`
 	SpannerEmulatorHost    string `debugmap:"visible"`
 	SpannerMinSessions     uint64 `debugmap:"visible"`
 	SpannerMaxSessions     uint64 `debugmap:"visible"`
@@ -429,6 +430,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.RevisionQuantization(opts.RevisionQuantization),
 		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
+		spanner.CredentialsJSON(opts.SpannerCredentialsJSON),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
 		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
