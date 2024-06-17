@@ -109,6 +109,8 @@ require (
 	sigs.k8s.io/controller-runtime v0.18.3
 )
 
+require github.com/lithammer/fuzzysearch v1.1.8
+
 require (
 	cloud.google.com/go/auth v0.4.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect

@@ -209,7 +209,7 @@ func ValidateOneRelationship(
 		}
 
 		if isAllowed != typesystem.AllowedRelationValid {
-			return NewInvalidSubjectTypeError(rel, relationToCheck)
+			return NewInvalidSubjectTypeError(rel, relationToCheck, resourceTS)
 		}
 
 	case rule == ValidateRelationshipForDeletion && caveat == nil:
@@ -221,7 +221,7 @@ func ValidateOneRelationship(
 			}
 
 			if isAllowed != typesystem.PublicSubjectAllowed {
-				return NewInvalidSubjectTypeError(rel, relationToCheck)
+				return NewInvalidSubjectTypeError(rel, relationToCheck, resourceTS)
 			}
 		} else {
 			isAllowed, err := resourceTS.IsAllowedDirectRelation(rel.ResourceAndRelation.Relation, rel.Subject.Namespace, rel.Subject.Relation)
@@ -230,7 +230,7 @@ func ValidateOneRelationship(
 			}
 
 			if isAllowed != typesystem.DirectRelationValid {
-				return NewInvalidSubjectTypeError(rel, relationToCheck)
+				return NewInvalidSubjectTypeError(rel, relationToCheck, resourceTS)
 			}
 		}
 
