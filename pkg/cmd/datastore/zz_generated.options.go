@@ -60,6 +60,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.GCInterval = c.GCInterval
 		to.GCMaxOperationTime = c.GCMaxOperationTime
 		to.SpannerCredentialsFile = c.SpannerCredentialsFile
+		to.SpannerCredentialsJSON = c.SpannerCredentialsJSON
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
@@ -102,6 +103,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["GCInterval"] = helpers.DebugValue(c.GCInterval, false)
 	debugMap["GCMaxOperationTime"] = helpers.DebugValue(c.GCMaxOperationTime, false)
 	debugMap["SpannerCredentialsFile"] = helpers.DebugValue(c.SpannerCredentialsFile, false)
+	debugMap["SpannerCredentialsJSON"] = helpers.SensitiveDebugValue(c.SpannerCredentialsJSON)
 	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
 	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
@@ -342,6 +344,20 @@ func WithGCMaxOperationTime(gCMaxOperationTime time.Duration) ConfigOption {
 func WithSpannerCredentialsFile(spannerCredentialsFile string) ConfigOption {
 	return func(c *Config) {
 		c.SpannerCredentialsFile = spannerCredentialsFile
+	}
+}
+
+// WithSpannerCredentialsJSON returns an option that can append SpannerCredentialsJSONs to Config.SpannerCredentialsJSON
+func WithSpannerCredentialsJSON(spannerCredentialsJSON byte) ConfigOption {
+	return func(c *Config) {
+		c.SpannerCredentialsJSON = append(c.SpannerCredentialsJSON, spannerCredentialsJSON)
+	}
+}
+
+// SetSpannerCredentialsJSON returns an option that can set SpannerCredentialsJSON on a Config
+func SetSpannerCredentialsJSON(spannerCredentialsJSON []byte) ConfigOption {
+	return func(c *Config) {
+		c.SpannerCredentialsJSON = spannerCredentialsJSON
 	}
 }
 
