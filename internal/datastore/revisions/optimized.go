@@ -51,16 +51,16 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		adjustedNow = localNow.Add(-1 * time.Duration(rand.Int63n(cor.maxRevisionStaleness.Nanoseconds())) * time.Nanosecond)
 	}
 
-	cor.Lock()
+	cor.RLock()
 	for _, candidate := range cor.candidates {
 		if candidate.validThrough.After(adjustedNow) {
+			cor.RUnlock()
 			log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", candidate.validThrough).Msg("returning cached revision")
 			span.AddEvent("returning cached revision")
-			cor.Unlock()
 			return candidate.revision, nil
 		}
 	}
-	cor.Unlock()
+	cor.RUnlock()
 
 	newQuantizedRevision, err, _ := cor.updateGroup.Do("", func() (interface{}, error) {
 		log.Ctx(ctx).Debug().Time("now", localNow).Msg("computing new revision")
@@ -72,10 +72,9 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 		}
 
 		rvt := localNow.Add(validFor)
-		cor.Lock()
-		defer cor.Unlock()
 
 		// Prune the candidates that have definitely expired
+		cor.Lock()
 		var numToDrop uint
 		for _, candidate := range cor.candidates {
 			if candidate.validThrough.Add(cor.maxRevisionStaleness).Before(localNow) {
@@ -84,11 +83,12 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 				break
 			}
 		}
+
 		cor.candidates = cor.candidates[numToDrop:]
-
 		cor.candidates = append(cor.candidates, validRevision{optimized, rvt})
-		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
+		cor.Unlock()
 
+		log.Ctx(ctx).Debug().Time("now", localNow).Time("valid", rvt).Stringer("validFor", validFor).Msg("setting valid through")
 		return optimized, nil
 	})
 	if err != nil {
@@ -99,7 +99,7 @@ func (cor *CachedOptimizedRevisions) OptimizedRevision(ctx context.Context) (dat
 
 // CachedOptimizedRevisions does caching and deduplication for requests for optimized revisions.
 type CachedOptimizedRevisions struct {
-	sync.Mutex
+	sync.RWMutex
 
 	maxRevisionStaleness time.Duration
 	optimizedFunc        OptimizedRevisionFunction
