@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/jackc/pgx/v5"
 
@@ -29,11 +28,10 @@ func (tg *tupleSourceAdapter) Next() bool {
 
 // Values returns the values for the current row.
 func (tg *tupleSourceAdapter) Values() ([]any, error) {
-	var caveatName sql.NullString
+	var caveatName string
 	var caveatContext map[string]any
 	if tg.current.Caveat != nil {
-		caveatName.String = tg.current.Caveat.CaveatName
-		caveatName.Valid = true
+		caveatName = tg.current.Caveat.CaveatName
 		caveatContext = tg.current.Caveat.Context.AsMap()
 	}
 

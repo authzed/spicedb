@@ -725,9 +725,7 @@ func exactRelationshipDifferentCaveatClause(r *core.RelationTuple) sq.And {
 			colUsersetRelation:  r.Subject.Relation,
 		},
 		sq.Or{
-			sq.NotEq{
-				colCaveatContextName: caveatName,
-			},
+			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, colCaveatContextName), caveatName),
 			sq.NotEq{
 				colCaveatContext: caveatContext,
 			},
