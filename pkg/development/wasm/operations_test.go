@@ -333,7 +333,7 @@ func TestCheckOperation(t *testing.T) {
 			tuple.MustParse("resource:someobj#view@user:foo"),
 			nil,
 			&devinterface.DeveloperError{
-				Message: "subjects of type `user` are not allowed on relation `resource#viewer`",
+				Message: "subjects of type `user` are not allowed on relation `resource#viewer` without one of the following caveats: somecaveat",
 				Kind:    devinterface.DeveloperError_INVALID_SUBJECT_TYPE,
 				Source:  devinterface.DeveloperError_RELATIONSHIP,
 				Context: "resource:someobj#viewer@user:foo",

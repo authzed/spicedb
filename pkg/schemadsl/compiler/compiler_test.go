@@ -154,15 +154,22 @@ func TestCompile(t *testing.T) {
 		{
 			"relation with required caveat",
 			withTenantPrefix,
-			`definition simple {
+			`
+			caveat somecaveat(someparam int) { someparam == 42}
+			definition simple {
 				relation viewer: user with somecaveat
 			}`,
 			"",
 			[]SchemaDefinition{
+				namespace.MustCaveatDefinition(caveats.MustEnvForVariables(
+					map[string]caveattypes.VariableType{
+						"someparam": caveattypes.IntType,
+					},
+				), "sometenant/somecaveat", "someparam == 42"),
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
-							namespace.AllowedCaveat("somecaveat")),
+							namespace.AllowedCaveat("sometenant/somecaveat")),
 					),
 				),
 			},
@@ -178,7 +185,7 @@ func TestCompile(t *testing.T) {
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
-							namespace.AllowedCaveat("somecaveat")),
+							namespace.AllowedCaveat("sometenant/somecaveat")),
 						namespace.AllowedRelation("sometenant/user", "..."),
 					),
 				),
@@ -195,10 +202,10 @@ func TestCompile(t *testing.T) {
 				namespace.Namespace("sometenant/simple",
 					namespace.MustRelation("viewer", nil,
 						namespace.AllowedRelationWithCaveat("sometenant/user", "...",
-							namespace.AllowedCaveat("somecaveat")),
+							namespace.AllowedCaveat("sometenant/somecaveat")),
 						namespace.AllowedRelation("sometenant/user", "..."),
 						namespace.AllowedRelationWithCaveat("sometenant/team", "member",
-							namespace.AllowedCaveat("anothercaveat")),
+							namespace.AllowedCaveat("sometenant/anothercaveat")),
 					),
 				),
 			},

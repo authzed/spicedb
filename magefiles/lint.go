@@ -90,6 +90,8 @@ func (Lint) Analyzers() error {
 		"-closeafterusagecheck.skip-pkg=github.com/authzed/spicedb/pkg/datastore,github.com/authzed/spicedb/internal/datastore,github.com/authzed/spicedb/internal/testfixtures",
 		"-paniccheck",
 		"-paniccheck.skip-files=_test,zz_",
+		"-zerologmarshalcheck",
+		"-zerologmarshalcheck.skip-files=_test,zz_",
 		"github.com/authzed/spicedb/...",
 	)
 }

@@ -144,6 +144,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	client, err := spanner.NewClientWithConfig(context.Background(), database,
 		spanner.ClientConfig{SessionPoolConfig: cfg},
 		option.WithCredentialsFile(config.credentialsFilePath),
+		option.WithCredentialsJSON(config.credentialsJSON),
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 		option.WithGRPCDialOption(
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),

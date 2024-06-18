@@ -195,6 +195,50 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			core.RelationTupleUpdate_DELETE,
 			"subjects of type `user` are not allowed on relation `resource#viewer2`",
 		},
+		{
+			"write of an uncaveated subject when a caveat is required",
+			`
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation viewer: user with somecaveat
+			}`,
+			"resource:foo#viewer@user:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user` are not allowed on relation `resource#viewer` without one of the following caveats: somecaveat",
+		},
+		{
+			"did you mean test",
+			`
+			definition user {}
+
+			definition usr {}
+
+			definition resource {
+				relation viewer: user
+			}`,
+			"resource:foo#viewer@usr:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `usr` are not allowed on relation `resource#viewer`; did you mean `user`?",
+		},
+		{
+			"did you mean subrelation test",
+			`
+			definition user {
+				relation member: user
+			}
+
+			definition resource {
+				relation viewer: user#member
+			}`,
+			"resource:foo#viewer@user:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user` are not allowed on relation `resource#viewer`; did you mean `user#member`?",
+		},
 	}
 
 	for _, tc := range tcs {
