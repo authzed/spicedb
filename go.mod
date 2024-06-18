@@ -136,6 +136,8 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/golangci/modinfo v0.3.4 // indirect
+	github.com/gosimple/slug v1.14.0 // indirect
+	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/jjti/go-spancheck v0.6.1 // indirect
 	github.com/lasiar/canonicalheader v1.1.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
