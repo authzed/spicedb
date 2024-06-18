@@ -141,14 +141,25 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	cfg := spanner.DefaultSessionPoolConfig
 	cfg.MinOpened = config.minSessions
 	cfg.MaxOpened = config.maxSessions
-	client, err := spanner.NewClientWithConfig(context.Background(), database,
-		spanner.ClientConfig{SessionPoolConfig: cfg},
+
+	var spannerOpts []option.ClientOption
+	if config.credentialsJSON != nil {
+		spannerOpts = append(spannerOpts, option.WithCredentialsJSON(config.credentialsJSON))
+	}
+
+	spannerOpts = append(spannerOpts,
 		option.WithCredentialsFile(config.credentialsFilePath),
-		option.WithCredentialsJSON(config.credentialsJSON),
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 		option.WithGRPCDialOption(
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		),
+	)
+
+	client, err := spanner.NewClientWithConfig(
+		context.Background(),
+		database,
+		spanner.ClientConfig{SessionPoolConfig: cfg},
+		spannerOpts...,
 	)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, database)
