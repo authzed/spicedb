@@ -1,0 +1,32 @@
+---
+schema: |+
+  definition user {}
+
+  definition group {
+    relation direct_member: user
+    relation excluded: user:*
+    permission view = direct_member - excluded
+  }
+
+  definition resource {
+    relation group: group
+    permission view = group->view
+  }
+
+relationships: >-
+  resource:one#group@group:group1
+
+  resource:one#group@group:group2
+
+  group:group1#direct_member@user:fred
+
+  group:group1#excluded@user:*
+
+  group:group2#direct_member@user:fred
+assertions:
+  assertTrue:
+    - "group:group1#direct_member@user:fred"
+    - "group:group2#direct_member@user:fred"
+    - "group:group2#view@user:fred"
+  assertFalse:
+    - "group:group1#view@user:fred"
