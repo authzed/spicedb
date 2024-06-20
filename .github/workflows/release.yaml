@@ -24,7 +24,7 @@ jobs:
         run: 'echo "SpiceDB version must start with `v` and be a semver" && exit 1'
         shell: "bash"
       - name: "Install snapcraft"
-        run: "sudo snap install snapcraft --channel=7.x/stable --classic"
+        run: "sudo snap install snapcraft --channel=8.x/stable --classic"
       - uses: "authzed/actions/docker-login@main"
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
