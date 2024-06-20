@@ -83,7 +83,7 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 
 	snapshot = snapshot.markComplete(revision.Uint64)
 
-	return postgresRevision{snapshot}, validForNanos, nil
+	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, nil
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
@@ -98,7 +98,7 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	return postgresRevision{snapshot}, nil
+	return postgresRevision{snapshot: snapshot}, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
@@ -114,7 +114,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
-	if revisionRaw.GreaterThan(postgresRevision{currentSnapshot}) {
+	if revisionRaw.GreaterThan(postgresRevision{snapshot: currentSnapshot}) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if minSnapshot.markComplete(minXid.Uint64).GreaterThan(revision.snapshot) {
@@ -165,11 +165,13 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 	}
 
 	return postgresRevision{
-		pgSnapshot{
+		snapshot: pgSnapshot{
 			xmin:    decoded.Xmin,
 			xmax:    uint64(xminInt + decoded.RelativeXmax),
 			xipList: xips,
 		},
+		optionalTxID:      xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
+		optionalTimestamp: decoded.OptionalTimestamp,
 	}, nil
 }
 
@@ -227,7 +229,7 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 		}
 	}
 
-	return postgresRevision{pgSnapshot{
+	return postgresRevision{snapshot: pgSnapshot{
 		xmin:    xmin,
 		xmax:    xmax,
 		xipList: xipList,
@@ -246,7 +248,9 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, newSnaps
 }
 
 type postgresRevision struct {
-	snapshot pgSnapshot
+	snapshot          pgSnapshot
+	optionalTxID      xid8
+	optionalTimestamp uint64
 }
 
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
@@ -284,6 +288,22 @@ func (pr postgresRevision) mustMarshalBinary() []byte {
 	return serialized
 }
 
+func (pr postgresRevision) OptionalTransactionID() (xid8, bool) {
+	if !pr.optionalTxID.Valid {
+		return xid8{}, false
+	}
+
+	return pr.optionalTxID, true
+}
+
+func (pr postgresRevision) OptionalTimestamp() (uint64, bool) {
+	if pr.optionalTimestamp == 0 {
+		return 0, false
+	}
+
+	return pr.optionalTimestamp, true
+}
+
 // MarshalBinary creates a version of the snapshot that uses relative encoding
 // for xmax and xip list values to save bytes when encoded as varint protos.
 // For example, snapshot 1001:1004:1001,1003 becomes 1000:3:0,2.
@@ -305,6 +325,6 @@ func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 
 var _ datastore.Revision = postgresRevision{}
 
-func revisionKeyFunc(rev revisionWithXid) uint64 {
-	return rev.tx.Uint64
+func revisionKeyFunc(rev postgresRevision) uint64 {
+	return rev.optionalTxID.Uint64
 }

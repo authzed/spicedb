@@ -174,7 +174,7 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	require.Len(t, filters, 1)
 	require.Equal(t, "somedocfilter", filters[0].Name)
 	require.Equal(t, 1234, filters[0].Count)
-	require.Equal(t, updatedRev, filters[0].ComputedAtRevision)
+	require.True(t, updatedRev.Equal(filters[0].ComputedAtRevision))
 
 	// Register a new filter.
 	newFilterRev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {

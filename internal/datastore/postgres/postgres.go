@@ -399,7 +399,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 			log.Debug().Uint8("retries", i).Msg("transaction succeeded after retry")
 		}
 
-		return postgresRevision{newSnapshot.markComplete(newXID.Uint64)}, nil
+		return postgresRevision{snapshot: newSnapshot.markComplete(newXID.Uint64), optionalTxID: newXID}, nil
 	}
 
 	if !config.DisableRetries {

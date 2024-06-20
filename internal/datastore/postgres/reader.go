@@ -145,7 +145,7 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 
 			revision := datastore.NoRevision
 			if snapshot != nil {
-				revision = postgresRevision{*snapshot}
+				revision = postgresRevision{snapshot: *snapshot}
 			}
 
 			counters = append(counters, datastore.RelationshipCounter{
@@ -303,7 +303,7 @@ func loadAllNamespaces(
 
 // revisionForVersion synthesizes a snapshot where the specified version is always visible.
 func revisionForVersion(version xid8) postgresRevision {
-	return postgresRevision{pgSnapshot{
+	return postgresRevision{snapshot: pgSnapshot{
 		xmin: version.Uint64 + 1,
 		xmax: version.Uint64 + 1,
 	}}
