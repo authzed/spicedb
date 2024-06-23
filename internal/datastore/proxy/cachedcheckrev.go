@@ -12,20 +12,20 @@ import (
 func newCachedCheckRevision(ds datastore.ReadOnlyDatastore) datastore.ReadOnlyDatastore {
 	return &cachedCheckRevision{
 		ReadOnlyDatastore: ds,
-		lastCheckRevision: atomic.Value{},
+		lastCheckRevision: atomic.Pointer[datastore.Revision]{},
 	}
 }
 
 type cachedCheckRevision struct {
 	datastore.ReadOnlyDatastore
-	lastCheckRevision atomic.Value
+	lastCheckRevision atomic.Pointer[datastore.Revision]
 }
 
 func (c *cachedCheckRevision) CheckRevision(ctx context.Context, rev datastore.Revision) error {
 	// Check if we've already seen a revision at least as fresh as that specified. If so, we can skip the check.
 	lastChecked := c.lastCheckRevision.Load()
 	if lastChecked != nil {
-		lastCheckedRev := lastChecked.(datastore.Revision)
+		lastCheckedRev := *lastChecked
 		if lastCheckedRev.Equal(rev) || lastCheckedRev.GreaterThan(rev) {
 			return nil
 		}
@@ -36,8 +36,8 @@ func (c *cachedCheckRevision) CheckRevision(ctx context.Context, rev datastore.R
 		return err
 	}
 
-	if lastChecked == nil || rev.LessThan(lastChecked.(datastore.Revision)) {
-		c.lastCheckRevision.Store(rev)
+	if lastChecked == nil || rev.LessThan(*lastChecked) {
+		c.lastCheckRevision.CompareAndSwap(lastChecked, &rev)
 	}
 
 	return nil

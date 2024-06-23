@@ -25,6 +25,7 @@ type postgresOptions struct {
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
 	gcEnabled               bool
+	readStrictMode          bool
 
 	migrationPhase string
 
@@ -61,6 +62,7 @@ const (
 	defaultMaxRetries                        = 10
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
+	defaultReadStrictMode                    = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -80,6 +82,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
 		credentialsProviderName:     defaultCredentialsProviderName,
+		readStrictMode:              defaultReadStrictMode,
 		queryInterceptor:            nil,
 	}
 
@@ -101,6 +104,15 @@ func generateConfig(options []Option) (postgresOptions, error) {
 	}
 
 	return computed, nil
+}
+
+// ReadStrictMode sets whether strict mode is used for reads in the Postgres reader. If enabled,
+// an assertion is added into the WHERE clause of all read queries to ensure that the revision
+// being read is available on the read connection.
+//
+// Strict mode is disabled by default, as the default behavior is to read from the primary.
+func ReadStrictMode(readStrictMode bool) Option {
+	return func(po *postgresOptions) { po.readStrictMode = readStrictMode }
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max

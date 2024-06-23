@@ -177,7 +177,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
 	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
-	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\")")
+	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). Only supported for postgres and mysql.")
 	flagSet.StringVar(&opts.ReadReplicaCredentialsProviderName, flagName("datastore-read-replica-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	var legacyConnPool ConnPoolConfig
@@ -418,7 +418,7 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 		return nil, fmt.Errorf("too many read replicas, max is %d", MaxReplicaCount)
 	}
 
-	replicas := make([]datastore.ReadOnlyDatastore, 0, len(opts.ReadReplicaURIs))
+	replicas := make([]datastore.StrictReadDatastore, 0, len(opts.ReadReplicaURIs))
 	for index, replicaURI := range opts.ReadReplicaURIs {
 		replica, err := newPostgresReplicaDatastore(ctx, uint32(index), replicaURI, opts)
 		if err != nil {
@@ -427,7 +427,7 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 		replicas = append(replicas, replica)
 	}
 
-	return proxy.NewReplicatedDatastore(primary, replicas...)
+	return proxy.NewStrictReplicatedDatastore(primary, replicas...)
 }
 
 func commonPostgresDatastoreOptions(opts Config) []postgres.Option {
@@ -438,7 +438,7 @@ func commonPostgresDatastoreOptions(opts Config) []postgres.Option {
 	}
 }
 
-func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
+func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.StrictReadDatastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 		postgres.ReadConnsMaxOpen(opts.ReadReplicaConnPool.MaxOpenConns),
@@ -447,6 +447,7 @@ func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, repli
 		postgres.ReadConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
 		postgres.ReadConnMaxLifetimeJitter(opts.ReadReplicaConnPool.MaxLifetimeJitter),
 		postgres.ReadConnHealthCheckInterval(opts.ReadReplicaConnPool.HealthCheckInterval),
+		postgres.ReadStrictMode( /* strict read mode is required for Postgres read replicas */ true),
 	}
 
 	pgOpts = append(pgOpts, commonPostgresDatastoreOptions(opts)...)
@@ -527,7 +528,18 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 		replicas = append(replicas, replica)
 	}
 
-	return proxy.NewReplicatedDatastore(primary, replicas...)
+	return proxy.NewCheckingReplicatedDatastore(primary, replicas...)
+}
+
+func commonMySQLDatastoreOptions(opts Config) []mysql.Option {
+	return []mysql.Option{
+		mysql.TablePrefix(opts.TablePrefix),
+		mysql.MaxRetries(uint8(opts.MaxRetries)),
+		mysql.OverrideLockWaitTimeout(1),
+		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
+		mysql.RevisionQuantization(opts.RevisionQuantization),
+	}
 }
 
 func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
@@ -535,16 +547,12 @@ func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaU
 		mysql.MaxOpenConns(opts.ReadReplicaConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
-		mysql.RevisionQuantization(opts.RevisionQuantization),
-		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
-		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
-		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		mysql.MaxRetries(uint8(opts.MaxRetries)),
-		mysql.OverrideLockWaitTimeout(1),
 		mysql.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 	}
+
+	mysqlOpts = append(mysqlOpts, commonMySQLDatastoreOptions(opts)...)
 	return mysql.NewReadOnlyMySQLDatastore(ctx, replicaURI, replicaIndex, mysqlOpts...)
 }
 
@@ -558,16 +566,12 @@ func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datas
 		mysql.MaxOpenConns(opts.ReadConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
-		mysql.RevisionQuantization(opts.RevisionQuantization),
-		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
-		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
-		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		mysql.MaxRetries(uint8(opts.MaxRetries)),
-		mysql.OverrideLockWaitTimeout(1),
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
 	}
+
+	mysqlOpts = append(mysqlOpts, commonMySQLDatastoreOptions(opts)...)
 	return mysql.NewMySQLDatastore(ctx, opts.URI, mysqlOpts...)
 }
 

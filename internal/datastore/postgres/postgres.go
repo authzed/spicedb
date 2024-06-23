@@ -142,7 +142,7 @@ func NewReadOnlyPostgresDatastore(
 	url string,
 	index uint32,
 	options ...Option,
-) (datastore.ReadOnlyDatastore, error) {
+) (datastore.StrictReadDatastore, error) {
 	ds, err := newPostgresDatastore(ctx, url, int(index), options...)
 	if err != nil {
 		return nil, err
@@ -330,6 +330,11 @@ func newPostgresDatastore(
 		maxRetries:              config.maxRetries,
 		credentialsProvider:     credentialsProvider,
 		isPrimary:               isPrimary,
+		inStrictReadMode:        config.readStrictMode,
+	}
+
+	if isPrimary && config.readStrictMode {
+		return nil, spiceerrors.MustBugf("strict read mode is not supported on primary instances")
 	}
 
 	if isPrimary {
@@ -376,6 +381,7 @@ type pgDatastore struct {
 	maxRetries              uint8
 	watchEnabled            bool
 	isPrimary               bool
+	inStrictReadMode        bool
 
 	credentialsProvider datastore.CredentialsProvider
 
@@ -385,10 +391,18 @@ type pgDatastore struct {
 	gcHasRun atomic.Bool
 }
 
+func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
+	return pgd.inStrictReadMode
+}
+
 func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Reader {
 	rev := revRaw.(postgresRevision)
 
 	queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
+	if pgd.inStrictReadMode {
+		queryFuncs = strictReaderQueryFuncs{wrapped: queryFuncs, revision: rev}
+	}
+
 	executor := common.QueryExecutor{
 		Executor: pgxcommon.NewPGXExecutor(queryFuncs),
 	}
@@ -590,7 +604,11 @@ func (pgd *pgDatastore) Close() error {
 	}
 
 	pgd.readPool.Close()
-	pgd.writePool.Close()
+
+	if pgd.writePool != nil {
+		pgd.writePool.Close()
+	}
+
 	return nil
 }
 

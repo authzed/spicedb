@@ -593,6 +593,14 @@ type Datastore interface {
 	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
 }
 
+// StrictReadDatastore is an interface for datastores that support strict read mode.
+type StrictReadDatastore interface {
+	Datastore
+
+	// IsStrictReadModeEnabled returns whether the datastore is in strict read mode.
+	IsStrictReadModeEnabled() bool
+}
+
 type strArray []string
 
 // MarshalZerologArray implements zerolog array marshalling.
