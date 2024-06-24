@@ -48,6 +48,20 @@ func (Test) Integration() error {
 	return goTest("./internal/services/integrationtesting/...", "-tags", "ci,docker", "-timeout", "15m")
 }
 
+// Steelthread Run steelthread tests
+func (Test) Steelthread() error {
+	fmt.Println("running steel thread tests")
+	return goTest("./internal/services/steelthreadtesting/...", "-tags", "steelthread", "-timeout", "15m", "-v")
+}
+
+// RegenSteelthread Regenerate the steelthread tests
+func (Test) RegenSteelthread() error {
+	fmt.Println("regenerating steel thread tests")
+	return RunSh(goCmdForTests(), WithV(), WithDir("."), WithEnv(map[string]string{
+		"REGENERATE_STEEL_RESULTS": "true",
+	}), WithArgs("test", "./internal/services/steelthreadtesting/...", "-tags", "steelthread", "-timeout", "15m", "-v"))("go")
+}
+
 // Analyzers Run the analyzer unit tests
 func (Test) Analyzers() error {
 	return goDirTest("./tools/analyzers", "./...")
