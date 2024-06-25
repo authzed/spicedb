@@ -125,6 +125,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestOrderedLimit", func(t *testing.T) { OrderedLimitTest(t, tester) })
 	t.Run("TestResume", func(t *testing.T) { ResumeTest(t, tester) })
 	t.Run("TestCursorErrors", func(t *testing.T) { CursorErrorsTest(t, tester) })
+	t.Run("TestReverseQueryCursor", func(t *testing.T) { ReverseQueryCursorTest(t, tester) })
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
 	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })

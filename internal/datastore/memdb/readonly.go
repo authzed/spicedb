@@ -214,7 +214,20 @@ func (r *memdbReader) ReverseQueryRelationships(
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
 
-	return newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse, queryOpts.SortForReverse), nil
+	switch queryOpts.SortForReverse {
+	case options.Unsorted:
+		fallthrough
+
+	case options.ByResource:
+		iter := newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse, queryOpts.SortForReverse)
+		return iter, nil
+
+	case options.BySubject:
+		return newSubjectSortedIterator(filteredIterator, queryOpts.LimitForReverse)
+
+	default:
+		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.SortForReverse)
+	}
 }
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
