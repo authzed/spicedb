@@ -20,20 +20,15 @@ const (
 	minimumWatchSleep = 100 * time.Millisecond
 )
 
-type revisionWithXid struct {
-	postgresRevision
-	tx xid8
-}
-
 var (
 	// This query must cast an xid8 to xid, which is a safe operation as long as the
 	// xid8 is one of the last ~2 billion transaction IDs generated. We should be garbage
 	// collecting these transactions long before we get to that point.
 	newRevisionsQuery = fmt.Sprintf(`
-	SELECT %[1]s, %[2]s FROM %[3]s
+	SELECT %[1]s, %[2]s, %[3]s FROM %[4]s
 	WHERE %[1]s >= pg_snapshot_xmax($1) OR (
 		%[1]s >= pg_snapshot_xmin($1) AND NOT pg_visible_in_snapshot(%[1]s, $1)
-	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, tableTransaction)
+	) ORDER BY pg_xact_commit_timestamp(%[1]s::xid), %[1]s;`, colXID, colSnapshot, colTimestamp, tableTransaction)
 
 	queryChangedTuples = psql.Select(
 		colNamespace,
@@ -155,9 +150,9 @@ func (pgd *pgDatastore) Watch(
 				// the *last* transaction to start, as it should encompass all completed transactions
 				// except those running concurrently, which is handled by calling markComplete on the other
 				// transactions.
-				currentTxn = newTxns[len(newTxns)-1].postgresRevision
+				currentTxn = newTxns[len(newTxns)-1]
 				for _, newTx := range newTxns {
-					currentTxn = postgresRevision{currentTxn.snapshot.markComplete(newTx.tx.Uint64)}
+					currentTxn = postgresRevision{snapshot: currentTxn.snapshot.markComplete(newTx.optionalTxID.Uint64)}
 				}
 
 				// If checkpoints were requested, output a checkpoint. While the Postgres datastore does not
@@ -188,8 +183,8 @@ func (pgd *pgDatastore) Watch(
 	return updates, errs
 }
 
-func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]revisionWithXid, error) {
-	var ids []revisionWithXid
+func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision) ([]postgresRevision, error) {
+	var ids []postgresRevision
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
@@ -200,13 +195,15 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 		for rows.Next() {
 			var nextXID xid8
 			var nextSnapshot pgSnapshot
-			if err := rows.Scan(&nextXID, &nextSnapshot); err != nil {
+			var timestamp time.Time
+			if err := rows.Scan(&nextXID, &nextSnapshot, &timestamp); err != nil {
 				return fmt.Errorf("unable to decode new revision: %w", err)
 			}
 
-			ids = append(ids, revisionWithXid{
-				postgresRevision{nextSnapshot.markComplete(nextXID.Uint64)},
-				nextXID,
+			ids = append(ids, postgresRevision{
+				snapshot:          nextSnapshot.markComplete(nextXID.Uint64),
+				optionalTxID:      nextXID,
+				optionalTimestamp: uint64(timestamp.Unix()),
 			})
 		}
 		if rows.Err() != nil {
@@ -220,21 +217,21 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 	return ids, nil
 }
 
-func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWithXid, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
-	xmin := revisions[0].tx.Uint64
-	xmax := revisions[0].tx.Uint64
+func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
+	xmin := revisions[0].optionalTxID.Uint64
+	xmax := revisions[0].optionalTxID.Uint64
 	filter := make(map[uint64]int, len(revisions))
-	txidToRevision := make(map[uint64]revisionWithXid, len(revisions))
+	txidToRevision := make(map[uint64]postgresRevision, len(revisions))
 
 	for i, rev := range revisions {
-		if rev.tx.Uint64 < xmin {
-			xmin = rev.tx.Uint64
+		if rev.optionalTxID.Uint64 < xmin {
+			xmin = rev.optionalTxID.Uint64
 		}
-		if rev.tx.Uint64 > xmax {
-			xmax = rev.tx.Uint64
+		if rev.optionalTxID.Uint64 > xmax {
+			xmax = rev.optionalTxID.Uint64
 		}
-		filter[rev.tx.Uint64] = i
-		txidToRevision[rev.tx.Uint64] = rev
+		filter[rev.optionalTxID.Uint64] = i
+		txidToRevision[rev.optionalTxID.Uint64] = rev
 	}
 
 	tracked := common.NewChanges(revisionKeyFunc, options.Content)
@@ -270,7 +267,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []revisionWit
 	return reconciledChanges, nil
 }
 
-func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedTuples.Where(sq.Or{
 		sq.And{
 			sq.LtOrEq{colCreatedXid: xmax},
@@ -344,7 +341,7 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 	return nil
 }
 
-func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedNamespaces.Where(sq.Or{
 		sq.And{
 			sq.LtOrEq{colCreatedXid: xmax},
@@ -395,7 +392,7 @@ func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, x
 	return nil
 }
 
-func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]revisionWithXid, filter map[uint64]int, tracked *common.Changes[revisionWithXid, uint64]) error {
+func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, min uint64, max uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedCaveats.Where(sq.Or{
 		sq.And{
 			sq.LtOrEq{colCreatedXid: max},

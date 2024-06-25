@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -32,8 +33,8 @@ func TestRevisionOrdering(t *testing.T) {
 		t.Run(fmt.Sprintf("%s:%s", tc.lhsSnapshot, tc.rhsSnapshot), func(t *testing.T) {
 			require := require.New(t)
 
-			lhs := postgresRevision{tc.lhsSnapshot}
-			rhs := postgresRevision{tc.rhsSnapshot}
+			lhs := postgresRevision{snapshot: tc.lhsSnapshot}
+			rhs := postgresRevision{snapshot: tc.rhsSnapshot}
 
 			require.Equal(tc.relationship == equal, lhs.Equal(rhs))
 			require.Equal(tc.relationship == equal, rhs.Equal(lhs))
@@ -72,7 +73,7 @@ func TestRevisionSerDe(t *testing.T) {
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
-			rev := postgresRevision{tc.snapshot}
+			rev := postgresRevision{snapshot: tc.snapshot}
 			serialized := rev.String()
 			require.Equal(tc.expectedStr, serialized)
 
@@ -81,6 +82,26 @@ func TestRevisionSerDe(t *testing.T) {
 			require.Equal(rev, parsed)
 		})
 	}
+}
+
+func TestTxIDTimestampAvailable(t *testing.T) {
+	testTimestamp := uint64(time.Now().Unix())
+	snapshot := snap(0, 5, 1)
+	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalTimestamp: testTimestamp}
+	receivedTimestamp, ok := pgr.OptionalTimestamp()
+	require.True(t, ok)
+	require.Equal(t, receivedTimestamp, testTimestamp)
+	txid, ok := pgr.OptionalTransactionID()
+	require.True(t, ok)
+	require.Equal(t, newXid8(1), txid)
+
+	anotherRev := postgresRevision{snapshot: snapshot}
+	_, ok = anotherRev.OptionalTimestamp()
+	require.False(t, ok)
+	_, ok = anotherRev.OptionalTransactionID()
+	require.False(t, ok)
+
+	pgr.Equal(anotherRev)
 }
 
 func TestRevisionParseOldDecimalFormat(t *testing.T) {
@@ -114,7 +135,7 @@ func TestRevisionParseOldDecimalFormat(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
-				require.Equal(postgresRevision{tc.snapshot}, parsed)
+				require.Equal(postgresRevision{snapshot: tc.snapshot}, parsed)
 			}
 		})
 	}
@@ -156,7 +177,7 @@ func TestCombinedRevisionParsing(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
-				require.Equal(postgresRevision{tc.snapshot}, parsed)
+				require.Equal(postgresRevision{snapshot: tc.snapshot}, parsed)
 			}
 		})
 	}

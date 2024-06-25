@@ -16,4 +16,9 @@ message PostgresRevision {
   uint64 xmin = 1;
   int64 relative_xmax = 2;
   repeated int64 relative_xips = 3;
+  // these are optional fields that are only present in strategic places that
+  // need the information, but otherwise is omitted to reduce the overhead
+  // of loading it from the DB and keeping it around in memory
+  uint64 optional_txid = 4;
+  uint64 optional_timestamp = 5;
 }

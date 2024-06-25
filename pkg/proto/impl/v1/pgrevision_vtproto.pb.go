@@ -26,6 +26,8 @@ func (m *PostgresRevision) CloneVT() *PostgresRevision {
 	r := new(PostgresRevision)
 	r.Xmin = m.Xmin
 	r.RelativeXmax = m.RelativeXmax
+	r.OptionalTxid = m.OptionalTxid
+	r.OptionalTimestamp = m.OptionalTimestamp
 	if rhs := m.RelativeXips; rhs != nil {
 		tmpContainer := make([]int64, len(rhs))
 		copy(tmpContainer, rhs)
@@ -62,6 +64,12 @@ func (this *PostgresRevision) EqualVT(that *PostgresRevision) bool {
 		if vx != vy {
 			return false
 		}
+	}
+	if this.OptionalTxid != that.OptionalTxid {
+		return false
+	}
+	if this.OptionalTimestamp != that.OptionalTimestamp {
+		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
@@ -102,6 +110,16 @@ func (m *PostgresRevision) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.OptionalTimestamp != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OptionalTimestamp))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.OptionalTxid != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.OptionalTxid))
+		i--
+		dAtA[i] = 0x20
 	}
 	if len(m.RelativeXips) > 0 {
 		var pksize2 int
@@ -155,6 +173,12 @@ func (m *PostgresRevision) SizeVT() (n int) {
 			l += protohelpers.SizeOfVarint(uint64(e))
 		}
 		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
+	if m.OptionalTxid != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.OptionalTxid))
+	}
+	if m.OptionalTimestamp != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.OptionalTimestamp))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -302,6 +326,44 @@ func (m *PostgresRevision) UnmarshalVT(dAtA []byte) error {
 				}
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field RelativeXips", wireType)
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OptionalTxid", wireType)
+			}
+			m.OptionalTxid = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.OptionalTxid |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OptionalTimestamp", wireType)
+			}
+			m.OptionalTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.OptionalTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
 			}
 		default:
 			iNdEx = preIndex
