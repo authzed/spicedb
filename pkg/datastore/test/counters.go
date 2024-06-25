@@ -174,6 +174,8 @@ func UpdateRelationshipCounterTest(t *testing.T, tester DatastoreTester) {
 	require.Len(t, filters, 1)
 	require.Equal(t, "somedocfilter", filters[0].Name)
 	require.Equal(t, 1234, filters[0].Count)
+	// we don't use require.Equal, as the internal representation may differ via the optional fields
+	// the supported way to compare revisions is via their comparison API methods
 	require.True(t, updatedRev.Equal(filters[0].ComputedAtRevision))
 
 	// Register a new filter.

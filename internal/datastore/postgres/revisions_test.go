@@ -86,7 +86,8 @@ func TestRevisionSerDe(t *testing.T) {
 
 func TestTxIDTimestampAvailable(t *testing.T) {
 	testTimestamp := uint64(time.Now().Unix())
-	pgr := postgresRevision{snapshot: pgSnapshot{}, optionalTxID: newXid8(1), optionalTimestamp: testTimestamp}
+	snapshot := snap(0, 5, 1)
+	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalTimestamp: testTimestamp}
 	receivedTimestamp, ok := pgr.OptionalTimestamp()
 	require.True(t, ok)
 	require.Equal(t, receivedTimestamp, testTimestamp)
@@ -94,11 +95,13 @@ func TestTxIDTimestampAvailable(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, newXid8(1), txid)
 
-	pgr = postgresRevision{snapshot: pgSnapshot{}}
-	_, ok = pgr.OptionalTimestamp()
+	anotherRev := postgresRevision{snapshot: snapshot}
+	_, ok = anotherRev.OptionalTimestamp()
 	require.False(t, ok)
-	_, ok = pgr.OptionalTransactionID()
+	_, ok = anotherRev.OptionalTransactionID()
 	require.False(t, ok)
+
+	pgr.Equal(anotherRev)
 }
 
 func TestRevisionParseOldDecimalFormat(t *testing.T) {

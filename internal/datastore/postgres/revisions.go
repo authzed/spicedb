@@ -288,6 +288,8 @@ func (pr postgresRevision) mustMarshalBinary() []byte {
 	return serialized
 }
 
+// OptionalTransactionID returns the transaction ID at which this revision happened. This value is optionally
+// loaded from the database and may not be present.
 func (pr postgresRevision) OptionalTransactionID() (xid8, bool) {
 	if !pr.optionalTxID.Valid {
 		return xid8{}, false
@@ -296,6 +298,8 @@ func (pr postgresRevision) OptionalTransactionID() (xid8, bool) {
 	return pr.optionalTxID, true
 }
 
+// OptionalTimestamp returns a unix epoch timestamp representing the time at which the transaction committed as
+// defined by the Postgres primary. This is not guaranteed to be monotonically increasing.
 func (pr postgresRevision) OptionalTimestamp() (uint64, bool) {
 	if pr.optionalTimestamp == 0 {
 		return 0, false
