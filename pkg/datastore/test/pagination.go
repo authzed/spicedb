@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -371,6 +372,66 @@ func CursorErrorsTest(t *testing.T, tester DatastoreTester) {
 				require.Nil(cursorAfterClose)
 				require.ErrorIs(err, datastore.ErrClosedIterator)
 			})
+		})
+	}
+}
+
+func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	// Create a datastore with the standard schema but no data.
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
+
+	// Add test relationships.
+	rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:fred")),
+			tuple.Create(tuple.MustParse("document:seconddoc#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:seconddoc#viewer@user:*")),
+			tuple.Create(tuple.MustParse("document:thirddoc#viewer@user:*")),
+		})
+	})
+	require.NoError(t, err)
+
+	// Issue a reverse query call with a limit.
+	for _, sortBy := range []options.SortOrder{options.ByResource, options.BySubject} {
+		t.Run(fmt.Sprintf("SortBy-%d", sortBy), func(t *testing.T) {
+			reader := ds.SnapshotReader(rev)
+
+			var limit uint64 = 2
+			var cursor options.Cursor
+
+			foundTuples := mapz.NewSet[string]()
+
+			for i := 0; i < 5; i++ {
+				iter, err := reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
+					SubjectType: testfixtures.UserNS.Name,
+				}, options.WithSortForReverse(sortBy), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
+				require.NoError(t, err)
+				defer iter.Close()
+
+				encounteredTuples := mapz.NewSet[string]()
+				for {
+					rel := iter.Next()
+					if rel == nil {
+						break
+					}
+
+					require.True(t, encounteredTuples.Add(tuple.MustString(rel)))
+					cursor = rel
+				}
+
+				require.LessOrEqual(t, encounteredTuples.Len(), 2)
+				foundTuples = foundTuples.Union(encounteredTuples)
+				if encounteredTuples.IsEmpty() {
+					break
+				}
+			}
+
+			require.Equal(t, 6, foundTuples.Len())
 		})
 	}
 }

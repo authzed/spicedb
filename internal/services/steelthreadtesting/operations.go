@@ -12,6 +12,7 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 	"gopkg.in/yaml.v3"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -68,8 +69,159 @@ func lookupSubjects(parameters map[string]any, client v1.PermissionsServiceClien
 	return yamlNodes, nil
 }
 
+func lookupResources(parameters map[string]any, client v1.PermissionsServiceClient) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var context *structpb.Struct
+	if contextMap, ok := parameters["context"].(map[string]any); ok {
+		c, err := structpb.NewStruct(contextMap)
+		if err != nil {
+			return nil, err
+		}
+		context = c
+	}
+
+	r, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+		ResourceObjectType: parameters["resource_type"].(string),
+		Permission:         parameters["permission"].(string),
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: parameters["subject_type"].(string),
+				ObjectId:   parameters["subject_object_id"].(string),
+			},
+		},
+		Context: context,
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_FullyConsistent{
+				FullyConsistent: true,
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	foundResources := mapz.NewSet[string]()
+	for {
+		resp, err := r.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return nil, err
+		}
+
+		if !foundResources.Add(formatResolvedResource(resp)) {
+			return nil, errors.New("duplicate resource found")
+		}
+	}
+
+	foundResourcesSlice := foundResources.AsSlice()
+	sort.Strings(foundResourcesSlice)
+
+	yamlNodes := make([]yaml.Node, 0, len(foundResourcesSlice))
+	for _, subject := range foundResourcesSlice {
+		yamlNodes = append(yamlNodes, yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: subject,
+			Style: yaml.SingleQuotedStyle,
+		})
+	}
+	return yamlNodes, nil
+}
+
+func cursoredLookupResources(parameters map[string]any, client v1.PermissionsServiceClient) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var context *structpb.Struct
+	if contextMap, ok := parameters["context"].(map[string]any); ok {
+		c, err := structpb.NewStruct(contextMap)
+		if err != nil {
+			return nil, err
+		}
+		context = c
+	}
+
+	var currentCursor *v1.Cursor
+	nodeSets := make([][]yaml.Node, 0)
+	for {
+		r, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
+			ResourceObjectType: parameters["resource_type"].(string),
+			Permission:         parameters["permission"].(string),
+			Subject: &v1.SubjectReference{
+				Object: &v1.ObjectReference{
+					ObjectType: parameters["subject_type"].(string),
+					ObjectId:   parameters["subject_object_id"].(string),
+				},
+			},
+			Context: context,
+			Consistency: &v1.Consistency{
+				Requirement: &v1.Consistency_FullyConsistent{
+					FullyConsistent: true,
+				},
+			},
+			OptionalLimit:  uint32(parameters["page_size"].(int)),
+			OptionalCursor: currentCursor,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		foundResources := mapz.NewSet[string]()
+		for {
+			resp, err := r.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+
+				return nil, err
+			}
+
+			foundResources.Add(formatResolvedResource(resp))
+			currentCursor = resp.AfterResultCursor
+		}
+
+		if foundResources.IsEmpty() {
+			break
+		}
+
+		foundResourcesSlice := foundResources.AsSlice()
+		sort.Strings(foundResourcesSlice)
+
+		yamlNodes := make([]yaml.Node, 0, len(foundResourcesSlice))
+		for _, subject := range foundResourcesSlice {
+			yamlNodes = append(yamlNodes, yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: subject,
+				Style: yaml.SingleQuotedStyle,
+			})
+		}
+
+		nodeSets = append(nodeSets, yamlNodes)
+	}
+
+	return nodeSets, nil
+}
+
 var operations = map[string]stOperation{
-	"lookupSubjects": lookupSubjects,
+	"lookupSubjects":          lookupSubjects,
+	"lookupResources":         lookupResources,
+	"cursoredLookupResources": cursoredLookupResources,
+}
+
+func formatResolvedResource(resource *v1.LookupResourcesResponse) string {
+	var sb strings.Builder
+	sb.WriteString(resource.ResourceObjectId)
+
+	if resource.Permissionship == v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION {
+		sb.WriteString(" (conditional)")
+	}
+
+	return sb.String()
 }
 
 func formatResolvedSubject(sub *v1.LookupSubjectsResponse) string {
