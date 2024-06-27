@@ -2288,6 +2288,37 @@ func (m *DispatchLookupSubjectsRequest) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for OptionalLimit
+
+	if all {
+		switch v := interface{}(m.GetOptionalCursor()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchLookupSubjectsRequestValidationError{
+					field:  "OptionalCursor",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchLookupSubjectsRequestValidationError{
+					field:  "OptionalCursor",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOptionalCursor()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchLookupSubjectsRequestValidationError{
+				field:  "OptionalCursor",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return DispatchLookupSubjectsRequestMultiError(errors)
 	}
@@ -2758,6 +2789,35 @@ func (m *DispatchLookupSubjectsResponse) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return DispatchLookupSubjectsResponseValidationError{
 				field:  "Metadata",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetAfterResponseCursor()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DispatchLookupSubjectsResponseValidationError{
+					field:  "AfterResponseCursor",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DispatchLookupSubjectsResponseValidationError{
+					field:  "AfterResponseCursor",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAfterResponseCursor()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DispatchLookupSubjectsResponseValidationError{
+				field:  "AfterResponseCursor",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}

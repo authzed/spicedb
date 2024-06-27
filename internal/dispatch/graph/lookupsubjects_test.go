@@ -25,6 +25,7 @@ import (
 var (
 	caveatexpr   = caveats.CaveatExprForTesting
 	caveatAnd    = caveats.And
+	caveatOr     = caveats.Or
 	caveatInvert = caveats.Invert
 )
 
@@ -32,12 +33,14 @@ func TestSimpleLookupSubjects(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
 
 	testCases := []struct {
-		resourceType     string
-		resourceID       string
-		permission       string
-		subjectType      string
-		subjectRelation  string
-		expectedSubjects []string
+		resourceType          string
+		resourceID            string
+		permission            string
+		subjectType           string
+		subjectRelation       string
+		expectedSubjects      []string
+		expectedDispatchCount int
+		expectedMaxDepth      int
 	}{
 		{
 			"document",
@@ -46,6 +49,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"auditor", "chief_financial_officer", "eng_lead", "legal", "owner", "product_manager", "vp_product"},
+			19,
+			1,
 		},
 		{
 			"document",
@@ -54,6 +59,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"product_manager"},
+			2,
+			1,
 		},
 		{
 			"document",
@@ -62,6 +69,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{},
+			0,
+			0,
 		},
 		{
 			"document",
@@ -70,6 +79,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"multiroleguy"},
+			3,
+			1,
 		},
 		{
 			"document",
@@ -78,6 +89,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"multiroleguy"},
+			2,
+			1,
 		},
 		{
 			"document",
@@ -86,6 +99,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"multiroleguy", "missingrolegal"},
+			1,
+			1,
 		},
 		{
 			"document",
@@ -94,6 +109,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"multiroleguy"},
+			5,
+			1,
 		},
 		{
 			"folder",
@@ -102,6 +119,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"auditor", "legal", "owner"},
+			7,
+			1,
 		},
 		{
 			"folder",
@@ -110,6 +129,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"user",
 			"...",
 			[]string{"auditor", "legal", "owner", "vp_product"},
+			11,
+			1,
 		},
 		{
 			"document",
@@ -118,6 +139,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"folder",
 			"...",
 			[]string{"plans", "strategy"},
+			1,
+			1,
 		},
 		{
 			"document",
@@ -126,6 +149,8 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			"folder",
 			"...",
 			[]string{},
+			0,
+			0,
 		},
 	}
 
@@ -154,6 +179,10 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			require.NoError(err)
 
 			foundSubjectIds := []string{}
+
+			dispatchCount := 0
+			maxDepth := 0
+
 			for _, result := range stream.Results() {
 				results, ok := result.FoundSubjectsByResourceId[tc.resourceID]
 				if ok {
@@ -165,7 +194,13 @@ func TestSimpleLookupSubjects(t *testing.T) {
 						foundSubjectIds = append(foundSubjectIds, found.SubjectId)
 					}
 				}
+
+				dispatchCount += int(result.Metadata.DispatchCount)
+				maxDepth = int(result.Metadata.DepthRequired)
 			}
+
+			require.Equal(tc.expectedDispatchCount, dispatchCount, "dispatch count mismatch")
+			require.Equal(tc.expectedMaxDepth, maxDepth, "max depth mismatch")
 
 			sort.Strings(foundSubjectIds)
 			sort.Strings(tc.expectedSubjects)
@@ -203,7 +238,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	tpl := tuple.Parse("folder:oops#owner@folder:oops#owner")
+	tpl := tuple.Parse("folder:oops#parent@folder:oops")
 	revision, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 
@@ -211,7 +246,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-		ResourceRelation: RR("folder", "owner"),
+		ResourceRelation: RR("folder", "view"),
 		ResourceIds:      []string{"oops"},
 		SubjectRelation:  RR("user", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -237,7 +272,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 			"view",
 			"user",
 			"...",
-			13,
+			19,
 		},
 		{
 			"document",
@@ -749,4 +784,821 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 			itestutil.RequireEquivalentSets(t, tc.expected, results)
 		})
 	}
+}
+
+func TestCursoredLookupSubjects(t *testing.T) {
+	testCases := []struct {
+		name          string
+		pageSizes     []int
+		schema        string
+		relationships []*corev1.RelationTuple
+		start         *corev1.ObjectAndRelation
+		target        *corev1.RelationReference
+		expected      []*v1.FoundSubject
+	}{
+		{
+			"simple",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user
+				permission view = viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.MustParse("document:first#viewer@user:andria"),
+				tuple.MustParse("document:first#viewer@user:victor"),
+				tuple.MustParse("document:first#viewer@user:chuck"),
+				tuple.MustParse("document:first#viewer@user:ben"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "tom"},
+				{SubjectId: "andria"},
+				{SubjectId: "victor"},
+				{SubjectId: "chuck"},
+				{SubjectId: "ben"},
+			},
+		},
+		{
+			"basic union",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer1: user
+				relation viewer2: user
+				permission view = viewer1 + viewer2
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer1@user:sarah"),
+				tuple.MustParse("document:first#viewer1@user:fred"),
+				tuple.MustParse("document:first#viewer1@user:tom"),
+				tuple.MustParse("document:first#viewer2@user:andria"),
+				tuple.MustParse("document:first#viewer2@user:victor"),
+				tuple.MustParse("document:first#viewer2@user:chuck"),
+				tuple.MustParse("document:first#viewer2@user:ben"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "tom"},
+				{SubjectId: "andria"},
+				{SubjectId: "victor"},
+				{SubjectId: "chuck"},
+				{SubjectId: "ben"},
+			},
+		},
+		{
+			"basic intersection",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer1: user
+				relation viewer2: user
+				permission view = viewer1 & viewer2
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer1@user:sarah"),
+				tuple.MustParse("document:first#viewer1@user:fred"),
+				tuple.MustParse("document:first#viewer1@user:tom"),
+				tuple.MustParse("document:first#viewer1@user:andria"),
+				tuple.MustParse("document:first#viewer1@user:victor"),
+				tuple.MustParse("document:first#viewer2@user:victor"),
+				tuple.MustParse("document:first#viewer2@user:chuck"),
+				tuple.MustParse("document:first#viewer2@user:ben"),
+				tuple.MustParse("document:first#viewer2@user:andria"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "andria"},
+				{SubjectId: "victor"},
+			},
+		},
+		{
+			"basic exclusion",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer1: user
+				relation viewer2: user
+				permission view = viewer1 - viewer2
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer1@user:sarah"),
+				tuple.MustParse("document:first#viewer1@user:fred"),
+				tuple.MustParse("document:first#viewer1@user:tom"),
+				tuple.MustParse("document:first#viewer1@user:andria"),
+				tuple.MustParse("document:first#viewer1@user:victor"),
+				tuple.MustParse("document:first#viewer2@user:victor"),
+				tuple.MustParse("document:first#viewer2@user:chuck"),
+				tuple.MustParse("document:first#viewer2@user:ben"),
+				tuple.MustParse("document:first#viewer2@user:andria"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "tom"},
+			},
+		},
+		{
+			"union over exclusion",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user
+				relation editor: user
+				relation banned: user
+
+				permission edit = editor - banned
+				permission view = viewer + edit
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+
+				tuple.MustParse("document:first#editor@user:sarah"),
+				tuple.MustParse("document:first#editor@user:george"),
+				tuple.MustParse("document:first#editor@user:victor"),
+
+				tuple.MustParse("document:first#banned@user:victor"),
+				tuple.MustParse("document:first#banned@user:bannedguy"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "george"},
+			},
+		},
+		{
+			"basic caveated",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				permission view = viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:fred"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
+				tuple.MustParse("document:first#viewer@user:tracy"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tracy",
+				},
+				{
+					SubjectId:        "tom",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+				{
+					SubjectId:        "fred",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+				{
+					SubjectId:        "sarah",
+					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
+		{
+			"union short-circuited caveated",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				relation editor: user | user with somecaveat
+				permission view = viewer + editor
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+			},
+		},
+		{
+			"intersection caveated",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+		
+			 caveat somecaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+			 caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			 }
+
+		 	 definition document {
+				relation viewer: user | user with somecaveat
+				relation editor: user | user with anothercaveat
+				permission view = viewer & editor
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "anothercaveat"),
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatAnd(
+						caveatexpr("somecaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+			},
+		},
+		{
+			"simple wildcard",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user | user:*
+				permission view = viewer
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.MustParse("document:first#viewer@user:andria"),
+				tuple.MustParse("document:first#viewer@user:victor"),
+				tuple.MustParse("document:first#viewer@user:chuck"),
+				tuple.MustParse("document:first#viewer@user:ben"),
+				tuple.MustParse("document:first#viewer@user:*"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "tom"},
+				{SubjectId: "andria"},
+				{SubjectId: "victor"},
+				{SubjectId: "chuck"},
+				{SubjectId: "ben"},
+				{SubjectId: "*"},
+			},
+		},
+		{
+			"intersection with wildcard",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer1: user
+				relation viewer2: user:*
+				permission view = viewer1 & viewer2
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer1@user:sarah"),
+				tuple.MustParse("document:first#viewer1@user:fred"),
+				tuple.MustParse("document:first#viewer1@user:tom"),
+				tuple.MustParse("document:first#viewer1@user:andria"),
+				tuple.MustParse("document:first#viewer1@user:victor"),
+				tuple.MustParse("document:first#viewer1@user:chuck"),
+				tuple.MustParse("document:first#viewer1@user:ben"),
+				tuple.MustParse("document:first#viewer2@user:*"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "tom"},
+				{SubjectId: "andria"},
+				{SubjectId: "victor"},
+				{SubjectId: "chuck"},
+				{SubjectId: "ben"},
+			},
+		},
+		{
+			"wildcard with exclusions",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user:*
+				relation banned: user
+				permission view = viewer - banned
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#banned@user:sarah"),
+				tuple.MustParse("document:first#banned@user:fred"),
+				tuple.MustParse("document:first#banned@user:tom"),
+				tuple.MustParse("document:first#banned@user:andria"),
+				tuple.MustParse("document:first#banned@user:victor"),
+				tuple.MustParse("document:first#banned@user:chuck"),
+				tuple.MustParse("document:first#banned@user:ben"),
+				tuple.MustParse("document:first#viewer@user:*"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "*",
+					ExcludedSubjects: []*v1.FoundSubject{
+						{SubjectId: "sarah"},
+						{SubjectId: "fred"},
+						{SubjectId: "tom"},
+						{SubjectId: "andria"},
+						{SubjectId: "victor"},
+						{SubjectId: "chuck"},
+						{SubjectId: "ben"},
+					},
+				},
+			},
+		},
+		{
+			"canceling exclusions on wildcards",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user
+				relation banned: user:*
+				relation banned2: user
+				permission view = viewer - (banned - banned2)
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.MustParse("document:first#viewer@user:andria"),
+				tuple.MustParse("document:first#viewer@user:victor"),
+				tuple.MustParse("document:first#viewer@user:chuck"),
+				tuple.MustParse("document:first#viewer@user:ben"),
+
+				tuple.MustParse("document:first#banned@user:*"),
+
+				tuple.MustParse("document:first#banned2@user:andria"),
+				tuple.MustParse("document:first#banned2@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "andria",
+				},
+				{
+					SubjectId: "tom",
+				},
+			},
+		},
+		{
+			"wildcard with many, many exclusions",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user:*
+				relation banned: user
+				permission view = viewer - banned
+  		 }`,
+			(func() []*corev1.RelationTuple {
+				tuples := make([]*corev1.RelationTuple, 0, 201)
+				tuples = append(tuples, tuple.MustParse("document:first#viewer@user:*"))
+				for i := 0; i < 200; i++ {
+					tuples = append(tuples, tuple.MustParse(fmt.Sprintf("document:first#banned@user:u%03d", i)))
+				}
+				return tuples
+			})(),
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "*",
+					ExcludedSubjects: (func() []*v1.FoundSubject {
+						fs := make([]*v1.FoundSubject, 0, 200)
+						for i := 0; i < 200; i++ {
+							fs = append(fs, &v1.FoundSubject{SubjectId: fmt.Sprintf("u%03d", i)})
+						}
+						return fs
+					})(),
+				},
+			},
+		},
+		{
+			"simple arrow",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+	 		definition folder {
+				relation parent: folder
+				relation viewer: user
+				permission view = viewer + parent->view	
+			}
+
+		 	 definition document {
+				relation parent: folder
+				relation viewer: user
+				permission view = viewer + parent->view
+  		    }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+
+				tuple.MustParse("document:first#parent@folder:somefolder"),
+				tuple.MustParse("folder:somefolder#viewer@user:victoria"),
+				tuple.MustParse("folder:somefolder#viewer@user:tommy"),
+
+				tuple.MustParse("folder:somefolder#parent@folder:another"),
+				tuple.MustParse("folder:another#viewer@user:diana"),
+
+				tuple.MustParse("folder:another#parent@folder:root"),
+				tuple.MustParse("folder:root#viewer@user:zeus"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "victoria"},
+				{SubjectId: "diana"},
+				{SubjectId: "tommy"},
+				{SubjectId: "zeus"},
+			},
+		},
+		{
+			"simple indirect",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user | document#viewer
+				permission view = viewer
+     		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+
+				tuple.MustParse("document:second#viewer@user:tom"),
+				tuple.MustParse("document:second#viewer@user:mark"),
+
+				tuple.MustParse("document:first#viewer@document:second#viewer"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{SubjectId: "sarah"},
+				{SubjectId: "fred"},
+				{SubjectId: "tom"},
+				{SubjectId: "mark"},
+			},
+		},
+		{
+			"indirect with combined caveat",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+			 caveat somecaveat(some int) {
+				some == 42
+			 }
+
+			 caveat anothercaveat(some int) {
+				some == 43
+			 }
+
+			 definition otherresource {
+		 	 	relation viewer: user with anothercaveat
+		 	 }
+
+		 	 definition document {
+				relation viewer: user with somecaveat | otherresource#viewer
+				permission view = viewer
+     		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+
+				tuple.MustWithCaveat(tuple.MustParse("otherresource:second#viewer@user:tom"), "anothercaveat"),
+
+				tuple.MustParse("document:first#viewer@otherresource:second#viewer"),
+			},
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatOr(
+						caveatexpr("somecaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+			},
+		},
+		{
+			"indirect with combined caveat direct",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+			 caveat somecaveat(some int) {
+				some == 42
+			 }
+
+			 caveat anothercaveat(some int) {
+				some == 43
+			 }
+
+			 definition otherresource {
+		 	 	relation viewer: user with anothercaveat
+		 	 }
+
+		 	 definition document {
+				relation viewer: user with somecaveat | otherresource#viewer
+				permission view = viewer
+     		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
+
+				tuple.MustWithCaveat(tuple.MustParse("otherresource:second#viewer@user:tom"), "anothercaveat"),
+
+				tuple.MustParse("document:first#viewer@otherresource:second#viewer"),
+			},
+			ONR("document", "first", "viewer"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatOr(
+						caveatexpr("somecaveat"),
+						caveatexpr("anothercaveat"),
+					),
+				},
+			},
+		},
+		{
+			"non-terminal subject",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user | document#viewer
+				permission view = viewer
+     		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#viewer@user:sarah"),
+				tuple.MustParse("document:first#viewer@user:fred"),
+
+				tuple.MustParse("document:second#viewer@user:tom"),
+				tuple.MustParse("document:second#viewer@user:mark"),
+
+				tuple.MustParse("document:first#viewer@document:second#viewer"),
+			},
+			ONR("document", "first", "view"),
+			RR("document", "viewer"),
+			[]*v1.FoundSubject{
+				{SubjectId: "first"},
+				{SubjectId: "second"},
+			},
+		},
+		{
+			"indirect non-terminal subject",
+			[]int{0, 1, 2, 5, 100},
+			`definition user {}
+
+   		     definition folder {
+				relation parent_view: folder#view
+				relation viewer: user
+				permission view = viewer + parent_view
+			 }
+
+			 definition document {
+			   relation parent_view: folder#view
+			   relation viewer: user
+			   permission view = viewer + parent_view
+			 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:first#parent_view@folder:somefolder#view"),
+				tuple.MustParse("folder:somefolder#parent_view@folder:anotherfolder#view"),
+			},
+			ONR("document", "first", "view"),
+			RR("folder", "view"),
+			[]*v1.FoundSubject{
+				{SubjectId: "anotherfolder"},
+				{SubjectId: "somefolder"},
+			},
+		},
+		{
+			"large direct",
+			[]int{0, 100, 104, 503, 1012, 10056},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer: user
+				permission view = viewer
+  		 }`,
+			(func() []*corev1.RelationTuple {
+				tuples := make([]*corev1.RelationTuple, 0, 20000)
+				for i := 0; i < 20000; i++ {
+					tuples = append(tuples, tuple.MustParse(fmt.Sprintf("document:first#viewer@user:u%03d", i)))
+				}
+				return tuples
+			})(),
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			(func() []*v1.FoundSubject {
+				fs := make([]*v1.FoundSubject, 0, 20000)
+				for i := 0; i < 20000; i++ {
+					fs = append(fs, &v1.FoundSubject{SubjectId: fmt.Sprintf("u%03d", i)})
+				}
+				return fs
+			})(),
+		},
+		{
+			"large with intersection",
+			[]int{0, 100, 104, 503, 1012, 10056},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer1: user
+				relation viewer2: user
+				permission view = viewer1 & viewer2
+  		 }`,
+			(func() []*corev1.RelationTuple {
+				tuples := make([]*corev1.RelationTuple, 0, 20000)
+				for i := 0; i < 20000; i++ {
+					tuples = append(tuples, tuple.MustParse(fmt.Sprintf("document:first#viewer1@user:u%03d", i)))
+					tuples = append(tuples, tuple.MustParse(fmt.Sprintf("document:first#viewer2@user:u%03d", i)))
+				}
+				return tuples
+			})(),
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			(func() []*v1.FoundSubject {
+				fs := make([]*v1.FoundSubject, 0, 20000)
+				for i := 0; i < 20000; i++ {
+					fs = append(fs, &v1.FoundSubject{SubjectId: fmt.Sprintf("u%03d", i)})
+				}
+				return fs
+			})(),
+		},
+		{
+			"large with partial intersection",
+			[]int{0, 100, 104, 503, 1012, 10056},
+			`definition user {}
+
+		 	 definition document {
+				relation viewer1: user
+				relation viewer2: user
+				permission view = viewer1 & viewer2
+  		 }`,
+			(func() []*corev1.RelationTuple {
+				tuples := make([]*corev1.RelationTuple, 0, 20000)
+				for i := 0; i < 20000; i++ {
+					tuples = append(tuples, tuple.MustParse(fmt.Sprintf("document:first#viewer1@user:u%03d", i)))
+
+					if i >= 10000 {
+						tuples = append(tuples, tuple.MustParse(fmt.Sprintf("document:first#viewer2@user:u%03d", i)))
+					}
+				}
+				return tuples
+			})(),
+			ONR("document", "first", "view"),
+			RR("user", "..."),
+			(func() []*v1.FoundSubject {
+				fs := make([]*v1.FoundSubject, 0, 10000)
+				for i := 10000; i < 20000; i++ {
+					fs = append(fs, &v1.FoundSubject{SubjectId: fmt.Sprintf("u%03d", i)})
+				}
+				return fs
+			})(),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			for _, limit := range tc.pageSizes {
+				t.Run(fmt.Sprintf("limit-%d_", limit), func(t *testing.T) {
+					require := require.New(t)
+
+					dispatcher := NewLocalOnlyDispatcher(10)
+
+					ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+					require.NoError(err)
+
+					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+
+					ctx := datastoremw.ContextWithHandle(context.Background())
+					require.NoError(datastoremw.SetInContext(ctx, ds))
+
+					var cursor *v1.Cursor
+					overallResults := []*v1.FoundSubject{}
+
+					iterCount := 1
+					if limit > 0 {
+						iterCount = (len(tc.expected) / limit) + 1
+					}
+
+					for i := 0; i < iterCount; i++ {
+						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
+						err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+							ResourceRelation: &corev1.RelationReference{
+								Namespace: tc.start.Namespace,
+								Relation:  tc.start.Relation,
+							},
+							ResourceIds:     []string{tc.start.ObjectId},
+							SubjectRelation: tc.target,
+							Metadata: &v1.ResolverMeta{
+								AtRevision:     revision.String(),
+								DepthRemaining: 50,
+							},
+							OptionalLimit:  uint32(limit),
+							OptionalCursor: cursor,
+						}, stream)
+						require.NoError(err)
+
+						results := []*v1.FoundSubject{}
+						hasWildcard := false
+
+						for _, streamResult := range stream.Results() {
+							for _, foundSubjects := range streamResult.FoundSubjectsByResourceId {
+								results = append(results, foundSubjects.FoundSubjects...)
+								for _, fs := range foundSubjects.FoundSubjects {
+									if fs.SubjectId == tuple.PublicWildcard {
+										hasWildcard = true
+									}
+								}
+							}
+							cursor = streamResult.AfterResponseCursor
+						}
+
+						if limit > 0 {
+							// If there is a wildcard, its allowed to bypass the limit.
+							if hasWildcard {
+								require.LessOrEqual(len(results), limit+1)
+							} else {
+								require.LessOrEqual(len(results), limit)
+							}
+						}
+
+						overallResults = append(overallResults, results...)
+					}
+
+					// NOTE: since cursored LS now can return a wildcard multiple times, we need to combine
+					// them here before comparison.
+					normalizedResults := combineWildcards(overallResults)
+					itestutil.RequireEquivalentSets(t, tc.expected, normalizedResults)
+				})
+			}
+		})
+	}
+}
+
+func combineWildcards(results []*v1.FoundSubject) []*v1.FoundSubject {
+	combined := make([]*v1.FoundSubject, 0, len(results))
+	var wildcardResult *v1.FoundSubject
+	for _, result := range results {
+		if result.SubjectId != tuple.PublicWildcard {
+			combined = append(combined, result)
+			continue
+		}
+
+		if wildcardResult == nil {
+			wildcardResult = result
+			combined = append(combined, result)
+			continue
+		}
+
+		wildcardResult.ExcludedSubjects = append(wildcardResult.ExcludedSubjects, result.ExcludedSubjects...)
+	}
+	return combined
 }

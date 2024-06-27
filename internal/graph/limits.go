@@ -1,12 +1,8 @@
 package graph
 
 import (
-	"fmt"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
-
-var ErrLimitReached = fmt.Errorf("limit has been reached")
 
 // limitTracker is a helper struct for tracking the limit requested by a caller and decrementing
 // that limit as results are published.

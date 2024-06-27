@@ -53,6 +53,25 @@ func (s *SubjectByTypeSet) ForEachType(handler func(rr *core.RelationReference, 
 	}
 }
 
+// ForEachTypeUntil invokes the handler for each type of ObjectAndRelation found in the set, along
+// with all IDs of objects of that type, until the handler returns an error or false.
+func (s *SubjectByTypeSet) ForEachTypeUntil(handler func(rr *core.RelationReference, subjects SubjectSet) (bool, error)) error {
+	for key, subjects := range s.byType {
+		ns, rel := tuple.MustSplitRelRef(key)
+		ok, err := handler(&core.RelationReference{
+			Namespace: ns,
+			Relation:  rel,
+		}, subjects)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+	}
+	return nil
+}
+
 // Map runs the mapper function over each type of object in the set, returning a new ONRByTypeSet with
 // the object type replaced by that returned by the mapper function.
 func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.RelationReference, error)) (*SubjectByTypeSet, error) {
