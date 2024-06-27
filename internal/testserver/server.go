@@ -27,6 +27,13 @@ type ServerConfig struct {
 	StreamingAPITimeout        time.Duration
 }
 
+var DefaultTestServerConfig = ServerConfig{
+	MaxUpdatesPerWrite:         1000,
+	MaxPreconditionsCount:      1000,
+	StreamingAPITimeout:        30 * time.Second,
+	MaxRelationshipContextSize: 25000,
+}
+
 // NewTestServer creates a new test server, using defaults for the config.
 func NewTestServer(require *require.Assertions,
 	revisionQuantization time.Duration,
@@ -35,12 +42,7 @@ func NewTestServer(require *require.Assertions,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
-		ServerConfig{
-			MaxUpdatesPerWrite:         1000,
-			MaxPreconditionsCount:      1000,
-			StreamingAPITimeout:        30 * time.Second,
-			MaxRelationshipContextSize: 25000,
-		},
+		DefaultTestServerConfig,
 		dsInitFunc)
 }
 
@@ -54,6 +56,18 @@ func NewTestServerWithConfig(require *require.Assertions,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
+
+	return NewTestServerWithConfigAndDatastore(require, revisionQuantization, gcWindow, schemaPrefixRequired, config, emptyDS, dsInitFunc)
+}
+
+func NewTestServerWithConfigAndDatastore(require *require.Assertions,
+	revisionQuantization time.Duration,
+	gcWindow time.Duration,
+	schemaPrefixRequired bool,
+	config ServerConfig,
+	emptyDS datastore.Datastore,
+	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptions(
