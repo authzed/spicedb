@@ -1,6 +1,8 @@
 package caveats
 
 import (
+	"google.golang.org/protobuf/types/known/structpb"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -30,6 +32,24 @@ func CaveatExprForTesting(name string) *core.CaveatExpression {
 	return &core.CaveatExpression{
 		OperationOrCaveat: &core.CaveatExpression_Caveat{
 			Caveat: CaveatForTesting(name),
+		},
+	}
+}
+
+// CaveatExprForTesting returns a CaveatExpression referencing a caveat with the given name and
+// empty context.
+func MustCaveatExprForTestingWithContext(name string, context map[string]any) *core.CaveatExpression {
+	contextStruct, err := structpb.NewStruct(context)
+	if err != nil {
+		panic(err)
+	}
+
+	return &core.CaveatExpression{
+		OperationOrCaveat: &core.CaveatExpression_Caveat{
+			Caveat: &core.ContextualizedCaveat{
+				CaveatName: name,
+				Context:    contextStruct,
+			},
 		},
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -291,13 +292,6 @@ func TestCheckMetadata(t *testing.T) {
 	}
 }
 
-func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
-	foundFrames.Insert(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
-	for _, subTrace := range trace.SubProblems {
-		addFrame(subTrace, foundFrames)
-	}
-}
-
 func TestCheckPermissionOverSchema(t *testing.T) {
 	testCases := []struct {
 		name                   string
@@ -306,6 +300,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 		resource               *core.ObjectAndRelation
 		subject                *core.ObjectAndRelation
 		expectedPermissionship v1.ResourceCheckResult_Membership
+		expectedCaveat         *core.CaveatExpression
 	}{
 		{
 			"basic union",
@@ -322,6 +317,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 		},
 		{
 			"basic intersection",
@@ -339,6 +335,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 		},
 		{
 			"basic exclusion",
@@ -355,6 +352,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 		},
 		{
 			"basic union, multiple branches",
@@ -372,6 +370,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 		},
 		{
 			"basic union no permission",
@@ -386,6 +385,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 		},
 		{
 			"basic intersection no permission",
@@ -402,6 +402,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 		},
 		{
 			"basic exclusion no permission",
@@ -419,6 +420,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 		},
 		{
 			"exclusion with multiple branches",
@@ -444,6 +446,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 		},
 		{
 			"intersection with multiple branches",
@@ -469,6 +472,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 		},
 		{
 			"exclusion with multiple branches no permission",
@@ -495,6 +499,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 		},
 		{
 			"intersection with multiple branches no permission",
@@ -519,6 +524,690 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
+		},
+		{
+			"basic arrow",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+		
+		 	 definition document {
+				relation orgs: organization
+				permission view = orgs->member
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("organization:second#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"basic any arrow",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+		
+		 	 definition document {
+				relation orgs: organization
+				permission view = orgs.any(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("organization:second#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"basic all arrow negative",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+		
+		 	 definition document {
+				relation orgs: organization
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("organization:second#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
+		},
+		{
+			"basic all arrow positive",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+		
+		 	 definition document {
+				relation orgs: organization
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("organization:first#member@user:tom"),
+				tuple.MustParse("organization:second#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"basic all arrow positive with different types",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+
+			 definition someotherresource {
+			  	relation member: user
+  			}
+		
+		 	 definition document {
+				relation orgs: organization | someotherresource
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("organization:first#member@user:tom"),
+				tuple.MustParse("organization:second#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"basic all arrow negative over different types",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+
+			 definition someotherresource {
+			  	relation member: user
+  			}
+		
+		 	 definition document {
+				relation orgs: organization | someotherresource
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("document:first#orgs@someotherresource:other"),
+				tuple.MustParse("organization:first#member@user:tom"),
+				tuple.MustParse("organization:second#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
+		},
+		{
+			"basic all arrow positive over different types",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+
+			 definition someotherresource {
+			  	relation member: user
+  			}
+		
+		 	 definition document {
+				relation orgs: organization | someotherresource
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("document:first#orgs@organization:second"),
+				tuple.MustParse("document:first#orgs@someotherresource:other"),
+				tuple.MustParse("organization:first#member@user:tom"),
+				tuple.MustParse("organization:second#member@user:tom"),
+				tuple.MustParse("someotherresource:other#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"all arrow for single org",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+		
+		 	 definition document {
+				relation orgs: organization
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:first#orgs@organization:first"),
+				tuple.MustParse("organization:first#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"all arrow for no orgs",
+			`definition user {}
+
+			 definition organization {
+			 	relation member: user
+			 }
+		
+		 	 definition document {
+				relation orgs: organization
+				permission view = orgs.all(member)
+  			 }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("organization:first#member@user:tom"),
+			},
+			ONR("document", "first", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
+		},
+		{
+			"view_by_all negative",
+			`  definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  definition resource {
+    relation team: team
+    permission view_by_all = team.all(member)
+    permission view_by_any = team.any(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("team:first#direct_member@user:tom"),
+				tuple.MustParse("team:first#direct_member@user:fred"),
+				tuple.MustParse("team:first#direct_member@user:sarah"),
+				tuple.MustParse("team:second#direct_member@user:fred"),
+				tuple.MustParse("team:second#direct_member@user:sarah"),
+				tuple.MustParse("team:third#direct_member@user:sarah"),
+				tuple.MustParse("resource:oneteam#team@team:first"),
+				tuple.MustParse("resource:twoteams#team@team:first"),
+				tuple.MustParse("resource:twoteams#team@team:second"),
+				tuple.MustParse("resource:threeteams#team@team:first"),
+				tuple.MustParse("resource:threeteams#team@team:second"),
+				tuple.MustParse("resource:threeteams#team@team:third"),
+			},
+			ONR("resource", "threeteams", "view_by_all"),
+			ONR("user", "fred", "..."),
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
+		},
+		{
+			"view_by_any positive",
+			`  definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  definition resource {
+    relation team: team
+	relation viewer: user
+    permission view_by_all = team.all(member) + viewer
+    permission view_by_any = team.any(member) + viewer
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("team:first#direct_member@user:tom"),
+				tuple.MustParse("team:first#direct_member@user:fred"),
+				tuple.MustParse("team:first#direct_member@user:sarah"),
+				tuple.MustParse("team:second#direct_member@user:fred"),
+				tuple.MustParse("team:second#direct_member@user:sarah"),
+				tuple.MustParse("team:third#direct_member@user:sarah"),
+				tuple.MustParse("resource:oneteam#team@team:first"),
+				tuple.MustParse("resource:twoteams#team@team:first"),
+				tuple.MustParse("resource:twoteams#team@team:second"),
+				tuple.MustParse("resource:threeteams#team@team:first"),
+				tuple.MustParse("resource:threeteams#team@team:second"),
+				tuple.MustParse("resource:threeteams#team@team:third"),
+				tuple.MustParse("resource:oneteam#viewer@user:rachel"),
+			},
+			ONR("resource", "threeteams", "view_by_any"),
+			ONR("user", "fred", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"view_by_any positive directly",
+			`  definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  definition resource {
+    relation team: team
+	relation viewer: user
+    permission view_by_all = team.all(member) + viewer
+    permission view_by_any = team.any(member) + viewer
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("team:first#direct_member@user:tom"),
+				tuple.MustParse("team:first#direct_member@user:fred"),
+				tuple.MustParse("team:first#direct_member@user:sarah"),
+				tuple.MustParse("team:second#direct_member@user:fred"),
+				tuple.MustParse("team:second#direct_member@user:sarah"),
+				tuple.MustParse("team:third#direct_member@user:sarah"),
+				tuple.MustParse("resource:oneteam#team@team:first"),
+				tuple.MustParse("resource:twoteams#team@team:first"),
+				tuple.MustParse("resource:twoteams#team@team:second"),
+				tuple.MustParse("resource:threeteams#team@team:first"),
+				tuple.MustParse("resource:threeteams#team@team:second"),
+				tuple.MustParse("resource:threeteams#team@team:third"),
+				tuple.MustParse("resource:oneteam#viewer@user:rachel"),
+			},
+			ONR("resource", "oneteam", "view_by_any"),
+			ONR("user", "rachel", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"caveated intersection arrow",
+			`  definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam == 42
+  }
+
+  definition resource {
+    relation team: team with somecaveat
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("team:first#direct_member@user:tom"),
+				tuple.MustParse("resource:oneteam#team@team:first[somecaveat]"),
+			},
+			ONR("resource", "oneteam", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAndCtx("somecaveat", nil),
+		},
+		{
+			"intersection arrow with caveated member",
+			`  definition user {}
+
+  definition team {
+    relation direct_member: user with somecaveat
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam == 42
+  }
+
+  definition resource {
+    relation team: team
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("team:first#direct_member@user:tom[somecaveat]"),
+				tuple.MustParse("resource:oneteam#team@team:first"),
+			},
+			ONR("resource", "oneteam", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAndCtx("somecaveat", nil),
+		},
+		{
+			"caveated intersection arrow with caveated member",
+			`  definition user {}
+
+  definition team {
+    relation direct_member: user with somecaveat
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam == 42
+  }
+
+  definition resource {
+    relation team: team with somecaveat
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse("team:first#direct_member@user:tom[somecaveat]"),
+				tuple.MustParse("resource:oneteam#team@team:first[somecaveat]"),
+			},
+			ONR("resource", "oneteam", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAndCtx("somecaveat", nil),
+		},
+		{
+			"caveated intersection arrow with caveated member, different context",
+			`definition user {}
+
+  definition team {
+    relation direct_member: user with anothercaveat
+    permission member = direct_member
+  }
+
+  caveat anothercaveat(someparam int) {
+    someparam == 43
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam == 42
+  }
+
+  definition resource {
+    relation team: team with somecaveat
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`team:first#direct_member@user:tom[anothercaveat:{"someparam": 43}]`),
+				tuple.MustParse(`resource:oneteam#team@team:first[somecaveat:{"someparam": 42}]`),
+			},
+			ONR("resource", "oneteam", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAnd(
+				caveatAndCtx("anothercaveat", map[string]any{"someparam": int64(43)}),
+				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+			),
+		},
+		{
+			"caveated intersection arrow with multiple caveated branches",
+			`definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam >= 42
+  }
+
+  definition resource {
+    relation team: team with somecaveat
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:someresource#team@team:first[somecaveat:{"someparam": 41}]`),
+				tuple.MustParse(`resource:someresource#team@team:second[somecaveat:{"someparam": 42}]`),
+				tuple.MustParse(`team:first#direct_member@user:tom`),
+				tuple.MustParse(`team:second#direct_member@user:tom`),
+			},
+			ONR("resource", "someresource", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAnd(
+				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(41)}),
+				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+			),
+		},
+
+		{
+			"caveated intersection arrow with multiple caveated members",
+			`definition user {}
+
+  definition team {
+    relation direct_member: user with somecaveat
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam >= 42
+  }
+
+  definition resource {
+    relation team: team
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:someresource#team@team:first`),
+				tuple.MustParse(`resource:someresource#team@team:second`),
+				tuple.MustParse(`team:first#direct_member@user:tom[somecaveat:{"someparam": 41}]`),
+				tuple.MustParse(`team:second#direct_member@user:tom[somecaveat:{"someparam": 42}]`),
+			},
+			ONR("resource", "someresource", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAnd(
+				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(41)}),
+				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+			),
+		},
+		{
+			"caveated intersection arrow with one caveated branch",
+			`definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam >= 42
+  }
+
+  definition resource {
+    relation team: team with somecaveat | team
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:someresource#team@team:first`),
+				tuple.MustParse(`resource:someresource#team@team:second[somecaveat:{"someparam": 42}]`),
+				tuple.MustParse(`team:first#direct_member@user:tom`),
+				tuple.MustParse(`team:second#direct_member@user:tom`),
+			},
+			ONR("resource", "someresource", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+		},
+		{
+			"caveated intersection arrow with one caveated member",
+			`definition user {}
+
+  definition team {
+    relation direct_member: user with somecaveat
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam >= 42
+  }
+
+  definition resource {
+    relation team: team
+    permission view_by_all = team.all(member)
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:someresource#team@team:first`),
+				tuple.MustParse(`resource:someresource#team@team:second`),
+				tuple.MustParse(`team:first#direct_member@user:tom`),
+				tuple.MustParse(`team:second#direct_member@user:tom[somecaveat:{"someparam": 42}]`),
+			},
+			ONR("resource", "someresource", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+		},
+		{
+			"caveated intersection arrow multiple paths to the same subject",
+			`definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  caveat somecaveat(someparam int) {
+    someparam >= 42
+  }
+
+  definition resource {
+    relation team: team with somecaveat | team#direct_member with somecaveat
+    permission view_by_all = team.all(member) // Note: this points to the same team twice
+  }`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:someresource#team@team:first`),
+				tuple.MustParse(`resource:someresource#team@team:first#direct_member[somecaveat]`),
+				tuple.MustParse(`team:first#direct_member@user:tom`),
+			},
+			ONR("resource", "someresource", "view_by_all"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatAndCtx("somecaveat", nil),
+		},
+		{
+			"recursive all arrow positive result",
+			`definition user {}
+
+			definition folder {
+				relation parent: folder
+				relation owner: user
+
+				permission view = parent.all(owner)
+			}
+
+			definition document {
+				relation folder: folder
+				permission view = folder.all(view)
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("folder:root1#owner@user:tom"),
+				tuple.MustParse("folder:root1#owner@user:fred"),
+				tuple.MustParse("folder:root1#owner@user:sarah"),
+				tuple.MustParse("folder:root2#owner@user:fred"),
+				tuple.MustParse("folder:root2#owner@user:sarah"),
+
+				tuple.MustParse("folder:child1#parent@folder:root1"),
+				tuple.MustParse("folder:child1#parent@folder:root2"),
+
+				tuple.MustParse("folder:child2#parent@folder:root1"),
+				tuple.MustParse("folder:child2#parent@folder:root2"),
+
+				tuple.MustParse("document:doc1#folder@folder:child1"),
+				tuple.MustParse("document:doc1#folder@folder:child2"),
+			},
+			ONR("document", "doc1", "view"),
+			ONR("user", "fred", "..."),
+			v1.ResourceCheckResult_MEMBER,
+			nil,
+		},
+		{
+			"recursive all arrow negative result",
+			`definition user {}
+
+			definition folder {
+				relation parent: folder
+				relation owner: user
+
+				permission view = parent.all(owner)
+			}
+
+			definition document {
+				relation folder: folder
+				permission view = folder.all(view)
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("folder:root1#owner@user:tom"),
+				tuple.MustParse("folder:root1#owner@user:fred"),
+				tuple.MustParse("folder:root1#owner@user:sarah"),
+				tuple.MustParse("folder:root2#owner@user:fred"),
+				tuple.MustParse("folder:root2#owner@user:sarah"),
+
+				tuple.MustParse("folder:child1#parent@folder:root1"),
+				tuple.MustParse("folder:child1#parent@folder:root2"),
+
+				tuple.MustParse("folder:child2#parent@folder:root1"),
+				tuple.MustParse("folder:child2#parent@folder:root2"),
+
+				tuple.MustParse("document:doc1#folder@folder:child1"),
+				tuple.MustParse("document:doc1#folder@folder:child2"),
+			},
+			ONR("document", "doc1", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
+		},
+		{
+			"recursive all arrow negative result due to recursion missing a folder",
+			`definition user {}
+
+			definition folder {
+				relation parent: folder
+				relation owner: user
+
+				permission view = parent.all(owner)
+			}
+
+			definition document {
+				relation folder: folder
+				permission view = folder.all(view)
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("folder:root1#owner@user:tom"),
+				tuple.MustParse("folder:root1#owner@user:fred"),
+				tuple.MustParse("folder:root1#owner@user:sarah"),
+				tuple.MustParse("folder:root2#owner@user:fred"),
+				tuple.MustParse("folder:root2#owner@user:sarah"),
+
+				tuple.MustParse("folder:child1#parent@folder:root1"),
+				tuple.MustParse("folder:child1#parent@folder:root2"),
+				tuple.MustParse("folder:child1#parent@folder:root3"),
+
+				tuple.MustParse("folder:child2#parent@folder:root1"),
+				tuple.MustParse("folder:child2#parent@folder:root2"),
+
+				tuple.MustParse("document:doc1#folder@folder:child1"),
+				tuple.MustParse("document:doc1#folder@folder:child2"),
+			},
+			ONR("document", "doc1", "view"),
+			ONR("user", "fred", "..."),
+			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 		},
 	}
 
@@ -555,7 +1244,19 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			}
 
 			require.Equal(tc.expectedPermissionship, membership)
+
+			if tc.expectedCaveat != nil {
+				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectId].Expression)
+				testutil.RequireProtoEqual(t, tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat")
+			}
 		})
+	}
+}
+
+func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
+	foundFrames.Insert(fmt.Sprintf("%s:%s#%s", trace.Request.ResourceRelation.Namespace, strings.Join(trace.Request.ResourceIds, ","), trace.Request.ResourceRelation.Relation))
+	for _, subTrace := range trace.SubProblems {
+		addFrame(subTrace, foundFrames)
 	}
 }
 

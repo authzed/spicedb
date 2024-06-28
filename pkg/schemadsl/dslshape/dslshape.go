@@ -170,6 +170,13 @@ const (
 	NodePermissionPredicateComputeExpression = "compute-expression"
 
 	//
+	// NodeTypeArrowExpression
+	//
+
+	// The name of the function in the arrow expression.
+	NodeArrowExpressionFunctionName = "function-name"
+
+	//
 	// NodeTypeIdentifer
 	//
 

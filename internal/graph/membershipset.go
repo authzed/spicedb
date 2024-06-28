@@ -62,6 +62,25 @@ func (ms *MembershipSet) AddMemberViaRelationship(
 	ms.addMember(resourceID, intersection)
 }
 
+// AddMemberWithOptionalCaveats adds the given resource ID as a member with the optional caveats combined
+// via intersection.
+func (ms *MembershipSet) AddMemberWithOptionalCaveats(
+	resourceID string,
+	caveats []*core.CaveatExpression,
+) {
+	if len(caveats) == 0 {
+		ms.addMember(resourceID, nil)
+		return
+	}
+
+	intersection := caveats[0]
+	for _, caveat := range caveats[1:] {
+		intersection = caveatAnd(intersection, caveat)
+	}
+
+	ms.addMember(resourceID, intersection)
+}
+
 func (ms *MembershipSet) addMember(resourceID string, caveatExpr *core.CaveatExpression) {
 	existing, ok := ms.membersByID[resourceID]
 	if !ok {
@@ -151,6 +170,17 @@ func (ms *MembershipSet) HasConcreteResourceID(resourceID string) bool {
 
 	found, ok := ms.membersByID[resourceID]
 	return ok && found == nil
+}
+
+// GetResourceID returns a bool indicating whether the resource is found in the set and the
+// associated caveat expression, if any.
+func (ms *MembershipSet) GetResourceID(resourceID string) (bool, *core.CaveatExpression) {
+	if ms == nil {
+		return false, nil
+	}
+
+	caveat, ok := ms.membersByID[resourceID]
+	return ok, caveat
 }
 
 // Size returns the number of elements in the membership set.

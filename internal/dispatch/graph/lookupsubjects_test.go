@@ -24,6 +24,7 @@ import (
 
 var (
 	caveatexpr   = caveats.CaveatExprForTesting
+	caveatAndCtx = caveats.MustCaveatExprForTestingWithContext
 	caveatAnd    = caveats.And
 	caveatInvert = caveats.Invert
 )
@@ -275,7 +276,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 	}
 }
 
-func TestCaveatedLookupSubjects(t *testing.T) {
+func TestLookupSubjectsOverSchema(t *testing.T) {
 	testCases := []struct {
 		name          string
 		schema        string
@@ -704,6 +705,286 @@ func TestCaveatedLookupSubjects(t *testing.T) {
 				{
 					SubjectId:        "fred",
 					CaveatExpression: caveatexpr("somecaveat"),
+				},
+			},
+		},
+		{
+			"simple arrow",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder->view
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder1#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+				{
+					SubjectId: "fred",
+				},
+			},
+		},
+		{
+			"simple any arrow",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder.any(view)
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder1#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+				{
+					SubjectId: "fred",
+				},
+			},
+		},
+		{
+			"simple all arrow",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder.all(view)
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder1#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+				{
+					SubjectId: "fred",
+				},
+			},
+		},
+		{
+			"all arrow multiple",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder.all(view)
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder1#viewer@user:fred"),
+				tuple.MustParse("folder:folder2#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+				tuple.MustParse("document:somedoc#folder@folder:folder2"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "fred",
+				},
+			},
+		},
+		{
+			"all arrow over multiple resource IDs",
+			`definition user {}
+	
+			 definition organization {
+			 	relation member: user
+			 }
+
+			 definition folder {
+   			    relation parent: organization
+				permission view = parent.all(member)
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				permission view = folder->view
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+				tuple.MustParse("document:somedoc#folder@folder:folder2"),
+				tuple.MustParse("folder:folder1#parent@organization:org1"),
+				tuple.MustParse("folder:folder2#parent@organization:org2"),
+				tuple.MustParse("folder:folder2#parent@organization:org3"),
+				tuple.MustParse("organization:org1#member@user:fred"),
+				tuple.MustParse("organization:org2#member@user:tom"),
+				tuple.MustParse("organization:org3#member@user:tom"),
+				tuple.MustParse("organization:org2#member@user:sarah"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+				{
+					SubjectId: "fred",
+				},
+			},
+		},
+		{
+			"intersection arrow over caveated teams",
+			`definition user {}
+	
+			 definition team {
+			 	relation member: user | user with anothercaveat
+			 }
+
+			 caveat caveat1(someparam1 int) {
+				someparam1 == 42
+			 }
+
+ 			 caveat caveat2(someparam2 int) {
+				someparam2 == 42
+			 }
+
+			 caveat anothercaveat(anotherparam int) {
+			 	anotherparam == 43
+			 }
+
+		 	 definition document {
+				relation team: team with caveat1 | team with caveat2
+				permission view = team.all(member)
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse(`document:somedoc#team@team:team1[caveat1:{":someparam1":42}]`),
+				tuple.MustParse(`document:somedoc#team@team:team2[caveat2:{":someparam2":43}]`),
+				tuple.MustParse(`team:team1#member@user:tom`),
+				tuple.MustParse(`team:team2#member@user:tom`),
+				tuple.MustParse(`team:team1#member@user:fred`),
+				tuple.MustParse(`team:team2#member@user:fred[anothercaveat:{":anotherparam":43}]`),
+				tuple.MustParse(`team:team1#member@user:sarah`),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+					CaveatExpression: caveatAnd(
+						caveatAndCtx("caveat1", map[string]interface{}{"someparam1": 42}),
+						caveatAndCtx("caveat2", map[string]interface{}{"someparam2": 43}),
+					),
+				},
+				{
+					SubjectId: "fred",
+					CaveatExpression: caveatAnd(
+						caveatAnd(
+							caveatAndCtx("caveat1", map[string]interface{}{"someparam1": 42}),
+							caveatAndCtx("caveat2", map[string]interface{}{"someparam2": 43}),
+						),
+						caveatAndCtx("anothercaveat", map[string]interface{}{"anotherparam": 43}),
+					),
+				},
+			},
+		},
+		{
+			"all arrow minus banned",
+			`definition user {}
+	
+			 definition folder {
+				relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+			 	relation banned: user
+				relation folder: folder
+				permission view = folder.all(view) - banned
+  		 }`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:folder1#viewer@user:tom"),
+				tuple.MustParse("folder:folder1#viewer@user:fred"),
+				tuple.MustParse("document:somedoc#folder@folder:folder1"),
+				tuple.MustParse("document:somedoc#banned@user:fred"),
+				tuple.MustParse("document:somedoc#banned@user:sarah"),
+			},
+			ONR("document", "somedoc", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "tom",
+				},
+			},
+		},
+		{
+			"recursive all arrow ",
+			`definition user {}
+
+			definition folder {
+				relation parent: folder
+				relation owner: user
+
+				permission view = parent.all(owner)
+			}
+
+			definition document {
+				relation folder: folder
+				permission view = folder.all(view)
+			}`,
+			[]*corev1.RelationTuple{
+				tuple.MustParse("folder:root1#owner@user:tom"),
+				tuple.MustParse("folder:root1#owner@user:fred"),
+				tuple.MustParse("folder:root1#owner@user:sarah"),
+				tuple.MustParse("folder:root2#owner@user:fred"),
+				tuple.MustParse("folder:root2#owner@user:sarah"),
+
+				tuple.MustParse("folder:child1#parent@folder:root1"),
+				tuple.MustParse("folder:child1#parent@folder:root2"),
+
+				tuple.MustParse("folder:child2#parent@folder:root1"),
+				tuple.MustParse("folder:child2#parent@folder:root2"),
+
+				tuple.MustParse("document:doc1#folder@folder:child1"),
+				tuple.MustParse("document:doc1#folder@folder:child2"),
+			},
+			ONR("document", "doc1", "view"),
+			RR("user", "..."),
+			[]*v1.FoundSubject{
+				{
+					SubjectId: "fred",
+				},
+				{
+					SubjectId: "sarah",
 				},
 			},
 		},

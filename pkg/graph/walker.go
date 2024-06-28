@@ -7,7 +7,7 @@ import (
 
 // WalkHandler is a function invoked for each node in the rewrite tree. If it returns non-nil,
 // that value is returned from the walk. Otherwise, the walk continues.
-type WalkHandler func(childOneof *core.SetOperation_Child) interface{}
+type WalkHandler func(childOneof *core.SetOperation_Child) (interface{}, error)
 
 // WalkRewrite walks a userset rewrite tree, invoking the handler found on each node of the tree
 // until the handler returns a non-nil value, which is in turn returned from this function. Returns
@@ -32,12 +32,12 @@ func WalkRewrite(rewrite *core.UsersetRewrite, handler WalkHandler) (interface{}
 // HasThis returns true if there exists a `_this` node anywhere within the given rewrite. If
 // the rewrite is nil, returns false.
 func HasThis(rewrite *core.UsersetRewrite) (bool, error) {
-	result, err := WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) interface{} {
+	result, err := WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) (interface{}, error) {
 		switch childOneof.ChildType.(type) {
 		case *core.SetOperation_Child_XThis:
-			return true
+			return true, nil
 		default:
-			return nil
+			return nil, nil
 		}
 	})
 	return result != nil && result.(bool), err
@@ -45,7 +45,11 @@ func HasThis(rewrite *core.UsersetRewrite) (bool, error) {
 
 func walkRewriteChildren(so *core.SetOperation, handler WalkHandler) (interface{}, error) {
 	for _, childOneof := range so.Child {
-		vle := handler(childOneof)
+		vle, err := handler(childOneof)
+		if err != nil {
+			return nil, err
+		}
+
 		if vle != nil {
 			return vle, nil
 		}

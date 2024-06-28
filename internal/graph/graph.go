@@ -38,10 +38,18 @@ type CheckResult struct {
 	Err  error
 }
 
+func (cr CheckResult) ResultError() error {
+	return cr.Err
+}
+
 // ExpandResult is the data that is returned by a single expand or sub-expand.
 type ExpandResult struct {
 	Resp *v1.DispatchExpandResponse
 	Err  error
+}
+
+func (er ExpandResult) ResultError() error {
+	return er.Err
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.

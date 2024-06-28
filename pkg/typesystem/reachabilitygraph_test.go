@@ -116,6 +116,38 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 			[]string{"document#view"},
 		},
 		{
+			"simple any arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				permission view = org.any(admin)
+			}`,
+			"organization",
+			"admin",
+			[]string{"document#view"},
+		},
+		{
+			"simple all arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				permission view = org.all(admin)
+			}`,
+			"organization",
+			"admin",
+			[]string{"document#view"},
+		},
+		{
 			"complex schema",
 			`definition user {}
 
@@ -316,6 +348,44 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 				relation owner: user
 
 				permission view = viewer + owner + org->admin
+			}`,
+			"document",
+			"view",
+			[]string{"document#viewer", "document#owner", "document#org", "document#view", "organization#admin"},
+		},
+		{
+			"permission with any arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				relation viewer: user
+				relation owner: user
+
+				permission view = viewer + owner + org.any(admin)
+			}`,
+			"document",
+			"view",
+			[]string{"document#viewer", "document#owner", "document#org", "document#view", "organization#admin"},
+		},
+		{
+			"permission with all arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				relation viewer: user
+				relation owner: user
+
+				permission view = viewer + owner + org.all(admin)
 			}`,
 			"document",
 			"view",
@@ -684,6 +754,60 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 		},
 		{
+			"permission with any arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				relation viewer: user
+				relation owner: user
+				permission view = viewer + owner + org.any(admin)
+			}`,
+			rr("document", "view"),
+			rr("user", "..."),
+			[]rrtStruct{
+				rrt("document", "owner", true),
+				rrt("document", "viewer", true),
+				rrt("organization", "admin", true),
+			},
+			[]rrtStruct{
+				rrt("document", "owner", true),
+				rrt("document", "viewer", true),
+				rrt("organization", "admin", true),
+			},
+		},
+		{
+			"permission with all arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				relation viewer: user
+				relation owner: user
+				permission view = viewer + owner + org.all(admin)
+			}`,
+			rr("document", "view"),
+			rr("user", "..."),
+			[]rrtStruct{
+				rrt("document", "owner", true),
+				rrt("document", "viewer", true),
+				rrt("organization", "admin", true),
+			},
+			[]rrtStruct{
+				rrt("document", "owner", true),
+				rrt("document", "viewer", true),
+				rrt("organization", "admin", true),
+			},
+		},
+		{
 			"permission with multi-level arrows",
 			`definition user {}
 
@@ -1011,6 +1135,48 @@ func TestReachabilityGraph(t *testing.T) {
 			},
 			[]rrtStruct{
 				rrt("organization", "viewer", true),
+			},
+		},
+		{
+			"optimized reachability with any arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				permission view = org.any(admin)
+			}`,
+			rr("document", "view"),
+			rr("organization", "admin"),
+			[]rrtStruct{
+				rrt("document", "view", true),
+			},
+			[]rrtStruct{
+				rrt("document", "view", true),
+			},
+		},
+		{
+			"optimized reachability with all arrow",
+			`definition user {}
+
+			definition organization {
+				relation admin: user
+			}
+
+			definition document {
+				relation org: organization
+				permission view = org.all(admin)
+			}`,
+			rr("document", "view"),
+			rr("organization", "admin"),
+			[]rrtStruct{
+				rrt("document", "view", false),
+			},
+			[]rrtStruct{
+				rrt("document", "view", false),
 			},
 		},
 	}

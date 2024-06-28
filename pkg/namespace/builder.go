@@ -264,6 +264,39 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *core.SetOperation
 	}
 }
 
+// MustFunctionedTupleToUserset creates a child which first loads all tuples with the specific relation,
+// and then applies the function to all children on the usersets found by following a relation on those loaded
+// tuples.
+func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation string) *core.SetOperation_Child {
+	function := core.FunctionedTupleToUserset_FUNCTION_ANY
+
+	switch functionName {
+	case "any":
+		// already set to any
+
+	case "all":
+		function = core.FunctionedTupleToUserset_FUNCTION_ALL
+
+	default:
+		panic(spiceerrors.MustBugf("unknown function name: %s", functionName))
+	}
+
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_FunctionedTupleToUserset{
+			FunctionedTupleToUserset: &core.FunctionedTupleToUserset{
+				Function: function,
+				Tupleset: &core.FunctionedTupleToUserset_Tupleset{
+					Relation: tuplesetRelation,
+				},
+				ComputedUserset: &core.ComputedUserset{
+					Relation: usersetRelation,
+					Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
+				},
+			},
+		},
+	}
+}
+
 // Rewrite wraps a rewrite as a set operation child of another rewrite.
 func Rewrite(rewrite *core.UsersetRewrite) *core.SetOperation_Child {
 	return &core.SetOperation_Child{

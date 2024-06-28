@@ -484,11 +484,23 @@ func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentReq
 	case *core.SetOperation_Child_UsersetRewrite:
 		return cc.checkUsersetRewrite(ctx, crc, child.UsersetRewrite)
 	case *core.SetOperation_Child_TupleToUserset:
-		return cc.checkTupleToUserset(ctx, crc, child.TupleToUserset)
+		return checkTupleToUserset(ctx, cc, crc, child.TupleToUserset)
+	case *core.SetOperation_Child_FunctionedTupleToUserset:
+		switch child.FunctionedTupleToUserset.Function {
+		case core.FunctionedTupleToUserset_FUNCTION_ANY:
+			return checkTupleToUserset(ctx, cc, crc, child.FunctionedTupleToUserset)
+
+		case core.FunctionedTupleToUserset_FUNCTION_ALL:
+			return checkIntersectionTupleToUserset(ctx, cc, crc, child.FunctionedTupleToUserset)
+
+		default:
+			return checkResultError(spiceerrors.MustBugf("unknown userset function `%s`", child.FunctionedTupleToUserset.Function), emptyMetadata)
+		}
+
 	case *core.SetOperation_Child_XNil:
 		return noMembers()
 	default:
-		return checkResultError(fmt.Errorf("unknown set operation child `%T` in check", child), emptyMetadata)
+		return checkResultError(spiceerrors.MustBugf("unknown set operation child `%T` in check", child), emptyMetadata)
 	}
 }
 
@@ -576,8 +588,186 @@ func removeIndexFromSlice[T any](s []T, index int) []T {
 	return append(cpy, s[index+1:]...)
 }
 
-func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc currentRequestContext, ttu *core.TupleToUserset) CheckResult {
-	ctx, span := tracer.Start(ctx, ttu.Tupleset.Relation+"->"+ttu.ComputedUserset.Relation)
+type relation interface {
+	GetRelation() string
+}
+
+type ttu[T relation] interface {
+	GetComputedUserset() *core.ComputedUserset
+	GetTupleset() T
+}
+
+type checkResultWithType struct {
+	CheckResult
+
+	relationType *core.RelationReference
+}
+
+func checkIntersectionTupleToUserset(
+	ctx context.Context,
+	cc *ConcurrentChecker,
+	crc currentRequestContext,
+	ttu *core.FunctionedTupleToUserset,
+) CheckResult {
+	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"-(all)->"+ttu.GetComputedUserset().Relation)
+	defer span.End()
+
+	// Query for the subjects over which to walk the TTU.
+	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
+		OptionalResourceIds:      crc.filteredResourceIDs,
+		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
+	})
+	if err != nil {
+		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
+	}
+	defer it.Close()
+
+	subjectsToDispatch := tuple.NewONRByTypeSet()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
+	subjectsByResourceID := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
+	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+		if it.Err() != nil {
+			return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
+		}
+
+		subjectsToDispatch.Add(tpl.Subject)
+		relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
+		subjectsByResourceID.Add(tpl.ResourceAndRelation.ObjectId, tpl.Subject)
+	}
+	it.Close()
+
+	// Convert the subjects into batched requests.
+	// To simplify the logic, +1 is added to account for the situation where
+	// the number of elements is less than the chunk size, and spare us some annoying code.
+	expectedNumberOfChunks := uint16(subjectsToDispatch.ValueLen())/crc.maxDispatchCount + 1
+	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
+	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
+		chunkCount := 0.0
+		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+			chunkCount++
+			toDispatch = append(toDispatch, directDispatch{
+				resourceType: rr,
+				resourceIds:  resourceIdChunk,
+			})
+		})
+		dispatchChunkCountHistogram.Observe(chunkCount)
+	})
+
+	if subjectsToDispatch.IsEmpty() {
+		return noMembers()
+	}
+
+	// Run the dispatch for all the chunks. Unlike a standard TTU, we do *not* perform mapping here,
+	// as we need to access the results on a per subject basis. Instead, we keep each result and map
+	// by the relation type of the dispatched subject.
+	chunkResults, err := run(
+		ctx,
+		currentRequestContext{
+			parentReq:           crc.parentReq,
+			filteredResourceIDs: crc.filteredResourceIDs,
+			resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+			maxDispatchCount:    crc.maxDispatchCount,
+		},
+		toDispatch,
+		func(ctx context.Context, crc currentRequestContext, dd directDispatch) checkResultWithType {
+			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), dd.resourceType, dd.resourceIds)
+			return checkResultWithType{
+				CheckResult:  childResult,
+				relationType: dd.resourceType,
+			}
+		},
+		cc.concurrencyLimit,
+	)
+	if err != nil {
+		return checkResultError(err, emptyMetadata)
+	}
+
+	// Create a membership set per-subject-type, representing the membership for each of the dispatched subjects.
+	resultsByDispatchedSubject := map[string]*MembershipSet{}
+	combinedMetadata := emptyMetadata
+	for _, result := range chunkResults {
+		if result.Err != nil {
+			return checkResultError(result.Err, emptyMetadata)
+		}
+
+		typeKey := tuple.StringRR(result.relationType)
+		if _, ok := resultsByDispatchedSubject[typeKey]; !ok {
+			resultsByDispatchedSubject[typeKey] = NewMembershipSet()
+		}
+
+		resultsByDispatchedSubject[typeKey].UnionWith(result.Resp.ResultsByResourceId)
+		combinedMetadata = combineResponseMetadata(combinedMetadata, result.Resp.Metadata)
+	}
+
+	// For each resource ID, check that there exist some sort of permission for *each* subject. If not, then the
+	// intersection for that resource fails. If all subjects have some sort of permission, then the resource ID is
+	// a member, perhaps caveated.
+	resourcesFound := NewMembershipSet()
+	for _, resourceID := range subjectsByResourceID.Keys() {
+		subjects, _ := subjectsByResourceID.Get(resourceID)
+		if len(subjects) == 0 {
+			return checkResultError(spiceerrors.MustBugf("no subjects found for resource ID %s", resourceID), emptyMetadata)
+		}
+
+		hasAllSubjects := true
+		caveats := make([]*core.CaveatExpression, 0, len(subjects))
+
+		// Check each of the subjects found for the resource ID and ensure that membership (at least caveated)
+		// was found for each. If any are not found, then the resource ID is not a member.
+		// We also collect up the caveats for each subject, as they will be added to the final result.
+		for _, subject := range subjects {
+			subjectTypeKey := tuple.StringRR(&core.RelationReference{
+				Namespace: subject.Namespace,
+				Relation:  subject.Relation,
+			})
+
+			results, ok := resultsByDispatchedSubject[subjectTypeKey]
+			if !ok {
+				hasAllSubjects = false
+				break
+			}
+
+			hasMembership, caveat := results.GetResourceID(subject.ObjectId)
+			if !hasMembership {
+				hasAllSubjects = false
+				break
+			}
+
+			if caveat != nil {
+				caveats = append(caveats, caveat)
+			}
+
+			// Add any caveats on the subject from the starting relationship(s) as well.
+			subjectKey := tuple.StringONR(subject)
+			tuples, _ := relationshipsBySubjectONR.Get(subjectKey)
+			for _, relationTuple := range tuples {
+				if relationTuple.Caveat != nil {
+					caveats = append(caveats, wrapCaveat(relationTuple.Caveat))
+				}
+			}
+		}
+
+		if !hasAllSubjects {
+			continue
+		}
+
+		// Add the member to the membership set, with the caveats for each (if any).
+		resourcesFound.AddMemberWithOptionalCaveats(resourceID, caveats)
+	}
+
+	return checkResultsForMembership(resourcesFound, combinedMetadata)
+}
+
+func checkTupleToUserset[T relation](
+	ctx context.Context,
+	cc *ConcurrentChecker,
+	crc currentRequestContext,
+	ttu ttu[T],
+) CheckResult {
+	ctx, span := tracer.Start(ctx, ttu.GetTupleset().GetRelation()+"->"+ttu.GetComputedUserset().Relation)
 	defer span.End()
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
@@ -585,7 +775,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      crc.filteredResourceIDs,
-		OptionalResourceRelation: ttu.Tupleset.Relation,
+		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 	})
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -607,7 +797,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 	// Convert the subjects into batched requests.
 	// To simplify the logic, +1 is added to account for the situation where
 	// the number of elements is less than the chunk size, and spare us some annoying code.
-	expectedNumberOfChunks := subjectsToDispatch.ValueLen()/int(crc.maxDispatchCount) + 1
+	expectedNumberOfChunks := uint16(subjectsToDispatch.ValueLen())/crc.maxDispatchCount + 1
 	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
@@ -626,7 +816,7 @@ func (cc *ConcurrentChecker) checkTupleToUserset(ctx context.Context, crc curren
 		crc,
 		toDispatch,
 		func(ctx context.Context, crc currentRequestContext, dd directDispatch) CheckResult {
-			childResult := cc.checkComputedUserset(ctx, crc, ttu.ComputedUserset, dd.resourceType, dd.resourceIds)
+			childResult := cc.checkComputedUserset(ctx, crc, ttu.GetComputedUserset(), dd.resourceType, dd.resourceIds)
 			if childResult.Err != nil {
 				return childResult
 			}
@@ -646,6 +836,42 @@ func withDistinctMetadata(result CheckResult) CheckResult {
 		Resp: clonedResp,
 		Err:  result.Err,
 	}
+}
+
+// run runs all the children in parallel and returns the full set of results.
+func run[T any, R withError](
+	ctx context.Context,
+	crc currentRequestContext,
+	children []T,
+	handler func(ctx context.Context, crc currentRequestContext, child T) R,
+	concurrencyLimit uint16,
+) ([]R, error) {
+	if len(children) == 0 {
+		return nil, nil
+	}
+
+	if len(children) == 1 {
+		return []R{handler(ctx, crc, children[0])}, nil
+	}
+
+	resultChan := make(chan R, len(children))
+	childCtx, cancelFn := context.WithCancel(ctx)
+	dispatchAllAsync(childCtx, crc, children, handler, resultChan, concurrencyLimit)
+	defer cancelFn()
+
+	results := make([]R, 0, len(children))
+	for i := 0; i < len(children); i++ {
+		select {
+		case result := <-resultChan:
+			results = append(results, result)
+
+		case <-ctx.Done():
+			log.Ctx(ctx).Trace().Msg("anyCanceled")
+			return nil, ctx.Err()
+		}
+	}
+
+	return results, nil
 }
 
 // union returns whether any one of the lazy checks pass, and is used for union.
@@ -832,12 +1058,16 @@ func difference[T any](
 	return checkResultsForMembership(membershipSet, responseMetadata)
 }
 
-func dispatchAllAsync[T any](
+type withError interface {
+	ResultError() error
+}
+
+func dispatchAllAsync[T any, R withError](
 	ctx context.Context,
 	crc currentRequestContext,
 	children []T,
-	handler func(ctx context.Context, crc currentRequestContext, child T) CheckResult,
-	resultChan chan<- CheckResult,
+	handler func(ctx context.Context, crc currentRequestContext, child T) R,
+	resultChan chan<- R,
 	concurrencyLimit uint16,
 ) {
 	tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, len(children))
@@ -846,7 +1076,7 @@ func dispatchAllAsync[T any](
 		tr.Add(func(ctx context.Context) error {
 			result := handler(ctx, crc, currentChild)
 			resultChan <- result
-			return result.Err
+			return result.ResultError()
 		})
 	}
 

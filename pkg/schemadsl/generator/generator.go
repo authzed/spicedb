@@ -221,7 +221,7 @@ func (sg *sourceGenerator) emitRelation(relation *core.Relation) error {
 
 	if relation.UsersetRewrite != nil {
 		sg.append(" = ")
-		sg.emitRewrite(relation.UsersetRewrite)
+		sg.mustEmitRewrite(relation.UsersetRewrite)
 	}
 
 	sg.appendLine()
@@ -243,7 +243,7 @@ func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRela
 	}
 }
 
-func (sg *sourceGenerator) emitRewrite(rewrite *core.UsersetRewrite) {
+func (sg *sourceGenerator) mustEmitRewrite(rewrite *core.UsersetRewrite) {
 	switch rw := rewrite.RewriteOperation.(type) {
 	case *core.UsersetRewrite_Union:
 		sg.emitRewriteOps(rw.Union, "+")
@@ -251,6 +251,8 @@ func (sg *sourceGenerator) emitRewrite(rewrite *core.UsersetRewrite) {
 		sg.emitRewriteOps(rw.Intersection, "&")
 	case *core.UsersetRewrite_Exclusion:
 		sg.emitRewriteOps(rw.Exclusion, "-")
+	default:
+		panic(spiceerrors.MustBugf("unknown rewrite operation %T", rw))
 	}
 }
 
@@ -260,7 +262,7 @@ func (sg *sourceGenerator) emitRewriteOps(setOp *core.SetOperation, op string) {
 			sg.append(" " + op + " ")
 		}
 
-		sg.emitSetOpChild(child)
+		sg.mustEmitSetOpChild(child)
 	}
 }
 
@@ -283,16 +285,16 @@ func (sg *sourceGenerator) isAllUnion(rewrite *core.UsersetRewrite) bool {
 	}
 }
 
-func (sg *sourceGenerator) emitSetOpChild(setOpChild *core.SetOperation_Child) {
+func (sg *sourceGenerator) mustEmitSetOpChild(setOpChild *core.SetOperation_Child) {
 	switch child := setOpChild.ChildType.(type) {
 	case *core.SetOperation_Child_UsersetRewrite:
 		if sg.isAllUnion(child.UsersetRewrite) {
-			sg.emitRewrite(child.UsersetRewrite)
+			sg.mustEmitRewrite(child.UsersetRewrite)
 			break
 		}
 
 		sg.append("(")
-		sg.emitRewrite(child.UsersetRewrite)
+		sg.mustEmitRewrite(child.UsersetRewrite)
 		sg.append(")")
 
 	case *core.SetOperation_Child_XThis:
@@ -308,6 +310,28 @@ func (sg *sourceGenerator) emitSetOpChild(setOpChild *core.SetOperation_Child) {
 		sg.append(child.TupleToUserset.Tupleset.Relation)
 		sg.append("->")
 		sg.append(child.TupleToUserset.ComputedUserset.Relation)
+
+	case *core.SetOperation_Child_FunctionedTupleToUserset:
+		sg.append(child.FunctionedTupleToUserset.Tupleset.Relation)
+		sg.append(".")
+
+		switch child.FunctionedTupleToUserset.Function {
+		case core.FunctionedTupleToUserset_FUNCTION_ALL:
+			sg.append("all")
+
+		case core.FunctionedTupleToUserset_FUNCTION_ANY:
+			sg.append("any")
+
+		default:
+			panic(spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.Function))
+		}
+
+		sg.append("(")
+		sg.append(child.FunctionedTupleToUserset.ComputedUserset.Relation)
+		sg.append(")")
+
+	default:
+		panic(spiceerrors.MustBugf("unknown child type %T", child))
 	}
 }
 

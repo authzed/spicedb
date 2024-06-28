@@ -305,7 +305,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.Error(err)
 }
 
-func TestCaveatedExpand(t *testing.T) {
+func TestExpandOverSchema(t *testing.T) {
 	defer goleak.VerifyNone(t, goleakIgnores...)
 
 	testCases := []struct {
@@ -318,6 +318,180 @@ func TestCaveatedExpand(t *testing.T) {
 		expansionMode    v1.DispatchExpandRequest_ExpansionMode
 		expectedTreeText string
 	}{
+		{
+			"basic any arrow",
+			`
+			definition user {}
+
+			definition folder {
+				relation viewer: user
+			}
+			
+			definition document {
+				relation folder: folder
+				permission view = folder->viewer
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#folder@folder:testfolder1"),
+				tuple.MustParse("document:testdoc#folder@folder:testfolder2"),
+				tuple.MustParse("folder:testfolder1#viewer@user:tom"),
+				tuple.MustParse("folder:testfolder1#viewer@user:fred"),
+				tuple.MustParse("folder:testfolder2#viewer@user:sarah"),
+			},
+
+			tuple.ParseONR("document:testdoc#view"),
+
+			v1.DispatchExpandRequest_SHALLOW,
+			`intermediate_node:  {
+				operation:  UNION
+				child_nodes:  {
+				intermediate_node:  {
+					operation:  UNION
+					child_nodes:  {
+					leaf_node:  {
+						subjects:  {
+						subject:  {
+							namespace:  "user"
+							object_id:  "fred"
+							relation:  "..."
+						}
+						}
+						subjects:  {
+						subject:  {
+							namespace:  "user"
+							object_id:  "tom"
+							relation:  "..."
+						}
+						}
+					}
+					expanded:  {
+						namespace:  "folder"
+						object_id:  "testfolder1"
+						relation:  "viewer"
+					}
+					}
+					child_nodes:  {
+					leaf_node:  {
+						subjects:  {
+						subject:  {
+							namespace:  "user"
+							object_id:  "sarah"
+							relation:  "..."
+						}
+						}
+					}
+					expanded:  {
+						namespace:  "folder"
+						object_id:  "testfolder2"
+						relation:  "viewer"
+					}
+					}
+				}
+				expanded:  {
+					namespace:  "document"
+					object_id:  "testdoc"
+					relation:  "view"
+				}
+				}
+			}
+			expanded:  {
+				namespace:  "document"
+				object_id:  "testdoc"
+				relation:  "view"
+			}`,
+		},
+		{
+			"basic all arrow",
+			`
+			definition user {}
+
+			definition folder {
+				relation viewer: user
+			}
+			
+			definition document {
+				relation folder: folder
+				permission view = folder.all(viewer)
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#folder@folder:testfolder1"),
+				tuple.MustParse("document:testdoc#folder@folder:testfolder2"),
+				tuple.MustParse("folder:testfolder1#viewer@user:tom"),
+				tuple.MustParse("folder:testfolder1#viewer@user:fred"),
+				tuple.MustParse("folder:testfolder2#viewer@user:tom"),
+				tuple.MustParse("folder:testfolder2#viewer@user:sarah"),
+			},
+
+			tuple.ParseONR("document:testdoc#view"),
+
+			v1.DispatchExpandRequest_SHALLOW,
+			`
+			intermediate_node: {
+				operation: UNION
+				child_nodes: {
+				intermediate_node: {
+					operation: INTERSECTION
+					child_nodes: {
+					leaf_node: {
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "fred"
+							relation: "..."
+						}
+						}
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "tom"
+							relation: "..."
+						}
+						}
+					}
+					expanded: {
+						namespace: "folder"
+						object_id: "testfolder1"
+						relation: "viewer"
+					}
+					}
+					child_nodes: {
+					leaf_node: {
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "sarah"
+							relation: "..."
+						}
+						}
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "tom"
+							relation: "..."
+						}
+						}
+					}
+					expanded: {
+						namespace: "folder"
+						object_id: "testfolder2"
+						relation: "viewer"
+					}
+					}
+				}
+				expanded: {
+					namespace: "document"
+					object_id: "testdoc"
+					relation: "view"
+				}
+				}
+			}
+			expanded: {
+				namespace: "document"
+				object_id: "testdoc"
+				relation: "view"
+			}
+			`,
+		},
 		{
 			"basic caveated subject",
 			`

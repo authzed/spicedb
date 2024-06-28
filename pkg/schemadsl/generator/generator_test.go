@@ -353,6 +353,15 @@ definition foos/document {
 	permission minus = (rela - relb) - relc
 }`,
 		},
+		{
+			"different kinds of arrows",
+			`definition document{
+	permission first = rela->relb + relc.any(reld) + rele.all(relf)
+}`,
+			`definition document {
+	permission first = rela->relb + relc.any(reld) + rele.all(relf)
+}`,
+		},
 	}
 
 	for _, test := range tests {
