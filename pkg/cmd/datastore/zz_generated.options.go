@@ -43,6 +43,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.ReadOnly = c.ReadOnly
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 		to.DisableStats = c.DisableStats
+		to.ReadReplicaConnPool = c.ReadReplicaConnPool
+		to.ReadReplicaURIs = c.ReadReplicaURIs
+		to.ReadReplicaCredentialsProviderName = c.ReadReplicaCredentialsProviderName
 		to.BootstrapFiles = c.BootstrapFiles
 		to.BootstrapFileContents = c.BootstrapFileContents
 		to.BootstrapOverwrite = c.BootstrapOverwrite
@@ -86,6 +89,9 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["ReadOnly"] = helpers.DebugValue(c.ReadOnly, false)
 	debugMap["EnableDatastoreMetrics"] = helpers.DebugValue(c.EnableDatastoreMetrics, false)
 	debugMap["DisableStats"] = helpers.DebugValue(c.DisableStats, false)
+	debugMap["ReadReplicaConnPool"] = helpers.DebugValue(c.ReadReplicaConnPool, false)
+	debugMap["ReadReplicaURIs"] = helpers.SensitiveDebugValue(c.ReadReplicaURIs)
+	debugMap["ReadReplicaCredentialsProviderName"] = helpers.DebugValue(c.ReadReplicaCredentialsProviderName, false)
 	debugMap["BootstrapFiles"] = helpers.DebugValue(c.BootstrapFiles, true)
 	debugMap["BootstrapFileContents"] = helpers.DebugValue(c.BootstrapFileContents, false)
 	debugMap["BootstrapOverwrite"] = helpers.DebugValue(c.BootstrapOverwrite, false)
@@ -211,6 +217,34 @@ func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
 func WithDisableStats(disableStats bool) ConfigOption {
 	return func(c *Config) {
 		c.DisableStats = disableStats
+	}
+}
+
+// WithReadReplicaConnPool returns an option that can set ReadReplicaConnPool on a Config
+func WithReadReplicaConnPool(readReplicaConnPool ConnPoolConfig) ConfigOption {
+	return func(c *Config) {
+		c.ReadReplicaConnPool = readReplicaConnPool
+	}
+}
+
+// WithReadReplicaURIs returns an option that can append ReadReplicaURIss to Config.ReadReplicaURIs
+func WithReadReplicaURIs(readReplicaURIs string) ConfigOption {
+	return func(c *Config) {
+		c.ReadReplicaURIs = append(c.ReadReplicaURIs, readReplicaURIs)
+	}
+}
+
+// SetReadReplicaURIs returns an option that can set ReadReplicaURIs on a Config
+func SetReadReplicaURIs(readReplicaURIs []string) ConfigOption {
+	return func(c *Config) {
+		c.ReadReplicaURIs = readReplicaURIs
+	}
+}
+
+// WithReadReplicaCredentialsProviderName returns an option that can set ReadReplicaCredentialsProviderName on a Config
+func WithReadReplicaCredentialsProviderName(readReplicaCredentialsProviderName string) ConfigOption {
+	return func(c *Config) {
+		c.ReadReplicaCredentialsProviderName = readReplicaCredentialsProviderName
 	}
 }
 

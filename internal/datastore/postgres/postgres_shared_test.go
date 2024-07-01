@@ -86,7 +86,7 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 
 			test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-					ds, err := newPostgresDatastore(ctx, uri,
+					ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 						RevisionQuantization(revisionQuantization),
 						GCWindow(gcWindow),
 						GCInterval(gcInterval),
@@ -176,6 +176,16 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 					WatchBufferLength(50),
 					MigrationPhase(config.migrationPhase),
 				))
+
+				t.Run("TestStrictReadMode", createReplicaDatastoreTest(
+					b,
+					StrictReadModeTest,
+					RevisionQuantization(0),
+					GCWindow(1000*time.Second),
+					WatchBufferLength(50),
+					MigrationPhase(config.migrationPhase),
+					ReadStrictMode(true),
+				))
 			}
 
 			t.Run("OTelTracing", createDatastoreTest(
@@ -203,7 +213,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, pc []postgresCon
 			// NOTE: watch API requires the commit timestamps, so we skip those tests here.
 			test.AllWithExceptions(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 				ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-					ds, err := newPostgresDatastore(ctx, uri,
+					ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID,
 						RevisionQuantization(revisionQuantization),
 						GCWindow(gcWindow),
 						GCInterval(gcInterval),
@@ -225,7 +235,21 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 	return func(t *testing.T) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := newPostgresDatastore(ctx, uri, options...)
+			ds, err := newPostgresDatastore(ctx, uri, primaryInstanceID, options...)
+			require.NoError(t, err)
+			return ds
+		})
+		defer ds.Close()
+
+		tf(t, ds)
+	}
+}
+
+func createReplicaDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
+	return func(t *testing.T) {
+		ctx := context.Background()
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := newPostgresDatastore(ctx, uri, 42, options...)
 			require.NoError(t, err)
 			return ds
 		})
@@ -635,6 +659,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				ds, err := newPostgresDatastore(
 					ctx,
 					uri,
+					primaryInstanceID,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
@@ -1136,6 +1161,7 @@ func WatchNotEnabledTest(t *testing.T, _ testdatastore.RunningEngineForTest, pgV
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ctx := context.Background()
 		ds, err := newPostgresDatastore(ctx, uri,
+			primaryInstanceID,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
@@ -1162,6 +1188,7 @@ func BenchmarkPostgresQuery(b *testing.B) {
 	ds := testdatastore.RunPostgresForTesting(b, "", migrate.Head, pgversion.MinimumSupportedPostgresVersion, false).NewDatastore(b, func(engine, uri string) datastore.Datastore {
 		ctx := context.Background()
 		ds, err := newPostgresDatastore(ctx, uri,
+			primaryInstanceID,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
@@ -1197,6 +1224,7 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	ds := testdatastore.RunPostgresForTestingWithCommitTimestamps(t, "", migrate.Head, false, pgVersion, false).NewDatastore(t, func(engine, uri string) datastore.Datastore {
 		ctx := context.Background()
 		ds, err := newPostgresDatastore(ctx, uri,
+			primaryInstanceID,
 			RevisionQuantization(0),
 			GCWindow(time.Millisecond*1),
 			WatchBufferLength(1),
@@ -1404,6 +1432,38 @@ func RepairTransactionsTest(t *testing.T, ds datastore.Datastore) {
 	err = pds.writePool.QueryRow(context.Background(), queryCurrentTransactionID).Scan(&currentMaximumID)
 	require.NoError(t, err)
 	require.Greater(t, currentMaximumID, 12345)
+}
+
+func StrictReadModeTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Perform a read at the head revision, which should succeed.
+	reader := ds.SnapshotReader(lowestRevision)
+	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	})
+	require.NoError(err)
+	it.Close()
+
+	// Perform a read at a manually constructed revision beyond head, which should fail.
+	badRev := postgresRevision{
+		snapshot: pgSnapshot{
+			xmax: 9999999999999999999,
+		},
+	}
+
+	_, err = ds.SnapshotReader(badRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	})
+	require.Error(err)
+	require.ErrorContains(err, "is not available on the replica")
+	require.ErrorAs(err, &common.RevisionUnavailableError{})
 }
 
 func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {

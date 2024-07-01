@@ -118,3 +118,13 @@ func RedactAndLogSensitiveConnString(ctx context.Context, baseErr string, err er
 	log.Ctx(ctx).Trace().Msg(baseErr + ": " + filtered)
 	return fmt.Errorf("%s. To view details of this error (that may contain sensitive information), please run with --log-level=trace", baseErr)
 }
+
+// RevisionUnavailableError is returned when a revision is not available on a replica.
+type RevisionUnavailableError struct {
+	error
+}
+
+// NewRevisionUnavailableError creates a new RevisionUnavailableError.
+func NewRevisionUnavailableError(err error) error {
+	return RevisionUnavailableError{err}
+}

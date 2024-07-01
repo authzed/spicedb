@@ -33,7 +33,7 @@ func SeparateContextWithTracing(ctx context.Context) context.Context {
 //
 // This is useful for datastores that do not want to close connections when a
 // cancel or deadline occurs.
-func NewSeparatingContextDatastoreProxy(d datastore.Datastore) datastore.Datastore {
+func NewSeparatingContextDatastoreProxy(d datastore.Datastore) datastore.StrictReadDatastore {
 	return &ctxProxy{d}
 }
 
@@ -45,6 +45,20 @@ func (p *ctxProxy) ReadWriteTx(
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	return p.delegate.ReadWriteTx(ctx, f, opts...)
+}
+
+func (p *ctxProxy) IsStrictReadModeEnabled() bool {
+	ds := p.delegate
+	unwrapped, ok := p.delegate.(datastore.UnwrappableDatastore)
+	if ok {
+		ds = unwrapped.Unwrap()
+	}
+
+	if srm, ok := ds.(datastore.StrictReadDatastore); ok {
+		return srm.IsStrictReadModeEnabled()
+	}
+
+	return false
 }
 
 func (p *ctxProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {

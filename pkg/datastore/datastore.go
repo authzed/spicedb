@@ -541,15 +541,11 @@ func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptio
 	}
 }
 
-// Datastore represents tuple access for a single namespace.
-type Datastore interface {
+// ReadOnlyDatastore is an interface for reading relationships from the datastore.
+type ReadOnlyDatastore interface {
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader
-
-	// ReadWriteTx starts a read/write transaction, which will be committed if no error is
-	// returned and rolled back if an error is returned.
-	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
 
 	// OptimizedRevision gets a revision that will likely already be replicated
 	// and will likely be shared amongst many queries.
@@ -586,6 +582,23 @@ type Datastore interface {
 
 	// Close closes the data store.
 	Close() error
+}
+
+// Datastore represents tuple access for a single namespace.
+type Datastore interface {
+	ReadOnlyDatastore
+
+	// ReadWriteTx starts a read/write transaction, which will be committed if no error is
+	// returned and rolled back if an error is returned.
+	ReadWriteTx(context.Context, TxUserFunc, ...options.RWTOptionsOption) (Revision, error)
+}
+
+// StrictReadDatastore is an interface for datastores that support strict read mode.
+type StrictReadDatastore interface {
+	Datastore
+
+	// IsStrictReadModeEnabled returns whether the datastore is in strict read mode.
+	IsStrictReadModeEnabled() bool
 }
 
 type strArray []string
