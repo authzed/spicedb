@@ -1,6 +1,6 @@
 ---
 name: "Security"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "!dependabot/*"
@@ -16,7 +16,7 @@ env:
 jobs:
   codeql:
     name: "CodeQL Analyze"
-    if: "${{ github.event_name == 'pull_request' }}"  # workaround to https://github.com/github/codeql-action/issues/1537
+    if: "${{ github.event_name == 'pull_request' }}" # workaround to https://github.com/github/codeql-action/issues/1537
     runs-on: "buildjet-8vcpu-ubuntu-2204"
     timeout-minutes: "${{ (matrix.language == 'swift' && 120) || 360 }}"
     permissions:
@@ -67,18 +67,12 @@ jobs:
           format: "table"
           exit-code: "1"
           severity: "CRITICAL,HIGH,MEDIUM"
-      # Workaround until goreleaser release supports --single-target
-      # makes the build faster by not building everything
-      - name: "modify goreleaser config to skip building all targets"
-        run: |
-          echo "partial:
-            by: target" >> .goreleaser.yml
       - uses: "goreleaser/goreleaser-action@v6"
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"
           version: "latest"
-          args: "release --clean --split --snapshot"
+          args: "release --clean --split --snapshot --single-target --skip=chocolatey"
         env:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
       - name: "Obtain container image to scan"
