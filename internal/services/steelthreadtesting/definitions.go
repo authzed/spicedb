@@ -133,4 +133,20 @@ var steelThreadTestCases = []steelThreadTestCase{
 			},
 		},
 	},
+	{
+		name:     "lookup subjects intersection arrow",
+		datafile: "document-with-intersect-arrow.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "uncursored lookup subjects for somedoc",
+				operationName: "lookupSubjects",
+				arguments: map[string]any{
+					"resource_type":      "document",
+					"resource_object_id": "somedoc",
+					"permission":         "view",
+					"subject_type":       "user",
+				},
+			},
+		},
+	},
 }
