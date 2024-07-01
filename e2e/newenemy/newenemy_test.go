@@ -198,7 +198,7 @@ func TestNoNewEnemy(t *testing.T) {
 	fill(ctx, t, vulnerableSpiceDB[0].Client().V1().Permissions(), prefix, generator.NewUniqueGenerator(objIDRegex), 500, 500)
 
 	t.Log("modifying time")
-	require.NoError(t, crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack-1.log"), 1, -200*time.Millisecond))
+	require.NoError(t, crdb.TimeDelay(ctx, e2e.MustFile(ctx, t, "timeattack-1.log"), 1, -40*time.Millisecond))
 
 	tests := []struct {
 		name            string
