@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sort"
 
@@ -583,27 +584,55 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 			// The stream that collects the results of the dispatch will add metadata to the response,
 			// map the results found based on the mapping data in the results and, if the entrypoint is not
 			// direct, issue a check to further filter the results.
-			stream, completed := lookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, entrypoint, ci, parentRequest, crr.dc)
+			currentCursor := ci.currentCursor
 
-			// Dispatch the found resources as the subjects for the next call, to continue the
-			// resolution.
-			err = crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-				ResourceRelation: parentRequest.ResourceRelation,
-				SubjectRelation:  newSubjectType,
-				SubjectIds:       filteredSubjectIDs,
-				TerminalSubject:  parentRequest.TerminalSubject,
-				Metadata: &v1.ResolverMeta{
-					AtRevision:     parentRequest.Revision.String(),
-					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-				},
-				OptionalCursor: ci.currentCursor,
-				OptionalLimit:  ci.limits.currentLimit,
-			}, stream)
-			if err != nil {
-				return err
+			// Loop until we've produced enough results to satisfy the limit. This is necessary because
+			// the dispatch may return a set of results that, after checking, is less than the limit.
+			for {
+				stream, completed := lookupResourcesDispatchStreamForEntrypoint(ctx, foundResources, parentStream, entrypoint, ci, parentRequest, crr.dc)
+
+				// NOTE: if the entrypoint is a direct result, then all results returned by the dispatch will, themselves,
+				// be direct results. In this case, we can request the full limit of results. If the entrypoint is not a
+				// direct result, then we must request more than the limit in the hope that we get enough results to satisfy the
+				// limit after filtering.
+				var limit uint32 = uint32(datastore.FilterMaximumIDCount)
+				if entrypoint.IsDirectResult() {
+					limit = parentRequest.OptionalLimit
+				}
+
+				// Dispatch the found resources as the subjects for the next call, to continue the
+				// resolution.
+				err = crr.dl.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+					ResourceRelation: parentRequest.ResourceRelation,
+					SubjectRelation:  newSubjectType,
+					SubjectIds:       filteredSubjectIDs,
+					TerminalSubject:  parentRequest.TerminalSubject,
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     parentRequest.Revision.String(),
+						DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+					},
+					OptionalCursor: currentCursor,
+					OptionalLimit:  limit, // Request more than the limit to hopefully get enough results.
+				}, stream)
+				if err != nil {
+					// If the dispatch was canceled due to the limit, do not treat it as an error.
+					if errors.Is(err, errCanceledBecauseLimitReached) {
+						return err
+					}
+				}
+
+				nextCursor, err := completed()
+				if err != nil {
+					return err
+				}
+
+				if nextCursor == nil || ci.limits.hasExhaustedLimit() {
+					break
+				}
+				currentCursor = nextCursor
 			}
 
-			return completed()
+			return nil
 		})
 }
 
@@ -615,25 +644,20 @@ func lookupResourcesDispatchStreamForEntrypoint(
 	ci cursorInformation,
 	parentRequest ValidatedLookupResources2Request,
 	dc dispatch.Check,
-) (dispatch.LookupResources2Stream, func() error) {
+) (dispatch.LookupResources2Stream, func() (*v1.Cursor, error)) {
 	// Branch the context so that the dispatch can be canceled without canceling the parent
 	// call.
 	sctx, cancelDispatch := branchContext(ctx)
 
 	needsCallAddedToMetadata := true
 	resultsToCheck := make([]*v1.DispatchLookupResources2Response, 0, int(datastore.FilterMaximumIDCount))
+	var nextCursor *v1.Cursor
 
 	publishResultToParentStream := func(
 		result *v1.DispatchLookupResources2Response,
 		additionalMissingContext []string,
 		additionalMetadata *v1.ResponseMeta,
 	) error {
-		// If we've exhausted the limit of resources to be returned, nothing more to do.
-		if ci.limits.hasExhaustedLimit() {
-			cancelDispatch(errCanceledBecauseLimitReached)
-			return nil
-		}
-
 		// Map the found resources via the subject+resources used for dispatching, to determine
 		// if any need to be made conditional due to caveats.
 		mappedResource, err := foundResources.mapPossibleResource(result.Resource)
@@ -666,7 +690,7 @@ func lookupResourcesDispatchStreamForEntrypoint(
 			metadata = addAdditionalDepthRequired(metadata)
 		}
 
-		missingContextParameters := mapz.NewSet[string](mappedResource.MissingContextParams...)
+		missingContextParameters := mapz.NewSet(mappedResource.MissingContextParams...)
 		missingContextParameters.Extend(result.Resource.MissingContextParams)
 		missingContextParameters.Extend(additionalMissingContext)
 
@@ -766,6 +790,8 @@ func lookupResourcesDispatchStreamForEntrypoint(
 		default:
 		}
 
+		nextCursor = result.AfterResponseCursor
+
 		// If the entrypoint is a direct result, simply publish the found resource.
 		if entrypoint.IsDirectResult() {
 			return publishResultToParentStream(result, nil, emptyMetadata)
@@ -775,9 +801,8 @@ func lookupResourcesDispatchStreamForEntrypoint(
 		return batchCheckAndPublishIfNecessary(result)
 	})
 
-	return wrappedStream, func() error {
+	return wrappedStream, func() (*v1.Cursor, error) {
 		defer cancelDispatch(nil)
-
-		return batchCheckAndPublishIfNecessary(nil)
+		return nextCursor, batchCheckAndPublishIfNecessary(nil)
 	}
 }

@@ -17,6 +17,7 @@ schema: |+
     permission view = (viewer - banned) + edit
     permission vsb = viewer - banned
     permission indirect_view = vsb + edit
+    permission vsb_plus_nil = vsb + nil
   }
 
 relationships: |
