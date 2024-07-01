@@ -101,6 +101,9 @@ func runSteelThreadTest(t *testing.T, tc steelThreadTestCase, ds datastore.Datas
 
 			// Read in the expected results file.
 			resultsFileName := fmt.Sprintf("steelresults/%s-%s-results.yaml", slug.Make(tc.name), slug.Make(operationInfo.name))
+			if operationInfo.resultsFileName != "" {
+				resultsFileName = "steelresults/" + operationInfo.resultsFileName
+			}
 
 			if os.Getenv("REGENERATE_STEEL_RESULTS") == "true" {
 				err := os.WriteFile(resultsFileName, []byte("---\n"+string(actual)), 0o644)
