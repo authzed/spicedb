@@ -733,6 +733,8 @@ func (m *V1Cursor) validate(all bool) error {
 
 	// no validation rules for DispatchVersion
 
+	// no validation rules for DatastoreUniqueId
+
 	if len(errors) > 0 {
 		return V1CursorMultiError(errors)
 	}
@@ -1588,6 +1590,8 @@ func (m *DecodedZedToken_V1ZedToken) validate(all bool) error {
 	var errors []error
 
 	// no validation rules for Revision
+
+	// no validation rules for DatastoreUniqueId
 
 	if len(errors) > 0 {
 		return DecodedZedToken_V1ZedTokenMultiError(errors)

@@ -138,6 +138,10 @@ func (f fakeDatastore) Statistics(_ context.Context) (datastore.Stats, error) {
 	return datastore.Stats{}, nil
 }
 
+func (f fakeDatastore) UniqueID(_ context.Context) (string, error) {
+	return "fake", nil
+}
+
 func (f fakeDatastore) Close() error {
 	return nil
 }

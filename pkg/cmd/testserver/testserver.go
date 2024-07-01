@@ -86,13 +86,13 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		grpc.ChainUnaryInterceptor(
 			datastoreMiddleware.UnaryServerInterceptor(),
 			dispatchmw.UnaryServerInterceptor(dispatcher),
-			consistencymw.UnaryServerInterceptor(),
+			consistencymw.UnaryServerInterceptor(consistencymw.TreatMismatchingTokensAsError),
 			servicespecific.UnaryServerInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
 			datastoreMiddleware.StreamServerInterceptor(),
 			dispatchmw.StreamServerInterceptor(dispatcher),
-			consistencymw.StreamServerInterceptor(),
+			consistencymw.StreamServerInterceptor(consistencymw.TreatMismatchingTokensAsError),
 			servicespecific.StreamServerInterceptor,
 		),
 	)
@@ -105,14 +105,14 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			datastoreMiddleware.UnaryServerInterceptor(),
 			readonly.UnaryServerInterceptor(),
 			dispatchmw.UnaryServerInterceptor(dispatcher),
-			consistencymw.UnaryServerInterceptor(),
+			consistencymw.UnaryServerInterceptor(consistencymw.TreatMismatchingTokensAsError),
 			servicespecific.UnaryServerInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
 			datastoreMiddleware.StreamServerInterceptor(),
 			readonly.StreamServerInterceptor(),
 			dispatchmw.StreamServerInterceptor(dispatcher),
-			consistencymw.StreamServerInterceptor(),
+			consistencymw.StreamServerInterceptor(consistencymw.TreatMismatchingTokensAsError),
 			servicespecific.StreamServerInterceptor,
 		),
 	)

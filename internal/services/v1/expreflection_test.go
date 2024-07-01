@@ -9,7 +9,6 @@ import (
 	"github.com/ettle/strcase"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	"github.com/authzed/spicedb/pkg/diff"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -544,21 +543,18 @@ func TestConvertDiff(t *testing.T) {
 			diff, err := diff.DiffSchemas(es, cs)
 			require.NoError(t, err)
 
-			resp, err := convertDiff(
+			diffs, err := convertDiff(
 				diff,
 				&es,
 				&cs,
-				revisionparsing.MustParseRevisionForTest("1"),
 			)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			require.NotNil(t, resp.ReadAt)
-			resp.ReadAt = nil
 
-			testutil.RequireProtoEqual(t, tc.expectedResponse, resp, "got mismatch")
+			testutil.RequireProtoEqual(t, tc.expectedResponse, &v1.ExperimentalDiffSchemaResponse{Diffs: diffs}, "got mismatch")
 
-			for _, diff := range resp.Diffs {
+			for _, diff := range diffs {
 				name := reflect.TypeOf(diff.GetDiff()).String()
 				encounteredDiffTypes.Add(strings.ToLower(strings.Split(name, "_")[1]))
 			}

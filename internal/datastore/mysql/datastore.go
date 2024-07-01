@@ -496,6 +496,8 @@ type Datastore struct {
 	createTxn     string
 	createBaseTxn string
 
+	uniqueID atomic.Pointer[string]
+
 	*QueryBuilder
 	*revisions.CachedOptimizedRevisions
 	revisions.CommonDecoder
@@ -572,7 +574,7 @@ func (mds *Datastore) isSeeded(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	_, err = mds.getUniqueID(ctx)
+	_, err = mds.UniqueID(ctx)
 	if err != nil {
 		return false, nil
 	}

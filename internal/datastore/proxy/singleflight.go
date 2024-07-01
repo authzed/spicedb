@@ -24,6 +24,10 @@ type singleflightProxy struct {
 
 var _ datastore.Datastore = (*singleflightProxy)(nil)
 
+func (p *singleflightProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(ctx)
+}
+
 func (p *singleflightProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	return p.delegate.SnapshotReader(rev)
 }

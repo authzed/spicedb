@@ -384,6 +384,7 @@ type pgDatastore struct {
 	inStrictReadMode        bool
 
 	credentialsProvider datastore.CredentialsProvider
+	uniqueID            atomic.Pointer[string]
 
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
@@ -648,7 +649,7 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 
 	if version == headMigration {
 		// Ensure a datastore ID is present. This ensures the tables have not been truncated.
-		uniqueID, err := pgd.datastoreUniqueID(ctx)
+		uniqueID, err := pgd.UniqueID(ctx)
 		if err != nil {
 			return datastore.ReadyState{}, fmt.Errorf("database validation failed: %w; if you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported", err)
 		}

@@ -33,6 +33,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/internal/middleware/consistency"
 	"github.com/authzed/spicedb/internal/services"
 	dispatchSvc "github.com/authzed/spicedb/internal/services/dispatch"
 	"github.com/authzed/spicedb/internal/services/health"
@@ -111,6 +112,7 @@ type Config struct {
 	MaxDatastoreReadPageSize        uint64        `debugmap:"visible"`
 	StreamingAPITimeout             time.Duration `debugmap:"visible"`
 	WatchHeartbeat                  time.Duration `debugmap:"visible"`
+	MismatchZedTokenBehavior        string        `debugmap:"visible"`
 	MaxReadRelationshipsLimit       uint32        `debugmap:"visible"`
 	MaxDeleteRelationshipsLimit     uint32        `debugmap:"visible"`
 	MaxLookupResourcesLimit         uint32        `debugmap:"visible"`
@@ -367,6 +369,24 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
+	var mismatchZedTokenOption consistency.MismatchingTokenOption
+	switch c.MismatchZedTokenBehavior {
+	case "":
+		fallthrough
+
+	case "full-consistency":
+		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsFullConsistency
+
+	case "min-latency":
+		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsMinLatency
+
+	case "error":
+		mismatchZedTokenOption = consistency.TreatMismatchingTokensAsError
+
+	default:
+		return nil, fmt.Errorf("unknown mismatched zedtoken behavior: %s", c.MismatchZedTokenBehavior)
+	}
+
 	opts := MiddlewareOption{
 		log.Logger,
 		c.GRPCAuthFunc,
@@ -376,6 +396,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		c.EnableRequestLogs,
 		c.EnableResponseLogs,
 		c.DisableGRPCLatencyHistogram,
+		mismatchZedTokenOption,
 	}
 	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
 	if err != nil {
