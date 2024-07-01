@@ -27,7 +27,7 @@ jobs:
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
       - uses: "docker/setup-qemu-action@v3"
       - uses: "docker/setup-buildx-action@v3"
-      - uses: "goreleaser/goreleaser-action@v5"
+      - uses: "goreleaser/goreleaser-action@v6"
         with:
           distribution: "goreleaser-pro"
           version: "latest"
