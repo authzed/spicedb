@@ -31,7 +31,8 @@ type resourcesSubjectMap struct {
 
 // subjectInfo is the information about a subject contained in a resourcesSubjectMap.
 type subjectInfo struct {
-	subjectID  string
+	subjectID string
+
 	isCaveated bool
 }
 
@@ -142,6 +143,7 @@ func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoi
 
 		for _, info := range subjectInfos {
 			subjectIDs = append(subjectIDs, info.subjectID)
+
 			if !info.isCaveated {
 				allCaveated = false
 				nonCaveatedSubjectIDs = append(nonCaveatedSubjectIDs, info.subjectID)
@@ -197,6 +199,7 @@ func (rsm dispatchableResourcesSubjectMap) mapFoundResource(foundResource *v1.Re
 
 		for _, info := range infos {
 			forSubjectIDs.Insert(info.subjectID)
+
 			if !info.isCaveated {
 				nonCaveatedSubjectIDs.Insert(info.subjectID)
 			}

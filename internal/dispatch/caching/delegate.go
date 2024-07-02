@@ -36,6 +36,10 @@ func (fd fakeDelegate) DispatchLookupResources(_ *v1.DispatchLookupResourcesRequ
 	return spiceerrors.MustBugf(errMessage)
 }
 
+func (fd fakeDelegate) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ dispatch.LookupResources2Stream) error {
+	return spiceerrors.MustBugf(errMessage)
+}
+
 func (fd fakeDelegate) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
 	return spiceerrors.MustBugf(errMessage)
 }

@@ -24,6 +24,7 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var ONR = tuple.ObjectAndRelation
@@ -1370,6 +1371,363 @@ func TestCheckDebugging(t *testing.T) {
 			require.Empty(expectedFrames.Subtract(foundFrames).AsSlice(), "missing expected frames: %v", expectedFrames.Subtract(foundFrames).AsSlice())
 		})
 	}
+}
+
+func TestCheckWithHints(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		schema                 string
+		relationships          []*core.RelationTuple
+		resource               *core.ObjectAndRelation
+		subject                *core.ObjectAndRelation
+		hints                  map[string]bool
+		expectedPermissionship bool
+	}{
+		{
+			"no relationships",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{},
+			false,
+		},
+		{
+			"no relationships with matching check hint",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			true,
+		},
+		{
+			"no relationships with non check hint",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForRelation("document", "anotherdoc", "viewer"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			false,
+		},
+		{
+			"no relationships with non check hint due to subject",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer + editor
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
+					ONR("user", "anotheruser", graph.Ellipsis),
+				): true,
+			},
+			false,
+		},
+		{
+			"no relationships with matching arrow check hint",
+			`definition user {}
+		
+   			 definition organization {
+				relation member: user
+			 }
+
+		 	 definition document {
+				relation org: organization
+				permission view = org->member
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForArrow("document", "somedoc", "org", "member"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			true,
+		},
+		{
+			"no relationships with non matching tupleset arrow check hint",
+			`definition user {}
+		
+   			 definition organization {
+				relation member: user
+			 }
+
+		 	 definition document {
+				relation org: organization
+				permission view = org->member
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForArrow("document", "somedoc", "anotherrel", "member"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			false,
+		},
+		{
+			"no relationships with non matching computed userset arrow check hint",
+			`definition user {}
+		
+   			 definition organization {
+				relation member: user
+			 }
+
+		 	 definition document {
+				relation org: organization
+				permission view = org->member
+  			 }`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForArrow("document", "somedoc", "org", "membersssssss"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			false,
+		},
+		{
+			"check hint over part of an intersection but missing other branch in rels",
+			`definition user {}
+
+			definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer & editor
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			false,
+		},
+		{
+			"check hint over part of an intersection with other branch in rels",
+			`definition user {}
+
+			definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer & editor
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:somedoc#editor@user:tom"),
+			},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			map[string]bool{
+				typesystem.CheckHint(
+					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
+					ONR("user", "tom", graph.Ellipsis),
+				): true,
+			},
+			true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			dispatcher := NewLocalOnlyDispatcher(10)
+
+			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			require.NoError(err)
+
+			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
+
+			ctx := datastoremw.ContextWithHandle(context.Background())
+			require.NoError(datastoremw.SetInContext(ctx, ds))
+
+			checkHints := make(map[string]*v1.ResourceCheckResult, len(tc.hints))
+			for hint, value := range tc.hints {
+				if value {
+					checkHints[hint] = &v1.ResourceCheckResult{
+						Membership: v1.ResourceCheckResult_MEMBER,
+					}
+				} else {
+					checkHints[hint] = &v1.ResourceCheckResult{
+						Membership: v1.ResourceCheckResult_NOT_MEMBER,
+					}
+				}
+			}
+
+			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+				ResourceRelation: RR(tc.resource.Namespace, tc.resource.Relation),
+				ResourceIds:      []string{tc.resource.ObjectId},
+				Subject:          tc.subject,
+				ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     revision.String(),
+					DepthRemaining: 50,
+				},
+				CheckHints: checkHints,
+			})
+			require.NoError(err)
+
+			_, ok := resp.ResultsByResourceId[tc.resource.ObjectId]
+			if tc.expectedPermissionship {
+				require.True(ok)
+				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectId].Membership)
+			} else {
+				if ok {
+					require.Equal(v1.ResourceCheckResult_NOT_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectId].Membership)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckHintsPartialApplication(t *testing.T) {
+	require := require.New(t)
+
+	dispatcher := NewLocalOnlyDispatcher(10)
+
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, `
+		definition user {}
+
+		definition document {
+			relation viewer: user
+			permission view = viewer
+		}
+
+	`, []*core.RelationTuple{
+		tuple.MustParse("document:somedoc#viewer@user:tom"),
+	}, require)
+
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(datastoremw.SetInContext(ctx, ds))
+
+	checkHints := map[string]*v1.ResourceCheckResult{
+		typesystem.CheckHint(
+			typesystem.ResourceCheckHintForRelation("document", "anotherdoc", "viewer"),
+			ONR("user", "tom", graph.Ellipsis),
+		): {
+			Membership: v1.ResourceCheckResult_MEMBER,
+		},
+	}
+
+	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		ResourceRelation: RR("document", "view"),
+		ResourceIds:      []string{"somedoc", "anotherdoc", "thirddoc"},
+		Subject:          ONR("user", "tom", graph.Ellipsis),
+		ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+		CheckHints: checkHints,
+	})
+	require.NoError(err)
+
+	require.Len(resp.ResultsByResourceId, 2)
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["somedoc"].Membership)
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["anotherdoc"].Membership)
+}
+
+func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
+	require := require.New(t)
+
+	dispatcher := NewLocalOnlyDispatcher(10)
+
+	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	require.NoError(err)
+
+	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, `
+		definition user {}
+
+		definition organization {
+			relation member: user
+		}
+
+		definition document {
+			relation org: organization
+			permission view = org->member
+		}
+
+	`, []*core.RelationTuple{
+		tuple.MustParse("document:somedoc#org@organization:someorg"),
+		tuple.MustParse("organization:someorg#member@user:tom"),
+	}, require)
+
+	ctx := datastoremw.ContextWithHandle(context.Background())
+	require.NoError(datastoremw.SetInContext(ctx, ds))
+
+	checkHints := map[string]*v1.ResourceCheckResult{
+		typesystem.CheckHint(
+			typesystem.ResourceCheckHintForArrow("document", "anotherdoc", "org", "member"),
+			ONR("user", "tom", graph.Ellipsis),
+		): {
+			Membership: v1.ResourceCheckResult_MEMBER,
+		},
+	}
+
+	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		ResourceRelation: RR("document", "view"),
+		ResourceIds:      []string{"somedoc", "anotherdoc", "thirddoc"},
+		Subject:          ONR("user", "tom", graph.Ellipsis),
+		ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     revision.String(),
+			DepthRemaining: 50,
+		},
+		CheckHints: checkHints,
+	})
+	require.NoError(err)
+
+	require.Len(resp.ResultsByResourceId, 2)
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["somedoc"].Membership)
+	require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId["anotherdoc"].Membership)
 }
 
 func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint16) (context.Context, dispatch.Dispatcher, datastore.Revision) {

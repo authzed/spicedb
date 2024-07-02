@@ -167,6 +167,10 @@ func (ddm delegateDispatchMock) DispatchLookupResources(_ *v1.DispatchLookupReso
 	return nil
 }
 
+func (ddm delegateDispatchMock) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ dispatch.LookupResources2Stream) error {
+	return nil
+}
+
 func (ddm delegateDispatchMock) DispatchLookupSubjects(_ *v1.DispatchLookupSubjectsRequest, _ dispatch.LookupSubjectsStream) error {
 	return nil
 }

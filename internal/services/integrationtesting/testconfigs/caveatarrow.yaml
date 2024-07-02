@@ -51,11 +51,11 @@ assertions:
     - "document:caveatedorgdoc#view@user:tom"
     - "document:staticorgdoc#view@user:sarah"
     - "document:caveatedorgdoc#view@user:sarah"
-    - "document:caveatedorgdoc#view@user:fred"
     - 'document:caveatedorgdoc#view@user:sarah with {"anothercondition": "hello world"}'
   assertFalse:
     - "document:directorgdoc#view@user:fred"
     - "document:staticnoorgdoc#view@user:tom"
     - "document:staticorgdoc#view@user:fred"
+    - "document:caveatedorgdoc#view@user:fred"
     - 'document:caveatedorgdoc#view@user:tom with {"anothercondition": "nope"}'
     - 'document:caveatedorgdoc#view@user:sarah with {"somecondition": 41, "anothercondition": "hello world"}'
