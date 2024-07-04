@@ -152,7 +152,11 @@ func (pgd *pgDatastore) Watch(
 				// transactions.
 				currentTxn = newTxns[len(newTxns)-1]
 				for _, newTx := range newTxns {
-					currentTxn = postgresRevision{snapshot: currentTxn.snapshot.markComplete(newTx.optionalTxID.Uint64)}
+					currentTxn = postgresRevision{
+						snapshot:               currentTxn.snapshot.markComplete(newTx.optionalTxID.Uint64),
+						optionalTxID:           currentTxn.optionalTxID,
+						optionalNanosTimestamp: currentTxn.optionalNanosTimestamp,
+					}
 				}
 
 				// If checkpoints were requested, output a checkpoint. While the Postgres datastore does not
@@ -201,9 +205,9 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 			}
 
 			ids = append(ids, postgresRevision{
-				snapshot:          nextSnapshot.markComplete(nextXID.Uint64),
-				optionalTxID:      nextXID,
-				optionalTimestamp: uint64(timestamp.Unix()),
+				snapshot:               nextSnapshot.markComplete(nextXID.Uint64),
+				optionalTxID:           nextXID,
+				optionalNanosTimestamp: uint64(timestamp.UnixNano()),
 			})
 		}
 		if rows.Err() != nil {
