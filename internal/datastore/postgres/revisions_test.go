@@ -87,8 +87,8 @@ func TestRevisionSerDe(t *testing.T) {
 func TestTxIDTimestampAvailable(t *testing.T) {
 	testTimestamp := uint64(time.Now().Unix())
 	snapshot := snap(0, 5, 1)
-	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalTimestamp: testTimestamp}
-	receivedTimestamp, ok := pgr.OptionalTimestamp()
+	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalNanosTimestamp: testTimestamp}
+	receivedTimestamp, ok := pgr.OptionalNanosTimestamp()
 	require.True(t, ok)
 	require.Equal(t, receivedTimestamp, testTimestamp)
 	txid, ok := pgr.OptionalTransactionID()
@@ -96,7 +96,7 @@ func TestTxIDTimestampAvailable(t *testing.T) {
 	require.Equal(t, newXid8(1), txid)
 
 	anotherRev := postgresRevision{snapshot: snapshot}
-	_, ok = anotherRev.OptionalTimestamp()
+	_, ok = anotherRev.OptionalNanosTimestamp()
 	require.False(t, ok)
 	_, ok = anotherRev.OptionalTransactionID()
 	require.False(t, ok)

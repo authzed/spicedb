@@ -170,8 +170,8 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 			xmax:    uint64(xminInt + decoded.RelativeXmax),
 			xipList: xips,
 		},
-		optionalTxID:      xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
-		optionalTimestamp: decoded.OptionalTimestamp,
+		optionalTxID:           xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
+		optionalNanosTimestamp: decoded.OptionalTimestamp,
 	}, nil
 }
 
@@ -248,9 +248,9 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, newSnaps
 }
 
 type postgresRevision struct {
-	snapshot          pgSnapshot
-	optionalTxID      xid8
-	optionalTimestamp uint64
+	snapshot               pgSnapshot
+	optionalTxID           xid8
+	optionalNanosTimestamp uint64
 }
 
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
@@ -298,14 +298,14 @@ func (pr postgresRevision) OptionalTransactionID() (xid8, bool) {
 	return pr.optionalTxID, true
 }
 
-// OptionalTimestamp returns a unix epoch timestamp representing the time at which the transaction committed as
-// defined by the Postgres primary. This is not guaranteed to be monotonically increasing.
-func (pr postgresRevision) OptionalTimestamp() (uint64, bool) {
-	if pr.optionalTimestamp == 0 {
+// OptionalNanosTimestamp returns a unix epoch timestamp in nanos representing the time at which the transaction committed
+// as defined by the Postgres primary. This is not guaranteed to be monotonically increasing
+func (pr postgresRevision) OptionalNanosTimestamp() (uint64, bool) {
+	if pr.optionalNanosTimestamp == 0 {
 		return 0, false
 	}
 
-	return pr.optionalTimestamp, true
+	return pr.optionalNanosTimestamp, true
 }
 
 // MarshalBinary creates a version of the snapshot that uses relative encoding

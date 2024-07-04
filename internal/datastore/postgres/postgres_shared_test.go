@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -171,6 +172,15 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 				t.Run("TestNullCaveatWatch", createDatastoreTest(
 					b,
 					NullCaveatWatchTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(50),
+					MigrationPhase(config.migrationPhase),
+				))
+
+				t.Run("TestRevisionTimestampAndTransactionID", createDatastoreTest(
+					b,
+					RevisionTimestampAndTransactionIDTest,
 					RevisionQuantization(0),
 					GCWindow(1*time.Millisecond),
 					WatchBufferLength(50),
@@ -1534,6 +1544,72 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 		errchan,
 		false,
 	)
+}
+
+func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Run the watch API.
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+		Content: datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints,
+	})
+	require.Zero(len(errchan))
+
+	pds := ds.(*pgDatastore)
+	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			tuple.Touch(tuple.MustParse("something:001#viewer@user:123")),
+		})
+	})
+	require.NoError(err)
+
+	anHourAgo := time.Now().UTC().Add(-1 * time.Hour)
+	var checkedUpdate, checkedCheckpoint bool
+	for {
+		if checkedCheckpoint && checkedUpdate {
+			break
+		}
+
+		changeWait := time.NewTimer(waitForChangesTimeout)
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				errWait := time.NewTimer(waitForChangesTimeout)
+				select {
+				case err := <-errchan:
+					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					return
+				case <-errWait.C:
+					require.Fail("Timed out waiting for ErrWatchDisconnected")
+				}
+				return
+			}
+
+			rev := change.Revision.(postgresRevision)
+			timestamp, timestampPresent := rev.OptionalNanosTimestamp()
+			require.True(timestampPresent, "expected timestamp to be present in revision")
+			isCorrectAndUsesNanos := time.Unix(0, int64(timestamp)).After(anHourAgo)
+			require.True(isCorrectAndUsesNanos, "timestamp is not correct")
+
+			_, transactionIDPresent := rev.OptionalTransactionID()
+			require.True(transactionIDPresent, "expected transactionID to be present in revision")
+
+			if change.IsCheckpoint {
+				checkedCheckpoint = true
+			} else {
+				checkedUpdate = true
+			}
+			time.Sleep(1 * time.Millisecond)
+		case <-changeWait.C:
+			require.Fail("Timed out")
+		}
+	}
 }
 
 const waitForChangesTimeout = 5 * time.Second
