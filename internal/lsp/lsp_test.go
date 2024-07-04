@@ -148,6 +148,14 @@ func TestDocumentFormat(t *testing.T) {
 		End:   lsp.Position{Line: 10000000, Character: 100000000},
 	}, resp[0].Range)
 	require.Equal(t, "definition user {}", resp[0].NewText)
+
+	// test formatting malformed content without panicing
+	tester.setFileContents("file:///test", "dfinition user{}")
+	err, _ := sendAndExpectError(tester, "textDocument/formatting",
+		lsp.DocumentFormattingParams{
+			TextDocument: lsp.TextDocumentIdentifier{URI: "file:///test"},
+		})
+	require.Error(t, err)
 }
 
 func TestDocumentOpenedClosed(t *testing.T) {
@@ -204,4 +212,27 @@ definition resource {
 
 	require.Equal(t, "definition user {}", resp.Contents.Value)
 	require.Equal(t, "spicedb", resp.Contents.Language)
+
+	// test hovering malformed content without panicing
+	sendAndReceive[any](tester, "textDocument/didOpen", lsp.DidOpenTextDocumentParams{
+		TextDocument: lsp.TextDocumentItem{
+			URI:        lsp.DocumentURI("file:///test"),
+			LanguageID: "test",
+			Version:    1,
+			Text: `definition user {}
+
+dfinition resource {
+	relation viewer: user
+}
+`,
+		},
+	})
+
+	err, _ := sendAndExpectError(tester, "textDocument/hover", lsp.TextDocumentPositionParams{
+		TextDocument: lsp.TextDocumentIdentifier{
+			URI: lsp.DocumentURI("file:///test"),
+		},
+		Position: lsp.Position{Line: 3, Character: 18},
+	})
+	require.Error(t, err)
 }
