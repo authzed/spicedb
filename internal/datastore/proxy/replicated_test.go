@@ -134,6 +134,10 @@ func (f fakeDatastore) Features(_ context.Context) (*datastore.Features, error) 
 	return nil, nil
 }
 
+func (f fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
+	return nil, nil
+}
+
 func (f fakeDatastore) Statistics(_ context.Context) (datastore.Stats, error) {
 	return datastore.Stats{}, nil
 }

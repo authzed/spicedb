@@ -164,6 +164,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
 	}
 
 	a.current.Caveat = &a.caveat
+	a.current.Integrity = nil
 	tuple.CopyRelationshipToRelationTuple(a.currentBatch[a.numSent], &a.current)
 
 	if err := relationships.ValidateOneRelationship(

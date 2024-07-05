@@ -70,6 +70,11 @@ func (dm *MockDatastore) Features(_ context.Context) (*datastore.Features, error
 	return args.Get(0).(*datastore.Features), args.Error(1)
 }
 
+func (dm *MockDatastore) OfflineFeatures() (*datastore.Features, error) {
+	args := dm.Called()
+	return args.Get(0).(*datastore.Features), args.Error(1)
+}
+
 func (dm *MockDatastore) Statistics(_ context.Context) (datastore.Stats, error) {
 	args := dm.Called()
 	return args.Get(0).(datastore.Stats), args.Error(1)

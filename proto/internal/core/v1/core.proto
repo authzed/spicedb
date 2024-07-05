@@ -3,6 +3,7 @@ package core.v1;
 
 import "google/protobuf/any.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 import "validate/validate.proto";
 
 option go_package = "github.com/authzed/spicedb/pkg/proto/core/v1";
@@ -16,6 +17,20 @@ message RelationTuple {
 
   /** caveat is a reference to a the caveat that must be enforced over the tuple **/
   ContextualizedCaveat caveat = 3 [(validate.rules).message.required = false];
+
+  /** integrity holds (optional) information about the integrity of the tuple */
+  RelationshipIntegrity integrity = 4 [(validate.rules).message.required = false];
+}
+
+message RelationshipIntegrity {
+  /** key_id is the key ID used to hash the tuple */
+  string key_id = 1;
+
+  /** hash is the hash of the tuple */
+  bytes hash = 2;
+
+  /** hashed_at is the timestamp when the tuple was hashed */
+  google.protobuf.Timestamp hashed_at = 3;
 }
 
 /**

@@ -69,6 +69,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
 		to.TablePrefix = c.TablePrefix
+		to.RelationshipIntegrityEnabled = c.RelationshipIntegrityEnabled
+		to.RelationshipIntegrityCurrentKey = c.RelationshipIntegrityCurrentKey
+		to.RelationshipIntegrityExpiredKeys = c.RelationshipIntegrityExpiredKeys
 		to.WatchBufferLength = c.WatchBufferLength
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.WatchConnectTimeout = c.WatchConnectTimeout
@@ -116,6 +119,9 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
+	debugMap["RelationshipIntegrityEnabled"] = helpers.DebugValue(c.RelationshipIntegrityEnabled, false)
+	debugMap["RelationshipIntegrityCurrentKey"] = helpers.DebugValue(c.RelationshipIntegrityCurrentKey, false)
+	debugMap["RelationshipIntegrityExpiredKeys"] = helpers.DebugValue(c.RelationshipIntegrityExpiredKeys, false)
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
 	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
 	debugMap["WatchConnectTimeout"] = helpers.DebugValue(c.WatchConnectTimeout, false)
@@ -430,6 +436,34 @@ func WithSpannerMaxSessions(spannerMaxSessions uint64) ConfigOption {
 func WithTablePrefix(tablePrefix string) ConfigOption {
 	return func(c *Config) {
 		c.TablePrefix = tablePrefix
+	}
+}
+
+// WithRelationshipIntegrityEnabled returns an option that can set RelationshipIntegrityEnabled on a Config
+func WithRelationshipIntegrityEnabled(relationshipIntegrityEnabled bool) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipIntegrityEnabled = relationshipIntegrityEnabled
+	}
+}
+
+// WithRelationshipIntegrityCurrentKey returns an option that can set RelationshipIntegrityCurrentKey on a Config
+func WithRelationshipIntegrityCurrentKey(relationshipIntegrityCurrentKey RelIntegrityKey) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipIntegrityCurrentKey = relationshipIntegrityCurrentKey
+	}
+}
+
+// WithRelationshipIntegrityExpiredKeys returns an option that can append RelationshipIntegrityExpiredKeyss to Config.RelationshipIntegrityExpiredKeys
+func WithRelationshipIntegrityExpiredKeys(relationshipIntegrityExpiredKeys string) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipIntegrityExpiredKeys = append(c.RelationshipIntegrityExpiredKeys, relationshipIntegrityExpiredKeys)
+	}
+}
+
+// SetRelationshipIntegrityExpiredKeys returns an option that can set RelationshipIntegrityExpiredKeys on a Config
+func SetRelationshipIntegrityExpiredKeys(relationshipIntegrityExpiredKeys []string) ConfigOption {
+	return func(c *Config) {
+		c.RelationshipIntegrityExpiredKeys = relationshipIntegrityExpiredKeys
 	}
 }
 

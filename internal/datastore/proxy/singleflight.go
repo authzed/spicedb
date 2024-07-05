@@ -71,6 +71,10 @@ func (p *singleflightProxy) Features(ctx context.Context) (*datastore.Features, 
 	return p.delegate.Features(ctx)
 }
 
+func (p *singleflightProxy) OfflineFeatures() (*datastore.Features, error) {
+	return p.delegate.OfflineFeatures()
+}
+
 func (p *singleflightProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	return p.delegate.ReadyState(ctx)
 }

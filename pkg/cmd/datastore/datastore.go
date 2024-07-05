@@ -2,8 +2,10 @@ package datastore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -149,6 +151,11 @@ type Config struct {
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
 
+	// Relationship Integrity
+	RelationshipIntegrityEnabled     bool            `debugmap:"visible"`
+	RelationshipIntegrityCurrentKey  RelIntegrityKey `debugmap:"visible"`
+	RelationshipIntegrityExpiredKeys []string        `debugmap:"visible"`
+
 	// Internal
 	WatchBufferLength       uint16        `debugmap:"visible"`
 	WatchBufferWriteTimeout time.Duration `debugmap:"visible"`
@@ -156,6 +163,12 @@ type Config struct {
 
 	// Migrations
 	MigrationPhase string `debugmap:"visible"`
+}
+
+//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
+type RelIntegrityKey struct {
+	KeyID       string `debugmap:"visible"`
+	KeyFilename string `debugmap:"visible"`
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
@@ -232,6 +245,11 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
 
+	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. only supported on CRDB")
+	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
+	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyFilename, flagName("datastore-relationship-integrity-current-key-filename"), "", "current key filename for relationship integrity checks")
+	flagSet.StringArrayVar(&opts.RelationshipIntegrityExpiredKeys, flagName("datastore-relationship-integrity-expired-keys"), []string{}, "config for expired keys for relationship integrity checks")
+
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
 	if err := flagSet.MarkHidden(flagName("datastore-disable-stats")); err != nil {
@@ -253,43 +271,46 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
-		Engine:                         MemoryEngine,
-		GCWindow:                       24 * time.Hour,
-		LegacyFuzzing:                  -1,
-		RevisionQuantization:           5 * time.Second,
-		MaxRevisionStalenessPercent:    .1, // 10%
-		ReadConnPool:                   *DefaultReadConnPool(),
-		WriteConnPool:                  *DefaultWriteConnPool(),
-		ReadReplicaConnPool:            *DefaultReadConnPool(),
-		ReadReplicaURIs:                []string{},
-		ReadOnly:                       false,
-		MaxRetries:                     10,
-		OverlapKey:                     "key",
-		OverlapStrategy:                "static",
-		ConnectRate:                    100 * time.Millisecond,
-		EnableConnectionBalancing:      true,
-		GCInterval:                     3 * time.Minute,
-		GCMaxOperationTime:             1 * time.Minute,
-		WatchBufferLength:              1024,
-		WatchBufferWriteTimeout:        1 * time.Second,
-		WatchConnectTimeout:            1 * time.Second,
-		EnableDatastoreMetrics:         true,
-		DisableStats:                   false,
-		BootstrapFiles:                 []string{},
-		BootstrapTimeout:               10 * time.Second,
-		BootstrapOverwrite:             false,
-		RequestHedgingEnabled:          false,
-		RequestHedgingInitialSlowValue: 10000000,
-		RequestHedgingMaxRequests:      1_000_000,
-		RequestHedgingQuantile:         0.95,
-		SpannerCredentialsFile:         "",
-		SpannerEmulatorHost:            "",
-		TablePrefix:                    "",
-		MigrationPhase:                 "",
-		FollowerReadDelay:              4_800 * time.Millisecond,
-		SpannerMinSessions:             100,
-		SpannerMaxSessions:             400,
-		FilterMaximumIDCount:           100,
+		Engine:                           MemoryEngine,
+		GCWindow:                         24 * time.Hour,
+		LegacyFuzzing:                    -1,
+		RevisionQuantization:             5 * time.Second,
+		MaxRevisionStalenessPercent:      .1, // 10%
+		ReadConnPool:                     *DefaultReadConnPool(),
+		WriteConnPool:                    *DefaultWriteConnPool(),
+		ReadReplicaConnPool:              *DefaultReadConnPool(),
+		ReadReplicaURIs:                  []string{},
+		ReadOnly:                         false,
+		MaxRetries:                       10,
+		OverlapKey:                       "key",
+		OverlapStrategy:                  "static",
+		ConnectRate:                      100 * time.Millisecond,
+		EnableConnectionBalancing:        true,
+		GCInterval:                       3 * time.Minute,
+		GCMaxOperationTime:               1 * time.Minute,
+		WatchBufferLength:                1024,
+		WatchBufferWriteTimeout:          1 * time.Second,
+		WatchConnectTimeout:              1 * time.Second,
+		EnableDatastoreMetrics:           true,
+		DisableStats:                     false,
+		BootstrapFiles:                   []string{},
+		BootstrapTimeout:                 10 * time.Second,
+		BootstrapOverwrite:               false,
+		RequestHedgingEnabled:            false,
+		RequestHedgingInitialSlowValue:   10000000,
+		RequestHedgingMaxRequests:        1_000_000,
+		RequestHedgingQuantile:           0.95,
+		SpannerCredentialsFile:           "",
+		SpannerEmulatorHost:              "",
+		TablePrefix:                      "",
+		MigrationPhase:                   "",
+		FollowerReadDelay:                4_800 * time.Millisecond,
+		SpannerMinSessions:               100,
+		SpannerMaxSessions:               400,
+		FilterMaximumIDCount:             100,
+		RelationshipIntegrityEnabled:     false,
+		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
+		RelationshipIntegrityExpiredKeys: []string{},
 	}
 }
 
@@ -381,7 +402,66 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		log.Ctx(ctx).Warn().Msg("setting the datastore to read-only")
 		ds = proxy.NewReadonlyDatastore(ds)
 	}
+
+	if opts.RelationshipIntegrityEnabled {
+		log.Ctx(ctx).Info().Msg("enabling relationship integrity checks")
+
+		keyBytes, err := os.ReadFile(opts.RelationshipIntegrityCurrentKey.KeyFilename)
+		if err != nil {
+			return nil, fmt.Errorf("error in opening current key file: %w", err)
+		}
+
+		currentKey := proxy.KeyConfig{
+			ID:    opts.RelationshipIntegrityCurrentKey.KeyID,
+			Bytes: keyBytes,
+		}
+
+		expiredKeys, err := readExpiredKeys(opts.RelationshipIntegrityExpiredKeys)
+		if err != nil {
+			return nil, fmt.Errorf("error in reading expired keys: %w", err)
+		}
+
+		wrapped, err := proxy.NewRelationshipIntegrityProxy(ds, currentKey, expiredKeys)
+		if err != nil {
+			return nil, fmt.Errorf("error in configuring relationship integrity checks: %w", err)
+		}
+
+		ds = wrapped
+	}
+
 	return ds, nil
+}
+
+type expiredKeyStruct struct {
+	KeyID       string    `json:"key_id"`
+	KeyFilename string    `json:"key_filename"`
+	ExpiredAt   time.Time `json:"expired_at"`
+}
+
+func readExpiredKeys(expiredKeyStrings []string) ([]proxy.KeyConfig, error) {
+	expiredKeys := make([]proxy.KeyConfig, 0, len(expiredKeyStrings))
+	for index, keyString := range expiredKeyStrings {
+		key := expiredKeyStruct{}
+		err := json.Unmarshal([]byte(keyString), &key)
+		if err != nil {
+			return nil, fmt.Errorf("error in unmarshalling expired key #%d: %w", index+1, err)
+		}
+
+		keyBytes, err := os.ReadFile(key.KeyFilename)
+		if err != nil {
+			return nil, fmt.Errorf("error in opening current key file: %w", err)
+		}
+
+		expiredAt := key.ExpiredAt
+		expiredKey := proxy.KeyConfig{
+			ID:        key.KeyID,
+			Bytes:     keyBytes,
+			ExpiredAt: &expiredAt,
+		}
+		expiredKeys = append(expiredKeys, expiredKey)
+	}
+
+	return expiredKeys, nil
 }
 
 func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
@@ -418,6 +498,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 	)
 }
 

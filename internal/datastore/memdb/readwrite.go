@@ -33,6 +33,18 @@ func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []*
 	return rwt.write(tx, mutations...)
 }
 
+func (rwt *memdbReadWriteTx) toIntegrity(mutation *core.RelationTupleUpdate) *relationshipIntegrity {
+	var ri *relationshipIntegrity
+	if mutation.Tuple.Integrity != nil {
+		ri = &relationshipIntegrity{
+			keyID:     mutation.Tuple.Integrity.KeyId,
+			hash:      mutation.Tuple.Integrity.Hash,
+			timestamp: mutation.Tuple.Integrity.HashedAt.AsTime(),
+		}
+	}
+	return ri
+}
+
 // Caller must already hold the concurrent access lock!
 func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
 	// Apply the mutations
@@ -45,6 +57,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			mutation.Tuple.Subject.ObjectId,
 			mutation.Tuple.Subject.Relation,
 			rwt.toCaveatReference(mutation),
+			rwt.toIntegrity(mutation),
 		}
 
 		found, err := tx.First(

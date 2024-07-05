@@ -1,12 +1,14 @@
 package tuple
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"reflect"
 	"regexp"
 	"slices"
+	"sort"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
@@ -14,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -571,4 +574,96 @@ func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[stri
 		Context:    context,
 	}
 	return tpl, nil
+}
+
+// CanonicalBytes converts a tuple to a canonical set of bytes. If the tuple is nil or empty, returns nil.
+// Can be used for hashing purposes.
+func CanonicalBytes(tpl *core.RelationTuple) ([]byte, error) {
+	if tpl == nil {
+		return nil, nil
+	}
+
+	var sb bytes.Buffer
+	sb.WriteString(tpl.ResourceAndRelation.Namespace)
+	sb.WriteString(":")
+	sb.WriteString(tpl.ResourceAndRelation.ObjectId)
+	sb.WriteString("#")
+	sb.WriteString(tpl.ResourceAndRelation.Relation)
+	sb.WriteString("@")
+	sb.WriteString(tpl.Subject.Namespace)
+	sb.WriteString(":")
+	sb.WriteString(tpl.Subject.ObjectId)
+	sb.WriteString("#")
+	sb.WriteString(tpl.Subject.Relation)
+
+	if tpl.Caveat != nil && tpl.Caveat.CaveatName != "" {
+		sb.WriteString(" with ")
+		sb.WriteString(tpl.Caveat.CaveatName)
+
+		if tpl.Caveat.Context != nil && len(tpl.Caveat.Context.Fields) > 0 {
+			sb.WriteString(":")
+			if err := writeCanonicalContext(&sb, tpl.Caveat.Context); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return sb.Bytes(), nil
+}
+
+func writeCanonicalContext(sb *bytes.Buffer, context *structpb.Struct) error {
+	sb.WriteString("{")
+	for i, key := range sortedContextKeys(context.Fields) {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(key)
+		sb.WriteString(":")
+		if err := writeCanonicalContextValue(sb, context.Fields[key]); err != nil {
+			return err
+		}
+	}
+	sb.WriteString("}")
+	return nil
+}
+
+func writeCanonicalContextValue(sb *bytes.Buffer, value *structpb.Value) error {
+	switch value.Kind.(type) {
+	case *structpb.Value_NullValue:
+		sb.WriteString("null")
+	case *structpb.Value_NumberValue:
+		sb.WriteString(fmt.Sprintf("%f", value.GetNumberValue()))
+	case *structpb.Value_StringValue:
+		sb.WriteString(value.GetStringValue())
+	case *structpb.Value_BoolValue:
+		sb.WriteString(fmt.Sprintf("%t", value.GetBoolValue()))
+	case *structpb.Value_StructValue:
+		if err := writeCanonicalContext(sb, value.GetStructValue()); err != nil {
+			return err
+		}
+	case *structpb.Value_ListValue:
+		sb.WriteString("[")
+		for i, elem := range value.GetListValue().Values {
+			if i > 0 {
+				sb.WriteString(",")
+			}
+			if err := writeCanonicalContextValue(sb, elem); err != nil {
+				return err
+			}
+		}
+		sb.WriteString("]")
+	default:
+		return spiceerrors.MustBugf("unknown structpb.Value type: %T", value.Kind)
+	}
+
+	return nil
+}
+
+func sortedContextKeys(fields map[string]*structpb.Value) []string {
+	keys := make([]string, 0, len(fields))
+	for key := range fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

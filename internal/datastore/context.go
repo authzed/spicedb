@@ -85,6 +85,10 @@ func (p *ctxProxy) Features(ctx context.Context) (*datastore.Features, error) {
 	return p.delegate.Features(SeparateContextWithTracing(ctx))
 }
 
+func (p *ctxProxy) OfflineFeatures() (*datastore.Features, error) {
+	return p.delegate.OfflineFeatures()
+}
+
 func (p *ctxProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	return p.delegate.Statistics(SeparateContextWithTracing(ctx))
 }

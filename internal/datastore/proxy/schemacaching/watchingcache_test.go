@@ -504,6 +504,10 @@ func (*fakeDatastore) Features(context.Context) (*datastore.Features, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (*fakeDatastore) OfflineFeatures() (*datastore.Features, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (*fakeDatastore) OptimizedRevision(context.Context) (datastore.Revision, error) {
 	return nil, fmt.Errorf("not implemented")
 }

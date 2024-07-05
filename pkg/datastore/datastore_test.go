@@ -622,6 +622,10 @@ func (f fakeDatastore) Features(_ context.Context) (*Features, error) {
 	return nil, nil
 }
 
+func (f fakeDatastore) OfflineFeatures() (*Features, error) {
+	return nil, nil
+}
+
 func (f fakeDatastore) Statistics(_ context.Context) (Stats, error) {
 	return Stats{}, nil
 }

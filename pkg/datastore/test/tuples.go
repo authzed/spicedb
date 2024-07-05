@@ -595,6 +595,7 @@ func CreateAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	}
 	_, _ = ds.ReadWriteTx(ctx, f)
 	_, err = ds.ReadWriteTx(ctx, f)
+	require.Error(err)
 	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
@@ -1570,7 +1571,9 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 				OptionalResourceType: testResourceNamespace,
 			})
 			iter.Close()
-			require.NoError(err)
+			if err != nil {
+				return err
+			}
 
 			// We do NOT assert the error here because serialization problems can manifest as errors
 			// on the individual writes.
@@ -1581,10 +1584,11 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 				close(waitToStart)
 			})
 			<-waitToFinish
-
 			return err
 		})
-		require.NoError(err)
+		if err != nil {
+			panic(err)
+		}
 		return nil
 	})
 
@@ -1696,6 +1700,7 @@ func ensureTuplesStatus(ctx context.Context, require *require.Assertions, ds dat
 		defer iter.Close()
 
 		found := iter.Next()
+		require.NoError(iter.Err())
 
 		if mustExist {
 			require.NotNil(found, "expected tuple %s", tuple.MustString(tpl))

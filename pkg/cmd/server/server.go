@@ -371,7 +371,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 
 	watchServiceOption := services.WatchServiceEnabled
-	if !datastoreFeatures.Watch.Enabled {
+	if datastoreFeatures.Watch.Status != datastore.FeatureSupported {
 		log.Ctx(ctx).Warn().Str("reason", datastoreFeatures.Watch.Reason).Msg("watch api disabled; underlying datastore does not support it")
 		watchServiceOption = services.WatchServiceDisabled
 	}

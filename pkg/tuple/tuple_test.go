@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	b64 "encoding/base64"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -69,10 +71,11 @@ func crel(resType, resID, relation, subType, subID, subRel, caveatName string, c
 var superLongID = strings.Repeat("f", 1024)
 
 var testCases = []struct {
-	input          string
-	expectedOutput string
-	tupleFormat    *core.RelationTuple
-	relFormat      *v1.Relationship
+	input                  string
+	expectedOutput         string
+	tupleFormat            *core.RelationTuple
+	relFormat              *v1.Relationship
+	stableCanonicalization string
 }{
 	{
 		input:          "testns:testobj#testrel@user:testusr",
@@ -81,7 +84,8 @@ var testCases = []struct {
 			ObjectAndRelation("testns", "testobj", "testrel"),
 			ObjectAndRelation("user", "testusr", "..."),
 		),
-		relFormat: rel("testns", "testobj", "testrel", "user", "testusr", ""),
+		relFormat:              rel("testns", "testobj", "testrel", "user", "testusr", ""),
+		stableCanonicalization: "dGVzdG5zOnRlc3RvYmojdGVzdHJlbEB1c2VyOnRlc3R1c3IjLi4u",
 	},
 	{
 		input:          "testns:testobj#testrel@user:testusr#...",
@@ -90,7 +94,8 @@ var testCases = []struct {
 			ObjectAndRelation("testns", "testobj", "testrel"),
 			ObjectAndRelation("user", "testusr", "..."),
 		),
-		relFormat: rel("testns", "testobj", "testrel", "user", "testusr", ""),
+		relFormat:              rel("testns", "testobj", "testrel", "user", "testusr", ""),
+		stableCanonicalization: "dGVzdG5zOnRlc3RvYmojdGVzdHJlbEB1c2VyOnRlc3R1c3IjLi4u",
 	},
 	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:testusr",
@@ -99,7 +104,8 @@ var testCases = []struct {
 			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 			ObjectAndRelation("tenant/user", "testusr", "..."),
 		),
-		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", ""),
+		relFormat:              rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", ""),
+		stableCanonicalization: "dGVuYW50L3Rlc3Ruczp0ZXN0b2JqI3Rlc3RyZWxAdGVuYW50L3VzZXI6dGVzdHVzciMuLi4=",
 	},
 	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:testusr#...",
@@ -108,7 +114,8 @@ var testCases = []struct {
 			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 			ObjectAndRelation("tenant/user", "testusr", "..."),
 		),
-		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", ""),
+		relFormat:              rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", ""),
+		stableCanonicalization: "dGVuYW50L3Rlc3Ruczp0ZXN0b2JqI3Rlc3RyZWxAdGVuYW50L3VzZXI6dGVzdHVzciMuLi4=",
 	},
 	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:testusr#somerel",
@@ -117,7 +124,8 @@ var testCases = []struct {
 			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 			ObjectAndRelation("tenant/user", "testusr", "somerel"),
 		),
-		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", "somerel"),
+		relFormat:              rel("tenant/testns", "testobj", "testrel", "tenant/user", "testusr", "somerel"),
+		stableCanonicalization: "dGVuYW50L3Rlc3Ruczp0ZXN0b2JqI3Rlc3RyZWxAdGVuYW50L3VzZXI6dGVzdHVzciNzb21lcmVs",
 	},
 	{
 		input:          "org/division/team/testns:testobj#testrel@org/division/identity_team/user:testusr#somerel",
@@ -126,7 +134,8 @@ var testCases = []struct {
 			ObjectAndRelation("org/division/team/testns", "testobj", "testrel"),
 			ObjectAndRelation("org/division/identity_team/user", "testusr", "somerel"),
 		),
-		relFormat: rel("org/division/team/testns", "testobj", "testrel", "org/division/identity_team/user", "testusr", "somerel"),
+		relFormat:              rel("org/division/team/testns", "testobj", "testrel", "org/division/identity_team/user", "testusr", "somerel"),
+		stableCanonicalization: "b3JnL2RpdmlzaW9uL3RlYW0vdGVzdG5zOnRlc3RvYmojdGVzdHJlbEBvcmcvZGl2aXNpb24vaWRlbnRpdHlfdGVhbS91c2VyOnRlc3R1c3Ijc29tZXJlbA==",
 	},
 	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:testusr something",
@@ -159,7 +168,8 @@ var testCases = []struct {
 			ObjectAndRelation("foos", "bar", "bazzy"),
 			ObjectAndRelation("groo", "grar", "..."),
 		),
-		relFormat: rel("foos", "bar", "bazzy", "groo", "grar", ""),
+		relFormat:              rel("foos", "bar", "bazzy", "groo", "grar", ""),
+		stableCanonicalization: "Zm9vczpiYXIjYmF6enlAZ3JvbzpncmFyIy4uLg==",
 	},
 	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:*#...",
@@ -168,7 +178,8 @@ var testCases = []struct {
 			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 			ObjectAndRelation("tenant/user", "*", "..."),
 		),
-		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "*", ""),
+		relFormat:              rel("tenant/testns", "testobj", "testrel", "tenant/user", "*", ""),
+		stableCanonicalization: "dGVuYW50L3Rlc3Ruczp0ZXN0b2JqI3Rlc3RyZWxAdGVuYW50L3VzZXI6KiMuLi4=",
 	},
 	{
 		input:          "tenant/testns:testobj#testrel@tenant/user:authn|foo",
@@ -177,7 +188,8 @@ var testCases = []struct {
 			ObjectAndRelation("tenant/testns", "testobj", "testrel"),
 			ObjectAndRelation("tenant/user", "authn|foo", "..."),
 		),
-		relFormat: rel("tenant/testns", "testobj", "testrel", "tenant/user", "authn|foo", ""),
+		relFormat:              rel("tenant/testns", "testobj", "testrel", "tenant/user", "authn|foo", ""),
+		stableCanonicalization: "dGVuYW50L3Rlc3Ruczp0ZXN0b2JqI3Rlc3RyZWxAdGVuYW50L3VzZXI6YXV0aG58Zm9vIy4uLg==",
 	},
 	{
 		input:          "document:foo#viewer@user:tom[somecaveat]",
@@ -189,7 +201,8 @@ var testCases = []struct {
 			),
 			"somecaveat",
 		),
-		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", nil),
+		relFormat:              crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", nil),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0",
 	},
 	{
 		input:          "document:foo#viewer@user:tom[tenant/somecaveat]",
@@ -201,7 +214,8 @@ var testCases = []struct {
 			),
 			"tenant/somecaveat",
 		),
-		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "tenant/somecaveat", nil),
+		relFormat:              crel("document", "foo", "viewer", "user", "tom", "", "tenant/somecaveat", nil),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCB0ZW5hbnQvc29tZWNhdmVhdA==",
 	},
 	{
 		input:          "document:foo#viewer@user:tom[tenant/division/somecaveat]",
@@ -213,7 +227,8 @@ var testCases = []struct {
 			),
 			"tenant/division/somecaveat",
 		),
-		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "tenant/division/somecaveat", nil),
+		relFormat:              crel("document", "foo", "viewer", "user", "tom", "", "tenant/division/somecaveat", nil),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCB0ZW5hbnQvZGl2aXNpb24vc29tZWNhdmVhdA==",
 	},
 	{
 		input:          "document:foo#viewer@user:tom[somecaveat",
@@ -240,7 +255,8 @@ var testCases = []struct {
 				"hi": "there",
 			},
 		),
-		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{"hi": "there"}),
+		relFormat:              crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{"hi": "there"}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntoaTp0aGVyZX0=",
 	},
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo": 123}}]`,
@@ -262,6 +278,7 @@ var testCases = []struct {
 				"yo": 123,
 			},
 		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntoaTp7eW86MTIzLjAwMDAwMH19",
 	},
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":true}}}]`,
@@ -287,6 +304,7 @@ var testCases = []struct {
 				},
 			},
 		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntoaTp7eW86e2hleTp0cnVlfX19",
 	},
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":{"hey":[1,2,3]}}}]`,
@@ -312,6 +330,7 @@ var testCases = []struct {
 				},
 			},
 		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntoaTp7eW86e2hleTpbMS4wMDAwMDAsMi4wMDAwMDAsMy4wMDAwMDBdfX19",
 	},
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":{"yo":"hey":true}}}]`,
@@ -326,7 +345,8 @@ var testCases = []struct {
 			ObjectAndRelation("testns", superLongID, "testrel"),
 			ObjectAndRelation("user", "testusr", "..."),
 		),
-		relFormat: rel("testns", superLongID, "testrel", "user", "testusr", ""),
+		relFormat:              rel("testns", superLongID, "testrel", "user", "testusr", ""),
+		stableCanonicalization: "dGVzdG5zOmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmYjdGVzdHJlbEB1c2VyOnRlc3R1c3IjLi4u",
 	},
 	{
 		input:          "testns:foo#testrel@user:" + superLongID,
@@ -335,7 +355,8 @@ var testCases = []struct {
 			ObjectAndRelation("testns", "foo", "testrel"),
 			ObjectAndRelation("user", superLongID, "..."),
 		),
-		relFormat: rel("testns", "foo", "testrel", "user", superLongID, ""),
+		relFormat:              rel("testns", "foo", "testrel", "user", superLongID, ""),
+		stableCanonicalization: "dGVzdG5zOmZvbyN0ZXN0cmVsQHVzZXI6ZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZiMuLi4=",
 	},
 	{
 		input:          "testns:foo#testrel@user:" + superLongID + "more",
@@ -350,7 +371,8 @@ var testCases = []struct {
 			ObjectAndRelation("testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel"),
 			ObjectAndRelation("user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "..."),
 		),
-		relFormat: rel("testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel", "user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", ""),
+		relFormat:              rel("testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel", "user", "-base65YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", ""),
+		stableCanonicalization: "dGVzdG5zOi1iYXNlNjRZV1p6WkdaaC1aSE5tWkhQd241aUs4SitZaXZDL2ZtSXJ3bjVpSz09I3Rlc3RyZWxAdXNlcjotYmFzZTY1WVdaelpHWmgtWkhObVpIUHduNWlLOEorWWl2Qy9mbUlyd241aUs9PSMuLi4=",
 	},
 	{
 		input:          `document:foo#viewer@user:tom[somecaveat:{"hi":"a@example.com"}]`,
@@ -368,7 +390,95 @@ var testCases = []struct {
 		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
 			"hi": "a@example.com",
 		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntoaTphQGV4YW1wbGUuY29tfQ==",
 	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"first":"a@example.com", "second": "b@example.com"}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"first":"a@example.com","second":"b@example.com"}]`,
+		tupleFormat: MustWithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"first":  "a@example.com",
+				"second": "b@example.com",
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
+			"first":  "a@example.com",
+			"second": "b@example.com",
+		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntmaXJzdDphQGV4YW1wbGUuY29tLHNlY29uZDpiQGV4YW1wbGUuY29tfQ==",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"second": "b@example.com", "first":"a@example.com"}]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"first":"a@example.com","second":"b@example.com"}]`,
+		tupleFormat: MustWithCaveat(
+			makeTuple(
+				ObjectAndRelation("document", "foo", "viewer"),
+				ObjectAndRelation("user", "tom", "..."),
+			),
+			"somecaveat",
+			map[string]any{
+				"first":  "a@example.com",
+				"second": "b@example.com",
+			},
+		),
+		relFormat: crel("document", "foo", "viewer", "user", "tom", "", "somecaveat", map[string]any{
+			"first":  "a@example.com",
+			"second": "b@example.com",
+		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntmaXJzdDphQGV4YW1wbGUuY29tLHNlY29uZDpiQGV4YW1wbGUuY29tfQ==",
+	},
+}
+
+func TestCanonicalBytes(t *testing.T) {
+	foundBytes := make(map[string]string)
+
+	for _, tc := range testCases {
+		if tc.tupleFormat == nil {
+			continue
+		}
+
+		tc := tc
+
+		t.Run(tc.input, func(t *testing.T) {
+			// Ensure the serialization is stable.
+			serialized, err := CanonicalBytes(tc.tupleFormat)
+			require.NoError(t, err)
+
+			encoded := b64.StdEncoding.EncodeToString(serialized)
+			require.Equal(t, tc.stableCanonicalization, encoded)
+
+			// Ensure the serialization is unique.
+			existing, ok := foundBytes[string(serialized)]
+			if ok {
+				parsedInput := MustParse(tc.input)
+				parsedExisting := MustParse(existing)
+
+				require.True(t, parsedInput.EqualVT(parsedExisting), "duplicate canonical bytes found. input: %s; found for input: %s", tc.input, existing)
+			}
+			foundBytes[string(serialized)] = tc.input
+		})
+	}
+}
+
+func BenchmarkMustCanonicalBytes(b *testing.B) {
+	for _, tc := range testCases {
+		tc := tc
+		if tc.tupleFormat == nil {
+			continue
+		}
+
+		b.Run(tc.input, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_, err := CanonicalBytes(tc.tupleFormat)
+				require.NoError(b, err)
+			}
+		})
+	}
 }
 
 func TestSerialize(t *testing.T) {

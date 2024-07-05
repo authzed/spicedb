@@ -27,17 +27,6 @@ const (
 var (
 	queryReadNamespace = psql.Select(colConfig, colTimestamp)
 
-	queryTuples = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-	)
-
 	countTuples = psql.Select("count(*)")
 
 	schema = common.NewSchemaInformation(
@@ -66,6 +55,8 @@ type crdbReader struct {
 	overlapKeySet        keySet
 	fromBuilder          func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
 	filterMaximumIDCount uint16
+	tupleTableName       string
+	withIntegrity        bool
 }
 
 func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -83,7 +74,7 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	query := cr.fromBuilder(countTuples, tableTuple)
+	query := cr.fromBuilder(countTuples, cr.tupleTableName)
 	builder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
@@ -192,6 +183,35 @@ func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revisi
 	return nsDefs, nil
 }
 
+func (cr *crdbReader) queryTuples() sq.SelectBuilder {
+	if cr.withIntegrity {
+		return psql.Select(
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatContextName,
+			colCaveatContext,
+			colIntegrityKeyID,
+			colIntegrityHash,
+			colTimestamp,
+		)
+	}
+
+	return psql.Select(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
+	)
+}
+
 func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
 	if len(nsNames) == 0 {
 		return nil, nil
@@ -208,7 +228,7 @@ func (cr *crdbReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	query := cr.fromBuilder(queryTuples, tableTuple)
+	query := cr.fromBuilder(cr.queryTuples(), cr.tupleTableName)
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
@@ -222,7 +242,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	query := cr.fromBuilder(queryTuples, tableTuple)
+	query := cr.fromBuilder(cr.queryTuples(), cr.tupleTableName)
 	qBuilder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
