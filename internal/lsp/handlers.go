@@ -198,8 +198,11 @@ func (s *Server) getCompiledContents(path lsp.DocumentURI, files *persistent.Map
 	}
 
 	justCompiled, derr, err := development.CompileSchema(file.contents)
-	if err != nil || derr != nil {
+	if err != nil {
 		return nil, err
+	}
+	if derr != nil {
+		return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeInternalError, Message: derr.String()}
 	}
 
 	files.Set(path, trackedFile{file.contents, justCompiled}, nil)
