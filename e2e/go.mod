@@ -11,7 +11,7 @@ require (
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/tools v0.22.0
-	google.golang.org/grpc v1.64.0
+	google.golang.org/grpc v1.65.0
 	mvdan.cc/gofumpt v0.6.0
 )
 
