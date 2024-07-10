@@ -3,7 +3,6 @@ package v1
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -111,12 +110,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 			}
 		}
 
-		contextStruct, err := computedResult.ContextStruct()
-		if err != nil {
-			return nil, fmt.Errorf("could not serialize context: %w. please report this error", err)
-		}
-
-		exprString, err := computedResult.ExpressionString()
+		exprString, contextStruct, err := cexpr.BuildDebugInformation(computedResult)
 		if err != nil {
 			return nil, err
 		}

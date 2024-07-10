@@ -70,6 +70,11 @@ func (cr CaveatResult) ExpressionString() (string, error) {
 	return cr.parentCaveat.ExprString()
 }
 
+// ParentCaveat returns the caveat that was evaluated to produce this result.
+func (cr CaveatResult) ParentCaveat() *CompiledCaveat {
+	return cr.parentCaveat
+}
+
 // MissingVarNames returns the name(s) of the missing variables.
 func (cr CaveatResult) MissingVarNames() ([]string, error) {
 	if !cr.isPartial {

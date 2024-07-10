@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/cel-go/common"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/authzed/spicedb/pkg/caveats/replacer"
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
@@ -37,6 +38,37 @@ func (cc CompiledCaveat) Name() string {
 // ExprString returns the string-form of the caveat.
 func (cc CompiledCaveat) ExprString() (string, error) {
 	return cel.AstToString(cc.ast)
+}
+
+// RewriteVariable replaces the use of a variable with another variable in the compiled caveat.
+func (cc CompiledCaveat) RewriteVariable(oldName, newName string) (CompiledCaveat, error) {
+	// Find the existing parameter name and get its type.
+	oldExpr, issues := cc.celEnv.Compile(oldName)
+	if issues.Err() != nil {
+		return CompiledCaveat{}, fmt.Errorf("failed to parse old variable name: %w", issues.Err())
+	}
+
+	oldType := oldExpr.OutputType()
+
+	// Ensure the new variable name is not used.
+	_, niss := cc.celEnv.Compile(newName)
+	if niss.Err() == nil {
+		return CompiledCaveat{}, fmt.Errorf("variable name '%s' is already used", newName)
+	}
+
+	// Extend the environment with the new variable name.
+	extended, err := cc.celEnv.Extend(cel.Variable(newName, oldType))
+	if err != nil {
+		return CompiledCaveat{}, fmt.Errorf("failed to extend environment: %w", err)
+	}
+
+	// Replace the variable in the AST.
+	updatedAst, err := replacer.ReplaceVariable(extended, cc.ast, oldName, newName)
+	if err != nil {
+		return CompiledCaveat{}, fmt.Errorf("failed to rewrite variable: %w", err)
+	}
+
+	return CompiledCaveat{extended, updatedAst, cc.name}, nil
 }
 
 // Serialize serializes the compiled caveat into a byte string for storage.

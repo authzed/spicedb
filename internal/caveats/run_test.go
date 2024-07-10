@@ -61,7 +61,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			"first == 42",
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"non-short circuited or",
@@ -75,7 +75,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			`second == "hello"`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"false or",
@@ -89,7 +89,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`first == 42 || second == "hello"`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"short circuited and",
@@ -102,7 +102,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			"first == 42",
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"non-short circuited and",
@@ -116,7 +116,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			"first == 42",
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"false or",
@@ -130,7 +130,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`second == "hello"`,
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"inversion",
@@ -162,7 +162,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`first == 42 || second == "hello"`,
+			`((first == 42) || (second == "hello")) && (!(third))`,
 		},
 		{
 			"nested true",
@@ -182,7 +182,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			`first == 42 && !(third)`,
+			`((first == 42) || (second == "hello")) && (!(third))`,
 		},
 		{
 			"missing context on left side of and branch, right branch is true",
@@ -195,7 +195,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"first"},
-			`first == 42 && second == "hello"`,
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"missing context on right side of and branch, left branch is true",
@@ -208,7 +208,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"second"},
-			`first == 42 && second == "hello"`,
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"missing context on left side of or branch, right branch is true",
@@ -221,7 +221,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			`second == "hello"`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"missing context on right side of or branch, left branch is true",
@@ -234,7 +234,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			`first == 42`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"missing context on left side of and branch, right branch is false",
@@ -247,7 +247,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`second == "hello"`,
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"missing context on right side of and branch, left branch is false",
@@ -260,7 +260,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`first == 42`,
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"missing context on left side of or branch, right branch is false",
@@ -273,7 +273,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"first"},
-			`first == 42 || second == "hello"`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"missing context on right side of or branch, left branch is false",
@@ -286,7 +286,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"second"},
-			`first == 42 || second == "hello"`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"missing context on both sides of and branch",
@@ -297,7 +297,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			map[string]any{},
 			false,
 			[]string{"first", "second"},
-			`first == 42 && second == "hello"`,
+			`(first == 42) && (second == "hello")`,
 		},
 		{
 			"missing context on both sides of or branch",
@@ -308,7 +308,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			map[string]any{},
 			false,
 			[]string{"first", "second"},
-			`first == 42 || second == "hello"`,
+			`(first == 42) || (second == "hello")`,
 		},
 		{
 			"missing context under invert",
@@ -333,7 +333,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"first"},
-			`!(first == 42) && second == "hello"`,
+			`(!(first == 42)) && (second == "hello")`,
 		},
 		{
 			"missing context with invert under and with true left branch",
@@ -348,7 +348,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"first"},
-			`second == "hello" && !(first == 42)`,
+			`(second == "hello") && (!(first == 42))`,
 		},
 		{
 			"missing context with invert under and with false right branch",
@@ -363,7 +363,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`second == "hello"`,
+			`(!(first == 42)) && (second == "hello")`,
 		},
 		{
 			"missing context with invert under and with false left branch",
@@ -378,7 +378,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			nil,
-			`second == "hello"`,
+			`(second == "hello") && (!(first == 42))`,
 		},
 		{
 			"missing context with invert under or with true right branch",
@@ -393,7 +393,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			`second == "hello"`,
+			`(!(first == 42)) || (second == "hello")`,
 		},
 		{
 			"missing context with invert under or with true left branch",
@@ -408,7 +408,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			true,
 			nil,
-			`second == "hello"`,
+			`(second == "hello") || (!(first == 42))`,
 		},
 		{
 			"missing context with invert under or with false right branch",
@@ -423,7 +423,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"first"},
-			`!(first == 42) || second == "hello"`,
+			`(!(first == 42)) || (second == "hello")`,
 		},
 		{
 			"missing context with invert under or with false left branch",
@@ -438,7 +438,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 			},
 			false,
 			[]string{"first"},
-			`second == "hello" || !(first == 42)`,
+			`(second == "hello") || (!(first == 42))`,
 		},
 	}
 
@@ -491,14 +491,8 @@ func TestRunCaveatExpressions(t *testing.T) {
 						require.False(t, result.IsPartial())
 					}
 
-					_, err = result.ContextStruct()
-					require.NoError(t, err)
-
-					_, err = result.ExpressionString()
-					require.NoError(t, err)
-
 					if debugOption == caveats.RunCaveatExpressionWithDebugInformation {
-						exprString, err := result.ExpressionString()
+						exprString, _, err := caveats.BuildDebugInformation(result)
 						require.NoError(t, err)
 						require.NotEmpty(t, exprString)
 						require.Equal(t, tc.expectedExprString, exprString)
