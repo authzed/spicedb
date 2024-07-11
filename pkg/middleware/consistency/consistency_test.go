@@ -220,7 +220,7 @@ func TestAtExactSnapshotWithMismatchedToken(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
 
-	// mint a token with a different datastore ID.
+	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
 	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
 	require.NoError(err)
@@ -234,7 +234,7 @@ func TestAtExactSnapshotWithMismatchedToken(t *testing.T) {
 		},
 	}, ds, "somelabel", TreatMismatchingTokensAsError)
 	require.Error(err)
-	require.ErrorContains(err, "ZedToken specified references an older datastore but at-exact-snapshot")
+	require.ErrorContains(err, "ZedToken specified references a different datastore instance but at-exact-snapshot")
 }
 
 func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
@@ -248,7 +248,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
 
-	// mint a token with a different datastore ID.
+	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
 	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
 	require.NoError(err)
@@ -262,7 +262,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectError(t *testing.T) {
 		},
 	}, ds, "somelabel", TreatMismatchingTokensAsError)
 	require.Error(err)
-	require.ErrorContains(err, "ZedToken specified references an older datastore and SpiceDB is configured to raise an error in this scenario")
+	require.ErrorContains(err, "ZedToken specified references a different datastore instance and SpiceDB is configured to raise an error in this scenario")
 }
 
 func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
@@ -276,7 +276,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectMinLatency(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
 
-	// mint a token with a different datastore ID.
+	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
 	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
 	require.NoError(err)
@@ -310,7 +310,7 @@ func TestAtLeastAsFreshWithMismatchedTokenExpectFullConsistency(t *testing.T) {
 	updated := ContextWithHandle(context.Background())
 	updated = datastoremw.ContextWithDatastore(updated, ds)
 
-	// mint a token with a different datastore ID.
+	// mint a token with a different datastore instance ID.
 	ds.CurrentUniqueID = "foo"
 	zedToken, err := zedtoken.NewFromRevision(context.Background(), optimized, ds)
 	require.NoError(err)
