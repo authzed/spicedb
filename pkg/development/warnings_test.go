@@ -36,7 +36,7 @@ func TestWarnings(t *testing.T) {
 				permission view = view	
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion",
+				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
 				Line:    2,
 				Column:  23,
 			},
@@ -49,7 +49,7 @@ func TestWarnings(t *testing.T) {
 				permission view = viewer + (editor & view)	
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion",
+				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
 				Line:    4,
 				Column:  42,
 			},
@@ -68,7 +68,7 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Arrow `group->member` under permission \"view\" references relation \"member\" on definition \"group\"; it is recommended to point to a permission",
+				Message: "Arrow `group->member` under permission \"view\" references relation \"member\" on definition \"group\"; it is recommended to point to a permission (arrow-references-relation)",
 				Line:    9,
 				Column:  23,
 			},
@@ -86,7 +86,7 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Arrow `group->member` under permission \"view\" references relation/permission \"member\" that does not exist on any subject types of relation \"group\"",
+				Message: "Arrow `group->member` under permission \"view\" references relation/permission \"member\" that does not exist on any subject types of relation \"group\" (arrow-references-unreachable-relation)",
 				Line:    8,
 				Column:  23,
 			},
@@ -106,7 +106,7 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Arrow `parent_group->member` under permission \"view\" references relation \"parent_group\" that has relation \"member\" on subject \"group\": *the subject relation will be ignored for the arrow*",
+				Message: "Arrow `parent_group->member` under permission \"view\" references relation \"parent_group\" that has relation \"member\" on subject \"group\": *the subject relation will be ignored for the arrow* (arrow-walks-subject-relation)",
 				Line:    10,
 				Column:  23,
 			},
@@ -120,9 +120,58 @@ func TestWarnings(t *testing.T) {
 				permission view_document = viewer
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view_document\" references parent type \"document\" in its name; it is recommended to drop the suffix",
+				Message: "Permission \"view_document\" references parent type \"document\" in its name; it is recommended to drop the suffix (relation-name-references-parent)",
 				Line:    5,
 				Column:  5,
+			},
+		},
+		{
+			name: "relation referencing its parent definition in its name but warning disabled",
+			schema: `definition user {}
+
+			definition document {
+				relation viewer: user
+
+				// spicedb-ignore-warning: relation-name-references-parent
+				permission view_document = viewer
+			}`,
+			expectedWarning: nil,
+		},
+		{
+			name: "permission referencing itself but warning disabled",
+			schema: `definition test {
+				// spicedb-ignore-warning: permission-references-itself
+				permission view = view	
+			}`,
+			expectedWarning: nil,
+		},
+		{
+			name: "arrow referencing relation but warning disabled",
+			schema: `definition group {
+				relation member: user
+			}
+			
+			definition user {}
+
+			definition document {
+				relation group: group
+
+				// spicedb-ignore-warning: arrow-references-relation
+				permission view = group->member
+			}
+			`,
+			expectedWarning: nil,
+		},
+		{
+			name: "permission referencing itself with wrong warning disabled",
+			schema: `definition test {
+				// spicedb-ignore-warning: arrow-references-relation
+				permission view = view	
+			}`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
+				Line:    3,
+				Column:  23,
 			},
 		},
 	}
