@@ -141,7 +141,7 @@ var decodeTests = []struct {
 	},
 	{
 		format:            "V1 ZedToken with matching datastore unique ID",
-		token:             "GhIKAjQyEgxzb21ldW5pcXVlaWQ=",
+		token:             "Gg4KAjQyEghzb21ldW5pcQ==",
 		datastoreUniqueID: "someuniqueid",
 		expectedRevision:  revisions.NewForTransactionID(42),
 		expectedStatus:    StatusValid,
@@ -149,7 +149,7 @@ var decodeTests = []struct {
 	},
 	{
 		format:            "V1 ZedToken with mismatched datastore unique ID",
-		token:             "GhIKAjQyEgxzb21ldW5pcXVlaWQ=",
+		token:             "Gg4KAjQyEghzb21ldW5pcQ==",
 		datastoreUniqueID: "anotheruniqueid",
 		expectedRevision:  revisions.NewForTransactionID(42),
 		expectedStatus:    StatusMismatchedDatastoreID,
@@ -225,7 +225,7 @@ var hlcDecodeTests = []struct {
 	},
 	{
 		format:            "V1 ZedToken with matching datastore unique ID",
-		token:             "GkYKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIkNjM0OWFhZjItMzdjZC00N2I5LTg0ZTgtZmU1ZmE2ZTJkZWFk",
+		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
 		datastoreUniqueID: "6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
 		expectedStatus:    StatusValid,
 		expectedRevision: (func() datastore.Revision {
@@ -243,7 +243,7 @@ var hlcDecodeTests = []struct {
 	},
 	{
 		format:            "V1 ZedToken with mismatched datastore unique ID",
-		token:             "GkYKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIkNjM0OWFhZjItMzdjZC00N2I5LTg0ZTgtZmU1ZmE2ZTJkZWFk",
+		token:             "GioKHjE2OTM1NDA5NDAzNzMwNDU3MjcuMDAwMDAwMDAwMRIINjM0OWFhZjI=",
 		datastoreUniqueID: "arrrg-6349aaf2-37cd-47b9-84e8-fe5fa6e2dead",
 		expectedStatus:    StatusMismatchedDatastoreID,
 		expectedRevision: (func() datastore.Revision {
