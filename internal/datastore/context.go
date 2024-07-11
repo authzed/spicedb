@@ -25,7 +25,7 @@ func (p *ctxProxy) MetricsID() (string, error) {
 }
 
 func (p *ctxProxy) UniqueID(ctx context.Context) (string, error) {
-	return p.delegate.UniqueID(SeparateContextWithTracing(ctx))
+	return p.delegate.UniqueID(ctx)
 }
 
 func (p *ctxProxy) ReadWriteTx(

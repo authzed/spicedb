@@ -34,9 +34,9 @@ message DecodedZedToken {
   message V1ZedToken {
     string revision = 1;
 
-    // datastore_unique_id is the unique ID for the datastore. Will be empty for legacy
-    // tokens.
-    string datastore_unique_id = 2;
+    // datastore_unique_id_prefix is a prefix of the unique ID for the datastore that created
+    // this token. Will be empty for legacy tokens.
+    string datastore_unique_id_prefix = 2;
   }
   oneof version_oneof {
     V1Zookie deprecated_v1_zookie = 2;

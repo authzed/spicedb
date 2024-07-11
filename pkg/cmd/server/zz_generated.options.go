@@ -625,17 +625,17 @@ func WithEnableRevisionHeartbeat(enableRevisionHeartbeat bool) ConfigOption {
 	}
 }
 
-<<<<<<< HEAD
 // WithEnablePerformanceInsightMetrics returns an option that can set EnablePerformanceInsightMetrics on a Config
 func WithEnablePerformanceInsightMetrics(enablePerformanceInsightMetrics bool) ConfigOption {
 	return func(c *Config) {
 		c.EnablePerformanceInsightMetrics = enablePerformanceInsightMetrics
-=======
+	}
+}
+
 // WithMismatchZedTokenBehavior returns an option that can set MismatchZedTokenBehavior on a Config
 func WithMismatchZedTokenBehavior(mismatchZedTokenBehavior string) ConfigOption {
 	return func(c *Config) {
 		c.MismatchZedTokenBehavior = mismatchZedTokenBehavior
->>>>>>> 3ed6e2b9 (Setup defined (and configurable) behavior if a ZedToken from)
 	}
 }
 

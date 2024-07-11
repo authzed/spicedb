@@ -154,7 +154,7 @@ func (m *DecodedZedToken_V1ZedToken) CloneVT() *DecodedZedToken_V1ZedToken {
 	}
 	r := new(DecodedZedToken_V1ZedToken)
 	r.Revision = m.Revision
-	r.DatastoreUniqueId = m.DatastoreUniqueId
+	r.DatastoreUniqueIdPrefix = m.DatastoreUniqueIdPrefix
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -573,7 +573,7 @@ func (this *DecodedZedToken_V1ZedToken) EqualVT(that *DecodedZedToken_V1ZedToken
 	if this.Revision != that.Revision {
 		return false
 	}
-	if this.DatastoreUniqueId != that.DatastoreUniqueId {
+	if this.DatastoreUniqueIdPrefix != that.DatastoreUniqueIdPrefix {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1210,10 +1210,10 @@ func (m *DecodedZedToken_V1ZedToken) MarshalToSizedBufferVT(dAtA []byte) (int, e
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.DatastoreUniqueId) > 0 {
-		i -= len(m.DatastoreUniqueId)
-		copy(dAtA[i:], m.DatastoreUniqueId)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DatastoreUniqueId)))
+	if len(m.DatastoreUniqueIdPrefix) > 0 {
+		i -= len(m.DatastoreUniqueIdPrefix)
+		copy(dAtA[i:], m.DatastoreUniqueIdPrefix)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DatastoreUniqueIdPrefix)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -1820,7 +1820,7 @@ func (m *DecodedZedToken_V1ZedToken) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.DatastoreUniqueId)
+	l = len(m.DatastoreUniqueIdPrefix)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -2594,7 +2594,7 @@ func (m *DecodedZedToken_V1ZedToken) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DatastoreUniqueId", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field DatastoreUniqueIdPrefix", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -2622,7 +2622,7 @@ func (m *DecodedZedToken_V1ZedToken) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.DatastoreUniqueId = string(dAtA[iNdEx:postIndex])
+			m.DatastoreUniqueIdPrefix = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
