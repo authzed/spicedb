@@ -275,4 +275,56 @@ var steelThreadTestCases = []steelThreadTestCase{
 			},
 		},
 	},
+	{
+		name:     "lookup resources with intersection",
+		datafile: "document-with-intersect-resources.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "uncursored lookup resources for user:fred",
+				operationName: "lookupResources",
+				arguments: map[string]any{
+					"resource_type":     "document",
+					"permission":        "view",
+					"subject_type":      "user",
+					"subject_object_id": "fred",
+				},
+				resultsFileName: "lookup-resources-with-intersection-uncursored-indirect-lookup-resources-for-user-fred-results.yaml",
+			},
+			{
+				name:          "uncursored indirect lookup resources for user:fred",
+				operationName: "lookupResources",
+				arguments: map[string]any{
+					"resource_type":     "document",
+					"permission":        "indirect_view",
+					"subject_type":      "user",
+					"subject_object_id": "fred",
+				},
+				resultsFileName: "lookup-resources-with-intersection-uncursored-indirect-lookup-resources-for-user-fred-results.yaml",
+			},
+			{
+				name:          "cursored lookup resources for user:fred",
+				operationName: "cursoredLookupResources",
+				arguments: map[string]any{
+					"resource_type":     "document",
+					"permission":        "view",
+					"subject_type":      "user",
+					"subject_object_id": "fred",
+					"page_size":         18,
+				},
+				resultsFileName: "lookup-resources-with-intersection-cursored-lookup-resources-for-user-fred-results.yaml",
+			},
+			{
+				name:          "cursored indirect lookup resources for user:fred",
+				operationName: "cursoredLookupResources",
+				arguments: map[string]any{
+					"resource_type":     "document",
+					"permission":        "indirect_view",
+					"subject_type":      "user",
+					"subject_object_id": "fred",
+					"page_size":         18,
+				},
+				resultsFileName: "lookup-resources-with-intersection-cursored-lookup-resources-for-user-fred-results.yaml",
+			},
+		},
+	},
 }
