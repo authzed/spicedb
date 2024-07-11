@@ -19,6 +19,7 @@ type optionState struct {
 	cache                 cache.Cache
 	concurrencyLimits     graph.ConcurrencyLimits
 	remoteDispatchTimeout time.Duration
+	dispatchChunkSize     uint16
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -49,6 +50,13 @@ func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
 	}
 }
 
+// DispatchChunkSize sets the maximum number of items to be dispatched in a single dispatch request
+func DispatchChunkSize(dispatchChunkSize uint16) Option {
+	return func(state *optionState) {
+		state.dispatchChunkSize = dispatchChunkSize
+	}
+}
+
 // RemoteDispatchTimeout sets the maximum timeout for a remote dispatch.
 // Defaults to 60s (as defined in the remote dispatcher).
 func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
@@ -66,7 +74,7 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		fn(&opts)
 	}
 
-	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits)
+	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits, opts.dispatchChunkSize)
 
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"

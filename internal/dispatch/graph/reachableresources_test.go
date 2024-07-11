@@ -265,7 +265,7 @@ func BenchmarkReachableResources(b *testing.B) {
 
 		ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-		dispatcher := NewLocalOnlyDispatcher(10)
+		dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 		ctx := datastoremw.ContextWithHandle(context.Background())
 		require.NoError(datastoremw.SetInContext(ctx, ds))
@@ -571,7 +571,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
@@ -691,7 +691,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 		testRels,
 		require.New(t),
 	)
-	dispatcher := NewLocalOnlyDispatcher(2)
+	dispatcher := NewLocalOnlyDispatcher(2, 100)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
@@ -765,7 +765,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 
 	for _, subject := range subjects {
 		t.Run(subject, func(t *testing.T) {
-			dispatcher := NewLocalOnlyDispatcher(2)
+			dispatcher := NewLocalOnlyDispatcher(2, 100)
 
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
@@ -870,7 +870,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 	for _, limit := range []uint32{1, 10, 50, 100, 150, 250, 500} {
 		limit := limit
 		t.Run(fmt.Sprintf("limit-%d", limit), func(t *testing.T) {
-			dispatcher := NewLocalOnlyDispatcher(2)
+			dispatcher := NewLocalOnlyDispatcher(2, 100)
 			var cursor *v1.Cursor
 			foundResources := mapz.NewSet[string]()
 
@@ -948,7 +948,7 @@ func TestReachableResourcesWithQueryError(t *testing.T) {
 		require.New(t),
 	)
 
-	dispatcher := NewLocalOnlyDispatcher(2)
+	dispatcher := NewLocalOnlyDispatcher(2, 100)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 
@@ -1226,7 +1226,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
 					require := require.New(t)
 
-					dispatcher := NewLocalOnlyDispatcher(10)
+					dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 					ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 					require.NoError(err)
@@ -1310,7 +1310,7 @@ func TestReachableResourcesWithPreCancelation(t *testing.T) {
 		require.New(t),
 	)
 
-	dispatcher := NewLocalOnlyDispatcher(2)
+	dispatcher := NewLocalOnlyDispatcher(2, 100)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
@@ -1365,7 +1365,7 @@ func TestReachableResourcesWithUnexpectedContextCancelation(t *testing.T) {
 		require.New(t),
 	)
 
-	dispatcher := NewLocalOnlyDispatcher(2)
+	dispatcher := NewLocalOnlyDispatcher(2, 100)
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 
@@ -1465,7 +1465,7 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
-			dispatcher := NewLocalOnlyDispatcher(50)
+			dispatcher := NewLocalOnlyDispatcher(50, 100)
 			cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 			require.NoError(t, err)
 

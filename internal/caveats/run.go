@@ -221,18 +221,10 @@ func runExpressionWithCaveats(
 	var exprStringPieces []string
 
 	var currentResult ExpressionResult = syntheticResult{
-		value:                false,
+		value:                cop.Op == core.CaveatOperation_AND,
 		contextValues:        map[string]any{},
 		exprString:           "",
 		missingContextParams: []string{},
-	}
-	if cop.Op == core.CaveatOperation_AND {
-		currentResult = syntheticResult{
-			value:                true,
-			contextValues:        map[string]any{},
-			exprString:           "",
-			missingContextParams: []string{},
-		}
 	}
 
 	buildExprString := func() (string, error) {

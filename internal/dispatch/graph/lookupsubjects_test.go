@@ -208,7 +208,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	revision, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 
-	dis := NewLocalOnlyDispatcher(10)
+	dis := NewLocalOnlyDispatcher(10, 100)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -995,7 +995,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)

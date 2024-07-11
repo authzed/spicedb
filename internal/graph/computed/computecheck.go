@@ -56,8 +56,9 @@ func ComputeCheck(
 	d dispatch.Check,
 	params CheckParameters,
 	resourceID string,
+	dispatchChunkSize uint16,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID})
+	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID}, dispatchChunkSize)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -71,14 +72,16 @@ func ComputeBulkCheck(
 	d dispatch.Check,
 	params CheckParameters,
 	resourceIDs []string,
+	dispatchChunkSize uint16,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	return computeCheck(ctx, d, params, resourceIDs)
+	return computeCheck(ctx, d, params, resourceIDs, dispatchChunkSize)
 }
 
 func computeCheck(ctx context.Context,
 	d dispatch.Check,
 	params CheckParameters,
 	resourceIDs []string,
+	dispatchChunkSize uint16,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	if params.DebugOption == BasicDebuggingEnabled {
@@ -108,7 +111,7 @@ func computeCheck(ctx context.Context,
 	}
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
-	_, err = slicez.ForEachChunkUntil(resourceIDs, datastore.FilterMaximumIDCount, func(resourceIDsToCheck []string) (bool, error) {
+	_, err = slicez.ForEachChunkUntil(resourceIDs, dispatchChunkSize, func(resourceIDsToCheck []string) (bool, error) {
 		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: params.ResourceType,
 			ResourceIds:      resourceIDsToCheck,

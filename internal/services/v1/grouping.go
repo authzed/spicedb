@@ -10,8 +10,6 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
-var MaxBulkCheckDispatchChunkSize = datastore.FilterMaximumIDCount
-
 type groupedCheckParameters struct {
 	params      *computed.CheckParameters
 	resourceIDs []string

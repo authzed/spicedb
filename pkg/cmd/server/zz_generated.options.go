@@ -70,6 +70,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.Dispatcher = c.Dispatcher
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchHashringSpread = c.DispatchHashringSpread
+		to.DispatchChunkSize = c.DispatchChunkSize
 		to.DispatchSecondaryUpstreamAddrs = c.DispatchSecondaryUpstreamAddrs
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchCacheConfig = c.DispatchCacheConfig
@@ -136,6 +137,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["Dispatcher"] = helpers.DebugValue(c.Dispatcher, false)
 	debugMap["DispatchHashringReplicationFactor"] = helpers.DebugValue(c.DispatchHashringReplicationFactor, false)
 	debugMap["DispatchHashringSpread"] = helpers.DebugValue(c.DispatchHashringSpread, false)
+	debugMap["DispatchChunkSize"] = helpers.DebugValue(c.DispatchChunkSize, false)
 	debugMap["DispatchSecondaryUpstreamAddrs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamAddrs, false)
 	debugMap["DispatchSecondaryUpstreamExprs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamExprs, false)
 	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
@@ -414,6 +416,13 @@ func WithDispatchHashringReplicationFactor(dispatchHashringReplicationFactor uin
 func WithDispatchHashringSpread(dispatchHashringSpread uint8) ConfigOption {
 	return func(c *Config) {
 		c.DispatchHashringSpread = dispatchHashringSpread
+	}
+}
+
+// WithDispatchChunkSize returns an option that can set DispatchChunkSize on a Config
+func WithDispatchChunkSize(dispatchChunkSize uint16) ConfigOption {
+	return func(c *Config) {
+		c.DispatchChunkSize = dispatchChunkSize
 	}
 }
 

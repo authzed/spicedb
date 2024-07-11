@@ -330,6 +330,7 @@ func newPostgresDatastore(
 		credentialsProvider:     credentialsProvider,
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
+		filterMaximumIDCount:    config.filterMaximumIDCount,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -384,10 +385,11 @@ type pgDatastore struct {
 
 	credentialsProvider datastore.CredentialsProvider
 
-	gcGroup  *errgroup.Group
-	gcCtx    context.Context
-	cancelGc context.CancelFunc
-	gcHasRun atomic.Bool
+	gcGroup              *errgroup.Group
+	gcCtx                context.Context
+	cancelGc             context.CancelFunc
+	gcHasRun             atomic.Bool
+	filterMaximumIDCount uint16
 }
 
 func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
@@ -410,6 +412,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		queryFuncs,
 		executor,
 		buildLivingObjectFilterForRevision(rev),
+		pgd.filterMaximumIDCount,
 	}
 }
 
@@ -447,6 +450,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 					queryFuncs,
 					executor,
 					currentlyLivingObjects,
+					pgd.filterMaximumIDCount,
 				},
 				tx,
 				newXID,

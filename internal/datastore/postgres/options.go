@@ -21,6 +21,7 @@ type postgresOptions struct {
 	gcInterval              time.Duration
 	gcMaxOperationTime      time.Duration
 	maxRetries              uint8
+	filterMaximumIDCount    uint16
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
@@ -63,6 +64,7 @@ const (
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
 	defaultReadStrictMode                    = false
+	defaultFilterMaximumIDCount              = 100
 )
 
 // Option provides the facility to configure how clients within the
@@ -84,6 +86,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		credentialsProviderName:     defaultCredentialsProviderName,
 		readStrictMode:              defaultReadStrictMode,
 		queryInterceptor:            nil,
+		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 	}
 
 	for _, option := range options {
@@ -355,4 +358,9 @@ func MigrationPhase(phase string) Option {
 // Empty by default.
 func CredentialsProviderName(credentialsProviderName string) Option {
 	return func(po *postgresOptions) { po.credentialsProviderName = credentialsProviderName }
+}
+
+// FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
+func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
+	return func(po *postgresOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
 }

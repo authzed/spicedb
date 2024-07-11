@@ -669,7 +669,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"caveat",
 				TupleComparison,
 			)
-			filterer := NewSchemaQueryFilterer(schema, base)
+			filterer := NewSchemaQueryFilterer(schema, base, 100)
 
 			ran := test.run(filterer)
 			require.Equal(t, test.expectedColumnCounts, ran.filteringColumnCounts)
@@ -693,7 +693,7 @@ func BenchmarkSchemaFilterer(b *testing.B) {
 		"caveat_name",
 		TupleComparison,
 	)
-	sqf := NewSchemaQueryFilterer(si, sq.Select("*"))
+	sqf := NewSchemaQueryFilterer(si, sq.Select("*"), 100)
 	var names []string
 	for i := 0; i < 500; i++ {
 		names = append(names, uuid.NewString())
