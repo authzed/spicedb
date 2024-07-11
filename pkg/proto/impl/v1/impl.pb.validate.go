@@ -1593,7 +1593,7 @@ func (m *DecodedZedToken_V1ZedToken) validate(all bool) error {
 
 	// no validation rules for Revision
 
-	// no validation rules for DatastoreUniqueId
+	// no validation rules for DatastoreUniqueIdPrefix
 
 	if len(errors) > 0 {
 		return DecodedZedToken_V1ZedTokenMultiError(errors)
