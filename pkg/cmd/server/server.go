@@ -96,6 +96,7 @@ type Config struct {
 	Dispatcher                        dispatch.Dispatcher     `debugmap:"visible"`
 	DispatchHashringReplicationFactor uint16                  `debugmap:"visible"`
 	DispatchHashringSpread            uint8                   `debugmap:"visible"`
+	DispatchChunkSize                 uint16                  `debugmap:"visible" default:"100"`
 
 	DispatchSecondaryUpstreamAddrs map[string]string `debugmap:"visible"`
 	DispatchSecondaryUpstreamExprs map[string]string `debugmap:"visible"`
@@ -218,7 +219,10 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	ds := c.Datastore
 	if ds == nil {
 		var err error
-		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption())
+		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption(),
+			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
+			// are at most the number of elements returned from a datastore query
+			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize))
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
 				Component("datastore").
@@ -293,6 +297,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			combineddispatch.PrometheusSubsystem(c.DispatchClientMetricsPrefix),
 			combineddispatch.Cache(cc),
 			combineddispatch.ConcurrencyLimits(concurrencyLimits),
+			combineddispatch.DispatchChunkSize(c.DispatchChunkSize),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
@@ -330,6 +335,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 			clusterdispatch.Cache(cdcc),
 			clusterdispatch.RemoteDispatchTimeout(c.DispatchUpstreamTimeout),
 			clusterdispatch.ConcurrencyLimits(concurrencyLimits),
+			clusterdispatch.DispatchChunkSize(c.DispatchChunkSize),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
@@ -419,6 +425,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
 		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
 		UseExperimentalLookupResources2: c.EnableExperimentalLookupResources,
+		DispatchChunkSize:               c.DispatchChunkSize,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

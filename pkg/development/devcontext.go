@@ -111,7 +111,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		Datastore:      ds,
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
-		Dispatcher:     graph.NewLocalOnlyDispatcher(10),
+		Dispatcher:     graph.NewLocalOnlyDispatcher(10, 100),
 	}, nil, nil
 }
 

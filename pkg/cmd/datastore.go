@@ -29,16 +29,16 @@ func NewDatastoreCommand(programName string) (*cobra.Command, error) {
 	RegisterMigrateFlags(migrateCmd)
 	datastoreCmd.AddCommand(migrateCmd)
 
-	cfg := datastore.Config{}
+	cfg := datastore.NewConfigWithOptionsAndDefaults()
 
-	gcCmd := NewGCDatastoreCommand(programName, &cfg)
-	if err := datastore.RegisterDatastoreFlagsWithPrefix(gcCmd.Flags(), "", &cfg); err != nil {
+	gcCmd := NewGCDatastoreCommand(programName, cfg)
+	if err := datastore.RegisterDatastoreFlagsWithPrefix(gcCmd.Flags(), "", cfg); err != nil {
 		return nil, err
 	}
 	datastoreCmd.AddCommand(gcCmd)
 
-	repairCmd := NewRepairDatastoreCommand(programName, &cfg)
-	if err := datastore.RegisterDatastoreFlagsWithPrefix(repairCmd.Flags(), "", &cfg); err != nil {
+	repairCmd := NewRepairDatastoreCommand(programName, cfg)
+	if err := datastore.RegisterDatastoreFlagsWithPrefix(repairCmd.Flags(), "", cfg); err != nil {
 		return nil, err
 	}
 	datastoreCmd.AddCommand(repairCmd)

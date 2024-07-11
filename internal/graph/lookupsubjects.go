@@ -33,13 +33,14 @@ type ValidatedLookupSubjectsRequest struct {
 }
 
 // NewConcurrentLookupSubjects creates an instance of ConcurrentLookupSubjects.
-func NewConcurrentLookupSubjects(d dispatch.LookupSubjects, concurrencyLimit uint16) *ConcurrentLookupSubjects {
-	return &ConcurrentLookupSubjects{d, concurrencyLimit}
+func NewConcurrentLookupSubjects(d dispatch.LookupSubjects, concurrencyLimit uint16, dispatchChunkSize uint16) *ConcurrentLookupSubjects {
+	return &ConcurrentLookupSubjects{d, concurrencyLimit, dispatchChunkSize}
 }
 
 type ConcurrentLookupSubjects struct {
-	d                dispatch.LookupSubjects
-	concurrencyLimit uint16
+	d                 dispatch.LookupSubjects
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 func (cl *ConcurrentLookupSubjects) LookupSubjects(
@@ -621,7 +622,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		}
 
 		// Dispatch the found subjects as the resources of the next step.
-		slicez.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,

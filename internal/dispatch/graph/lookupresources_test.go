@@ -314,7 +314,7 @@ func TestMaxDepthLookup(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatcher := NewLocalOnlyDispatcher(10)
+	dispatcher := NewLocalOnlyDispatcher(10, 100)
 	defer dispatcher.Close()
 
 	ctx := datastoremw.ContextWithHandle(context.Background())
@@ -594,7 +594,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
 					require := require.New(t)
 
-					dispatcher := NewLocalOnlyDispatcher(10)
+					dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 					ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 					require.NoError(err)
@@ -655,7 +655,7 @@ func TestLookupResourcesImmediateTimeout(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatcher := NewLocalOnlyDispatcher(10)
+	dispatcher := NewLocalOnlyDispatcher(10, 100)
 	defer dispatcher.Close()
 
 	ctx := datastoremw.ContextWithHandle(context.Background())
@@ -688,7 +688,7 @@ func TestLookupResourcesWithError(t *testing.T) {
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 
-	dispatcher := NewLocalOnlyDispatcher(10)
+	dispatcher := NewLocalOnlyDispatcher(10, 100)
 	defer dispatcher.Close()
 
 	ctx := datastoremw.ContextWithHandle(context.Background())

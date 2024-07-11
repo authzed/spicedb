@@ -24,7 +24,11 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-const maxDepth = 50
+const (
+	maxDepth                = 50
+	defaultConcurrencyLimit = 10
+	defaultMaxChunkSize     = 100
+)
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
@@ -56,7 +60,7 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	dispatcher := graph.NewLocalOnlyDispatcher(10)
+	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, defaultMaxChunkSize)
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
 
@@ -78,6 +82,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
 				MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
 				MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
+				DispatchChunkSize:               defaultMaxChunkSize,
 			},
 			1*time.Second,
 		)

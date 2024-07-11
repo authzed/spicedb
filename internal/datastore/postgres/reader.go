@@ -16,9 +16,10 @@ import (
 )
 
 type pgReader struct {
-	query    pgxcommon.DBFuncQuerier
-	executor common.QueryExecutor
-	filterer queryFilterer
+	query                pgxcommon.DBFuncQuerier
+	executor             common.QueryExecutor
+	filterer             queryFilterer
+	filterMaximumIDCount uint16
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -81,7 +82,7 @@ func (r *pgReader) CountRelationships(ctx context.Context, name string) (int, er
 		return 0, err
 	}
 
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countTuples)).FilterWithRelationshipsFilter(relFilter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countTuples), r.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -169,7 +170,7 @@ func (r *pgReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples), r.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +183,7 @@ func (r *pgReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples), r.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err

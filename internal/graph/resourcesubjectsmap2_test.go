@@ -196,7 +196,7 @@ func TestFilterSubjectIDsToDispatch(t *testing.T) {
 	require.NoError(t, err)
 
 	locked := rsm.asReadOnly()
-	onrSet := &syncONRSet{}
+	onrSet := NewSyncONRSet()
 	filtered := locked.filterSubjectIDsToDispatch(onrSet, &core.RelationReference{
 		Namespace: "group",
 		Relation:  "...",

@@ -20,14 +20,15 @@ import (
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
-func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, concurrencyLimit uint16) *CursoredLookupResources2 {
-	return &CursoredLookupResources2{dl, dc, concurrencyLimit}
+func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources2 {
+	return &CursoredLookupResources2{dl, dc, concurrencyLimit, dispatchChunkSize}
 }
 
 type CursoredLookupResources2 struct {
-	dl               dispatch.LookupResources2
-	dc               dispatch.Check
-	concurrencyLimit uint16
+	dl                dispatch.LookupResources2
+	dc                dispatch.Check
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 type ValidatedLookupResources2Request struct {
@@ -284,7 +285,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 
 			// Chunk based on the FilterMaximumIDCount, to ensure we never send more than that amount of
 			// results to a downstream dispatch.
-			rsm := newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
+			rsm := newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
 
@@ -321,12 +322,12 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 					return nil, err
 				}
 
-				if rsm.len() == int(datastore.FilterMaximumIDCount) {
+				if rsm.len() == int(crr.dispatchChunkSize) {
 					toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap2]{
 						item:   rsm.asReadOnly(),
 						cursor: currentCursor,
 					})
-					rsm = newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
+					rsm = newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
 					currentCursor = tpl
 				}
 			}
@@ -519,7 +520,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
 							DebugOption:   computed.NoDebugging,
 							CheckHints:    checkHints,
-						}, resourceIDs)
+						}, resourceIDs, crr.dispatchChunkSize)
 						if err != nil {
 							return err
 						}
@@ -627,6 +628,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				crr.dl,
 				crr.dc,
 				crr.concurrencyLimit,
+				crr.dispatchChunkSize,
 			)
 		})
 }

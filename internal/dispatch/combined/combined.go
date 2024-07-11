@@ -38,6 +38,7 @@ type optionState struct {
 	remoteDispatchTimeout  time.Duration
 	secondaryUpstreamAddrs map[string]string
 	secondaryUpstreamExprs map[string]string
+	dispatchChunkSize      uint16
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -116,6 +117,13 @@ func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
 	}
 }
 
+// DispatchChunkSize sets the maximum number of items to be dispatched in a single dispatch request
+func DispatchChunkSize(dispatchChunkSize uint16) Option {
+	return func(state *optionState) {
+		state.dispatchChunkSize = dispatchChunkSize
+	}
+}
+
 // RemoteDispatchTimeout sets the maximum timeout for a remote dispatch.
 // Defaults to 60s (as defined in the remote dispatcher).
 func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
@@ -142,7 +150,11 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		return nil, err
 	}
 
-	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
+	chunkSize := opts.dispatchChunkSize
+	if chunkSize == 0 {
+		chunkSize = 100
+	}
+	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits, chunkSize)
 	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.
