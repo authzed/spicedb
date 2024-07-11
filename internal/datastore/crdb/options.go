@@ -22,8 +22,8 @@ type crdbOptions struct {
 	overlapKey                  string
 	enableConnectionBalancing   bool
 	analyzeBeforeStatistics     bool
-
-	enablePrometheusStats bool
+	filterMaximumIDCount        uint16
+	enablePrometheusStats       bool
 }
 
 const (
@@ -48,6 +48,7 @@ const (
 	defaultEnablePrometheusStats     = false
 	defaultEnableConnectionBalancing = true
 	defaultConnectRate               = 100 * time.Millisecond
+	defaultFilterMaximumIDCount      = 100
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -68,6 +69,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		enableConnectionBalancing:   defaultEnableConnectionBalancing,
 		connectRate:                 defaultConnectRate,
+		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 	}
 
 	for _, option := range options {
@@ -305,4 +307,9 @@ func WithEnableConnectionBalancing(connectionBalancing bool) Option {
 // Disabled by default.
 func DebugAnalyzeBeforeStatistics() Option {
 	return func(po *crdbOptions) { po.analyzeBeforeStatistics = true }
+}
+
+// FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
+func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
+	return func(po *crdbOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
 }

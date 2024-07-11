@@ -46,7 +46,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 						dsconfig.WithRequestHedgingEnabled(false)))
 
 					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
-					dispatcher := graph.NewLocalOnlyDispatcher(10)
+					dispatcher := graph.NewLocalOnlyDispatcher(10, 100)
 					accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
 
 					headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)

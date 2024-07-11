@@ -33,6 +33,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
+const defaultFilterMaximumIDCountForTest = 100
+
 func TestBulkImportRelationships(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -539,16 +541,16 @@ func TestBulkCheckPermission(t *testing.T) {
 		{
 			name: "chunking test",
 			requests: (func() []string {
-				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+5)
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+5)
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
 				return toReturn
 			})(),
 			response: (func() []bulkCheckTest {
-				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+5)
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+5)
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
@@ -562,23 +564,23 @@ func TestBulkCheckPermission(t *testing.T) {
 		{
 			name: "chunking test with errors",
 			requests: (func() []string {
-				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+6)
+				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
 
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
 				return toReturn
 			})(),
 			response: (func() []bulkCheckTest {
-				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+6)
+				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, bulkCheckTest{
 					req: `nondoc:masterplan#view@user:eng_lead`,
 					err: namespace.NewNamespaceNotFoundErr("nondoc"),
 				})
 
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,

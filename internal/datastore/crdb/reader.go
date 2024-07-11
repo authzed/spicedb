@@ -60,11 +60,12 @@ var (
 )
 
 type crdbReader struct {
-	query         pgxcommon.DBFuncQuerier
-	executor      common.QueryExecutor
-	keyer         overlapKeyer
-	overlapKeySet keySet
-	fromBuilder   func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
+	query                pgxcommon.DBFuncQuerier
+	executor             common.QueryExecutor
+	keyer                overlapKeyer
+	overlapKeySet        keySet
+	fromBuilder          func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
+	filterMaximumIDCount uint16
 }
 
 func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -83,7 +84,7 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 	}
 
 	query := cr.fromBuilder(countTuples, tableTuple)
-	builder, err := common.NewSchemaQueryFilterer(schema, query).FilterWithRelationshipsFilter(relFilter)
+	builder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -208,7 +209,7 @@ func (cr *crdbReader) QueryRelationships(
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	query := cr.fromBuilder(queryTuples, tableTuple)
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, query).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +223,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	query := cr.fromBuilder(queryTuples, tableTuple)
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, query).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err

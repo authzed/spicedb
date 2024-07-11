@@ -78,38 +78,38 @@ func SharedConcurrencyLimits(concurrencyLimit uint16) ConcurrencyLimits {
 }
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
-	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit))
+func NewLocalOnlyDispatcher(concurrencyLimit uint16, dispatchChunkSize uint16) dispatch.Dispatcher {
+	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit), dispatchChunkSize)
 }
 
 // NewLocalOnlyDispatcherWithLimits creates a dispatcher thatg consults with the graph to formulate a response
 // and has the defined concurrency limits per dispatch type.
-func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
+func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
 	d := &localDispatcher{}
 
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
 
-	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
+	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, dispatchChunkSize)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources)
-	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources)
-	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects)
-	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, concurrencyLimits.LookupResources)
+	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources, dispatchChunkSize)
+	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources, dispatchChunkSize)
+	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects, dispatchChunkSize)
+	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, concurrencyLimits.LookupResources, dispatchChunkSize)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
+func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
 
-	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
+	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check, dispatchChunkSize)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources)
-	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources)
-	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects)
-	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, concurrencyLimits.LookupResources)
+	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources, dispatchChunkSize)
+	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources, dispatchChunkSize)
+	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects, dispatchChunkSize)
+	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, concurrencyLimits.LookupResources, dispatchChunkSize)
 
 	return &localDispatcher{
 		checker:                   checker,

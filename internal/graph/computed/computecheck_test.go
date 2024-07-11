@@ -806,7 +806,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := graph.NewLocalOnlyDispatcher(10)
+			dispatch := graph.NewLocalOnlyDispatcher(10, 100)
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -831,6 +831,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 							DebugOption:   computed.BasicDebuggingEnabled,
 						},
 						rel.ResourceAndRelation.ObjectId,
+						100,
 					)
 
 					if r.error != "" {
@@ -854,7 +855,7 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10)
+	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -871,6 +872,7 @@ func TestComputeCheckError(t *testing.T) {
 			DebugOption:   computed.BasicDebuggingEnabled,
 		},
 		"id",
+		100,
 	)
 	require.Error(t, err)
 }
@@ -879,7 +881,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10)
+	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -923,6 +925,7 @@ func TestComputeBulkCheck(t *testing.T) {
 			DebugOption:   computed.NoDebugging,
 		},
 		[]string{"direct", "first", "second", "third"},
+		100,
 	)
 	require.NoError(t, err)
 

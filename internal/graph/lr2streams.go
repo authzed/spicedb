@@ -8,7 +8,6 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
 	"github.com/authzed/spicedb/internal/taskrunner"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -31,6 +30,7 @@ func runDispatchAndChecker(
 	lrDispatcher dispatch.LookupResources2,
 	checkDispatcher dispatch.Check,
 	concurrencyLimit uint16,
+	dispatchChunkSize uint16,
 ) error {
 	// Only allow max one dispatcher and one checker to run concurrently.
 	concurrencyLimit = min(concurrencyLimit, 2)
@@ -47,6 +47,7 @@ func runDispatchAndChecker(
 		checkDispatcher:    checkDispatcher,
 		taskrunner:         taskrunner.NewTaskRunner(ctx, concurrencyLimit),
 		lock:               &sync.Mutex{},
+		dispatchChunkSize:  dispatchChunkSize,
 	}
 
 	return rdc.runAndWait()
@@ -62,6 +63,7 @@ type rdc struct {
 	entrypoint         typesystem.ReachabilityEntrypoint
 	lrDispatcher       dispatch.LookupResources2
 	checkDispatcher    dispatch.Check
+	dispatchChunkSize  uint16
 
 	taskrunner *taskrunner.TaskRunner
 
@@ -80,7 +82,7 @@ func (rdc *rdc) dispatchAndCollect(ctx context.Context, cursor *v1.Cursor) ([]*v
 			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
 		},
 		OptionalCursor: cursor,
-		OptionalLimit:  uint32(datastore.FilterMaximumIDCount),
+		OptionalLimit:  uint32(rdc.dispatchChunkSize),
 	}, collectingStream)
 	return collectingStream.Results(), err
 }
@@ -151,7 +153,7 @@ func (rdc *rdc) runChecker(ctx context.Context, collected []*v1.DispatchLookupRe
 		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
-	}, resourceIDsToCheck)
+	}, resourceIDsToCheck, rdc.dispatchChunkSize)
 	if err != nil {
 		return err
 	}

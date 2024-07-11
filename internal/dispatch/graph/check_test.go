@@ -172,7 +172,7 @@ func TestMaxDepth(t *testing.T) {
 	revision, err := common.UpdateTuplesInDatastore(ctx, ds, mutation)
 	require.NoError(err)
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(10, 100)
 
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("folder", "view"),
@@ -1217,7 +1217,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
@@ -1552,7 +1552,7 @@ func TestCheckWithHints(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)
@@ -1596,7 +1596,7 @@ func TestCheckWithHints(t *testing.T) {
 func TestCheckHintsPartialApplication(t *testing.T) {
 	require := require.New(t)
 
-	dispatcher := NewLocalOnlyDispatcher(10)
+	dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -1641,7 +1641,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	require := require.New(t)
 
-	dispatcher := NewLocalOnlyDispatcher(10)
+	dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
@@ -1694,7 +1694,7 @@ func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint1
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(concurrencyLimit)
+	dispatch := NewLocalOnlyDispatcher(concurrencyLimit, 100)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)
@@ -1716,7 +1716,7 @@ func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*co
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(10, 100)
 
 	cachingDispatcher, err := caching.NewCachingDispatcher(caching.DispatchTestCache(t), false, "", &keys.CanonicalKeyHandler{})
 	cachingDispatcher.SetDelegate(dispatch)

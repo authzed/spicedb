@@ -74,7 +74,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptions(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),

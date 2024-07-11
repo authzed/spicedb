@@ -119,7 +119,7 @@ func TestCertRotation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(1000),
 		server.WithMaximumUpdatesPerWrite(1000),

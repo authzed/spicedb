@@ -22,6 +22,7 @@ const (
 	defaultMaxRetries                        = 8
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
+	defaultFilterMaximumIDCount              = 100
 )
 
 type mysqlOptions struct {
@@ -42,6 +43,7 @@ type mysqlOptions struct {
 	lockWaitTimeoutSeconds      *uint8
 	gcEnabled                   bool
 	credentialsProviderName     string
+	filterMaximumIDCount        uint16
 }
 
 // Option provides the facility to configure how clients within the
@@ -64,6 +66,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
 		credentialsProviderName:     defaultCredentialsProviderName,
+		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 	}
 
 	for _, option := range options {
@@ -246,4 +249,9 @@ func GCMaxOperationTime(time time.Duration) Option {
 // Empty by default.
 func CredentialsProviderName(credentialsProviderName string) Option {
 	return func(mo *mysqlOptions) { mo.credentialsProviderName = credentialsProviderName }
+}
+
+// FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
+func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
+	return func(mo *mysqlOptions) { mo.filterMaximumIDCount = filterMaximumIDCount }
 }

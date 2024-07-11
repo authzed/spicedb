@@ -102,14 +102,16 @@ type SchemaQueryFilterer struct {
 	schema                SchemaInformation
 	queryBuilder          sq.SelectBuilder
 	filteringColumnCounts map[string]int
+	filterMaximumIDCount  uint16
 }
 
 // NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
-func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuilder) SchemaQueryFilterer {
+func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuilder, filterMaximumIDCount uint16) SchemaQueryFilterer {
 	return SchemaQueryFilterer{
 		schema:                schema,
 		queryBuilder:          initialQuery,
 		filteringColumnCounts: map[string]int{},
+		filterMaximumIDCount:  filterMaximumIDCount,
 	}
 }
 
@@ -306,8 +308,8 @@ func (sqf SchemaQueryFilterer) MustFilterWithResourceIDPrefix(prefix string) Sch
 // FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
 // specified IDs.
 func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
-	if len(resourceIds) > int(datastore.FilterMaximumIDCount) {
-		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount)
+	if len(resourceIds) > int(sqf.filterMaximumIDCount) {
+		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", sqf.filterMaximumIDCount)
 	}
 
 	var builder strings.Builder
@@ -422,8 +424,8 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 		}
 
 		if len(selector.OptionalSubjectIds) > 0 {
-			if len(selector.OptionalSubjectIds) > int(datastore.FilterMaximumIDCount) {
-				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount)
+			if len(selector.OptionalSubjectIds) > int(sqf.filterMaximumIDCount) {
+				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", sqf.filterMaximumIDCount)
 			}
 
 			var builder strings.Builder
