@@ -216,7 +216,7 @@ func cursoredLookupResources(parameters map[string]any, client v1.PermissionsSer
 		}
 
 		if count != parameters["page_size"].(int) {
-			return nil, fmt.Errorf("expected full page size of %d for page #%d, got %d", parameters["page_size"].(int), index, count)
+			return nil, fmt.Errorf("expected full page size of %d for page #%d (of %d), got %d\npage sizes: %v", parameters["page_size"].(int), index, len(resultCounts), count, resultCounts)
 		}
 	}
 
