@@ -10,25 +10,25 @@ import (
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
-var allChecks = checkers{
-	relationCheckers: []relationChecker{
+var allChecks = checks{
+	relationChecks: []relationCheck{
 		lintRelationReferencesParentType,
 	},
-	computedUsersetCheckers: []computedUsersetChecker{
+	computedUsersetChecks: []computedUsersetCheck{
 		lintPermissionReferencingItself,
 	},
-	ttuCheckers: []ttuChecker{
+	ttuChecks: []ttuCheck{
 		lintArrowReferencingRelation,
 		lintArrowReferencingUnreachable,
 		lintArrowOverSubRelation,
 	},
 }
 
-func warningForMetadata(message string, metadata namespace.WithSourcePosition) *devinterface.DeveloperWarning {
-	return warningForPosition(message, metadata.GetSourcePosition())
+func warningForMetadata(warningName string, message string, metadata namespace.WithSourcePosition) *devinterface.DeveloperWarning {
+	return warningForPosition(warningName, message, metadata.GetSourcePosition())
 }
 
-func warningForPosition(message string, sourcePosition *corev1.SourcePosition) *devinterface.DeveloperWarning {
+func warningForPosition(warningName string, message string, sourcePosition *corev1.SourcePosition) *devinterface.DeveloperWarning {
 	if sourcePosition == nil {
 		return &devinterface.DeveloperWarning{
 			Message: message,
@@ -39,7 +39,7 @@ func warningForPosition(message string, sourcePosition *corev1.SourcePosition) *
 	columnNumber := sourcePosition.ZeroIndexedColumnPosition + 1
 
 	return &devinterface.DeveloperWarning{
-		Message: message,
+		Message: message + " (" + warningName + ")",
 		Line:    uint32(lineNumber),
 		Column:  uint32(columnNumber),
 	}
@@ -74,8 +74,13 @@ func addDefinitionWarnings(ctx context.Context, def *corev1.NamespaceDefinition,
 	warnings := []*devinterface.DeveloperWarning{}
 	for _, rel := range def.Relation {
 		ctx = context.WithValue(ctx, relationKey, rel)
-		for _, checker := range allChecks.relationCheckers {
-			checkerWarning, err := checker(ctx, rel, ts)
+
+		for _, check := range allChecks.relationChecks {
+			if shouldSkipCheck(rel.Metadata, check.name) {
+				continue
+			}
+
+			checkerWarning, err := check.fn(ctx, rel, ts)
 			if err != nil {
 				return nil, err
 			}
@@ -86,7 +91,7 @@ func addDefinitionWarnings(ctx context.Context, def *corev1.NamespaceDefinition,
 		}
 
 		if ts.IsPermission(rel.Name) {
-			found, err := walkUsersetRewrite(ctx, rel.UsersetRewrite, allChecks, ts)
+			found, err := walkUsersetRewrite(ctx, rel.UsersetRewrite, rel, allChecks, ts)
 			if err != nil {
 				return nil, err
 			}
@@ -98,39 +103,69 @@ func addDefinitionWarnings(ctx context.Context, def *corev1.NamespaceDefinition,
 	return warnings, nil
 }
 
+func shouldSkipCheck(metadata *corev1.Metadata, name string) bool {
+	if metadata == nil {
+		return false
+	}
+
+	comments := namespace.GetComments(metadata)
+	for _, comment := range comments {
+		if comment == "// spicedb-ignore-warning: "+name {
+			return true
+		}
+	}
+
+	return false
+}
+
 type (
 	relationChecker        func(ctx context.Context, relation *corev1.Relation, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
 	computedUsersetChecker func(ctx context.Context, computedUserset *corev1.ComputedUserset, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
 	ttuChecker             func(ctx context.Context, ttu *corev1.TupleToUserset, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
 )
 
-type checkers struct {
-	relationCheckers        []relationChecker
-	computedUsersetCheckers []computedUsersetChecker
-	ttuCheckers             []ttuChecker
+type relationCheck struct {
+	name string
+	fn   relationChecker
 }
 
-func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, checkers checkers, ts *typesystem.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
+type computedUsersetCheck struct {
+	name string
+	fn   computedUsersetChecker
+}
+
+type ttuCheck struct {
+	name string
+	fn   ttuChecker
+}
+
+type checks struct {
+	relationChecks        []relationCheck
+	computedUsersetChecks []computedUsersetCheck
+	ttuChecks             []ttuCheck
+}
+
+func walkUsersetRewrite(ctx context.Context, rewrite *corev1.UsersetRewrite, relation *corev1.Relation, checks checks, ts *typesystem.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
 	if rewrite == nil {
 		return nil, nil
 	}
 
 	switch t := (rewrite.RewriteOperation).(type) {
 	case *corev1.UsersetRewrite_Union:
-		return walkUsersetOperations(ctx, t.Union.Child, checkers, ts)
+		return walkUsersetOperations(ctx, t.Union.Child, relation, checks, ts)
 
 	case *corev1.UsersetRewrite_Intersection:
-		return walkUsersetOperations(ctx, t.Intersection.Child, checkers, ts)
+		return walkUsersetOperations(ctx, t.Intersection.Child, relation, checks, ts)
 
 	case *corev1.UsersetRewrite_Exclusion:
-		return walkUsersetOperations(ctx, t.Exclusion.Child, checkers, ts)
+		return walkUsersetOperations(ctx, t.Exclusion.Child, relation, checks, ts)
 
 	default:
 		return nil, spiceerrors.MustBugf("unexpected rewrite operation type %T", t)
 	}
 }
 
-func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child, checkers checkers, ts *typesystem.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
+func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child, relation *corev1.Relation, checks checks, ts *typesystem.TypeSystem) ([]*devinterface.DeveloperWarning, error) {
 	warnings := []*devinterface.DeveloperWarning{}
 	for _, op := range ops {
 		switch t := op.ChildType.(type) {
@@ -138,8 +173,12 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 			continue
 
 		case *corev1.SetOperation_Child_ComputedUserset:
-			for _, checker := range checkers.computedUsersetCheckers {
-				checkerWarning, err := checker(ctx, t.ComputedUserset, op.SourcePosition, ts)
+			for _, check := range checks.computedUsersetChecks {
+				if shouldSkipCheck(relation.Metadata, check.name) {
+					continue
+				}
+
+				checkerWarning, err := check.fn(ctx, t.ComputedUserset, op.SourcePosition, ts)
 				if err != nil {
 					return nil, err
 				}
@@ -150,7 +189,7 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 			}
 
 		case *corev1.SetOperation_Child_UsersetRewrite:
-			found, err := walkUsersetRewrite(ctx, t.UsersetRewrite, checkers, ts)
+			found, err := walkUsersetRewrite(ctx, t.UsersetRewrite, relation, checks, ts)
 			if err != nil {
 				return nil, err
 			}
@@ -158,8 +197,12 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 			warnings = append(warnings, found...)
 
 		case *corev1.SetOperation_Child_TupleToUserset:
-			for _, checker := range checkers.ttuCheckers {
-				checkerWarning, err := checker(ctx, t.TupleToUserset, op.SourcePosition, ts)
+			for _, check := range checks.ttuChecks {
+				if shouldSkipCheck(relation.Metadata, check.name) {
+					continue
+				}
+
+				checkerWarning, err := check.fn(ctx, t.TupleToUserset, op.SourcePosition, ts)
 				if err != nil {
 					return nil, err
 				}
