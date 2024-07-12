@@ -207,7 +207,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Float64Var(&opts.MaxRevisionStalenessPercent, flagName("datastore-revision-quantization-max-staleness-percent"), defaults.MaxRevisionStalenessPercent, "float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%)")
 	flagSet.BoolVar(&opts.ReadOnly, flagName("datastore-readonly"), defaults.ReadOnly, "set the service to read-only mode")
 	flagSet.StringSliceVar(&opts.BootstrapFiles, flagName("datastore-bootstrap-files"), defaults.BootstrapFiles, "bootstrap data yaml files to load")
-	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data")
+	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data (this can be quite slow)")
 	flagSet.DurationVar(&opts.BootstrapTimeout, flagName("datastore-bootstrap-timeout"), defaults.BootstrapTimeout, "maximum duration before timeout for the bootstrap data to be written")
 	flagSet.BoolVar(&opts.RequestHedgingEnabled, flagName("datastore-request-hedging"), defaults.RequestHedgingEnabled, "enable request hedging")
 	flagSet.DurationVar(&opts.RequestHedgingInitialSlowValue, flagName("datastore-request-hedging-initial-slow-value"), defaults.RequestHedgingInitialSlowValue, "initial value to use for slow datastore requests, before statistics have been collected")
@@ -325,26 +325,33 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
-		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
-			log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
 
-			if len(opts.BootstrapFiles) > 0 {
-				_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
-				}
+		if opts.BootstrapOverwrite {
+			log.Ctx(ctx).Info().Msg("deleting existing data before applying bootstrap data (this may take a bit)")
+			if err := datastore.DeleteAllData(ctx, ds); err != nil {
+				return nil, fmt.Errorf("failed to delete existing data before applying bootstrap data: %w", err)
 			}
-
-			if len(opts.BootstrapFileContents) > 0 {
-				_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.BootstrapFileContents)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
-				}
-			}
-			log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
-		} else {
+			log.Ctx(ctx).Info().Msg("deleted existing data before applying bootstrap data")
+		} else if len(nsDefs) > 0 {
 			return nil, errors.New("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
 		}
+
+		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
+
+		if len(opts.BootstrapFiles) > 0 {
+			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+			}
+		}
+
+		if len(opts.BootstrapFileContents) > 0 {
+			_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.BootstrapFileContents)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
+			}
+		}
+		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
 	}
 
 	if opts.RequestHedgingEnabled {
