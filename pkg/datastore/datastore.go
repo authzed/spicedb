@@ -43,7 +43,7 @@ const Ellipsis = "..."
 
 // FilterMaximumIDCount is the maximum number of resource IDs or subject IDs that can be sent into
 // a filter.
-const FilterMaximumIDCount uint16 = 100
+const FilterMaximumIDCount uint16 = 500
 
 // RevisionChanges represents the changes in a single transaction.
 type RevisionChanges struct {
