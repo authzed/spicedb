@@ -29,15 +29,8 @@ import (
 
 var ONR = tuple.ObjectAndRelation
 
-var goleakIgnores = []goleak.Option{
-	goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
-	goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*lfuPolicy).processItems"),
-	goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*Cache).processItems"),
-	goleak.IgnoreCurrent(),
-}
-
 func TestSimpleCheck(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	type expected struct {
 		relation string

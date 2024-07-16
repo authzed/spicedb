@@ -33,7 +33,7 @@ type optionState struct {
 	upstreamCAPath         string
 	grpcPresharedKey       string
 	grpcDialOpts           []grpc.DialOption
-	cache                  cache.Cache
+	cache                  cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits      graph.ConcurrencyLimits
 	remoteDispatchTimeout  time.Duration
 	secondaryUpstreamAddrs map[string]string
@@ -104,7 +104,7 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 }
 
 // Cache sets the cache for the dispatcher.
-func Cache(c cache.Cache) Option {
+func Cache(c cache.Cache[keys.DispatchCacheKey, any]) Option {
 	return func(state *optionState) {
 		state.cache = c
 	}

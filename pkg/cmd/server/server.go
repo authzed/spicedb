@@ -31,6 +31,7 @@ import (
 	clusterdispatch "github.com/authzed/spicedb/internal/dispatch/cluster"
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
+	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/services"
@@ -38,6 +39,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
 	"github.com/authzed/spicedb/internal/telemetry"
+	"github.com/authzed/spicedb/pkg/cache"
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -232,7 +234,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	}
 	closeables.AddWithError(ds.Close)
 
-	nscc, err := c.NamespaceCacheConfig.Complete()
+	nscc, err := CompleteCache[cache.StringKey, schemacaching.CacheEntry](&c.NamespaceCacheConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create namespace cache: %w", err)
 	}
@@ -253,11 +255,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
-		cc, err := c.DispatchCacheConfig.WithRevisionParameters(
+		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.DispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
-		).Complete()
+		))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create dispatcher: %w", err)
 		}
@@ -317,11 +319,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 
 	var cachingClusterDispatch dispatch.Dispatcher
 	if c.DispatchServer.Enabled {
-		cdcc, err := c.ClusterDispatchCacheConfig.WithRevisionParameters(
+		cdcc, err := CompleteCache[keys.DispatchCacheKey, any](c.ClusterDispatchCacheConfig.WithRevisionParameters(
 			c.DatastoreConfig.RevisionQuantization,
 			c.DatastoreConfig.FollowerReadDelay,
 			c.DatastoreConfig.MaxRevisionStalenessPercent,
-		).Complete()
+		))
 		if err != nil {
 			return nil, fmt.Errorf("failed to configure cluster dispatch: %w", err)
 		}

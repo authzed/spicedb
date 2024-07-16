@@ -17,7 +17,7 @@ type Option func(*optionState)
 type optionState struct {
 	metricsEnabled        bool
 	prometheusSubsystem   string
-	cache                 cache.Cache
+	cache                 cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits     graph.ConcurrencyLimits
 	remoteDispatchTimeout time.Duration
 	dispatchChunkSize     uint16
@@ -38,7 +38,7 @@ func PrometheusSubsystem(name string) Option {
 }
 
 // Cache sets the cache for the remote dispatcher.
-func Cache(c cache.Cache) Option {
+func Cache(c cache.Cache[keys.DispatchCacheKey, any]) Option {
 	return func(state *optionState) {
 		state.cache = c
 	}

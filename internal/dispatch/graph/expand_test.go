@@ -137,7 +137,7 @@ var (
 )
 
 func TestExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		start                 *core.ObjectAndRelation
@@ -275,7 +275,7 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	require := require.New(t)
 
@@ -306,7 +306,7 @@ func TestMaxDepthExpand(t *testing.T) {
 }
 
 func TestExpandOverSchema(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		name          string

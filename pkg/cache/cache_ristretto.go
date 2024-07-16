@@ -21,6 +21,11 @@ func ristrettoConfig(config *Config) *ristretto.Config {
 		KeyToHash: func(key any) (uint64, uint64) {
 			dispatchCacheKey, ok := key.(keys.DispatchCacheKey)
 			if !ok {
+				stringValue, ok := key.(StringKey)
+				if ok {
+					return z.KeyToHash(string(stringValue))
+				}
+
 				return z.KeyToHash(key)
 			}
 			return dispatchCacheKey.AsUInt64s()
@@ -28,9 +33,9 @@ func ristrettoConfig(config *Config) *ristretto.Config {
 	}
 }
 
-// NewCacheWithMetrics creates a new ristretto cache from the given config
+// NewRistrettoCacheWithMetrics creates a new ristretto cache from the given config
 // that also reports metrics to the default Prometheus registry.
-func NewCacheWithMetrics(name string, config *Config) (Cache, error) {
+func NewRistrettoCacheWithMetrics[K KeyString, V any](name string, config *Config) (Cache[K, V], error) {
 	cfg := ristrettoConfig(config)
 	cfg.Metrics = true
 
@@ -39,37 +44,50 @@ func NewCacheWithMetrics(name string, config *Config) (Cache, error) {
 		return nil, err
 	}
 
-	cache := wrapped{name, config, config.DefaultTTL, rcache}
+	cache := wrapped[K, V]{name, config, config.DefaultTTL, rcache}
 	mustRegisterCache(name, cache)
 	return &cache, nil
 }
 
-// NewCache creates a new ristretto cache from the given config.
-func NewCache(config *Config) (Cache, error) {
+// NewRistrettoCache creates a new ristretto cache from the given config.
+func NewRistrettoCache[K KeyString, V any](config *Config) (Cache[K, V], error) {
 	rcache, err := ristretto.NewCache(ristrettoConfig(config))
-	return &wrapped{"", config, config.DefaultTTL, rcache}, err
+	return &wrapped[K, V]{"", config, config.DefaultTTL, rcache}, err
 }
 
-type wrapped struct {
+type wrapped[K any, V any] struct {
 	name       string
 	config     *Config
 	defaultTTL time.Duration
-	*ristretto.Cache
+	ristretto  *ristretto.Cache
 }
 
-func (w wrapped) Set(key, entry any, cost int64) bool {
+func (w wrapped[K, V]) Set(key K, entry V, cost int64) bool {
 	if w.defaultTTL <= 0 {
-		return w.Cache.Set(key, entry, cost)
+		return w.ristretto.Set(key, entry, cost)
 	}
-	return w.Cache.SetWithTTL(key, entry, cost, w.defaultTTL)
+	return w.ristretto.SetWithTTL(key, entry, cost, w.defaultTTL)
 }
 
-var _ Cache = (*wrapped)(nil)
+func (w wrapped[K, V]) Get(key K) (V, bool) {
+	found, ok := w.ristretto.Get(key)
+	if !ok {
+		return *new(V), false
+	}
 
-func (w wrapped) GetMetrics() Metrics                   { return w.Cache.Metrics }
-func (w wrapped) MarshalZerologObject(e *zerolog.Event) { e.EmbedObject(w.config) }
+	return found.(V), true
+}
 
-func (w wrapped) Close() {
-	w.Cache.Close()
+func (w wrapped[K, V]) Wait() {
+	w.ristretto.Wait()
+}
+
+var _ Cache[StringKey, any] = (*wrapped[StringKey, any])(nil)
+
+func (w wrapped[K, V]) GetMetrics() Metrics                   { return w.ristretto.Metrics }
+func (w wrapped[K, V]) MarshalZerologObject(e *zerolog.Event) { e.EmbedObject(w.config) }
+
+func (w wrapped[K, V]) Close() {
+	w.ristretto.Close()
 	unregisterCache(w.name)
 }
