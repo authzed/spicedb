@@ -104,7 +104,6 @@ type SchemaQueryFilterer struct {
 	schema                SchemaInformation
 	queryBuilder          sq.SelectBuilder
 	filteringColumnCounts map[string]int
-	tracerAttributes      []attribute.KeyValue
 }
 
 // NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
@@ -249,7 +248,6 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 // specified type.
 func (sqf SchemaQueryFilterer) FilterToResourceType(resourceType string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colNamespace: resourceType})
-	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjNamespaceNameKey.String(resourceType))
 	sqf.recordColumnValue(sqf.schema.colNamespace)
 	return sqf
 }
@@ -267,7 +265,6 @@ func (sqf SchemaQueryFilterer) recordColumnValue(colName string) {
 // specified ID.
 func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colObjectID: objectID})
-	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(objectID))
 	sqf.recordColumnValue(sqf.schema.colObjectID)
 	return sqf
 }
@@ -294,7 +291,6 @@ func (sqf SchemaQueryFilterer) FilterWithResourceIDPrefix(prefix string) (Schema
 	prefix = strings.ReplaceAll(prefix, "_", `\_`)
 
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.colObjectID: prefix + "%"})
-	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(prefix+"*"))
 
 	// NOTE: we do *not* record the use of the resource ID column here, because it is not used
 	// statically and thus is necessary for sorting operations.
@@ -316,26 +312,27 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (Schema
 		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", datastore.FilterMaximumIDCount)
 	}
 
-	inClause := sqf.schema.colObjectID + " IN ("
+	var builder strings.Builder
+	builder.WriteString(sqf.schema.colObjectID)
+	builder.WriteString(" IN (")
 	args := make([]any, 0, len(resourceIds))
 
-	for index, resourceID := range resourceIds {
+	for _, resourceID := range resourceIds {
 		if len(resourceID) == 0 {
 			return sqf, spiceerrors.MustBugf("got empty resource ID")
 		}
 
-		if index > 0 {
-			inClause += ", "
-		}
-
-		inClause += "?"
-
 		args = append(args, resourceID)
-		sqf.tracerAttributes = append(sqf.tracerAttributes, ObjIDKey.String(resourceID))
 		sqf.recordColumnValue(sqf.schema.colObjectID)
 	}
 
-	sqf.queryBuilder = sqf.queryBuilder.Where(inClause+")", args...)
+	builder.WriteString("?")
+	if len(resourceIds) > 1 {
+		builder.WriteString(strings.Repeat(",?", len(resourceIds)-1))
+	}
+	builder.WriteString(")")
+
+	sqf.queryBuilder = sqf.queryBuilder.Where(builder.String(), args...)
 	return sqf, nil
 }
 
@@ -343,7 +340,6 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (Schema
 // specified relation.
 func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colRelation: relation})
-	sqf.tracerAttributes = append(sqf.tracerAttributes, ObjRelationNameKey.String(relation))
 	sqf.recordColumnValue(sqf.schema.colRelation)
 	return sqf
 }
@@ -424,7 +420,6 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 
 		if len(selector.OptionalSubjectType) > 0 {
 			selectorClause = append(selectorClause, sq.Eq{sqf.schema.colUsersetNamespace: selector.OptionalSubjectType})
-			sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(selector.OptionalSubjectType))
 			sqf.recordColumnValue(sqf.schema.colUsersetNamespace)
 		}
 
@@ -442,13 +437,12 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 				}
 
 				if index > 0 {
-					inClause += ", "
+					inClause += ","
 				}
 
 				inClause += "?"
 
 				args = append(args, subjectID)
-				sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(subjectID))
 				sqf.recordColumnValue(sqf.schema.colUsersetObjectID)
 			}
 
@@ -471,7 +465,6 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 
 				if len(relations) == 1 {
 					relName := relations[0]
-					sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(relName))
 					selectorClause = append(selectorClause, sq.Eq{sqf.schema.colUsersetRelation: relName})
 					sqf.recordColumnValue(sqf.schema.colUsersetRelation)
 				} else {
@@ -479,7 +472,6 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 					for _, relationName := range relations {
 						dsRelationName := stringz.DefaultEmpty(relationName, datastore.Ellipsis)
 						orClause = append(orClause, sq.Eq{sqf.schema.colUsersetRelation: dsRelationName})
-						sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
 						sqf.recordColumnValue(sqf.schema.colUsersetRelation)
 					}
 
@@ -499,12 +491,10 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 // subjects that match the specified filter.
 func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colUsersetNamespace: filter.SubjectType})
-	sqf.tracerAttributes = append(sqf.tracerAttributes, SubNamespaceNameKey.String(filter.SubjectType))
 	sqf.recordColumnValue(sqf.schema.colUsersetNamespace)
 
 	if filter.OptionalSubjectId != "" {
 		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colUsersetObjectID: filter.OptionalSubjectId})
-		sqf.tracerAttributes = append(sqf.tracerAttributes, SubObjectIDKey.String(filter.OptionalSubjectId))
 		sqf.recordColumnValue(sqf.schema.colUsersetObjectID)
 	}
 
@@ -512,7 +502,6 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 		dsRelationName := stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)
 
 		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colUsersetRelation: dsRelationName})
-		sqf.tracerAttributes = append(sqf.tracerAttributes, SubRelationNameKey.String(dsRelationName))
 		sqf.recordColumnValue(sqf.schema.colUsersetRelation)
 	}
 
@@ -521,7 +510,6 @@ func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) S
 
 func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colCaveatName: caveatName})
-	sqf.tracerAttributes = append(sqf.tracerAttributes, CaveatNameKey.String(caveatName))
 	sqf.recordColumnValue(sqf.schema.colCaveatName)
 	return sqf
 }
@@ -529,7 +517,6 @@ func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQue
 // Limit returns a new SchemaQueryFilterer which is limited to the specified number of results.
 func (sqf SchemaQueryFilterer) limit(limit uint64) SchemaQueryFilterer {
 	sqf.queryBuilder = sqf.queryBuilder.Limit(limit)
-	sqf.tracerAttributes = append(sqf.tracerAttributes, limitKey.Int64(int64(limit)))
 	return sqf
 }
 
