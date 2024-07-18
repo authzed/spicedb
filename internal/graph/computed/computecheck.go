@@ -46,7 +46,7 @@ type CheckParameters struct {
 	AtRevision    datastore.Revision
 	MaximumDepth  uint32
 	DebugOption   DebugOption
-	CheckHints    map[string]*v1.ResourceCheckResult
+	CheckHints    []*v1.CheckHint
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any

@@ -51,7 +51,14 @@ message DispatchCheckRequest {
    * It is up to the caller to *ensure* that the hints provided are correct; if incorrect,
    * the resolver may return incorrect results which will in turn be cached.
    */
-  map<string, ResourceCheckResult> check_hints = 7;
+  repeated CheckHint check_hints = 7;
+}
+
+message CheckHint {
+  core.v1.ObjectAndRelation resource = 1;
+  core.v1.ObjectAndRelation subject = 2;
+  string ttu_computed_userset_relation = 3;
+  ResourceCheckResult result = 4;
 }
 
 message DispatchCheckResponse {

@@ -181,50 +181,38 @@ func (m *DispatchCheckRequest) validate(all bool) error {
 
 	// no validation rules for Debug
 
-	{
-		sorted_keys := make([]string, len(m.GetCheckHints()))
-		i := 0
-		for key := range m.GetCheckHints() {
-			sorted_keys[i] = key
-			i++
-		}
-		sort.Slice(sorted_keys, func(i, j int) bool { return sorted_keys[i] < sorted_keys[j] })
-		for _, key := range sorted_keys {
-			val := m.GetCheckHints()[key]
-			_ = val
+	for idx, item := range m.GetCheckHints() {
+		_, _ = idx, item
 
-			// no validation rules for CheckHints[key]
-
-			if all {
-				switch v := interface{}(val).(type) {
-				case interface{ ValidateAll() error }:
-					if err := v.ValidateAll(); err != nil {
-						errors = append(errors, DispatchCheckRequestValidationError{
-							field:  fmt.Sprintf("CheckHints[%v]", key),
-							reason: "embedded message failed validation",
-							cause:  err,
-						})
-					}
-				case interface{ Validate() error }:
-					if err := v.Validate(); err != nil {
-						errors = append(errors, DispatchCheckRequestValidationError{
-							field:  fmt.Sprintf("CheckHints[%v]", key),
-							reason: "embedded message failed validation",
-							cause:  err,
-						})
-					}
-				}
-			} else if v, ok := interface{}(val).(interface{ Validate() error }); ok {
-				if err := v.Validate(); err != nil {
-					return DispatchCheckRequestValidationError{
-						field:  fmt.Sprintf("CheckHints[%v]", key),
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DispatchCheckRequestValidationError{
+						field:  fmt.Sprintf("CheckHints[%v]", idx),
 						reason: "embedded message failed validation",
 						cause:  err,
-					}
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DispatchCheckRequestValidationError{
+						field:  fmt.Sprintf("CheckHints[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
 				}
 			}
-
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DispatchCheckRequestValidationError{
+					field:  fmt.Sprintf("CheckHints[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
 		}
+
 	}
 
 	if len(errors) > 0 {
@@ -306,6 +294,194 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DispatchCheckRequestValidationError{}
+
+// Validate checks the field values on CheckHint with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *CheckHint) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CheckHint with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in CheckHintMultiError, or nil
+// if none found.
+func (m *CheckHint) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CheckHint) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetResource()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CheckHintValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CheckHintValidationError{
+					field:  "Resource",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResource()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CheckHintValidationError{
+				field:  "Resource",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetSubject()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CheckHintValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CheckHintValidationError{
+					field:  "Subject",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSubject()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CheckHintValidationError{
+				field:  "Subject",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for TtuComputedUsersetRelation
+
+	if all {
+		switch v := interface{}(m.GetResult()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CheckHintValidationError{
+					field:  "Result",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CheckHintValidationError{
+					field:  "Result",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetResult()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CheckHintValidationError{
+				field:  "Result",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CheckHintMultiError(errors)
+	}
+
+	return nil
+}
+
+// CheckHintMultiError is an error wrapping multiple validation errors returned
+// by CheckHint.ValidateAll() if the designated constraints aren't met.
+type CheckHintMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CheckHintMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CheckHintMultiError) AllErrors() []error { return m }
+
+// CheckHintValidationError is the validation error returned by
+// CheckHint.Validate if the designated constraints aren't met.
+type CheckHintValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CheckHintValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CheckHintValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CheckHintValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CheckHintValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CheckHintValidationError) ErrorName() string { return "CheckHintValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CheckHintValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCheckHint.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CheckHintValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CheckHintValidationError{}
 
 // Validate checks the field values on DispatchCheckResponse with the rules
 // defined in the proto definition for this message. If any rules are
