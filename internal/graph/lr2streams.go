@@ -6,6 +6,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
+	"github.com/authzed/spicedb/internal/graph/hints"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
@@ -123,19 +124,22 @@ func (rdc *rdc) runChecker(ctx context.Context, collected []*v1.DispatchLookupRe
 	}
 	rdc.lock.Unlock()
 
-	checkHints := make(map[string]*v1.ResourceCheckResult, len(collected))
+	checkHints := make([]*v1.CheckHint, 0, len(collected))
 	resourceIDsToCheck := make([]string, 0, len(collected))
 	for _, resource := range collected {
-		hintKey, err := hintString(resource.Resource.ResourceId, rdc.entrypoint, rdc.parentRequest.TerminalSubject)
+		resourceIDsToCheck = append(resourceIDsToCheck, resource.Resource.ResourceId)
+
+		checkHint, err := hints.HintForEntrypoint(
+			rdc.entrypoint,
+			resource.Resource.ResourceId,
+			rdc.parentRequest.TerminalSubject,
+			&v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			})
 		if err != nil {
 			return err
 		}
-
-		resourceIDsToCheck = append(resourceIDsToCheck, resource.Resource.ResourceId)
-
-		checkHints[hintKey] = &v1.ResourceCheckResult{
-			Membership: v1.ResourceCheckResult_MEMBER,
-		}
+		checkHints = append(checkHints, checkHint)
 	}
 
 	// Batch check the results to filter to those visible and then publish just the visible resources.

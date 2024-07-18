@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	"github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -24,7 +25,6 @@ import (
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var ONR = tuple.ObjectAndRelation
@@ -1380,7 +1380,7 @@ func TestCheckWithHints(t *testing.T) {
 		relationships          []*core.RelationTuple
 		resource               *core.ObjectAndRelation
 		subject                *core.ObjectAndRelation
-		hints                  map[string]bool
+		hint                   *v1.CheckHint
 		expectedPermissionship bool
 	}{
 		{
@@ -1395,7 +1395,7 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{},
+			nil,
 			false,
 		},
 		{
@@ -1410,12 +1410,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			true,
 		},
 		{
@@ -1430,12 +1427,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForRelation("document", "anotherdoc", "viewer"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			false,
 		},
 		{
@@ -1450,12 +1444,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
-					ONR("user", "anotheruser", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "anotheruser", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			false,
 		},
 		{
@@ -1473,12 +1464,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForArrow("document", "somedoc", "org", "member"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForArrow("document", "somedoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			true,
 		},
 		{
@@ -1496,12 +1484,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForArrow("document", "somedoc", "anotherrel", "member"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForArrow("document", "somedoc", "anotherrel", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			false,
 		},
 		{
@@ -1519,12 +1504,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForArrow("document", "somedoc", "org", "membersssssss"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForArrow("document", "somedoc", "org", "membersssss", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			false,
 		},
 		{
@@ -1539,12 +1521,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			false,
 		},
 		{
@@ -1561,12 +1540,9 @@ func TestCheckWithHints(t *testing.T) {
 			},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			map[string]bool{
-				typesystem.CheckHint(
-					typesystem.ResourceCheckHintForRelation("document", "somedoc", "viewer"),
-					ONR("user", "tom", graph.Ellipsis),
-				): true,
-			},
+			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
 			true,
 		},
 	}
@@ -1586,17 +1562,9 @@ func TestCheckWithHints(t *testing.T) {
 			ctx := datastoremw.ContextWithHandle(context.Background())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
-			checkHints := make(map[string]*v1.ResourceCheckResult, len(tc.hints))
-			for hint, value := range tc.hints {
-				if value {
-					checkHints[hint] = &v1.ResourceCheckResult{
-						Membership: v1.ResourceCheckResult_MEMBER,
-					}
-				} else {
-					checkHints[hint] = &v1.ResourceCheckResult{
-						Membership: v1.ResourceCheckResult_NOT_MEMBER,
-					}
-				}
+			hints := []*v1.CheckHint{tc.hint}
+			if tc.hint == nil {
+				hints = nil
 			}
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -1608,7 +1576,7 @@ func TestCheckWithHints(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				CheckHints: checkHints,
+				CheckHints: hints,
 			})
 			require.NoError(err)
 
@@ -1648,15 +1616,6 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	checkHints := map[string]*v1.ResourceCheckResult{
-		typesystem.CheckHint(
-			typesystem.ResourceCheckHintForRelation("document", "anotherdoc", "viewer"),
-			ONR("user", "tom", graph.Ellipsis),
-		): {
-			Membership: v1.ResourceCheckResult_MEMBER,
-		},
-	}
-
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("document", "view"),
 		ResourceIds:      []string{"somedoc", "anotherdoc", "thirddoc"},
@@ -1666,7 +1625,11 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
 		},
-		CheckHints: checkHints,
+		CheckHints: []*v1.CheckHint{
+			hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
+		},
 	})
 	require.NoError(err)
 
@@ -1703,15 +1666,6 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	ctx := datastoremw.ContextWithHandle(context.Background())
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	checkHints := map[string]*v1.ResourceCheckResult{
-		typesystem.CheckHint(
-			typesystem.ResourceCheckHintForArrow("document", "anotherdoc", "org", "member"),
-			ONR("user", "tom", graph.Ellipsis),
-		): {
-			Membership: v1.ResourceCheckResult_MEMBER,
-		},
-	}
-
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 		ResourceRelation: RR("document", "view"),
 		ResourceIds:      []string{"somedoc", "anotherdoc", "thirddoc"},
@@ -1721,7 +1675,11 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
 		},
-		CheckHints: checkHints,
+		CheckHints: []*v1.CheckHint{
+			hints.CheckHintForArrow("document", "anotherdoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			}),
+		},
 	})
 	require.NoError(err)
 

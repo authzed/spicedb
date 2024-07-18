@@ -234,7 +234,8 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 				Debug:       req.Debug,
 				CheckHints:  req.CheckHints,
 			},
-			Revision: revision,
+			Revision:             revision,
+			OriginalRelationName: req.ResourceRelation.Relation,
 		}
 
 		resp, err := ld.checker.Check(ctx, validatedReq, relation)

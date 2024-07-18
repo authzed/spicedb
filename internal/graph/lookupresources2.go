@@ -8,6 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
+	"github.com/authzed/spicedb/internal/graph/hints"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -429,15 +430,6 @@ func (crr *CursoredLookupResources2) lookupTTUEntrypoint(ctx context.Context,
 	)
 }
 
-func hintString(resourceID string, entrypoint typesystem.ReachabilityEntrypoint, terminalSubject *core.ObjectAndRelation) (string, error) {
-	resourceKey, err := entrypoint.CheckHintForResource(resourceID)
-	if err != nil {
-		return "", err
-	}
-
-	return typesystem.CheckHint(resourceKey, terminalSubject), nil
-}
-
 type possibleResourceAndIndex struct {
 	resource *v1.PossibleResource
 	index    int
@@ -500,17 +492,21 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					// If the entrypoint is not a direct result, issue a check to further filter the results on the intersection or exclusion.
 					if !entrypoint.IsDirectResult() {
 						resourceIDs := make([]string, 0, len(offsetted))
-						checkHints := make(map[string]*v1.ResourceCheckResult, len(offsetted))
+						checkHints := make([]*v1.CheckHint, 0, len(offsetted))
 						for _, resource := range offsetted {
 							resourceIDs = append(resourceIDs, resource.ResourceId)
-							hintKey, err := hintString(resource.ResourceId, entrypoint, parentRequest.TerminalSubject)
+
+							checkHint, err := hints.HintForEntrypoint(
+								entrypoint,
+								resource.ResourceId,
+								parentRequest.TerminalSubject,
+								&v1.ResourceCheckResult{
+									Membership: v1.ResourceCheckResult_MEMBER,
+								})
 							if err != nil {
 								return err
 							}
-
-							checkHints[hintKey] = &v1.ResourceCheckResult{
-								Membership: v1.ResourceCheckResult_MEMBER,
-							}
+							checkHints = append(checkHints, checkHint)
 						}
 
 						resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, crr.dc, computed.CheckParameters{

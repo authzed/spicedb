@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/internal/graph/hints"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -26,7 +27,6 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var tracer = otel.Tracer("spicedb/internal/graph/check")
@@ -65,6 +65,10 @@ type ConcurrentChecker struct {
 type ValidatedCheckRequest struct {
 	*v1.DispatchCheckRequest
 	Revision datastore.Revision
+
+	// OriginalRelationName is the original relation/permission name that was used in the request,
+	// before being changed due to aliasing.
+	OriginalRelationName string
 }
 
 // currentRequestContext holds context information for the current request being
@@ -177,21 +181,23 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	// Filter for check hints, if any.
 	if len(req.CheckHints) > 0 {
 		filteredResourcesIdsSet := mapz.NewSet(filteredResourcesIds...)
-		for _, resourceID := range filteredResourcesIds {
-			checkHintKey := typesystem.CheckHint(
-				typesystem.ResourceCheckHintForRelation(
-					req.ResourceRelation.Namespace,
-					resourceID,
-					req.ResourceRelation.Relation,
-				),
-				req.Subject,
-			)
-
-			if _, ok := req.CheckHints[checkHintKey]; ok {
+		for _, checkHint := range req.CheckHints {
+			resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation, req.Subject)
+			if ok {
 				filteredResourcesIdsSet.Delete(resourceID)
+				continue
+			}
+
+			if req.OriginalRelationName != "" {
+				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, &core.RelationReference{
+					Namespace: req.ResourceRelation.Namespace,
+					Relation:  req.OriginalRelationName,
+				}, req.Subject)
+				if ok {
+					filteredResourcesIdsSet.Delete(resourceID)
+				}
 			}
 		}
-
 		filteredResourcesIds = filteredResourcesIdsSet.AsSlice()
 	}
 
@@ -251,30 +257,33 @@ func combineWithCheckHints(result CheckResult, req ValidatedCheckRequest) CheckR
 		return result
 	}
 
-	for checkHintKey, checkHintValue := range req.CheckHints {
-		parsed, err := typesystem.ParseCheckHint(checkHintKey)
-		if err != nil {
-			return checkResultError(err, emptyMetadata)
-		}
+	for _, checkHint := range req.CheckHints {
+		resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation, req.Subject)
+		if !ok {
+			if req.OriginalRelationName != "" {
+				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, &core.RelationReference{
+					Namespace: req.ResourceRelation.Namespace,
+					Relation:  req.OriginalRelationName,
+				}, req.Subject)
+			}
 
-		if parsed.Type == typesystem.CheckHintTypeRelation {
-			if parsed.Resource.Namespace == req.ResourceRelation.Namespace &&
-				parsed.Resource.Relation == req.ResourceRelation.Relation &&
-				parsed.Subject.EqualVT(req.Subject) {
-				if result.Resp.ResultsByResourceId == nil {
-					result.Resp.ResultsByResourceId = make(map[string]*v1.ResourceCheckResult)
-				}
-
-				if _, ok := result.Resp.ResultsByResourceId[parsed.Resource.ObjectId]; ok {
-					return checkResultError(
-						spiceerrors.MustBugf("check hint for resource ID %q, which already exists", parsed.Resource.ObjectId),
-						emptyMetadata,
-					)
-				}
-
-				result.Resp.ResultsByResourceId[parsed.Resource.ObjectId] = checkHintValue
+			if !ok {
+				continue
 			}
 		}
+
+		if result.Resp.ResultsByResourceId == nil {
+			result.Resp.ResultsByResourceId = make(map[string]*v1.ResourceCheckResult)
+		}
+
+		if _, ok := result.Resp.ResultsByResourceId[resourceID]; ok {
+			return checkResultError(
+				spiceerrors.MustBugf("check hint for resource ID %q, which already exists", resourceID),
+				emptyMetadata,
+			)
+		}
+
+		result.Resp.ResultsByResourceId[resourceID] = checkHint.Result
 	}
 
 	return result
@@ -491,6 +500,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 				CheckHints: crc.parentReq.CheckHints,
 			},
 			crc.parentReq.Revision,
+			"",
 		})
 
 		if childResult.Err != nil {
@@ -642,6 +652,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 			CheckHints:       crc.parentReq.CheckHints,
 		},
 		crc.parentReq.Revision,
+		"",
 	})
 	return combineResultWithFoundResources(result, membershipSet)
 }
@@ -851,25 +862,25 @@ func checkTupleToUserset[T relation](
 	filteredResourceIDs := crc.filteredResourceIDs
 	hintsToReturn := make(map[string]*v1.ResourceCheckResult, len(crc.parentReq.CheckHints))
 	if len(crc.parentReq.CheckHints) > 0 {
-		filteredResourceIDs = make([]string, 0, len(crc.filteredResourceIDs))
+		filteredResourcesIdsSet := mapz.NewSet(crc.filteredResourceIDs...)
 
-		for _, resourceID := range crc.filteredResourceIDs {
-			checkHintKey := typesystem.CheckHint(
-				typesystem.ResourceCheckHintForArrow(
-					crc.parentReq.ResourceRelation.Namespace,
-					resourceID,
-					ttu.GetTupleset().GetRelation(),
-					ttu.GetComputedUserset().Relation,
-				),
+		for _, checkHint := range crc.parentReq.CheckHints {
+			resourceID, ok := hints.AsCheckHintForArrow(
+				checkHint,
+				crc.parentReq.ResourceRelation.Namespace,
+				ttu.GetTupleset().GetRelation(),
+				ttu.GetComputedUserset().Relation,
 				crc.parentReq.Subject,
 			)
-
-			if hint, ok := crc.parentReq.CheckHints[checkHintKey]; ok {
-				hintsToReturn[resourceID] = hint
-			} else {
-				filteredResourceIDs = append(filteredResourceIDs, resourceID)
+			if !ok {
+				continue
 			}
+
+			filteredResourcesIdsSet.Delete(resourceID)
+			hintsToReturn[resourceID] = checkHint.Result
 		}
+
+		filteredResourceIDs = filteredResourcesIdsSet.AsSlice()
 	}
 
 	if len(filteredResourceIDs) == 0 {
