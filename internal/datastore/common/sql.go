@@ -44,8 +44,6 @@ var (
 	// ID.
 	SubObjectIDKey = attribute.Key("authzed.com/spicedb/sql/subObjectId")
 
-	limitKey = attribute.Key("authzed.com/spicedb/sql/limit")
-
 	tracer = otel.Tracer("spicedb/internal/datastore/common")
 )
 
