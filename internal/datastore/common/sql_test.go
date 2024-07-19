@@ -700,12 +700,7 @@ func BenchmarkSchemaFilterer(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	var s SchemaQueryFilterer
-	var err error
 	for i := 0; i < b.N; i++ {
-		s, err = sqf.FilterToResourceIDs(names)
-	}
-	if len(s.filteringColumnCounts) > 0 || err != nil {
-
+		_, _ = sqf.FilterToResourceIDs(names)
 	}
 }
