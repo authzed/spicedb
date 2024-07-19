@@ -513,11 +513,7 @@ func mapFoundResources(result CheckResult, resourceType *core.RelationReference,
 	// Map any resources found to the parent resource IDs.
 	membershipSet := NewMembershipSet()
 	for foundResourceID, result := range result.Resp.ResultsByResourceId {
-		subjectKey := tuple.StringONR(&core.ObjectAndRelation{
-			Namespace: resourceType.Namespace,
-			ObjectId:  foundResourceID,
-			Relation:  resourceType.Relation,
-		})
+		subjectKey := tuple.StringONRStrings(resourceType.Namespace, foundResourceID, resourceType.Relation)
 
 		tuples, _ := relationshipsBySubjectONR.Get(subjectKey)
 		for _, relationTuple := range tuples {
