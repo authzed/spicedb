@@ -101,7 +101,7 @@ func (crr *CursoredReachableResources) afterSameType(
 	req ValidatedReachableResourcesRequest,
 	parentStream dispatch.ReachableResourcesStream,
 ) error {
-	dispatched := &syncONRSet{}
+	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
