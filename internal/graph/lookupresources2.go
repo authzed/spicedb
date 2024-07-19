@@ -104,7 +104,7 @@ func (crr *CursoredLookupResources2) afterSameType(
 	req ValidatedLookupResources2Request,
 	parentStream dispatch.LookupResources2Stream,
 ) error {
-	dispatched := &syncONRSet{}
+	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
