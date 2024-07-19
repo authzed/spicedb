@@ -428,25 +428,27 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", datastore.FilterMaximumIDCount)
 			}
 
-			inClause := sqf.schema.colUsersetObjectID + " IN ("
+			var builder strings.Builder
+			builder.WriteString(sqf.schema.colUsersetObjectID)
+			builder.WriteString(" IN (")
 			args := make([]any, 0, len(selector.OptionalSubjectIds))
 
-			for index, subjectID := range selector.OptionalSubjectIds {
+			for _, subjectID := range selector.OptionalSubjectIds {
 				if len(subjectID) == 0 {
 					return sqf, spiceerrors.MustBugf("got empty subject ID")
 				}
-
-				if index > 0 {
-					inClause += ","
-				}
-
-				inClause += "?"
 
 				args = append(args, subjectID)
 				sqf.recordColumnValue(sqf.schema.colUsersetObjectID)
 			}
 
-			selectorClause = append(selectorClause, sq.Expr(inClause+")", args...))
+			builder.WriteString("?")
+			if len(selector.OptionalSubjectIds) > 1 {
+				builder.WriteString(strings.Repeat(",?", len(selector.OptionalSubjectIds)-1))
+			}
+
+			builder.WriteString(")")
+			selectorClause = append(selectorClause, sq.Expr(builder.String(), args...))
 		}
 
 		if !selector.RelationFilter.IsEmpty() {
