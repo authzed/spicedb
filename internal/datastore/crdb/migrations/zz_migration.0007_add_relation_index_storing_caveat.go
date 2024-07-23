@@ -8,7 +8,18 @@ import (
 
 const (
 	addRelationshipIndexStoringCaveatQuery = `
-		CREATE INDEX idx_relationship_caveat_storing ON relation_tuple (namespace, relation, object_id, userset_relation) STORING (caveat_name, caveat_context);
+	-- Drop existing indexes
+	DROP INDEX IF EXISTS ix_relation_tuple_by_subject;
+	DROP INDEX IF EXISTS ix_relation_tuple_by_subject_relation;
+
+	-- Create new indexes with the STORING clause
+	CREATE INDEX ix_relation_tuple_by_subject_storing_caveat
+	ON relation_tuple (userset_object_id, userset_namespace, userset_relation, namespace, relation)
+	STORING (caveat_name, caveat_context);
+
+	CREATE INDEX ix_relation_tuple_by_subject_relation_storing_caveat
+	ON relation_tuple (userset_namespace, userset_relation, namespace, relation)
+	STORING (caveat_name, caveat_context);
 	`
 )
 
