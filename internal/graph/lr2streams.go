@@ -35,7 +35,7 @@ func runDispatchAndChecker(
 	// Only allow max one dispatcher and one checker to run concurrently.
 	concurrencyLimit = min(concurrencyLimit, 2)
 
-	rdc := &rdc{
+	rdc := &dispatchAndCheckRunner{
 		parentRequest:      parentReq,
 		foundResources:     foundResources,
 		ci:                 ci,
@@ -52,7 +52,7 @@ func runDispatchAndChecker(
 	return rdc.runAndWait()
 }
 
-type rdc struct {
+type dispatchAndCheckRunner struct {
 	parentRequest      ValidatedLookupResources2Request
 	foundResources     dispatchableResourcesSubjectMap2
 	ci                 cursorInformation
@@ -68,7 +68,7 @@ type rdc struct {
 	lock *sync.Mutex
 }
 
-func (rdc *rdc) dispatchAndCollect(ctx context.Context, cursor *v1.Cursor) ([]*v1.DispatchLookupResources2Response, error) {
+func (rdc *dispatchAndCheckRunner) dispatchAndCollect(ctx context.Context, cursor *v1.Cursor) ([]*v1.DispatchLookupResources2Response, error) {
 	collectingStream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 	err := rdc.lrDispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 		ResourceRelation: rdc.parentRequest.ResourceRelation,
@@ -85,7 +85,7 @@ func (rdc *rdc) dispatchAndCollect(ctx context.Context, cursor *v1.Cursor) ([]*v
 	return collectingStream.Results(), err
 }
 
-func (rdc *rdc) runDispatch(ctx context.Context, cursor *v1.Cursor) error {
+func (rdc *dispatchAndCheckRunner) runDispatch(ctx context.Context, cursor *v1.Cursor) error {
 	rdc.lock.Lock()
 	if rdc.ci.limits.hasExhaustedLimit() {
 		rdc.lock.Unlock()
@@ -116,7 +116,7 @@ func (rdc *rdc) runDispatch(ctx context.Context, cursor *v1.Cursor) error {
 	return nil
 }
 
-func (rdc *rdc) runChecker(ctx context.Context, collected []*v1.DispatchLookupResources2Response) error {
+func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*v1.DispatchLookupResources2Response) error {
 	rdc.lock.Lock()
 	if rdc.ci.limits.hasExhaustedLimit() {
 		rdc.lock.Unlock()
@@ -195,7 +195,7 @@ func (rdc *rdc) runChecker(ctx context.Context, collected []*v1.DispatchLookupRe
 	return nil
 }
 
-func (rdc *rdc) runAndWait() error {
+func (rdc *dispatchAndCheckRunner) runAndWait() error {
 	currentCursor := rdc.ci.currentCursor
 
 	// Kick off a dispatch at the current cursor.

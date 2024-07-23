@@ -347,7 +347,7 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	req *v1.DispatchLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 ) error {
-	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources", trace.WithAttributes(
+	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
 		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
 		attribute.String("subject", tuple.StringONR(req.TerminalSubject)),
 	))

@@ -585,6 +585,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 				return nil
 			}
 
+			// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
 			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 		}
 

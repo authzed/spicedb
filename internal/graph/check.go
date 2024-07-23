@@ -43,6 +43,8 @@ var directDispatchQueryHistogram = prometheus.NewHistogram(prometheus.HistogramO
 	Buckets: []float64{1, 2},
 })
 
+const noOriginalRelation = ""
+
 func init() {
 	prometheus.MustRegister(directDispatchQueryHistogram)
 	prometheus.MustRegister(dispatchChunkCountHistogram)
@@ -182,17 +184,14 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 	if len(req.CheckHints) > 0 {
 		filteredResourcesIdsSet := mapz.NewSet(filteredResourcesIds...)
 		for _, checkHint := range req.CheckHints {
-			resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation, req.Subject)
+			resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.ResourceRelation.Relation, req.Subject)
 			if ok {
 				filteredResourcesIdsSet.Delete(resourceID)
 				continue
 			}
 
 			if req.OriginalRelationName != "" {
-				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, &core.RelationReference{
-					Namespace: req.ResourceRelation.Namespace,
-					Relation:  req.OriginalRelationName,
-				}, req.Subject)
+				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, req.Subject)
 				if ok {
 					filteredResourcesIdsSet.Delete(resourceID)
 				}
@@ -258,13 +257,10 @@ func combineWithCheckHints(result CheckResult, req ValidatedCheckRequest) CheckR
 	}
 
 	for _, checkHint := range req.CheckHints {
-		resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation, req.Subject)
+		resourceID, ok := hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.ResourceRelation.Relation, req.Subject)
 		if !ok {
 			if req.OriginalRelationName != "" {
-				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, &core.RelationReference{
-					Namespace: req.ResourceRelation.Namespace,
-					Relation:  req.OriginalRelationName,
-				}, req.Subject)
+				resourceID, ok = hints.AsCheckHintForComputedUserset(checkHint, req.ResourceRelation.Namespace, req.OriginalRelationName, req.Subject)
 			}
 
 			if !ok {
@@ -500,7 +496,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 				CheckHints: crc.parentReq.CheckHints,
 			},
 			crc.parentReq.Revision,
-			"",
+			noOriginalRelation,
 		})
 
 		if childResult.Err != nil {
@@ -652,7 +648,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 			CheckHints:       crc.parentReq.CheckHints,
 		},
 		crc.parentReq.Revision,
-		"",
+		noOriginalRelation,
 	})
 	return combineResultWithFoundResources(result, membershipSet)
 }

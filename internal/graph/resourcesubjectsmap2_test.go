@@ -180,6 +180,46 @@ func TestResourcesSubjectsMap2MapFoundResources(t *testing.T) {
 	}
 }
 
+func TestFilterSubjectIDsToDispatch(t *testing.T) {
+	rsm := newResourcesSubjectMap2(&core.RelationReference{
+		Namespace: "group",
+		Relation:  "member",
+	})
+
+	err := rsm.addRelationship(tuple.MustParse("group:firstgroup#member@organization:foo"), nil)
+	require.NoError(t, err)
+
+	err = rsm.addRelationship(tuple.MustParse("group:firstgroup#member@organization:bar"), nil)
+	require.NoError(t, err)
+
+	err = rsm.addRelationship(tuple.MustParse("group:secondgroup#member@organization:foo"), nil)
+	require.NoError(t, err)
+
+	locked := rsm.asReadOnly()
+	onrSet := &syncONRSet{}
+	filtered := locked.filterSubjectIDsToDispatch(onrSet, &core.RelationReference{
+		Namespace: "group",
+		Relation:  "...",
+	})
+
+	sort.Strings(filtered)
+	require.Equal(t, []string{"firstgroup", "secondgroup"}, filtered)
+
+	filtered2 := locked.filterSubjectIDsToDispatch(onrSet, &core.RelationReference{
+		Namespace: "group",
+		Relation:  "...",
+	})
+	require.Empty(t, filtered2)
+
+	filtered3 := locked.filterSubjectIDsToDispatch(onrSet, &core.RelationReference{
+		Namespace: "somethingelse",
+		Relation:  "...",
+	})
+
+	sort.Strings(filtered3)
+	require.Equal(t, []string{"firstgroup", "secondgroup"}, filtered3)
+}
+
 func sortPossibleByResource(first *v1.PossibleResource, second *v1.PossibleResource) int {
 	return strings.Compare(first.ResourceId, second.ResourceId)
 }

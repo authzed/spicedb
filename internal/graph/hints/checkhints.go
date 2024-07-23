@@ -35,12 +35,12 @@ func CheckHintForArrow(resourceType string, resourceID string, tuplesetRelation 
 }
 
 // AsCheckHintForComputedUserset returns the resourceID if the checkHint is for the given relation and subject.
-func AsCheckHintForComputedUserset(checkHint *v1.CheckHint, resourceType *core.RelationReference, subject *core.ObjectAndRelation) (string, bool) {
+func AsCheckHintForComputedUserset(checkHint *v1.CheckHint, resourceType string, relationName string, subject *core.ObjectAndRelation) (string, bool) {
 	if checkHint.TtuComputedUsersetRelation != "" {
 		return "", false
 	}
 
-	if checkHint.Resource.Namespace == resourceType.Namespace && checkHint.Resource.Relation == resourceType.Relation && checkHint.Subject.EqualVT(subject) {
+	if checkHint.Resource.Namespace == resourceType && checkHint.Resource.Relation == relationName && checkHint.Subject.EqualVT(subject) {
 		return checkHint.Resource.ObjectId, true
 	}
 

@@ -1380,7 +1380,7 @@ func TestCheckWithHints(t *testing.T) {
 		relationships          []*core.RelationTuple
 		resource               *core.ObjectAndRelation
 		subject                *core.ObjectAndRelation
-		hint                   *v1.CheckHint
+		hints                  []*v1.CheckHint
 		expectedPermissionship bool
 	}{
 		{
@@ -1410,13 +1410,13 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			true,
 		},
 		{
-			"no relationships with non check hint",
+			"no relationships with unrelated check hint",
 			`definition user {}
 		
 		 	 definition document {
@@ -1427,13 +1427,13 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			false,
 		},
 		{
-			"no relationships with non check hint due to subject",
+			"no relationships with unrelated check hint due to subject",
 			`definition user {}
 		
 		 	 definition document {
@@ -1444,9 +1444,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "anotheruser", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "anotheruser", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			false,
 		},
 		{
@@ -1464,9 +1464,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForArrow("document", "somedoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			true,
 		},
 		{
@@ -1484,9 +1484,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForArrow("document", "somedoc", "anotherrel", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "anotherrel", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			false,
 		},
 		{
@@ -1504,9 +1504,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForArrow("document", "somedoc", "org", "membersssss", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "org", "membersssss", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			false,
 		},
 		{
@@ -1521,9 +1521,9 @@ func TestCheckWithHints(t *testing.T) {
 			[]*core.RelationTuple{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			false,
 		},
 		{
@@ -1540,10 +1540,166 @@ func TestCheckWithHints(t *testing.T) {
 			},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
-			hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
-			}),
+			})},
 			true,
+		},
+		{
+			"check hint of wrong type over part of an intersection with other branch in rels",
+			`definition user {}
+
+			definition document {
+				relation editor: user
+				relation viewer: user
+				permission view = viewer & editor
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:somedoc#editor@user:tom"),
+			},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "viewer", "something", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			})},
+			false,
+		},
+		{
+			"check hint over part of an exclusion with other branch not in rels",
+			`definition user {}
+
+			definition document {
+				relation banned: user
+				relation viewer: user
+				permission view = viewer - banned
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			})},
+			true,
+		},
+		{
+			"check hint for wildcard",
+			`definition user {}
+
+			definition document {
+				relation viewer: user:*
+				permission view = viewer
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_MEMBER,
+			})},
+			true,
+		},
+		{
+			"check hint for wildcard, negative",
+			`definition user {}
+
+			definition document {
+				relation viewer: user:*
+				permission view = viewer
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+				Membership: v1.ResourceCheckResult_NOT_MEMBER,
+			})},
+			false,
+		},
+		{
+			"check hint for each branch of an intersection",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				relation editor: user
+				permission view = viewer & editor
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{
+				hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_MEMBER,
+				}),
+				hints.CheckHintForComputedUserset("document", "somedoc", "editor", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_MEMBER,
+				}),
+			},
+			true,
+		},
+		{
+			"check hint for each branch of an exclusion",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				relation banned: user
+				permission view = viewer - banned
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{
+				hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_MEMBER,
+				}),
+				hints.CheckHintForComputedUserset("document", "somedoc", "banned", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_MEMBER,
+				}),
+			},
+			false,
+		},
+		{
+			"check hint for each branch of an exclusion, allowed",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				relation banned: user
+				permission view = viewer - banned
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{
+				hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_MEMBER,
+				}),
+				hints.CheckHintForComputedUserset("document", "somedoc", "banned", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_NOT_MEMBER,
+				}),
+			},
+			true,
+		},
+		{
+			"check hint for each branch of an exclusion, not member on either branch",
+			`definition user {}
+
+			definition document {
+				relation viewer: user
+				relation banned: user
+				permission view = viewer - banned
+			}`,
+			[]*core.RelationTuple{},
+			ONR("document", "somedoc", "view"),
+			ONR("user", "tom", graph.Ellipsis),
+			[]*v1.CheckHint{
+				hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_NOT_MEMBER,
+				}),
+				hints.CheckHintForComputedUserset("document", "somedoc", "banned", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
+					Membership: v1.ResourceCheckResult_NOT_MEMBER,
+				}),
+			},
+			false,
 		},
 	}
 
@@ -1562,11 +1718,6 @@ func TestCheckWithHints(t *testing.T) {
 			ctx := datastoremw.ContextWithHandle(context.Background())
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
-			hints := []*v1.CheckHint{tc.hint}
-			if tc.hint == nil {
-				hints = nil
-			}
-
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 				ResourceRelation: RR(tc.resource.Namespace, tc.resource.Relation),
 				ResourceIds:      []string{tc.resource.ObjectId},
@@ -1576,7 +1727,7 @@ func TestCheckWithHints(t *testing.T) {
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
 				},
-				CheckHints: hints,
+				CheckHints: tc.hints,
 			})
 			require.NoError(err)
 

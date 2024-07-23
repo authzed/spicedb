@@ -110,7 +110,9 @@ func (ms *MembershipSet) addMember(resourceID string, caveatExpr *core.CaveatExp
 // The changes are made in-place.
 func (ms *MembershipSet) UnionWith(resultsMap CheckResultsMap) {
 	for resourceID, details := range resultsMap {
-		ms.addMember(resourceID, details.Expression)
+		if details.Membership != v1.ResourceCheckResult_NOT_MEMBER {
+			ms.addMember(resourceID, details.Expression)
+		}
 	}
 }
 
@@ -118,7 +120,7 @@ func (ms *MembershipSet) UnionWith(resultsMap CheckResultsMap) {
 // The changes are made in-place.
 func (ms *MembershipSet) IntersectWith(resultsMap CheckResultsMap) {
 	for resourceID := range ms.membersByID {
-		if _, ok := resultsMap[resourceID]; !ok {
+		if details, ok := resultsMap[resourceID]; !ok || details.Membership == v1.ResourceCheckResult_NOT_MEMBER {
 			delete(ms.membersByID, resourceID)
 		}
 	}
@@ -126,7 +128,7 @@ func (ms *MembershipSet) IntersectWith(resultsMap CheckResultsMap) {
 	ms.hasDeterminedMember = false
 	for resourceID, details := range resultsMap {
 		existing, ok := ms.membersByID[resourceID]
-		if !ok {
+		if !ok || details.Membership == v1.ResourceCheckResult_NOT_MEMBER {
 			continue
 		}
 		if existing == nil && details.Expression == nil {
@@ -143,7 +145,7 @@ func (ms *MembershipSet) IntersectWith(resultsMap CheckResultsMap) {
 func (ms *MembershipSet) Subtract(resultsMap CheckResultsMap) {
 	ms.hasDeterminedMember = false
 	for resourceID, expression := range ms.membersByID {
-		if details, ok := resultsMap[resourceID]; ok {
+		if details, ok := resultsMap[resourceID]; ok && details.Membership != v1.ResourceCheckResult_NOT_MEMBER {
 			// If the incoming member has no caveat, then this removal is absolute.
 			if details.Expression == nil {
 				delete(ms.membersByID, resourceID)

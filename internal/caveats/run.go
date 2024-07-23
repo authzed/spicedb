@@ -161,12 +161,12 @@ func (lc loadedCaveats) Get(caveatDefName string) (*core.CaveatDefinition, *cave
 	return caveat, justDeserialized, nil
 }
 
-func isFalseResult(resuilt ExpressionResult) bool {
-	return !resuilt.Value() && !resuilt.IsPartial()
+func isFalseResult(result ExpressionResult) bool {
+	return !result.Value() && !result.IsPartial()
 }
 
-func isTrueResult(resuilt ExpressionResult) bool {
-	return resuilt.Value() && !resuilt.IsPartial()
+func isTrueResult(result ExpressionResult) bool {
+	return result.Value() && !result.IsPartial()
 }
 
 func runExpressionWithCaveats(
@@ -222,16 +222,16 @@ func runExpressionWithCaveats(
 
 	var currentResult ExpressionResult = syntheticResult{
 		value:                false,
-		contextValues:        map[string]any{},
+		contextValues:        nil,
 		exprString:           "",
-		missingContextParams: []string{},
+		missingContextParams: nil,
 	}
 	if cop.Op == core.CaveatOperation_AND {
 		currentResult = syntheticResult{
 			value:                true,
-			contextValues:        map[string]any{},
+			contextValues:        nil,
 			exprString:           "",
-			missingContextParams: []string{},
+			missingContextParams: nil,
 		}
 	}
 
@@ -324,7 +324,7 @@ func runExpressionWithCaveats(
 
 			missingContextParams = params
 		} else if existing.Value() {
-			return found, nil
+			return existing, nil
 		}
 
 		if found.IsPartial() {
@@ -428,6 +428,10 @@ func runExpressionWithCaveats(
 func combineMaps(first map[string]any, second map[string]any) map[string]any {
 	if first == nil {
 		first = make(map[string]any, len(second))
+	}
+
+	if second == nil {
+		return first
 	}
 
 	cloned := maps.Clone(first)

@@ -154,10 +154,7 @@ func TestCheckHintForComputedUserset(t *testing.T) {
 	require.Equal(t, result, checkHint.Result)
 	require.Empty(t, checkHint.TtuComputedUsersetRelation)
 
-	resourceID, ok := AsCheckHintForComputedUserset(checkHint, &core.RelationReference{
-		Namespace: resourceType,
-		Relation:  relation,
-	}, subject)
+	resourceID, ok := AsCheckHintForComputedUserset(checkHint, resourceType, relation, subject)
 	require.True(t, ok)
 	require.Equal(t, "resourceID", resourceID)
 }
@@ -201,10 +198,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"matching resource and subject",
 			CheckHintForComputedUserset("resourceType", "resourceID", "relation", tuple.ParseSubjectONR("user:tom"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom"))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom"))
 			},
 			"resourceID",
 		},
@@ -212,10 +206,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"mismatch subject ID",
 			CheckHintForComputedUserset("resourceType", "resourceID", "relation", tuple.ParseSubjectONR("user:anothersubject"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom"))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom"))
 			},
 			"",
 		},
@@ -223,10 +214,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"mismatch subject type",
 			CheckHintForComputedUserset("resourceType", "resourceID", "relation", tuple.ParseSubjectONR("githubuser:tom"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom"))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom"))
 			},
 			"",
 		},
@@ -234,10 +222,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"mismatch subject relation",
 			CheckHintForComputedUserset("resourceType", "resourceID", "relation", tuple.ParseSubjectONR("user:tom#foo"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom"))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom"))
 			},
 			"",
 		},
@@ -245,10 +230,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"mismatch resource type",
 			CheckHintForComputedUserset("anotherType", "resourceID", "relation", tuple.ParseSubjectONR("user:tom"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom"))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom"))
 			},
 			"",
 		},
@@ -256,10 +238,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"mismatch resource relation",
 			CheckHintForComputedUserset("resourceType", "resourceID", "anotherRelation", tuple.ParseSubjectONR("user:tom"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom#..."))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom#..."))
 			},
 			"",
 		},
@@ -267,10 +246,7 @@ func TestAsCheckHintForComputedUserset(t *testing.T) {
 			"mismatch kind",
 			CheckHintForArrow("resourceType", "resourceID", "ttu", "clu", tuple.ParseSubjectONR("user:tom"), &v1.ResourceCheckResult{}),
 			func(ch *v1.CheckHint) (string, bool) {
-				return AsCheckHintForComputedUserset(ch, &core.RelationReference{
-					Namespace: "resourceType",
-					Relation:  "relation",
-				}, tuple.ParseSubjectONR("user:tom#..."))
+				return AsCheckHintForComputedUserset(ch, "resourceType", "relation", tuple.ParseSubjectONR("user:tom#..."))
 			},
 			"",
 		},

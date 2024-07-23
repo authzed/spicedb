@@ -52,7 +52,9 @@ func (crr *CursoredLookupResources2) LookupResources2(
 	}
 
 	// Sort for stability.
-	sort.Strings(req.SubjectIds)
+	if len(req.SubjectIds) > 1 {
+		sort.Strings(req.SubjectIds)
+	}
 
 	ctx := stream.Context()
 	limits := newLimitTracker(req.OptionalLimit)
