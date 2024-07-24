@@ -82,9 +82,10 @@ func computeRewriteOpReachability(ctx context.Context, children []*core.SetOpera
 		case *core.SetOperation_Child_ComputedUserset:
 			// A computed userset adds an entrypoint indicating that the relation is rewritten.
 			err := addSubjectEntrypoint(graph, ts.nsDef.Name, child.ComputedUserset.Relation, &core.ReachabilityEntrypoint{
-				Kind:           core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT,
-				TargetRelation: rr,
-				ResultStatus:   operationResultState,
+				Kind:                    core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT,
+				TargetRelation:          rr,
+				ComputedUsersetRelation: child.ComputedUserset.Relation,
+				ResultStatus:            operationResultState,
 			})
 			if err != nil {
 				return err
@@ -187,10 +188,11 @@ func computeTTUReachability(
 
 		if relTypeSystem.HasRelation(computedUsersetRelation) {
 			err := addSubjectEntrypoint(graph, allowedRelationType.Namespace, computedUsersetRelation, &core.ReachabilityEntrypoint{
-				Kind:             core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
-				TargetRelation:   rr,
-				ResultStatus:     operationResultState,
-				TuplesetRelation: tuplesetRelation,
+				Kind:                    core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT,
+				TargetRelation:          rr,
+				ResultStatus:            operationResultState,
+				ComputedUsersetRelation: computedUsersetRelation,
+				TuplesetRelation:        tuplesetRelation,
 			})
 			if err != nil {
 				return err

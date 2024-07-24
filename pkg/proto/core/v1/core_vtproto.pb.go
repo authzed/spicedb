@@ -429,6 +429,7 @@ func (m *ReachabilityEntrypoint) CloneVT() *ReachabilityEntrypoint {
 	r.TargetRelation = m.TargetRelation.CloneVT()
 	r.ResultStatus = m.ResultStatus
 	r.TuplesetRelation = m.TuplesetRelation
+	r.ComputedUsersetRelation = m.ComputedUsersetRelation
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -1570,6 +1571,9 @@ func (this *ReachabilityEntrypoint) EqualVT(that *ReachabilityEntrypoint) bool {
 		return false
 	}
 	if this.TuplesetRelation != that.TuplesetRelation {
+		return false
+	}
+	if this.ComputedUsersetRelation != that.ComputedUsersetRelation {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -3488,6 +3492,13 @@ func (m *ReachabilityEntrypoint) MarshalToSizedBufferVT(dAtA []byte) (int, error
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.ComputedUsersetRelation) > 0 {
+		i -= len(m.ComputedUsersetRelation)
+		copy(dAtA[i:], m.ComputedUsersetRelation)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ComputedUsersetRelation)))
+		i--
+		dAtA[i] = 0x32
+	}
 	if len(m.TuplesetRelation) > 0 {
 		i -= len(m.TuplesetRelation)
 		copy(dAtA[i:], m.TuplesetRelation)
@@ -5178,6 +5189,10 @@ func (m *ReachabilityEntrypoint) SizeVT() (n int) {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.ResultStatus))
 	}
 	l = len(m.TuplesetRelation)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.ComputedUsersetRelation)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -8533,6 +8548,38 @@ func (m *ReachabilityEntrypoint) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.TuplesetRelation = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ComputedUsersetRelation", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ComputedUsersetRelation = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

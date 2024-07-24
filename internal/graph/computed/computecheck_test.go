@@ -87,7 +87,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 					"document:foo#view@user:sarah",
 					nil,
 					v1.ResourceCheckResult_CAVEATED_MEMBER,
-					[]string{"anothercondition"},
+					[]string{"anothercondition", "somecondition", "somebool"},
 					"",
 				},
 				{
@@ -96,7 +96,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						"somecondition": "42",
 					},
 					v1.ResourceCheckResult_CAVEATED_MEMBER,
-					[]string{"anothercondition"},
+					[]string{"anothercondition", "somebool"},
 					"",
 				},
 				{

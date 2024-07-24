@@ -292,6 +292,70 @@ func sliceSize(xs []byte) int64 {
 	return int64(int(unsafe.Sizeof(xs)) + len(xs))
 }
 
+func (cd *Dispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
+	cd.lookupResourcesTotalCounter.Inc()
+
+	requestKey, err := cd.keyHandler.LookupResources2CacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cd.lookupResourcesFromCacheCounter.Inc()
+		for _, slice := range cachedResultRaw.([][]byte) {
+			var response v1.DispatchLookupResources2Response
+			if err := response.UnmarshalVT(slice); err != nil {
+				return err
+			}
+			if err := stream.Publish(&response); err != nil {
+				// don't wrap error with additional context, as it may be a grpc status.Status.
+				// status.FromError() is unable to unwrap status.Status values, and as a consequence
+				// the Dispatcher wouldn't properly propagate the gRPC error code
+				return err
+			}
+		}
+		return nil
+	}
+
+	var (
+		mu             sync.Mutex
+		toCacheResults [][]byte
+	)
+	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchLookupResources2Response]{
+		Stream: stream,
+		Ctx:    stream.Context(),
+		Processor: func(result *v1.DispatchLookupResources2Response) (*v1.DispatchLookupResources2Response, bool, error) {
+			adjustedResult := result.CloneVT()
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.DispatchCount = 0
+			adjustedResult.Metadata.DebugInfo = nil
+
+			adjustedBytes, err := adjustedResult.MarshalVT()
+			if err != nil {
+				return &v1.DispatchLookupResources2Response{Metadata: &v1.ResponseMeta{}}, false, err
+			}
+
+			mu.Lock()
+			toCacheResults = append(toCacheResults, adjustedBytes)
+			mu.Unlock()
+
+			return result, true, nil
+		},
+	}
+
+	if err := cd.d.DispatchLookupResources2(req, wrapped); err != nil {
+		return err
+	}
+
+	var size int64
+	for _, slice := range toCacheResults {
+		size += sliceSize(slice)
+	}
+
+	cd.c.Set(requestKey, toCacheResults, size)
+	return nil
+}
+
 // DispatchLookupResources implements dispatch.LookupResources interface.
 func (cd *Dispatcher) DispatchLookupResources(req *v1.DispatchLookupResourcesRequest, stream dispatch.LookupResourcesStream) error {
 	cd.lookupResourcesTotalCounter.Inc()

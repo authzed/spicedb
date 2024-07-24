@@ -46,6 +46,7 @@ type CheckParameters struct {
 	AtRevision    datastore.Revision
 	MaximumDepth  uint32
 	DebugOption   DebugOption
+	CheckHints    []*v1.CheckHint
 }
 
 // ComputeCheck computes a check result for the given resource and subject, computing any
@@ -118,7 +119,8 @@ func computeCheck(ctx context.Context,
 				DepthRemaining: params.MaximumDepth,
 				TraversalBloom: bf,
 			},
-			Debug: debugging,
+			Debug:      debugging,
+			CheckHints: params.CheckHints,
 		})
 
 		if len(resourceIDs) == 1 {

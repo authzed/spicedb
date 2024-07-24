@@ -94,6 +94,7 @@ func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispa
 	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources)
 	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects)
+	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, concurrencyLimits.LookupResources)
 
 	return d
 }
@@ -108,6 +109,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources)
 	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects)
+	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, concurrencyLimits.LookupResources)
 
 	return &localDispatcher{
 		checker:                   checker,
@@ -115,6 +117,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 		reachableResourcesHandler: reachableResourcesHandler,
 		lookupResourcesHandler:    lookupResourcesHandler,
 		lookupSubjectsHandler:     lookupSubjectsHandler,
+		lookupResourcesHandler2:   lookupResourcesHandler2,
 	}
 }
 
@@ -124,6 +127,7 @@ type localDispatcher struct {
 	reachableResourcesHandler *graph.CursoredReachableResources
 	lookupResourcesHandler    *graph.CursoredLookupResources
 	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
+	lookupResourcesHandler2   *graph.CursoredLookupResources2
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
@@ -228,8 +232,10 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 				Subject:     req.Subject,
 				Metadata:    req.Metadata,
 				Debug:       req.Debug,
+				CheckHints:  req.CheckHints,
 			},
-			Revision: revision,
+			Revision:             revision,
+			OriginalRelationName: req.ResourceRelation.Relation,
 		}
 
 		resp, err := ld.checker.Check(ctx, validatedReq, relation)
@@ -332,6 +338,34 @@ func (ld *localDispatcher) DispatchLookupResources(
 		graph.ValidatedLookupResourcesRequest{
 			DispatchLookupResourcesRequest: req,
 			Revision:                       revision,
+		},
+		dispatch.StreamWithContext(ctx, stream),
+	)
+}
+
+func (ld *localDispatcher) DispatchLookupResources2(
+	req *v1.DispatchLookupResources2Request,
+	stream dispatch.LookupResources2Stream,
+) error {
+	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
+		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
+		attribute.String("subject", tuple.StringONR(req.TerminalSubject)),
+	))
+	defer span.End()
+
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		return err
+	}
+
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	if err != nil {
+		return err
+	}
+
+	return ld.lookupResourcesHandler2.LookupResources2(
+		graph.ValidatedLookupResources2Request{
+			DispatchLookupResources2Request: req,
+			Revision:                        revision,
 		},
 		dispatch.StreamWithContext(ctx, stream),
 	)

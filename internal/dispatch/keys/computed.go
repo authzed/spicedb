@@ -95,6 +95,19 @@ func lookupResourcesRequestToKey(req *v1.DispatchLookupResourcesRequest, option 
 	)
 }
 
+// lookupResourcesRequest2ToKey converts a lookup request into a cache key
+func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
+		hashableRelationReference{req.ResourceRelation},
+		hashableRelationReference{req.SubjectRelation},
+		hashableIds(req.SubjectIds),
+		hashableOnr{req.TerminalSubject},
+		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
+		hashableCursor{req.OptionalCursor},
+		hashableLimit(req.OptionalLimit),
+	)
+}
+
 // lookupSubjectsRequestToKey converts a lookup subjects request into a cache key
 func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
 	return dispatchCacheKeyHash(lookupSubjectsPrefix, req.Metadata.AtRevision, option,

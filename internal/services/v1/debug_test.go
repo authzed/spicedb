@@ -402,7 +402,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`anothercondition == "hello world" && somecondition == 42`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`somecondition == 42`)},
 				},
 				{
 					"sarah as partially conditional viewer",
@@ -433,7 +433,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					1,
 					[]rda{
 						expectDebugFrames("member"),
-						expectMissingContext("anothercondition"),
+						expectMissingContext("anothercondition", "somecondition"),
 					},
 				},
 			},

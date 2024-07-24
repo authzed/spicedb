@@ -3086,6 +3086,8 @@ func (m *ReachabilityEntrypoint) validate(all bool) error {
 
 	// no validation rules for TuplesetRelation
 
+	// no validation rules for ComputedUsersetRelation
+
 	if len(errors) > 0 {
 		return ReachabilityEntrypointMultiError(errors)
 	}

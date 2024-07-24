@@ -63,9 +63,10 @@ type ExpressionResult interface {
 }
 
 type syntheticResult struct {
-	value         bool
-	contextValues map[string]any
-	exprString    string
+	value                bool
+	contextValues        map[string]any
+	exprString           string
+	missingContextParams []string
 }
 
 func (sr syntheticResult) Value() bool {
@@ -73,11 +74,15 @@ func (sr syntheticResult) Value() bool {
 }
 
 func (sr syntheticResult) IsPartial() bool {
-	return false
+	return len(sr.missingContextParams) > 0
 }
 
 func (sr syntheticResult) MissingVarNames() ([]string, error) {
-	return nil, fmt.Errorf("not a partial value")
+	if len(sr.missingContextParams) == 0 {
+		return nil, fmt.Errorf("not a partial value")
+	}
+
+	return sr.missingContextParams, nil
 }
 
 func (sr syntheticResult) ContextValues() map[string]any {
@@ -156,6 +161,14 @@ func (lc loadedCaveats) Get(caveatDefName string) (*core.CaveatDefinition, *cave
 	return caveat, justDeserialized, nil
 }
 
+func isFalseResult(result ExpressionResult) bool {
+	return !result.Value() && !result.IsPartial()
+}
+
+func isTrueResult(result ExpressionResult) bool {
+	return result.Value() && !result.IsPartial()
+}
+
 func runExpressionWithCaveats(
 	ctx context.Context,
 	env *caveats.Environment,
@@ -203,15 +216,30 @@ func runExpressionWithCaveats(
 	}
 
 	cop := expr.GetOperation()
-	boolResult := false
-	if cop.Op == core.CaveatOperation_AND {
-		boolResult = true
-	}
 
 	var contextValues map[string]any
 	var exprStringPieces []string
 
+	var currentResult ExpressionResult = syntheticResult{
+		value:                false,
+		contextValues:        nil,
+		exprString:           "",
+		missingContextParams: nil,
+	}
+	if cop.Op == core.CaveatOperation_AND {
+		currentResult = syntheticResult{
+			value:                true,
+			contextValues:        nil,
+			exprString:           "",
+			missingContextParams: nil,
+		}
+	}
+
 	buildExprString := func() (string, error) {
+		if debugOption != RunCaveatExpressionWithDebugInformation {
+			return "", nil
+		}
+
 		switch cop.Op {
 		case core.CaveatOperation_AND:
 			return strings.Join(exprStringPieces, " && "), nil
@@ -227,95 +255,183 @@ func runExpressionWithCaveats(
 		}
 	}
 
+	addDebugInfo := func(found ExpressionResult) error {
+		if debugOption == RunCaveatExpressionWithDebugInformation {
+			contextValues = combineMaps(contextValues, found.ContextValues())
+			exprString, err := found.ExpressionString()
+			if err != nil {
+				return err
+			}
+
+			exprStringPieces = append(exprStringPieces, exprString)
+		}
+
+		return nil
+	}
+
+	and := func(existing ExpressionResult, found ExpressionResult) (ExpressionResult, error) {
+		if err := addDebugInfo(found); err != nil {
+			return nil, err
+		}
+
+		var missingContextParams []string
+		if existing.IsPartial() {
+			params, err := existing.MissingVarNames()
+			if err != nil {
+				return nil, err
+			}
+
+			missingContextParams = params
+		} else if !existing.Value() {
+			return existing, nil
+		}
+
+		if found.IsPartial() {
+			params, err := found.MissingVarNames()
+			if err != nil {
+				return nil, err
+			}
+
+			missingContextParams = append(missingContextParams, params...)
+		} else if !found.Value() {
+			return found, nil
+		}
+
+		exprString, err := buildExprString()
+		if err != nil {
+			return nil, err
+		}
+
+		return syntheticResult{
+			value:                existing.Value() && found.Value(),
+			contextValues:        contextValues,
+			exprString:           exprString,
+			missingContextParams: missingContextParams,
+		}, nil
+	}
+
+	or := func(existing ExpressionResult, found ExpressionResult) (ExpressionResult, error) {
+		if err := addDebugInfo(found); err != nil {
+			return nil, err
+		}
+
+		var missingContextParams []string
+		if existing.IsPartial() {
+			params, err := existing.MissingVarNames()
+			if err != nil {
+				return nil, err
+			}
+
+			missingContextParams = params
+		} else if existing.Value() {
+			return existing, nil
+		}
+
+		if found.IsPartial() {
+			params, err := found.MissingVarNames()
+			if err != nil {
+				return nil, err
+			}
+
+			missingContextParams = append(missingContextParams, params...)
+		} else if found.Value() {
+			return found, nil
+		}
+
+		exprString, err := buildExprString()
+		if err != nil {
+			return nil, err
+		}
+
+		return syntheticResult{
+			value:                existing.Value() || found.Value(),
+			contextValues:        contextValues,
+			exprString:           exprString,
+			missingContextParams: missingContextParams,
+		}, nil
+	}
+
+	invert := func(existing ExpressionResult) (ExpressionResult, error) {
+		if debugOption == RunCaveatExpressionWithDebugInformation {
+			contextValues = combineMaps(contextValues, existing.ContextValues())
+			exprString, err := existing.ExpressionString()
+			if err != nil {
+				return nil, err
+			}
+
+			exprStringPieces = append(exprStringPieces, "!("+exprString+")")
+		}
+
+		value := !existing.Value()
+
+		var missingContextParams []string
+		if existing.IsPartial() {
+			value = false // partials always have a value of false.
+			missingContextParams, _ = existing.MissingVarNames()
+		}
+
+		exprString, err := buildExprString()
+		if err != nil {
+			return nil, err
+		}
+
+		return syntheticResult{
+			value:                value,
+			contextValues:        contextValues,
+			exprString:           exprString,
+			missingContextParams: missingContextParams,
+		}, nil
+	}
+
 	for _, child := range cop.Children {
 		childResult, err := runExpressionWithCaveats(ctx, env, child, context, loadedCaveats, debugOption)
 		if err != nil {
 			return nil, err
 		}
 
-		if childResult.IsPartial() {
-			return childResult, nil
-		}
-
 		switch cop.Op {
 		case core.CaveatOperation_AND:
-			boolResult = boolResult && childResult.Value()
-
-			if debugOption == RunCaveatExpressionWithDebugInformation {
-				contextValues = combineMaps(contextValues, childResult.ContextValues())
-				exprString, err := childResult.ExpressionString()
-				if err != nil {
-					return nil, err
-				}
-
-				exprStringPieces = append(exprStringPieces, exprString)
-			}
-
-			if !boolResult {
-				built, err := buildExprString()
-				if err != nil {
-					return nil, err
-				}
-
-				return syntheticResult{false, contextValues, built}, nil
-			}
-
-		case core.CaveatOperation_OR:
-			boolResult = boolResult || childResult.Value()
-
-			if debugOption == RunCaveatExpressionWithDebugInformation {
-				contextValues = combineMaps(contextValues, childResult.ContextValues())
-				exprString, err := childResult.ExpressionString()
-				if err != nil {
-					return nil, err
-				}
-
-				exprStringPieces = append(exprStringPieces, exprString)
-			}
-
-			if boolResult {
-				built, err := buildExprString()
-				if err != nil {
-					return nil, err
-				}
-
-				return syntheticResult{true, contextValues, built}, nil
-			}
-
-		case core.CaveatOperation_NOT:
-			if debugOption == RunCaveatExpressionWithDebugInformation {
-				contextValues = combineMaps(contextValues, childResult.ContextValues())
-				exprString, err := childResult.ExpressionString()
-				if err != nil {
-					return nil, err
-				}
-
-				exprStringPieces = append(exprStringPieces, "!("+exprString+")")
-			}
-
-			built, err := buildExprString()
+			cr, err := and(currentResult, childResult)
 			if err != nil {
 				return nil, err
 			}
 
-			return syntheticResult{!childResult.Value(), contextValues, built}, nil
+			currentResult = cr
+
+			if isFalseResult(currentResult) {
+				return currentResult, nil
+			}
+
+		case core.CaveatOperation_OR:
+			cr, err := or(currentResult, childResult)
+			if err != nil {
+				return nil, err
+			}
+
+			currentResult = cr
+
+			if isTrueResult(currentResult) {
+				return currentResult, nil
+			}
+
+		case core.CaveatOperation_NOT:
+			return invert(childResult)
 
 		default:
 			return nil, spiceerrors.MustBugf("unknown caveat operation: %v", cop.Op)
 		}
 	}
 
-	built, err := buildExprString()
-	if err != nil {
-		return nil, err
-	}
-
-	return syntheticResult{boolResult, contextValues, built}, nil
+	return currentResult, nil
 }
 
 func combineMaps(first map[string]any, second map[string]any) map[string]any {
 	if first == nil {
 		first = make(map[string]any, len(second))
+	}
+
+	if second == nil {
+		return first
 	}
 
 	cloned := maps.Clone(first)
