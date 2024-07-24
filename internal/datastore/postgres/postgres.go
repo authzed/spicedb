@@ -706,14 +706,12 @@ func DefaultQueryExecMode(poolConfig *pgxpool.Config) *pgxpool.Config {
 	if !strings.Contains(poolConfig.ConnString(), "default_query_exec_mode") {
 		// the execution mode was not overridden by the user
 		poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
-		log.Warn().
-			Str("details-url", "https://spicedb.dev/d/query-exec-mode").
-			Msg("postgres default_query_exec_mode is not overriden via URI, defaulting to recommended value \\'exec\\'")
-
 		return poolConfig
 	}
 
-	log.Info().Msg("found default_query_exec_mode in DB URI; leaving as-is")
+	log.Info().
+		Str("details-url", "https://spicedb.dev/d/query-exec-mode").
+		Msg("found default_query_exec_mode in DB URI; leaving as-is")
 	return poolConfig
 }
 
