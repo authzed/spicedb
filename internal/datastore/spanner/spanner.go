@@ -91,6 +91,7 @@ type spannerDatastore struct {
 	cachedEstimatedBytesPerRelationship     uint64
 
 	tableSizesStatsTable string
+	filterMaximumIDCount uint16
 }
 
 // NewSpannerDatastore returns a datastore backed by cloud spanner
@@ -186,6 +187,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		cachedEstimatedBytesPerRelationship:     0,
 		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
 		tableSizesStatsTable:                    tableSizesStatsTable,
+		filterMaximumIDCount:                    config.filterMaximumIDCount,
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
@@ -234,7 +236,7 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
-	return spannerReader{executor, txSource}
+	return spannerReader{executor, txSource, sd.filterMaximumIDCount}
 }
 
 func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
@@ -251,7 +253,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
 		rwt := spannerReadWriteTXN{
-			spannerReader{executor, txSource},
+			spannerReader{executor, txSource, sd.filterMaximumIDCount},
 			spannerRWT,
 		}
 		err := func() error {

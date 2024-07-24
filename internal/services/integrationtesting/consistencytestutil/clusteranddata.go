@@ -83,12 +83,12 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 // caching enabled.
 func CreateDispatcherForTesting(t *testing.T, withCaching bool) dispatch.Dispatcher {
 	require := require.New(t)
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit)
+	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, 100)
 	if withCaching {
 		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, "", &keys.CanonicalKeyHandler{})
 		require.NoError(err)
 
-		localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10))
+		localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10), 100)
 		t.Cleanup(func() {
 			err := localDispatcher.Close()
 			require.NoError(err)

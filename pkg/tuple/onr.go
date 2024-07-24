@@ -92,10 +92,15 @@ func StringONR(onr *core.ObjectAndRelation) string {
 	if onr == nil {
 		return ""
 	}
-	if onr.Relation == Ellipsis {
-		return JoinObjectRef(onr.Namespace, onr.ObjectId)
+
+	return StringONRStrings(onr.Namespace, onr.ObjectId, onr.Relation)
+}
+
+func StringONRStrings(namespace, objectID, relation string) string {
+	if relation == Ellipsis {
+		return JoinObjectRef(namespace, objectID)
 	}
-	return JoinRelRef(JoinObjectRef(onr.Namespace, onr.ObjectId), onr.Relation)
+	return JoinRelRef(JoinObjectRef(namespace, objectID), relation)
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.

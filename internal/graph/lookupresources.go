@@ -12,16 +12,17 @@ import (
 )
 
 // NewCursoredLookupResources creates and instance of CursoredLookupResources.
-func NewCursoredLookupResources(c dispatch.Check, r dispatch.ReachableResources, concurrencyLimit uint16) *CursoredLookupResources {
-	return &CursoredLookupResources{c, r, concurrencyLimit}
+func NewCursoredLookupResources(c dispatch.Check, r dispatch.ReachableResources, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources {
+	return &CursoredLookupResources{c, r, concurrencyLimit, dispatchChunkSize}
 }
 
 // CursoredLookupResources exposes a method to perform LookupResources requests, and delegates subproblems to the
 // provided dispatch.Lookup instance.
 type CursoredLookupResources struct {
-	c                dispatch.Check
-	r                dispatch.ReachableResources
-	concurrencyLimit uint16
+	c                 dispatch.Check
+	r                 dispatch.ReachableResources
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 // ValidatedLookupResourcesRequest represents a request after it has been validated and parsed for internal
@@ -56,7 +57,7 @@ func (cl *CursoredLookupResources) LookupResources(
 		// to the parent stream, as found resources if they are properly checked.
 		checkingStream := newCheckingResourceStream(lookupContext, reachableContext, func() {
 			cancelReachable(errCanceledBecauseNoAdditionalResourcesNeeded)
-		}, req, cl.c, parentStream, limits, cl.concurrencyLimit)
+		}, req, cl.c, parentStream, limits, cl.concurrencyLimit, cl.dispatchChunkSize)
 
 		err := cl.r.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 			ResourceRelation: req.ObjectRelation,

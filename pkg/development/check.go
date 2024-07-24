@@ -9,6 +9,8 @@ import (
 	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
+const defaultWasmDispatchChunkSize = 100
+
 // CheckResult is the result of a RunCheck operation.
 type CheckResult struct {
 	Permissionship      v1dispatch.ResourceCheckResult_Membership
@@ -36,6 +38,7 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 			DebugOption:   computed.TraceDebuggingEnabled,
 		},
 		resource.ObjectId,
+		defaultWasmDispatchChunkSize,
 	)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err

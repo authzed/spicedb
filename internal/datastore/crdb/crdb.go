@@ -188,6 +188,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		beginChangefeedQuery:    changefeedQuery,
 		transactionNowQuery:     transactionNowQuery,
 		analyzeBeforeStatistics: config.analyzeBeforeStatistics,
+		filterMaximumIDCount:    config.filterMaximumIDCount,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -275,9 +276,10 @@ type crdbDatastore struct {
 
 	featureGroup singleflight.Group[string, *datastore.Features]
 
-	pruneGroup *errgroup.Group
-	ctx        context.Context
-	cancel     context.CancelFunc
+	pruneGroup           *errgroup.Group
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	filterMaximumIDCount uint16
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -289,7 +291,7 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		return query.From(fromStr + " AS OF SYSTEM TIME " + rev.String())
 	}
 
-	return &crdbReader{cds.readPool, executor, noOverlapKeyer, nil, fromBuilder}
+	return &crdbReader{cds.readPool, executor, noOverlapKeyer, nil, fromBuilder, cds.filterMaximumIDCount}
 }
 
 func (cds *crdbDatastore) ReadWriteTx(
@@ -319,6 +321,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 				func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
 					return query.From(fromStr)
 				},
+				cds.filterMaximumIDCount,
 			},
 			tx,
 			0,

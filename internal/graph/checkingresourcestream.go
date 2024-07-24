@@ -11,7 +11,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -49,6 +48,8 @@ type resourceQueue struct {
 
 	// beingProcessed are those resources (keyed by orderingIndex) that are currently being processed.
 	beingProcessed map[uint64]possibleResource
+
+	dispatchChunkSize uint16
 }
 
 type processingStatus int
@@ -71,7 +72,7 @@ func (rq *resourceQueue) addPossibleResource(pr possibleResource) processingStat
 	}
 
 	rq.toProcess[pr.orderingIndex] = pr
-	if len(rq.toProcess) < int(datastore.FilterMaximumIDCount) {
+	if len(rq.toProcess) < int(rq.dispatchChunkSize) {
 		return awaitingMoreResources
 	}
 
@@ -105,7 +106,7 @@ func (rq *resourceQueue) selectResourcesToProcess(alwaysReturn bool) []possibleR
 	defer rq.lock.Unlock()
 
 	toProcess := maps.Values(rq.toProcess)
-	if !alwaysReturn && len(toProcess) < int(datastore.FilterMaximumIDCount) {
+	if !alwaysReturn && len(toProcess) < int(rq.dispatchChunkSize) {
 		return nil
 	}
 
@@ -211,6 +212,8 @@ type checkingResourceStream struct {
 
 	processingWaitGroup sync.WaitGroup
 	publishingWaitGroup sync.WaitGroup
+
+	dispatchChunkSize uint16
 }
 
 func newCheckingResourceStream(
@@ -222,6 +225,7 @@ func newCheckingResourceStream(
 	parentStream dispatch.Stream[*v1.DispatchLookupResourcesResponse],
 	limits *limitTracker,
 	concurrencyLimit uint16,
+	dispatchChunkSize uint16,
 ) *checkingResourceStream {
 	if concurrencyLimit == 0 {
 		concurrencyLimit = 1
@@ -251,10 +255,11 @@ func newCheckingResourceStream(
 		sem: make(chan struct{}, processingConcurrencyLimit),
 
 		rq: &resourceQueue{
-			ctx:            lookupContext,
-			toProcess:      map[uint64]possibleResource{},
-			beingProcessed: map[uint64]possibleResource{},
-			toPublish:      map[uint64]possibleResource{},
+			ctx:               lookupContext,
+			toProcess:         map[uint64]possibleResource{},
+			beingProcessed:    map[uint64]possibleResource{},
+			toPublish:         map[uint64]possibleResource{},
+			dispatchChunkSize: dispatchChunkSize,
 		},
 		reachableResourcesAreAvailableForProcessing: make(chan struct{}, concurrencyLimit),
 		reachableResourcesCompleted:                 make(chan struct{}, concurrencyLimit),
@@ -268,6 +273,7 @@ func newCheckingResourceStream(
 
 		processingWaitGroup: sync.WaitGroup{},
 		publishingWaitGroup: sync.WaitGroup{},
+		dispatchChunkSize:   dispatchChunkSize,
 	}
 
 	// Spawn the goroutine that will publish resources to the parent stream in the proper order.
@@ -463,6 +469,7 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 			DebugOption:   computed.NoDebugging,
 		},
 		toCheck.Keys(),
+		crs.dispatchChunkSize,
 	)
 	if err != nil {
 		return true, err

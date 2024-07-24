@@ -11,11 +11,11 @@ import (
 
 func TestDefaults(t *testing.T) {
 	f := pflag.FlagSet{}
-	expected := Config{}
-	err := RegisterDatastoreFlagsWithPrefix(&f, "", &expected)
+	expected := NewConfigWithOptionsAndDefaults()
+	err := RegisterDatastoreFlagsWithPrefix(&f, "", expected)
 	require.NoError(t, err)
 	received := DefaultDatastoreConfig()
-	require.Equal(t, expected, *received)
+	require.Equal(t, expected, received)
 }
 
 func TestLoadDatastoreFromFileContents(t *testing.T) {

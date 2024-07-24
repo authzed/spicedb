@@ -51,15 +51,16 @@ func init() {
 }
 
 // NewConcurrentChecker creates an instance of ConcurrentChecker.
-func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16) *ConcurrentChecker {
-	return &ConcurrentChecker{d, concurrencyLimit}
+func NewConcurrentChecker(d dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *ConcurrentChecker {
+	return &ConcurrentChecker{d, concurrencyLimit, dispatchChunkSize}
 }
 
 // ConcurrentChecker exposes a method to perform Check requests, and delegates subproblems to the
 // provided dispatch.Check instance.
 type ConcurrentChecker struct {
-	d                dispatch.Check
-	concurrencyLimit uint16
+	d                 dispatch.Check
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 // ValidatedCheckRequest represents a request after it has been validated and parsed for internal
@@ -95,8 +96,8 @@ type currentRequestContext struct {
 	// requests.
 	resultsSetting v1.DispatchCheckRequest_ResultsSetting
 
-	// maxDispatchCount is the maximum number of resource IDs that can be specified in each dispatch.
-	maxDispatchCount uint16
+	// dispatchChunkSize is the maximum number of resource IDs that can be specified in each dispatch.
+	dispatchChunkSize uint16
 }
 
 // Check performs a check request with the provided request and context
@@ -215,11 +216,11 @@ func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedChe
 		parentReq:           req,
 		filteredResourceIDs: filteredResourcesIds,
 		resultsSetting:      resultsSetting,
-		maxDispatchCount:    maxDispatchChunkSize,
+		dispatchChunkSize:   cc.dispatchChunkSize,
 	}
 
 	if req.Debug == v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING {
-		crc.maxDispatchCount = 1
+		crc.dispatchChunkSize = 1
 	}
 
 	if relation.UsersetRewrite == nil {
@@ -468,11 +469,11 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	// Convert the subjects into batched requests.
 	// To simplify the logic, +1 is added to account for the situation where
 	// the number of elements is less than the chunk size, and spare us some annoying code.
-	expectedNumberOfChunks := subjectsToDispatch.ValueLen()/int(crc.maxDispatchCount) + 1
+	expectedNumberOfChunks := subjectsToDispatch.ValueLen()/int(crc.dispatchChunkSize) + 1
 	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.dispatchChunkSize, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
@@ -513,11 +514,7 @@ func mapFoundResources(result CheckResult, resourceType *core.RelationReference,
 	// Map any resources found to the parent resource IDs.
 	membershipSet := NewMembershipSet()
 	for foundResourceID, result := range result.Resp.ResultsByResourceId {
-		subjectKey := tuple.StringONR(&core.ObjectAndRelation{
-			Namespace: resourceType.Namespace,
-			ObjectId:  foundResourceID,
-			Relation:  resourceType.Relation,
-		})
+		subjectKey := tuple.StringONRStrings(resourceType.Namespace, foundResourceID, resourceType.Relation)
 
 		tuples, _ := relationshipsBySubjectONR.Get(subjectKey)
 		for _, relationTuple := range tuples {
@@ -730,11 +727,11 @@ func checkIntersectionTupleToUserset(
 	// Convert the subjects into batched requests.
 	// To simplify the logic, +1 is added to account for the situation where
 	// the number of elements is less than the chunk size, and spare us some annoying code.
-	expectedNumberOfChunks := uint16(subjectsToDispatch.ValueLen())/crc.maxDispatchCount + 1
+	expectedNumberOfChunks := uint16(subjectsToDispatch.ValueLen())/crc.dispatchChunkSize + 1
 	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.dispatchChunkSize, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
@@ -757,7 +754,7 @@ func checkIntersectionTupleToUserset(
 			parentReq:           crc.parentReq,
 			filteredResourceIDs: crc.filteredResourceIDs,
 			resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
-			maxDispatchCount:    crc.maxDispatchCount,
+			dispatchChunkSize:   crc.dispatchChunkSize,
 		},
 		toDispatch,
 		func(ctx context.Context, crc currentRequestContext, dd directDispatch) checkResultWithType {
@@ -913,11 +910,11 @@ func checkTupleToUserset[T relation](
 	// Convert the subjects into batched requests.
 	// To simplify the logic, +1 is added to account for the situation where
 	// the number of elements is less than the chunk size, and spare us some annoying code.
-	expectedNumberOfChunks := uint16(subjectsToDispatch.ValueLen())/crc.maxDispatchCount + 1
+	expectedNumberOfChunks := uint16(subjectsToDispatch.ValueLen())/crc.dispatchChunkSize + 1
 	toDispatch := make([]directDispatch, 0, expectedNumberOfChunks)
 	subjectsToDispatch.ForEachType(func(rr *core.RelationReference, resourceIds []string) {
 		chunkCount := 0.0
-		slicez.ForEachChunk(resourceIds, crc.maxDispatchCount, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, crc.dispatchChunkSize, func(resourceIdChunk []string) {
 			chunkCount++
 			toDispatch = append(toDispatch, directDispatch{
 				resourceType: rr,
@@ -1061,7 +1058,7 @@ func all[T any](
 		parentReq:           crc.parentReq,
 		filteredResourceIDs: crc.filteredResourceIDs,
 		resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
-		maxDispatchCount:    crc.maxDispatchCount,
+		dispatchChunkSize:   crc.dispatchChunkSize,
 	}, children, handler, resultChan, concurrencyLimit)
 	defer cancelFn()
 
@@ -1117,7 +1114,7 @@ func difference[T any](
 			parentReq:           crc.parentReq,
 			filteredResourceIDs: crc.filteredResourceIDs,
 			resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
-			maxDispatchCount:    crc.maxDispatchCount,
+			dispatchChunkSize:   crc.dispatchChunkSize,
 		}, children[0])
 		baseChan <- result
 	}()
@@ -1126,7 +1123,7 @@ func difference[T any](
 		parentReq:           crc.parentReq,
 		filteredResourceIDs: crc.filteredResourceIDs,
 		resultsSetting:      v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
-		maxDispatchCount:    crc.maxDispatchCount,
+		dispatchChunkSize:   crc.dispatchChunkSize,
 	}, children[1:], handler, othersChan, concurrencyLimit-1)
 	defer cancelFn()
 

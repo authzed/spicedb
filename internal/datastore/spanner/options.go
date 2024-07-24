@@ -22,6 +22,7 @@ type spannerOptions struct {
 	minSessions                 uint64
 	maxSessions                 uint64
 	migrationPhase              string
+	filterMaximumIDCount        uint16
 }
 
 type migrationPhase uint8
@@ -44,6 +45,7 @@ const (
 	defaultWatchBufferWriteTimeout     = 1 * time.Second
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
+	defaultFilterMaximumIDCount        = 100
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -66,6 +68,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		minSessions:                 100,
 		maxSessions:                 400,
 		migrationPhase:              "", // no migration
+		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 	}
 
 	for _, option := range options {
@@ -201,4 +204,9 @@ func MaxSessionCount(maxSessions uint64) Option {
 // Steady-state configuration (e.g. fully migrated) by default
 func MigrationPhase(phase string) Option {
 	return func(po *spannerOptions) { po.migrationPhase = phase }
+}
+
+// FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
+func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
+	return func(po *spannerOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
 }

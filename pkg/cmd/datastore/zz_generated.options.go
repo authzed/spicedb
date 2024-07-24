@@ -38,6 +38,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.RevisionQuantization = c.RevisionQuantization
 		to.MaxRevisionStalenessPercent = c.MaxRevisionStalenessPercent
 		to.CredentialsProviderName = c.CredentialsProviderName
+		to.FilterMaximumIDCount = c.FilterMaximumIDCount
 		to.ReadConnPool = c.ReadConnPool
 		to.WriteConnPool = c.WriteConnPool
 		to.ReadOnly = c.ReadOnly
@@ -182,6 +183,13 @@ func WithMaxRevisionStalenessPercent(maxRevisionStalenessPercent float64) Config
 func WithCredentialsProviderName(credentialsProviderName string) ConfigOption {
 	return func(c *Config) {
 		c.CredentialsProviderName = credentialsProviderName
+	}
+}
+
+// WithFilterMaximumIDCount returns an option that can set FilterMaximumIDCount on a Config
+func WithFilterMaximumIDCount(filterMaximumIDCount uint16) ConfigOption {
+	return func(c *Config) {
+		c.FilterMaximumIDCount = filterMaximumIDCount
 	}
 }
 

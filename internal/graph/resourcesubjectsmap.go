@@ -12,13 +12,23 @@ import (
 )
 
 type syncONRSet struct {
-	items sync.Map
+	sync.Mutex
+	items map[string]struct{}
 }
 
 func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
 	key := tuple.StringONR(onr)
-	_, existed := s.items.LoadOrStore(key, struct{}{})
+	s.Lock()
+	_, existed := s.items[key]
+	if !existed {
+		s.items[key] = struct{}{}
+	}
+	s.Unlock()
 	return !existed
+}
+
+func NewSyncONRSet() *syncONRSet {
+	return &syncONRSet{items: make(map[string]struct{})}
 }
 
 // resourcesSubjectMap is a multimap which tracks mappings from found resource IDs

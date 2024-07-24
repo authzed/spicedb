@@ -102,6 +102,7 @@ type Config struct {
 	RevisionQuantization        time.Duration `debugmap:"visible"`
 	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
 	CredentialsProviderName     string        `debugmap:"visible"`
+	FilterMaximumIDCount        uint16        `debugmap:"hidden" default:"100"`
 
 	// Options
 	ReadConnPool           ConnPoolConfig `debugmap:"visible"`
@@ -286,6 +287,7 @@ func DefaultDatastoreConfig() *Config {
 		FollowerReadDelay:              4_800 * time.Millisecond,
 		SpannerMinSessions:             100,
 		SpannerMaxSessions:             400,
+		FilterMaximumIDCount:           100,
 	}
 }
 
@@ -412,6 +414,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
+		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 	)
 }
 
@@ -442,6 +445,7 @@ func commonPostgresDatastoreOptions(opts Config) []postgres.Option {
 		postgres.EnableTracing(),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(uint8(opts.MaxRetries)),
+		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 	}
 }
 
@@ -513,6 +517,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.MinSessionCount(opts.SpannerMinSessions),
 		spanner.MaxSessionCount(opts.SpannerMaxSessions),
 		spanner.MigrationPhase(opts.MigrationPhase),
+		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 	)
 }
 
@@ -546,6 +551,7 @@ func commonMySQLDatastoreOptions(opts Config) []mysql.Option {
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
+		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 	}
 }
 
