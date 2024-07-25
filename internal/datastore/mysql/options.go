@@ -3,6 +3,8 @@ package mysql
 import (
 	"fmt"
 	"time"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 const (
@@ -80,6 +82,11 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 			computed.revisionQuantization,
 			computed.gcWindow,
 		)
+	}
+
+	if computed.filterMaximumIDCount == 0 {
+		computed.filterMaximumIDCount = 100
+		log.Warn().Msg("filterMaximumIDCount not set, defaulting to 100")
 	}
 
 	return computed, nil
