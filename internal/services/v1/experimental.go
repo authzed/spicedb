@@ -102,11 +102,12 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		defaultBatchSize: uint64(config.DefaultExportBatchSize),
 		maxBatchSize:     uint64(config.MaxExportBatchSize),
 		bulkChecker: &bulkChecker{
-			maxAPIDepth:          permServerConfig.MaximumAPIDepth,
-			maxCaveatContextSize: permServerConfig.MaxCaveatContextSize,
-			maxConcurrency:       config.BulkCheckMaxConcurrency,
-			dispatch:             dispatch,
-			dispatchChunkSize:    chunkSize,
+			maxAPIDepth:                   permServerConfig.MaximumAPIDepth,
+			maxCaveatContextSize:          permServerConfig.MaxCaveatContextSize,
+			maxConcurrency:                config.BulkCheckMaxConcurrency,
+			dispatch:                      dispatch,
+			dispatchChunkSize:             chunkSize,
+			dispatchChunkConcurrencyLimit: permServerConfig.DispatchChunkMaxConcurrency,
 		},
 	}
 }

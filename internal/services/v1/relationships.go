@@ -59,6 +59,9 @@ type PermissionsServerConfig struct {
 	// DispatchChunkSize is the maximum number of elements to dispach in a dispatch call
 	DispatchChunkSize uint16
 
+	// DispatchMaxConcurrency defines the maximum number of chunks that can be dispatched concurrently
+	DispatchChunkMaxConcurrency uint16
+
 	// StreamingAPITimeout is the timeout for streaming APIs when no response has been
 	// recently received.
 	StreamingAPITimeout time.Duration
@@ -116,6 +119,7 @@ func NewPermissionsServer(
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
 		UseExperimentalLookupResources2: config.UseExperimentalLookupResources2,
 		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
+		DispatchChunkMaxConcurrency:     defaultIfZero(config.DispatchChunkMaxConcurrency, 10),
 	}
 
 	return &permissionServer{
@@ -135,11 +139,12 @@ func NewPermissionsServer(
 			),
 		},
 		bulkChecker: &bulkChecker{
-			maxAPIDepth:          configWithDefaults.MaximumAPIDepth,
-			maxCaveatContextSize: configWithDefaults.MaxCaveatContextSize,
-			maxConcurrency:       configWithDefaults.MaxCheckBulkConcurrency,
-			dispatch:             dispatch,
-			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
+			maxAPIDepth:                   configWithDefaults.MaximumAPIDepth,
+			maxCaveatContextSize:          configWithDefaults.MaxCaveatContextSize,
+			maxConcurrency:                configWithDefaults.MaxCheckBulkConcurrency,
+			dispatch:                      dispatch,
+			dispatchChunkSize:             configWithDefaults.DispatchChunkSize,
+			dispatchChunkConcurrencyLimit: configWithDefaults.DispatchChunkMaxConcurrency,
 		},
 	}
 }

@@ -2,10 +2,15 @@ package computed
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
+
+	"github.com/samber/lo"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
+	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -57,8 +62,9 @@ func ComputeCheck(
 	params CheckParameters,
 	resourceID string,
 	dispatchChunkSize uint16,
+	concurrencyLimit uint16,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID}, dispatchChunkSize)
+	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID}, dispatchChunkSize, concurrencyLimit)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -73,8 +79,9 @@ func ComputeBulkCheck(
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
+	concurrencyLimit uint16,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	return computeCheck(ctx, d, params, resourceIDs, dispatchChunkSize)
+	return computeCheck(ctx, d, params, resourceIDs, dispatchChunkSize, concurrencyLimit)
 }
 
 func computeCheck(ctx context.Context,
@@ -82,6 +89,7 @@ func computeCheck(ctx context.Context,
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
+	concurrencyLimit uint16,
 ) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	if params.DebugOption == BasicDebuggingEnabled {
@@ -102,55 +110,105 @@ func computeCheck(ctx context.Context,
 	}
 
 	// Ensure that the number of resources IDs given to each dispatch call is not in excess of the maximum.
+	var mapLock sync.Mutex
 	results := make(map[string]*v1.ResourceCheckResult, len(resourceIDs))
-	metadata := &v1.ResponseMeta{}
 
 	bf, err := v1.NewTraversalBloomFilter(uint(params.MaximumDepth))
 	if err != nil {
 		return nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
 	}
 
-	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
-	_, err = slicez.ForEachChunkUntil(resourceIDs, dispatchChunkSize, func(resourceIDsToCheck []string) (bool, error) {
-		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-			ResourceRelation: params.ResourceType,
-			ResourceIds:      resourceIDsToCheck,
-			ResultsSetting:   setting,
-			Subject:          params.Subject,
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     params.AtRevision.String(),
-				DepthRemaining: params.MaximumDepth,
-				TraversalBloom: bf,
-			},
-			Debug:      debugging,
-			CheckHints: params.CheckHints,
+	taskNumber := len(resourceIDs) / int(dispatchChunkSize)
+	if len(resourceIDs)%int(dispatchChunkSize) != 0 {
+		taskNumber++
+	}
+	if taskNumber > 1 {
+		var totalDispatchCount atomic.Uint32
+		var depthMutex sync.Mutex
+		allDepths := make([]uint32, 0, (len(resourceIDs)/int(dispatchChunkSize))+1)
+		var totalCachedDispatchCount atomic.Uint32
+		tr := taskrunner.NewPreloadedTaskRunner(ctx, concurrencyLimit, taskNumber)
+		slicez.ForEachChunk(resourceIDs, dispatchChunkSize, func(resourceIDsToCheck []string) {
+			tr.Add(func(ctx context.Context) error {
+				checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+					ResourceRelation: params.ResourceType,
+					ResourceIds:      resourceIDsToCheck,
+					ResultsSetting:   setting,
+					Subject:          params.Subject,
+					Metadata: &v1.ResolverMeta{
+						AtRevision:     params.AtRevision.String(),
+						DepthRemaining: params.MaximumDepth,
+						TraversalBloom: bf,
+					},
+					Debug:      debugging,
+					CheckHints: params.CheckHints,
+				})
+
+				totalDispatchCount.Add(checkResult.Metadata.DispatchCount)
+				totalCachedDispatchCount.Add(checkResult.Metadata.CachedDispatchCount)
+				depthMutex.Lock()
+				allDepths = append(allDepths, checkResult.Metadata.DepthRequired)
+				depthMutex.Unlock()
+				if err != nil {
+					return err
+				}
+
+				for _, resourceID := range resourceIDsToCheck {
+					computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
+					if err != nil {
+						return err
+					}
+
+					mapLock.Lock()
+					results[resourceID] = computed
+					mapLock.Unlock()
+				}
+
+				return nil
+			})
 		})
 
-		if len(resourceIDs) == 1 {
-			metadata = checkResult.Metadata
-		} else {
-			metadata = &v1.ResponseMeta{
-				DispatchCount:       metadata.DispatchCount + checkResult.Metadata.DispatchCount,
-				DepthRequired:       max(metadata.DepthRequired, checkResult.Metadata.DepthRequired),
-				CachedDispatchCount: metadata.CachedDispatchCount + checkResult.Metadata.CachedDispatchCount,
-			}
+		// Run the checks in parallel.
+		err = tr.StartAndWait()
+		metadata := &v1.ResponseMeta{
+			DispatchCount:       totalDispatchCount.Load(),
+			DepthRequired:       lo.Max(allDepths),
+			CachedDispatchCount: totalCachedDispatchCount.Load(),
 		}
+		return results, metadata, err
+	}
 
-		if err != nil {
-			return false, err
-		}
-
-		for _, resourceID := range resourceIDsToCheck {
-			computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
-			if err != nil {
-				return false, err
-			}
-			results[resourceID] = computed
-		}
-
-		return true, nil
+	checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
+		ResourceRelation: params.ResourceType,
+		ResourceIds:      resourceIDs,
+		ResultsSetting:   setting,
+		Subject:          params.Subject,
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     params.AtRevision.String(),
+			DepthRemaining: params.MaximumDepth,
+			TraversalBloom: bf,
+		},
+		Debug:      debugging,
+		CheckHints: params.CheckHints,
 	})
-	return results, metadata, err
+	metadata := &v1.ResponseMeta{
+		DispatchCount:       checkResult.Metadata.DispatchCount,
+		DepthRequired:       checkResult.Metadata.DepthRequired,
+		CachedDispatchCount: checkResult.Metadata.CachedDispatchCount,
+	}
+	if err != nil {
+		return nil, metadata, err
+	}
+
+	for _, resourceID := range resourceIDs {
+		computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
+		if err != nil {
+			return nil, metadata, err
+		}
+		results[resourceID] = computed
+	}
+
+	return results, metadata, nil
 }
 
 func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {

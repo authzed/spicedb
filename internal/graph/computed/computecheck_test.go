@@ -832,6 +832,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						},
 						rel.ResourceAndRelation.ObjectId,
 						100,
+						10,
 					)
 
 					if r.error != "" {
@@ -873,6 +874,7 @@ func TestComputeCheckError(t *testing.T) {
 		},
 		"id",
 		100,
+		10,
 	)
 	require.Error(t, err)
 }
@@ -926,6 +928,7 @@ func TestComputeBulkCheck(t *testing.T) {
 		},
 		[]string{"direct", "first", "second", "third"},
 		100,
+		10,
 	)
 	require.NoError(t, err)
 

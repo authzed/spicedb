@@ -9,7 +9,10 @@ import (
 	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
-const defaultWasmDispatchChunkSize = 100
+const (
+	defaultWasmDispatchChunkSize   = 100
+	defaultWasmDispatchConcurrency = 10
+)
 
 // CheckResult is the result of a RunCheck operation.
 type CheckResult struct {
@@ -39,6 +42,7 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 		},
 		resource.ObjectId,
 		defaultWasmDispatchChunkSize,
+		defaultWasmDispatchConcurrency,
 	)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err

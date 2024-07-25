@@ -426,6 +426,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
 		UseExperimentalLookupResources2: c.EnableExperimentalLookupResources,
 		DispatchChunkSize:               c.DispatchChunkSize,
+		DispatchChunkMaxConcurrency:     c.DispatchConcurrencyLimits.Check,
 	}
 
 	healthManager := health.NewHealthManager(dispatcher, ds)

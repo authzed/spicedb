@@ -20,15 +20,17 @@ import (
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
-func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources2 {
-	return &CursoredLookupResources2{dl, dc, concurrencyLimit, dispatchChunkSize}
+func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16,
+	dispatchChunkConcurrencyLimit uint16) *CursoredLookupResources2 {
+	return &CursoredLookupResources2{dl, dc, concurrencyLimit, dispatchChunkSize, dispatchChunkConcurrencyLimit}
 }
 
 type CursoredLookupResources2 struct {
-	dl                dispatch.LookupResources2
-	dc                dispatch.Check
-	concurrencyLimit  uint16
-	dispatchChunkSize uint16
+	dl                            dispatch.LookupResources2
+	dc                            dispatch.Check
+	concurrencyLimit              uint16
+	dispatchChunkSize             uint16
+	dispatchChunkConcurrencyLimit uint16
 }
 
 type ValidatedLookupResources2Request struct {
@@ -520,7 +522,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,
 							DebugOption:   computed.NoDebugging,
 							CheckHints:    checkHints,
-						}, resourceIDs, crr.dispatchChunkSize)
+						}, resourceIDs, crr.dispatchChunkSize, crr.dispatchChunkConcurrencyLimit)
 						if err != nil {
 							return err
 						}
@@ -629,6 +631,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				crr.dc,
 				crr.concurrencyLimit,
 				crr.dispatchChunkSize,
+				crr.dispatchChunkConcurrencyLimit,
 			)
 		})
 }

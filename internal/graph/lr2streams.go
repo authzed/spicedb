@@ -31,39 +31,42 @@ func runDispatchAndChecker(
 	checkDispatcher dispatch.Check,
 	concurrencyLimit uint16,
 	dispatchChunkSize uint16,
+	dispatchChunkConcurrencyLimit uint16,
 ) error {
 	// Only allow max one dispatcher and one checker to run concurrently.
 	concurrencyLimit = min(concurrencyLimit, 2)
 
 	rdc := &dispatchAndCheckRunner{
-		parentRequest:      parentReq,
-		foundResources:     foundResources,
-		ci:                 ci,
-		parentStream:       parentStream,
-		newSubjectType:     newSubjectType,
-		filteredSubjectIDs: filteredSubjectIDs,
-		entrypoint:         entrypoint,
-		lrDispatcher:       lrDispatcher,
-		checkDispatcher:    checkDispatcher,
-		taskrunner:         taskrunner.NewTaskRunner(ctx, concurrencyLimit),
-		lock:               &sync.Mutex{},
-		dispatchChunkSize:  dispatchChunkSize,
+		parentRequest:                 parentReq,
+		foundResources:                foundResources,
+		ci:                            ci,
+		parentStream:                  parentStream,
+		newSubjectType:                newSubjectType,
+		filteredSubjectIDs:            filteredSubjectIDs,
+		entrypoint:                    entrypoint,
+		lrDispatcher:                  lrDispatcher,
+		checkDispatcher:               checkDispatcher,
+		taskrunner:                    taskrunner.NewTaskRunner(ctx, concurrencyLimit),
+		lock:                          &sync.Mutex{},
+		dispatchChunkSize:             dispatchChunkSize,
+		dispatchChunkConcurrencyLimit: dispatchChunkConcurrencyLimit,
 	}
 
 	return rdc.runAndWait()
 }
 
 type dispatchAndCheckRunner struct {
-	parentRequest      ValidatedLookupResources2Request
-	foundResources     dispatchableResourcesSubjectMap2
-	ci                 cursorInformation
-	parentStream       dispatch.LookupResources2Stream
-	newSubjectType     *core.RelationReference
-	filteredSubjectIDs []string
-	entrypoint         typesystem.ReachabilityEntrypoint
-	lrDispatcher       dispatch.LookupResources2
-	checkDispatcher    dispatch.Check
-	dispatchChunkSize  uint16
+	parentRequest                 ValidatedLookupResources2Request
+	foundResources                dispatchableResourcesSubjectMap2
+	ci                            cursorInformation
+	parentStream                  dispatch.LookupResources2Stream
+	newSubjectType                *core.RelationReference
+	filteredSubjectIDs            []string
+	entrypoint                    typesystem.ReachabilityEntrypoint
+	lrDispatcher                  dispatch.LookupResources2
+	checkDispatcher               dispatch.Check
+	dispatchChunkSize             uint16
+	dispatchChunkConcurrencyLimit uint16
 
 	taskrunner *taskrunner.TaskRunner
 
@@ -153,7 +156,7 @@ func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*
 		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,
 		DebugOption:   computed.NoDebugging,
 		CheckHints:    checkHints,
-	}, resourceIDsToCheck, rdc.dispatchChunkSize)
+	}, resourceIDsToCheck, rdc.dispatchChunkSize, rdc.dispatchChunkConcurrencyLimit)
 	if err != nil {
 		return err
 	}

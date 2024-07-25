@@ -102,6 +102,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 		},
 		req.Resource.ObjectId,
 		ps.config.DispatchChunkSize,
+		ps.config.DispatchChunkMaxConcurrency,
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 

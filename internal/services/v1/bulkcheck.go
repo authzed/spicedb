@@ -31,8 +31,9 @@ type bulkChecker struct {
 	maxCaveatContextSize int
 	maxConcurrency       uint16
 
-	dispatch          dispatch.Dispatcher
-	dispatchChunkSize uint16
+	dispatch                      dispatch.Dispatcher
+	dispatchChunkSize             uint16
+	dispatchChunkConcurrencyLimit uint16
 }
 
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
@@ -185,7 +186,8 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				}
 
 				// Call bulk check to compute the check result(s) for the resource ID(s).
-				rcr, metadata, err := computed.ComputeBulkCheck(ctx, bc.dispatch, *group.params, resourceIDs, bc.dispatchChunkSize)
+				rcr, metadata, err := computed.ComputeBulkCheck(ctx, bc.dispatch, *group.params, resourceIDs,
+					bc.dispatchChunkSize, bc.dispatchChunkConcurrencyLimit)
 				if err != nil {
 					return appendResultsForError(group.params, resourceIDs, err)
 				}

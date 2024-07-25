@@ -166,6 +166,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 								},
 								possibleResourceID,
 								100,
+								defaultConcurrencyLimit,
 							)
 							require.NoError(t, err)
 							membership = cr.Membership

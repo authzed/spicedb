@@ -160,6 +160,9 @@ type checkingResourceStream struct {
 	// concurrencyLimit is the limit on the number on concurrency processing workers.
 	concurrencyLimit uint16
 
+	// dispatchChunkConcurrencyLimit is the number of concurrent chunk dispatches.
+	dispatchChunkConcurrencyLimit uint16
+
 	req          ValidatedLookupResourcesRequest
 	checker      dispatch.Check
 	parentStream dispatch.Stream[*v1.DispatchLookupResourcesResponse]
@@ -226,6 +229,7 @@ func newCheckingResourceStream(
 	limits *limitTracker,
 	concurrencyLimit uint16,
 	dispatchChunkSize uint16,
+	dispatchChunkConcurrencyLimit uint16,
 ) *checkingResourceStream {
 	if concurrencyLimit == 0 {
 		concurrencyLimit = 1
@@ -271,9 +275,10 @@ func newCheckingResourceStream(
 		errSetter: sync.Once{},
 		err:       nil,
 
-		processingWaitGroup: sync.WaitGroup{},
-		publishingWaitGroup: sync.WaitGroup{},
-		dispatchChunkSize:   dispatchChunkSize,
+		processingWaitGroup:           sync.WaitGroup{},
+		publishingWaitGroup:           sync.WaitGroup{},
+		dispatchChunkSize:             dispatchChunkSize,
+		dispatchChunkConcurrencyLimit: dispatchChunkConcurrencyLimit,
 	}
 
 	// Spawn the goroutine that will publish resources to the parent stream in the proper order.
@@ -470,6 +475,7 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		},
 		toCheck.Keys(),
 		crs.dispatchChunkSize,
+		crs.dispatchChunkConcurrencyLimit,
 	)
 	if err != nil {
 		return true, err
