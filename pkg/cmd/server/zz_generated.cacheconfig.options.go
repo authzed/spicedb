@@ -36,6 +36,7 @@ func (c *CacheConfig) ToOption() CacheConfigOption {
 		to.Metrics = c.Metrics
 		to.Enabled = c.Enabled
 		to.defaultTTL = c.defaultTTL
+		to.CacheKindForTesting = c.CacheKindForTesting
 	}
 }
 
@@ -47,6 +48,7 @@ func (c CacheConfig) DebugMap() map[string]any {
 	debugMap["NumCounters"] = helpers.DebugValue(c.NumCounters, false)
 	debugMap["Metrics"] = helpers.DebugValue(c.Metrics, false)
 	debugMap["Enabled"] = helpers.DebugValue(c.Enabled, false)
+	debugMap["CacheKindForTesting"] = helpers.DebugValue(c.CacheKindForTesting, false)
 	return debugMap
 }
 
@@ -98,5 +100,12 @@ func WithMetrics(metrics bool) CacheConfigOption {
 func WithEnabled(enabled bool) CacheConfigOption {
 	return func(c *CacheConfig) {
 		c.Enabled = enabled
+	}
+}
+
+// WithCacheKindForTesting returns an option that can set CacheKindForTesting on a CacheConfig
+func WithCacheKindForTesting(cacheKindForTesting string) CacheConfigOption {
+	return func(c *CacheConfig) {
+		c.CacheKindForTesting = cacheKindForTesting
 	}
 }

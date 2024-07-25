@@ -25,8 +25,8 @@ const (
 )
 
 // DatastoreProxyTestCache returns a cache used for testing.
-func DatastoreProxyTestCache(t testing.TB) cache.Cache {
-	cache, err := cache.NewCache(&cache.Config{
+func DatastoreProxyTestCache(t testing.TB) cache.Cache[cache.StringKey, CacheEntry] {
+	cache, err := cache.NewStandardCache[cache.StringKey, CacheEntry](&cache.Config{
 		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
 	})
@@ -34,11 +34,13 @@ func DatastoreProxyTestCache(t testing.TB) cache.Cache {
 	return cache
 }
 
+type CacheEntry = *cacheEntry
+
 // NewCachingDatastoreProxy creates a new datastore proxy which caches definitions that
 // are loaded at specific datastore revisions.
-func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration, cachingMode CachingMode, watchHeartbeat time.Duration) datastore.Datastore {
+func NewCachingDatastoreProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, CacheEntry], gcWindow time.Duration, cachingMode CachingMode, watchHeartbeat time.Duration) datastore.Datastore {
 	if c == nil {
-		c = cache.NoopCache()
+		c = cache.NoopCache[cache.StringKey, CacheEntry]()
 	}
 
 	if cachingMode == JustInTimeCaching {

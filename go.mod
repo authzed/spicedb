@@ -110,6 +110,7 @@ require (
 )
 
 require (
+	github.com/Yiling-J/theine-go v0.3.2
 	github.com/gosimple/slug v1.14.0
 	github.com/lithammer/fuzzysearch v1.1.8
 )
@@ -137,16 +138,21 @@ require (
 	github.com/cilium/ebpf v0.9.1 // indirect
 	github.com/containerd/cgroups/v3 v3.0.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
+	github.com/dolthub/maphash v0.1.0 // indirect
+	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/golangci/modinfo v0.3.4 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/jjti/go-spancheck v0.6.1 // indirect
+	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/lasiar/canonicalheader v1.1.1 // indirect
+	github.com/maypok86/otter v1.2.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22 // indirect
 	github.com/samber/slog-common v0.17.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
+	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go-simpler.org/musttag v0.12.2 // indirect
 	golang.org/x/telemetry v0.0.0-20240522233618-39ace7a40ae7 // indirect
 )

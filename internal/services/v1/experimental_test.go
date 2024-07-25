@@ -410,7 +410,7 @@ type bulkCheckTest struct {
 }
 
 func TestBulkCheckPermission(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewExperimentalServiceClient(conn)

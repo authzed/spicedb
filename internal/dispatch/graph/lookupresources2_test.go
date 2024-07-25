@@ -19,11 +19,12 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestSimpleLookupResources2(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		start                 *core.RelationReference
@@ -156,7 +157,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 }
 
 func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	for _, tc := range []struct {
 		subject        string
@@ -239,7 +240,7 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 }
 
 func TestLookupResourcesCursorStability2(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	require := require.New(t)
 	ctx, dispatcher, revision := newLocalDispatcher(t)

@@ -18,27 +18,30 @@ const PresharedKeyFlag = "grpc-preshared-key"
 
 var (
 	namespaceCacheDefaults = &server.CacheConfig{
-		Name:        "namespace",
-		Enabled:     true,
-		Metrics:     true,
-		NumCounters: 1_000,
-		MaxCost:     "32MiB",
+		Name:                "namespace",
+		Enabled:             true,
+		Metrics:             true,
+		NumCounters:         1_000,
+		MaxCost:             "32MiB",
+		CacheKindForTesting: "",
 	}
 
 	dispatchCacheDefaults = &server.CacheConfig{
-		Name:        "dispatch",
-		Enabled:     true,
-		Metrics:     true,
-		NumCounters: 10_000,
-		MaxCost:     "30%",
+		Name:                "dispatch",
+		Enabled:             true,
+		Metrics:             true,
+		NumCounters:         10_000,
+		MaxCost:             "30%",
+		CacheKindForTesting: "",
 	}
 
 	dispatchClusterCacheDefaults = &server.CacheConfig{
-		Name:        "cluster_dispatch",
-		Enabled:     true,
-		Metrics:     true,
-		NumCounters: 100_000,
-		MaxCost:     "70%",
+		Name:                "cluster_dispatch",
+		Enabled:             true,
+		Metrics:             true,
+		NumCounters:         100_000,
+		MaxCost:             "70%",
+		CacheKindForTesting: "",
 	}
 )
 
@@ -72,7 +75,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err := cmd.Flags().MarkHidden("ns-cache-expiration"); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
-	server.RegisterCacheFlags(cmd.Flags(), "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
+	server.MustRegisterCacheFlags(cmd.Flags(), "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
 	cmd.Flags().BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache which makes use of the Watch API for automatic updates")
 	cmd.Flags().DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
@@ -101,8 +104,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(cmd.Flags(), &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
-	server.RegisterCacheFlags(cmd.Flags(), "dispatch-cache", &config.DispatchCacheConfig, dispatchCacheDefaults)
-	server.RegisterCacheFlags(cmd.Flags(), "dispatch-cluster-cache", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
+	server.MustRegisterCacheFlags(cmd.Flags(), "dispatch-cache", &config.DispatchCacheConfig, dispatchCacheDefaults)
+	server.MustRegisterCacheFlags(cmd.Flags(), "dispatch-cluster-cache", &config.ClusterDispatchCacheConfig, dispatchClusterCacheDefaults)
 
 	// Flags for configuring dispatch requests
 	cmd.Flags().Uint16Var(&config.DispatchChunkSize, "dispatch-chunk-size", 100, "maximum number of object IDs in a dispatched request")

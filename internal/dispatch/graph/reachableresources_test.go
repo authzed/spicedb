@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -41,7 +42,7 @@ func reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResourc
 }
 
 func TestSimpleReachableResources(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		start     *core.RelationReference
@@ -153,8 +154,6 @@ func TestSimpleReachableResources(t *testing.T) {
 
 		tc := tc
 		t.Run(name, func(t *testing.T) {
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
-
 			require := require.New(t)
 
 			ctx, dispatcher, revision := newLocalDispatcher(t)
@@ -616,7 +615,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 }
 
 func TestReachableResourcesWithConsistencyLimitOf1(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, dispatcher, revision := newLocalDispatcherWithConcurrencyLimit(t, 1)
 	defer dispatcher.Close()
@@ -646,7 +645,7 @@ func TestReachableResourcesWithConsistencyLimitOf1(t *testing.T) {
 }
 
 func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -723,7 +722,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 }
 
 func TestReachableResourcesCursors(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -840,7 +839,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 }
 
 func TestReachableResourcesPaginationWithLimit(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -921,7 +920,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 }
 
 func TestReachableResourcesWithQueryError(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -1283,7 +1282,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 }
 
 func TestReachableResourcesWithPreCancelation(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -1338,7 +1337,7 @@ func TestReachableResourcesWithPreCancelation(t *testing.T) {
 }
 
 func TestReachableResourcesWithUnexpectedContextCancelation(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
@@ -1423,7 +1422,7 @@ func (cr *cancelingReader) ReverseQueryRelationships(
 }
 
 func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)

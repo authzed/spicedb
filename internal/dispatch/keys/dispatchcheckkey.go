@@ -25,4 +25,10 @@ func (dck DispatchCacheKey) AsUInt64s() (uint64, uint64) {
 	return dck.processSpecificSum, dck.stableSum
 }
 
+func (dck DispatchCacheKey) KeyString() string {
+	firstBytes := binary.AppendUvarint(make([]byte, 0, 8), dck.stableSum)
+	secondBytes := binary.AppendUvarint(make([]byte, 0, 8), dck.processSpecificSum)
+	return string(firstBytes) + string(secondBytes)
+}
+
 var emptyDispatchCacheKey = DispatchCacheKey{0, 0}

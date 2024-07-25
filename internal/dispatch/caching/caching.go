@@ -29,7 +29,7 @@ const (
 // Dispatcher is a dispatcher with cacheInst-in caching.
 type Dispatcher struct {
 	d          dispatch.Dispatcher
-	c          cache.Cache
+	c          cache.Cache[keys.DispatchCacheKey, any]
 	keyHandler keys.Handler
 
 	checkTotalCounter                  prometheus.Counter
@@ -42,8 +42,8 @@ type Dispatcher struct {
 	lookupSubjectsFromCacheCounter     prometheus.Counter
 }
 
-func DispatchTestCache(t testing.TB) cache.Cache {
-	cache, err := cache.NewCache(&cache.Config{
+func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
+	cache, err := cache.NewStandardCache[keys.DispatchCacheKey, any](&cache.Config{
 		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
 	})
@@ -53,9 +53,9 @@ func DispatchTestCache(t testing.TB) cache.Cache {
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
 // dispatch requests and caches the responses when possible and desirable.
-func NewCachingDispatcher(cacheInst cache.Cache, metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
+func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
 	if cacheInst == nil {
-		cacheInst = cache.NoopCache()
+		cacheInst = cache.NoopCache[keys.DispatchCacheKey, any]()
 	}
 
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{

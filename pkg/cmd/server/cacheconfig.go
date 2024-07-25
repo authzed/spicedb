@@ -33,12 +33,13 @@ func init() {
 //
 //go:generate go run github.com/ecordell/optgen -output zz_generated.cacheconfig.options.go . CacheConfig
 type CacheConfig struct {
-	Name        string        `debugmap:"visible"`
-	MaxCost     string        `debugmap:"visible"`
-	NumCounters int64         `debugmap:"visible"`
-	Metrics     bool          `debugmap:"visible"`
-	Enabled     bool          `debugmap:"visible"`
-	defaultTTL  time.Duration `debugmap:"visible"`
+	Name                string        `debugmap:"visible"`
+	MaxCost             string        `debugmap:"visible"`
+	NumCounters         int64         `debugmap:"visible"`
+	Metrics             bool          `debugmap:"visible"`
+	Enabled             bool          `debugmap:"visible"`
+	defaultTTL          time.Duration `debugmap:"visible"`
+	CacheKindForTesting string        `debugmap:"visible"`
 }
 
 // WithRevisionParameters configures a cache such that all entries are given a TTL
@@ -53,10 +54,10 @@ func (cc *CacheConfig) WithRevisionParameters(
 	return cc
 }
 
-// Complete translates the CLI cache config into a cache config.
-func (cc *CacheConfig) Complete() (cache.Cache, error) {
+// CompleteCache translates the CLI cache config into a cache config.
+func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V], error) {
 	if !cc.Enabled || cc.MaxCost == "" || cc.MaxCost == "0%" || cc.NumCounters == 0 {
-		return cache.NoopCache(), nil
+		return cache.NoopCache[K, V](), nil
 	}
 
 	var (
@@ -73,15 +74,36 @@ func (cc *CacheConfig) Complete() (cache.Cache, error) {
 		return nil, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
 	}
 
+	if cc.CacheKindForTesting != "" {
+		switch cc.CacheKindForTesting {
+		case "theine":
+			return cache.NewTheineCache[K, V](&cache.Config{
+				MaxCost:     int64(maxCost),
+				NumCounters: cc.NumCounters,
+				DefaultTTL:  cc.defaultTTL,
+			})
+
+		case "otter":
+			return cache.NewOtterCache[K, V](&cache.Config{
+				MaxCost:     int64(maxCost),
+				NumCounters: cc.NumCounters,
+				DefaultTTL:  cc.defaultTTL,
+			})
+
+		default:
+			return nil, fmt.Errorf("unknown cache kind: %s", cc.CacheKindForTesting)
+		}
+	}
+
 	if cc.Metrics {
-		return cache.NewCacheWithMetrics(cc.Name, &cache.Config{
+		return cache.NewStandardCacheWithMetrics[K, V](cc.Name, &cache.Config{
 			MaxCost:     int64(maxCost),
 			NumCounters: cc.NumCounters,
 			DefaultTTL:  cc.defaultTTL,
 		})
 	}
 
-	return cache.NewCache(&cache.Config{
+	return cache.NewStandardCache[K, V](&cache.Config{
 		MaxCost:     int64(maxCost),
 		NumCounters: cc.NumCounters,
 		DefaultTTL:  cc.defaultTTL,
@@ -102,13 +124,19 @@ func parsePercent(str string, freeMem uint64) (uint64, error) {
 	return freeMem / 100 * parsedPercent, nil
 }
 
-// RegisterCacheFlags registers flags used to configure SpiceDB's various
+// MustRegisterCacheFlags registers flags used to configure SpiceDB's various
 // caches.
-func RegisterCacheFlags(flags *pflag.FlagSet, flagPrefix string, config, defaults *CacheConfig) {
+func MustRegisterCacheFlags(flags *pflag.FlagSet, flagPrefix string, config, defaults *CacheConfig) {
 	config.Name = defaults.Name
 	flagPrefix = stringz.DefaultEmpty(flagPrefix, "cache")
 	flags.StringVar(&config.MaxCost, flagPrefix+"-max-cost", defaults.MaxCost, "upper bound cache size in bytes or percent of available memory")
 	flags.Int64Var(&config.NumCounters, flagPrefix+"-num-counters", defaults.NumCounters, "number of TinyLFU samples to track")
 	flags.BoolVar(&config.Metrics, flagPrefix+"-metrics", defaults.Metrics, "enable cache metrics")
 	flags.BoolVar(&config.Enabled, flagPrefix+"-enabled", defaults.Enabled, "enable caching")
+
+	// Hidden flags.
+	flags.StringVar(&config.CacheKindForTesting, flagPrefix+"-cache-kind-for-testing", defaults.CacheKindForTesting, "choose a different kind of cache, for testing")
+	if err := flags.MarkHidden(flagPrefix + "-cache-kind-for-testing"); err != nil {
+		panic(err)
+	}
 }
