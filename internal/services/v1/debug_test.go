@@ -372,7 +372,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`anothercondition == "hello world" && somecondition == 42`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`(anothercondition == "hello world") && (somecondition == 42)`)},
 				},
 				{
 					"sarah as not viewer due to org",
@@ -387,7 +387,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`anothercondition == "hello world"`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`(anothercondition == "hello world") && (somecondition == 42)`)},
 				},
 				{
 					"sarah as not viewer due to viewer",
@@ -402,7 +402,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`somecondition == 42`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`(anothercondition == "hello world") && (somecondition == 42)`)},
 				},
 				{
 					"sarah as partially conditional viewer",
@@ -435,6 +435,46 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						expectDebugFrames("member"),
 						expectMissingContext("anothercondition", "somecondition"),
 					},
+				},
+			},
+		},
+		{
+			"reused caveat parameter name is renamed in debug frame",
+			`definition user {}
+			
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat anothercaveat(somecondition int) {
+				somecondition == 41
+			}
+
+			definition org {
+				relation member: user with somecaveat
+			}
+
+			 definition document {
+				relation parent: org with anothercaveat
+				permission view = parent->member
+			 }
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`document:first#parent@org:someorg[anothercaveat:{"somecondition":41}]`),
+				tuple.MustParse(`org:someorg#member@user:sarah[somecaveat:{"somecondition":42}]`),
+			},
+			[]debugCheckInfo{
+				{
+					"sarah has view permission",
+					debugCheckRequest{
+						obj("document", "first"),
+						"view",
+						sub("user", "sarah", ""),
+						map[string]any{},
+					},
+					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+					1,
+					[]rda{expectDebugFrames("member"), expectCaveat(`(somecondition__0 == 41) && (somecondition__1 == 42)`)},
 				},
 			},
 		},

@@ -103,6 +103,27 @@ func (mm MultiMap[T, Q]) Values() []Q {
 	return values
 }
 
+// CountOf returns the number of values stored for the given key.
+func (mm MultiMap[T, Q]) CountOf(key T) int {
+	return len(mm.items[key])
+}
+
+// IndexOfValueInMultimap returns the index of the value in the map for the given key.
+func IndexOfValueInMultimap[T comparable, Q comparable](mm *MultiMap[T, Q], key T, value Q) int {
+	values, ok := mm.items[key]
+	if !ok {
+		return -1
+	}
+
+	for i, v := range values {
+		if v == value {
+			return i
+		}
+	}
+
+	return -1
+}
+
 // AsReadOnly returns a read-only *copy* of the mulitmap.
 func (mm *MultiMap[T, Q]) AsReadOnly() ReadOnlyMultimap[T, Q] {
 	return readOnlyMultimap[T, Q]{

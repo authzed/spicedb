@@ -3,6 +3,7 @@ package computed_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -842,7 +843,11 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
 
 						if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
-							require.Equal(t, r.expectedMissingFields, result.MissingExprFields)
+							foundFields := result.MissingExprFields
+							sort.Strings(foundFields)
+							sort.Strings(r.expectedMissingFields)
+
+							require.Equal(t, r.expectedMissingFields, foundFields)
 						}
 					}
 				})
