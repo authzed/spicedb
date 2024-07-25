@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -107,6 +108,11 @@ type SchemaQueryFilterer struct {
 
 // NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
 func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuilder, filterMaximumIDCount uint16) SchemaQueryFilterer {
+	if filterMaximumIDCount == 0 {
+		filterMaximumIDCount = 100
+		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
+	}
+
 	return SchemaQueryFilterer{
 		schema:                schema,
 		queryBuilder:          initialQuery,

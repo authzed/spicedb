@@ -5,6 +5,8 @@ import (
 	"math"
 	"runtime"
 	"time"
+
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 type spannerOptions struct {
@@ -86,6 +88,11 @@ func generateConfig(options []Option) (spannerOptions, error) {
 
 	if _, ok := migrationPhases[computed.migrationPhase]; !ok {
 		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
+	}
+
+	if computed.filterMaximumIDCount == 0 {
+		computed.filterMaximumIDCount = 100
+		log.Warn().Msg("filterMaximumIDCount not set, defaulting to 100")
 	}
 
 	return computed, nil

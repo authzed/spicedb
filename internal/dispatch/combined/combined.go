@@ -153,6 +153,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 	chunkSize := opts.dispatchChunkSize
 	if chunkSize == 0 {
 		chunkSize = 100
+		log.Warn().Msgf("CombinedDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
 	}
 	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits, chunkSize)
 	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
