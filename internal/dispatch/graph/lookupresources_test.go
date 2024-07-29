@@ -332,8 +332,12 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(err)
 }
 
-func joinTuples(first []*core.RelationTuple, second []*core.RelationTuple) []*core.RelationTuple {
-	return append(first, second...)
+func joinTuples(first []*core.RelationTuple, others ...[]*core.RelationTuple) []*core.RelationTuple {
+	current := first
+	for _, second := range others {
+		current = append(current, second...)
+	}
+	return current
 }
 
 func genTuplesWithOffset(resourceName string, relation string, subjectName string, subjectID string, offset int, number int) []*core.RelationTuple {
@@ -357,11 +361,15 @@ func genSubjectTuples(resourceName string, relation string, subjectName string, 
 }
 
 func genTuplesWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
+	return genTuplesWithCaveatAndSubjectRelation(resourceName, relation, subjectName, subjectID, "...", caveatName, context, offset, number)
+}
+
+func genTuplesWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
 	tuples := make([]*core.RelationTuple, 0, number)
 	for i := 0; i < number; i++ {
 		tpl := &core.RelationTuple{
 			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
-			Subject:             ONR(subjectName, subjectID, "..."),
+			Subject:             ONR(subjectName, subjectID, subjectRelation),
 		}
 		if caveatName != "" {
 			tpl = tuple.MustWithCaveat(tpl, caveatName, context)

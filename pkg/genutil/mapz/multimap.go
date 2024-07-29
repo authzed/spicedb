@@ -85,6 +85,11 @@ func (mm *MultiMap[T, Q]) Get(key T) ([]Q, bool) {
 	return found, true
 }
 
+// Sets sets the values in the multimap to those provided.
+func (mm *MultiMap[T, Q]) Set(key T, values []Q) {
+	mm.items[key] = values
+}
+
 // IsEmpty returns true if the map is currently empty.
 func (mm *MultiMap[T, Q]) IsEmpty() bool { return len(mm.items) == 0 }
 
@@ -103,8 +108,13 @@ func (mm MultiMap[T, Q]) Values() []Q {
 	return values
 }
 
+// Clone returns a clone of the map.
+func (mm *MultiMap[T, Q]) Clone() *MultiMap[T, Q] {
+	return &MultiMap[T, Q]{maps.Clone(mm.items)}
+}
+
 // CountOf returns the number of values stored for the given key.
-func (mm MultiMap[T, Q]) CountOf(key T) int {
+func (mm *MultiMap[T, Q]) CountOf(key T) int {
 	return len(mm.items[key])
 }
 

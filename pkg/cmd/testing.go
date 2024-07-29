@@ -29,6 +29,7 @@ func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
 	cmd.Flags().Uint32Var(&config.MaxDeleteRelationshipsLimit, "max-delete-relationships-limit", 1000, "maximum number of relationships that can be deleted in a single request")
 	cmd.Flags().Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
 	cmd.Flags().Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
+	cmd.Flags().BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "enables the experimental version of the lookup resources API")
 }
 
 func NewTestingCommand(programName string, config *testserver.Config) *cobra.Command {
