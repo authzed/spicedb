@@ -357,11 +357,15 @@ func genSubjectTuples(resourceName string, relation string, subjectName string, 
 }
 
 func genTuplesWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
+	return genTuplesWithCaveatAndSubjectRelation(resourceName, relation, subjectName, subjectID, "...", caveatName, context, offset, number)
+}
+
+func genTuplesWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
 	tuples := make([]*core.RelationTuple, 0, number)
 	for i := 0; i < number; i++ {
 		tpl := &core.RelationTuple{
 			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
-			Subject:             ONR(subjectName, subjectID, "..."),
+			Subject:             ONR(subjectName, subjectID, subjectRelation),
 		}
 		if caveatName != "" {
 			tpl = tuple.MustWithCaveat(tpl, caveatName, context)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -565,6 +566,132 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			ONR("user", "tom", "..."),
 			[]string{"doc0", "doc1", "doc4"},
 		},
+		{
+			"indirect intersection and exclusion",
+			`definition user {}
+		
+		 	 definition document {
+				relation editor: user
+				relation viewer: user
+				relation banned: user
+				permission indirect = viewer & editor
+				permission view = indirect - banned
+  			 }`,
+			joinTuples(
+				genTuples("document", "viewer", "user", "tom", 1510),
+				joinTuples(
+					genTuples("document", "editor", "user", "tom", 1510),
+					genTuplesWithOffset("document", "banned", "user", "tom", 1410, 100),
+				),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1410),
+		},
+		{
+			"indirect intersections",
+			`definition user {}
+		
+			 definition folder {
+			 	relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				relation editor: user
+				relation admin: user
+				permission indirect = folder->view & editor
+				permission view = indirect & admin
+  			 }`,
+			joinTuples(
+				[]*core.RelationTuple{
+					tuple.MustParse("folder:folder0#viewer@user:tom"),
+				},
+				joinTuples(
+					genTuples("document", "folder", "folder", "folder0", 1510),
+					joinTuples(
+						genTuples("document", "editor", "user", "tom", 1510),
+						genTuples("document", "admin", "user", "tom", 1410),
+					),
+				),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1410),
+		},
+		{
+			"indirect over arrow",
+			`definition user {}
+		
+			 definition folder {
+			 	relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition document {
+				relation folder: folder
+				relation editor: user
+				relation admin: user
+				permission indirect = folder->view
+				permission view = indirect & admin
+  			 }`,
+			joinTuples(
+				[]*core.RelationTuple{
+					tuple.MustParse("folder:folder0#viewer@user:tom"),
+				},
+				joinTuples(
+					genTuples("document", "folder", "folder", "folder0", 1510),
+					joinTuples(
+						genTuples("document", "editor", "user", "tom", 1510),
+						genTuples("document", "admin", "user", "tom", 1410),
+					),
+				),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 1410),
+		},
+		{
+			"root indirect with intermediate shearing",
+			`definition user {}
+		
+			 definition folder {
+			 	relation viewer: user
+				permission view = viewer
+			 }
+
+		 	 definition middle {
+				relation folder: folder
+				relation editor: user
+
+				permission folder_view = folder->view
+				permission indirect_view = folder_view & editor
+				permission view = indirect_view
+  			 }
+			 	
+			  definition document {
+			    relation viewer: middle#view
+				permission view = viewer
+			  }
+			 `,
+			joinTuples(
+				[]*core.RelationTuple{
+					tuple.MustParse("folder:folder0#viewer@user:tom"),
+					tuple.MustParse("folder:folder1#viewer@user:tom"),
+				},
+				joinTuples(
+					genTuples("middle", "folder", "folder", "folder0", 1510),
+					joinTuples(
+						genTuples("middle", "editor", "user", "tom", 1),
+						genTuplesWithCaveatAndSubjectRelation("document", "viewer", "middle", "middle-0", "view", "", nil, 0, 2000),
+					),
+				),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			genResourceIds("document", 2000),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -587,6 +714,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 
 					var currentCursor *v1.Cursor
 					foundResourceIDs := mapz.NewSet[string]()
+					foundChunks := [][]*v1.DispatchLookupResources2Response{}
 					for {
 						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 						err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
@@ -607,6 +735,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 							require.LessOrEqual(len(stream.Results()), pageSize)
 						}
 
+						foundChunks = append(foundChunks, stream.Results())
+
 						for _, result := range stream.Results() {
 							foundResourceIDs.Insert(result.Resource.ResourceId)
 							currentCursor = result.AfterResponseCursor
@@ -615,6 +745,10 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 						if pageSize == 0 || len(stream.Results()) < pageSize {
 							break
 						}
+					}
+
+					for _, chunk := range foundChunks[0 : len(foundChunks)-1] {
+						require.Equal(pageSize, len(chunk))
 					}
 
 					foundResourceIDsSlice := foundResourceIDs.AsSlice()
@@ -803,6 +937,27 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			expectedResources: []string{"masterplan"},
 		},
 		{
+			name: "indirect nested",
+			schema: `definition user {}
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: user
+				permission indirect_view = viewer & editor
+				permission view = indirect_view
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@user:tom"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "viewer"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
 			name: "indirect result with alias",
 			schema: `definition user {}
 
@@ -843,6 +998,278 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "multiple paths for checking",
+			schema: `definition user {}
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: user
+				relation viewer2: user
+				relation admin: user
+				permission viewer_of_some_kind = viewer + viewer2
+				permission view = viewer_of_some_kind & editor
+				permission view_and_admin = view & admin
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@user:tom"),
+				tuple.MustParse("document:masterplan#viewer2@user:tom"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+				tuple.MustParse("document:masterplan#admin@user:tom"),
+			},
+			resourceRelation: RR("document", "view_and_admin"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "viewer"),
+				RR("document", "viewer2"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "multiple paths for checking variation",
+			schema: `definition user {}
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: user
+				relation viewer2: user
+				relation admin: user
+				permission viewer_of_some_kind = viewer + viewer2
+				permission view_and_admin = viewer_of_some_kind & editor & admin
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@user:tom"),
+				tuple.MustParse("document:masterplan#viewer2@user:tom"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+				tuple.MustParse("document:masterplan#admin@user:tom"),
+			},
+			resourceRelation: RR("document", "view_and_admin"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "viewer"),
+				RR("document", "viewer2"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "multiple paths with relation walk",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user
+			 }
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: group#member
+				permission view = viewer & editor
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@group:first#member"),
+				tuple.MustParse("document:masterplan#viewer@group:second#member"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+				tuple.MustParse("group:first#member@user:tom"),
+				tuple.MustParse("group:second#member@user:tom"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "viewer"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "multiple paths with relation walk on right",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user
+			 }
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: group#member
+				permission view = editor & viewer
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@group:first#member"),
+				tuple.MustParse("document:masterplan#viewer@group:second#member"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+				tuple.MustParse("group:first#member@user:tom"),
+				tuple.MustParse("group:second#member@user:tom"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "editor"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "multiple paths with arrow on left",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user
+			 }
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: group
+				permission view = viewer->member & editor
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@group:first"),
+				tuple.MustParse("document:masterplan#viewer@group:second"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+				tuple.MustParse("group:first#member@user:tom"),
+				tuple.MustParse("group:second#member@user:tom"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "viewer"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "multiple paths with arrow on right",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user
+			 }
+
+			 definition document {
+			 	relation editor: user
+				relation viewer: group
+				permission view = editor & viewer->member
+			}`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("document:masterplan#viewer@group:first"),
+				tuple.MustParse("document:masterplan#viewer@group:second"),
+				tuple.MustParse("document:masterplan#editor@user:tom"),
+				tuple.MustParse("group:first#member@user:tom"),
+				tuple.MustParse("group:second#member@user:tom"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("document", "editor"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "duplicate resources for checking",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user
+			 }
+
+			 definition folder {
+				relation group: group
+			 	relation editor: user
+				permission view = group->member & editor
+			 }
+
+			 definition document {
+			 	relation folder: folder
+				permission view = folder->view
+ 			 }
+			`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("group:first#member@user:tom"),
+				tuple.MustParse("group:second#member@user:tom"),
+				tuple.MustParse("folder:folder1#group@group:first"),
+				tuple.MustParse("folder:folder1#group@group:second"),
+				tuple.MustParse("folder:folder1#editor@user:tom"),
+				tuple.MustParse("document:masterplan#folder@folder:folder1"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("group", "member"),
+				RR("folder", "group"),
+			},
+			expectedResources: []string{"masterplan"},
+		},
+		{
+			name: "duplicate resources for checking with missing caveat context on checked side",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user
+			 }
+
+			 caveat somecaveat(somecondition int) {
+			 	somecondition == 42
+		     }
+
+			 definition folder {
+				relation group: group
+			 	relation editor: user with somecaveat
+				permission view = group->member & editor
+			 }
+
+			 definition document {
+			 	relation folder: folder
+				permission view = folder->view
+ 			 }
+			`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("group:first#member@user:tom"),
+				tuple.MustParse("group:second#member@user:tom"),
+				tuple.MustParse("folder:folder1#group@group:first"),
+				tuple.MustParse("folder:folder1#group@group:second"),
+				tuple.MustParse("folder:folder1#editor@user:tom[somecaveat]"),
+				tuple.MustParse("document:masterplan#folder@folder:folder1"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("group", "member"),
+				RR("folder", "group"),
+			},
+			expectedResources: []string{"masterplan[somecondition]"},
+		},
+		{
+			name: "duplicate resources for checking with missing caveat context on hinted side",
+			schema: `definition user {}
+
+			 definition group {
+			 	relation member: user | user with somecaveat
+			 }
+
+			 caveat somecaveat(somecondition int) {
+			 	somecondition == 42
+		     }
+
+			 definition folder {
+				relation group: group
+			 	relation editor: user
+				permission view = group->member & editor
+			 }
+
+			 definition document {
+			 	relation folder: folder
+				permission view = folder->view
+ 			 }
+			`,
+			relationships: []*core.RelationTuple{
+				tuple.MustParse("group:first#member@user:tom[somecaveat]"),
+				tuple.MustParse("folder:folder1#group@group:first"),
+				tuple.MustParse("folder:folder1#editor@user:tom"),
+				tuple.MustParse("document:masterplan#folder@folder:folder1"),
+			},
+			resourceRelation: RR("document", "view"),
+			subject:          ONR("user", "tom", "..."),
+			disallowedQueries: []*core.RelationReference{
+				RR("group", "member"),
+				RR("folder", "group"),
+			},
+			expectedResources: []string{"masterplan[somecondition]"},
 		},
 	}
 
@@ -888,6 +1315,11 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 
 			foundResourceIDs := mapz.NewSet[string]()
 			for _, result := range stream.Results() {
+				if len(result.Resource.MissingContextParams) > 0 {
+					foundResourceIDs.Insert(result.Resource.ResourceId + "[" + strings.Join(result.Resource.MissingContextParams, ",") + "]")
+					continue
+				}
+
 				foundResourceIDs.Insert(result.Resource.ResourceId)
 			}
 
