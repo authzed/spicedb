@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"strconv"
 	"sync"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -15,10 +16,10 @@ import (
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
-// runDispatchAndChecker runs the dispatch and checker for a lookup resources call, and publishes
-// the results to the parent stream. This function is responsible for handling the dispatching
-// of the lookup resources call, and then checking the results to filter them.
-func runDispatchAndChecker(
+// runCheckerAndDispatch runs the dispatch and checker for a lookup resources call, and publishes
+// the results to the parent stream. This function is responsible for handling checking the
+// results to filter them, and then dispatching those found.
+func runCheckerAndDispatch(
 	ctx context.Context,
 	parentReq ValidatedLookupResources2Request,
 	foundResources dispatchableResourcesSubjectMap2,
@@ -35,13 +36,19 @@ func runDispatchAndChecker(
 	// Only allow max one dispatcher and one checker to run concurrently.
 	concurrencyLimit = min(concurrencyLimit, 2)
 
-	rdc := &dispatchAndCheckRunner{
+	currentCheckIndex, err := ci.integerSectionValue()
+	if err != nil {
+		return err
+	}
+
+	rdc := &checkAndDispatchRunner{
 		parentRequest:      parentReq,
 		foundResources:     foundResources,
 		ci:                 ci,
 		parentStream:       parentStream,
 		newSubjectType:     newSubjectType,
 		filteredSubjectIDs: filteredSubjectIDs,
+		currentCheckIndex:  currentCheckIndex,
 		entrypoint:         entrypoint,
 		lrDispatcher:       lrDispatcher,
 		checkDispatcher:    checkDispatcher,
@@ -53,41 +60,35 @@ func runDispatchAndChecker(
 	return rdc.runAndWait()
 }
 
-type dispatchAndCheckRunner struct {
-	parentRequest      ValidatedLookupResources2Request
-	foundResources     dispatchableResourcesSubjectMap2
-	ci                 cursorInformation
-	parentStream       dispatch.LookupResources2Stream
-	newSubjectType     *core.RelationReference
+type checkAndDispatchRunner struct {
+	parentRequest     ValidatedLookupResources2Request
+	foundResources    dispatchableResourcesSubjectMap2
+	ci                cursorInformation
+	parentStream      dispatch.LookupResources2Stream
+	newSubjectType    *core.RelationReference
+	entrypoint        typesystem.ReachabilityEntrypoint
+	lrDispatcher      dispatch.LookupResources2
+	checkDispatcher   dispatch.Check
+	dispatchChunkSize uint16
+
 	filteredSubjectIDs []string
-	entrypoint         typesystem.ReachabilityEntrypoint
-	lrDispatcher       dispatch.LookupResources2
-	checkDispatcher    dispatch.Check
-	dispatchChunkSize  uint16
+	currentCheckIndex  int
 
 	taskrunner *taskrunner.TaskRunner
 
 	lock *sync.Mutex
 }
 
-func (rdc *dispatchAndCheckRunner) dispatchAndCollect(ctx context.Context, cursor *v1.Cursor) ([]*v1.DispatchLookupResources2Response, error) {
-	collectingStream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
-	err := rdc.lrDispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-		ResourceRelation: rdc.parentRequest.ResourceRelation,
-		SubjectRelation:  rdc.newSubjectType,
-		SubjectIds:       rdc.filteredSubjectIDs,
-		TerminalSubject:  rdc.parentRequest.TerminalSubject,
-		Metadata: &v1.ResolverMeta{
-			AtRevision:     rdc.parentRequest.Revision.String(),
-			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
-		},
-		OptionalCursor: cursor,
-		OptionalLimit:  uint32(rdc.dispatchChunkSize),
-	}, collectingStream)
-	return collectingStream.Results(), err
+func (rdc *checkAndDispatchRunner) runAndWait() error {
+	// Kick off a check at the current cursor, to filter a portion of the initial results set.
+	rdc.taskrunner.Schedule(func(ctx context.Context) error {
+		return rdc.runChecker(ctx, rdc.currentCheckIndex)
+	})
+
+	return rdc.taskrunner.Wait()
 }
 
-func (rdc *dispatchAndCheckRunner) runDispatch(ctx context.Context, cursor *v1.Cursor) error {
+func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex int) error {
 	rdc.lock.Lock()
 	if rdc.ci.limits.hasExhaustedLimit() {
 		rdc.lock.Unlock()
@@ -95,45 +96,17 @@ func (rdc *dispatchAndCheckRunner) runDispatch(ctx context.Context, cursor *v1.C
 	}
 	rdc.lock.Unlock()
 
-	collected, err := rdc.dispatchAndCollect(ctx, cursor)
-	if err != nil {
-		return err
-	}
-
-	if len(collected) == 0 {
+	endingIndex := min(startingIndex+int(rdc.dispatchChunkSize), len(rdc.filteredSubjectIDs))
+	resourceIDsToCheck := rdc.filteredSubjectIDs[startingIndex:endingIndex]
+	if len(resourceIDsToCheck) == 0 {
 		return nil
 	}
 
-	// Kick off a worker to filter the results via a check and then publish what was found.
-	rdc.taskrunner.Schedule(func(ctx context.Context) error {
-		return rdc.runChecker(ctx, collected)
-	})
-
-	// Start another dispatch at the cursor of the last response, to run in the background
-	// and collect more results for filtering while the checker is running.
-	rdc.taskrunner.Schedule(func(ctx context.Context) error {
-		return rdc.runDispatch(ctx, collected[len(collected)-1].AfterResponseCursor)
-	})
-
-	return nil
-}
-
-func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*v1.DispatchLookupResources2Response) error {
-	rdc.lock.Lock()
-	if rdc.ci.limits.hasExhaustedLimit() {
-		rdc.lock.Unlock()
-		return nil
-	}
-	rdc.lock.Unlock()
-
-	checkHints := make([]*v1.CheckHint, 0, len(collected))
-	resourceIDsToCheck := make([]string, 0, len(collected))
-	for _, resource := range collected {
-		resourceIDsToCheck = append(resourceIDsToCheck, resource.Resource.ResourceId)
-
+	checkHints := make([]*v1.CheckHint, 0, len(resourceIDsToCheck))
+	for _, resourceID := range resourceIDsToCheck {
 		checkHint, err := hints.HintForEntrypoint(
 			rdc.entrypoint,
-			resource.Resource.ResourceId,
+			resourceID,
 			rdc.parentRequest.TerminalSubject,
 			&v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
@@ -144,9 +117,10 @@ func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*
 		checkHints = append(checkHints, checkHint)
 	}
 
-	// Batch check the results to filter to those visible and then publish just the visible resources.
+	// NOTE: we are checking the containing permission here, *not* the target relation, as
+	// the goal is to shear for the containing permission.
 	resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
-		ResourceType:  rdc.parentRequest.ResourceRelation,
+		ResourceType:  rdc.newSubjectType,
 		Subject:       rdc.parentRequest.TerminalSubject,
 		CaveatContext: rdc.parentRequest.Context.AsMap(),
 		AtRevision:    rdc.parentRequest.Revision,
@@ -158,10 +132,12 @@ func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*
 		return err
 	}
 
-	// Publish any resources that are visible.
-	isFirstPublishCall := true
-	for _, resource := range collected {
-		result, ok := resultsByResourceID[resource.Resource.ResourceId]
+	adjustedResources := rdc.foundResources.cloneAsMutable()
+
+	// Dispatch any resources that are visible.
+	resourceIDToDispatch := make([]string, 0, len(resourceIDsToCheck))
+	for _, resourceID := range resourceIDsToCheck {
+		result, ok := resultsByResourceID[resourceID]
 		if !ok {
 			continue
 		}
@@ -171,19 +147,9 @@ func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*
 			fallthrough
 
 		case v1.ResourceCheckResult_CAVEATED_MEMBER:
-			rdc.lock.Lock()
-			if err := publishResultToParentStream(resource, rdc.ci, rdc.foundResources, result.MissingExprFields, isFirstPublishCall, checkMetadata, rdc.parentStream); err != nil {
-				rdc.lock.Unlock()
-				return err
-			}
-
-			isFirstPublishCall = false
-
-			if rdc.ci.limits.hasExhaustedLimit() {
-				rdc.lock.Unlock()
-				return nil
-			}
-			rdc.lock.Unlock()
+			// Record any additional caveats missing from the check.
+			adjustedResources.withAdditionalMissingContextForDispatchedResourceID(resourceID, result.MissingExprFields)
+			resourceIDToDispatch = append(resourceIDToDispatch, resourceID)
 
 		case v1.ResourceCheckResult_NOT_MEMBER:
 			// Skip.
@@ -194,18 +160,77 @@ func (rdc *dispatchAndCheckRunner) runChecker(ctx context.Context, collected []*
 		}
 	}
 
+	if len(resourceIDToDispatch) > 0 {
+		// Schedule a dispatch of those resources.
+		rdc.taskrunner.Schedule(func(ctx context.Context) error {
+			return rdc.runDispatch(ctx, resourceIDToDispatch, adjustedResources.asReadOnly(), checkMetadata, startingIndex)
+		})
+	}
+
+	// Start the next check chunk (if applicable).
+	nextIndex := startingIndex + len(resourceIDsToCheck)
+	if nextIndex < len(rdc.filteredSubjectIDs) {
+		rdc.taskrunner.Schedule(func(ctx context.Context) error {
+			return rdc.runChecker(ctx, nextIndex)
+		})
+	}
+
 	return nil
 }
 
-func (rdc *dispatchAndCheckRunner) runAndWait() error {
-	currentCursor := rdc.ci.currentCursor
+func (rdc *checkAndDispatchRunner) runDispatch(
+	ctx context.Context,
+	resourceIDsToDispatch []string,
+	adjustedResources dispatchableResourcesSubjectMap2,
+	checkMetadata *v1.ResponseMeta,
+	startingIndex int,
+) error {
+	rdc.lock.Lock()
+	if rdc.ci.limits.hasExhaustedLimit() {
+		rdc.lock.Unlock()
+		return nil
+	}
+	rdc.lock.Unlock()
 
-	// Kick off a dispatch at the current cursor.
-	rdc.taskrunner.Schedule(func(ctx context.Context) error {
-		return rdc.runDispatch(ctx, currentCursor)
+	// NOTE: Since we extracted a custom section from the cursor at the beginning of this run, we have to add
+	// the starting index to the cursor to ensure that the next run starts from the correct place, and we have
+	// to use the *updated* cursor below on the dispatch.
+	updatedCi, err := rdc.ci.withOutgoingSection(strconv.Itoa(startingIndex))
+	if err != nil {
+		return err
+	}
+	responsePartialCursor := updatedCi.responsePartialCursor()
+
+	// Dispatch to the parent resource type and publish any results found.
+	isFirstPublishCall := true
+
+	wrappedStream := dispatch.NewHandlingDispatchStream(ctx, func(result *v1.DispatchLookupResources2Response) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		default:
+		}
+
+		if err := publishResultToParentStream(result, rdc.ci, responsePartialCursor, adjustedResources, nil, isFirstPublishCall, checkMetadata, rdc.parentStream); err != nil {
+			return err
+		}
+		isFirstPublishCall = false
+		return nil
 	})
 
-	return rdc.taskrunner.Wait()
+	return rdc.lrDispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+		ResourceRelation: rdc.parentRequest.ResourceRelation,
+		SubjectRelation:  rdc.newSubjectType,
+		SubjectIds:       resourceIDsToDispatch,
+		TerminalSubject:  rdc.parentRequest.TerminalSubject,
+		Metadata: &v1.ResolverMeta{
+			AtRevision:     rdc.parentRequest.Revision.String(),
+			DepthRemaining: rdc.parentRequest.Metadata.DepthRemaining - 1,
+		},
+		OptionalCursor: updatedCi.currentCursor,
+		OptionalLimit:  uint32(rdc.dispatchChunkSize),
+	}, wrappedStream)
 }
 
 // unfilteredLookupResourcesDispatchStreamForEntrypoint creates a new dispatch stream that wraps
@@ -227,7 +252,7 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 		default:
 		}
 
-		if err := publishResultToParentStream(result, ci, foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
+		if err := publishResultToParentStream(result, ci, ci.responsePartialCursor(), foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
 			return err
 		}
 		isFirstPublishCall = false
@@ -242,6 +267,7 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 func publishResultToParentStream(
 	result *v1.DispatchLookupResources2Response,
 	ci cursorInformation,
+	responseCursor *v1.Cursor,
 	foundResources dispatchableResourcesSubjectMap2,
 	additionalMissingContext []string,
 	isFirstPublishCall bool,
@@ -261,7 +287,7 @@ func publishResultToParentStream(
 
 	// The cursor for the response is that of the parent response + the cursor from the result itself.
 	afterResponseCursor, err := combineCursors(
-		ci.responsePartialCursor(),
+		responseCursor,
 		result.AfterResponseCursor,
 	)
 	if err != nil {
