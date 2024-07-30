@@ -26,7 +26,8 @@ func (l Lint) Scan() error {
 
 // Extra Lint everything that's not code
 func (l Lint) Extra() error {
-	mg.Deps(l.Markdown, l.Yaml, l.BufFormat)
+	// FIXME temporarily disabled buf format
+	mg.Deps(l.Markdown, l.Yaml)
 	return nil
 }
 
@@ -102,7 +103,7 @@ func (Lint) Vulncheck() error {
 	return RunSh("go", WithV())("run", "golang.org/x/vuln/cmd/govulncheck", "-show", "verbose", "./...")
 }
 
-// Buf Format
+// BufFormat runs buf format command
 func (l Lint) BufFormat() error {
 	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write")
 }

@@ -113,6 +113,7 @@ require (
 	github.com/Yiling-J/theine-go v0.3.2
 	github.com/gosimple/slug v1.14.0
 	github.com/lithammer/fuzzysearch v1.1.8
+	github.com/maypok86/otter v1.2.1
 )
 
 require (
@@ -147,7 +148,7 @@ require (
 	github.com/jjti/go-spancheck v0.6.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/lasiar/canonicalheader v1.1.1 // indirect
-	github.com/maypok86/otter v1.2.1 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22 // indirect
 	github.com/samber/slog-common v0.17.0 // indirect
@@ -208,7 +209,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
 	github.com/docker/cli v25.0.2+incompatible // indirect
-	github.com/docker/docker v25.0.5+incompatible // indirect
+	github.com/docker/docker v27.1.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
