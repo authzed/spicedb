@@ -104,7 +104,7 @@ func (Lint) Vulncheck() error {
 
 // Buf Format
 func (l Lint) BufFormat() error {
-	return RunSh("go", Tool())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write")
+	return RunSh("go", WithV())("run", "github.com/bufbuild/buf/cmd/buf", "format", "--diff", "--write")
 }
 
 // Trivy Run Trivy

@@ -14,4 +14,6 @@ import (
 	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	// vulncheck always uses the current directory's go.mod.
 	_ "golang.org/x/vuln/cmd/govulncheck"
+	// does not support feeling buf.yaml outside of context path
+	_ "github.com/bufbuild/buf/cmd/buf"
 )

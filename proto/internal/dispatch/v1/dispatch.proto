@@ -17,7 +17,6 @@ service DispatchService {
   rpc DispatchLookupResources(DispatchLookupResourcesRequest) returns (stream DispatchLookupResourcesResponse) {}
   rpc DispatchLookupSubjects(DispatchLookupSubjectsRequest) returns (stream DispatchLookupSubjectsResponse) {}
 
-
   rpc DispatchLookupResources2(DispatchLookupResources2Request) returns (stream DispatchLookupResources2Response) {}
 }
 
