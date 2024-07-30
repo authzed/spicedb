@@ -50,7 +50,7 @@ func BuildDebugInformation(exprResult ExpressionResult) (string, *structpb.Struc
 	}
 
 	// Convert the context map to a struct.
-	contextStruct, err := structpb.NewStruct(contextMap)
+	contextStruct, err := caveats.ConvertContextToStruct(contextMap)
 	if err != nil {
 		return "", nil, err
 	}

@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
+
+var testTime = time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
 
 func TestBuildDebugInformation(t *testing.T) {
 	tcs := []struct {
@@ -164,6 +167,26 @@ func TestBuildDebugInformation(t *testing.T) {
 				"d":    2400.0,
 			},
 			expectedExprString: "(a__0 + b__0 + c == 5) && (a__1 - b__1 - d == 64)",
+		},
+		{
+			name: "name reuse around times",
+			result: and(
+				eval("expires_at < now", map[string]any{
+					"expires_at": testTime,
+					"now":        testTime.Add(1 * time.Hour),
+				}),
+				eval("expires_at < now", map[string]any{
+					"expires_at": testTime,
+					"now":        testTime.Add(1 * time.Hour),
+				}),
+			),
+			expectedContext: map[string]any{
+				"expires_at__0": "2021-01-01T00:00:00Z",
+				"expires_at__1": "2021-01-01T00:00:00Z",
+				"now__0":        "2021-01-01T01:00:00Z",
+				"now__1":        "2021-01-01T01:00:00Z",
+			},
+			expectedExprString: "(expires_at__0 < now__0) && (expires_at__1 < now__1)",
 		},
 	}
 
