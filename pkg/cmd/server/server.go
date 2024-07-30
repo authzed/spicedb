@@ -381,11 +381,14 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		c.GRPCAuthFunc,
 		!c.DisableVersionResponse,
 		dispatcher,
-		ds,
 		c.EnableRequestLogs,
 		c.EnableResponseLogs,
 		c.DisableGRPCLatencyHistogram,
+		nil,
+		nil,
 	}
+	opts = opts.WithDatastore(ds)
+
 	defaultUnaryMiddlewareChain, err := DefaultUnaryMiddleware(opts)
 	if err != nil {
 		return nil, fmt.Errorf("error building default middlewares: %w", err)
