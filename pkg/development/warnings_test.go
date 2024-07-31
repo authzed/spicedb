@@ -36,9 +36,10 @@ func TestWarnings(t *testing.T) {
 				permission view = view	
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
-				Line:    2,
-				Column:  23,
+				Message:    "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
+				Line:       2,
+				Column:     23,
+				SourceCode: "view",
 			},
 		},
 		{
@@ -49,9 +50,10 @@ func TestWarnings(t *testing.T) {
 				permission view = viewer + (editor & view)	
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
-				Line:    4,
-				Column:  42,
+				Message:    "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
+				Line:       4,
+				Column:     42,
+				SourceCode: "view",
 			},
 		},
 		{
@@ -68,9 +70,10 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Arrow `group->member` under permission \"view\" references relation \"member\" on definition \"group\"; it is recommended to point to a permission (arrow-references-relation)",
-				Line:    9,
-				Column:  23,
+				Message:    "Arrow `group->member` under permission \"view\" references relation \"member\" on definition \"group\"; it is recommended to point to a permission (arrow-references-relation)",
+				Line:       9,
+				Column:     23,
+				SourceCode: "group->member",
 			},
 		},
 		{
@@ -86,9 +89,10 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Arrow `group->member` under permission \"view\" references relation/permission \"member\" that does not exist on any subject types of relation \"group\" (arrow-references-unreachable-relation)",
-				Line:    8,
-				Column:  23,
+				Message:    "Arrow `group->member` under permission \"view\" references relation/permission \"member\" that does not exist on any subject types of relation \"group\" (arrow-references-unreachable-relation)",
+				Line:       8,
+				Column:     23,
+				SourceCode: "group->member",
 			},
 		},
 		{
@@ -106,9 +110,10 @@ func TestWarnings(t *testing.T) {
 			}
 			`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Arrow `parent_group->member` under permission \"view\" references relation \"parent_group\" that has relation \"member\" on subject \"group\": *the subject relation will be ignored for the arrow* (arrow-walks-subject-relation)",
-				Line:    10,
-				Column:  23,
+				Message:    "Arrow `parent_group->member` under permission \"view\" references relation \"parent_group\" that has relation \"member\" on subject \"group\": *the subject relation will be ignored for the arrow* (arrow-walks-subject-relation)",
+				Line:       10,
+				Column:     23,
+				SourceCode: "parent_group->member",
 			},
 		},
 		{
@@ -120,9 +125,10 @@ func TestWarnings(t *testing.T) {
 				permission view_document = viewer
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view_document\" references parent type \"document\" in its name; it is recommended to drop the suffix (relation-name-references-parent)",
-				Line:    5,
-				Column:  5,
+				Message:    "Permission \"view_document\" references parent type \"document\" in its name; it is recommended to drop the suffix (relation-name-references-parent)",
+				Line:       5,
+				Column:     5,
+				SourceCode: "view_document",
 			},
 		},
 		{
@@ -169,9 +175,10 @@ func TestWarnings(t *testing.T) {
 				permission view = view	
 			}`,
 			expectedWarning: &developerv1.DeveloperWarning{
-				Message: "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
-				Line:    3,
-				Column:  23,
+				Message:    "Permission \"view\" references itself, which will cause an error to be raised due to infinite recursion (permission-references-itself)",
+				Line:       3,
+				Column:     23,
+				SourceCode: "view",
 			},
 		},
 	}

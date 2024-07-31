@@ -166,6 +166,7 @@ func (m *DeveloperWarning) CloneVT() *DeveloperWarning {
 	r.Message = m.Message
 	r.Line = m.Line
 	r.Column = m.Column
+	r.SourceCode = m.SourceCode
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -648,6 +649,9 @@ func (this *DeveloperWarning) EqualVT(that *DeveloperWarning) bool {
 		return false
 	}
 	if this.Column != that.Column {
+		return false
+	}
+	if this.SourceCode != that.SourceCode {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -1414,6 +1418,13 @@ func (m *DeveloperWarning) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.SourceCode) > 0 {
+		i -= len(m.SourceCode)
+		copy(dAtA[i:], m.SourceCode)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SourceCode)))
+		i--
+		dAtA[i] = 0x22
 	}
 	if m.Column != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Column))
@@ -2259,6 +2270,10 @@ func (m *DeveloperWarning) SizeVT() (n int) {
 	}
 	if m.Column != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.Column))
+	}
+	l = len(m.SourceCode)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -3579,6 +3594,38 @@ func (m *DeveloperWarning) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceCode", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SourceCode = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

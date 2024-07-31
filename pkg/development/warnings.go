@@ -24,14 +24,15 @@ var allChecks = checks{
 	},
 }
 
-func warningForMetadata(warningName string, message string, metadata namespace.WithSourcePosition) *devinterface.DeveloperWarning {
-	return warningForPosition(warningName, message, metadata.GetSourcePosition())
+func warningForMetadata(warningName string, message string, sourceCode string, metadata namespace.WithSourcePosition) *devinterface.DeveloperWarning {
+	return warningForPosition(warningName, message, sourceCode, metadata.GetSourcePosition())
 }
 
-func warningForPosition(warningName string, message string, sourcePosition *corev1.SourcePosition) *devinterface.DeveloperWarning {
+func warningForPosition(warningName string, message string, sourceCode string, sourcePosition *corev1.SourcePosition) *devinterface.DeveloperWarning {
 	if sourcePosition == nil {
 		return &devinterface.DeveloperWarning{
-			Message: message,
+			Message:    message,
+			SourceCode: sourceCode,
 		}
 	}
 
@@ -39,9 +40,10 @@ func warningForPosition(warningName string, message string, sourcePosition *core
 	columnNumber := sourcePosition.ZeroIndexedColumnPosition + 1
 
 	return &devinterface.DeveloperWarning{
-		Message: message + " (" + warningName + ")",
-		Line:    uint32(lineNumber),
-		Column:  uint32(columnNumber),
+		Message:    message + " (" + warningName + ")",
+		Line:       uint32(lineNumber),
+		Column:     uint32(columnNumber),
+		SourceCode: sourceCode,
 	}
 }
 
