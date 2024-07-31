@@ -47,6 +47,7 @@ message Operation {
   RunAssertionsParameters assertions_parameters = 2;
   RunValidationParameters validation_parameters = 3;
   FormatSchemaParameters format_schema_parameters = 4;
+  SchemaWarningsParameters schema_warnings_parameters = 5;
 }
 
 // OperationsResults holds the results for the operations, indexed by the operation.
@@ -60,6 +61,7 @@ message OperationResult {
   RunAssertionsResult assertions_result = 2;
   RunValidationResult validation_result = 3;
   FormatSchemaResult format_schema_result = 4;
+  SchemaWarningsResult schema_warnings_result = 5;
 }
 
 // DeveloperWarning represents a single warning raised by the development package.
@@ -219,4 +221,15 @@ message FormatSchemaParameters {
 // FormatSchemaResult is the result of the `formatSchema` operation.
 message FormatSchemaResult {
   string formatted_schema = 1;
+}
+
+
+// SchemaWarningsParameters are the parameters for a `schemaWarnings` operation.
+message SchemaWarningsParameters {
+  // empty
+}
+
+// SchemaWarningsResult is the result of the `schemaWarnings` operation.
+message SchemaWarningsResult {
+  repeated DeveloperWarning warnings = 1;
 }
