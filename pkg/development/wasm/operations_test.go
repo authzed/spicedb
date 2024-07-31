@@ -22,6 +22,59 @@ type editCheckResult struct {
 	IsConditional bool
 }
 
+func TestSchemaWarningsOperation(t *testing.T) {
+	type testCase struct {
+		name            string
+		schema          string
+		expectedWarning *devinterface.DeveloperWarning
+	}
+
+	tests := []testCase{
+		{
+			"no warnings",
+			`definition foo {
+				relation bar: foo
+			}`,
+			nil,
+		},
+		{
+			"permission misnamed",
+			`definition resource {
+				permission view_resource = nil
+			}`,
+			&devinterface.DeveloperWarning{
+				Message:    "Permission \"view_resource\" references parent type \"resource\" in its name; it is recommended to drop the suffix (relation-name-references-parent)",
+				Line:       2,
+				Column:     5,
+				SourceCode: "view_resource",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			response := run(t, &devinterface.DeveloperRequest{
+				Context: &devinterface.RequestContext{
+					Schema: tc.schema,
+				},
+				Operations: []*devinterface.Operation{
+					{
+						SchemaWarningsParameters: &devinterface.SchemaWarningsParameters{},
+					},
+				},
+			})
+
+			require.Empty(t, response.GetDeveloperErrors())
+
+			if tc.expectedWarning == nil {
+				require.Empty(t, response.GetOperationsResults().Results[0].SchemaWarningsResult.Warnings)
+			} else {
+				testutil.RequireProtoEqual(t, tc.expectedWarning, response.OperationsResults.Results[0].SchemaWarningsResult.Warnings[0], "mismatching warning")
+			}
+		})
+	}
+}
+
 func TestCheckOperation(t *testing.T) {
 	type testCase struct {
 		name              string
