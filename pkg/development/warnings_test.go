@@ -117,6 +117,27 @@ func TestWarnings(t *testing.T) {
 			},
 		},
 		{
+			name: "all arrow referencing subject relation",
+			schema: `definition group {
+				relation direct_member: user
+				permission member = direct_member
+			}
+			
+			definition user {}
+
+			definition document {
+				relation parent_group: group#member
+				permission view = parent_group.all(member)
+			}
+			`,
+			expectedWarning: &developerv1.DeveloperWarning{
+				Message:    "Arrow `parent_group.all(member)` under permission \"view\" references relation \"parent_group\" that has relation \"member\" on subject \"group\": *the subject relation will be ignored for the arrow* (arrow-walks-subject-relation)",
+				Line:       10,
+				Column:     23,
+				SourceCode: "parent_group.all(member)",
+			},
+		},
+		{
 			name: "relation referencing its parent definition in its name",
 			schema: `definition user {}
 

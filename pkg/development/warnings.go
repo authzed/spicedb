@@ -2,6 +2,7 @@ package development
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -120,10 +121,20 @@ func shouldSkipCheck(metadata *corev1.Metadata, name string) bool {
 	return false
 }
 
+type tupleset interface {
+	GetRelation() string
+}
+
+type ttu interface {
+	GetTupleset() tupleset
+	GetComputedUserset() *corev1.ComputedUserset
+	GetArrowString() (string, error)
+}
+
 type (
 	relationChecker        func(ctx context.Context, relation *corev1.Relation, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
 	computedUsersetChecker func(ctx context.Context, computedUserset *corev1.ComputedUserset, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
-	ttuChecker             func(ctx context.Context, ttu *corev1.TupleToUserset, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
+	ttuChecker             func(ctx context.Context, ttu ttu, sourcePosition *corev1.SourcePosition, vts *typesystem.TypeSystem) (*devinterface.DeveloperWarning, error)
 )
 
 type relationCheck struct {
@@ -198,13 +209,29 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 
 			warnings = append(warnings, found...)
 
+		case *corev1.SetOperation_Child_FunctionedTupleToUserset:
+			for _, check := range checks.ttuChecks {
+				if shouldSkipCheck(relation.Metadata, check.name) {
+					continue
+				}
+
+				checkerWarning, err := check.fn(ctx, wrappedFunctionedTTU{t.FunctionedTupleToUserset}, op.SourcePosition, ts)
+				if err != nil {
+					return nil, err
+				}
+
+				if checkerWarning != nil {
+					warnings = append(warnings, checkerWarning)
+				}
+			}
+
 		case *corev1.SetOperation_Child_TupleToUserset:
 			for _, check := range checks.ttuChecks {
 				if shouldSkipCheck(relation.Metadata, check.name) {
 					continue
 				}
 
-				checkerWarning, err := check.fn(ctx, t.TupleToUserset, op.SourcePosition, ts)
+				checkerWarning, err := check.fn(ctx, wrappedTTU{t.TupleToUserset}, op.SourcePosition, ts)
 				if err != nil {
 					return nil, err
 				}
@@ -223,4 +250,49 @@ func walkUsersetOperations(ctx context.Context, ops []*corev1.SetOperation_Child
 	}
 
 	return warnings, nil
+}
+
+type wrappedFunctionedTTU struct {
+	*corev1.FunctionedTupleToUserset
+}
+
+func (wfttu wrappedFunctionedTTU) GetTupleset() tupleset {
+	return wfttu.FunctionedTupleToUserset.GetTupleset()
+}
+
+func (wfttu wrappedFunctionedTTU) GetComputedUserset() *corev1.ComputedUserset {
+	return wfttu.FunctionedTupleToUserset.GetComputedUserset()
+}
+
+func (wfttu wrappedFunctionedTTU) GetArrowString() (string, error) {
+	var functionName string
+	switch wfttu.Function {
+	case corev1.FunctionedTupleToUserset_FUNCTION_ANY:
+		functionName = "any"
+
+	case corev1.FunctionedTupleToUserset_FUNCTION_ALL:
+		functionName = "all"
+
+	default:
+		return "", spiceerrors.MustBugf("unknown function type %T", wfttu.Function)
+	}
+
+	return fmt.Sprintf("%s.%s(%s)", wfttu.GetTupleset().GetRelation(), functionName, wfttu.GetComputedUserset().GetRelation()), nil
+}
+
+type wrappedTTU struct {
+	*corev1.TupleToUserset
+}
+
+func (wtu wrappedTTU) GetTupleset() tupleset {
+	return wtu.TupleToUserset.GetTupleset()
+}
+
+func (wtu wrappedTTU) GetComputedUserset() *corev1.ComputedUserset {
+	return wtu.TupleToUserset.GetComputedUserset()
+}
+
+func (wtu wrappedTTU) GetArrowString() (string, error) {
+	arrowString := fmt.Sprintf("%s->%s", wtu.GetTupleset().GetRelation(), wtu.GetComputedUserset().GetRelation())
+	return arrowString, nil
 }
