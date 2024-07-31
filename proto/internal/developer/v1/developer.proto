@@ -72,6 +72,9 @@ message DeveloperWarning {
 
   // column is the 1-indexed column on the line for the developer warning.
   uint32 column = 3;
+
+  // source_code is the source code for the developer warning, if any.
+  string source_code = 4;
 }
 
 // DeveloperError represents a single error raised by the development package. Unlike an internal

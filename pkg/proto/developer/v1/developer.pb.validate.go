@@ -1103,6 +1103,8 @@ func (m *DeveloperWarning) validate(all bool) error {
 
 	// no validation rules for Column
 
+	// no validation rules for SourceCode
+
 	if len(errors) > 0 {
 		return DeveloperWarningMultiError(errors)
 	}

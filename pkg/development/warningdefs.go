@@ -24,6 +24,7 @@ var lintRelationReferencesParentType = relationCheck{
 				return warningForMetadata(
 					"relation-name-references-parent",
 					fmt.Sprintf("Permission %q references parent type %q in its name; it is recommended to drop the suffix", relation.Name, parentDef.Name),
+					relation.Name,
 					relation,
 				), nil
 			}
@@ -31,6 +32,7 @@ var lintRelationReferencesParentType = relationCheck{
 			return warningForMetadata(
 				"relation-name-references-parent",
 				fmt.Sprintf("Relation %q references parent type %q in its name; it is recommended to drop the suffix", relation.Name, parentDef.Name),
+				relation.Name,
 				relation,
 			), nil
 		}
@@ -53,6 +55,7 @@ var lintPermissionReferencingItself = computedUsersetCheck{
 			return warningForPosition(
 				"permission-references-itself",
 				fmt.Sprintf("Permission %q references itself, which will cause an error to be raised due to infinite recursion", permName),
+				permName,
 				sourcePosition,
 			), nil
 		}
@@ -105,6 +108,7 @@ var lintArrowReferencingUnreachable = ttuCheck{
 					ttu.ComputedUserset.Relation,
 					ttu.Tupleset.Relation,
 				),
+				fmt.Sprintf("%s->%s", ttu.Tupleset.Relation, ttu.ComputedUserset.Relation),
 				sourcePosition,
 			), nil
 		}
@@ -146,6 +150,7 @@ var lintArrowOverSubRelation = ttuCheck{
 						subjectType.Relation,
 						subjectType.Namespace,
 					),
+					fmt.Sprintf("%s->%s", ttu.Tupleset.Relation, ttu.ComputedUserset.Relation),
 					sourcePosition,
 				), nil
 			}
@@ -199,6 +204,7 @@ var lintArrowReferencingRelation = ttuCheck{
 						targetRelation.Name,
 						subjectType.Namespace,
 					),
+					fmt.Sprintf("%s->%s", ttu.Tupleset.Relation, ttu.ComputedUserset.Relation),
 					sourcePosition,
 				), nil
 			}
