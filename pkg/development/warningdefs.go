@@ -51,7 +51,7 @@ var lintPermissionReferencingItself = computedUsersetCheck{
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 		permName := parentRelation.Name
-		if computedUserset.Relation == permName {
+		if computedUserset.GetRelation() == permName {
 			return warningForPosition(
 				"permission-references-itself",
 				fmt.Sprintf("Permission %q references itself, which will cause an error to be raised due to infinite recursion", permName),
@@ -68,13 +68,13 @@ var lintArrowReferencingUnreachable = ttuCheck{
 	"arrow-references-unreachable-relation",
 	func(
 		ctx context.Context,
-		ttu *corev1.TupleToUserset,
+		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
 		ts *typesystem.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
-		referencedRelation, ok := ts.GetRelation(ttu.Tupleset.Relation)
+		referencedRelation, ok := ts.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
 			return nil, nil
 		}
@@ -91,24 +91,28 @@ var lintArrowReferencingUnreachable = ttuCheck{
 				return nil, err
 			}
 
-			_, ok := nts.GetRelation(ttu.ComputedUserset.Relation)
+			_, ok := nts.GetRelation(ttu.GetComputedUserset().GetRelation())
 			if ok {
 				wasFound = true
 			}
 		}
 
 		if !wasFound {
+			arrowString, err := ttu.GetArrowString()
+			if err != nil {
+				return nil, err
+			}
+
 			return warningForPosition(
 				"arrow-references-unreachable-relation",
 				fmt.Sprintf(
-					"Arrow `%s->%s` under permission %q references relation/permission %q that does not exist on any subject types of relation %q",
-					ttu.Tupleset.Relation,
-					ttu.ComputedUserset.Relation,
+					"Arrow `%s` under permission %q references relation/permission %q that does not exist on any subject types of relation %q",
+					arrowString,
 					parentRelation.Name,
-					ttu.ComputedUserset.Relation,
-					ttu.Tupleset.Relation,
+					ttu.GetComputedUserset().GetRelation(),
+					ttu.GetTupleset().GetRelation(),
 				),
-				fmt.Sprintf("%s->%s", ttu.Tupleset.Relation, ttu.ComputedUserset.Relation),
+				arrowString,
 				sourcePosition,
 			), nil
 		}
@@ -121,13 +125,13 @@ var lintArrowOverSubRelation = ttuCheck{
 	"arrow-walks-subject-relation",
 	func(
 		ctx context.Context,
-		ttu *corev1.TupleToUserset,
+		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
 		ts *typesystem.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
-		referencedRelation, ok := ts.GetRelation(ttu.Tupleset.Relation)
+		referencedRelation, ok := ts.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
 			return nil, nil
 		}
@@ -137,20 +141,24 @@ var lintArrowOverSubRelation = ttuCheck{
 			return nil, err
 		}
 
+		arrowString, err := ttu.GetArrowString()
+		if err != nil {
+			return nil, err
+		}
+
 		for _, subjectType := range allowedSubjectTypes {
-			if subjectType.Relation != tuple.Ellipsis {
+			if subjectType.GetRelation() != tuple.Ellipsis {
 				return warningForPosition(
 					"arrow-walks-subject-relation",
 					fmt.Sprintf(
-						"Arrow `%s->%s` under permission %q references relation %q that has relation %q on subject %q: *the subject relation will be ignored for the arrow*",
-						ttu.Tupleset.Relation,
-						ttu.ComputedUserset.Relation,
+						"Arrow `%s` under permission %q references relation %q that has relation %q on subject %q: *the subject relation will be ignored for the arrow*",
+						arrowString,
 						parentRelation.Name,
-						ttu.Tupleset.Relation,
-						subjectType.Relation,
+						ttu.GetTupleset().GetRelation(),
+						subjectType.GetRelation(),
 						subjectType.Namespace,
 					),
-					fmt.Sprintf("%s->%s", ttu.Tupleset.Relation, ttu.ComputedUserset.Relation),
+					arrowString,
 					sourcePosition,
 				), nil
 			}
@@ -164,13 +172,13 @@ var lintArrowReferencingRelation = ttuCheck{
 	"arrow-references-relation",
 	func(
 		ctx context.Context,
-		ttu *corev1.TupleToUserset,
+		ttu ttu,
 		sourcePosition *corev1.SourcePosition,
 		ts *typesystem.TypeSystem,
 	) (*devinterface.DeveloperWarning, error) {
 		parentRelation := ctx.Value(relationKey).(*corev1.Relation)
 
-		referencedRelation, ok := ts.GetRelation(ttu.Tupleset.Relation)
+		referencedRelation, ok := ts.GetRelation(ttu.GetTupleset().GetRelation())
 		if !ok {
 			return nil, nil
 		}
@@ -182,13 +190,18 @@ var lintArrowReferencingRelation = ttuCheck{
 			return nil, err
 		}
 
+		arrowString, err := ttu.GetArrowString()
+		if err != nil {
+			return nil, err
+		}
+
 		for _, subjectType := range allowedSubjectTypes {
 			nts, err := ts.TypeSystemForNamespace(ctx, subjectType.Namespace)
 			if err != nil {
 				return nil, err
 			}
 
-			targetRelation, ok := nts.GetRelation(ttu.ComputedUserset.Relation)
+			targetRelation, ok := nts.GetRelation(ttu.GetComputedUserset().GetRelation())
 			if !ok {
 				continue
 			}
@@ -197,14 +210,13 @@ var lintArrowReferencingRelation = ttuCheck{
 				return warningForPosition(
 					"arrow-references-relation",
 					fmt.Sprintf(
-						"Arrow `%s->%s` under permission %q references relation %q on definition %q; it is recommended to point to a permission",
-						ttu.Tupleset.Relation,
-						ttu.ComputedUserset.Relation,
+						"Arrow `%s` under permission %q references relation %q on definition %q; it is recommended to point to a permission",
+						arrowString,
 						parentRelation.Name,
 						targetRelation.Name,
 						subjectType.Namespace,
 					),
-					fmt.Sprintf("%s->%s", ttu.Tupleset.Relation, ttu.ComputedUserset.Relation),
+					arrowString,
 					sourcePosition,
 				), nil
 			}
