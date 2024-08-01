@@ -1,0 +1,4 @@
+# This file was created automatically and all changes in this file will be automatically overwritten during the next synchronization.
+# If you need to change this file, you need to use the file .github/CODEOWNERS, more details:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#codeowners-file-location
+* @pdffiller/codeowner-pdffiller-pdffiller-core
