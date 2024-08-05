@@ -12,14 +12,12 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
-	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
-	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	"github.com/authzed/spicedb/internal/middleware/readonly"
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
@@ -87,19 +85,26 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			1*time.Second,
 		)
 	}
+
+	opts := *server.NewMiddlewareOptionWithOptions(server.WithAuthFunc(func(ctx context.Context) (context.Context, error) {
+		// Turn off the default auth system.
+		return ctx, nil
+	}))
+	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
+
+	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	streamMiddleware, err := server.DefaultStreamingMiddleware(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
-		grpc.ChainUnaryInterceptor(
-			datastoreMiddleware.UnaryServerInterceptor(),
-			dispatchmw.UnaryServerInterceptor(dispatcher),
-			consistencymw.UnaryServerInterceptor(),
-			servicespecific.UnaryServerInterceptor,
-		),
-		grpc.ChainStreamInterceptor(
-			datastoreMiddleware.StreamServerInterceptor(),
-			dispatchmw.StreamServerInterceptor(dispatcher),
-			consistencymw.StreamServerInterceptor(),
-			servicespecific.StreamServerInterceptor,
-		),
+		grpc.ChainUnaryInterceptor(unaryMiddleware.ToGRPCInterceptors()...),
+		grpc.ChainStreamInterceptor(streamMiddleware.ToGRPCInterceptors()...),
 	)
 	if err != nil {
 		return nil, err
@@ -107,18 +112,10 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 
 	readOnlyGRPCSrv, err := c.ReadOnlyGRPCServer.Complete(zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(
-			datastoreMiddleware.UnaryServerInterceptor(),
-			readonly.UnaryServerInterceptor(),
-			dispatchmw.UnaryServerInterceptor(dispatcher),
-			consistencymw.UnaryServerInterceptor(),
-			servicespecific.UnaryServerInterceptor,
+			append(unaryMiddleware.ToGRPCInterceptors(), readonly.UnaryServerInterceptor())...,
 		),
 		grpc.ChainStreamInterceptor(
-			datastoreMiddleware.StreamServerInterceptor(),
-			readonly.StreamServerInterceptor(),
-			dispatchmw.StreamServerInterceptor(dispatcher),
-			consistencymw.StreamServerInterceptor(),
-			servicespecific.StreamServerInterceptor,
+			append(streamMiddleware.ToGRPCInterceptors(), readonly.StreamServerInterceptor())...,
 		),
 	)
 	if err != nil {
