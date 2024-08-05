@@ -61,6 +61,25 @@ func (rsm resourcesSubjectMap2) addRelationship(rel *core.RelationTuple, missing
 	return nil
 }
 
+// withAdditionalMissingContextForDispatchedResourceID adds additional missing context parameters
+// to the existing missing context parameters for the dispatched resource ID.
+func (rsm resourcesSubjectMap2) withAdditionalMissingContextForDispatchedResourceID(
+	resourceID string,
+	additionalMissingContext []string,
+) {
+	if len(additionalMissingContext) == 0 {
+		return
+	}
+
+	subjectInfo2s, _ := rsm.resourcesAndSubjects.Get(resourceID)
+	updatedInfos := make([]subjectInfo2, 0, len(subjectInfo2s))
+	for _, info := range subjectInfo2s {
+		info.missingContextParameters = append(info.missingContextParameters, additionalMissingContext...)
+		updatedInfos = append(updatedInfos, info)
+	}
+	rsm.resourcesAndSubjects.Set(resourceID, updatedInfos)
+}
+
 // addSubjectIDAsFoundResourceID adds a subject ID directly as a found subject for itself as the resource,
 // with no associated caveat.
 func (rsm resourcesSubjectMap2) addSubjectIDAsFoundResourceID(subjectID string) {
@@ -70,7 +89,7 @@ func (rsm resourcesSubjectMap2) addSubjectIDAsFoundResourceID(subjectID string) 
 // asReadOnly returns a read-only dispatchableResourcesSubjectMap2 for dispatching for the
 // resources in this map (if any).
 func (rsm resourcesSubjectMap2) asReadOnly() dispatchableResourcesSubjectMap2 {
-	return dispatchableResourcesSubjectMap2{rsm.resourceType, rsm.resourcesAndSubjects.AsReadOnly()}
+	return dispatchableResourcesSubjectMap2{rsm}
 }
 
 func (rsm resourcesSubjectMap2) len() int {
@@ -81,8 +100,7 @@ func (rsm resourcesSubjectMap2) len() int {
 // can be used for mapping conditionals once calls have been dispatched. This is read-only due to
 // its use by concurrent callers.
 type dispatchableResourcesSubjectMap2 struct {
-	resourceType         *core.RelationReference
-	resourcesAndSubjects mapz.ReadOnlyMultimap[string, subjectInfo2]
+	resourcesSubjectMap2
 }
 
 func (rsm dispatchableResourcesSubjectMap2) isEmpty() bool {
@@ -109,6 +127,14 @@ func (rsm dispatchableResourcesSubjectMap2) filterSubjectIDsToDispatch(dispatche
 	}
 
 	return filtered
+}
+
+// cloneAsMutable returns a mutable clone of this dispatchableResourcesSubjectMap2.
+func (rsm dispatchableResourcesSubjectMap2) cloneAsMutable() resourcesSubjectMap2 {
+	return resourcesSubjectMap2{
+		resourceType:         rsm.resourceType,
+		resourcesAndSubjects: rsm.resourcesAndSubjects.Clone(),
+	}
 }
 
 func (rsm dispatchableResourcesSubjectMap2) asPossibleResources() []*v1.PossibleResource {

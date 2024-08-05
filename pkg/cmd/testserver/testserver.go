@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	helpers "github.com/ecordell/optgen/helpers"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -30,19 +31,20 @@ const (
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	GRPCServer                      util.GRPCServerConfig `debugmap:"visible"`
-	ReadOnlyGRPCServer              util.GRPCServerConfig `debugmap:"visible"`
-	HTTPGateway                     util.HTTPServerConfig `debugmap:"visible"`
-	ReadOnlyHTTPGateway             util.HTTPServerConfig `debugmap:"visible"`
-	LoadConfigs                     []string              `debugmap:"visible"`
-	MaximumUpdatesPerWrite          uint16                `debugmap:"visible"`
-	MaximumPreconditionCount        uint16                `debugmap:"visible"`
-	MaxCaveatContextSize            int                   `debugmap:"visible"`
-	MaxRelationshipContextSize      int                   `debugmap:"visible"`
-	MaxReadRelationshipsLimit       uint32                `debugmap:"visible"`
-	MaxDeleteRelationshipsLimit     uint32                `debugmap:"visible"`
-	MaxLookupResourcesLimit         uint32                `debugmap:"visible"`
-	MaxBulkExportRelationshipsLimit uint32                `debugmap:"visible"`
+	GRPCServer                        util.GRPCServerConfig `debugmap:"visible"`
+	ReadOnlyGRPCServer                util.GRPCServerConfig `debugmap:"visible"`
+	HTTPGateway                       util.HTTPServerConfig `debugmap:"visible"`
+	ReadOnlyHTTPGateway               util.HTTPServerConfig `debugmap:"visible"`
+	LoadConfigs                       []string              `debugmap:"visible"`
+	MaximumUpdatesPerWrite            uint16                `debugmap:"visible"`
+	MaximumPreconditionCount          uint16                `debugmap:"visible"`
+	MaxCaveatContextSize              int                   `debugmap:"visible"`
+	MaxRelationshipContextSize        int                   `debugmap:"visible"`
+	MaxReadRelationshipsLimit         uint32                `debugmap:"visible"`
+	MaxDeleteRelationshipsLimit       uint32                `debugmap:"visible"`
+	MaxLookupResourcesLimit           uint32                `debugmap:"visible"`
+	MaxBulkExportRelationshipsLimit   uint32                `debugmap:"visible"`
+	EnableExperimentalLookupResources bool                  `debugmap:"visible"`
 }
 
 type RunnableTestServer interface {
@@ -58,6 +60,8 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
+	log.Ctx(context.Background()).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+
 	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, defaultMaxChunkSize)
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)

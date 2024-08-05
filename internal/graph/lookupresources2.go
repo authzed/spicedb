@@ -615,8 +615,8 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 				}, stream)
 			}
 
-			// Otherwise, we need to dispatch and filter results by batch checking along the way.
-			return runDispatchAndChecker(
+			// Otherwise, we need to filter results by batch checking along the way before dispatching.
+			return runCheckerAndDispatch(
 				ctx,
 				parentRequest,
 				foundResources,
