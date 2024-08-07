@@ -314,9 +314,9 @@ func (sqf SchemaQueryFilterer) MustFilterWithResourceIDPrefix(prefix string) Sch
 // FilterToResourceIDs returns a new SchemaQueryFilterer that is limited to resources with any of the
 // specified IDs.
 func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (SchemaQueryFilterer, error) {
-	if len(resourceIds) > int(sqf.filterMaximumIDCount) {
-		return sqf, spiceerrors.MustBugf("cannot have more than %d resources IDs in a single filter", sqf.filterMaximumIDCount)
-	}
+	spiceerrors.DebugAssert(func() bool {
+		return len(resourceIds) <= int(sqf.filterMaximumIDCount)
+	}, "cannot have more than %d resource IDs in a single filter", sqf.filterMaximumIDCount)
 
 	var builder strings.Builder
 	builder.WriteString(sqf.schema.colObjectID)
@@ -430,9 +430,9 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 		}
 
 		if len(selector.OptionalSubjectIds) > 0 {
-			if len(selector.OptionalSubjectIds) > int(sqf.filterMaximumIDCount) {
-				return sqf, spiceerrors.MustBugf("cannot have more than %d subject IDs in a single filter", sqf.filterMaximumIDCount)
-			}
+			spiceerrors.DebugAssert(func() bool {
+				return len(selector.OptionalSubjectIds) <= int(sqf.filterMaximumIDCount)
+			}, "cannot have more than %d subject IDs in a single filter", sqf.filterMaximumIDCount)
 
 			var builder strings.Builder
 			builder.WriteString(sqf.schema.colUsersetObjectID)
