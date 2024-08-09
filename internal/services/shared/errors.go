@@ -119,10 +119,6 @@ type ConfigForErrors struct {
 	DebugTrace      *v1.DebugInformation
 }
 
-// DebugTraceErrorDetailsKey is the key used to store the debug trace in the error details.
-// The value is expected to be a string containing the proto text of a DebugInformation message.
-const DebugTraceErrorDetailsKey = "debug_trace_proto_text"
-
 func RewriteErrorWithoutConfig(ctx context.Context, err error) error {
 	return rewriteError(ctx, err, nil)
 }
@@ -130,7 +126,7 @@ func RewriteErrorWithoutConfig(ctx context.Context, err error) error {
 func RewriteError(ctx context.Context, err error, config *ConfigForErrors) error {
 	rerr := rewriteError(ctx, err, config)
 	if config != nil && config.DebugTrace != nil {
-		spiceerrors.WithAdditionalDetails(rerr, DebugTraceErrorDetailsKey, config.DebugTrace.String())
+		spiceerrors.WithAdditionalDetails(rerr, spiceerrors.DebugTraceErrorDetailsKey, config.DebugTrace.String())
 	}
 	return rerr
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -108,7 +109,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	var debugTrace *v1.DebugInformation
 	if debugOption != computed.NoDebugging && metadata.DebugInfo != nil {
 		// Convert the dispatch debug information into API debug information.
-		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata, ds)
+		converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, metadata.DebugInfo, ds)
 		if cerr != nil {
 			return nil, ps.rewriteError(ctx, cerr)
 		}
@@ -116,6 +117,20 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 	}
 
 	if err != nil {
+		// If the error already contains debug information, rewrite it. This can happen if
+		// a dispatch error occurs and debug was requested.
+		if dispatchDebugInfo, ok := spiceerrors.GetDetails[*dispatch.DebugInformation](err); ok {
+			// Convert the dispatch debug information into API debug information.
+			converted, cerr := ConvertCheckDispatchDebugInformation(ctx, caveatContext, dispatchDebugInfo, ds)
+			if cerr != nil {
+				return nil, ps.rewriteError(ctx, cerr)
+			}
+
+			if converted != nil {
+				return nil, spiceerrors.AppendDetailsMetadata(err, spiceerrors.DebugTraceErrorDetailsKey, converted.String())
+			}
+		}
+
 		return nil, ps.rewriteErrorWithOptionalDebugTrace(ctx, err, debugTrace)
 	}
 

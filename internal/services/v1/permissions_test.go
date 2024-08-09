@@ -38,6 +38,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -435,11 +436,11 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 	for _, d := range s.Details() {
 		if errInfo, ok := d.(*errdetails.ErrorInfo); ok {
 			req.NotNil(errInfo.Metadata)
-			req.NotNil(errInfo.Metadata[shared.DebugTraceErrorDetailsKey])
-			req.NotEmpty(errInfo.Metadata[shared.DebugTraceErrorDetailsKey])
+			req.NotNil(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)])
+			req.NotEmpty(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)])
 
 			debugInfo := &v1.DebugInformation{}
-			err = prototext.Unmarshal([]byte(errInfo.Metadata[shared.DebugTraceErrorDetailsKey]), debugInfo)
+			err = prototext.Unmarshal([]byte(errInfo.Metadata[string(spiceerrors.DebugTraceErrorDetailsKey)]), debugInfo)
 			req.NoError(err)
 
 			req.Equal(1, len(debugInfo.Check.GetSubProblems().Traces))

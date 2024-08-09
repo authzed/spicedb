@@ -8,6 +8,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	humanize "github.com/dustin/go-humanize"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -332,6 +333,19 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source devi
 	if errors.As(dispatchError, &maxDepthErr) {
 		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
+			Source:  source,
+			Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
+			Line:    line,
+			Column:  column,
+			Context: context,
+		}, nil
+	}
+
+	details, ok := spiceerrors.GetDetails[*errdetails.ErrorInfo](dispatchError)
+	if ok && details.Reason == "ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED" {
+		status, _ := status.FromError(dispatchError)
+		return &devinterface.DeveloperError{
+			Message: status.Message(),
 			Source:  source,
 			Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
 			Line:    line,
