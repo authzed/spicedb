@@ -12,13 +12,23 @@ import (
 )
 
 type syncONRSet struct {
-	items sync.Map
+	sync.Mutex
+	items map[string]struct{}
 }
 
 func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
 	key := tuple.StringONR(onr)
-	_, existed := s.items.LoadOrStore(key, struct{}{})
+	s.Lock()
+	_, existed := s.items[key]
+	if !existed {
+		s.items[key] = struct{}{}
+	}
+	s.Unlock()
 	return !existed
+}
+
+func NewSyncONRSet() *syncONRSet {
+	return &syncONRSet{items: make(map[string]struct{})}
 }
 
 // resourcesSubjectMap is a multimap which tracks mappings from found resource IDs
@@ -31,7 +41,8 @@ type resourcesSubjectMap struct {
 
 // subjectInfo is the information about a subject contained in a resourcesSubjectMap.
 type subjectInfo struct {
-	subjectID  string
+	subjectID string
+
 	isCaveated bool
 }
 
@@ -142,6 +153,7 @@ func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoi
 
 		for _, info := range subjectInfos {
 			subjectIDs = append(subjectIDs, info.subjectID)
+
 			if !info.isCaveated {
 				allCaveated = false
 				nonCaveatedSubjectIDs = append(nonCaveatedSubjectIDs, info.subjectID)
@@ -197,6 +209,7 @@ func (rsm dispatchableResourcesSubjectMap) mapFoundResource(foundResource *v1.Re
 
 		for _, info := range infos {
 			forSubjectIDs.Insert(info.subjectID)
+
 			if !info.isCaveated {
 				nonCaveatedSubjectIDs.Insert(info.subjectID)
 			}

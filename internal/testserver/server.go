@@ -21,17 +21,19 @@ import (
 
 // ServerConfig is configuration for the test server.
 type ServerConfig struct {
-	MaxUpdatesPerWrite         uint16
-	MaxPreconditionsCount      uint16
-	MaxRelationshipContextSize int
-	StreamingAPITimeout        time.Duration
+	MaxUpdatesPerWrite              uint16
+	MaxPreconditionsCount           uint16
+	MaxRelationshipContextSize      int
+	StreamingAPITimeout             time.Duration
+	UseExperimentalLookupResources2 bool
 }
 
 var DefaultTestServerConfig = ServerConfig{
-	MaxUpdatesPerWrite:         1000,
-	MaxPreconditionsCount:      1000,
-	StreamingAPITimeout:        30 * time.Second,
-	MaxRelationshipContextSize: 25000,
+	MaxUpdatesPerWrite:              1000,
+	MaxPreconditionsCount:           1000,
+	StreamingAPITimeout:             30 * time.Second,
+	MaxRelationshipContextSize:      25000,
+	UseExperimentalLookupResources2: false,
 }
 
 // NewTestServer creates a new test server, using defaults for the config.
@@ -70,9 +72,9 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
-	srv, err := server.NewConfigWithOptions(
+	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
@@ -90,6 +92,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 		server.WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
+		server.WithEnableExperimentalLookupResources(config.UseExperimentalLookupResources2),
 		server.SetUnaryMiddlewareModification([]server.MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation: server.OperationReplaceAllUnsafe,

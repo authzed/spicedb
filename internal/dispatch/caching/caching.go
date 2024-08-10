@@ -29,7 +29,7 @@ const (
 // Dispatcher is a dispatcher with cacheInst-in caching.
 type Dispatcher struct {
 	d          dispatch.Dispatcher
-	c          cache.Cache
+	c          cache.Cache[keys.DispatchCacheKey, any]
 	keyHandler keys.Handler
 
 	checkTotalCounter                  prometheus.Counter
@@ -42,8 +42,8 @@ type Dispatcher struct {
 	lookupSubjectsFromCacheCounter     prometheus.Counter
 }
 
-func DispatchTestCache(t testing.TB) cache.Cache {
-	cache, err := cache.NewCache(&cache.Config{
+func DispatchTestCache(t testing.TB) cache.Cache[keys.DispatchCacheKey, any] {
+	cache, err := cache.NewStandardCache[keys.DispatchCacheKey, any](&cache.Config{
 		NumCounters: 1000,
 		MaxCost:     1 * humanize.MiByte,
 	})
@@ -53,9 +53,9 @@ func DispatchTestCache(t testing.TB) cache.Cache {
 
 // NewCachingDispatcher creates a new dispatch.Dispatcher which delegates
 // dispatch requests and caches the responses when possible and desirable.
-func NewCachingDispatcher(cacheInst cache.Cache, metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
+func NewCachingDispatcher(cacheInst cache.Cache[keys.DispatchCacheKey, any], metricsEnabled bool, prometheusSubsystem string, keyHandler keys.Handler) (*Dispatcher, error) {
 	if cacheInst == nil {
-		cacheInst = cache.NoopCache()
+		cacheInst = cache.NoopCache[keys.DispatchCacheKey, any]()
 	}
 
 	checkTotalCounter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -290,6 +290,70 @@ func (cd *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResour
 func sliceSize(xs []byte) int64 {
 	// Slice Header + Slice Contents
 	return int64(int(unsafe.Sizeof(xs)) + len(xs))
+}
+
+func (cd *Dispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
+	cd.lookupResourcesTotalCounter.Inc()
+
+	requestKey, err := cd.keyHandler.LookupResources2CacheKey(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+
+	if cachedResultRaw, found := cd.c.Get(requestKey); found {
+		cd.lookupResourcesFromCacheCounter.Inc()
+		for _, slice := range cachedResultRaw.([][]byte) {
+			var response v1.DispatchLookupResources2Response
+			if err := response.UnmarshalVT(slice); err != nil {
+				return err
+			}
+			if err := stream.Publish(&response); err != nil {
+				// don't wrap error with additional context, as it may be a grpc status.Status.
+				// status.FromError() is unable to unwrap status.Status values, and as a consequence
+				// the Dispatcher wouldn't properly propagate the gRPC error code
+				return err
+			}
+		}
+		return nil
+	}
+
+	var (
+		mu             sync.Mutex
+		toCacheResults [][]byte
+	)
+	wrapped := &dispatch.WrappedDispatchStream[*v1.DispatchLookupResources2Response]{
+		Stream: stream,
+		Ctx:    stream.Context(),
+		Processor: func(result *v1.DispatchLookupResources2Response) (*v1.DispatchLookupResources2Response, bool, error) {
+			adjustedResult := result.CloneVT()
+			adjustedResult.Metadata.CachedDispatchCount = adjustedResult.Metadata.DispatchCount
+			adjustedResult.Metadata.DispatchCount = 0
+			adjustedResult.Metadata.DebugInfo = nil
+
+			adjustedBytes, err := adjustedResult.MarshalVT()
+			if err != nil {
+				return &v1.DispatchLookupResources2Response{Metadata: &v1.ResponseMeta{}}, false, err
+			}
+
+			mu.Lock()
+			toCacheResults = append(toCacheResults, adjustedBytes)
+			mu.Unlock()
+
+			return result, true, nil
+		},
+	}
+
+	if err := cd.d.DispatchLookupResources2(req, wrapped); err != nil {
+		return err
+	}
+
+	var size int64
+	for _, slice := range toCacheResults {
+		size += sliceSize(slice)
+	}
+
+	cd.c.Set(requestKey, toCacheResults, size)
+	return nil
 }
 
 // DispatchLookupResources implements dispatch.LookupResources interface.

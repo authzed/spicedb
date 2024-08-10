@@ -1,0 +1,45 @@
+---
+schema: |+
+  definition user {}
+
+  definition organization {
+    relation admin: user
+    relation member: user
+    permission is_member = member + admin
+  }
+
+  definition document {
+    relation banned: user
+    relation viewer: user | user:*
+    relation org: organization
+
+    permission edit = org->is_member
+    permission view = (viewer - banned) + edit
+    permission vsb = viewer - banned
+    permission indirect_view = vsb + edit
+  }
+
+relationships: |
+  document:firstdoc#viewer@user:tom
+  document:firstdoc#banned@user:fred
+  document:firstdoc#org@organization:someorg
+  organization:someorg#member@user:fred
+
+  document:publicdoc#viewer@user:*
+  document:publicdoc#banned@user:fred
+  document:publicdoc#org@organization:someorg
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:tom"
+    - "document:firstdoc#view@user:fred"
+    - "document:firstdoc#indirect_view@user:tom"
+    - "document:firstdoc#indirect_view@user:fred"
+    - "document:firstdoc#vsb@user:tom"
+    - "document:publicdoc#view@user:tom"
+    - "document:publicdoc#view@user:fred"
+    - "document:publicdoc#indirect_view@user:tom"
+    - "document:publicdoc#indirect_view@user:fred"
+    - "document:publicdoc#vsb@user:tom"
+  assertFalse:
+    - "document:firstdoc#vsb@user:fred"
+    - "document:publicdoc#vsb@user:fred"

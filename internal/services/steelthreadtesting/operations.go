@@ -6,6 +6,7 @@ package steelthreadtesting
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -147,6 +148,7 @@ func cursoredLookupResources(parameters map[string]any, client v1.PermissionsSer
 
 	var currentCursor *v1.Cursor
 	nodeSets := make([][]yaml.Node, 0)
+	resultCounts := make([]int, 0)
 	for {
 		r, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 			ResourceObjectType: parameters["resource_type"].(string),
@@ -171,6 +173,7 @@ func cursoredLookupResources(parameters map[string]any, client v1.PermissionsSer
 		}
 
 		foundResources := mapz.NewSet[string]()
+		resultCount := 0
 		for {
 			resp, err := r.Recv()
 			if err != nil {
@@ -183,11 +186,14 @@ func cursoredLookupResources(parameters map[string]any, client v1.PermissionsSer
 
 			foundResources.Add(formatResolvedResource(resp))
 			currentCursor = resp.AfterResultCursor
+			resultCount++
 		}
 
 		if foundResources.IsEmpty() {
 			break
 		}
+
+		resultCounts = append(resultCounts, resultCount)
 
 		foundResourcesSlice := foundResources.AsSlice()
 		sort.Strings(foundResourcesSlice)
@@ -202,6 +208,16 @@ func cursoredLookupResources(parameters map[string]any, client v1.PermissionsSer
 		}
 
 		nodeSets = append(nodeSets, yamlNodes)
+	}
+
+	for index, count := range resultCounts {
+		if index == len(resultCounts)-1 {
+			continue
+		}
+
+		if count != parameters["page_size"].(int) {
+			return nil, fmt.Errorf("expected full page size of %d for page #%d (of %d), got %d\npage sizes: %v", parameters["page_size"].(int), index, len(resultCounts), count, resultCounts)
+		}
 	}
 
 	return nodeSets, nil

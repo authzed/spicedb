@@ -85,6 +85,11 @@ func (mm *MultiMap[T, Q]) Get(key T) ([]Q, bool) {
 	return found, true
 }
 
+// Sets sets the values in the multimap to those provided.
+func (mm *MultiMap[T, Q]) Set(key T, values []Q) {
+	mm.items[key] = values
+}
+
 // IsEmpty returns true if the map is currently empty.
 func (mm *MultiMap[T, Q]) IsEmpty() bool { return len(mm.items) == 0 }
 
@@ -101,6 +106,32 @@ func (mm MultiMap[T, Q]) Values() []Q {
 		values = append(values, valueSlice...)
 	}
 	return values
+}
+
+// Clone returns a clone of the map.
+func (mm *MultiMap[T, Q]) Clone() *MultiMap[T, Q] {
+	return &MultiMap[T, Q]{maps.Clone(mm.items)}
+}
+
+// CountOf returns the number of values stored for the given key.
+func (mm *MultiMap[T, Q]) CountOf(key T) int {
+	return len(mm.items[key])
+}
+
+// IndexOfValueInMultimap returns the index of the value in the map for the given key.
+func IndexOfValueInMultimap[T comparable, Q comparable](mm *MultiMap[T, Q], key T, value Q) int {
+	values, ok := mm.items[key]
+	if !ok {
+		return -1
+	}
+
+	for i, v := range values {
+		if v == value {
+			return i
+		}
+	}
+
+	return -1
 }
 
 // AsReadOnly returns a read-only *copy* of the mulitmap.

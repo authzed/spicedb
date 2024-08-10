@@ -33,11 +33,12 @@ type optionState struct {
 	upstreamCAPath         string
 	grpcPresharedKey       string
 	grpcDialOpts           []grpc.DialOption
-	cache                  cache.Cache
+	cache                  cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits      graph.ConcurrencyLimits
 	remoteDispatchTimeout  time.Duration
 	secondaryUpstreamAddrs map[string]string
 	secondaryUpstreamExprs map[string]string
+	dispatchChunkSize      uint16
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -103,7 +104,7 @@ func GrpcDialOpts(opts ...grpc.DialOption) Option {
 }
 
 // Cache sets the cache for the dispatcher.
-func Cache(c cache.Cache) Option {
+func Cache(c cache.Cache[keys.DispatchCacheKey, any]) Option {
 	return func(state *optionState) {
 		state.cache = c
 	}
@@ -113,6 +114,13 @@ func Cache(c cache.Cache) Option {
 func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
 	return func(state *optionState) {
 		state.concurrencyLimits = limits
+	}
+}
+
+// DispatchChunkSize sets the maximum number of items to be dispatched in a single dispatch request
+func DispatchChunkSize(dispatchChunkSize uint16) Option {
+	return func(state *optionState) {
+		state.dispatchChunkSize = dispatchChunkSize
 	}
 }
 
@@ -142,7 +150,12 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 		return nil, err
 	}
 
-	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits)
+	chunkSize := opts.dispatchChunkSize
+	if chunkSize == 0 {
+		chunkSize = 100
+		log.Warn().Msgf("CombinedDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
+	}
+	redispatch := graph.NewDispatcher(cachingRedispatch, opts.concurrencyLimits, chunkSize)
 	redispatch = singleflight.New(redispatch, &keys.CanonicalKeyHandler{})
 
 	// If an upstream is specified, create a cluster dispatcher.

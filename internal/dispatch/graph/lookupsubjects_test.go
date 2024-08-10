@@ -19,6 +19,7 @@ import (
 	itestutil "github.com/authzed/spicedb/internal/testutil"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -30,7 +31,7 @@ var (
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		resourceType     string
@@ -133,8 +134,6 @@ func TestSimpleLookupSubjects(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(fmt.Sprintf("simple-lookup-subjects:%s:%s:%s:%s:%s", tc.resourceType, tc.resourceID, tc.permission, tc.subjectType, tc.subjectRelation), func(t *testing.T) {
-			defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
-
 			require := require.New(t)
 
 			ctx, dis, revision := newLocalDispatcher(t)
@@ -208,7 +207,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	revision, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 
-	dis := NewLocalOnlyDispatcher(10)
+	dis := NewLocalOnlyDispatcher(10, 100)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
@@ -995,7 +994,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 
-			dispatcher := NewLocalOnlyDispatcher(10)
+			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(err)

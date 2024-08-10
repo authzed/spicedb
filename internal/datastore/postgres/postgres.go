@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -170,10 +171,8 @@ func newPostgresDatastore(
 	}
 
 	// Setup the default custom plan setting, if applicable.
-	pgConfig, err := defaultCustomPlan(parsedConfig)
-	if err != nil {
-		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
-	}
+	// Setup the default query execution mode setting, if applicable.
+	pgConfig := DefaultQueryExecMode(parsedConfig)
 
 	// Setup the credentials provider
 	var credentialsProvider datastore.CredentialsProvider
@@ -331,6 +330,7 @@ func newPostgresDatastore(
 		credentialsProvider:     credentialsProvider,
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
+		filterMaximumIDCount:    config.filterMaximumIDCount,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -385,10 +385,11 @@ type pgDatastore struct {
 
 	credentialsProvider datastore.CredentialsProvider
 
-	gcGroup  *errgroup.Group
-	gcCtx    context.Context
-	cancelGc context.CancelFunc
-	gcHasRun atomic.Bool
+	gcGroup              *errgroup.Group
+	gcCtx                context.Context
+	cancelGc             context.CancelFunc
+	gcHasRun             atomic.Bool
+	filterMaximumIDCount uint16
 }
 
 func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
@@ -411,6 +412,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		queryFuncs,
 		executor,
 		buildLivingObjectFilterForRevision(rev),
+		pgd.filterMaximumIDCount,
 	}
 }
 
@@ -448,6 +450,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 					queryFuncs,
 					executor,
 					currentlyLivingObjects,
+					pgd.filterMaximumIDCount,
 				},
 				tx,
 				newXID,
@@ -691,25 +694,25 @@ func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 }
 
-// defaultCustomPlan parses a Postgres URI and determines if a plan_cache_mode
-// has been specified. If not, it defaults to "force_custom_plan".
-// This works around a bug impacting performance documented here:
-// https://spicedb.dev/d/force-custom-plan.
-func defaultCustomPlan(poolConfig *pgxpool.Config) (*pgxpool.Config, error) {
-	if existing, ok := poolConfig.ConnConfig.Config.RuntimeParams["plan_cache_mode"]; ok {
-		log.Info().
-			Str("plan_cache_mode", existing).
-			Msg("found plan_cache_mode in DB URI; leaving as-is")
-		return poolConfig, nil
+// DefaultQueryExecMode parses a Postgres URI and determines if a default_query_exec_mode
+// has been specified. If not, it defaults to "exec".
+// SpiceDB queries have high variability of arguments and rarely benefit from using prepared statements.
+// The default and recommended query exec mode is 'exec', which has shown the best performance under various
+// synthetic workloads. See more in https://spicedb.dev/d/query-exec-mode.
+//
+// The docs for the different execution modes offered by pgx may be found
+// here: https://pkg.go.dev/github.com/jackc/pgx/v5#QueryExecMode
+func DefaultQueryExecMode(poolConfig *pgxpool.Config) *pgxpool.Config {
+	if !strings.Contains(poolConfig.ConnString(), "default_query_exec_mode") {
+		// the execution mode was not overridden by the user
+		poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+		return poolConfig
 	}
 
-	poolConfig.ConnConfig.Config.RuntimeParams["plan_cache_mode"] = "force_custom_plan"
-	log.Warn().
-		Str("details-url", "https://spicedb.dev/d/force-custom-plan").
-		Str("plan_cache_mode", "force_custom_plan").
-		Msg("defaulting value in Postgres DB URI")
-
-	return poolConfig, nil
+	log.Info().
+		Str("details-url", "https://spicedb.dev/d/query-exec-mode").
+		Msg("found default_query_exec_mode in DB URI; leaving as-is")
+	return poolConfig
 }
 
 var _ datastore.Datastore = &pgDatastore{}

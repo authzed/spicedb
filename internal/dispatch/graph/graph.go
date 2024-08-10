@@ -78,36 +78,48 @@ func SharedConcurrencyLimits(concurrencyLimit uint16) ConcurrencyLimits {
 }
 
 // NewLocalOnlyDispatcher creates a dispatcher that consults with the graph to formulate a response.
-func NewLocalOnlyDispatcher(concurrencyLimit uint16) dispatch.Dispatcher {
-	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit))
+func NewLocalOnlyDispatcher(concurrencyLimit uint16, dispatchChunkSize uint16) dispatch.Dispatcher {
+	return NewLocalOnlyDispatcherWithLimits(SharedConcurrencyLimits(concurrencyLimit), dispatchChunkSize)
 }
 
 // NewLocalOnlyDispatcherWithLimits creates a dispatcher thatg consults with the graph to formulate a response
 // and has the defined concurrency limits per dispatch type.
-func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
+func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
 	d := &localDispatcher{}
 
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
+	chunkSize := dispatchChunkSize
+	if chunkSize == 0 {
+		chunkSize = 100
+		log.Warn().Msgf("LocalOnlyDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
+	}
 
-	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check)
+	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, chunkSize)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources)
-	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources)
-	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects)
+	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources, chunkSize)
+	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources, chunkSize)
+	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects, chunkSize)
+	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, concurrencyLimits.LookupResources, chunkSize)
 
 	return d
 }
 
 // NewDispatcher creates a dispatcher that consults with the graph and redispatches subproblems to
 // the provided redispatcher.
-func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits) dispatch.Dispatcher {
+func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits ConcurrencyLimits, dispatchChunkSize uint16) dispatch.Dispatcher {
 	concurrencyLimits = limitsOrDefaults(concurrencyLimits, defaultConcurrencyLimit)
+	chunkSize := dispatchChunkSize
+	if chunkSize == 0 {
+		chunkSize = 100
+		log.Warn().Msgf("Dispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
+	}
 
-	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check)
+	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check, chunkSize)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources)
-	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources)
-	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects)
+	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources, chunkSize)
+	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources, chunkSize)
+	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects, chunkSize)
+	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, concurrencyLimits.LookupResources, chunkSize)
 
 	return &localDispatcher{
 		checker:                   checker,
@@ -115,6 +127,7 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 		reachableResourcesHandler: reachableResourcesHandler,
 		lookupResourcesHandler:    lookupResourcesHandler,
 		lookupSubjectsHandler:     lookupSubjectsHandler,
+		lookupResourcesHandler2:   lookupResourcesHandler2,
 	}
 }
 
@@ -124,6 +137,7 @@ type localDispatcher struct {
 	reachableResourcesHandler *graph.CursoredReachableResources
 	lookupResourcesHandler    *graph.CursoredLookupResources
 	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
+	lookupResourcesHandler2   *graph.CursoredLookupResources2
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
@@ -228,8 +242,10 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 				Subject:     req.Subject,
 				Metadata:    req.Metadata,
 				Debug:       req.Debug,
+				CheckHints:  req.CheckHints,
 			},
-			Revision: revision,
+			Revision:             revision,
+			OriginalRelationName: req.ResourceRelation.Relation,
 		}
 
 		resp, err := ld.checker.Check(ctx, validatedReq, relation)
@@ -332,6 +348,34 @@ func (ld *localDispatcher) DispatchLookupResources(
 		graph.ValidatedLookupResourcesRequest{
 			DispatchLookupResourcesRequest: req,
 			Revision:                       revision,
+		},
+		dispatch.StreamWithContext(ctx, stream),
+	)
+}
+
+func (ld *localDispatcher) DispatchLookupResources2(
+	req *v1.DispatchLookupResources2Request,
+	stream dispatch.LookupResources2Stream,
+) error {
+	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
+		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
+		attribute.String("subject", tuple.StringONR(req.TerminalSubject)),
+	))
+	defer span.End()
+
+	if err := dispatch.CheckDepth(ctx, req); err != nil {
+		return err
+	}
+
+	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
+	if err != nil {
+		return err
+	}
+
+	return ld.lookupResourcesHandler2.LookupResources2(
+		graph.ValidatedLookupResources2Request{
+			DispatchLookupResources2Request: req,
+			Revision:                        revision,
 		},
 		dispatch.StreamWithContext(ctx, stream),
 	)

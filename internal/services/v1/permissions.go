@@ -101,6 +101,7 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 			DebugOption:   debugOption,
 		},
 		req.Resource.ObjectId,
+		ps.config.DispatchChunkSize,
 	)
 	usagemetrics.SetInContext(ctx, metadata)
 
@@ -376,6 +377,14 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 }
 
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	if ps.config.UseExperimentalLookupResources2 {
+		return ps.lookupResources2(req, resp)
+	}
+
+	return ps.lookupResources1(req, resp)
+}
+
+func (ps *permissionServer) lookupResources1(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
 		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
 	}
@@ -487,6 +496,140 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 				Relation:  req.Permission,
 			},
 			Subject: &core.ObjectAndRelation{
+				Namespace: req.Subject.Object.ObjectType,
+				ObjectId:  req.Subject.Object.ObjectId,
+				Relation:  normalizeSubjectRelation(req.Subject),
+			},
+			Context:        req.Context,
+			OptionalCursor: currentCursor,
+			OptionalLimit:  req.OptionalLimit,
+		},
+		stream)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	return nil
+}
+
+func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
+		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
+	}
+
+	ctx := resp.Context()
+
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+
+	if err := namespace.CheckNamespaceAndRelations(ctx,
+		[]namespace.TypeAndRelationToCheck{
+			{
+				NamespaceName: req.ResourceObjectType,
+				RelationName:  req.Permission,
+				AllowEllipsis: false,
+			},
+			{
+				NamespaceName: req.Subject.Object.ObjectType,
+				RelationName:  normalizeSubjectRelation(req.Subject),
+				AllowEllipsis: true,
+			},
+		}, ds); err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	respMetadata := &dispatch.ResponseMeta{
+		DispatchCount:       1,
+		CachedDispatchCount: 0,
+		DepthRequired:       1,
+		DebugInfo:           nil,
+	}
+	usagemetrics.SetInContext(ctx, respMetadata)
+
+	var currentCursor *dispatch.Cursor
+
+	lrRequestHash, err := computeLRRequestHash(req)
+	if err != nil {
+		return ps.rewriteError(ctx, err)
+	}
+
+	if req.OptionalCursor != nil {
+		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+		currentCursor = decodedCursor
+	}
+
+	alreadyPublishedPermissionedResourceIds := map[string]struct{}{}
+
+	stream := dispatchpkg.NewHandlingDispatchStream(ctx, func(result *dispatch.DispatchLookupResources2Response) error {
+		found := result.Resource
+
+		dispatchpkg.AddResponseMetadata(respMetadata, result.Metadata)
+		currentCursor = result.AfterResponseCursor
+
+		var partial *v1.PartialCaveatInfo
+		permissionship := v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION
+		if len(found.MissingContextParams) > 0 {
+			permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
+			partial = &v1.PartialCaveatInfo{
+				MissingRequiredContext: found.MissingContextParams,
+			}
+		} else if req.OptionalLimit == 0 {
+			if _, ok := alreadyPublishedPermissionedResourceIds[found.ResourceId]; ok {
+				// Skip publishing the duplicate.
+				return nil
+			}
+
+			// TODO(jschorr): Investigate something like a Trie here for better memory efficiency.
+			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
+		}
+
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision)
+		if err != nil {
+			return ps.rewriteError(ctx, err)
+		}
+
+		err = resp.Send(&v1.LookupResourcesResponse{
+			LookedUpAt:        revisionReadAt,
+			ResourceObjectId:  found.ResourceId,
+			Permissionship:    permissionship,
+			PartialCaveatInfo: partial,
+			AfterResultCursor: encodedCursor,
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	bf, err := dispatch.NewTraversalBloomFilter(uint(ps.config.MaximumAPIDepth))
+	if err != nil {
+		return err
+	}
+
+	err = ps.dispatch.DispatchLookupResources2(
+		&dispatch.DispatchLookupResources2Request{
+			Metadata: &dispatch.ResolverMeta{
+				AtRevision:     atRevision.String(),
+				DepthRemaining: ps.config.MaximumAPIDepth,
+				TraversalBloom: bf,
+			},
+			ResourceRelation: &core.RelationReference{
+				Namespace: req.ResourceObjectType,
+				Relation:  req.Permission,
+			},
+			SubjectRelation: &core.RelationReference{
+				Namespace: req.Subject.Object.ObjectType,
+				Relation:  normalizeSubjectRelation(req.Subject),
+			},
+			SubjectIds: []string{req.Subject.Object.ObjectId},
+			TerminalSubject: &core.ObjectAndRelation{
 				Namespace: req.Subject.Object.ObjectType,
 				ObjectId:  req.Subject.Object.ObjectId,
 				Relation:  normalizeSubjectRelation(req.Subject),

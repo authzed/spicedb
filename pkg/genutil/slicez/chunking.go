@@ -14,8 +14,8 @@ func ForEachChunk[T any](data []T, chunkSize uint16, handler func(items []T)) {
 
 func ForEachChunkUntil[T any](data []T, chunkSize uint16, handler func(items []T) (bool, error)) (bool, error) {
 	if chunkSize == 0 {
-		logging.Warn().Int("invalid-chunk-size", int(chunkSize)).Msg("ForEachChunk got an invalid chunk size; defaulting to 1")
-		chunkSize = 1
+		logging.Warn().Int("invalid-chunk-size", int(chunkSize)).Msg("ForEachChunk got an invalid chunk size; defaulting to 100")
+		chunkSize = 100
 	}
 
 	dataLength := uint64(len(data))

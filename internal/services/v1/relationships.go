@@ -56,6 +56,9 @@ type PermissionsServerConfig struct {
 	// to the permissions server.
 	MaximumAPIDepth uint32
 
+	// DispatchChunkSize is the maximum number of elements to dispach in a dispatch call
+	DispatchChunkSize uint16
+
 	// StreamingAPITimeout is the timeout for streaming APIs when no response has been
 	// recently received.
 	StreamingAPITimeout time.Duration
@@ -89,6 +92,9 @@ type PermissionsServerConfig struct {
 	// MaxBulkExportRelationshipsLimit defines the maximum number of relationships that can be
 	// exported in a single BulkExportRelationships call.
 	MaxBulkExportRelationshipsLimit uint32
+
+	// UseExperimentalLookupResources2 enables the experimental LookupResources2 API.
+	UseExperimentalLookupResources2 bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -108,6 +114,8 @@ func NewPermissionsServer(
 		MaxDeleteRelationshipsLimit:     defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
 		MaxLookupResourcesLimit:         defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
+		UseExperimentalLookupResources2: config.UseExperimentalLookupResources2,
+		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
 	}
 
 	return &permissionServer{
@@ -131,6 +139,7 @@ func NewPermissionsServer(
 			maxCaveatContextSize: configWithDefaults.MaxCaveatContextSize,
 			maxConcurrency:       configWithDefaults.MaxCheckBulkConcurrency,
 			dispatch:             dispatch,
+			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 		},
 	}
 }

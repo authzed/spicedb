@@ -47,7 +47,6 @@ const (
 // NewExperimentalServer creates a ExperimentalServiceServer instance.
 func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig PermissionsServerConfig, opts ...options.ExperimentalServerOptionsOption) v1.ExperimentalServiceServer {
 	config := options.NewExperimentalServerOptionsWithOptionsAndDefaults(opts...)
-
 	if config.DefaultExportBatchSize == 0 {
 		log.
 			Warn().
@@ -78,6 +77,14 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 		config.StreamReadTimeout = streamReadTimeoutFallbackSeconds * time.Second
 	}
 
+	chunkSize := permServerConfig.DispatchChunkSize
+	if chunkSize == 0 {
+		log.
+			Warn().
+			Msg("experimental server config specified invalid DispatchChunkSize, defaulting to 100")
+		chunkSize = 100
+	}
+
 	return &experimentalServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
@@ -99,6 +106,7 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 			maxCaveatContextSize: permServerConfig.MaxCaveatContextSize,
 			maxConcurrency:       config.BulkCheckMaxConcurrency,
 			dispatch:             dispatch,
+			dispatchChunkSize:    chunkSize,
 		},
 	}
 }

@@ -268,6 +268,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.TransactionID,
 		},
+		filterMaximumIDCount: config.filterMaximumIDCount,
 	}
 
 	store.SetOptimizedRevisionFunc(store.optimizedRevisionFunc)
@@ -319,6 +320,7 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 		createTxFunc,
 		executor,
 		buildLivingObjectFilterForRevision(rev),
+		mds.filterMaximumIDCount,
 	}
 }
 
@@ -356,6 +358,7 @@ func (mds *Datastore) ReadWriteTx(
 					longLivedTx,
 					executor,
 					currentlyLivingObjects,
+					mds.filterMaximumIDCount,
 				},
 				mds.driver.RelationTuple(),
 				tx,
@@ -484,6 +487,7 @@ type Datastore struct {
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	maxRetries              uint8
+	filterMaximumIDCount    uint16
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string

@@ -556,7 +556,7 @@ func TestLookupResources(t *testing.T) {
 			[]string{"specialplan"},
 			codes.OK,
 			6,
-			7,
+			8,
 		},
 		{
 			"document", "view_and_edit",
@@ -622,53 +622,71 @@ func TestLookupResources(t *testing.T) {
 			for _, tc := range testCases {
 				tc := tc
 				t.Run(fmt.Sprintf("%s::%s from %s:%s#%s", tc.objectType, tc.permission, tc.subject.Object.ObjectType, tc.subject.Object.ObjectId, tc.subject.OptionalRelation), func(t *testing.T) {
-					require := require.New(t)
-					conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
-					client := v1.NewPermissionsServiceClient(conn)
-					t.Cleanup(func() {
-						goleak.VerifyNone(t, goleak.IgnoreCurrent())
-					})
-					t.Cleanup(cleanup)
+					for _, useV2 := range []bool{false, true} {
+						useV2 := useV2
+						t.Run(fmt.Sprintf("v2:%v", useV2), func(t *testing.T) {
+							require := require.New(t)
+							conn, cleanup, _, revision := testserver.NewTestServerWithConfig(
+								require,
+								delta,
+								memdb.DisableGC,
+								true,
+								testserver.ServerConfig{
+									MaxUpdatesPerWrite:              1000,
+									MaxPreconditionsCount:           1000,
+									StreamingAPITimeout:             30 * time.Second,
+									MaxRelationshipContextSize:      25000,
+									UseExperimentalLookupResources2: useV2,
+								},
+								tf.StandardDatastoreWithData,
+							)
+							client := v1.NewPermissionsServiceClient(conn)
+							t.Cleanup(func() {
+								goleak.VerifyNone(t, goleak.IgnoreCurrent())
+							})
+							t.Cleanup(cleanup)
 
-					var trailer metadata.MD
-					lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
-						ResourceObjectType: tc.objectType,
-						Permission:         tc.permission,
-						Subject:            tc.subject,
-						Consistency: &v1.Consistency{
-							Requirement: &v1.Consistency_AtLeastAsFresh{
-								AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
-							},
-						},
-					}, grpc.Trailer(&trailer))
-
-					require.NoError(err)
-					if tc.expectedErrorCode == codes.OK {
-						var resolvedObjectIds []string
-						for {
-							resp, err := lookupClient.Recv()
-							if errors.Is(err, io.EOF) {
-								break
-							}
+							var trailer metadata.MD
+							lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
+								ResourceObjectType: tc.objectType,
+								Permission:         tc.permission,
+								Subject:            tc.subject,
+								Consistency: &v1.Consistency{
+									Requirement: &v1.Consistency_AtLeastAsFresh{
+										AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+									},
+								},
+							}, grpc.Trailer(&trailer))
 
 							require.NoError(err)
+							if tc.expectedErrorCode == codes.OK {
+								var resolvedObjectIds []string
+								for {
+									resp, err := lookupClient.Recv()
+									if errors.Is(err, io.EOF) {
+										break
+									}
 
-							resolvedObjectIds = append(resolvedObjectIds, resp.ResourceObjectId)
-						}
+									require.NoError(err)
 
-						slices.Sort(tc.expectedObjectIds)
-						slices.Sort(resolvedObjectIds)
+									resolvedObjectIds = append(resolvedObjectIds, resp.ResourceObjectId)
+								}
 
-						require.Equal(tc.expectedObjectIds, resolvedObjectIds)
+								slices.Sort(tc.expectedObjectIds)
+								slices.Sort(resolvedObjectIds)
 
-						dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
-						require.NoError(err)
-						require.GreaterOrEqual(dispatchCount, 0)
-						require.LessOrEqual(dispatchCount, tc.maximumDispatchCount)
-						require.GreaterOrEqual(dispatchCount, tc.minimumDispatchCount)
-					} else {
-						_, err := lookupClient.Recv()
-						grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
+								require.Equal(tc.expectedObjectIds, resolvedObjectIds)
+
+								dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+								require.NoError(err)
+								require.GreaterOrEqual(dispatchCount, 0)
+								require.LessOrEqual(dispatchCount, tc.maximumDispatchCount)
+								require.GreaterOrEqual(dispatchCount, tc.minimumDispatchCount)
+							} else {
+								_, err := lookupClient.Recv()
+								grpcutil.RequireStatus(t, tc.expectedErrorCode, err)
+							}
+						})
 					}
 				})
 			}
@@ -1745,7 +1763,7 @@ func TestLookupResourcesBeyondAllowedLimit(t *testing.T) {
 }
 
 func TestCheckBulkPermissions(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithCaveatedData)
 	client := v1.NewPermissionsServiceClient(conn)
@@ -1876,16 +1894,16 @@ func TestCheckBulkPermissions(t *testing.T) {
 		{
 			name: "chunking test",
 			requests: (func() []string {
-				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+5)
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+5)
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
 				return toReturn
 			})(),
 			response: (func() []bulkCheckTest {
-				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+5)
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+5)
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
@@ -1899,23 +1917,23 @@ func TestCheckBulkPermissions(t *testing.T) {
 		{
 			name: "chunking test with errors",
 			requests: (func() []string {
-				toReturn := make([]string, 0, datastore.FilterMaximumIDCount+6)
+				toReturn := make([]string, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, `nondoc:masterplan#view@user:eng_lead`)
 
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i))
 				}
 
 				return toReturn
 			})(),
 			response: (func() []bulkCheckTest {
-				toReturn := make([]bulkCheckTest, 0, datastore.FilterMaximumIDCount+6)
+				toReturn := make([]bulkCheckTest, 0, defaultFilterMaximumIDCountForTest+6)
 				toReturn = append(toReturn, bulkCheckTest{
 					req: `nondoc:masterplan#view@user:eng_lead`,
 					err: namespace.NewNamespaceNotFoundErr("nondoc"),
 				})
 
-				for i := 0; i < int(datastore.FilterMaximumIDCount+5); i++ {
+				for i := 0; i < int(defaultFilterMaximumIDCountForTest+5); i++ {
 					toReturn = append(toReturn, bulkCheckTest{
 						req:  fmt.Sprintf(`document:masterplan-%d#view@user:eng_lead`, i),
 						resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,

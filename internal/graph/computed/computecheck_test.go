@@ -3,6 +3,7 @@ package computed_test
 import (
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -87,7 +88,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 					"document:foo#view@user:sarah",
 					nil,
 					v1.ResourceCheckResult_CAVEATED_MEMBER,
-					[]string{"anothercondition"},
+					[]string{"anothercondition", "somecondition", "somebool"},
 					"",
 				},
 				{
@@ -96,7 +97,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						"somecondition": "42",
 					},
 					v1.ResourceCheckResult_CAVEATED_MEMBER,
-					[]string{"anothercondition"},
+					[]string{"anothercondition", "somebool"},
 					"",
 				},
 				{
@@ -806,7 +807,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
-			dispatch := graph.NewLocalOnlyDispatcher(10)
+			dispatch := graph.NewLocalOnlyDispatcher(10, 100)
 			ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 			require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -831,6 +832,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 							DebugOption:   computed.BasicDebuggingEnabled,
 						},
 						rel.ResourceAndRelation.ObjectId,
+						100,
 					)
 
 					if r.error != "" {
@@ -841,7 +843,11 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 						require.Equal(t, v1.ResourceCheckResult_Membership_name[int32(r.member)], v1.ResourceCheckResult_Membership_name[int32(result.Membership)], "mismatch for %s with context %v", r.check, r.context)
 
 						if result.Membership == v1.ResourceCheckResult_CAVEATED_MEMBER {
-							require.Equal(t, r.expectedMissingFields, result.MissingExprFields)
+							foundFields := result.MissingExprFields
+							sort.Strings(foundFields)
+							sort.Strings(r.expectedMissingFields)
+
+							require.Equal(t, r.expectedMissingFields, foundFields)
 						}
 					}
 				})
@@ -854,7 +860,7 @@ func TestComputeCheckError(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10)
+	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -871,6 +877,7 @@ func TestComputeCheckError(t *testing.T) {
 			DebugOption:   computed.BasicDebuggingEnabled,
 		},
 		"id",
+		100,
 	)
 	require.Error(t, err)
 }
@@ -879,7 +886,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	dispatch := graph.NewLocalOnlyDispatcher(10)
+	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(t, datastoremw.SetInContext(ctx, ds))
 
@@ -923,6 +930,7 @@ func TestComputeBulkCheck(t *testing.T) {
 			DebugOption:   computed.NoDebugging,
 		},
 		[]string{"direct", "first", "second", "third"},
+		100,
 	)
 	require.NoError(t, err)
 

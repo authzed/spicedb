@@ -29,8 +29,9 @@ type readTX interface {
 type txFactory func() readTX
 
 type spannerReader struct {
-	executor common.QueryExecutor
-	txSource txFactory
+	executor             common.QueryExecutor
+	txSource             txFactory
+	filterMaximumIDCount uint16
 }
 
 func (sr spannerReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -51,7 +52,7 @@ func (sr spannerReader) CountRelationships(ctx context.Context, name string) (in
 		return 0, err
 	}
 
-	builder, err := common.NewSchemaQueryFilterer(schema, countTuples).FilterWithRelationshipsFilter(relFilter)
+	builder, err := common.NewSchemaQueryFilterer(schema, countTuples, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -131,7 +132,7 @@ func (sr spannerReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +145,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples, sr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err

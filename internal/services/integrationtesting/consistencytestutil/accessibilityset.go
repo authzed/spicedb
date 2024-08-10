@@ -107,7 +107,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	headRevision, err := ccd.DataStore.HeadRevision(ccd.Ctx)
 	require.NoError(t, err)
 
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit)
+	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, 100)
 	permissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	uncomputedPermissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	accessibilityByRelationship := map[string]Accessibility{}
@@ -165,6 +165,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 									MaximumDepth:  50,
 								},
 								possibleResourceID,
+								100,
 							)
 							require.NoError(t, err)
 							membership = cr.Membership

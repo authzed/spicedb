@@ -67,6 +67,14 @@ func (re ReachabilityEntrypoint) EntrypointKind() core.ReachabilityEntrypoint_Re
 	return re.re.Kind
 }
 
+// ComputedUsersetRelation returns the tupleset relation of the computed userset, if any.
+func (re ReachabilityEntrypoint) ComputedUsersetRelation() (string, error) {
+	if re.EntrypointKind() == core.ReachabilityEntrypoint_RELATION_ENTRYPOINT {
+		return "", fmt.Errorf("cannot call ComputedUsersetRelation for kind %v", re.EntrypointKind())
+	}
+	return re.re.ComputedUsersetRelation, nil
+}
+
 // TuplesetRelation returns the tupleset relation of the TTU, if a TUPLESET_TO_USERSET_ENTRYPOINT.
 func (re ReachabilityEntrypoint) TuplesetRelation() (string, error) {
 	if re.EntrypointKind() != core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT {
@@ -83,6 +91,11 @@ func (re ReachabilityEntrypoint) DirectRelation() (*core.RelationReference, erro
 	}
 
 	return re.re.TargetRelation, nil
+}
+
+// TargetNamespace returns the namespace for the entrypoint's target relation.
+func (re ReachabilityEntrypoint) TargetNamespace() string {
+	return re.re.TargetRelation.Namespace
 }
 
 // ContainingRelationOrPermission is the relation or permission containing this entrypoint.

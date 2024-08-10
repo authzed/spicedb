@@ -15,17 +15,11 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
-var goleakIgnores = []goleak.Option{
-	goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"),
-	goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*lfuPolicy).processItems"),
-	goleak.IgnoreTopFunction("github.com/outcaste-io/ristretto.(*Cache).processItems"),
-	goleak.IgnoreCurrent(),
-}
-
 func TestWatchingCacheBasicOperation(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -35,7 +29,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure no namespaces are found.
@@ -128,7 +122,7 @@ func TestWatchingCacheBasicOperation(t *testing.T) {
 }
 
 func TestWatchingCacheParallelOperations(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -138,7 +132,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Run some operations in parallel.
@@ -184,7 +178,7 @@ func TestWatchingCacheParallelOperations(t *testing.T) {
 }
 
 func TestWatchingCacheParallelReaderWriter(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -194,7 +188,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache(), 1*time.Hour, 100*time.Millisecond)
+	wcache := createWatchingCacheProxy(fakeDS, cache.NoopCache[cache.StringKey, *cacheEntry](), 1*time.Hour, 100*time.Millisecond)
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Write somenamespace.
@@ -236,7 +230,7 @@ func TestWatchingCacheParallelReaderWriter(t *testing.T) {
 }
 
 func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("0"),
@@ -246,10 +240,10 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 		errChan:      make(chan error, 1),
 	}
 
-	c, err := cache.NewCache(&cache.Config{
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
 		NumCounters: 1000,
-		MaxCost:     1000,
-		DefaultTTL:  1000 * time.Second,
+		MaxCost:     10000,
+		DefaultTTL:  10000 * time.Second,
 	})
 	require.NoError(t, err)
 
@@ -263,7 +257,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 
 	entry, ok := c.Get("n:somenamespace@1")
 	require.True(t, ok)
-	require.NotNil(t, entry.(*cacheEntry).notFound)
+	require.NotNil(t, entry.notFound)
 
 	// Disable reading and ensure it still works, via the fallback cache.
 	fakeDS.readsDisabled = true
@@ -278,7 +272,7 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 }
 
 func TestWatchingCachePrepopulated(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	fakeDS := &fakeDatastore{
 		headRevision: rev("4"),
@@ -302,7 +296,7 @@ func TestWatchingCachePrepopulated(t *testing.T) {
 		},
 	}
 
-	c, err := cache.NewCache(&cache.Config{
+	c, err := cache.NewStandardCache[cache.StringKey, *cacheEntry](&cache.Config{
 		NumCounters: 1000,
 		MaxCost:     1000,
 		DefaultTTL:  1000 * time.Second,

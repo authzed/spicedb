@@ -3,6 +3,8 @@ package common
 import (
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/authzed/spicedb/pkg/datastore/options"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -58,7 +60,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterToResourceIDs([]string{"someresourceid", "anotherresourceid"})
 			},
-			"SELECT * WHERE object_id IN (?, ?)",
+			"SELECT * WHERE object_id IN (?,?)",
 			[]any{"someresourceid", "anotherresourceid"},
 			map[string]int{
 				"object_id": 2,
@@ -138,7 +140,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalResourceIds:  []string{"someid", "anotherid"},
 				})
 			},
-			"SELECT * WHERE ns = ? AND object_id IN (?, ?)",
+			"SELECT * WHERE ns = ? AND object_id IN (?,?)",
 			[]any{"sometype", "someid", "anotherid"},
 			map[string]int{
 				"ns":        1,
@@ -218,7 +220,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"somesubjectid", "anothersubjectid"},
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?)))",
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid"},
 			map[string]int{
 				"subject_ns":        1,
@@ -294,7 +296,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)))",
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 			map[string]int{
 				"subject_ns":        1,
@@ -322,7 +324,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_relation <> ?))",
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_relation <> ?))",
 			[]any{"somesubjectype", "a", "b", "...", "somesubrel", "anothersubjecttype", "b", "c", "...", "anotherrel", "thirdsubjectype", "..."},
 			map[string]int{
 				"subject_ns":        3,
@@ -438,7 +440,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				)
 			},
-			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?, ?) AND ((subject_ns = ? AND subject_object_id IN (?, ?) AND (subject_relation = ? OR subject_relation = ?)))",
+			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?,?) AND ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 			map[string]int{
 				"ns":                1,
@@ -536,7 +538,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
 			},
-			"SELECT * WHERE ns = ? AND object_id IN (?, ?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE ns = ? AND object_id IN (?,?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "one", "two", "foo", "viewer", "user", "bar", "..."},
 			map[string]int{
 				"ns":        1,
@@ -647,7 +649,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"foo", "bar"},
 				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:next"), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?, ?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},
 			map[string]int{"subject_ns": 1, "subject_object_id": 2},
 		},
@@ -667,7 +669,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"caveat",
 				TupleComparison,
 			)
-			filterer := NewSchemaQueryFilterer(schema, base)
+			filterer := NewSchemaQueryFilterer(schema, base, 100)
 
 			ran := test.run(filterer)
 			require.Equal(t, test.expectedColumnCounts, ran.filteringColumnCounts)
@@ -677,5 +679,29 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			require.Equal(t, test.expectedSQL, sql)
 			require.Equal(t, test.expectedArgs, args)
 		})
+	}
+}
+
+func BenchmarkSchemaFilterer(b *testing.B) {
+	si := NewSchemaInformation(
+		"namespace",
+		"object_id",
+		"object_relation",
+		"resource_type",
+		"resource_id",
+		"resource_relation",
+		"caveat_name",
+		TupleComparison,
+	)
+	sqf := NewSchemaQueryFilterer(si, sq.Select("*"), 100)
+	var names []string
+	for i := 0; i < 500; i++ {
+		names = append(names, uuid.NewString())
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = sqf.FilterToResourceIDs(names)
 	}
 }

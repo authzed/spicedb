@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -131,6 +132,18 @@ func runOperation(devContext *development.DevContext, operation *devinterface.Op
 			ValidationResult: &devinterface.RunValidationResult{
 				UpdatedValidationYaml: updatedValidationYaml,
 				ValidationErrors:      validationErrors,
+			},
+		}, nil
+
+	case operation.SchemaWarningsParameters != nil:
+		warnings, err := development.GetWarnings(context.Background(), devContext)
+		if err != nil {
+			return nil, err
+		}
+
+		return &devinterface.OperationResult{
+			SchemaWarningsResult: &devinterface.SchemaWarningsResult{
+				Warnings: warnings,
 			},
 		}, nil
 

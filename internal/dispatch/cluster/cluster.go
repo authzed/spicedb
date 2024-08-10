@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
 )
 
@@ -16,9 +17,10 @@ type Option func(*optionState)
 type optionState struct {
 	metricsEnabled        bool
 	prometheusSubsystem   string
-	cache                 cache.Cache
+	cache                 cache.Cache[keys.DispatchCacheKey, any]
 	concurrencyLimits     graph.ConcurrencyLimits
 	remoteDispatchTimeout time.Duration
+	dispatchChunkSize     uint16
 }
 
 // MetricsEnabled enables issuing prometheus metrics
@@ -36,7 +38,7 @@ func PrometheusSubsystem(name string) Option {
 }
 
 // Cache sets the cache for the remote dispatcher.
-func Cache(c cache.Cache) Option {
+func Cache(c cache.Cache[keys.DispatchCacheKey, any]) Option {
 	return func(state *optionState) {
 		state.cache = c
 	}
@@ -46,6 +48,13 @@ func Cache(c cache.Cache) Option {
 func ConcurrencyLimits(limits graph.ConcurrencyLimits) Option {
 	return func(state *optionState) {
 		state.concurrencyLimits = limits
+	}
+}
+
+// DispatchChunkSize sets the maximum number of items to be dispatched in a single dispatch request
+func DispatchChunkSize(dispatchChunkSize uint16) Option {
+	return func(state *optionState) {
+		state.dispatchChunkSize = dispatchChunkSize
 	}
 }
 
@@ -66,7 +75,12 @@ func NewClusterDispatcher(dispatch dispatch.Dispatcher, options ...Option) (disp
 		fn(&opts)
 	}
 
-	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits)
+	chunkSize := opts.dispatchChunkSize
+	if chunkSize == 0 {
+		chunkSize = 100
+		log.Warn().Msgf("ClusterDispatcher: dispatchChunkSize not set, defaulting to %d", chunkSize)
+	}
+	clusterDispatch := graph.NewDispatcher(dispatch, opts.concurrencyLimits, opts.dispatchChunkSize)
 
 	if opts.prometheusSubsystem == "" {
 		opts.prometheusSubsystem = "dispatch"

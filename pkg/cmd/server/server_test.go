@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/testutil"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ import (
 )
 
 func TestServerGracefulTermination(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
@@ -59,7 +60,7 @@ func TestServerGracefulTermination(t *testing.T) {
 }
 
 func TestOTelReporting(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -160,7 +161,7 @@ func setupSpanRecorder() (*tracetest.SpanRecorder, func()) {
 }
 
 func TestServerGracefulTerminationOnError(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
@@ -230,7 +231,9 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false, false}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, nil, nil}
+	opt = opt.WithDatastore(nil)
+
 	defaultMw, err := DefaultUnaryMiddleware(opt)
 	require.NoError(t, err)
 
@@ -256,7 +259,9 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, nil, false, false, false}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, nil, nil}
+	opt = opt.WithDatastore(nil)
+
 	defaultMw, err := DefaultStreamingMiddleware(opt)
 	require.NoError(t, err)
 

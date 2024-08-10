@@ -2,6 +2,7 @@ package caveats
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -260,4 +261,143 @@ func TestSerializeName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "hi", deserialized.name)
+}
+
+func TestRewriteVariable(t *testing.T) {
+	tcs := []struct {
+		expr          string
+		vars          map[string]types.VariableType
+		oldVarName    string
+		newVarName    string
+		expectedExpr  string
+		expectedError string
+	}{
+		{
+			expr: "foo < 42",
+			vars: map[string]types.VariableType{
+				"foo": types.IntType,
+				"bar": types.IntType,
+			},
+			oldVarName:   "foo",
+			newVarName:   "baz",
+			expectedExpr: "baz < 42",
+		},
+		{
+			expr: "bar < 42",
+			vars: map[string]types.VariableType{
+				"foo": types.IntType,
+				"bar": types.IntType,
+			},
+			oldVarName:   "foo",
+			newVarName:   "somethingelse",
+			expectedExpr: "bar < 42",
+		},
+		{
+			expr: "foo < 42 && bar > 42 && foo > 12",
+			vars: map[string]types.VariableType{
+				"foo": types.IntType,
+				"bar": types.IntType,
+			},
+			oldVarName:   "foo",
+			newVarName:   "baz",
+			expectedExpr: "baz < 42 && bar > 42 && baz > 12",
+		},
+		{
+			expr: "foo < 42",
+			vars: map[string]types.VariableType{
+				"foo": types.IntType,
+				"bar": types.IntType,
+			},
+			oldVarName:    "foo",
+			newVarName:    "bar",
+			expectedError: "variable name 'bar' is already used",
+		},
+		{
+			expr: "(a && b) || (c && d) || (a && c) || (b && d)",
+			vars: map[string]types.VariableType{
+				"a": types.BooleanType,
+				"b": types.BooleanType,
+				"c": types.BooleanType,
+				"d": types.BooleanType,
+			},
+			oldVarName:   "b",
+			newVarName:   "bee",
+			expectedExpr: "a && bee || c && d || a && c || bee && d",
+		},
+		{
+			expr: "(bee1 + bee10 + bee100) > 7",
+			vars: map[string]types.VariableType{
+				"bee1":   types.IntType,
+				"bee10":  types.IntType,
+				"bee100": types.IntType,
+			},
+			oldVarName:   "bee10",
+			newVarName:   "bee1000",
+			expectedExpr: "bee1 + bee1000 + bee100 > 7",
+		},
+		{
+			expr: "a+b+c+d==42",
+			vars: map[string]types.VariableType{
+				"a": types.IntType,
+				"b": types.IntType,
+				"c": types.IntType,
+				"d": types.IntType,
+			},
+			oldVarName:   "d",
+			newVarName:   "dcba",
+			expectedExpr: "a + b + c + dcba == 42",
+		},
+		{
+			expr: "some_ip.in_cidr('1.2.3.4')",
+			vars: map[string]types.VariableType{
+				"some_ip": types.IPAddressType,
+			},
+			oldVarName:   "some_ip",
+			newVarName:   "another_ip",
+			expectedExpr: `another_ip.in_cidr("1.2.3.4")`,
+		},
+		{
+			expr: "in_cidr.in_cidr('1.2.3.4')",
+			vars: map[string]types.VariableType{
+				"in_cidr": types.IPAddressType,
+			},
+			oldVarName:   "in_cidr",
+			newVarName:   "another_ip",
+			expectedExpr: `another_ip.in_cidr("1.2.3.4")`,
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(fmt.Sprintf("%s::%s->%s", tc.expr, tc.oldVarName, tc.newVarName), func(t *testing.T) {
+			env := MustEnvForVariables(tc.vars)
+
+			compiled, err := compileCaveat(env, tc.expr)
+			require.NoError(t, err)
+
+			rewritten, err := compiled.RewriteVariable(tc.oldVarName, tc.newVarName)
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+
+			serialized, err := rewritten.ExprString()
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedExpr, serialized)
+
+			// Ensure the new variable has a type.
+			_, iss := rewritten.celEnv.Compile(tc.newVarName)
+			require.NoError(t, iss.Err())
+
+			// Ensure the original is unchanged.
+			if tc.expectedExpr != tc.expr {
+				original, err := compiled.ExprString()
+				require.NoError(t, err)
+				require.NotEqual(t, original, serialized)
+			}
+		})
+	}
 }

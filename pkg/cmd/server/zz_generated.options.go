@@ -70,6 +70,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.Dispatcher = c.Dispatcher
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchHashringSpread = c.DispatchHashringSpread
+		to.DispatchChunkSize = c.DispatchChunkSize
 		to.DispatchSecondaryUpstreamAddrs = c.DispatchSecondaryUpstreamAddrs
 		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchCacheConfig = c.DispatchCacheConfig
@@ -85,6 +86,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
+		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -135,6 +137,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["Dispatcher"] = helpers.DebugValue(c.Dispatcher, false)
 	debugMap["DispatchHashringReplicationFactor"] = helpers.DebugValue(c.DispatchHashringReplicationFactor, false)
 	debugMap["DispatchHashringSpread"] = helpers.DebugValue(c.DispatchHashringSpread, false)
+	debugMap["DispatchChunkSize"] = helpers.DebugValue(c.DispatchChunkSize, false)
 	debugMap["DispatchSecondaryUpstreamAddrs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamAddrs, false)
 	debugMap["DispatchSecondaryUpstreamExprs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamExprs, false)
 	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
@@ -150,6 +153,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
 	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
+	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -415,6 +419,13 @@ func WithDispatchHashringSpread(dispatchHashringSpread uint8) ConfigOption {
 	}
 }
 
+// WithDispatchChunkSize returns an option that can set DispatchChunkSize on a Config
+func WithDispatchChunkSize(dispatchChunkSize uint16) ConfigOption {
+	return func(c *Config) {
+		c.DispatchChunkSize = dispatchChunkSize
+	}
+}
+
 // WithDispatchSecondaryUpstreamAddrs returns an option that can append DispatchSecondaryUpstreamAddrss to Config.DispatchSecondaryUpstreamAddrs
 func WithDispatchSecondaryUpstreamAddrs(key string, value string) ConfigOption {
 	return func(c *Config) {
@@ -531,6 +542,13 @@ func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
 func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32) ConfigOption {
 	return func(c *Config) {
 		c.MaxBulkExportRelationshipsLimit = maxBulkExportRelationshipsLimit
+	}
+}
+
+// WithEnableExperimentalLookupResources returns an option that can set EnableExperimentalLookupResources on a Config
+func WithEnableExperimentalLookupResources(enableExperimentalLookupResources bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalLookupResources = enableExperimentalLookupResources
 	}
 }
 

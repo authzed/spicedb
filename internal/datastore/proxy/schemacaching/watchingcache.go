@@ -77,7 +77,7 @@ type watchingCachingProxy struct {
 }
 
 // createWatchingCacheProxy creates and returns a watching cache proxy.
-func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache, gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
+func createWatchingCacheProxy(delegate datastore.Datastore, c cache.Cache[cache.StringKey, *cacheEntry], gcWindow time.Duration, watchHeartbeat time.Duration) *watchingCachingProxy {
 	fallbackCache := &definitionCachingProxy{
 		Datastore: delegate,
 		c:         c,

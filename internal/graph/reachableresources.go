@@ -23,15 +23,16 @@ import (
 const dispatchVersion = 1
 
 // NewCursoredReachableResources creates an instance of CursoredReachableResources.
-func NewCursoredReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *CursoredReachableResources {
-	return &CursoredReachableResources{d, concurrencyLimit}
+func NewCursoredReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredReachableResources {
+	return &CursoredReachableResources{d, concurrencyLimit, dispatchChunkSize}
 }
 
 // CursoredReachableResources exposes a method to perform ReachableResources requests, and
 // delegates subproblems to the provided dispatch.ReachableResources instance.
 type CursoredReachableResources struct {
-	d                dispatch.ReachableResources
-	concurrencyLimit uint16
+	d                 dispatch.ReachableResources
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 // ValidatedReachableResourcesRequest represents a request after it has been validated and parsed for internal
@@ -101,7 +102,7 @@ func (crr *CursoredReachableResources) afterSameType(
 	req ValidatedReachableResourcesRequest,
 	parentStream dispatch.ReachableResourcesStream,
 ) error {
-	dispatched := &syncONRSet{}
+	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
 	ds := datastoremw.MustFromContext(ctx)
@@ -281,7 +282,7 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 
 			// Chunk based on the FilterMaximumIDCount, to ensure we never send more than that amount of
 			// results to a downstream dispatch.
-			rsm := newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
+			rsm := newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap], 0)
 			currentCursor := queryCursor
 
@@ -294,12 +295,12 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 					return nil, err
 				}
 
-				if rsm.len() == int(datastore.FilterMaximumIDCount) {
+				if rsm.len() == int(crr.dispatchChunkSize) {
 					toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{
 						item:   rsm.asReadOnly(),
 						cursor: currentCursor,
 					})
-					rsm = newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(datastore.FilterMaximumIDCount))
+					rsm = newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
 					currentCursor = tpl
 				}
 			}

@@ -136,8 +136,7 @@ func TestMaxDepthCaching(t *testing.T) {
 				require.NoError(err)
 				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[parsed.ObjectId].Membership)
 
-				// We have to sleep a while to let the cache converge:
-				// https://github.com/outcaste-io/ristretto/blob/01b9f37dd0fd453225e042d6f3a27cd14f252cd0/cache_test.go#L17
+				// We have to sleep a while to let the cache converge
 				time.Sleep(10 * time.Millisecond)
 			}
 
@@ -164,6 +163,10 @@ func (ddm delegateDispatchMock) DispatchReachableResources(_ *v1.DispatchReachab
 }
 
 func (ddm delegateDispatchMock) DispatchLookupResources(_ *v1.DispatchLookupResourcesRequest, _ dispatch.LookupResourcesStream) error {
+	return nil
+}
+
+func (ddm delegateDispatchMock) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ dispatch.LookupResources2Stream) error {
 	return nil
 }
 
