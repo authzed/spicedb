@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
@@ -484,7 +485,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
-			conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
 				func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 					return tf.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, req)
 				})

@@ -21,10 +21,9 @@ import (
 func ConvertCheckDispatchDebugInformation(
 	ctx context.Context,
 	caveatContext map[string]any,
-	metadata *dispatch.ResponseMeta,
+	debugInfo *dispatch.DebugInformation,
 	reader datastore.Reader,
 ) (*v1.DebugInformation, error) {
-	debugInfo := metadata.DebugInfo
 	if debugInfo == nil {
 		return nil, nil
 	}

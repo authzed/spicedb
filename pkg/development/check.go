@@ -45,7 +45,7 @@ func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject 
 	}
 
 	reader := devContext.Datastore.SnapshotReader(devContext.Revision)
-	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveatContext, meta, reader)
+	converted, err := v1.ConvertCheckDispatchDebugInformation(ctx, caveatContext, meta.DebugInfo, reader)
 	if err != nil {
 		return CheckResult{v1dispatch.ResourceCheckResult_NOT_MEMBER, nil, nil, nil}, err
 	}

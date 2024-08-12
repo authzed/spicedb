@@ -58,11 +58,11 @@ func WithCodeAndReason(err error, code codes.Code, reason v1.ErrorReason) error 
 }
 
 type SupportsAdditionalMetadata interface {
-	WithAdditionalDetails(key string, value string)
+	WithAdditionalDetails(key MetadataKey, value string)
 }
 
 // WithAdditionalDetails adds an additional details field to the error if it is possible.
-func WithAdditionalDetails(err error, key string, value string) bool {
+func WithAdditionalDetails(err error, key MetadataKey, value string) bool {
 	var supportsAdditionalDetails SupportsAdditionalMetadata
 	if ok := errors.As(err, &supportsAdditionalDetails); ok {
 		supportsAdditionalDetails.WithAdditionalDetails(key, value)

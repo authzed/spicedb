@@ -122,7 +122,12 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 		}
 	}
 
-	debugInfo.Check.Request = req.DispatchCheckRequest
+	// Remove the traversal bloom from the debug request to save some data over the
+	// wire.
+	clonedRequest := req.DispatchCheckRequest.CloneVT()
+	clonedRequest.Metadata.TraversalBloom = nil
+
+	debugInfo.Check.Request = clonedRequest
 	debugInfo.Check.Duration = durationpb.New(time.Since(*startTime))
 
 	if nspkg.GetRelationKind(relation) == iv1.RelationMetadata_PERMISSION {
@@ -138,10 +143,21 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 			results[resourceID] = found
 		}
 	}
-
 	debugInfo.Check.Results = results
+
+	// If there is existing debug information in the error, then place it as the subproblem of the current
+	// debug information.
+	if existingDebugInfo, ok := spiceerrors.GetDetails[*v1.DebugInformation](resolved.Err); ok {
+		debugInfo.Check.SubProblems = []*v1.CheckDebugTrace{existingDebugInfo.Check}
+	}
+
 	resolved.Resp.Metadata.DebugInfo = debugInfo
-	return resolved.Resp, resolved.Err
+
+	// If there is an error and it is already a gRPC error, add the debug information
+	// into the details portion of the payload. This allows the client to see the debug
+	// information, as gRPC will only return the error.
+	updatedErr := spiceerrors.WithReplacedDetails(resolved.Err, debugInfo)
+	return resolved.Resp, updatedErr
 }
 
 func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) CheckResult {

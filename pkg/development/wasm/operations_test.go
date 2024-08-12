@@ -274,7 +274,7 @@ func TestCheckOperation(t *testing.T) {
 			&editCheckResult{
 				Relationship: tuple.MustParse("document:someobj#viewer@user:foo"),
 				Error: &devinterface.DeveloperError{
-					Message: "max depth exceeded: this usually indicates a recursive or too deep data dependency",
+					Message: "max depth exceeded: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth",
 					Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
 					Source:  devinterface.DeveloperError_CHECK_WATCH,
 					Context: "document:someobj#viewer@user:foo",
