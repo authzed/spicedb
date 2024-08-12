@@ -35,7 +35,7 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
-	"github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/limits"
 	"github.com/authzed/spicedb/pkg/datastore"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -72,7 +72,7 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 				logging.SetGlobalLogger(logger)
 			}),
 		).RunE(),
-		cmd.SetLimitsRunE(),
+		limits.SetLimitsRunE(),
 		cobraotel.New("spicedb",
 			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
 		).RunE(),
