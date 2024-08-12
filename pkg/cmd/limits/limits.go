@@ -1,4 +1,4 @@
-package cmd
+package limits
 
 import (
 	"log/slog"
