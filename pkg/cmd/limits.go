@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log/slog"
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
@@ -27,8 +26,6 @@ func SetLimitsRunE() cobrautil.CobraRunFunc {
 		}
 
 		logLevel := logLevelMap[zerolog.DefaultContextLogger.GetLevel()]
-		fmt.Println("logLevel")
-		fmt.Println(logLevel)
 
 		slogger := slog.New(slogzerolog.Option{Level: logLevel, Logger: zerolog.DefaultContextLogger}.NewZerologHandler())
 
