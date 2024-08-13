@@ -18,6 +18,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/selector"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
+	"github.com/jzelinskie/cobrautil/v2/cobraproclimits"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -35,7 +36,6 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
-	"github.com/authzed/spicedb/pkg/cmd/limits"
 	"github.com/authzed/spicedb/pkg/datastore"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
@@ -72,7 +72,8 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 				logging.SetGlobalLogger(logger)
 			}),
 		).RunE(),
-		limits.SetLimitsRunE(),
+		cobraproclimits.SetMemLimitRunE(),
+		cobraproclimits.SetProcLimitRunE(),
 		cobraotel.New("spicedb",
 			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
 		).RunE(),
