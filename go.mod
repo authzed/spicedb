@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/spanner v1.65.0
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/IBM/pgxpoolprometheus v1.1.1
-	github.com/KimMachineGun/automemlimit v0.6.1
+	github.com/KimMachineGun/automemlimit v0.6.1 // indirect
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/authzed/authzed-go v0.14.0
 
@@ -54,7 +54,7 @@ require (
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/johannesboyne/gofakes3 v0.0.0-20230914150226-f005f5cc03aa
-	github.com/jzelinskie/cobrautil/v2 v2.0.0-20240506193431-cec803903353
+	github.com/jzelinskie/cobrautil/v2 v2.0.0-20240813173937-98b79ae0b499
 	github.com/jzelinskie/persistent v0.0.0-20230816160542-1205ef8f0e15
 	github.com/jzelinskie/stringz v0.0.3
 	github.com/lthibault/jitterbug v2.0.0+incompatible
@@ -75,7 +75,7 @@ require (
 	github.com/rs/xid v1.5.0
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/lo v1.46.0
-	github.com/samber/slog-zerolog/v2 v2.6.0
+	github.com/samber/slog-zerolog/v2 v2.6.0 // indirect
 	github.com/schollz/progressbar/v3 v3.14.5
 	github.com/scylladb/go-set v1.0.2
 	github.com/sean-/sysexits v1.0.0
@@ -381,7 +381,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.22.0 // indirect
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	go.uber.org/automaxprocs v1.5.3
+	go.uber.org/automaxprocs v1.5.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/crypto v0.25.0 // indirect

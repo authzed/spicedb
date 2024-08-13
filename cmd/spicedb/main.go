@@ -3,17 +3,13 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 
-	"github.com/KimMachineGun/automemlimit/memlimit"
 	mcobra "github.com/muesli/mango-cobra"
 	"github.com/muesli/roff"
 	"github.com/rs/zerolog"
-	slogzerolog "github.com/samber/slog-zerolog/v2"
 	"github.com/sercand/kuberesolver/v5"
 	"github.com/spf13/cobra"
-	"go.uber.org/automaxprocs/maxprocs"
 	"google.golang.org/grpc/balancer"
 
 	_ "google.golang.org/grpc/xds"
@@ -29,32 +25,15 @@ import (
 var errParsing = errors.New("parsing error")
 
 func main() {
+	// Set up root logger
+	// This will typically be overwritten by the logging setup for a given command.
+	log.SetGlobalLogger(zerolog.New(os.Stderr).Level(zerolog.InfoLevel))
+
 	// Enable Kubernetes gRPC resolver
 	kuberesolver.RegisterInCluster()
 
 	// Enable consistent hashring gRPC load balancer
 	balancer.Register(cmdutil.ConsistentHashringBuilder)
-
-	globalLogger := zerolog.New(os.Stderr).Level(zerolog.DebugLevel)
-	log.SetGlobalLogger(globalLogger)
-	slogger := slog.New(slogzerolog.Option{Level: slog.LevelDebug, Logger: &globalLogger}.NewZerologHandler())
-
-	undo, err := maxprocs.Set(maxprocs.Logger(globalLogger.Printf))
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to set maxprocs")
-	}
-	defer undo()
-
-	_, _ = memlimit.SetGoMemLimitWithOpts(
-		memlimit.WithRatio(0.9),
-		memlimit.WithProvider(
-			memlimit.ApplyFallback(
-				memlimit.FromCgroup,
-				memlimit.FromSystem,
-			),
-		),
-		memlimit.WithLogger(slogger),
-	)
 
 	// Create a root command
 	rootCmd := cmd.NewRootCommand("spicedb")
