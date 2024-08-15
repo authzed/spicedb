@@ -175,7 +175,7 @@ func MustParse(tpl string) *core.RelationTuple {
 	if parsed := Parse(tpl); parsed != nil {
 		return parsed
 	}
-	panic("failed to parse tuple")
+	panic("failed to parse tuple: " + tpl)
 }
 
 // Parse unmarshals the string form of a Tuple and returns nil if there is a
