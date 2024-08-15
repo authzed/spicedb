@@ -44,6 +44,31 @@ func NewSerializationError(err error) error {
 	return SerializationError{err}
 }
 
+// ReadOnlyTransactionError is returned when an otherwise read-write
+// transaction fails on writes with an error indicating that the datastore
+// is currently in a read-only mode.
+type ReadOnlyTransactionError struct {
+	error
+}
+
+func (err ReadOnlyTransactionError) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.Aborted,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_SERVICE_READ_ONLY,
+			map[string]string{},
+		),
+	)
+}
+
+// NewReadOnlyTransactionError creates a new ReadOnlyTransactionError.
+func NewReadOnlyTransactionError(err error) error {
+	return ReadOnlyTransactionError{
+		fmt.Errorf("could not perform write operation, as the datastore is currently in read-only mode: %w. This may indicate that the datastore has been put into maintenance mode", err),
+	}
+}
+
 // CreateRelationshipExistsError is an error returned when attempting to CREATE an already-existing
 // relationship.
 type CreateRelationshipExistsError struct {
