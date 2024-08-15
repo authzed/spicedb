@@ -192,6 +192,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return err
 	}
 
+	// Attach the created flagsets to the command - they're created but not registered
+	// until this function is called.
+	nfs.AddFlagSets(cmd)
+
 	return nil
 }
 
