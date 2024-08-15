@@ -122,7 +122,6 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	}
 	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
-
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
@@ -148,7 +147,6 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	dispatchFlags.Uint16Var(&config.DispatchHashringReplicationFactor, "dispatch-hashring-replication-factor", 100, "set the replication factor of the consistent hasher used for the dispatcher")
 	dispatchFlags.Uint8Var(&config.DispatchHashringSpread, "dispatch-hashring-spread", 1, "set the spread of the consistent hasher used for the dispatcher")
-
 
 	cmd.Flags().BoolVar(&config.V1SchemaAdditiveOnly, "testing-only-schema-additive-writes", false, "append new definitions to the existing schema, rather than overwriting it")
 	if err := cmd.Flags().MarkHidden("testing-only-schema-additive-writes"); err != nil {
