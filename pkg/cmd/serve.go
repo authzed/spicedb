@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/spf13/cobra"
@@ -48,6 +49,10 @@ var (
 	}
 )
 
+func BoldBlue(name string) string {
+	return color.New(color.FgCyan, color.Bold).Sprint(name)
+}
+
 func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// sets default values, but does not expose it as CLI arguments
 	config.DispatchClusterMetricsEnabled = true
@@ -55,7 +60,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	nfs := cobrautil.NewNamedFlagSets(cmd)
 
-	grpcFlagSet := nfs.FlagSet("gRPC")
+	grpcFlagSet := nfs.FlagSet(BoldBlue("gRPC"))
 	// Flags for logging
 	grpcFlagSet.BoolVar(&config.EnableRequestLogs, "grpc-log-requests-enabled", false, "logs API request payloads")
 	grpcFlagSet.BoolVar(&config.EnableResponseLogs, "grpc-log-responses-enabled", false, "logs API response payloads")
@@ -69,7 +74,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	}
 
 	// Flags for HTTP gateway
-	httpFlags := nfs.FlagSet("HTTP")
+	httpFlags := nfs.FlagSet(BoldBlue("HTTP"))
 	util.RegisterHTTPServerFlags(httpFlags, &config.HTTPGateway, "http", "gateway", ":8443", false)
 	httpFlags.StringVar(&config.HTTPGatewayUpstreamAddr, "http-upstream-override-addr", "", "Override the upstream to point to a different gRPC server")
 	if err := httpFlags.MarkHidden("http-upstream-override-addr"); err != nil {
@@ -88,7 +93,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
-	apiFlags := nfs.FlagSet("SpiceDB API")
+	apiFlags := nfs.FlagSet(BoldBlue("SpiceDB API"))
 	// Flags for configuring API behavior
 	// In a future version these will probably be prefixed.
 	apiFlags.Uint16Var(&config.MaximumPreconditionCount, "update-relationships-max-preconditions-per-call", 1000, "maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls")
@@ -106,15 +111,15 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	apiFlags.Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
 	apiFlags.Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
 
-	datastoreFlags := nfs.FlagSet("Datastore")
+	datastoreFlags := nfs.FlagSet(BoldBlue("Datastore"))
 	// Flags for the datastore
-	if err := datastore.RegisterDatastoreFlags(cmd, datastoreFlags, &config.DatastoreConfig); err != nil {
+	if err := datastore.RegisterDatastoreFlags(datastoreFlags, &config.DatastoreConfig); err != nil {
 		return err
 	}
 	// TODO: should this be under datastore or api?
 	datastoreFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
 
-	namespaceCacheFlags := nfs.FlagSet("Namespace Cache")
+	namespaceCacheFlags := nfs.FlagSet(BoldBlue("Namespace Cache"))
 	// Flags for the namespace cache
 	namespaceCacheFlags.Duration("ns-cache-expiration", 1*time.Minute, "amount of time a namespace entry should remain cached")
 	if err := namespaceCacheFlags.MarkHidden("ns-cache-expiration"); err != nil {
@@ -125,7 +130,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// Flags for parsing and validating schemas.
 	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
-	dispatchFlags := nfs.FlagSet("Dispatch")
+	dispatchFlags := nfs.FlagSet(BoldBlue("Dispatch"))
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(dispatchFlags, &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
 	server.MustRegisterCacheFlags(dispatchFlags, "dispatch-cache", &config.DispatchCacheConfig, dispatchCacheDefaults)
@@ -153,7 +158,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 		return fmt.Errorf("failed to mark flag as required: %w", err)
 	}
 
-	experimentalFlags := nfs.FlagSet("Experimental")
+	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
 	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "enables the experimental version of the lookup resources API")
 	experimentalFlags.BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache which makes use of the Watch API for automatic updates")
@@ -161,23 +166,23 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamExprs, "experimental-dispatch-secondary-upstream-exprs", nil, "map from request type (currently supported: `check`) to its associated CEL expression, which returns the secondary upstream(s) to be used for the request")
 
-	observabilityFlags := nfs.FlagSet("Observability")
+	observabilityFlags := nfs.FlagSet(BoldBlue("Observability"))
 	// Flags for observability and profiling
 	otel := cobraotel.New(cmd.Use)
 	otel.RegisterFlags(observabilityFlags)
 	runtime.RegisterFlags(observabilityFlags)
 
-	metricsFlags := nfs.FlagSet("Metrics Server")
+	metricsFlags := nfs.FlagSet(BoldBlue("Metrics Server"))
 	// Flags for metrics
 	util.RegisterHTTPServerFlags(metricsFlags, &config.MetricsAPI, "metrics", "metrics", ":9090", true)
 
-	telemetryFlags := nfs.FlagSet("Telemetry")
+	telemetryFlags := nfs.FlagSet(BoldBlue("Telemetry"))
 	// Flags for telemetry
 	telemetryFlags.StringVar(&config.TelemetryEndpoint, "telemetry-endpoint", telemetry.DefaultEndpoint, "endpoint to which telemetry is reported, empty string to disable")
 	telemetryFlags.StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
 	telemetryFlags.DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
 
-	miscellaneousFlags := nfs.FlagSet("Miscellaneous")
+	miscellaneousFlags := nfs.FlagSet(BoldBlue("Miscellaneous"))
 	// Flags for things that don't neatly fit into another bucket
 	termination.RegisterFlags(miscellaneousFlags)
 
