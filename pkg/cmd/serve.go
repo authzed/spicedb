@@ -97,9 +97,10 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	// Flags for configuring API behavior
 	// In a future version these will probably be prefixed.
 	apiFlags.Uint16Var(&config.MaximumPreconditionCount, "update-relationships-max-preconditions-per-call", 1000, "maximum number of preconditions allowed for WriteRelationships and DeleteRelationships calls")
-	// TODO: this one should maybe not live in API?
-	apiFlags.Uint64Var(&config.MaxDatastoreReadPageSize, "max-datastore-read-page-size", 1_000, "limit on the maximum page size that we will load into memory from the datastore at one time")
 	apiFlags.BoolVar(&config.DisableV1SchemaAPI, "disable-v1-schema-api", false, "disables the V1 schema API")
+	if err := apiFlags.MarkHidden("disable-v1-schema-api"); err != nil {
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
+	}
 	apiFlags.BoolVar(&config.DisableVersionResponse, "disable-version-response", false, "disables version response support in the API")
 	apiFlags.Uint16Var(&config.MaximumUpdatesPerWrite, "write-relationships-max-updates-per-call", 1000, "maximum number of updates allowed for WriteRelationships calls")
 	apiFlags.IntVar(&config.MaxCaveatContextSize, "max-caveat-context-size", 4096, "maximum allowed size of request caveat context in bytes. A value of zero or less means no limit")
@@ -116,8 +117,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err := datastore.RegisterDatastoreFlags(datastoreFlags, &config.DatastoreConfig); err != nil {
 		return err
 	}
-	// TODO: should this be under datastore or api?
-	datastoreFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
+	datastoreFlags.Uint64Var(&config.MaxDatastoreReadPageSize, "max-datastore-read-page-size", 1_000, "limit on the maximum page size that we will load into memory from the datastore at one time")
 
 	namespaceCacheFlags := nfs.FlagSet(BoldBlue("Namespace Cache"))
 	// Flags for the namespace cache
@@ -125,6 +125,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err := namespaceCacheFlags.MarkHidden("ns-cache-expiration"); err != nil {
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
+	namespaceCacheFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
 	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
 	// Flags for parsing and validating schemas.
@@ -155,7 +156,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	cmd.Flags().BoolVar(&config.V1SchemaAdditiveOnly, "testing-only-schema-additive-writes", false, "append new definitions to the existing schema, rather than overwriting it")
 	if err := cmd.Flags().MarkHidden("testing-only-schema-additive-writes"); err != nil {
-		return fmt.Errorf("failed to mark flag as required: %w", err)
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
