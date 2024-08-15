@@ -584,6 +584,10 @@ func wrapError(err error) error {
 		return common.NewSerializationError(err)
 	}
 
+	if pgxcommon.IsReadOnlyTransactionError(err) {
+		return common.NewReadOnlyTransactionError(err)
+	}
+
 	// hack: pgx asyncClose usually happens after cancellation,
 	// but the reason for it being closed is not propagated
 	// and all we get is attempting to perform an operation

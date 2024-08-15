@@ -16,6 +16,7 @@ const (
 	pgUniqueConstraintViolation = "23505"
 	pgSerializationFailure      = "40001"
 	pgTransactionAborted        = "25P02"
+	pgReadOnlyTransaction       = "25006"
 )
 
 var (
@@ -28,6 +29,13 @@ var (
 func IsConstraintFailureError(err error) bool {
 	var pgerr *pgconn.PgError
 	return errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation
+}
+
+// IsReadOnlyTransactionError returns true if the error is a Postgres error indicating a read-only
+// transaction.
+func IsReadOnlyTransactionError(err error) bool {
+	var pgerr *pgconn.PgError
+	return errors.As(err, &pgerr) && pgerr.Code == pgReadOnlyTransaction
 }
 
 // ConvertToWriteConstraintError converts the given Postgres error into a CreateRelationshipExistsError
