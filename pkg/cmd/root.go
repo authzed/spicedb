@@ -4,15 +4,12 @@ import (
 	"fmt"
 
 	"github.com/jzelinskie/cobrautil/v2"
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/spf13/cobra"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
-	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/releases"
-	"github.com/authzed/spicedb/pkg/runtime"
 )
 
 func RegisterRootFlags(cmd *cobra.Command) error {
@@ -22,15 +19,7 @@ func RegisterRootFlags(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to register zerolog flag completion: %w", err)
 	}
 
-	ot := cobraotel.New(cmd.Use)
-	ot.RegisterFlags(cmd.PersistentFlags())
-	if err := ot.RegisterFlagCompletion(cmd); err != nil {
-		return fmt.Errorf("failed to register otel flag completion: %w", err)
-	}
-
 	releases.RegisterFlags(cmd.PersistentFlags())
-	termination.RegisterFlags(cmd.PersistentFlags())
-	runtime.RegisterFlags(cmd.PersistentFlags())
 
 	return nil
 }
