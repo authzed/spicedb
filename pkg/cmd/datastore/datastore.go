@@ -159,8 +159,8 @@ type Config struct {
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) error {
-	return RegisterDatastoreFlagsWithPrefix(cmd.Flags(), "", opts)
+func RegisterDatastoreFlags(cmd *cobra.Command, flagset *pflag.FlagSet, opts *Config) error {
+	return RegisterDatastoreFlagsWithPrefix(flagset, "", opts)
 }
 
 // RegisterDatastoreFlagsWithPrefix adds datastore flags to a cobra command, with each flag prefixed with the provided
