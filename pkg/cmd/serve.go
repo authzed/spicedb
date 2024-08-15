@@ -180,7 +180,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	telemetryFlags := nfs.FlagSet(BoldBlue("Telemetry"))
 	// Flags for telemetry
 	telemetryFlags.StringVar(&config.TelemetryEndpoint, "telemetry-endpoint", telemetry.DefaultEndpoint, "endpoint to which telemetry is reported, empty string to disable")
-	telemetryFlags.StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "TODO")
+	telemetryFlags.StringVar(&config.TelemetryCAOverridePath, "telemetry-ca-override-path", "", "path to a custom CA to use with the telemetry endpoint")
 	telemetryFlags.DurationVar(&config.TelemetryInterval, "telemetry-interval", telemetry.DefaultInterval, "approximate period between telemetry reports, minimum 1 minute")
 
 	miscellaneousFlags := nfs.FlagSet(BoldBlue("Miscellaneous"))
