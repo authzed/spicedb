@@ -288,13 +288,14 @@ func TestCheckMetadata(t *testing.T) {
 
 func TestCheckPermissionOverSchema(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		schema                 string
-		relationships          []*core.RelationTuple
-		resource               *core.ObjectAndRelation
-		subject                *core.ObjectAndRelation
-		expectedPermissionship v1.ResourceCheckResult_Membership
-		expectedCaveat         *core.CaveatExpression
+		name                      string
+		schema                    string
+		relationships             []*core.RelationTuple
+		resource                  *core.ObjectAndRelation
+		subject                   *core.ObjectAndRelation
+		expectedPermissionship    v1.ResourceCheckResult_Membership
+		expectedCaveat            *core.CaveatExpression
+		alternativeExpectedCaveat *core.CaveatExpression
 	}{
 		{
 			"basic union",
@@ -311,6 +312,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -330,6 +332,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"basic exclusion",
@@ -346,6 +349,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -365,6 +369,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"basic union no permission",
@@ -379,6 +384,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -397,6 +403,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"basic exclusion no permission",
@@ -414,6 +421,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -441,6 +449,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"intersection with multiple branches",
@@ -466,6 +475,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -494,6 +504,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"intersection with multiple branches no permission",
@@ -519,6 +530,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"basic arrow",
@@ -540,6 +552,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -563,6 +576,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"basic all arrow negative",
@@ -584,6 +598,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -607,6 +622,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -635,6 +651,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"basic all arrow negative over different types",
@@ -662,6 +679,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -692,6 +710,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"all arrow for single org",
@@ -713,6 +732,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"all arrow for no orgs",
@@ -732,6 +752,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -765,6 +786,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("resource", "threeteams", "view_by_all"),
 			ONR("user", "fred", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -801,6 +823,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "fred", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"view_by_any positive directly",
@@ -836,6 +859,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "rachel", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"caveated intersection arrow",
@@ -862,6 +886,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_CAVEATED_MEMBER,
 			caveatAndCtx("somecaveat", nil),
+			nil,
 		},
 		{
 			"intersection arrow with caveated member",
@@ -888,6 +913,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_CAVEATED_MEMBER,
 			caveatAndCtx("somecaveat", nil),
+			nil,
 		},
 		{
 			"caveated intersection arrow with caveated member",
@@ -914,6 +940,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_CAVEATED_MEMBER,
 			caveatAndCtx("somecaveat", nil),
+			nil,
 		},
 		{
 			"caveated intersection arrow with caveated member, different context",
@@ -947,6 +974,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				caveatAndCtx("anothercaveat", map[string]any{"someparam": int64(43)}),
 				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
 			),
+			nil,
 		},
 		{
 			"caveated intersection arrow with multiple caveated branches",
@@ -978,8 +1006,8 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(41)}),
 				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
 			),
+			nil,
 		},
-
 		{
 			"caveated intersection arrow with multiple caveated members",
 			`definition user {}
@@ -1010,6 +1038,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(41)}),
 				caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
 			),
+			nil,
 		},
 		{
 			"caveated intersection arrow with one caveated branch",
@@ -1038,6 +1067,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_CAVEATED_MEMBER,
 			caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+			nil,
 		},
 		{
 			"caveated intersection arrow with one caveated member",
@@ -1066,6 +1096,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_CAVEATED_MEMBER,
 			caveatAndCtx("somecaveat", map[string]any{"someparam": int64(42)}),
+			nil,
 		},
 		{
 			"caveated intersection arrow multiple paths to the same subject",
@@ -1093,6 +1124,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_CAVEATED_MEMBER,
 			caveatAndCtx("somecaveat", nil),
+			nil,
 		},
 		{
 			"recursive all arrow positive result",
@@ -1129,6 +1161,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "fred", "..."),
 			v1.ResourceCheckResult_MEMBER,
 			nil,
+			nil,
 		},
 		{
 			"recursive all arrow negative result",
@@ -1164,6 +1197,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("document", "doc1", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
+			nil,
 			nil,
 		},
 		{
@@ -1202,6 +1236,79 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			ONR("user", "fred", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
 			nil,
+			nil,
+		},
+		{
+			"caveated over multiple branches",
+			`
+			 caveat somecaveat(somevalue int) {
+			    somevalue == 42
+			 }
+
+  definition user {}
+
+  definition role {
+    relation member: user
+  }
+
+  definition resource {
+      relation viewer: role#member with somecaveat
+      permission view = viewer
+  }
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`role:firstrole#member@user:tom[somecaveat:{"somevalue":40}]`),
+				tuple.MustParse(`role:secondrole#member@user:tom[somecaveat:{"somevalue":42}]`),
+				tuple.MustParse(`resource:doc1#viewer@role:firstrole#member`),
+				tuple.MustParse(`resource:doc1#viewer@role:secondrole#member`),
+			},
+			ONR("resource", "doc1", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatOr(
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(40)}),
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(42)}),
+			),
+			caveatOr(
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(42)}),
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(40)}),
+			),
+		},
+		{
+			"caveated over multiple branches reversed",
+			`
+			 caveat somecaveat(somevalue int) {
+			    somevalue == 42
+			 }
+
+  definition user {}
+  
+  definition role {
+    relation member: user
+  }
+
+  definition resource {
+      relation viewer: role#member with somecaveat
+      permission view = viewer
+  }
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`role:secondrole#member@user:tom[somecaveat:{"somevalue":42}]`),
+				tuple.MustParse(`role:firstrole#member@user:tom[somecaveat:{"somevalue":40}]`),
+				tuple.MustParse(`resource:doc1#viewer@role:secondrole#member`),
+				tuple.MustParse(`resource:doc1#viewer@role:firstrole#member`),
+			},
+			ONR("resource", "doc1", "view"),
+			ONR("user", "tom", "..."),
+			v1.ResourceCheckResult_CAVEATED_MEMBER,
+			caveatOr(
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(40)}),
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(42)}),
+			),
+			caveatOr(
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(42)}),
+				caveatAndCtx("somecaveat", map[string]any{"somevalue": int64(40)}),
+			),
 		},
 	}
 
@@ -1239,9 +1346,17 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 
 			require.Equal(tc.expectedPermissionship, membership)
 
-			if tc.expectedCaveat != nil {
+			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat == nil {
 				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectId].Expression)
 				testutil.RequireProtoEqual(t, tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat")
+			}
+
+			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat != nil {
+				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectId].Expression)
+
+				if testutil.AreProtoEqual(tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat") != nil {
+					testutil.RequireProtoEqual(t, tc.alternativeExpectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat")
+				}
 			}
 		})
 	}

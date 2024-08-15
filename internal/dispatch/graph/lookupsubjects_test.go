@@ -28,6 +28,7 @@ var (
 	caveatAndCtx = caveats.MustCaveatExprForTestingWithContext
 	caveatAnd    = caveats.And
 	caveatInvert = caveats.Invert
+	caveatOr     = caveats.Or
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {

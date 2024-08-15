@@ -1,0 +1,23 @@
+schema: >-
+  definition user {}
+
+  caveat write_limit(limit uint, count uint) {
+    count < limit
+  }
+
+  definition role {
+    relation member: user
+  }
+
+  definition database {
+      relation writer: role#member with write_limit
+      permission write = writer
+  }
+relationships: |-
+  database:listings#writer@role:default#member[write_limit:{"limit":2}]
+  database:listings#writer@role:premium#member[write_limit:{"limit":4}]
+  role:default#member@user:bob
+  role:premium#member@user:bob
+assertions:
+  assertTrue:
+    - 'database:listings#write@user:bob with {"count":3}'

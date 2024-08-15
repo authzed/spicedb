@@ -466,6 +466,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	// Find the subjects over which to dispatch.
 	subjectsToDispatch := tuple.NewONRByTypeSet()
 	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
+	hasCaveats := false
 
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
@@ -479,6 +480,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 
 		subjectsToDispatch.Add(tpl.Subject)
 		relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
+		if tpl.Caveat != nil && tpl.Caveat.CaveatName != "" {
+			hasCaveats = true
+		}
 	}
 	it.Close()
 
@@ -499,6 +503,13 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		dispatchChunkCountHistogram.Observe(chunkCount)
 	})
 
+	// If there are caveats on the incoming relationships, then we must require all results to be
+	// found, as we need to ensure that all caveats are used for building the final expression.
+	resultsSetting := crc.resultsSetting
+	if hasCaveats {
+		resultsSetting = v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
+	}
+
 	// Dispatch and map to the associated resource ID(s).
 	result := union(ctx, crc, toDispatch, func(ctx context.Context, crc currentRequestContext, dd directDispatch) CheckResult {
 		childResult := cc.dispatch(ctx, crc, ValidatedCheckRequest{
@@ -506,7 +517,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 				ResourceRelation: dd.resourceType,
 				ResourceIds:      dd.resourceIds,
 				Subject:          crc.parentReq.Subject,
-				ResultsSetting:   crc.resultsSetting,
+				ResultsSetting:   resultsSetting,
 
 				Metadata:   decrementDepth(crc.parentReq.Metadata),
 				Debug:      crc.parentReq.Debug,
