@@ -54,7 +54,7 @@ require (
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/johannesboyne/gofakes3 v0.0.0-20230914150226-f005f5cc03aa
-	github.com/jzelinskie/cobrautil/v2 v2.0.0-20240813173937-98b79ae0b499
+	github.com/jzelinskie/cobrautil/v2 v2.0.0-20240816002907-ef0e64d7f25b
 	github.com/jzelinskie/persistent v0.0.0-20230816160542-1205ef8f0e15
 	github.com/jzelinskie/stringz v0.0.3
 	github.com/lthibault/jitterbug v2.0.0+incompatible
