@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/fatih/color"
 	"github.com/go-logr/zerologr"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
@@ -72,7 +73,12 @@ func DefaultPreRunE(programName string) cobrautil.CobraRunFunc {
 				logging.SetGlobalLogger(logger)
 			}),
 		).RunE(),
-		cobraproclimits.SetMemLimitRunE(),
+		// NOTE: These need to be declared after the logger to access
+		// the logging context.
+		// NOTE: The default memlimit is 0.9. Our assumption is that SpiceDB
+		// will be the only thing consuming memory in its context, and if
+		// this needs to be configurable we can do that as a future step.
+		cobraproclimits.SetMemLimitRunE(memlimit.WithRatio(1.0)),
 		cobraproclimits.SetProcLimitRunE(),
 		cobraotel.New("spicedb",
 			cobraotel.WithLogger(zerologr.New(&logging.Logger)),
