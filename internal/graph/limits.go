@@ -49,11 +49,6 @@ func (lt *limitTracker) prepareForPublishing() bool {
 		return false
 	}
 
-	if lt.currentLimit == 1 {
-		lt.currentLimit = 0
-		return true
-	}
-
 	// otherwise, remove the element from the limit.
 	lt.currentLimit--
 	return true
