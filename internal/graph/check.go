@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -161,19 +160,14 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 }
 
 func (cc *ConcurrentChecker) checkInternal(ctx context.Context, req ValidatedCheckRequest, relation *core.Relation) CheckResult {
-	// Ensure that we have proper type information for running the check. This is now required as of the deprecation and removal
-	// of the v0 API.
-	if relation.GetTypeInformation() == nil && relation.GetUsersetRewrite() == nil {
-		return checkResultError(
-			fmt.Errorf("found relation `%s` without type information; to fix, please re-write your schema", relation.Name),
-			emptyMetadata,
-		)
-	}
+	spiceerrors.DebugAssert(func() bool {
+		return relation.GetUsersetRewrite() != nil || relation.GetTypeInformation() != nil
+	}, "found relation without type information")
 
 	// Ensure that we have at least one resource ID for which to execute the check.
 	if len(req.ResourceIds) == 0 {
 		return checkResultError(
-			fmt.Errorf("empty resource IDs given to dispatched check"),
+			spiceerrors.MustBugf("empty resource IDs given to dispatched check"),
 			emptyMetadata,
 		)
 	}
@@ -404,22 +398,12 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 				return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 			}
 
+			spiceerrors.DebugAssert(func() bool {
+				return tuple.OnrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject)
+			}, "somehow got invalid ONR for direct check matching")
+
 			// If the subject of the relationship matches the target subject, then we've found
 			// a result.
-			if !tuple.OnrEqualOrWildcard(tpl.Subject, crc.parentReq.Subject) {
-				tplString, err := tuple.String(tpl)
-				if err != nil {
-					return checkResultError(err, emptyMetadata)
-				}
-
-				return checkResultError(
-					NewCheckFailureErr(
-						fmt.Errorf("somehow got invalid ONR for direct check matching: %s vs %s", tuple.StringONR(crc.parentReq.Subject), tplString),
-					),
-					emptyMetadata,
-				)
-			}
-
 			foundResources.AddDirectMember(tpl.ResourceAndRelation.ObjectId, tpl.Caveat)
 			if crc.resultsSetting == v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT && foundResources.HasDeterminedMember() {
 				return checkResultsForMembership(foundResources, emptyMetadata)
@@ -473,11 +457,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			return checkResultError(NewCheckFailureErr(it.Err()), emptyMetadata)
 		}
 
-		// Add the subject as an object over which to dispatch.
-		if tpl.Subject.Relation == Ellipsis {
-			return checkResultError(NewCheckFailureErr(fmt.Errorf("got a terminal for a non-terminal query")), emptyMetadata)
-		}
+		spiceerrors.DebugAssert(func() bool { return tpl.Subject.Relation != Ellipsis }, "got a terminal for a non-terminal query")
 
+		// Add the subject as an object over which to dispatch.
 		subjectsToDispatch.Add(tpl.Subject)
 		relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
 		if tpl.Caveat != nil && tpl.Caveat.CaveatName != "" {
@@ -574,7 +556,7 @@ func (cc *ConcurrentChecker) checkUsersetRewrite(ctx context.Context, crc curren
 		defer span.End()
 		return difference(ctx, crc, rw.Exclusion.Child, cc.runSetOperation, cc.concurrencyLimit)
 	default:
-		return checkResultError(fmt.Errorf("unknown userset rewrite operator"), emptyMetadata)
+		return checkResultError(spiceerrors.MustBugf("unknown userset rewrite operator"), emptyMetadata)
 	}
 }
 
@@ -587,7 +569,7 @@ func (cc *ConcurrentChecker) dispatch(ctx context.Context, _ currentRequestConte
 func (cc *ConcurrentChecker) runSetOperation(ctx context.Context, crc currentRequestContext, childOneof *core.SetOperation_Child) CheckResult {
 	switch child := childOneof.ChildType.(type) {
 	case *core.SetOperation_Child_XThis:
-		return checkResultError(errors.New("use of _this is unsupported; please rewrite your schema"), emptyMetadata)
+		return checkResultError(spiceerrors.MustBugf("use of _this is unsupported; please rewrite your schema"), emptyMetadata)
 	case *core.SetOperation_Child_ComputedUserset:
 		return cc.checkComputedUserset(ctx, crc, child.ComputedUserset, nil, nil)
 	case *core.SetOperation_Child_UsersetRewrite:
@@ -1129,7 +1111,7 @@ func difference[T any](
 	}
 
 	if len(children) == 1 {
-		return checkResultError(fmt.Errorf("difference requires more than a single child"), emptyMetadata)
+		return checkResultError(spiceerrors.MustBugf("difference requires more than a single child"), emptyMetadata)
 	}
 
 	childCtx, cancelFn := context.WithCancel(ctx)
