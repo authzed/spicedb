@@ -1250,6 +1250,8 @@ github.com/jzelinskie/cobrautil/v2 v2.0.0-20240813173937-98b79ae0b499 h1:dXbwn1p
 github.com/jzelinskie/cobrautil/v2 v2.0.0-20240813173937-98b79ae0b499/go.mod h1:jsl6cEF6BT3UeQoSLreA7G0sZXemoI5XNqyxzWCohbE=
 github.com/jzelinskie/cobrautil/v2 v2.0.0-20240816002907-ef0e64d7f25b h1:dUjc3twJXVQ7FILS1+KhHilbM7LQwIvVgH4E7h0AwTA=
 github.com/jzelinskie/cobrautil/v2 v2.0.0-20240816002907-ef0e64d7f25b/go.mod h1:jsl6cEF6BT3UeQoSLreA7G0sZXemoI5XNqyxzWCohbE=
+github.com/jzelinskie/cobrautil/v2 v2.0.0-20240819150235-f7fe73942d0f h1:+WgAZQQXj+X8lcJdwcrQpD89Zd9ekdauOK3hWl3FkPU=
+github.com/jzelinskie/cobrautil/v2 v2.0.0-20240819150235-f7fe73942d0f/go.mod h1:jsl6cEF6BT3UeQoSLreA7G0sZXemoI5XNqyxzWCohbE=
 github.com/jzelinskie/persistent v0.0.0-20230816160542-1205ef8f0e15 h1:lFr5Krrc4LESaXK9yW15IQMZ4p2bZGw/+71Z1dV6tuk=
 github.com/jzelinskie/persistent v0.0.0-20230816160542-1205ef8f0e15/go.mod h1:gGiXKQUcSfUdRciTcDSuLGLZLLFSIjt1xNTE90WHDSI=
 github.com/jzelinskie/stringz v0.0.3 h1:0GhG3lVMYrYtIvRbxvQI6zqRTT1P1xyQlpa0FhfUXas=
