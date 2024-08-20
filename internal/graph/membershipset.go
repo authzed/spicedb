@@ -58,7 +58,17 @@ func (ms *MembershipSet) AddMemberViaRelationship(
 	resourceCaveatExpression *core.CaveatExpression,
 	parentRelationship *core.RelationTuple,
 ) {
-	intersection := caveatAnd(wrapCaveat(parentRelationship.Caveat), resourceCaveatExpression)
+	ms.AddMemberWithParentCaveat(resourceID, resourceCaveatExpression, parentRelationship.Caveat)
+}
+
+// AddMemberWithParentCaveat adds the given resource ID as a member with the parent caveat
+// combined via intersection with the resource's caveat. The parent caveat may be nil.
+func (ms *MembershipSet) AddMemberWithParentCaveat(
+	resourceID string,
+	resourceCaveatExpression *core.CaveatExpression,
+	parentCaveat *core.ContextualizedCaveat,
+) {
+	intersection := caveatAnd(wrapCaveat(parentCaveat), resourceCaveatExpression)
 	ms.addMember(resourceID, intersection)
 }
 
