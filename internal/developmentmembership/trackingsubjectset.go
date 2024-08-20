@@ -100,9 +100,7 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 			fs.excludedSubjects = excludedSubjects
 			fs.caveatExpression = caveatExpression
 			for _, source := range sources {
-				if source.relationships != nil {
-					fs.relationships.UpdateFrom(source.relationships)
-				}
+				fs.relationships.UpdateFrom(source.relationships)
 			}
 			return fs
 		},
