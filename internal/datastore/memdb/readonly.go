@@ -3,7 +3,6 @@ package memdb
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -524,7 +523,7 @@ func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs *core.ObjectAndRelati
 
 func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64, order options.SortOrder) *memdbTupleIterator {
 	iter := &memdbTupleIterator{it: it, limit: limit, order: order}
-	runtime.SetFinalizer(iter, mustHaveBeenClosed)
+	spiceerrors.SetFinalizerForDebugging(iter, mustHaveBeenClosed)
 	return iter
 }
 
