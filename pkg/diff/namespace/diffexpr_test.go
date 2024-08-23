@@ -97,12 +97,43 @@ func TestDiffExpressions(t *testing.T) {
 			expected: `expression-unchanged
 `,
 		},
+		{
+			name:     "item added to intersection",
+			existing: `viewer & editor`,
+			updated:  `viewer & editor & admin`,
+			expected: `children-changed
+	operation-added`,
+		},
+		{
+			name:     "intersection added",
+			existing: `viewer`,
+			updated:  `viewer & editor`,
+			expected: `operation-expanded
+	operation-added`,
+		},
+		{
+			name:     "exclusion added",
+			existing: `viewer`,
+			updated:  `viewer - editor`,
+			expected: `operation-expanded
+	operation-added`,
+		},
+		{
+			name:     "item added to exclusion",
+			existing: `viewer - editor`,
+			updated:  `viewer - editor - banned`,
+			expected: `children-changed
+	operation-type-changed
+	operation-computed-userset-changed`,
+		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			parsedExisting, err := parseUsersetRewrite(tc.existing)
 			require.NoError(t, err)
+
+			fmt.Println(parsedExisting)
 
 			parsedUpdated, err := parseUsersetRewrite(tc.updated)
 			require.NoError(t, err)
