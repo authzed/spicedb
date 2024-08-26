@@ -1,0 +1,19 @@
+---
+schema: >-
+  definition user {}
+
+  definition resource {
+      relation reader: user with some_caveat
+  }
+
+  caveat some_caveat(somecondition int) {
+    somecondition == 42
+  }
+relationships: >-
+  resource:first#reader@user:tom[some_caveat]
+
+  resource:first#reader@user:sarah[some_caveat:{"somecondition": 42}]
+assertions:
+  assertTrue: []
+  assertFalse: []
+validation: null

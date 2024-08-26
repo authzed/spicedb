@@ -89,6 +89,15 @@ func TestPopulateFromFiles(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:      "caveat order",
+			filePaths: []string{"testdata/caveat_order.yaml"},
+			want: []string{
+				"resource:first#reader@user:sarah[some_caveat:{\"somecondition\":42}]",
+				"resource:first#reader@user:tom[some_caveat]",
+			},
+			expectedError: "",
+		},
+		{
 			name:          "invalid caveat",
 			filePaths:     []string{"testdata/invalid_caveat.yaml"},
 			want:          nil,
