@@ -133,8 +133,6 @@ func TestDiffExpressions(t *testing.T) {
 			parsedExisting, err := parseUsersetRewrite(tc.existing)
 			require.NoError(t, err)
 
-			fmt.Println(parsedExisting)
-
 			parsedUpdated, err := parseUsersetRewrite(tc.updated)
 			require.NoError(t, err)
 
