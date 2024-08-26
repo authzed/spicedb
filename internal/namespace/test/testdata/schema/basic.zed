@@ -1,0 +1,14 @@
+caveat foo(someParam int) {
+	someParam == 42
+}
+
+definition document {
+	relation viewer: user | user:*
+	relation editor: user | group#member with foo
+	relation parent: organization
+	permission edit = editor
+	permission view = viewer + edit + parent->view
+	permission other = viewer - edit
+	permission intersect = viewer & edit
+	permission with_nil = (viewer - edit) & parent->view & nil
+}
