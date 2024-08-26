@@ -48,7 +48,7 @@ func Decode(encoded *v1.Cursor) (*impl.DecodedCursor, error) {
 // consumption, including the provided call context to ensure the API cursor reflects the calling
 // API method. The call hash should contain all the parameters of the calling API function,
 // as well as its revision and name.
-func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string, revision datastore.Revision) (*v1.Cursor, error) {
+func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterHash string, revision datastore.Revision, flags map[string]string) (*v1.Cursor, error) {
 	if dispatchCursor == nil {
 		return nil, spiceerrors.MustBugf("got nil dispatch cursor")
 	}
@@ -60,34 +60,51 @@ func EncodeFromDispatchCursor(dispatchCursor *dispatch.Cursor, callAndParameterH
 				DispatchVersion:       dispatchCursor.DispatchVersion,
 				Sections:              dispatchCursor.Sections,
 				CallAndParametersHash: callAndParameterHash,
+				Flags:                 flags,
 			},
 		},
 	})
+}
+
+// GetCursorFlag retrieves a flag from an encoded API cursor, if any.
+func GetCursorFlag(encoded *v1.Cursor, flagName string) (string, bool, error) {
+	decoded, err := Decode(encoded)
+	if err != nil {
+		return "", false, err
+	}
+
+	v1decoded := decoded.GetV1()
+	if v1decoded == nil {
+		return "", false, NewInvalidCursorErr(ErrNilCursor)
+	}
+
+	value, ok := v1decoded.Flags[flagName]
+	return value, ok, nil
 }
 
 // DecodeToDispatchCursor decodes an encoded API cursor into an internal dispatching cursor,
 // ensuring that the provided call context matches that encoded into the API cursor. The call
 // hash should contain all the parameters of the calling API function, as well as its revision
 // and name.
-func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*dispatch.Cursor, error) {
+func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*dispatch.Cursor, map[string]string, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	v1decoded := decoded.GetV1()
 	if v1decoded == nil {
-		return nil, NewInvalidCursorErr(ErrNilCursor)
+		return nil, nil, NewInvalidCursorErr(ErrNilCursor)
 	}
 
 	if v1decoded.CallAndParametersHash != callAndParameterHash {
-		return nil, NewInvalidCursorErr(ErrHashMismatch)
+		return nil, nil, NewInvalidCursorErr(ErrHashMismatch)
 	}
 
 	return &dispatch.Cursor{
 		DispatchVersion: v1decoded.DispatchVersion,
 		Sections:        v1decoded.Sections,
-	}, nil
+	}, v1decoded.Flags, nil
 }
 
 // DecodeToDispatchRevision decodes an encoded API cursor into an internal dispatch revision.

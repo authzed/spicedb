@@ -48,13 +48,14 @@ func TestEncodeDecode(t *testing.T) {
 			require := require.New(t)
 			encoded, err := EncodeFromDispatchCursor(&dispatch.Cursor{
 				Sections: tc.sections,
-			}, tc.hash, tc.revision)
+			}, tc.hash, tc.revision, map[string]string{"some": "flag"})
 			require.NoError(err)
 			require.NotNil(encoded)
 
-			decoded, err := DecodeToDispatchCursor(encoded, tc.hash)
+			decoded, flags, err := DecodeToDispatchCursor(encoded, tc.hash)
 			require.NoError(err)
 			require.NotNil(decoded)
+			require.Equal(map[string]string{"some": "flag"}, flags)
 
 			require.Equal(tc.sections, decoded.Sections)
 
@@ -123,7 +124,7 @@ func TestDecode(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			require := require.New(t)
 
-			decoded, err := DecodeToDispatchCursor(&v1.Cursor{
+			decoded, _, err := DecodeToDispatchCursor(&v1.Cursor{
 				Token: testCase.token,
 			}, testCase.expectedHash)
 
