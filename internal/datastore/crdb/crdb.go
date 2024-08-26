@@ -183,6 +183,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		dburl:                   url,
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
+		watchConnectTimeout:     config.watchConnectTimeout,
 		writeOverlapKeyer:       keyer,
 		overlapKeyInit:          keySetInit,
 		beginChangefeedQuery:    changefeedQuery,
@@ -267,6 +268,7 @@ type crdbDatastore struct {
 	readPool, writePool     *pool.RetryPool
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
+	watchConnectTimeout     time.Duration
 	writeOverlapKeyer       overlapKeyer
 	overlapKeyInit          func(ctx context.Context) keySet
 	analyzeBeforeStatistics bool
