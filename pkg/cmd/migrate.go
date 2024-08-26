@@ -32,7 +32,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().Uint64("migration-backfill-batch-size", 1000, "number of items to migrate per iteration of a datastore backfill")
 	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 
-	otel := cobraotel.New(cmd.Use)
+	otel := cobraotel.New("spicedb")
 	otel.RegisterFlags(cmd.Flags())
 	termination.RegisterFlags(cmd.Flags())
 	runtime.RegisterFlags(cmd.Flags())

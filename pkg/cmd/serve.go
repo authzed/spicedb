@@ -128,8 +128,6 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	namespaceCacheFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
 	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
-	// Flags for parsing and validating schemas.
-	cmd.Flags().BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	dispatchFlags := nfs.FlagSet(BoldBlue("Dispatch"))
 	// Flags for configuring the dispatch server
@@ -169,7 +167,8 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	observabilityFlags := nfs.FlagSet(BoldBlue("Observability"))
 	// Flags for observability and profiling
-	otel := cobraotel.New(cmd.Use)
+	// NOTE: cobraotel.New takes service name as an arg rather than command name.
+	otel := cobraotel.New("spicedb")
 	otel.RegisterFlags(observabilityFlags)
 	runtime.RegisterFlags(observabilityFlags)
 
@@ -186,6 +185,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	miscellaneousFlags := nfs.FlagSet(BoldBlue("Miscellaneous"))
 	// Flags for things that don't neatly fit into another bucket
 	termination.RegisterFlags(miscellaneousFlags)
+	miscellaneousFlags.BoolVar(&config.SchemaPrefixesRequired, "schema-prefixes-required", false, "require prefixes on all object definitions in schemas")
 
 	// Flags for misc services
 
