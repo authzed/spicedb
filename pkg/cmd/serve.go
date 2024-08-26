@@ -128,7 +128,6 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	namespaceCacheFlags.DurationVar(&config.SchemaWatchHeartbeat, "datastore-schema-watch-heartbeat", 1*time.Second, "heartbeat time on the schema watch in the datastore (if supported). 0 means to default to the datastore's minimum.")
 	server.MustRegisterCacheFlags(namespaceCacheFlags, "ns-cache", &config.NamespaceCacheConfig, namespaceCacheDefaults)
 
-
 	dispatchFlags := nfs.FlagSet(BoldBlue("Dispatch"))
 	// Flags for configuring the dispatch server
 	util.RegisterGRPCServerFlags(dispatchFlags, &config.DispatchServer, "dispatch-cluster", "dispatch", ":50053", false)
