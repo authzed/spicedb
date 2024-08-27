@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
@@ -160,8 +159,8 @@ type Config struct {
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) error {
-	return RegisterDatastoreFlagsWithPrefix(cmd.Flags(), "", opts)
+func RegisterDatastoreFlags(flagset *pflag.FlagSet, opts *Config) error {
+	return RegisterDatastoreFlagsWithPrefix(flagset, "", opts)
 }
 
 // RegisterDatastoreFlagsWithPrefix adds datastore flags to a cobra command, with each flag prefixed with the provided
