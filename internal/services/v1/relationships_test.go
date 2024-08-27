@@ -296,7 +296,7 @@ func TestReadRelationships(t *testing.T) {
 								stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 									Consistency: &v1.Consistency{
 										Requirement: &v1.Consistency_AtLeastAsFresh{
-											AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+											AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 										},
 									},
 									RelationshipFilter: tc.filter,
@@ -1151,7 +1151,7 @@ func TestDeleteRelationships(t *testing.T) {
 				}
 				require.NoError(err)
 				require.NotNil(resp.DeletedAt)
-				rev, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+				rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 				require.NoError(err)
 				require.True(rev.GreaterThan(revision))
 				require.EqualValues(standardTuplesWithout(tc.deleted), readAll(require, client, resp.DeletedAt))
@@ -1246,7 +1246,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				headRev, err := ds.HeadRevision(context.Background())
 				require.NoError(err)
 
-				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevision(headRev))
+				beforeDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
 
 				resp, err := client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
 					RelationshipFilter: &v1.RelationshipFilter{
@@ -1257,7 +1257,10 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 				})
 				require.NoError(err)
 
-				afterDelete := readOfType(require, "document", client, resp.DeletedAt)
+				headRev, err = ds.HeadRevision(context.Background())
+				require.NoError(err)
+
+				afterDelete := readOfType(require, "document", client, zedtoken.MustNewFromRevisionForTesting(headRev))
 				require.LessOrEqual(len(beforeDelete)-len(afterDelete), batchSize)
 
 				if i == 0 {
@@ -1268,7 +1271,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 					require.NoError(err)
 					require.NotNil(resp.DeletedAt)
 
-					rev, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
+					rev, _, err := zedtoken.DecodeRevision(resp.DeletedAt, ds)
 					require.NoError(err)
 					require.True(rev.GreaterThan(revision))
 					require.EqualValues(standardTuplesWithout(expected), readAll(require, client, resp.DeletedAt))
@@ -1525,7 +1528,7 @@ func TestReadRelationshipsInvalidCursor(t *testing.T) {
 	stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 			},
 		},
 		RelationshipFilter: &v1.RelationshipFilter{

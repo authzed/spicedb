@@ -78,7 +78,7 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndR
 		},
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 		Context: context,
@@ -98,7 +98,7 @@ func (v1st v1ServiceTester) Expand(ctx context.Context, resource *core.ObjectAnd
 		Permission: resource.Relation,
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 	})
@@ -128,7 +128,7 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 		},
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 	})
@@ -166,7 +166,7 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 		},
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 		OptionalLimit:  limit,
@@ -214,7 +214,7 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.Obj
 		OptionalSubjectRelation: optionalizeRelation(subjectRelation.Relation),
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 		Context: builtContext,
@@ -244,7 +244,7 @@ func (v1st v1ServiceTester) BulkCheck(ctx context.Context, items []*v1.BulkCheck
 		Items: items,
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 	})
@@ -260,7 +260,7 @@ func (v1st v1ServiceTester) CheckBulk(ctx context.Context, items []*v1.CheckBulk
 		Items: items,
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{
-				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+				AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(atRevision),
 			},
 		},
 	})

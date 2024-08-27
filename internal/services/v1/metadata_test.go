@@ -38,7 +38,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 				_, err := client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+							AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 						},
 					},
 					Resource:   obj("document", "masterplan"),
@@ -53,7 +53,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 				_, err := client.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+							AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 						},
 					},
 					Items: []*v1.CheckBulkPermissionsRequestItem{
@@ -96,7 +96,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 				_, err := client.ExpandPermissionTree(ctx, &v1.ExpandPermissionTreeRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+							AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 						},
 					},
 					Resource:   obj("document", "masterplan"),
@@ -130,7 +130,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 				stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+							AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 						},
 					},
 					ResourceObjectType: "document",
@@ -155,7 +155,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 				stream, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
 					Consistency: &v1.Consistency{
 						Requirement: &v1.Consistency_AtLeastAsFresh{
-							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+							AtLeastAsFresh: zedtoken.MustNewFromRevisionForTesting(revision),
 						},
 					},
 					Resource:          obj("document", "masterplan"),

@@ -362,8 +362,13 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		writeUpdateCounter.WithLabelValues(v1.RelationshipUpdate_Operation_name[int32(kind)]).Observe(float64(count))
 	}
 
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	return &v1.WriteRelationshipsResponse{
-		WrittenAt: zedtoken.MustNewFromRevision(revision),
+		WrittenAt: zedToken,
 	}, nil
 }
 
@@ -461,8 +466,13 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		return nil, ps.rewriteError(ctx, err)
 	}
 
+	zedToken, err := zedtoken.NewFromRevision(ctx, revision, ds)
+	if err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	return &v1.DeleteRelationshipsResponse{
-		DeletedAt:        zedtoken.MustNewFromRevision(revision),
+		DeletedAt:        zedToken,
 		DeletionProgress: deletionProgress,
 	}, nil
 }

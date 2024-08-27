@@ -1,6 +1,7 @@
 package cursor
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	impl "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 // Encode converts a decoded cursor to its opaque version.
@@ -92,25 +94,39 @@ func DecodeToDispatchCursor(encoded *v1.Cursor, callAndParameterHash string) (*d
 
 // DecodeToDispatchRevision decodes an encoded API cursor into an internal dispatch revision.
 // NOTE: this method does *not* verify the caller's method signature.
-func DecodeToDispatchRevision(encoded *v1.Cursor, ds revisionDecoder) (datastore.Revision, error) {
+func DecodeToDispatchRevision(ctx context.Context, encoded *v1.Cursor, ds revisionDecoder) (datastore.Revision, zedtoken.TokenStatus, error) {
 	decoded, err := Decode(encoded)
 	if err != nil {
-		return nil, err
+		return nil, zedtoken.StatusUnknown, err
 	}
 
 	v1decoded := decoded.GetV1()
 	if v1decoded == nil {
-		return nil, ErrNilCursor
+		return nil, zedtoken.StatusUnknown, ErrNilCursor
+	}
+
+	datastoreUniqueID, err := ds.UniqueID(ctx)
+	if err != nil {
+		return nil, zedtoken.StatusUnknown, fmt.Errorf(errEncodeError, err)
 	}
 
 	parsed, err := ds.RevisionFromString(v1decoded.Revision)
 	if err != nil {
-		return datastore.NoRevision, fmt.Errorf(errDecodeError, err)
+		return datastore.NoRevision, zedtoken.StatusUnknown, fmt.Errorf(errDecodeError, err)
 	}
 
-	return parsed, nil
+	if v1decoded.DatastoreUniqueId == "" {
+		return parsed, zedtoken.StatusLegacyEmptyDatastoreID, nil
+	}
+
+	if v1decoded.DatastoreUniqueId != datastoreUniqueID {
+		return parsed, zedtoken.StatusMismatchedDatastoreID, nil
+	}
+
+	return parsed, zedtoken.StatusValid, nil
 }
 
 type revisionDecoder interface {
+	UniqueID(_ context.Context) (string, error)
 	RevisionFromString(string) (datastore.Revision, error)
 }

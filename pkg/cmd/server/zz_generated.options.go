@@ -87,6 +87,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
+		to.MismatchZedTokenBehavior = c.MismatchZedTokenBehavior
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -154,6 +155,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
+	debugMap["MismatchZedTokenBehavior"] = helpers.DebugValue(c.MismatchZedTokenBehavior, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -549,6 +551,13 @@ func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32)
 func WithEnableExperimentalLookupResources(enableExperimentalLookupResources bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalLookupResources = enableExperimentalLookupResources
+	}
+}
+
+// WithMismatchZedTokenBehavior returns an option that can set MismatchZedTokenBehavior on a Config
+func WithMismatchZedTokenBehavior(mismatchZedTokenBehavior string) ConfigOption {
+	return func(c *Config) {
+		c.MismatchZedTokenBehavior = mismatchZedTokenBehavior
 	}
 }
 

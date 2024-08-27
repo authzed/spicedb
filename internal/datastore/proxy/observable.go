@@ -67,6 +67,10 @@ func NewObservableDatastoreProxy(d datastore.Datastore) datastore.Datastore {
 
 type observableProxy struct{ delegate datastore.Datastore }
 
+func (p *observableProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(ctx)
+}
+
 func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.delegate.SnapshotReader(rev)
 	return &observableReader{delegateReader}

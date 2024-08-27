@@ -99,6 +99,10 @@ type snapshot struct {
 	db       *memdb.MemDB
 }
 
+func (mdb *memdbDatastore) UniqueID(_ context.Context) (string, error) {
+	return mdb.uniqueID, nil
+}
+
 func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()

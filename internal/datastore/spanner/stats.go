@@ -25,16 +25,29 @@ var querySomeRandomRelationships = fmt.Sprintf(`SELECT %s FROM %s LIMIT 10`,
 
 const defaultEstimatedBytesPerRelationships = 20 // determined by looking at some sample clusters
 
+func (sd *spannerDatastore) UniqueID(ctx context.Context) (string, error) {
+	if sd.uniqueID.Load() == nil {
+		var uniqueID string
+		if err := sd.client.Single().Read(
+			ctx,
+			tableMetadata,
+			spanner.AllKeys(),
+			[]string{colUniqueID},
+		).Do(func(r *spanner.Row) error {
+			return r.Columns(&uniqueID)
+		}); err != nil {
+			return "", fmt.Errorf("unable to read unique ID: %w", err)
+		}
+		sd.uniqueID.Store(&uniqueID)
+		return uniqueID, nil
+	}
+
+	return *sd.uniqueID.Load(), nil
+}
+
 func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	var uniqueID string
-	if err := sd.client.Single().Read(
-		context.Background(),
-		tableMetadata,
-		spanner.AllKeys(),
-		[]string{colUniqueID},
-	).Do(func(r *spanner.Row) error {
-		return r.Columns(&uniqueID)
-	}); err != nil {
+	uniqueID, err := sd.UniqueID(ctx)
+	if err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to read unique ID: %w", err)
 	}
 

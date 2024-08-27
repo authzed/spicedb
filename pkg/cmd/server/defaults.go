@@ -179,13 +179,14 @@ const (
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.middlewareoption.go . MiddlewareOption
 type MiddlewareOption struct {
-	Logger                  zerolog.Logger      `debugmap:"hidden"`
-	AuthFunc                grpcauth.AuthFunc   `debugmap:"hidden"`
-	EnableVersionResponse   bool                `debugmap:"visible"`
-	DispatcherForMiddleware dispatch.Dispatcher `debugmap:"hidden"`
-	EnableRequestLog        bool                `debugmap:"visible"`
-	EnableResponseLog       bool                `debugmap:"visible"`
-	DisableGRPCHistogram    bool                `debugmap:"visible"`
+	Logger                    zerolog.Logger                       `debugmap:"hidden"`
+	AuthFunc                  grpcauth.AuthFunc                    `debugmap:"hidden"`
+	EnableVersionResponse     bool                                 `debugmap:"visible"`
+	DispatcherForMiddleware   dispatch.Dispatcher                  `debugmap:"hidden"`
+	EnableRequestLog          bool                                 `debugmap:"visible"`
+	EnableResponseLog         bool                                 `debugmap:"visible"`
+	DisableGRPCHistogram      bool                                 `debugmap:"visible"`
+	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -341,7 +342,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInternal(true).
-			WithInterceptor(consistencymw.UnaryServerInterceptor()).
+			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MismatchingZedTokenOption)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -415,7 +416,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInternal(true).
-			WithInterceptor(consistencymw.StreamServerInterceptor()).
+			WithInterceptor(consistencymw.StreamServerInterceptor(opts.MismatchingZedTokenOption)).
 			Done(),
 
 		NewStreamMiddleware().

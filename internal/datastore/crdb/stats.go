@@ -18,22 +18,33 @@ const (
 	colUniqueID   = "unique_id"
 )
 
-var (
-	queryReadUniqueID = psql.Select(colUniqueID).From(tableMetadata)
-	uniqueID          string
-)
+var queryReadUniqueID = psql.Select(colUniqueID).From(tableMetadata)
 
-func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
-	if len(uniqueID) == 0 {
+func (cds *crdbDatastore) UniqueID(ctx context.Context) (string, error) {
+	if cds.uniqueID.Load() == nil {
 		sql, args, err := queryReadUniqueID.ToSql()
 		if err != nil {
-			return datastore.Stats{}, fmt.Errorf("unable to prepare unique ID sql: %w", err)
+			return "", fmt.Errorf("unable to prepare unique ID sql: %w", err)
 		}
+
+		var uniqueID string
 		if err := cds.readPool.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
 			return row.Scan(&uniqueID)
 		}, sql, args...); err != nil {
-			return datastore.Stats{}, fmt.Errorf("unable to query unique ID: %w", err)
+			return "", fmt.Errorf("unable to query unique ID: %w", err)
 		}
+
+		cds.uniqueID.Store(&uniqueID)
+		return uniqueID, nil
+	}
+
+	return *cds.uniqueID.Load(), nil
+}
+
+func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
+	uniqueID, err := cds.UniqueID(ctx)
+	if err != nil {
+		return datastore.Stats{}, err
 	}
 
 	var nsDefs []datastore.RevisionedNamespace

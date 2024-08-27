@@ -28,7 +28,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 		}
 	}
 
-	uniqueID, err := mds.getUniqueID(ctx)
+	uniqueID, err := mds.UniqueID(ctx)
 	if err != nil {
 		return datastore.Stats{}, err
 	}
@@ -81,16 +81,20 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	}, nil
 }
 
-func (mds *Datastore) getUniqueID(ctx context.Context) (string, error) {
-	sql, args, err := sb.Select(metadataUniqueIDColumn).From(mds.driver.Metadata()).ToSql()
-	if err != nil {
-		return "", fmt.Errorf("unable to generate query sql: %w", err)
+func (mds *Datastore) UniqueID(ctx context.Context) (string, error) {
+	if mds.uniqueID.Load() == nil {
+		sql, args, err := sb.Select(metadataUniqueIDColumn).From(mds.driver.Metadata()).ToSql()
+		if err != nil {
+			return "", fmt.Errorf("unable to generate query sql: %w", err)
+		}
+
+		var uniqueID string
+		if err := mds.db.QueryRowContext(ctx, sql, args...).Scan(&uniqueID); err != nil {
+			return "", fmt.Errorf("unable to query unique ID: %w", err)
+		}
+		mds.uniqueID.Store(&uniqueID)
+		return uniqueID, nil
 	}
 
-	var uniqueID string
-	if err := mds.db.QueryRowContext(ctx, sql, args...).Scan(&uniqueID); err != nil {
-		return "", fmt.Errorf("unable to query unique ID: %w", err)
-	}
-
-	return uniqueID, nil
+	return *mds.uniqueID.Load(), nil
 }

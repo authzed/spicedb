@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/IBM/pgxpoolprometheus"
@@ -282,6 +283,8 @@ type crdbDatastore struct {
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	filterMaximumIDCount uint16
+
+	uniqueID atomic.Pointer[string]
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
