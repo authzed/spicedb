@@ -16,6 +16,10 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd"
+	"github.com/authzed/spicedb/pkg/cmd/cockroachdb"
+	"github.com/authzed/spicedb/pkg/cmd/memory"
+	"github.com/authzed/spicedb/pkg/cmd/mysql"
+	"github.com/authzed/spicedb/pkg/cmd/postgres"
 	cmdutil "github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 	_ "github.com/authzed/spicedb/pkg/runtime"
@@ -56,6 +60,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to register datastore command")
 	}
+	datastoreCmd.Hidden = true
 
 	cmd.RegisterDatastoreRootFlags(datastoreCmd)
 	rootCmd.AddCommand(datastoreCmd)
@@ -74,13 +79,43 @@ func main() {
 	cmd.RegisterMigrateFlags(migrateCmd)
 	rootCmd.AddCommand(migrateCmd)
 
+	// Add datastore commands
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "datastores",
+		Title: "Datastores:",
+	})
+	pgCmd, err := postgres.NewPostgresCommand(rootCmd.Use)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to register serve flags")
+	}
+	rootCmd.AddCommand(pgCmd)
+	crdbCmd, err := cockroachdb.NewCommand(rootCmd.Use)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to register serve flags")
+	}
+	rootCmd.AddCommand(crdbCmd)
+	memCmd, err := memory.NewCommand(rootCmd.Use)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to register serve flags")
+	}
+	rootCmd.AddCommand(memCmd)
+	myCmd := mysql.NewCommand(rootCmd.Use)
+	rootCmd.AddCommand(myCmd)
+
 	// Add server commands
 	serverConfig := cmdutil.NewConfigWithOptionsAndDefaults()
 	serveCmd := cmd.NewServeCommand(rootCmd.Use, serverConfig)
 	if err := cmd.RegisterServeFlags(serveCmd, serverConfig); err != nil {
 		log.Fatal().Err(err).Msg("failed to register server flags")
 	}
+	serveCmd.Hidden = true
 	rootCmd.AddCommand(serveCmd)
+
+	// Add developer tools
+	rootCmd.AddGroup(&cobra.Group{
+		ID:    "devtools",
+		Title: "Developer Tools:",
+	})
 
 	devtoolsCmd := cmd.NewDevtoolsCommand(rootCmd.Use)
 	cmd.RegisterDevtoolsFlags(devtoolsCmd)
@@ -117,6 +152,11 @@ func main() {
 	})
 
 	if err := rootCmd.Execute(); err != nil {
+		// Ensure that logging has been set-up before printing an error.
+		if preRunErr := rootCmd.PersistentPreRunE(rootCmd, nil); preRunErr != nil {
+			panic(preRunErr)
+		}
+
 		if !errors.Is(err, errParsing) {
 			log.Err(err).Msg("terminated with errors")
 		}

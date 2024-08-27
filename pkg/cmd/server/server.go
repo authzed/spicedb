@@ -43,6 +43,7 @@ import (
 	datastorecfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
+	grpcservutil "github.com/authzed/spicedb/pkg/grpcutil"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -546,7 +547,7 @@ func (c *Config) initializeGateway(ctx context.Context) (util.RunnableHTTPServer
 	}
 
 	// If the requested network is a buffered one, then disable the HTTPGateway.
-	if c.GRPCServer.Network == util.BufferedNetwork {
+	if c.GRPCServer.Network == grpcservutil.BufferedNetwork {
 		c.HTTPGateway.HTTPEnabled = false
 		gatewayServer, err := c.HTTPGateway.Complete(zerolog.InfoLevel, nil)
 		if err != nil {

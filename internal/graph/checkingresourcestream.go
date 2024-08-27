@@ -5,8 +5,8 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"sync/atomic"
 
-	"go.uber.org/atomic"
 	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/dispatch"
