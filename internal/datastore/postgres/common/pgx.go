@@ -103,6 +103,17 @@ func ConnectWithInstrumentation(ctx context.Context, url string) (*pgx.Conn, err
 	return pgx.ConnectConfig(ctx, connConfig)
 }
 
+// ConnectWithInstrumentationAndTimeout returns a pgx.Conn that has been instrumented for observability
+func ConnectWithInstrumentationAndTimeout(ctx context.Context, url string, connectTimeout time.Duration) (*pgx.Conn, error) {
+	connConfig, err := ParseConfigWithInstrumentation(url)
+	if err != nil {
+		return nil, err
+	}
+
+	connConfig.ConnectTimeout = connectTimeout
+	return pgx.ConnectConfig(ctx, connConfig)
+}
+
 // ConfigurePGXLogger sets zerolog global logger into the connection pool configuration, and maps
 // info level events to debug, as they are rather verbose for SpiceDB's info level
 func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {

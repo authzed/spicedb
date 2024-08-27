@@ -71,6 +71,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.TablePrefix = c.TablePrefix
 		to.WatchBufferLength = c.WatchBufferLength
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
+		to.WatchConnectTimeout = c.WatchConnectTimeout
 		to.MigrationPhase = c.MigrationPhase
 	}
 }
@@ -117,6 +118,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["WatchBufferLength"] = helpers.DebugValue(c.WatchBufferLength, false)
 	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
+	debugMap["WatchConnectTimeout"] = helpers.DebugValue(c.WatchConnectTimeout, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
 	return debugMap
 }
@@ -442,6 +444,13 @@ func WithWatchBufferLength(watchBufferLength uint16) ConfigOption {
 func WithWatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.WatchBufferWriteTimeout = watchBufferWriteTimeout
+	}
+}
+
+// WithWatchConnectTimeout returns an option that can set WatchConnectTimeout on a Config
+func WithWatchConnectTimeout(watchConnectTimeout time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.WatchConnectTimeout = watchConnectTimeout
 	}
 }
 

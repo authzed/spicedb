@@ -512,6 +512,11 @@ type WatchOptions struct {
 	// WatchBufferWriteTimeout is the timeout for writing to the watch channel.
 	// If given the zero value, the datastore's default will be used.
 	WatchBufferWriteTimeout time.Duration
+
+	// WatchConnectTimeout is the timeout for connecting to the watch channel.
+	// If given the zero value, the datastore's default will be used.
+	// May not be supported by the datastore.
+	WatchConnectTimeout time.Duration
 }
 
 // WatchJustRelationships returns watch options for just relationships.

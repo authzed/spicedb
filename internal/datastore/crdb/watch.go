@@ -88,12 +88,17 @@ func (cds *crdbDatastore) watch(
 	defer close(updates)
 	defer close(errs)
 
+	watchConnectTimeout := opts.WatchConnectTimeout
+	if watchConnectTimeout <= 0 {
+		watchConnectTimeout = cds.watchConnectTimeout
+	}
+
 	// get non-pooled connection for watch
 	// "applications should explicitly create dedicated connections to consume
 	// changefeed data, instead of using a connection pool as most client
 	// drivers do by default."
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
-	conn, err := pgxcommon.ConnectWithInstrumentation(ctx, cds.dburl)
+	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, watchConnectTimeout)
 	if err != nil {
 		errs <- err
 		return

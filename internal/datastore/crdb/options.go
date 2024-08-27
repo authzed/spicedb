@@ -14,6 +14,7 @@ type crdbOptions struct {
 
 	watchBufferLength           uint16
 	watchBufferWriteTimeout     time.Duration
+	watchConnectTimeout         time.Duration
 	revisionQuantization        time.Duration
 	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
@@ -40,6 +41,7 @@ const (
 	defaultMaxRevisionStalenessPercent = 0.1
 	defaultWatchBufferLength           = 128
 	defaultWatchBufferWriteTimeout     = 1 * time.Second
+	defaultWatchConnectTimeout         = 1 * time.Second
 	defaultSplitSize                   = 1024
 
 	defaultMaxRetries      = 5
@@ -61,6 +63,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		gcWindow:                    24 * time.Hour,
 		watchBufferLength:           defaultWatchBufferLength,
 		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
+		watchConnectTimeout:         defaultWatchConnectTimeout,
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
@@ -230,6 +233,14 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 // after which the caller to the watch will be disconnected.
 func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
 	return func(po *crdbOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
+// WatchConnectTimeout is the maximum timeout for connecting the watch stream
+// to the datastore.
+//
+// This value defaults to 1 second.
+func WatchConnectTimeout(watchConnectTimeout time.Duration) Option {
+	return func(po *crdbOptions) { po.watchConnectTimeout = watchConnectTimeout }
 }
 
 // RevisionQuantization is the time bucket size to which advertised revisions

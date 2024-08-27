@@ -153,6 +153,7 @@ type Config struct {
 	// Internal
 	WatchBufferLength       uint16        `debugmap:"visible"`
 	WatchBufferWriteTimeout time.Duration `debugmap:"visible"`
+	WatchConnectTimeout     time.Duration `debugmap:"visible"`
 
 	// Migrations
 	MigrationPhase string `debugmap:"visible"`
@@ -230,6 +231,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
+	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
 
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
@@ -271,6 +273,7 @@ func DefaultDatastoreConfig() *Config {
 		GCMaxOperationTime:             1 * time.Minute,
 		WatchBufferLength:              1024,
 		WatchBufferWriteTimeout:        1 * time.Second,
+		WatchConnectTimeout:            1 * time.Second,
 		EnableDatastoreMetrics:         true,
 		DisableStats:                   false,
 		BootstrapFiles:                 []string{},
@@ -411,6 +414,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
 		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		crdb.WatchConnectTimeout(opts.WatchConnectTimeout),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
 		crdb.ConnectRate(opts.ConnectRate),
