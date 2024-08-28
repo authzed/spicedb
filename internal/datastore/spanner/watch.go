@@ -159,7 +159,7 @@ func (sd *spannerDatastore) watch(
 	err = reader.Read(ctx, func(result *changestreams.ReadResult) error {
 		// See: https://cloud.google.com/spanner/docs/change-streams/details
 		for _, record := range result.ChangeRecords {
-			tracked := common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content)
+			tracked := common.NewChanges(revisions.TimestampIDKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
 
 			for _, dcr := range record.DataChangeRecords {
 				changeRevision := revisions.NewForTime(dcr.CommitTimestamp)
@@ -203,7 +203,10 @@ func (sd *spannerDatastore) watch(
 								return spiceerrors.MustBugf("error converting namespace name: %v", primaryKeyColumnValues[colNamespaceName])
 							}
 
-							tracked.AddDeletedNamespace(ctx, changeRevision, namespaceName)
+							err := tracked.AddDeletedNamespace(ctx, changeRevision, namespaceName)
+							if err != nil {
+								return err
+							}
 
 						case tableCaveat:
 							caveatNameValue, ok := primaryKeyColumnValues[colNamespaceName]
@@ -216,7 +219,10 @@ func (sd *spannerDatastore) watch(
 								return spiceerrors.MustBugf("error converting caveat name: %v", primaryKeyColumnValues[colName])
 							}
 
-							tracked.AddDeletedCaveat(ctx, changeRevision, caveatName)
+							err := tracked.AddDeletedCaveat(ctx, changeRevision, caveatName)
+							if err != nil {
+								return err
+							}
 
 						default:
 							return spiceerrors.MustBugf("unknown table name %s in delete of change stream", dcr.TableName)
@@ -274,7 +280,10 @@ func (sd *spannerDatastore) watch(
 								return err
 							}
 
-							tracked.AddChangedDefinition(ctx, changeRevision, ns)
+							err := tracked.AddChangedDefinition(ctx, changeRevision, ns)
+							if err != nil {
+								return err
+							}
 
 						case tableCaveat:
 							caveatDefValue, ok := newValues[colCaveatDefinition]
@@ -287,7 +296,10 @@ func (sd *spannerDatastore) watch(
 								return err
 							}
 
-							tracked.AddChangedDefinition(ctx, changeRevision, caveat)
+							err := tracked.AddChangedDefinition(ctx, changeRevision, caveat)
+							if err != nil {
+								return err
+							}
 
 						default:
 							return spiceerrors.MustBugf("unknown table name %s in delete of change stream", dcr.TableName)

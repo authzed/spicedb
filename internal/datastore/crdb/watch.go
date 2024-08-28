@@ -184,7 +184,7 @@ func (cds *crdbDatastore) watch(
 	// no return value so we're not really losing anything.
 	defer func() { go changes.Close() }()
 
-	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content)
+	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
 
 	for changes.Next() {
 		var tableNameBytes []byte
@@ -311,9 +311,17 @@ func (cds *crdbDatastore) watch(
 					sendError(fmt.Errorf("could not unmarshal namespace definition: %w", err))
 					return
 				}
-				tracked.AddChangedDefinition(ctx, rev, namespaceDef)
+				err = tracked.AddChangedDefinition(ctx, rev, namespaceDef)
+				if err != nil {
+					sendError(err)
+					return
+				}
 			} else {
-				tracked.AddDeletedNamespace(ctx, rev, definitionName)
+				err = tracked.AddDeletedNamespace(ctx, rev, definitionName)
+				if err != nil {
+					sendError(err)
+					return
+				}
 			}
 
 		case tableCaveat:
@@ -342,9 +350,18 @@ func (cds *crdbDatastore) watch(
 					sendError(fmt.Errorf("could not unmarshal caveat definition: %w", err))
 					return
 				}
-				tracked.AddChangedDefinition(ctx, rev, caveatDef)
+
+				err = tracked.AddChangedDefinition(ctx, rev, caveatDef)
+				if err != nil {
+					sendError(err)
+					return
+				}
 			} else {
-				tracked.AddDeletedCaveat(ctx, rev, definitionName)
+				err = tracked.AddDeletedCaveat(ctx, rev, definitionName)
+				if err != nil {
+					sendError(err)
+					return
+				}
 			}
 		}
 	}

@@ -238,7 +238,7 @@ func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRev
 		txidToRevision[rev.optionalTxID.Uint64] = rev
 	}
 
-	tracked := common.NewChanges(revisionKeyFunc, options.Content)
+	tracked := common.NewChanges(revisionKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
 
 	// Load relationship changes.
 	if options.Content&datastore.WatchRelationships == datastore.WatchRelationships {
@@ -384,10 +384,16 @@ func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, x
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+			err := tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+			if err != nil {
+				return err
+			}
 		}
 		if _, found := filter[deletedXID.Uint64]; found {
-			tracked.AddDeletedNamespace(ctx, txidToRevision[deletedXID.Uint64], loaded.Name)
+			err := tracked.AddDeletedNamespace(ctx, txidToRevision[deletedXID.Uint64], loaded.Name)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	if changes.Err() != nil {
@@ -437,10 +443,16 @@ func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, min uint64, max u
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+			err := tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+			if err != nil {
+				return err
+			}
 		}
 		if _, found := filter[deletedXID.Uint64]; found {
-			tracked.AddDeletedCaveat(ctx, txidToRevision[deletedXID.Uint64], loaded.Name)
+			err := tracked.AddDeletedCaveat(ctx, txidToRevision[deletedXID.Uint64], loaded.Name)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	if changes.Err() != nil {

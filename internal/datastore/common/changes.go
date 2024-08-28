@@ -21,9 +21,11 @@ const (
 // Changes represents a set of datastore mutations that are kept self-consistent
 // across one or more transaction revisions.
 type Changes[R datastore.Revision, K comparable] struct {
-	records map[K]changeRecord[R]
-	keyFunc func(R) K
-	content datastore.WatchContent
+	records         map[K]changeRecord[R]
+	keyFunc         func(R) K
+	content         datastore.WatchContent
+	maxByteSize     uint64
+	currentByteSize int64
 }
 
 type changeRecord[R datastore.Revision] struct {
@@ -36,11 +38,13 @@ type changeRecord[R datastore.Revision] struct {
 }
 
 // NewChanges creates a new Changes object for change tracking and de-duplication.
-func NewChanges[R datastore.Revision, K comparable](keyFunc func(R) K, content datastore.WatchContent) *Changes[R, K] {
+func NewChanges[R datastore.Revision, K comparable](keyFunc func(R) K, content datastore.WatchContent, maxByteSize uint64) *Changes[R, K] {
 	return &Changes[R, K]{
-		records: make(map[K]changeRecord[R], 0),
-		keyFunc: keyFunc,
-		content: content,
+		records:         make(map[K]changeRecord[R], 0),
+		keyFunc:         keyFunc,
+		content:         content,
+		maxByteSize:     maxByteSize,
+		currentByteSize: 0,
 	}
 }
 
@@ -60,20 +64,38 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 		return nil
 	}
 
-	record := ch.recordForRevision(rev)
+	record, err := ch.recordForRevision(rev)
+	if err != nil {
+		return err
+	}
+
 	tplKey := tuple.StringWithoutCaveat(tpl)
 
 	switch op {
 	case core.RelationTupleUpdate_TOUCH:
 		// If there was a delete for the same tuple at the same revision, drop it
-		delete(record.tupleDeletes, tplKey)
+		existing, ok := record.tupleDeletes[tplKey]
+		if ok {
+			delete(record.tupleDeletes, tplKey)
+			if err := ch.adjustByteSize(existing, -1); err != nil {
+				return err
+			}
+		}
+
 		record.tupleTouches[tplKey] = tpl
+		if err := ch.adjustByteSize(tpl, 1); err != nil {
+			return err
+		}
 
 	case core.RelationTupleUpdate_DELETE:
 		_, alreadyTouched := record.tupleTouches[tplKey]
 		if !alreadyTouched {
 			record.tupleDeletes[tplKey] = tpl
+			if err := ch.adjustByteSize(tpl, 1); err != nil {
+				return err
+			}
 		}
+
 	default:
 		log.Ctx(ctx).Warn().Stringer("operation", op).Msg("unknown change operation")
 		return spiceerrors.MustBugf("unknown change operation")
@@ -81,7 +103,29 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 	return nil
 }
 
-func (ch *Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
+type sized interface {
+	SizeVT() int
+}
+
+func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
+	if ch.maxByteSize == 0 {
+		return nil
+	}
+
+	size := item.SizeVT() * delta
+	ch.currentByteSize += int64(size)
+	if ch.currentByteSize < 0 {
+		return spiceerrors.MustBugf("byte size underflow")
+	}
+
+	if ch.currentByteSize > int64(ch.maxByteSize) {
+		return NewMaximumChangesSizeExceededError(ch.maxByteSize)
+	}
+
+	return nil
+}
+
+func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
 	k := ch.keyFunc(rev)
 	revisionChanges, ok := ch.records[k]
 	if !ok {
@@ -96,7 +140,7 @@ func (ch *Changes[R, K]) recordForRevision(rev R) changeRecord[R] {
 		ch.records[k] = revisionChanges
 	}
 
-	return revisionChanges
+	return revisionChanges, nil
 }
 
 // AddDeletedNamespace adds a change indicating that the namespace with the name was deleted.
@@ -104,15 +148,20 @@ func (ch *Changes[R, K]) AddDeletedNamespace(
 	_ context.Context,
 	rev R,
 	namespaceName string,
-) {
+) error {
 	if ch.content&datastore.WatchSchema != datastore.WatchSchema {
-		return
+		return nil
 	}
 
-	record := ch.recordForRevision(rev)
+	record, err := ch.recordForRevision(rev)
+	if err != nil {
+		return err
+	}
+
 	delete(record.definitionsChanged, nsPrefix+namespaceName)
 
 	record.namespacesDeleted[namespaceName] = struct{}{}
+	return nil
 }
 
 // AddDeletedCaveat adds a change indicating that the caveat with the name was deleted.
@@ -120,15 +169,20 @@ func (ch *Changes[R, K]) AddDeletedCaveat(
 	_ context.Context,
 	rev R,
 	caveatName string,
-) {
+) error {
 	if ch.content&datastore.WatchSchema != datastore.WatchSchema {
-		return
+		return nil
 	}
 
-	record := ch.recordForRevision(rev)
+	record, err := ch.recordForRevision(rev)
+	if err != nil {
+		return err
+	}
+
 	delete(record.definitionsChanged, caveatPrefix+caveatName)
 
 	record.caveatsDeleted[caveatName] = struct{}{}
+	return nil
 }
 
 // AddChangedDefinition adds a change indicating that the schema definition (namespace or caveat)
@@ -137,24 +191,52 @@ func (ch *Changes[R, K]) AddChangedDefinition(
 	ctx context.Context,
 	rev R,
 	def datastore.SchemaDefinition,
-) {
+) error {
 	if ch.content&datastore.WatchSchema != datastore.WatchSchema {
-		return
+		return nil
 	}
 
-	record := ch.recordForRevision(rev)
+	record, err := ch.recordForRevision(rev)
+	if err != nil {
+		return err
+	}
 
 	switch t := def.(type) {
 	case *core.NamespaceDefinition:
 		delete(record.namespacesDeleted, t.Name)
+
+		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+			if err := ch.adjustByteSize(existing, -1); err != nil {
+				return err
+			}
+		}
+
 		record.definitionsChanged[nsPrefix+t.Name] = t
+
+		if err := ch.adjustByteSize(t, 1); err != nil {
+			return err
+		}
 
 	case *core.CaveatDefinition:
 		delete(record.caveatsDeleted, t.Name)
+
+		if existing, ok := record.definitionsChanged[nsPrefix+t.Name]; ok {
+			if err := ch.adjustByteSize(existing, -1); err != nil {
+				return err
+			}
+		}
+
 		record.definitionsChanged[caveatPrefix+t.Name] = t
+
+		if err := ch.adjustByteSize(t, 1); err != nil {
+			return err
+		}
+
 	default:
 		log.Ctx(ctx).Fatal().Msg("unknown schema definition kind")
 	}
+
+	return nil
 }
 
 // AsRevisionChanges returns the list of changes processed so far as a datastore watch
