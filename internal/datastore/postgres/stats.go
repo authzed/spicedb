@@ -57,7 +57,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 
 	var uniqueID string
 	var nsDefs []datastore.RevisionedNamespace
-	var relCount int64
+	var relCount float64
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgd.readTxOptions, func(tx pgx.Tx) error {
 		if pgd.analyzeBeforeStatistics {
 			if _, err := tx.Exec(ctx, "ANALYZE "+tableTuple); err != nil {
