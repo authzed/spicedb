@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-
 	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -95,14 +93,19 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 				schema += parsed.Schema.Schema + "\n\n"
 			}
 
-			log.Ctx(ctx).Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).Msg("adding schema definitions")
+			log.Ctx(ctx).Info().Str("filePath", filePath).
+				Int("definitionCount", len(defs)).
+				Int("caveatDefinitionCount", len(parsed.Schema.CompiledSchema.CaveatDefinitions)).
+				Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).
+				Msg("adding schema definitions")
+
 			objectDefs = append(objectDefs, defs...)
 			caveatDefs = append(caveatDefs, parsed.Schema.CompiledSchema.CaveatDefinitions...)
 		}
 
 		// Parse relationships for updates.
 		for _, rel := range parsed.Relationships.Relationships {
-			tpl := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](rel)
+			tpl := tuple.MustFromRelationship(rel)
 			updates = append(updates, tuple.Touch(tpl))
 			tuples = append(tuples, tpl)
 		}
@@ -121,6 +124,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 			ts, err := typesystem.NewNamespaceTypeSystem(objectDef,
 				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
 					Namespaces: objectDefs,
+					Caveats:    caveatDefs,
 				}))
 			if err != nil {
 				return err
