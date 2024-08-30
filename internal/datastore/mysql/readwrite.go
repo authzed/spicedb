@@ -15,7 +15,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
@@ -387,7 +386,7 @@ func (rwt *mysqlReadWriteTXN) WriteNamespaces(ctx context.Context, newNamespaces
 	writeQuery := rwt.WriteNamespaceQuery
 
 	for _, newNamespace := range newNamespaces {
-		serialized, err := proto.Marshal(newNamespace)
+		serialized, err := newNamespace.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}

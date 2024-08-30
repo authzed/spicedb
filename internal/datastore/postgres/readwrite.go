@@ -15,7 +15,6 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/protobuf/proto"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -496,7 +495,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 	writeQuery := writeNamespace
 
 	for _, newNamespace := range newConfigs {
-		serialized, err := proto.Marshal(newNamespace)
+		serialized, err := newNamespace.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}

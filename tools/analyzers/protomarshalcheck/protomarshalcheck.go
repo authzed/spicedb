@@ -1,4 +1,4 @@
-package lendowncastcheck
+package protomarshalcheck
 
 import (
 	"flag"
@@ -13,27 +13,14 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 )
 
-var disallowedDowncastTypes = map[string]bool{
-	"int8":    true,
-	"int16":   true,
-	"int32":   true,
-	"int64":   true,
-	"uint":    true,
-	"uint8":   true,
-	"uint16":  true,
-	"uint32":  true,
-	"float32": true,
-	"float64": true,
-}
-
 func Analyzer() *analysis.Analyzer {
-	flagSet := flag.NewFlagSet("lendowncastcheck", flag.ExitOnError)
+	flagSet := flag.NewFlagSet("protomarshalcheck", flag.ExitOnError)
 	skipPkg := flagSet.String("skip-pkg", "", "package(s) to skip for linting")
 	skipFiles := flagSet.String("skip-files", "", "patterns of files to skip for linting")
 
 	return &analysis.Analyzer{
-		Name: "lendowncastcheck",
-		Doc:  "reports downcasting of len() calls",
+		Name: "protomarshalcheck",
+		Doc:  "reports calls to `proto.Marshal` and `proto.Unmarshal`, which should be replaced with their VT counterparts",
 		Run: func(pass *analysis.Pass) (any, error) {
 			// Check for a skipped package.
 			if len(*skipPkg) > 0 {
@@ -48,7 +35,7 @@ func Analyzer() *analysis.Analyzer {
 			// Check for a skipped file.
 			skipFilePatterns := make([]string, 0)
 			if len(*skipFiles) > 0 {
-				skipFilePatterns = lo.Map(strings.Split(*skipPkg, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
+				skipFilePatterns = lo.Map(strings.Split(*skipFiles, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
 			}
 			for _, pattern := range skipFilePatterns {
 				_, err := regexp.Compile(pattern)
@@ -76,34 +63,27 @@ func Analyzer() *analysis.Analyzer {
 					return true
 
 				case *ast.CallExpr:
-					identExpr, ok := s.Fun.(*ast.Ident)
+					selectorExpr, ok := s.Fun.(*ast.SelectorExpr)
 					if !ok {
 						return false
 					}
 
-					if _, ok := disallowedDowncastTypes[identExpr.Name]; !ok {
-						return false
-					}
-
-					if len(s.Args) != 1 {
-						return false
-					}
-
-					childExpr, ok := s.Args[0].(*ast.CallExpr)
+					expression, ok := selectorExpr.X.(*ast.Ident)
 					if !ok {
 						return false
 					}
-
-					childIdentExpr, ok := childExpr.Fun.(*ast.Ident)
-					if !ok {
+					if expression.Name != "proto" {
 						return false
 					}
 
-					if childIdentExpr.Name != "len" {
-						return false
+					if selectorExpr.Sel.Name == "Unmarshal" {
+						pass.Reportf(s.Pos(), "`use someMessage.UnmarshalVT instead`")
 					}
 
-					pass.Reportf(s.Pos(), "In package %s: found downcast of `len` call to %s", pass.Pkg.Path(), identExpr.Name)
+					if selectorExpr.Sel.Name == "Marshal" {
+						pass.Reportf(s.Pos(), "`use someStruct.MarshalVT instead`")
+					}
+
 					return false
 
 				default:
