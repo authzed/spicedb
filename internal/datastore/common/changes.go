@@ -119,7 +119,7 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 	}
 
 	if ch.currentByteSize > int64(ch.maxByteSize) {
-		return NewMaximumChangesSizeExceededError(ch.maxByteSize)
+		return datastore.NewMaximumChangesSizeExceededError(ch.maxByteSize)
 	}
 
 	return nil
