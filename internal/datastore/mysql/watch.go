@@ -148,7 +148,7 @@ func (mds *Datastore) loadChanges(
 	}
 	defer common.LogOnError(ctx, rows.Close)
 
-	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content)
+	stagedChanges := common.NewChanges(revisions.TransactionIDKeyFunc, options.Content, options.MaximumBufferedChangesByteSize)
 
 	for rows.Next() {
 		nextTuple := &core.RelationTuple{

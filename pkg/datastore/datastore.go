@@ -387,6 +387,7 @@ func (sf SubjectsFilter) AsSelector() SubjectsSelector {
 // SchemaDefinition represents a namespace or caveat definition under a schema.
 type SchemaDefinition interface {
 	GetName() string
+	SizeVT() int
 }
 
 // RevisionedDefinition holds a schema definition and its last updated revision.
@@ -517,6 +518,11 @@ type WatchOptions struct {
 	// If given the zero value, the datastore's default will be used.
 	// May not be supported by the datastore.
 	WatchConnectTimeout time.Duration
+
+	// MaximumBufferedChangesByteSize is the maximum byte size of the buffered changes struct.
+	// If unspecified, no maximum will be enforced. If the maximum is reached before
+	// the changes can be sent, the watch will be closed with an error.
+	MaximumBufferedChangesByteSize uint64
 }
 
 // WatchJustRelationships returns watch options for just relationships.

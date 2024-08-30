@@ -306,7 +306,7 @@ func TestChanges(t *testing.T) {
 			require := require.New(t)
 
 			ctx := context.Background()
-			ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+			ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 			for _, step := range tc.script {
 				if step.relationship != "" {
 					rel := tuple.MustParse(step.relationship)
@@ -315,15 +315,18 @@ func TestChanges(t *testing.T) {
 				}
 
 				for _, changed := range step.changedDefinitions {
-					ch.AddChangedDefinition(ctx, revisions.NewForTransactionID(step.revision), changed)
+					err := ch.AddChangedDefinition(ctx, revisions.NewForTransactionID(step.revision), changed)
+					require.NoError(err)
 				}
 
 				for _, ns := range step.deletedNamespaces {
-					ch.AddDeletedNamespace(ctx, revisions.NewForTransactionID(step.revision), ns)
+					err := ch.AddDeletedNamespace(ctx, revisions.NewForTransactionID(step.revision), ns)
+					require.NoError(err)
 				}
 
 				for _, c := range step.deletedCaveats {
-					ch.AddDeletedCaveat(ctx, revisions.NewForTransactionID(step.revision), c)
+					err := ch.AddDeletedCaveat(ctx, revisions.NewForTransactionID(step.revision), c)
+					require.NoError(err)
 				}
 			}
 
@@ -337,7 +340,7 @@ func TestChanges(t *testing.T) {
 
 func TestFilteredSchemaChanges(t *testing.T) {
 	ctx := context.Background()
-	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchSchema)
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
 
 	require.NoError(t, ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:firstdoc#viewer@user:tom"), core.RelationTupleUpdate_TOUCH))
@@ -346,22 +349,28 @@ func TestFilteredSchemaChanges(t *testing.T) {
 
 func TestFilteredRelationshipChanges(t *testing.T) {
 	ctx := context.Background()
-	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships)
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships, 0)
 	require.True(t, ch.IsEmpty())
 
-	ch.AddDeletedNamespace(ctx, rev3, "deletedns3")
+	err := ch.AddDeletedNamespace(ctx, rev3, "deletedns3")
+	require.NoError(t, err)
 	require.True(t, ch.IsEmpty())
 }
 
 func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 	ctx := context.Background()
-	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 
 	require.True(t, ch.IsEmpty())
 
-	ch.AddDeletedNamespace(ctx, rev1, "deletedns1")
-	ch.AddDeletedNamespace(ctx, rev2, "deletedns2")
-	ch.AddDeletedNamespace(ctx, rev3, "deletedns3")
+	err := ch.AddDeletedNamespace(ctx, rev1, "deletedns1")
+	require.NoError(t, err)
+
+	err = ch.AddDeletedNamespace(ctx, rev2, "deletedns2")
+	require.NoError(t, err)
+
+	err = ch.AddDeletedNamespace(ctx, rev3, "deletedns3")
+	require.NoError(t, err)
 
 	require.False(t, ch.IsEmpty())
 
@@ -408,7 +417,7 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 func TestHLCOrdering(t *testing.T) {
 	ctx := context.Background()
 
-	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
 
 	rev1, err := revisions.HLCRevisionFromString("1.0000000001")
@@ -451,7 +460,7 @@ func TestHLCOrdering(t *testing.T) {
 func TestHLCSameRevision(t *testing.T) {
 	ctx := context.Background()
 
-	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 	require.True(t, ch.IsEmpty())
 
 	rev0, err := revisions.HLCRevisionFromString("1")
@@ -494,6 +503,56 @@ func TestHLCSameRevision(t *testing.T) {
 			ChangedDefinitions:  []datastore.SchemaDefinition{},
 		},
 	}, remaining)
+}
+
+func TestMaximumSize(t *testing.T) {
+	ctx := context.Background()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 150)
+	require.True(t, ch.IsEmpty())
+
+	rev0, err := revisions.HLCRevisionFromString("1")
+	require.NoError(t, err)
+
+	rev1, err := revisions.HLCRevisionFromString("2")
+	require.NoError(t, err)
+
+	rev2, err := revisions.HLCRevisionFromString("3")
+	require.NoError(t, err)
+
+	rev3, err := revisions.HLCRevisionFromString("4")
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev2, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev3, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "maximum changes byte size of 150 exceeded")
+}
+
+func TestMaximumSizeReplacement(t *testing.T) {
+	ctx := context.Background()
+
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 43)
+	require.True(t, ch.IsEmpty())
+
+	rev0, err := revisions.HLCRevisionFromString("1")
+	require.NoError(t, err)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
+	require.NoError(t, err)
+	require.Equal(t, int64(43), ch.currentByteSize)
+
+	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_DELETE)
+	require.NoError(t, err)
+	require.Equal(t, int64(43), ch.currentByteSize)
 }
 
 func TestCanonicalize(t *testing.T) {

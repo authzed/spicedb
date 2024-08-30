@@ -198,7 +198,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		mdb.Lock()
 		defer mdb.Unlock()
 
-		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema)
+		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 		if tx != nil {
 			for _, change := range tx.Changes() {
 				switch change.Table {
@@ -231,9 +231,15 @@ func (mdb *memdbDatastore) ReadWriteTx(
 							return datastore.NoRevision, err
 						}
 
-						tracked.AddChangedDefinition(ctx, newRevision, loaded)
+						err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
 					} else if change.After == nil && change.Before != nil {
-						tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
+						err := tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
 					} else {
 						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
 					}
@@ -244,9 +250,15 @@ func (mdb *memdbDatastore) ReadWriteTx(
 							return datastore.NoRevision, err
 						}
 
-						tracked.AddChangedDefinition(ctx, newRevision, loaded)
+						err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
 					} else if change.After == nil && change.Before != nil {
-						tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
+						err := tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
 					} else {
 						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
 					}
