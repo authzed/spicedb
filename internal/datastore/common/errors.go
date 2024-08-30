@@ -153,14 +153,3 @@ type RevisionUnavailableError struct {
 func NewRevisionUnavailableError(err error) error {
 	return RevisionUnavailableError{err}
 }
-
-// MaximumChangesSizeExceededError is returned when the maximum size of changes is exceeded.
-type MaximumChangesSizeExceededError struct {
-	error
-	maxSize uint64
-}
-
-// NewMaximumChangesSizeExceededError creates a new MaximumChangesSizeExceededError.
-func NewMaximumChangesSizeExceededError(maxSize uint64) error {
-	return MaximumChangesSizeExceededError{fmt.Errorf("maximum changes byte size of %d exceeded", maxSize), maxSize}
-}
