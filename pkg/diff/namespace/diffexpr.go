@@ -17,6 +17,11 @@ const (
 
 	// ExpressionChildrenChanged indicates that the children of the expression were changed.
 	ExpressionChildrenChanged ExpressionChangeType = "children-changed"
+
+	// ExpressionOperationExpanded indicates that the operation type of the expression was expanded
+	// from a union of a single child to multiple children under a union, intersection or another
+	// operation.
+	ExpressionOperationExpanded ExpressionChangeType = "operation-expanded"
 )
 
 // ExpressionDiff holds the diff between two expressions.
@@ -144,12 +149,20 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		return nil, spiceerrors.MustBugf("unknown operation type %T", updated.RewriteOperation)
 	}
 
+	childChangeKind := ExpressionChildrenChanged
 	if existingType != updatedType {
-		return &ExpressionDiff{
-			existing: existing,
-			updated:  updated,
-			change:   ExpressionOperationChanged,
-		}, nil
+		// If the expression has changed from a union with a single child, then
+		// treat this as a special case, since there wasn't really an operation
+		// before.
+		if existingType != "union" || len(existingOperation.Child) != 1 {
+			return &ExpressionDiff{
+				existing: existing,
+				updated:  updated,
+				change:   ExpressionOperationChanged,
+			}, nil
+		}
+
+		childChangeKind = ExpressionOperationExpanded
 	}
 
 	childDiffs := make([]*OperationDiff, 0, abs(len(updatedOperation.Child)-len(existingOperation.Child)))
@@ -186,7 +199,7 @@ func DiffExpressions(existing *core.UsersetRewrite, updated *core.UsersetRewrite
 		return &ExpressionDiff{
 			existing:   existing,
 			updated:    updated,
-			change:     ExpressionChildrenChanged,
+			change:     childChangeKind,
 			childDiffs: childDiffs,
 		}, nil
 	}
