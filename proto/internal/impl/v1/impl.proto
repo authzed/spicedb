@@ -60,6 +60,9 @@ message V1Cursor {
 
   // dispatch_version is the version of the dispatcher which created the cursor.
   uint32 dispatch_version = 4;
+
+  // flags are flags set by the API caller.
+  map<string, string> flags = 5;
 }
 
 message DocComment {

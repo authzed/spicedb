@@ -733,6 +733,8 @@ func (m *V1Cursor) validate(all bool) error {
 
 	// no validation rules for DispatchVersion
 
+	// no validation rules for Flags
+
 	if len(errors) > 0 {
 		return V1CursorMultiError(errors)
 	}

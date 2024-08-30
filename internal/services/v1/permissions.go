@@ -391,7 +391,22 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 	}
 }
 
+const lrv2CursorFlag = "lrv2"
+
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	// If the cursor specifies that this is a LookupResources2 request, then that implementation must
+	// be used.
+	if req.OptionalCursor != nil {
+		_, ok, err := cursor.GetCursorFlag(req.OptionalCursor, lrv2CursorFlag)
+		if err != nil {
+			return ps.rewriteError(resp.Context(), err)
+		}
+
+		if ok {
+			return ps.lookupResources2(req, resp)
+		}
+	}
+
 	if ps.config.UseExperimentalLookupResources2 {
 		return ps.lookupResources2(req, resp)
 	}
@@ -445,7 +460,7 @@ func (ps *permissionServer) lookupResources1(req *v1.LookupResourcesRequest, res
 	}
 
 	if req.OptionalCursor != nil {
-		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -476,7 +491,7 @@ func (ps *permissionServer) lookupResources1(req *v1.LookupResourcesRequest, res
 			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, nil)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -573,7 +588,7 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 	}
 
 	if req.OptionalCursor != nil {
-		decodedCursor, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
+		decodedCursor, _, err := cursor.DecodeToDispatchCursor(req.OptionalCursor, lrRequestHash)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -605,7 +620,9 @@ func (ps *permissionServer) lookupResources2(req *v1.LookupResourcesRequest, res
 			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, map[string]string{
+			lrv2CursorFlag: "1",
+		})
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
