@@ -118,7 +118,7 @@ func NewCreateRelationshipExistsError(relationship *core.RelationTuple) error {
 	}
 
 	return CreateRelationshipExistsError{
-		fmt.Errorf(msg),
+		errors.New(msg),
 		relationship,
 	}
 }
