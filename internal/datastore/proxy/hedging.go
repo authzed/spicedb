@@ -155,7 +155,7 @@ func newHedgingProxyWithTimeSource(
 	}
 
 	if maxSampleCount < minMaxRequestsThreshold {
-		return nil, fmt.Errorf(fmt.Sprintf("maxSampleCount must be >=%d", minMaxRequestsThreshold))
+		return nil, fmt.Errorf("maxSampleCount must be >=%d", minMaxRequestsThreshold)
 	}
 
 	if hedgingQuantile <= 0.0 || hedgingQuantile >= 1.0 {
