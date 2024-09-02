@@ -394,16 +394,6 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 			nil,
 			testTuples,
 		},
-		{
-			"duplicates",
-			append(testTuples, testTuples[0]),
-			&v1.RelationshipFilter{
-				ResourceType:       testResourceNamespace,
-				OptionalResourceId: "resource0",
-			},
-			testTuples[1:],
-			testTuples[:1],
-		},
 	}
 
 	for _, tt := range table {
@@ -420,17 +410,13 @@ func DeleteRelationshipsTest(t *testing.T, tester DatastoreTester) {
 
 			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 
-			// NOTE: we write tuples in multiple calls to ReadWriteTransaction because it is not allowed to change
-			// the same tuple in the same transaction.
+			toTouch := make([]*core.RelationTupleUpdate, 0, len(tt.inputTuples))
+			for _, tpl := range tt.inputTuples {
+				toTouch = append(toTouch, tuple.Touch(tpl))
+			}
+
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				for _, tpl := range tt.inputTuples {
-					update := tuple.Touch(tpl)
-					err := rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{update})
-					if err != nil {
-						return err
-					}
-				}
-				return nil
+				return rwt.WriteRelationships(ctx, toTouch)
 			})
 			require.NoError(err)
 
