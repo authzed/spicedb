@@ -7,7 +7,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func set(subjects ...*core.DirectSubject) *TrackingSubjectSet {
@@ -52,7 +51,7 @@ func fs(subjectType string, subjectID string, subjectRel string, excludedSubject
 	return FoundSubject{
 		subject:          ONR(subjectType, subjectID, subjectRel),
 		excludedSubjects: excludedSubjects,
-		relationships:    tuple.NewONRSet(),
+		relationships:    NewONRSet(),
 	}
 }
 

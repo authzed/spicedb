@@ -53,7 +53,7 @@ func (s *SubjectByTypeSet) ForEachType(handler func(rr *core.RelationReference, 
 	}
 }
 
-// Map runs the mapper function over each type of object in the set, returning a new ONRByTypeSet with
+// Map runs the mapper function over each type of object in the set, returning a new SubjectByTypeSet with
 // the object type replaced by that returned by the mapper function.
 func (s *SubjectByTypeSet) Map(mapper func(rr *core.RelationReference) (*core.RelationReference, error)) (*SubjectByTypeSet, error) {
 	mapped := NewSubjectByTypeSet()

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
@@ -20,7 +19,7 @@ func cfs(subjectType string, subjectID string, subjectRel string, excludedSubjec
 	return FoundSubject{
 		subject:          ONR(subjectType, subjectID, subjectRel),
 		excludedSubjects: excludedSubjects,
-		relationships:    tuple.NewONRSet(),
+		relationships:    NewONRSet(),
 		caveatExpression: caveats.CaveatExprForTesting(caveatName),
 	}
 }
