@@ -1,11 +1,14 @@
 package memdb
 
 import (
+	"time"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -51,6 +54,25 @@ type relationship struct {
 	subjectObjectID  string
 	subjectRelation  string
 	caveat           *contextualizedCaveat
+	integrity        *relationshipIntegrity
+}
+
+type relationshipIntegrity struct {
+	keyID     string
+	hash      []byte
+	timestamp time.Time
+}
+
+func (ri relationshipIntegrity) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("keyID", ri.keyID).Bytes("hash", ri.hash).Time("timestamp", ri.timestamp)
+}
+
+func (ri relationshipIntegrity) RelationshipIntegrity() *core.RelationshipIntegrity {
+	return &core.RelationshipIntegrity{
+		KeyId:    ri.keyID,
+		Hash:     ri.hash,
+		HashedAt: timestamppb.New(ri.timestamp),
+	}
 }
 
 type contextualizedCaveat struct {
@@ -107,6 +129,12 @@ func (r relationship) RelationTuple() (*core.RelationTuple, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var ig *core.RelationshipIntegrity
+	if r.integrity != nil {
+		ig = r.integrity.RelationshipIntegrity()
+	}
+
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
 			Namespace: r.namespace,
@@ -118,7 +146,8 @@ func (r relationship) RelationTuple() (*core.RelationTuple, error) {
 			ObjectId:  r.subjectObjectID,
 			Relation:  r.subjectRelation,
 		},
-		Caveat: cr,
+		Caveat:    cr,
+		Integrity: ig,
 	}, nil
 }
 

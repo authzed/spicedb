@@ -26,6 +26,7 @@ type crdbOptions struct {
 	analyzeBeforeStatistics     bool
 	filterMaximumIDCount        uint16
 	enablePrometheusStats       bool
+	withIntegrity               bool
 }
 
 const (
@@ -52,6 +53,7 @@ const (
 	defaultEnableConnectionBalancing = true
 	defaultConnectRate               = 100 * time.Millisecond
 	defaultFilterMaximumIDCount      = 100
+	defaultWithIntegrity             = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -74,6 +76,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		enableConnectionBalancing:   defaultEnableConnectionBalancing,
 		connectRate:                 defaultConnectRate,
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
+		withIntegrity:               defaultWithIntegrity,
 	}
 
 	for _, option := range options {
@@ -329,4 +332,9 @@ func DebugAnalyzeBeforeStatistics() Option {
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
 func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 	return func(po *crdbOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
+}
+
+// WithIntegrity marks whether the datastore should store and return integrity information.
+func WithIntegrity(withIntegrity bool) Option {
+	return func(po *crdbOptions) { po.withIntegrity = withIntegrity }
 }

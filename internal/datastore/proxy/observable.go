@@ -120,6 +120,10 @@ func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, er
 	return p.delegate.Features(ctx)
 }
 
+func (p *observableProxy) OfflineFeatures() (*datastore.Features, error) {
+	return p.delegate.OfflineFeatures()
+}
+
 func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	ctx, closer := observe(ctx, "Statistics")
 	defer closer()

@@ -563,7 +563,18 @@ func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, err
 }
 
 func (mds *Datastore) Features(_ context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+	return mds.OfflineFeatures()
+}
+
+func (mds *Datastore) OfflineFeatures() (*datastore.Features, error) {
+	return &datastore.Features{
+		Watch: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+	}, nil
 }
 
 // isSeeded determines if the backing database has been seeded

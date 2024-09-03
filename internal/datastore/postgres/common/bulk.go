@@ -16,6 +16,7 @@ type tupleSourceAdapter struct {
 	current      *core.RelationTuple
 	err          error
 	valuesBuffer []any
+	colNames     []string
 }
 
 // Next returns true if there is another row and makes the next row data
@@ -44,6 +45,12 @@ func (tg *tupleSourceAdapter) Values() ([]any, error) {
 	tg.valuesBuffer[6] = caveatName
 	tg.valuesBuffer[7] = caveatContext
 
+	if len(tg.colNames) > 8 && tg.current.Integrity != nil {
+		tg.valuesBuffer[8] = tg.current.Integrity.KeyId
+		tg.valuesBuffer[9] = tg.current.Integrity.Hash
+		tg.valuesBuffer[10] = tg.current.Integrity.HashedAt.AsTime()
+	}
+
 	return tg.valuesBuffer, nil
 }
 
@@ -63,7 +70,8 @@ func BulkLoad(
 	adapter := &tupleSourceAdapter{
 		source:       iter,
 		ctx:          ctx,
-		valuesBuffer: make([]any, 8),
+		valuesBuffer: make([]any, len(colNames)),
+		colNames:     colNames,
 	}
 	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
 	return uint64(copied), err

@@ -581,8 +581,13 @@ type ReadOnlyDatastore interface {
 	ReadyState(ctx context.Context) (ReadyState, error)
 
 	// Features returns an object representing what features this
-	// datastore can support.
+	// datastore can support. Can make calls to the database, so should
+	// only be used when a connection is allowed.
 	Features(ctx context.Context) (*Features, error)
+
+	// OfflineFeatures returns an object representing what features this
+	// datastore supports code-wise, without making any calls to the database.
+	OfflineFeatures() (*Features, error)
 
 	// Statistics returns relevant values about the data contained in this cluster.
 	Statistics(ctx context.Context) (Stats, error)
@@ -680,17 +685,37 @@ func UnwrapAs[T any](datastore Datastore) T {
 	return ds
 }
 
+// FeatureStatus are the possible statuses for a feature in the datastore.
+type FeatureStatus int
+
+const (
+	// FeatureStatusUnknown indicates that the status of the feature is unknown.
+	// This can be returned, for example, when a call is made to OfflineFeatures
+	// but the feature requires a call to the database to determine its status.
+	FeatureStatusUnknown FeatureStatus = iota
+
+	// FeatureSupported indicates that the feature is supported by the datastore.
+	FeatureSupported
+
+	// FeatureUnsupported indicates that the feature is not supported by the datastore.
+	FeatureUnsupported
+)
+
 // Feature represents a capability that a datastore can support, plus an
 // optional message explaining the feature is available (or not).
 type Feature struct {
-	Enabled bool
-	Reason  string
+	Status FeatureStatus
+	Reason string
 }
 
 // Features holds values that represent what features a database can support.
 type Features struct {
 	// Watch is enabled if the underlying datastore can support the Watch api.
 	Watch Feature
+
+	// IntegrityData is enabled if the underlying datastore supports retrieving and storing
+	// integrity information.
+	IntegrityData Feature
 }
 
 // ObjectTypeStat represents statistics for a single object type (namespace).

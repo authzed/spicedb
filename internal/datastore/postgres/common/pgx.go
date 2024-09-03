@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -29,12 +30,19 @@ const errUnableToQueryTuples = "unable to query tuples: %w"
 func NewPGXExecutor(querier DBFuncQuerier) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
 		span := trace.SpanFromContext(ctx)
-		return queryTuples(ctx, sql, args, span, querier)
+		return queryTuples(ctx, sql, args, span, querier, false)
+	}
+}
+
+func NewPGXExecutorWithIntegrityOption(querier DBFuncQuerier, withIntegrity bool) common.ExecuteQueryFunc {
+	return func(ctx context.Context, sql string, args []any) ([]*corev1.RelationTuple, error) {
+		span := trace.SpanFromContext(ctx)
+		return queryTuples(ctx, sql, args, span, querier, withIntegrity)
 	}
 }
 
 // queryTuples queries tuples for the given query and transaction.
-func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBFuncQuerier) ([]*corev1.RelationTuple, error) {
+func queryTuples(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBFuncQuerier, withIntegrity bool) ([]*corev1.RelationTuple, error) {
 	var tuples []*corev1.RelationTuple
 	err := tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 		span.AddEvent("Query issued to database")
@@ -46,24 +54,53 @@ func queryTuples(ctx context.Context, sqlStatement string, args []any, span trac
 			}
 			var caveatName sql.NullString
 			var caveatCtx map[string]any
-			err := rows.Scan(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-				&caveatName,
-				&caveatCtx,
-			)
-			if err != nil {
-				return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
+
+			if withIntegrity {
+				var integrityKeyID string
+				var integrityHash []byte
+				var timestamp time.Time
+
+				if err := rows.Scan(
+					&nextTuple.ResourceAndRelation.Namespace,
+					&nextTuple.ResourceAndRelation.ObjectId,
+					&nextTuple.ResourceAndRelation.Relation,
+					&nextTuple.Subject.Namespace,
+					&nextTuple.Subject.ObjectId,
+					&nextTuple.Subject.Relation,
+					&caveatName,
+					&caveatCtx,
+					&integrityKeyID,
+					&integrityHash,
+					&timestamp,
+				); err != nil {
+					return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
+				}
+
+				nextTuple.Integrity = &corev1.RelationshipIntegrity{
+					KeyId:    integrityKeyID,
+					Hash:     integrityHash,
+					HashedAt: timestamppb.New(timestamp),
+				}
+			} else {
+				if err := rows.Scan(
+					&nextTuple.ResourceAndRelation.Namespace,
+					&nextTuple.ResourceAndRelation.ObjectId,
+					&nextTuple.ResourceAndRelation.Relation,
+					&nextTuple.Subject.Namespace,
+					&nextTuple.Subject.ObjectId,
+					&nextTuple.Subject.Relation,
+					&caveatName,
+					&caveatCtx,
+				); err != nil {
+					return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
+				}
 			}
 
-			nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
+			caveat, err := common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
 			if err != nil {
 				return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("unable to fetch caveat context: %w", err))
 			}
+			nextTuple.Caveat = caveat
 			tuples = append(tuples, nextTuple)
 		}
 		if err := rows.Err(); err != nil {

@@ -674,8 +674,30 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 	}, nil
 }
 
-func (pgd *pgDatastore) Features(_ context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: pgd.watchEnabled}}, nil
+func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return pgd.OfflineFeatures()
+}
+
+func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
+	if pgd.watchEnabled {
+		return &datastore.Features{
+			Watch: datastore.Feature{
+				Status: datastore.FeatureSupported,
+			},
+			IntegrityData: datastore.Feature{
+				Status: datastore.FeatureUnsupported,
+			},
+		}, nil
+	}
+
+	return &datastore.Features{
+		Watch: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+	}, nil
 }
 
 func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer {

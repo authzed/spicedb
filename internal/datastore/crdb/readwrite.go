@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -49,7 +50,7 @@ type crdbReadWriteTXN struct {
 }
 
 var (
-	upsertTupleSuffix = fmt.Sprintf(
+	upsertTupleSuffixWithoutIntegrity = fmt.Sprintf(
 		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
@@ -68,20 +69,28 @@ var (
 		colCaveatContext,
 	)
 
-	queryWriteTuple = psql.Insert(tableTuple).Columns(
+	upsertTupleSuffixWithIntegrity = fmt.Sprintf(
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
 		colRelation,
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colTimestamp,
+		colCaveatContextName,
 		colCaveatContextName,
 		colCaveatContext,
+		colCaveatContext,
+		colIntegrityKeyID,
+		colIntegrityKeyID,
+		colIntegrityHash,
+		colIntegrityHash,
+		colCaveatContextName,
+		colCaveatContextName,
+		colCaveatContext,
+		colCaveatContext,
 	)
-
-	queryTouchTuple = queryWriteTuple.Suffix(upsertTupleSuffix)
-
-	queryDeleteTuples = psql.Delete(tableTuple)
 
 	queryTouchTransaction = fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES ($1::text) ON CONFLICT (%s) DO UPDATE SET %s = now()",
@@ -102,6 +111,50 @@ var (
 
 	queryDeleteCounter = psql.Delete(tableRelationshipCounter)
 )
+
+func (rwt *crdbReadWriteTXN) insertQuery() sq.InsertBuilder {
+	return psql.Insert(rwt.tupleTableName)
+}
+
+func (rwt *crdbReadWriteTXN) queryDeleteTuples() sq.DeleteBuilder {
+	return psql.Delete(rwt.tupleTableName)
+}
+
+func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
+	if rwt.withIntegrity {
+		return rwt.insertQuery().Columns(
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatContextName,
+			colCaveatContext,
+			colIntegrityKeyID,
+			colIntegrityHash,
+		)
+	}
+
+	return rwt.insertQuery().Columns(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
+	)
+}
+
+func (rwt *crdbReadWriteTXN) queryTouchTuple() sq.InsertBuilder {
+	if rwt.withIntegrity {
+		return rwt.queryWriteTuple().Suffix(upsertTupleSuffixWithIntegrity)
+	}
+
+	return rwt.queryWriteTuple().Suffix(upsertTupleSuffixWithoutIntegrity)
+}
 
 func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
 	counters, err := rwt.lookupCounters(ctx, name)
@@ -200,13 +253,13 @@ func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string,
 }
 
 func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	bulkWrite := queryWriteTuple
+	bulkWrite := rwt.queryWriteTuple()
 	var bulkWriteCount int64
 
-	bulkTouch := queryTouchTuple
+	bulkTouch := rwt.queryTouchTuple()
 	var bulkTouchCount int64
 
-	bulkDelete := queryDeleteTuples
+	bulkDelete := rwt.queryDeleteTuples()
 	bulkDeleteOr := sq.Or{}
 	var bulkDeleteCount int64
 
@@ -221,36 +274,49 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 			caveatContext = rel.Caveat.Context.AsMap()
 		}
 
+		var integrityKeyID *string
+		var integrityHash []byte
+
+		if rel.Integrity != nil {
+			if !rwt.withIntegrity {
+				return spiceerrors.MustBugf("attempted to write a relationship with integrity, but the datastore does not support integrity")
+			}
+
+			integrityKeyID = &rel.Integrity.KeyId
+			integrityHash = rel.Integrity.Hash
+		} else if rwt.withIntegrity {
+			return spiceerrors.MustBugf("attempted to write a relationship without integrity, but the datastore requires integrity")
+		}
+
+		values := []any{
+			rel.ResourceAndRelation.Namespace,
+			rel.ResourceAndRelation.ObjectId,
+			rel.ResourceAndRelation.Relation,
+			rel.Subject.Namespace,
+			rel.Subject.ObjectId,
+			rel.Subject.Relation,
+			caveatName,
+			caveatContext,
+		}
+
+		if rwt.withIntegrity {
+			values = append(values, integrityKeyID, integrityHash)
+		}
+
 		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
 		rwt.addOverlapKey(rel.Subject.Namespace)
 
 		switch mutation.Operation {
 		case core.RelationTupleUpdate_TOUCH:
 			rwt.relCountChange++
-			bulkTouch = bulkTouch.Values(
-				rel.ResourceAndRelation.Namespace,
-				rel.ResourceAndRelation.ObjectId,
-				rel.ResourceAndRelation.Relation,
-				rel.Subject.Namespace,
-				rel.Subject.ObjectId,
-				rel.Subject.Relation,
-				caveatName,
-				caveatContext,
-			)
+			bulkTouch = bulkTouch.Values(values...)
 			bulkTouchCount++
+
 		case core.RelationTupleUpdate_CREATE:
 			rwt.relCountChange++
-			bulkWrite = bulkWrite.Values(
-				rel.ResourceAndRelation.Namespace,
-				rel.ResourceAndRelation.ObjectId,
-				rel.ResourceAndRelation.Relation,
-				rel.Subject.Namespace,
-				rel.Subject.ObjectId,
-				rel.Subject.Relation,
-				caveatName,
-				caveatContext,
-			)
+			bulkWrite = bulkWrite.Values(values...)
 			bulkWriteCount++
+
 		case core.RelationTupleUpdate_DELETE:
 			rwt.relCountChange--
 			bulkDeleteOr = append(bulkDeleteOr, exactRelationshipClause(rel))
@@ -309,7 +375,7 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 
 func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := queryDeleteTuples
+	query := rwt.queryDeleteTuples()
 
 	if filter.ResourceType != "" {
 		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
@@ -427,7 +493,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.Where(sq.Or(tplClauses)).ToSql()
+	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples().Where(sq.Or(tplClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -454,8 +520,26 @@ var copyCols = []string{
 	colCaveatContext,
 }
 
+var copyColsWithIntegrity = []string{
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatContextName,
+	colCaveatContext,
+	colIntegrityKeyID,
+	colIntegrityHash,
+	colTimestamp,
+}
+
 func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
-	return pgxcommon.BulkLoad(ctx, rwt.tx, tableTuple, copyCols, iter)
+	if rwt.withIntegrity {
+		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.tupleTableName, copyColsWithIntegrity, iter)
+	}
+
+	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.tupleTableName, copyCols, iter)
 }
 
 var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}

@@ -61,6 +61,8 @@ func (btg *BulkTupleGenerator) Next(_ context.Context) (*core.RelationTuple, err
 	btg.remaining--
 	btg.current.ResourceAndRelation.ObjectId = strconv.Itoa(btg.remaining)
 	btg.current.Subject.ObjectId = strconv.Itoa(btg.remaining)
+	btg.current.Caveat = nil
+	btg.current.Integrity = nil
 
 	return &btg.current, nil
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
@@ -50,6 +51,10 @@ type changeDetails struct {
 
 		RelationshipCaveatContext map[string]any `json:"caveat_context"`
 		RelationshipCaveatName    string         `json:"caveat_name"`
+
+		IntegrityKeyID     *string `json:"integrity_key_id"`
+		IntegrityHashAsHex *string `json:"integrity_hash"`
+		TimestampAsString  *string `json:"timestamp"`
 	}
 }
 
@@ -68,7 +73,7 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	if !features.Watch.Enabled {
+	if features.Watch.Status != datastore.FeatureSupported {
 		errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))
 		return updates, errs
 	}
@@ -107,7 +112,7 @@ func (cds *crdbDatastore) watch(
 
 	tableNames := make([]string, 0, 3)
 	if opts.Content&datastore.WatchRelationships == datastore.WatchRelationships {
-		tableNames = append(tableNames, tableTuple)
+		tableNames = append(tableNames, cds.tableTupleName())
 	}
 	if opts.Content&datastore.WatchSchema == datastore.WatchSchema {
 		tableNames = append(tableNames, tableNamespace)
@@ -240,7 +245,7 @@ func (cds *crdbDatastore) watch(
 		}
 
 		switch tableName {
-		case tableTuple:
+		case cds.tableTupleName():
 			var caveatName string
 			var caveatContext map[string]any
 			if details.After != nil && details.After.RelationshipCaveatName != "" {
@@ -251,6 +256,30 @@ func (cds *crdbDatastore) watch(
 			if err != nil {
 				sendError(err)
 				return
+			}
+
+			var integrity *core.RelationshipIntegrity
+
+			if details.After != nil && details.After.IntegrityKeyID != nil && details.After.IntegrityHashAsHex != nil && details.After.TimestampAsString != nil {
+				hexString := *details.After.IntegrityHashAsHex
+				hashBytes, err := hex.DecodeString(hexString[2:]) // drop the \x
+				if err != nil {
+					sendError(fmt.Errorf("could not decode hash bytes: %w", err))
+					return
+				}
+
+				timestampString := *details.After.TimestampAsString
+				parsedTime, err := time.Parse("2006-01-02T15:04:05.999999999", timestampString)
+				if err != nil {
+					sendError(fmt.Errorf("could not parse timestamp: %w", err))
+					return
+				}
+
+				integrity = &core.RelationshipIntegrity{
+					KeyId:    *details.After.IntegrityKeyID,
+					Hash:     hashBytes,
+					HashedAt: timestamppb.New(parsedTime),
+				}
 			}
 
 			tuple := &core.RelationTuple{
@@ -264,7 +293,8 @@ func (cds *crdbDatastore) watch(
 					ObjectId:  pkValues[4],
 					Relation:  pkValues[5],
 				},
-				Caveat: ctxCaveat,
+				Caveat:    ctxCaveat,
+				Integrity: integrity,
 			}
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)

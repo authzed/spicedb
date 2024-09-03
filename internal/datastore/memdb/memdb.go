@@ -133,6 +133,10 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	return &memdbReader{noopTryLocker{}, txSrc, nil}
 }
 
+func (mdb *memdbDatastore) SupportsIntegrity() bool {
+	return true
+}
+
 func (mdb *memdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
@@ -308,8 +312,19 @@ func (mdb *memdbDatastore) ReadyState(_ context.Context) (datastore.ReadyState, 
 	}, nil
 }
 
+func (mdb *memdbDatastore) OfflineFeatures() (*datastore.Features, error) {
+	return &datastore.Features{
+		Watch: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+	}, nil
+}
+
 func (mdb *memdbDatastore) Features(_ context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+	return mdb.OfflineFeatures()
 }
 
 func (mdb *memdbDatastore) Close() error {

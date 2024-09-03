@@ -308,8 +308,19 @@ func (sd *spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyStat
 	}, nil
 }
 
-func (sd *spannerDatastore) Features(_ context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+func (sd *spannerDatastore) Features(ctx context.Context) (*datastore.Features, error) {
+	return sd.OfflineFeatures()
+}
+
+func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
+	return &datastore.Features{
+		Watch: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+	}, nil
 }
 
 func (sd *spannerDatastore) Close() error {

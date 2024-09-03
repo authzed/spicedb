@@ -34,7 +34,14 @@ func RetryTest(t *testing.T, tester DatastoreTester) {
 			rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 			require.NoError(err)
 
-			ds := rawDS.(TestableDatastore)
+			var ds TestableDatastore
+			if tds, ok := rawDS.(TestableDatastore); ok {
+				ds = tds
+			} else {
+				if uw, ok := rawDS.(datastore.UnwrappableDatastore); ok {
+					ds = uw.Unwrap().(TestableDatastore)
+				}
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
 			defer cancel()
