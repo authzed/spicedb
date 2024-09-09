@@ -33,12 +33,33 @@
 </p>
 
 ## What is SpiceDB?
+<a href="https://authzed.com#gh-dark-mode-only" target="_blank"><img align="right" width="300" src="https://github.com/user-attachments/assets/e0e70549-91dc-4a07-9309-2e18942a7902" alt="spicedb diagram" /></a>
+<a href="https://authzed.com#gh-light-mode-only" target="_blank"><img align="right" width="300" src="https://github.com/user-attachments/assets/97342fce-d94b-42b6-b02f-fe3958d13981" alt="spicedb diagram" /></a>
 
-SpiceDB is a graph database purpose-built for storing and evaluating access control data.
+SpiceDB is the most mature open source project inspired by Google's internal authorization system: [Zanzibar].
 
-As of 2021, [broken access control became the #1 threat to the web][owasp]. With SpiceDB, developers finally have the solution to stopping this threat the same way as the hyperscalers.
+As of 2021, [broken access control became the #1 threat to web security according to OWASP][owasp].
+With SpiceDB, platform teams are armed with the same techniques for stopping this threat that the hyperscale tech companies have been doing for years behind closed doors.
+
+Similar to a relational database, developers define a schema, write data to the database, and query that data in various ways.
+Unlike a relational databases that use general-purpose SQL, SpiceDB exposes a gRPC API optimized specifically for authorizing actions in your systems.
+
+Because SpiceDB self-contains data and logic for used for authorization, it is often ran as a centralized service shared across product suites and microservice architectures.
+
+SpiceDB is focused purely on *authorization* and is designed to be fully agnostic to *authentication* solutions/identity providers.
 
 [owasp]: https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+
+### What is Google Zanzibar?
+
+In 2019, Google released the paper "[Zanzibar: Google's Consistent, Global Authorization System][zanzibar]" providing the original inspiration for SpiceDB.
+The paper presents the design, implementation, and deployment of, Zanzibar, Google's internal system for storing and evaluating access control lists.
+Originally designed for [Google+ Circles][circles], Zanzibar now sits at the core Google's entire product suite (Calendar, Drive, Maps, Photos, YouTube) and powers the Google Cloud IAM service.
+
+While SpiceDB has gone on to innovate well beyond the functionality outlined in the paper, development of SpiceDB aims to always remain faithful to the paper's values and goals.
+
+[zanzibar]: https://authzed.com/zanzibar
+[circles]: https://en.wikipedia.org/wiki/Google+#Circles
 
 ### Why SpiceDB?
 
@@ -58,14 +79,48 @@ As of 2021, [broken access control became the #1 threat to the web][owasp]. With
 [reverse-indexes]: https://authzed.com/docs/spicedb/getting-started/faq#what-is-a-reverse-index
 [consistency]: https://authzed.com/docs/spicedb/concepts/consistency
 
+### Who uses SpiceDB?
+
+SpiceDB is a powerful tool in a variety of domains and in organizations of all sizes; we've chosen to highlight a few interesting community members:
+
+- [IBM's AI Data & Model Factory Platform](https://youtu.be/4K2a9HcRhXA)
+- [Red Hat's Insights Platform](https://www.redhat.com/en/technologies/management/insights)
+- [GitPod](https://github.com/gitpod-io/gitpod/issues/15632)
+- [TubiTV China (中文)](https://zhuanlan.zhihu.com/p/685603356)
+- [DMM Online Salon (日本語)](https://inside.dmm.com/articles/salon-datebase-migration-challenges/)
+
+Beyond the community, you can also read [customer stories][stories] for commercial usage of SpiceDB.
+
+[stories]: https://authzed.com/customers
+
 ## Joining the Community
+
+Join our fellow contributors from companies such as <a href="#"><img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"></a> GitHub, <a href="#"><img alt="adobe logo" height="15px" src="https://github.com/user-attachments/assets/64007fa0-f342-4eba-bc81-0e078677e918"></a> Adobe, <a href="#"><img alt="google logo" height="15px" src="https://github.com/user-attachments/assets/15a144f4-4244-40af-be58-53ea3be46bc4"></a> Google, <a href="#"><img alt="fastly logo" height="15px" src="https://github.com/user-attachments/assets/57f042c3-e106-4524-95b8-167acc6be16e"></a> Fastly, <a href="#"><img alt="plaid logo" height="15px" src="https://github.com/user-attachments/assets/0678972d-b8ff-41e6-a507-7289a1ee1e94"></a> Plaid, <a href="#"><img alt="red hat logo" height="15px" src="https://github.com/user-attachments/assets/955a6c28-3a5c-4679-8e12-b50734024be2"></a> Red Hat, and <a href="#"><img alt="reddit logo" height="15px" src="https://github.com/user-attachments/assets/78d542f9-37f7-4d78-bf34-8aa0b0ddd12d"></a> Reddit.
 
 SpiceDB is a community project where everyone is invited to participate and [feel welcomed].
 While the project has a technical goal, participation is not restricted to those with code contributions.
 
-[feel welcomed]: CODE-OF-CONDUCT.md
+[CONTRIBUTING.md] documents communication, contribution flow, legal requirements, and common tasks when contributing to the project.
 
-### Learn
+You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
+There are also [good first issues].
+
+Our [documentation] is also [open source][oss-docs] if you'd like to clarify anything you find confusing.
+
+[feel welcomed]: CODE-OF-CONDUCT.md
+[CONTRIBUTING.md]: CONTRIBUTING.md
+[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
+[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
+[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
+[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
+[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
+[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
+[documentation]: https://authzed.com/docs
+[oss-docs]: https://github.com/authzed/docs
+
+## Getting Started
+
+### Familiarizing yourself with our learning materials
 
 - Ask questions via [GitHub Discussions] or our [Community Discord]
 - Read [blog posts] from the Authzed team describing the project and major announcements
@@ -79,26 +134,6 @@ While the project has a technical goal, participation is not restricted to those
 [SpiceDB Awesome List]: https://github.com/authzed/awesome-spicedb
 [YouTube videos]: https://www.youtube.com/@authzed
 [community examples]: https://github.com/authzed/examples
-
-### Contribute
-
-[CONTRIBUTING.md] documents communication, contribution flow, legal requirements, and common tasks when contributing to the project.
-
-You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
-There are also [good first issues].
-
-Our [documentation website] is also open source if you'd like to clarify anything you find confusing.
-
-[CONTRIBUTING.md]: CONTRIBUTING.md
-[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
-[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
-[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
-[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
-[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
-[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
-[documentation website]: https://github.com/authzed/docs
-
-## Getting Started
 
 ### Installing the binary
 
@@ -221,6 +256,6 @@ We appreciate all contributions, large and small, and would like to thank all th
 
 In addition, we'd like to highlight a few notable contributions:
 
-- <img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"> The GitHub Authorization Team for implementing and contributing the MySQL datastore
-- <img alt="netflix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/e64128f0-978f-4fd6-bdd7-1ce7cb6b34b9"> The Netflix Authorization Team for sponsoring and being a design partner for caveats
-- <img alt="equinix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/7bf706f9-910d-4902-8957-c914a7468eff"> The Equinix Metal Team for sponsoring our benchmarking hardware
+- <a href="#"><img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"></a> The GitHub Authorization Team for implementing and contributing the MySQL datastore
+- <a href="#"><img alt="netflix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/e64128f0-978f-4fd6-bdd7-1ce7cb6b34b9"></a> The Netflix Authorization Team for sponsoring and being a design partner for caveats
+- <a href="#"><img alt="equinix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/7bf706f9-910d-4902-8957-c914a7468eff"></a> The Equinix Metal Team for sponsoring our benchmarking hardware
