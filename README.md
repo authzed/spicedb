@@ -1,9 +1,9 @@
 <h1 align="center">
     <a href="https://authzed.com#gh-dark-mode-only" target="_blank">
-        <img width="300" src="https://github.com/authzed/spicedb/assets/343539/82234426-468b-4297-8b5c-f06a44fe2278" alt="spicedb logo">
+        <img width="300" src="https://github.com/user-attachments/assets/0ebf4718-283b-4c40-b567-1d577c0a2e03" alt="spicedb logo">
     </a>
     <a href="https://authzed.com#gh-light-mode-only" target="_blank">
-        <img width="300" src="https://github.com/authzed/spicedb/assets/343539/312ff046-7076-4c30-afd4-2e3d86c06f51" alt="spicedb Logo">
+        <img width="300" src="https://github.com/user-attachments/assets/577a72f9-4fdd-49f8-b1d6-e53025d219b8" alt="spicedb Logo">
     </a>
 </h1>
 
@@ -33,6 +33,7 @@
 </p>
 
 ## What is SpiceDB?
+
 <a href="https://authzed.com#gh-dark-mode-only" target="_blank"><img align="right" width="300" src="https://github.com/user-attachments/assets/e0e70549-91dc-4a07-9309-2e18942a7902" alt="spicedb diagram" /></a>
 <a href="https://authzed.com#gh-light-mode-only" target="_blank"><img align="right" width="300" src="https://github.com/user-attachments/assets/97342fce-d94b-42b6-b02f-fe3958d13981" alt="spicedb diagram" /></a>
 
@@ -42,7 +43,7 @@ As of 2021, [broken access control became the #1 threat to web security accordin
 With SpiceDB, platform teams are armed with the same techniques for stopping this threat that the hyperscale tech companies have been doing for years behind closed doors.
 
 Similar to a relational database, developers define a schema, write data to the database, and query that data in various ways.
-Unlike a relational databases that use general-purpose SQL, SpiceDB exposes a gRPC API optimized specifically for authorizing actions in your systems.
+However, unlike relational databases that use general-purpose SQL, SpiceDB exposes a gRPC API specifcally optimized for authorizing actions in your systems.
 
 Because SpiceDB self-contains data and logic for used for authorization, it is often ran as a centralized service shared across product suites and microservice architectures.
 
@@ -72,7 +73,6 @@ While SpiceDB has gone on to innovate well beyond the functionality outlined in 
 - [**Reverse Indexes**][reverse-indexes]: queries for "What can `subject` do?", "Who can access `resource`?"
 
 [about]: https://authzed.com/why-authzed
-[zanzibar]: https://authzed.com/zanzibar
 [1M]: https://authzed.com/blog/google-scale-authorization
 [caveats]: https://netflixtechblog.com/abac-on-spicedb-enabling-netflixs-complex-identity-types-c118f374fa89
 [tooling]: https://authzed.com/docs/spicedb/modeling/validation-testing-debugging
@@ -95,7 +95,7 @@ Beyond the community, you can also read [customer stories][stories] for commerci
 
 ## Joining the Community
 
-Join our fellow contributors from companies such as <a href="#"><img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"></a> GitHub, <a href="#"><img alt="adobe logo" height="15px" src="https://github.com/user-attachments/assets/64007fa0-f342-4eba-bc81-0e078677e918"></a> Adobe, <a href="#"><img alt="google logo" height="15px" src="https://github.com/user-attachments/assets/15a144f4-4244-40af-be58-53ea3be46bc4"></a> Google, <a href="#"><img alt="fastly logo" height="15px" src="https://github.com/user-attachments/assets/57f042c3-e106-4524-95b8-167acc6be16e"></a> Fastly, <a href="#"><img alt="plaid logo" height="15px" src="https://github.com/user-attachments/assets/0678972d-b8ff-41e6-a507-7289a1ee1e94"></a> Plaid, <a href="#"><img alt="red hat logo" height="15px" src="https://github.com/user-attachments/assets/955a6c28-3a5c-4679-8e12-b50734024be2"></a> Red Hat, and <a href="#"><img alt="reddit logo" height="15px" src="https://github.com/user-attachments/assets/78d542f9-37f7-4d78-bf34-8aa0b0ddd12d"></a> Reddit.
+Join our fellow contributors from companies such as <img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"> GitHub, <img alt="adobe logo" height="15px" src="https://github.com/user-attachments/assets/64007fa0-f342-4eba-bc81-0e078677e918"> Adobe, <img alt="google logo" height="15px" src="https://github.com/user-attachments/assets/15a144f4-4244-40af-be58-53ea3be46bc4"> Google, <img alt="fastly logo" height="15px" src="https://github.com/user-attachments/assets/57f042c3-e106-4524-95b8-167acc6be16e"> Fastly, <img alt="plaid logo" height="15px" src="https://github.com/user-attachments/assets/0678972d-b8ff-41e6-a507-7289a1ee1e94"> Plaid, <img alt="red hat logo" height="15px" src="https://github.com/user-attachments/assets/955a6c28-3a5c-4679-8e12-b50734024be2"> Red Hat, and <img alt="reddit logo" height="15px" src="https://github.com/user-attachments/assets/78d542f9-37f7-4d78-bf34-8aa0b0ddd12d"> Reddit.
 
 SpiceDB is a community project where everyone is invited to participate and [feel welcomed].
 While the project has a technical goal, participation is not restricted to those with code contributions.
@@ -256,6 +256,6 @@ We appreciate all contributions, large and small, and would like to thank all th
 
 In addition, we'd like to highlight a few notable contributions:
 
-- <a href="#"><img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"></a> The GitHub Authorization Team for implementing and contributing the MySQL datastore
-- <a href="#"><img alt="netflix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/e64128f0-978f-4fd6-bdd7-1ce7cb6b34b9"></a> The Netflix Authorization Team for sponsoring and being a design partner for caveats
-- <a href="#"><img alt="equinix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/7bf706f9-910d-4902-8957-c914a7468eff"></a> The Equinix Metal Team for sponsoring our benchmarking hardware
+- <img alt="github logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/c05b8aef-c862-4499-bebf-0a43f3b423c4"> The GitHub Authorization Team for implementing and contributing the MySQL datastore
+- <img alt="netflix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/e64128f0-978f-4fd6-bdd7-1ce7cb6b34b9"> The Netflix Authorization Team for sponsoring and being a design partner for caveats
+- <img alt="equinix logo" height="15px" src="https://github.com/authzed/spicedb/assets/343539/7bf706f9-910d-4902-8957-c914a7468eff"> The Equinix Metal Team for sponsoring our benchmarking hardware
