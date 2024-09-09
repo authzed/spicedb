@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb/tools/analyzers
 
-go 1.22.4
+go 1.22.7
 
 require golang.org/x/tools v0.11.0
 
