@@ -117,12 +117,12 @@ func constBatch(size int) func() int {
 	}
 }
 
-func randomBatch(min int, max int) func() int {
+func randomBatch(minimum, max int) func() int {
 	return func() int {
 		// nolint:gosec
 		// G404 use of non cryptographically secure random number generator is not a security concern here,
 		// as this is only used for generating fixtures in testing.
-		return rand.Intn(max-min) + min
+		return rand.Intn(max-minimum) + minimum
 	}
 }
 
