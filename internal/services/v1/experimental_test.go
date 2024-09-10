@@ -117,7 +117,7 @@ func constBatch(size int) func() int {
 	}
 }
 
-func randomBatch(min, max int) func() int {
+func randomBatch(min int, max int) func() int {
 	return func() int {
 		// nolint:gosec
 		// G404 use of non cryptographically secure random number generator is not a security concern here,
