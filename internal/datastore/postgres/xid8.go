@@ -139,7 +139,7 @@ func (c Uint64Codec) DecodeDatabaseSQLValue(m *pgtype.Map, oid uint32, format in
 	if err != nil {
 		return nil, err
 	}
-	return int64(n), nil
+	return n, nil
 }
 
 func (c Uint64Codec) DecodeValue(m *pgtype.Map, oid uint32, format int16, src []byte) (any, error) {
