@@ -99,13 +99,19 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	err = config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	if err != nil {
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+	}
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	err = config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	if err != nil {
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+	}
 
 	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer initCancel()

@@ -183,7 +183,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 
 	// Start watching for schema changes.
 	go (func() {
-		retryCount := 0
+		retryCount := uint8(0)
 
 	restartWatch:
 		for {
@@ -322,7 +322,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 						log.Warn().Err(err).Msg("received retryable error in schema watch; sleeping for a bit and restarting watch")
 						retryCount++
 						wg.Add(1)
-						pgxcommon.SleepOnErr(ctx, err, uint8(retryCount))
+						pgxcommon.SleepOnErr(ctx, err, retryCount)
 						continue restartWatch
 					}
 

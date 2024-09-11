@@ -10,8 +10,9 @@ import (
 
 	"github.com/authzed/spicedb/pkg/development"
 
-	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 )
 
 // runDeveloperRequest is the function exported into the WASM environment for invoking

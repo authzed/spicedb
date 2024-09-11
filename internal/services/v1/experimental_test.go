@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	"github.com/ccoveille/go-safecast"
 	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -117,12 +118,12 @@ func constBatch(size int) func() int {
 	}
 }
 
-func randomBatch(minimum, max int) func() int {
+func randomBatch(minimum, maximum int) func() int {
 	return func() int {
 		// nolint:gosec
 		// G404 use of non cryptographically secure random number generator is not a security concern here,
 		// as this is only used for generating fixtures in testing.
-		return rand.Intn(max-minimum) + minimum
+		return rand.Intn(maximum-minimum) + minimum
 	}
 }
 
@@ -159,8 +160,8 @@ func TestBulkExportRelationships(t *testing.T) {
 		{tf.FolderNS.Name, "editor"},
 	}
 
-	totalToWrite := uint64(1_000)
-	expectedRels := set.NewStringSetWithSize(int(totalToWrite))
+	totalToWrite := 1_000
+	expectedRels := set.NewStringSetWithSize(totalToWrite)
 	batch := make([]*v1.Relationship, totalToWrite)
 	for i := range batch {
 		nsAndRel := nsAndRels[i%len(nsAndRels)]
@@ -291,7 +292,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 		},
 	}
 
-	batchSize := 14
+	batchSize := uint32(14)
 
 	for _, tc := range testCases {
 		tc := tc
@@ -362,7 +363,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 
 				stream, err := client.BulkExportRelationships(streamCtx, &v1.BulkExportRelationshipsRequest{
 					OptionalRelationshipFilter: tc.filter,
-					OptionalLimit:              uint32(batchSize),
+					OptionalLimit:              batchSize,
 					OptionalCursor:             cursor,
 				})
 				require.NoError(err)
@@ -374,7 +375,9 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				}
 
 				require.NoError(err)
-				require.LessOrEqual(uint32(len(batch.Relationships)), uint32(batchSize))
+				relLength, err := safecast.ToUint32(len(batch.Relationships))
+				require.NoError(err)
+				require.LessOrEqual(relLength, batchSize)
 				require.NotNil(batch.AfterResultCursor)
 				require.NotEmpty(batch.AfterResultCursor.Token)
 

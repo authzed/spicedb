@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -153,7 +155,10 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
 	}
 
-	xminInt := int64(decoded.Xmin)
+	xminInt, err := safecast.ToInt64(decoded.Xmin)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("Could not cast xmin to int64")
+	}
 
 	var xips []uint64
 	if len(decoded.RelativeXips) > 0 {
@@ -311,15 +316,26 @@ func (pr postgresRevision) OptionalNanosTimestamp() (uint64, bool) {
 // for xmax and xip list values to save bytes when encoded as varint protos.
 // For example, snapshot 1001:1004:1001,1003 becomes 1000:3:0,2.
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {
-	xminInt := int64(pr.snapshot.xmin)
+	xminInt, err := safecast.ToInt64(pr.snapshot.xmin)
+	if err != nil {
+		return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64")
+	}
 	relativeXips := make([]int64, len(pr.snapshot.xipList))
 	for i, xip := range pr.snapshot.xipList {
-		relativeXips[i] = int64(xip) - xminInt
+		intXip, err := safecast.ToInt64(xip)
+		if err != nil {
+			return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64")
+		}
+		relativeXips[i] = intXip - xminInt
 	}
 
+	relativeXmax, err := safecast.ToInt64(pr.snapshot.xmax)
+	if err != nil {
+		return nil, spiceerrors.MustBugf("could not safely cast snapshot xmax to int64")
+	}
 	protoRevision := implv1.PostgresRevision{
 		Xmin:         pr.snapshot.xmin,
-		RelativeXmax: int64(pr.snapshot.xmax) - xminInt,
+		RelativeXmax: relativeXmax - xminInt,
 		RelativeXips: relativeXips,
 	}
 

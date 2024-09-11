@@ -423,13 +423,13 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			}
 			defer iter.Close()
 
-			counter := 0
+			counter := uint64(0)
 			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
 				if iter.Err() != nil {
 					return ps.rewriteError(ctx, err)
 				}
 
-				if counter == int(limit) {
+				if counter == limit {
 					return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
 				}
 

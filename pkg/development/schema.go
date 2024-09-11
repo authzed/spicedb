@@ -3,6 +3,8 @@ package development
 import (
 	"errors"
 
+	"github.com/ccoveille/go-safecast"
+
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
@@ -24,12 +26,15 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 			return nil, nil, lerr
 		}
 
+		// NOTE: zeroes are fine here on failure.
+		uintLine, _ := safecast.ToUint32(line)
+		uintColumn, _ := safecast.ToUint32(col)
 		return nil, &devinterface.DeveloperError{
 			Message: contextError.BaseCompilerError.BaseMessage,
 			Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 			Source:  devinterface.DeveloperError_SCHEMA,
-			Line:    uint32(line) + 1, // 0-indexed in parser.
-			Column:  uint32(col) + 1,  // 0-indexed in parser.
+			Line:    uintLine + 1,   // 0-indexed in parser.
+			Column:  uintColumn + 1, // 0-indexed in parser.
 			Context: contextError.ErrorSourceCode,
 		}, nil
 	}

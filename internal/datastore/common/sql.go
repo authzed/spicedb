@@ -7,6 +7,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -551,12 +552,13 @@ func (tqs QueryExecutor) ExecuteQuery(
 		query = query.After(queryOpts.After, queryOpts.Sort)
 	}
 
-	limit := math.MaxInt
+	var limit uint64
+	limit = math.MaxUint64
 	if queryOpts.Limit != nil {
-		limit = int(*queryOpts.Limit)
+		limit = *queryOpts.Limit
 	}
 
-	toExecute := query.limit(uint64(limit))
+	toExecute := query.limit(limit)
 	sql, args, err := toExecute.queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
@@ -567,7 +569,10 @@ func (tqs QueryExecutor) ExecuteQuery(
 		return nil, err
 	}
 
-	if len(queryTuples) > limit {
+	// A length shouldn't be non-negative, so we can cast without
+	// checking here.
+	lenQueryTuples, _ := safecast.ToUint64(len(queryTuples))
+	if lenQueryTuples > limit {
 		queryTuples = queryTuples[:limit]
 	}
 
