@@ -245,14 +245,9 @@ func loadCompiled(
 
 		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
 		if ok {
-			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("Could not cast line number to uint32")
-			}
-			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("Could not cast column position to uint32")
-			}
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, _ := safecast.ToUint32(errWithSource.LineNumber)
+			columnPosition, _ := safecast.ToUint32(errWithSource.ColumnPosition)
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: cverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
@@ -275,14 +270,9 @@ func loadCompiled(
 		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
-			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("could not cast line number to uint32")
-			}
-			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("could not cast column position to uint32")
-			}
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, _ := safecast.ToUint32(errWithSource.LineNumber)
+			columnPosition, _ := safecast.ToUint32(errWithSource.ColumnPosition)
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
@@ -314,14 +304,9 @@ func loadCompiled(
 
 		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
 		if ok {
-			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("could not cast line number to uint32")
-			}
-			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
-			if err != nil {
-				return nil, spiceerrors.MustBugf("could not cast column position to uint32")
-			}
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, _ := safecast.ToUint32(errWithSource.LineNumber)
+			columnPosition, _ := safecast.ToUint32(errWithSource.ColumnPosition)
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,

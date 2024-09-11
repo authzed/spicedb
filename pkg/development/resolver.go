@@ -13,7 +13,6 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
@@ -94,14 +93,9 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 	}
 
 	relationReference := func(relation *core.Relation, ts *typesystem.TypeSystem) (*SchemaReference, error) {
-		lineNumber, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("could not cast line number to int")
-		}
-		columnPosition, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("could not cast column positiion to int")
-		}
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
+		columnPosition, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
 		relationPosition := input.Position{
 			LineNumber:     lineNumber,
 			ColumnPosition: columnPosition,
@@ -151,14 +145,9 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 		def := ts.Namespace()
 
-		lineNumber, err := safecast.ToInt(def.SourcePosition.ZeroIndexedLineNumber)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("Could not cast line number to int")
-		}
-		columnPosition, err := safecast.ToInt(def.SourcePosition.ZeroIndexedColumnPosition)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("Could not cast column position to int")
-		}
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
+		columnPosition, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
 
 		defPosition := input.Position{
 			LineNumber:     lineNumber,
@@ -193,14 +182,9 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 	// Caveat Type reference.
 	if caveatDef, ok := r.caveatTypeReferenceChain(nodeChain); ok {
-		lineNumber, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedLineNumber)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("Could not cast line number to int")
-		}
-		columnPosition, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedColumnPosition)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("Could not cast column position to int")
-		}
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, _ := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedLineNumber)
+		columnPosition, _ := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedColumnPosition)
 
 		defPosition := input.Position{
 			LineNumber:     lineNumber,

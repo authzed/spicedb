@@ -8,7 +8,6 @@ import (
 
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
@@ -44,14 +43,9 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	for _, assertion := range assertions {
 		tpl := tuple.MustFromRelationship[*v1t.ObjectReference, *v1t.SubjectReference, *v1t.ContextualizedCaveat](assertion.Relationship)
 
-		lineNumber, err := safecast.ToUint32(assertion.SourcePosition.LineNumber)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("Line number could not be cast to uint32")
-		}
-		columnPosition, err := safecast.ToUint32(assertion.SourcePosition.ColumnPosition)
-		if err != nil {
-			return nil, spiceerrors.MustBugf("Column position could not be cast to uint32")
-		}
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, _ := safecast.ToUint32(assertion.SourcePosition.LineNumber)
+		columnPosition, _ := safecast.ToUint32(assertion.SourcePosition.ColumnPosition)
 
 		if tpl.Caveat != nil {
 			failures = append(failures, &devinterface.DeveloperError{
