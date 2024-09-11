@@ -553,7 +553,11 @@ func (tqs QueryExecutor) ExecuteQuery(
 	}
 
 	var limit uint64
-	limit = math.MaxUint64
+	// NOTE: we use a uint here because it lines up with the
+	// assignments in this function, but we set it to MaxInt64
+	// because that's the biggest value that postgres and friends
+	// treat as valid.
+	limit = math.MaxInt64
 	if queryOpts.Limit != nil {
 		limit = *queryOpts.Limit
 	}
