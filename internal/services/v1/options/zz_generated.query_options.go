@@ -2,10 +2,9 @@
 package options
 
 import (
-	"time"
-
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
+	"time"
 )
 
 type ExperimentalServerOptionsOption func(e *ExperimentalServerOptions)
