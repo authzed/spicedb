@@ -146,8 +146,8 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		def := ts.Namespace()
 
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
-		columnPosition, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
+		lineNumber, _ := safecast.ToInt(def.SourcePosition.ZeroIndexedLineNumber)
+		columnPosition, _ := safecast.ToInt(def.SourcePosition.ZeroIndexedColumnPosition)
 
 		defPosition := input.Position{
 			LineNumber:     lineNumber,
