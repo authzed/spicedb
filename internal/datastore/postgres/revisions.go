@@ -157,14 +157,19 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 
 	xminInt, err := safecast.ToInt64(decoded.Xmin)
 	if err != nil {
-		return datastore.NoRevision, spiceerrors.MustBugf("Could not cast xmin to int64")
+		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmin to int64")
 	}
 
 	var xips []uint64
 	if len(decoded.RelativeXips) > 0 {
 		xips = make([]uint64, len(decoded.RelativeXips))
 		for i, relativeXip := range decoded.RelativeXips {
-			xips[i] = uint64(xminInt + relativeXip)
+			xip := xminInt + relativeXip
+			uintXip, err := safecast.ToUint64(xip)
+			if err != nil {
+				return datastore.NoRevision, spiceerrors.MustBugf("could not cast xip to int64")
+			}
+			xips[i] = uintXip
 		}
 	}
 

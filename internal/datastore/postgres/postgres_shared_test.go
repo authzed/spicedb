@@ -1465,7 +1465,10 @@ func StrictReadModeTest(t *testing.T, ds datastore.Datastore) {
 	// Perform a read at a manually constructed revision beyond head, which should fail.
 	badRev := postgresRevision{
 		snapshot: pgSnapshot{
-			xmax: 9999999999999999999,
+			// NOTE: the struct defines this value as uint64, but the underlying
+			// revision is defined as an int64, so we run into an overflow issue
+			// if we try and use a big uint64.
+			xmax: math.MaxInt64,
 		},
 	}
 
