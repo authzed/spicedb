@@ -173,10 +173,15 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		}
 	}
 
+	xmax, err := safecast.ToUint64(xminInt + decoded.RelativeXmax)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmax to int64")
+	}
+
 	return postgresRevision{
 		snapshot: pgSnapshot{
 			xmin:    decoded.Xmin,
-			xmax:    uint64(xminInt + decoded.RelativeXmax),
+			xmax:    xmax,
 			xipList: xips,
 		},
 		optionalTxID:           xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},

@@ -39,7 +39,7 @@ const defaultFilterMaximumIDCountForTest = 100
 func TestBulkImportRelationships(t *testing.T) {
 	testCases := []struct {
 		name       string
-		batchSize  func() int
+		batchSize  func() uint64
 		numBatches int
 	}{
 		{"one small batch", constBatch(1), 1},
@@ -68,13 +68,13 @@ func TestBulkImportRelationships(t *testing.T) {
 				batchSize := tc.batchSize()
 				batch := make([]*v1.Relationship, 0, batchSize)
 
-				for i := 0; i < batchSize; i++ {
+				for i := uint64(0); i < batchSize; i++ {
 					batch = append(batch, rel(
 						tf.DocumentNS.Name,
-						strconv.Itoa(batchNum)+"_"+strconv.Itoa(i),
+						strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 						"viewer",
 						tf.UserNS.Name,
-						strconv.Itoa(i),
+						strconv.FormatUint(i, 10),
 						"",
 					))
 				}
@@ -84,7 +84,7 @@ func TestBulkImportRelationships(t *testing.T) {
 				})
 				require.NoError(err)
 
-				expectedTotal += uint64(batchSize)
+				expectedTotal += batchSize
 			}
 
 			resp, err := writer.CloseAndRecv()
@@ -112,18 +112,19 @@ func TestBulkImportRelationships(t *testing.T) {
 	}
 }
 
-func constBatch(size int) func() int {
-	return func() int {
+func constBatch(size uint64) func() uint64 {
+	return func() uint64 {
 		return size
 	}
 }
 
-func randomBatch(minimum, maximum int) func() int {
-	return func() int {
+func randomBatch(minimum, maximum int) func() uint64 {
+	return func() uint64 {
 		// nolint:gosec
 		// G404 use of non cryptographically secure random number generator is not a security concern here,
 		// as this is only used for generating fixtures in testing.
-		return rand.Intn(maximum-minimum) + minimum
+		// This number should be non-negative
+		return uint64(rand.Intn(maximum-minimum) + minimum)
 	}
 }
 
@@ -206,7 +207,7 @@ func TestBulkExportRelationships(t *testing.T) {
 
 			var totalRead uint64
 			remainingRels := expectedRels.Copy()
-			require.Equal(totalToWrite, uint64(expectedRels.Size()))
+			require.Equal(totalToWrite, expectedRels.Size())
 			var cursor *v1.Cursor
 
 			var done bool
@@ -353,7 +354,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 			_, err = writer.CloseAndRecv()
 			require.NoError(err)
 
-			var totalRead uint64
+			var totalRead int
 			remainingRels := expectedRels.Copy()
 			var cursor *v1.Cursor
 
@@ -382,7 +383,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				require.NotEmpty(batch.AfterResultCursor.Token)
 
 				cursor = batch.AfterResultCursor
-				totalRead += uint64(len(batch.Relationships))
+				totalRead += len(batch.Relationships)
 
 				for _, rel := range batch.Relationships {
 					if tc.filter != nil {
@@ -399,7 +400,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				cancel()
 			}
 
-			require.Equal(uint64(tc.expectedCount), totalRead, "found: %v", foundRels.AsSlice())
+			require.Equal(tc.expectedCount, totalRead, "found: %v", foundRels.AsSlice())
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
 		})
 	}

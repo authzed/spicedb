@@ -6,11 +6,13 @@ import (
 	"slices"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -118,7 +120,11 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 					return nil
 				}
 
-				estimatedRelCount = uint64(rowCount)
+				uintRowCount, err := safecast.ToUint64(rowCount)
+				if err != nil {
+					return spiceerrors.MustBugf("row count was negative")
+				}
+				estimatedRelCount = uintRowCount
 				return nil
 			}
 		}

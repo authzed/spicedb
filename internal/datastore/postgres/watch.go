@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -14,6 +15,7 @@ import (
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -204,10 +206,15 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 				return fmt.Errorf("unable to decode new revision: %w", err)
 			}
 
+			nanosTimestamp, err := safecast.ToUint64(timestamp.UnixNano())
+			if err != nil {
+				return spiceerrors.MustBugf("could not cast timestamp to uint64")
+			}
+
 			ids = append(ids, postgresRevision{
 				snapshot:               nextSnapshot.markComplete(nextXID.Uint64),
 				optionalTxID:           nextXID,
-				optionalNanosTimestamp: uint64(timestamp.UnixNano()),
+				optionalNanosTimestamp: nanosTimestamp,
 			})
 		}
 		if rows.Err() != nil {

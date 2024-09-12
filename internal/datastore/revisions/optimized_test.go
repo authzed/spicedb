@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/ccoveille/go-safecast"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -191,7 +192,9 @@ func BenchmarkOptimizedRevisions(b *testing.B) {
 		nowNS := time.Now().UnixNano()
 		validForNS := nowNS % quantization.Nanoseconds()
 		roundedNS := nowNS - validForNS
-		rev := NewForTransactionID(uint64(roundedNS))
+		// This should be non-negative.
+		uintRoundedNs, _ := safecast.ToUint64(roundedNS)
+		rev := NewForTransactionID(uintRoundedNs)
 		return rev, time.Duration(validForNS) * time.Nanosecond, nil
 	})
 

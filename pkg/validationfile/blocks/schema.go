@@ -6,6 +6,8 @@ import (
 
 	yamlv3 "gopkg.in/yaml.v3"
 
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -42,11 +44,20 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 				return lerr
 			}
 
+			uintLine, err := safecast.ToUint64(line)
+			if err != nil {
+				return err
+			}
+			uintCol, err := safecast.ToUint64(col)
+			if err != nil {
+				return err
+			}
+
 			return spiceerrors.NewErrorWithSource(
 				fmt.Errorf("error when parsing schema: %s", errWithContext.BaseMessage),
 				errWithContext.ErrorSourceCode,
-				uint64(line+1), // source line is 0-indexed
-				uint64(col+1),  // source col is 0-indexed
+				uintLine+1, // source line is 0-indexed
+				uintCol+1,  // source col is 0-indexed
 			)
 		}
 

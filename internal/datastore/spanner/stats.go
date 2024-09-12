@@ -8,8 +8,11 @@ import (
 	"cloud.google.com/go/spanner"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var querySomeRandomRelationships = fmt.Sprintf(`SELECT %s FROM %s LIMIT 10`,
@@ -101,7 +104,10 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 			}, nil
 		}
 
-		estimatedBytesPerRelationship = uint64(totalByteCount / totalRelationships)
+		estimatedBytesPerRelationship, err = safecast.ToUint64(totalByteCount / totalRelationships)
+		if err != nil {
+			return datastore.Stats{}, spiceerrors.MustBugf("could not cast estimated bytes to uint64")
+		}
 		if estimatedBytesPerRelationship > 0 {
 			sd.cachedEstimatedBytesPerRelationshipLock.Lock()
 			sd.cachedEstimatedBytesPerRelationship = estimatedBytesPerRelationship
@@ -139,9 +145,14 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 		}
 	}
 
+	uintByteEstimate, err := safecast.ToUint64(byteEstimate.Int64)
+	if err != nil {
+		return datastore.Stats{}, spiceerrors.MustBugf("unable to cast byteEstimate to uint64")
+	}
+
 	return datastore.Stats{
 		UniqueID:                   uniqueID,
 		ObjectTypeStatistics:       datastore.ComputeObjectTypeStats(allNamespaces),
-		EstimatedRelationshipCount: uint64(byteEstimate.Int64) / estimatedBytesPerRelationship,
+		EstimatedRelationshipCount: uintByteEstimate / estimatedBytesPerRelationship,
 	}, nil
 }

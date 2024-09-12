@@ -3,10 +3,12 @@ package common
 import (
 	"context"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type tupleSourceAdapter struct {
@@ -74,5 +76,9 @@ func BulkLoad(
 		colNames:     colNames,
 	}
 	copied, err := tx.CopyFrom(ctx, pgx.Identifier{tupleTableName}, colNames, adapter)
-	return uint64(copied), err
+	uintCopied, castErr := safecast.ToUint64(copied)
+	if castErr != nil {
+		return 0, spiceerrors.MustBugf("number copied was negative")
+	}
+	return uintCopied, err
 }

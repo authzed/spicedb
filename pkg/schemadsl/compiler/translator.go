@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/pkg/caveats"
@@ -261,9 +262,13 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 		return nil
 	}
 
+	// We're okay with these being zero if the cast fails.
+	uintLine, _ := safecast.ToUint64(line)
+	uintCol, _ := safecast.ToUint64(col)
+
 	return &core.SourcePosition{
-		ZeroIndexedLineNumber:     uint64(line),
-		ZeroIndexedColumnPosition: uint64(col),
+		ZeroIndexedLineNumber:     uintLine,
+		ZeroIndexedColumnPosition: uintCol,
 	}
 }
 

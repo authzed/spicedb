@@ -10,6 +10,7 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -185,7 +186,8 @@ func SimpleTest(t *testing.T, tester DatastoreTester) {
 
 			// Check limit.
 			if len(testTuples) > 1 {
-				limit := uint64(len(testTuples) - 1)
+				// This should be non-negative.
+				limit, _ := safecast.ToUint64(len(testTuples) - 1)
 				iter, err := dsReader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
 					SubjectType: testUserNamespace,
 				}, options.WithLimitForReverse(&limit))

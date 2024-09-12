@@ -8,6 +8,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jzelinskie/stringz"
 
@@ -430,7 +431,11 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 	}
 
 	rwt.relCountChange -= modified.RowsAffected()
-	if delLimit > 0 && uint64(modified.RowsAffected()) == delLimit {
+	rowsAffected, err := safecast.ToUint64(modified.RowsAffected())
+	if err != nil {
+		return false, spiceerrors.MustBugf("could not cast RowsAffected to uint64")
+	}
+	if delLimit > 0 && rowsAffected == delLimit {
 		return true, nil
 	}
 

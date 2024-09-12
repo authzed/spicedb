@@ -3,6 +3,7 @@ package cache
 import (
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog"
 )
@@ -52,8 +53,9 @@ type Config struct {
 }
 
 func (c *Config) MarshalZerologObject(e *zerolog.Event) {
+	maxCost, _ := safecast.ToUint64(c.MaxCost)
 	e.
-		Str("maxCost", humanize.IBytes(uint64(c.MaxCost))).
+		Str("maxCost", humanize.IBytes(maxCost)).
 		Int64("numCounters", c.NumCounters).
 		Dur("defaultTTL", c.DefaultTTL)
 }

@@ -175,7 +175,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	limit := 0
+	limit := uint64(0)
 	var startCursor options.Cursor
 
 	rrRequestHash, err := computeReadRelationshipsRequestHash(req)
@@ -203,9 +203,9 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	pageSize := ps.config.MaxDatastoreReadPageSize
 	if req.OptionalLimit > 0 {
-		limit = int(req.OptionalLimit)
-		if uint64(limit) < pageSize {
-			pageSize = uint64(limit)
+		limit = uint64(req.OptionalLimit)
+		if limit < pageSize {
+			pageSize = limit
 		}
 	}
 
@@ -232,7 +232,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 	targetRel := tuple.NewRelationship()
 	targetCaveat := &v1.ContextualizedCaveat{}
-	returnedCount := 0
+	var returnedCount uint64
 
 	dispatchCursor := &dispatchv1.Cursor{
 		DispatchVersion: 1,

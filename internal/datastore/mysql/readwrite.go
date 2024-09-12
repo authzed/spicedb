@@ -13,6 +13,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
 
@@ -374,7 +375,12 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	if delLimit > 0 && uint64(rowsAffected) == delLimit {
+	uintRowsAffected, err := safecast.ToUint64(rowsAffected)
+	if err != nil {
+		return false, spiceerrors.MustBugf("rowsAffected was negative")
+	}
+
+	if delLimit > 0 && uintRowsAffected == delLimit {
 		return true, nil
 	}
 

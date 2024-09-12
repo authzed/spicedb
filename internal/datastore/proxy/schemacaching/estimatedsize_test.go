@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -44,11 +45,12 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 	for _, filePath := range consistencyTestFiles {
 		filePath := filePath
 		t.Run(path.Base(filePath), func(t *testing.T) {
+			require := require.New(t)
 			ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, memdb.DisableGC)
-			require.NoError(t, err)
+			require.NoError(err)
 
 			fullyResolved, _, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})
-			require.NoError(t, err)
+			require.NoError(err)
 
 			for _, nsDef := range fullyResolved.NamespaceDefinitions {
 				nsDef := nsDef
@@ -68,19 +70,21 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 						runtime.ReadMemStats(&m1)
 
 						var def core.NamespaceDefinition
-						require.NoError(t, def.UnmarshalVT(serialized))
+						require.NoError(def.UnmarshalVT(serialized))
 
 						runtime.ReadMemStats(&m2)
 						used := m2.TotalAlloc - m1.TotalAlloc
 
 						// Ensure the memory used is less than the SizeVT * the multiplier.
-						if used <= uint64(estimated) {
+						uintEstimated, err := safecast.ToUint64(estimated)
+						require.NoError(err)
+						if used <= uintEstimated {
 							succeeded = true
 							break
 						}
 					}
 
-					require.True(t, succeeded, "found size %d, for with SizeVT: %d", used, sizevt)
+					require.True(succeeded, "found size %d, for with SizeVT: %d", used, sizevt)
 				})
 			}
 
@@ -102,19 +106,21 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 						runtime.ReadMemStats(&m1)
 
 						var def core.CaveatDefinition
-						require.NoError(t, def.UnmarshalVT(serialized))
+						require.NoError(def.UnmarshalVT(serialized))
 
 						runtime.ReadMemStats(&m2)
 						used := m2.TotalAlloc - m1.TotalAlloc
 
 						// Ensure the memory used is less than the SizeVT * the multiplier.
-						if used <= uint64(estimated) {
+						uintEstimated, err := safecast.ToUint64(estimated)
+						require.NoError(err)
+						if used <= uintEstimated {
 							succeeded = true
 							break
 						}
 					}
 
-					require.True(t, succeeded, "found size %d, for with SizeVT: %d", used, sizevt)
+					require.True(succeeded, "found size %d, for with SizeVT: %d", used, sizevt)
 				})
 			}
 		})
