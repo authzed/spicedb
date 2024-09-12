@@ -188,7 +188,9 @@ func TestBulkExportRelationships(t *testing.T) {
 
 	resp, err := writer.CloseAndRecv()
 	require.NoError(t, err)
-	require.Equal(t, totalToWrite, resp.NumLoaded)
+	numLoaded, err := safecast.ToInt(resp.NumLoaded)
+	require.NoError(t, err)
+	require.Equal(t, totalToWrite, numLoaded)
 
 	testCases := []struct {
 		batchSize      uint32
@@ -205,7 +207,7 @@ func TestBulkExportRelationships(t *testing.T) {
 		t.Run(fmt.Sprintf("%d-%d", tc.batchSize, tc.paginateEveryN), func(t *testing.T) {
 			require := require.New(t)
 
-			var totalRead uint64
+			var totalRead int
 			remainingRels := expectedRels.Copy()
 			require.Equal(totalToWrite, expectedRels.Size())
 			var cursor *v1.Cursor
@@ -233,7 +235,7 @@ func TestBulkExportRelationships(t *testing.T) {
 					require.NotEmpty(batch.AfterResultCursor.Token)
 
 					cursor = batch.AfterResultCursor
-					totalRead += uint64(len(batch.Relationships))
+					totalRead += len(batch.Relationships)
 
 					for _, rel := range batch.Relationships {
 						remainingRels.Remove(tuple.MustStringRelationship(rel))
@@ -354,7 +356,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 			_, err = writer.CloseAndRecv()
 			require.NoError(err)
 
-			var totalRead int
+			var totalRead uint64
 			remainingRels := expectedRels.Copy()
 			var cursor *v1.Cursor
 
@@ -383,7 +385,7 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				require.NotEmpty(batch.AfterResultCursor.Token)
 
 				cursor = batch.AfterResultCursor
-				totalRead += len(batch.Relationships)
+				totalRead += uint64(len(batch.Relationships))
 
 				for _, rel := range batch.Relationships {
 					if tc.filter != nil {
@@ -400,7 +402,9 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				cancel()
 			}
 
-			require.Equal(tc.expectedCount, totalRead, "found: %v", foundRels.AsSlice())
+			// These are statically defined.
+			expectedCount, _ := safecast.ToUint64(tc.expectedCount)
+			require.Equal(expectedCount, totalRead, "found: %v", foundRels.AsSlice())
 			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
 		})
 	}
