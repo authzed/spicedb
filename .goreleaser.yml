@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 ---
 version: 2
 git:
@@ -92,6 +93,7 @@ dockers:
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
+    goamd64: "v1"
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
@@ -103,6 +105,7 @@ dockers:
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
+    goamd64: "v1"
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
