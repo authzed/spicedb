@@ -98,3 +98,5 @@ checksum:
   name_template: "checksums.txt"
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
+nightly:
+  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"

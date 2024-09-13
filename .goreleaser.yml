@@ -50,6 +50,29 @@ nfpms:
         dst: "/usr/share/zsh/vendor-completions/_spicedb"
         file_info:
           mode: 0644
+furies:
+  - account: "authzed"
+    secret_name: "GEMFURY_PUSH_TOKEN"
+    disable: "{{ gt (len .Prerelease) 0 }}"
+snapcrafts:
+  - name: "spicedb"
+    publish: true
+    summary: "A database that stores, computes, and validates application permissions"
+    description: |
+      SpiceDB is an open source, Google Zanzibar-inspired database for creating and managing security-critical application permissions.
+
+      Developers create a schema and use client libraries to apply the schema to the database, insert relationships into the database, and query the database to efficiently check permissions in their applications.
+    grade: "stable"
+    confinement: "strict"
+    license: "Apache-2.0"
+    base: "core22"
+    apps:
+      spicedb:
+        command: "spicedb"
+        completer: "completions/spicedb.bash"
+        plugs:
+          - "network-bind"
+          - "network"
 brews:
   - name: "{{.ProjectName}}"
     <<: &brew-shared
@@ -93,7 +116,6 @@ dockers:
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
-    goamd64: "v1"
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
@@ -105,7 +127,6 @@ dockers:
     dockerfile: &dockerfile "Dockerfile.release"
     goos: "linux"
     goarch: "amd64"
-    goamd64: "v1"
     use: "buildx"
     build_flag_templates:
       - "--platform=linux/amd64"
@@ -174,6 +195,8 @@ snapshot:
 changelog:
   use: "github-native"
   sort: "asc"
+nightly:
+  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
 release:
   draft: false
   prerelease: "auto"
