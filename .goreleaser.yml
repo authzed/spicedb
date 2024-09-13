@@ -196,7 +196,7 @@ changelog:
   use: "github-native"
   sort: "asc"
 nightly:
-  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
 release:
   draft: false
   prerelease: "auto"

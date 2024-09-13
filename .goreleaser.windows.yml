@@ -52,4 +52,4 @@ checksum:
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 nightly:
-  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
