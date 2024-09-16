@@ -3,8 +3,8 @@ package datasets
 import (
 	"fmt"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewSubjectSetByResourceID creates and returns a map of subject sets, indexed by resource ID.
@@ -34,10 +34,10 @@ func (ssr SubjectSetByResourceID) add(resourceID string, subject *v1.FoundSubjec
 
 // AddFromRelationship adds the subject found in the given relationship to this map, indexed at
 // the resource ID specified in the relationship.
-func (ssr SubjectSetByResourceID) AddFromRelationship(relationship *core.RelationTuple) error {
-	return ssr.add(relationship.ResourceAndRelation.ObjectId, &v1.FoundSubject{
-		SubjectId:        relationship.Subject.ObjectId,
-		CaveatExpression: wrapCaveat(relationship.Caveat),
+func (ssr SubjectSetByResourceID) AddFromRelationship(relationship tuple.Relationship) error {
+	return ssr.add(relationship.Resource.ObjectID, &v1.FoundSubject{
+		SubjectId:        relationship.Subject.ObjectID,
+		CaveatExpression: wrapCaveat(relationship.OptionalCaveat),
 	})
 }
 

@@ -32,7 +32,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
 		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
@@ -80,7 +80,7 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
 		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
@@ -136,7 +136,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
 		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
@@ -177,7 +177,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
 		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
@@ -223,7 +223,7 @@ func TestSingleFlightDispatcherExpand(t *testing.T) {
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchExpandRequest{
-		ResourceAndRelation: tuple.ObjectAndRelation("document", "foo", "view"),
+		ResourceAndRelation: tuple.ONRStringToCore("document", "foo", "view"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     "1234",
 			TraversalBloom: v1.MustNewTraversalBloomFilter(defaultBloomFilterSize),
@@ -269,7 +269,7 @@ func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
 	req := &v1.DispatchCheckRequest{
 		ResourceRelation: tuple.RelationReference("document", "view"),
 		ResourceIds:      []string{"foo", "bar"},
-		Subject:          tuple.ObjectAndRelation("user", "tom", "..."),
+		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
 		},
@@ -292,7 +292,7 @@ func TestSingleFlightDispatcherExpandBypassesIfMissingBloomFiler(t *testing.T) {
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchExpandRequest{
-		ResourceAndRelation: tuple.ObjectAndRelation("document", "foo", "view"),
+		ResourceAndRelation: tuple.ONRStringToCore("document", "foo", "view"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision: "1234",
 		},
