@@ -158,18 +158,6 @@ func (pgd *pgDatastore) Watch(
 						optionalNanosTimestamp: currentTxn.optionalNanosTimestamp,
 					}
 				}
-
-				// If checkpoints were requested, output a checkpoint. While the Postgres datastore does not
-				// move revisions forward outside of changes, these could be necessary if the caller is
-				// watching only a *subset* of changes.
-				if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-					if !sendChange(&datastore.RevisionChanges{
-						Revision:     currentTxn,
-						IsCheckpoint: true,
-					}) {
-						return
-					}
-				}
 			} else {
 				sleep := time.NewTimer(watchSleep)
 
@@ -178,6 +166,18 @@ func (pgd *pgDatastore) Watch(
 					break
 				case <-ctx.Done():
 					errs <- datastore.NewWatchCanceledErr()
+					return
+				}
+			}
+
+			// If checkpoints were requested, output a checkpoint. While the Postgres datastore does not
+			// move revisions forward outside of changes, these could be necessary if the caller is
+			// watching only a *subset* of changes.
+			if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				if !sendChange(&datastore.RevisionChanges{
+					Revision:     currentTxn,
+					IsCheckpoint: true,
+				}) {
 					return
 				}
 			}
