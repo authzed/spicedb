@@ -339,7 +339,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
-	tRequire.TupleExists(ctx, tpl, wroteOneRelationship)
+	tRequire.RelationshipExists(ctx, tpl, wroteOneRelationship)
 
 	// Overwrite the relationship by changing its caveat.
 	tpl = tuple.MustWithCaveat(tpl, "somecaveat")
@@ -361,14 +361,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
-	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
+	tRequire.RelationshipExists(ctx, tpl, relOverwrittenAt)
 
 	// Delete the relationship.
 	relDeletedAt, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tpl)
 	require.NoError(err)
 
 	// Ensure the relationship is gone.
-	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
+	tRequire.NoRelationshipExists(ctx, tpl, relDeletedAt)
 
 	// Run GC, which will now drop the overwrite transaction only and the first tpl revision
 	removed, err = pds.DeleteBeforeTx(ctx, relDeletedAt)
@@ -403,7 +403,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
-	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
+	tRequire.RelationshipExists(ctx, tpl, relLastWriteAt)
 
 	// Inject a transaction to clean up the last write
 	lastRev, err := pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -498,7 +498,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
-	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
+	tRequire.RelationshipExists(ctx, tpl, relLastWriteAt)
 
 	// Sleep 1ms to ensure GC will delete the previous write.
 	time.Sleep(1 * time.Millisecond)
@@ -527,7 +527,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still not present.
-	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
+	tRequire.NoRelationshipExists(ctx, tpl, relDeletedAt)
 }
 
 const chunkRelationshipCount = 2000
@@ -564,7 +564,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Ensure the relationships were written.
 	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
 	for _, tpl := range tpls {
-		tRequire.TupleExists(ctx, tpl, writtenAt)
+		tRequire.RelationshipExists(ctx, tpl, writtenAt)
 	}
 
 	// Run GC and ensure only transactions were removed.
@@ -595,7 +595,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Ensure the relationships were deleted.
 	for _, tpl := range tpls {
-		tRequire.NoTupleExists(ctx, tpl, deletedAt)
+		tRequire.NoRelationshipExists(ctx, tpl, deletedAt)
 	}
 
 	// Sleep to ensure GC.

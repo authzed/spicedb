@@ -22,13 +22,13 @@ type QueryBuilder struct {
 	DeleteCounterQuery sq.UpdateBuilder
 	UpdateCounterQuery sq.UpdateBuilder
 
-	QueryTuplesWithIdsQuery sq.SelectBuilder
-	QueryTuplesQuery        sq.SelectBuilder
-	DeleteTupleQuery        sq.UpdateBuilder
-	QueryTupleExistsQuery   sq.SelectBuilder
-	WriteTupleQuery         sq.InsertBuilder
-	QueryChangedQuery       sq.SelectBuilder
-	CountTupleQuery         sq.SelectBuilder
+	QueryTuplesWithIdsQuery      sq.SelectBuilder
+	QueryTuplesQuery             sq.SelectBuilder
+	DeleteTupleQuery             sq.UpdateBuilder
+	QueryRelationshipExistsQuery sq.SelectBuilder
+	WriteTupleQuery              sq.InsertBuilder
+	QueryChangedQuery            sq.SelectBuilder
+	CountTupleQuery              sq.SelectBuilder
 
 	WriteCaveatQuery  sq.InsertBuilder
 	ReadCaveatQuery   sq.SelectBuilder
@@ -61,7 +61,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.DeleteNamespaceTuplesQuery = deleteNamespaceTuples(driver.RelationTuple())
 	builder.QueryTuplesQuery = queryTuples(driver.RelationTuple())
 	builder.DeleteTupleQuery = deleteTuple(driver.RelationTuple())
-	builder.QueryTupleExistsQuery = queryTupleExists(driver.RelationTuple())
+	builder.QueryRelationshipExistsQuery = queryRelationshipExists(driver.RelationTuple())
 	builder.WriteTupleQuery = writeTuple(driver.RelationTuple())
 	builder.QueryChangedQuery = queryChanged(driver.RelationTuple())
 	builder.CountTupleQuery = countTuples(driver.RelationTuple())
@@ -187,7 +187,7 @@ func deleteTuple(tableTuple string) sq.UpdateBuilder {
 	return sb.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }
 
-func queryTupleExists(tableTuple string) sq.SelectBuilder {
+func queryRelationshipExists(tableTuple string) sq.SelectBuilder {
 	return sb.Select(colID).From(tableTuple)
 }
 

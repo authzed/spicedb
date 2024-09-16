@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func BulkUploadTest(t *testing.T, tester DatastoreTester) {
@@ -30,7 +31,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 			require.NoError(err)
 
 			ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-			bulkSource := testfixtures.NewBulkTupleGenerator(
+			bulkSource := testfixtures.NewBulkRelationshipGenerator(
 				testfixtures.DocumentNS.Name,
 				"viewer",
 				testfixtures.UserNS.Name,
@@ -57,7 +58,6 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 				OptionalResourceType: testfixtures.DocumentNS.Name,
 			})
 			require.NoError(err)
-			defer iter.Close()
 
 			tRequire.VerifyIteratorCount(iter, tc)
 		})
@@ -94,7 +94,7 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
 			testfixtures.DocumentNS.Name,
 			"viewer",
 			testfixtures.UserNS.Name,
@@ -104,7 +104,7 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 		require.NoError(err)
 		require.Equal(uint64(1), inserted)
 
-		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
 			testfixtures.DocumentNS.Name,
 			"viewer",
 			testfixtures.UserNS.Name,
@@ -131,7 +131,7 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
-	bulkSource := testfixtures.NewBulkTupleGenerator(
+	bulkSource := testfixtures.NewBulkRelationshipGenerator(
 		testfixtures.DocumentNS.Name,
 		"caveated_viewer",
 		testfixtures.UserNS.Name,
@@ -153,22 +153,16 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)
-	defer iter.Close()
 
-	updates := make([]*core.RelationTupleUpdate, 0, tc)
+	updates := make([]tuple.RelationshipUpdate, 0, tc)
 
-	for found := iter.Next(); found != nil; found = iter.Next() {
-		updates = append(updates, &core.RelationTupleUpdate{
-			Operation: core.RelationTupleUpdate_TOUCH,
-			Tuple: &core.RelationTuple{
-				ResourceAndRelation: found.ResourceAndRelation,
-				Subject:             found.Subject,
-				Caveat: &core.ContextualizedCaveat{
-					CaveatName: testfixtures.CaveatDef.Name,
-					Context:    nil,
-				},
-			},
-		})
+	for found, err := range iter {
+		require.NoError(err)
+
+		updates = append(updates, tuple.Touch(found.WithCaveat(&core.ContextualizedCaveat{
+			CaveatName: testfixtures.CaveatDef.Name,
+			Context:    nil,
+		})))
 	}
 
 	require.Equal(tc, len(updates))
@@ -184,13 +178,12 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 		OptionalResourceType: testfixtures.DocumentNS.Name,
 	})
 	require.NoError(err)
-	defer iter.Close()
 
 	foundChanged := 0
-
-	for found := iter.Next(); found != nil; found = iter.Next() {
-		require.NotNil(found.Caveat)
-		require.NotEmpty(found.Caveat.CaveatName)
+	for found, err := range iter {
+		require.NoError(err)
+		require.NotNil(found.OptionalCaveat)
+		require.NotEmpty(found.OptionalCaveat.CaveatName)
 		foundChanged++
 	}
 
@@ -208,7 +201,7 @@ func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 
 	// Bulk write a single relationship.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+		inserted, err := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
 			testfixtures.DocumentNS.Name,
 			"viewer",
 			testfixtures.UserNS.Name,
@@ -223,7 +216,7 @@ func BulkUploadAlreadyExistsErrorTest(t *testing.T, tester DatastoreTester) {
 
 	// Bulk write it again and ensure we get the expected error.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkTupleGenerator(
+		_, serr := rwt.BulkLoad(ctx, testfixtures.NewBulkRelationshipGenerator(
 			testfixtures.DocumentNS.Name,
 			"viewer",
 			testfixtures.UserNS.Name,
@@ -245,7 +238,7 @@ type onlyErrorSource struct{}
 
 var errOnlyError = errors.New("source iterator error")
 
-func (oes onlyErrorSource) Next(_ context.Context) (*core.RelationTuple, error) {
+func (oes onlyErrorSource) Next(_ context.Context) (*tuple.Relationship, error) {
 	return nil, errOnlyError
 }
 

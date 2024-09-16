@@ -76,7 +76,7 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 	key := tuple.StringWithoutCaveat(rel)
 
 	switch op {
-	case tuple.UpdateOperationDelete:
+	case tuple.UpdateOperationTouch:
 		// If there was a delete for the same tuple at the same revision, drop it
 		existing, ok := record.relDeletes[key]
 		if ok {
@@ -91,7 +91,7 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 			return err
 		}
 
-	case tuple.UpdateOperationTouch:
+	case tuple.UpdateOperationDelete:
 		_, alreadyTouched := record.relTouches[key]
 		if !alreadyTouched {
 			record.relDeletes[key] = rel

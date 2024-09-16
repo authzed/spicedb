@@ -10,7 +10,7 @@ import (
 func (cr *DispatchCheckRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", cr.Metadata)
 	e.Str("resource-type", tuple.StringRR(cr.ResourceRelation))
-	e.Str("subject", tuple.StringONR(cr.Subject))
+	e.Str("subject", tuple.StringCoreONR(cr.Subject))
 	e.Array("resource-ids", strArray(cr.ResourceIds))
 }
 
@@ -28,7 +28,7 @@ func (cr *DispatchCheckResponse) MarshalZerologObject(e *zerolog.Event) {
 // MarshalZerologObject implements zerolog object marshalling.
 func (er *DispatchExpandRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", er.Metadata)
-	e.Str("expand", tuple.StringONR(er.ResourceAndRelation))
+	e.Str("expand", tuple.StringCoreONR(er.ResourceAndRelation))
 	e.Stringer("mode", er.ExpansionMode)
 }
 
@@ -41,7 +41,7 @@ func (cr *DispatchExpandResponse) MarshalZerologObject(e *zerolog.Event) {
 func (lr *DispatchLookupResourcesRequest) MarshalZerologObject(e *zerolog.Event) {
 	e.Object("metadata", lr.Metadata)
 	e.Str("object", tuple.StringRR(lr.ObjectRelation))
-	e.Str("subject", tuple.StringONR(lr.Subject))
+	e.Str("subject", tuple.StringCoreONR(lr.Subject))
 	e.Interface("context", lr.Context)
 }
 

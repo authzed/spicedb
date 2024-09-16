@@ -1,6 +1,8 @@
 package tuple
 
 import (
+	"fmt"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -24,6 +26,11 @@ const onrStructSize = 48 /* size of the struct itself */
 
 func (onr ObjectAndRelation) SizeVT() int {
 	return len(onr.ObjectID) + len(onr.ObjectType) + len(onr.Relation) + onrStructSize
+}
+
+func (onr ObjectAndRelation) WithRelation(relation string) ObjectAndRelation {
+	onr.Relation = relation
+	return onr
 }
 
 // RelationshipReference represents a reference to a relationship, i.e. those portions
@@ -61,6 +68,11 @@ func (r Relationship) WithoutIntegrity() Relationship {
 	return r
 }
 
+func (r Relationship) WithCaveat(caveat *core.ContextualizedCaveat) Relationship {
+	r.OptionalCaveat = caveat
+	return r
+}
+
 type UpdateOperation int
 
 const (
@@ -73,4 +85,21 @@ const (
 type RelationshipUpdate struct {
 	Operation    UpdateOperation
 	Relationship Relationship
+}
+
+func (ru RelationshipUpdate) OperationString() string {
+	switch ru.Operation {
+	case UpdateOperationTouch:
+		return "TOUCH"
+	case UpdateOperationCreate:
+		return "CREATE"
+	case UpdateOperationDelete:
+		return "DELETE"
+	default:
+		return "unknown"
+	}
+}
+
+func (ru RelationshipUpdate) DebugString() string {
+	return fmt.Sprintf("%s(%s)", ru.OperationString(), StringWithoutCaveat(ru.Relationship))
 }

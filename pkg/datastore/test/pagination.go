@@ -14,7 +14,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -53,22 +52,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 			}, options.WithSort(tc.ordering))
 
 			require.NoError(err)
-			defer iter.Close()
-
-			cursor, err := iter.Cursor()
-			require.Empty(cursor)
-			require.ErrorIs(err, datastore.ErrCursorEmpty)
-
 			tRequire.VerifyOrderedIteratorResults(iter, expected...)
-
-			cursor, err = iter.Cursor()
-			if len(expected) > 0 {
-				require.NotEmpty(cursor)
-				require.NoError(err)
-			} else {
-				require.Empty(cursor)
-				require.ErrorIs(err, datastore.ErrCursorEmpty)
-			}
 
 			// Check a reader from with a transaction
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -76,23 +60,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 					OptionalResourceType: tc.resourceType,
 				}, options.WithSort(tc.ordering))
 				require.NoError(err)
-				defer iter.Close()
-
-				cursor, err := iter.Cursor()
-				require.Empty(cursor)
-				require.ErrorIs(err, datastore.ErrCursorEmpty)
-
 				tRequire.VerifyOrderedIteratorResults(iter, expected...)
-
-				cursor, err = iter.Cursor()
-				if len(expected) > 0 {
-					require.NotEmpty(cursor)
-					require.NoError(err)
-				} else {
-					require.Empty(cursor)
-					require.ErrorIs(err, datastore.ErrCursorEmpty)
-				}
-
 				return nil
 			})
 			require.NoError(err)
@@ -127,22 +95,13 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 					}, options.WithLimit(&testLimit))
 
 					require.NoError(err)
-					defer iter.Close()
 
 					expectedCount := limit
 					if expectedCount > len(expected) {
 						expectedCount = len(expected)
 					}
 
-					cursor, err := iter.Cursor()
-					require.Empty(cursor)
-					require.ErrorIs(err, datastore.ErrCursorsWithoutSorting)
-
 					tRequire.VerifyIteratorCount(iter, expectedCount)
-
-					cursor, err = iter.Cursor()
-					require.Empty(cursor)
-					require.ErrorIs(err, datastore.ErrCursorsWithoutSorting)
 				})
 			})
 		}
@@ -232,22 +191,7 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 					}
 
 					require.NoError(err)
-					defer iter.Close()
-
-					cursor, err := iter.Cursor()
-					require.Empty(cursor)
-					require.ErrorIs(err, datastore.ErrCursorEmpty)
-
 					tRequire.VerifyOrderedIteratorResults(iter, expected[0:limit]...)
-
-					cursor, err = iter.Cursor()
-					if len(expected) > 0 {
-						require.NotEmpty(cursor)
-						require.NoError(err)
-					} else {
-						require.Empty(cursor)
-						require.ErrorIs(err, datastore.ErrCursorEmpty)
-					}
 				})
 			})
 		}
@@ -288,92 +232,17 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 						}
 
 						require.NoError(err)
-						defer iter.Close()
-
-						emptyCursor, err := iter.Cursor()
-						require.Empty(emptyCursor)
-						require.ErrorIs(err, datastore.ErrCursorEmpty)
 
 						upperBound := offset + batchSize
 						if upperBound > len(expected) {
 							upperBound = len(expected)
 						}
 
-						tRequire.VerifyOrderedIteratorResults(iter, expected[offset:upperBound]...)
-
-						cursor, err = iter.Cursor()
-						if upperBound-offset > 0 {
-							require.NotEmpty(cursor)
-							require.NoError(err)
-						} else {
-							require.Empty(cursor)
-							require.ErrorIs(err, datastore.ErrCursorEmpty)
-						}
+						cursor = tRequire.VerifyOrderedIteratorResults(iter, expected[offset:upperBound]...)
 					}
 				})
 			})
 		}
-	}
-}
-
-func CursorErrorsTest(t *testing.T, tester DatastoreTester) {
-	testCases := []struct {
-		order              options.SortOrder
-		defaultCursorError error
-	}{
-		{options.Unsorted, datastore.ErrCursorsWithoutSorting},
-		{options.ByResource, nil},
-	}
-
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
-	require.NoError(t, err)
-
-	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
-	ctx := context.Background()
-
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("Order-%d", tc.order), func(t *testing.T) {
-			require := require.New(t)
-
-			foreachTxType(ctx, ds, rev, func(reader datastore.Reader) {
-				iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-					OptionalResourceType: testfixtures.DocumentNS.Name,
-				}, options.WithSort(tc.order))
-				require.NoError(err)
-				require.NotNil(iter)
-				defer iter.Close()
-
-				cursor, err := iter.Cursor()
-				require.Nil(cursor)
-				if tc.defaultCursorError != nil {
-					require.ErrorIs(err, tc.defaultCursorError)
-				} else {
-					require.ErrorIs(err, datastore.ErrCursorEmpty)
-				}
-
-				val := iter.Next()
-				require.NotNil(val)
-
-				cursor, err = iter.Cursor()
-				if tc.defaultCursorError != nil {
-					require.Nil(cursor)
-					require.ErrorIs(err, tc.defaultCursorError)
-				} else {
-					require.NotNil(cursor)
-					require.Nil(err)
-				}
-
-				iter.Close()
-				valAfterClose := iter.Next()
-				require.Nil(valAfterClose)
-
-				err = iter.Err()
-				require.ErrorIs(err, datastore.ErrClosedIterator)
-				cursorAfterClose, err := iter.Cursor()
-				require.Nil(cursorAfterClose)
-				require.ErrorIs(err, datastore.ErrClosedIterator)
-			})
-		})
 	}
 }
 
@@ -386,7 +255,7 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 
 	// Add test relationships.
 	rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:alice")),
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:fred")),
@@ -412,17 +281,12 @@ func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 					SubjectType: testfixtures.UserNS.Name,
 				}, options.WithSortForReverse(sortBy), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
 				require.NoError(t, err)
-				defer iter.Close()
 
 				encounteredTuples := mapz.NewSet[string]()
-				for {
-					rel := iter.Next()
-					if rel == nil {
-						break
-					}
-
+				for rel, err := range iter {
+					require.NoError(t, err)
 					require.True(t, encounteredTuples.Add(tuple.MustString(rel)))
-					cursor = rel
+					cursor = options.ToCursor(rel)
 				}
 
 				require.LessOrEqual(t, encounteredTuples.Len(), 2)
@@ -452,19 +316,19 @@ func foreachTxType(
 	})
 }
 
-func sortedStandardData(resourceType string, order options.SortOrder) []*core.RelationTuple {
-	asTuples := lo.Map(testfixtures.StandardTuples, func(item string, _ int) *core.RelationTuple {
-		return tuple.Parse(item)
+func sortedStandardData(resourceType string, order options.SortOrder) []tuple.Relationship {
+	asTuples := lo.Map(testfixtures.StandardRelationships, func(item string, _ int) tuple.Relationship {
+		return tuple.MustParse(item)
 	})
 
-	filteredToType := lo.Filter(asTuples, func(item *core.RelationTuple, _ int) bool {
-		return item.ResourceAndRelation.Namespace == resourceType
+	filteredToType := lo.Filter(asTuples, func(item tuple.Relationship, _ int) bool {
+		return item.Resource.ObjectType == resourceType
 	})
 
 	sort.Slice(filteredToType, func(i, j int) bool {
-		lhsResource := tuple.StringONR(filteredToType[i].ResourceAndRelation)
+		lhsResource := tuple.StringONR(filteredToType[i].Resource)
 		lhsSubject := tuple.StringONR(filteredToType[i].Subject)
-		rhsResource := tuple.StringONR(filteredToType[j].ResourceAndRelation)
+		rhsResource := tuple.StringONR(filteredToType[j].Resource)
 		rhsSubject := tuple.StringONR(filteredToType[j].Subject)
 		switch order {
 		case options.ByResource:
@@ -479,22 +343,22 @@ func sortedStandardData(resourceType string, order options.SortOrder) []*core.Re
 	return filteredToType
 }
 
-func sortedStandardDataBySubject(subjectType string, order options.SortOrder) []*core.RelationTuple {
-	asTuples := lo.Map(testfixtures.StandardTuples, func(item string, _ int) *core.RelationTuple {
-		return tuple.Parse(item)
+func sortedStandardDataBySubject(subjectType string, order options.SortOrder) []tuple.Relationship {
+	asTuples := lo.Map(testfixtures.StandardRelationships, func(item string, _ int) tuple.Relationship {
+		return tuple.MustParse(item)
 	})
 
-	filteredToType := lo.Filter(asTuples, func(item *core.RelationTuple, _ int) bool {
+	filteredToType := lo.Filter(asTuples, func(item tuple.Relationship, _ int) bool {
 		if subjectType == "" {
 			return true
 		}
-		return item.Subject.Namespace == subjectType
+		return item.Subject.ObjectType == subjectType
 	})
 
 	sort.Slice(filteredToType, func(i, j int) bool {
-		lhsResource := tuple.StringONR(filteredToType[i].ResourceAndRelation)
+		lhsResource := tuple.StringONR(filteredToType[i].Resource)
 		lhsSubject := tuple.StringONR(filteredToType[i].Subject)
-		rhsResource := tuple.StringONR(filteredToType[j].ResourceAndRelation)
+		rhsResource := tuple.StringONR(filteredToType[j].Resource)
 		rhsSubject := tuple.StringONR(filteredToType[j].Subject)
 		switch order {
 		case options.ByResource:

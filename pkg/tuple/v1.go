@@ -223,33 +223,23 @@ func UpdatesFromV1RelationshipUpdates(updates []*v1.RelationshipUpdate) ([]Relat
 	return relationshipUpdates, nil
 }
 
-// MustToV1Filter converts a RelationTuple into a RelationshipFilter. Will panic if
-// the RelationTuple does not validate.
-func MustToV1Filter(tpl *core.RelationTuple) *v1.RelationshipFilter {
-	if err := tpl.Validate(); err != nil {
-		panic(fmt.Sprintf("invalid tuple: %#v %s", tpl, err))
-	}
-
-	return ToV1Filter(tpl)
-}
-
 // ToV1Filter converts a RelationTuple into a RelationshipFilter.
-func ToV1Filter(tpl *core.RelationTuple) *v1.RelationshipFilter {
+func ToV1Filter(rel Relationship) *v1.RelationshipFilter {
 	return &v1.RelationshipFilter{
-		ResourceType:          tpl.ResourceAndRelation.Namespace,
-		OptionalResourceId:    tpl.ResourceAndRelation.ObjectId,
-		OptionalRelation:      tpl.ResourceAndRelation.Relation,
-		OptionalSubjectFilter: UsersetToSubjectFilter(tpl.Subject),
+		ResourceType:          rel.Resource.ObjectType,
+		OptionalResourceId:    rel.Resource.ObjectID,
+		OptionalRelation:      rel.Resource.Relation,
+		OptionalSubjectFilter: SubjectONRToSubjectFilter(rel.Subject),
 	}
 }
 
-// UsersetToSubjectFilter converts a userset to the equivalent exact SubjectFilter.
-func UsersetToSubjectFilter(userset *core.ObjectAndRelation) *v1.SubjectFilter {
+// SubjectONRToSubjectFilter converts a userset to the equivalent exact SubjectFilter.
+func SubjectONRToSubjectFilter(subject ObjectAndRelation) *v1.SubjectFilter {
 	return &v1.SubjectFilter{
-		SubjectType:       userset.Namespace,
-		OptionalSubjectId: userset.ObjectId,
+		SubjectType:       subject.ObjectType,
+		OptionalSubjectId: subject.ObjectID,
 		OptionalRelation: &v1.SubjectFilter_RelationFilter{
-			Relation: stringz.Default(userset.Relation, "", Ellipsis),
+			Relation: stringz.Default(subject.Relation, "", Ellipsis),
 		},
 	}
 }

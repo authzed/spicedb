@@ -755,6 +755,17 @@ type Stats struct {
 // RelationshipIterator is an iterator over matched tuples.
 type RelationshipIterator iter.Seq2[tuple.Relationship, error]
 
+func IteratorToSlice(iter RelationshipIterator) ([]tuple.Relationship, error) {
+	var results []tuple.Relationship
+	for rel, err := range iter {
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, rel)
+	}
+	return results, nil
+}
+
 // Revision is an interface for a comparable revision type that can be different for
 // each datastore implementation.
 type Revision interface {

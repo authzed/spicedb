@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -30,41 +30,44 @@ func RandomObjectID(length uint8) string {
 	return string(b)
 }
 
-func NewBulkTupleGenerator(objectType, relation, subjectType string, count int, t *testing.T) *BulkTupleGenerator {
-	return &BulkTupleGenerator{
+func NewBulkRelationshipGenerator(objectType, relation, subjectType string, count int, t *testing.T) *BulkRelationshipGenerator {
+	return &BulkRelationshipGenerator{
 		count,
 		t,
-		core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: objectType,
-				Relation:  relation,
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: subjectType,
-				Relation:  datastore.Ellipsis,
-			},
-		},
+		objectType,
+		relation,
+		subjectType,
 	}
 }
 
-type BulkTupleGenerator struct {
-	remaining int
-	t         *testing.T
-
-	current core.RelationTuple
+type BulkRelationshipGenerator struct {
+	remaining   int
+	t           *testing.T
+	objectType  string
+	relation    string
+	subjectType string
 }
 
-func (btg *BulkTupleGenerator) Next(_ context.Context) (*core.RelationTuple, error) {
+func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationship, error) {
 	if btg.remaining <= 0 {
 		return nil, nil
 	}
 	btg.remaining--
-	btg.current.ResourceAndRelation.ObjectId = strconv.Itoa(btg.remaining)
-	btg.current.Subject.ObjectId = strconv.Itoa(btg.remaining)
-	btg.current.Caveat = nil
-	btg.current.Integrity = nil
 
-	return &btg.current, nil
+	return &tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: btg.objectType,
+				ObjectID:   strconv.Itoa(btg.remaining),
+				Relation:   btg.relation,
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: btg.subjectType,
+				ObjectID:   strconv.Itoa(btg.remaining),
+				Relation:   datastore.Ellipsis,
+			},
+		},
+	}, nil
 }
 
-var _ datastore.BulkWriteRelationshipSource = &BulkTupleGenerator{}
+var _ datastore.BulkWriteRelationshipSource = &BulkRelationshipGenerator{}
