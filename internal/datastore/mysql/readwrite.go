@@ -377,7 +377,7 @@ func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v
 
 	uintRowsAffected, err := safecast.ToUint64(rowsAffected)
 	if err != nil {
-		return false, spiceerrors.MustBugf("rowsAffected was negative")
+		return false, spiceerrors.MustBugf("rowsAffected was negative: %v", err)
 	}
 
 	if delLimit > 0 && uintRowsAffected == delLimit {

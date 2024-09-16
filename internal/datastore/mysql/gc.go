@@ -68,7 +68,7 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 
 	uintValue, err := safecast.ToUint64(value.Int64)
 	if err != nil {
-		return datastore.NoRevision, spiceerrors.MustBugf("value could not be cast to uint64")
+		return datastore.NoRevision, spiceerrors.MustBugf("value could not be cast to uint64: %v", err)
 	}
 
 	return revisions.NewForTransactionID(uintValue), nil

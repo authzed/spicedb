@@ -120,9 +120,10 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 		return spiceerrors.MustBugf("byte size underflow")
 	}
 
-	// We checked for underflow above, so the current byte size
-	// should fit in a uint64
-	currentByteSize, _ := safecast.ToUint64(ch.currentByteSize)
+	currentByteSize, err := safecast.ToUint64(ch.currentByteSize)
+	if err != nil {
+		return spiceerrors.MustBugf("could not cast currentByteSize to uint64: %v", err)
+	}
 
 	if currentByteSize > ch.maxByteSize {
 		return datastore.NewMaximumChangesSizeExceededError(ch.maxByteSize)

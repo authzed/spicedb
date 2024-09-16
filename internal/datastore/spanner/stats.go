@@ -106,7 +106,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 
 		estimatedBytesPerRelationship, err = safecast.ToUint64(totalByteCount / totalRelationships)
 		if err != nil {
-			return datastore.Stats{}, spiceerrors.MustBugf("could not cast estimated bytes to uint64")
+			return datastore.Stats{}, spiceerrors.MustBugf("could not cast estimated bytes to uint64: %v", err)
 		}
 		if estimatedBytesPerRelationship > 0 {
 			sd.cachedEstimatedBytesPerRelationshipLock.Lock()
@@ -147,7 +147,7 @@ func (sd *spannerDatastore) Statistics(ctx context.Context) (datastore.Stats, er
 
 	uintByteEstimate, err := safecast.ToUint64(byteEstimate.Int64)
 	if err != nil {
-		return datastore.Stats{}, spiceerrors.MustBugf("unable to cast byteEstimate to uint64")
+		return datastore.Stats{}, spiceerrors.MustBugf("unable to cast byteEstimate to uint64: %v", err)
 	}
 
 	return datastore.Stats{

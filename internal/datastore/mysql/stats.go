@@ -78,7 +78,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 
 	uintCount, err := safecast.ToUint64(count.Int64)
 	if err != nil {
-		return datastore.Stats{}, spiceerrors.MustBugf("could not cast count to uint64")
+		return datastore.Stats{}, spiceerrors.MustBugf("could not cast count to uint64: %v", err)
 	}
 
 	return datastore.Stats{

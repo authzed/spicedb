@@ -424,11 +424,11 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 	}
 	writeTotal, err := safecast.ToUint32(cds.writePool.Stat().TotalConns())
 	if err != nil {
-		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast writeTotal to uint32")
+		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast writeTotal to uint32: %v", err)
 	}
 	readTotal, err := safecast.ToUint32(cds.readPool.Stat().TotalConns())
 	if err != nil {
-		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast readTotal to uint32")
+		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast readTotal to uint32: %v", err)
 	}
 	if writeTotal < writeMin || readTotal < readMin {
 		return datastore.ReadyState{

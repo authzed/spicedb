@@ -388,7 +388,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 	// validate the limit
 	intLimit, err := safecast.ToInt64(limit)
 	if err != nil {
-		return false, fmt.Errorf("limit argument could not safely be cast to int64")
+		return false, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
 	}
 
 	// Construct a select query for the relationships to be removed.

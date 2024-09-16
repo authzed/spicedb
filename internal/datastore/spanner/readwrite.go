@@ -182,7 +182,7 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 
 	uintNumDeleted, err := safecast.ToUint64(numDeleted)
 	if err != nil {
-		return false, spiceerrors.MustBugf("numDeleted was negative")
+		return false, spiceerrors.MustBugf("numDeleted was negative: %v", err)
 	}
 
 	if delLimit > 0 && uintNumDeleted == delLimit {

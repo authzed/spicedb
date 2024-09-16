@@ -180,7 +180,7 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 
 	uintLastInsertID, err := safecast.ToUint64(lastInsertID)
 	if err != nil {
-		return 0, spiceerrors.MustBugf("lastInsertID was negative")
+		return 0, spiceerrors.MustBugf("lastInsertID was negative: %v", err)
 	}
 
 	return uintLastInsertID, nil

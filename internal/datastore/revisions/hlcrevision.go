@@ -61,8 +61,10 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 	}
 
-	// Because we parsed with a bit size of 32 above, we know this range check should pass.
-	uintLogicalClock, _ := safecast.ToUint32(logicalclock)
+	uintLogicalClock, err := safecast.ToUint32(logicalclock)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("could not cast logicalclock to uint32: %v", err)
+	}
 	return HLCRevision{timestamp, uintLogicalClock + logicalClockOffset}, nil
 }
 

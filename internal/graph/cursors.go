@@ -505,7 +505,7 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 			// Remove the already emitted data from the overall limits.
 			publishedCount, err := safecast.ToUint32(ls.countingStream.PublishedCount())
 			if err != nil {
-				return spiceerrors.MustBugf("cannot cast published count to uint32")
+				return spiceerrors.MustBugf("cannot cast published count to uint32: %v", err)
 			}
 			if err := ls.ci.limits.markAlreadyPublished(publishedCount); err != nil {
 				return err

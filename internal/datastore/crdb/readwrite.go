@@ -433,7 +433,7 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 	rwt.relCountChange -= modified.RowsAffected()
 	rowsAffected, err := safecast.ToUint64(modified.RowsAffected())
 	if err != nil {
-		return false, spiceerrors.MustBugf("could not cast RowsAffected to uint64")
+		return false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
 	}
 	if delLimit > 0 && rowsAffected == delLimit {
 		return true, nil

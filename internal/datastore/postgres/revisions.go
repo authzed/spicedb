@@ -328,20 +328,20 @@ func (pr postgresRevision) OptionalNanosTimestamp() (uint64, bool) {
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 	xminInt, err := safecast.ToInt64(pr.snapshot.xmin)
 	if err != nil {
-		return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64")
+		return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64: %v", err)
 	}
 	relativeXips := make([]int64, len(pr.snapshot.xipList))
 	for i, xip := range pr.snapshot.xipList {
 		intXip, err := safecast.ToInt64(xip)
 		if err != nil {
-			return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64")
+			return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64: %v", err)
 		}
 		relativeXips[i] = intXip - xminInt
 	}
 
 	relativeXmax, err := safecast.ToInt64(pr.snapshot.xmax)
 	if err != nil {
-		return nil, spiceerrors.MustBugf("could not safely cast snapshot xmax to int64")
+		return nil, spiceerrors.MustBugf("could not safely cast snapshot xmax to int64: %v", err)
 	}
 	protoRevision := implv1.PostgresRevision{
 		Xmin:         pr.snapshot.xmin,
