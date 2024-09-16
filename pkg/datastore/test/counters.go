@@ -62,11 +62,10 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(t, err)
 
-	for iter.Next() != nil {
+	for _, err := range iter {
 		expectedCount++
-		require.NoError(t, iter.Err())
+		require.NoError(t, err)
 	}
-	iter.Close()
 
 	count, err := reader.CountRelationships(context.Background(), "document")
 	require.NoError(t, err)
@@ -79,11 +78,10 @@ func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.NoError(t, err)
 
-	for iter.Next() != nil {
+	for _, err := range iter {
 		expectedCount++
-		require.NoError(t, iter.Err())
+		require.NoError(t, err)
 	}
-	iter.Close()
 
 	count, err = reader.CountRelationships(context.Background(), "another")
 	require.NoError(t, err)

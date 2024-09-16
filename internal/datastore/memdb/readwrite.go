@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -114,7 +115,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...tuple.Relationshi
 				}
 			}
 		default:
-			return fmt.Errorf("unknown tuple mutation operation type: %s", mutation.Operation)
+			return spiceerrors.MustBugf("unknown tuple mutation operation type: %v", mutation.Operation)
 		}
 	}
 
