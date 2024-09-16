@@ -693,6 +693,9 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 			IntegrityData: datastore.Feature{
 				Status: datastore.FeatureUnsupported,
 			},
+			ContinuousCheckpointing: datastore.Feature{
+				Status: datastore.FeatureUnsupported,
+			},
 		}, nil
 	}
 
@@ -701,6 +704,9 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 			Status: datastore.FeatureUnsupported,
 		},
 		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+		ContinuousCheckpointing: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
 		},
 	}, nil
