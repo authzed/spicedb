@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -862,4 +863,15 @@ func GetCaveatContext(ctx context.Context, caveatCtx *structpb.Struct, maxCaveat
 		caveatContext = caveatCtx.AsMap()
 	}
 	return caveatContext, nil
+}
+
+func (ps *permissionServer) ImportBulkRelationships (stream grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]) error {
+	adapter := &bulkLoadAdapter{
+		stream:                 stream,
+	}
+	response, err := ps.bulkImporter.bulkImportRelationships(stream.Context(), adapter)
+	if err != nil {
+		return err
+	}
+	stream.SendAndClose(response)
 }

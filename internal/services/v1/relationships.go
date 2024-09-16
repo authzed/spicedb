@@ -141,6 +141,8 @@ func NewPermissionsServer(
 			dispatch:             dispatch,
 			dispatchChunkSize:    configWithDefaults.DispatchChunkSize,
 		},
+		bulkImporter: &bulkImporter{},
+		bulkExporter: &bulkExporter{},
 	}
 }
 
@@ -152,6 +154,8 @@ type permissionServer struct {
 	config   PermissionsServerConfig
 
 	bulkChecker *bulkChecker
+	bulkImporter *bulkImporter
+	bulkExporter *bulkExporter
 }
 
 func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, resp v1.PermissionsService_ReadRelationshipsServer) error {
