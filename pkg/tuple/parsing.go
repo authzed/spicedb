@@ -37,8 +37,6 @@ var subjectExpr = fmt.Sprintf(
 var caveatExpr = fmt.Sprintf(`\[(?P<caveatName>(%s))(:(?P<caveatContext>(\{(.+)\})))?\]`, caveatNameExpr)
 
 var (
-	onrRegex        = regexp.MustCompile(fmt.Sprintf("^%s$", onrExpr))
-	subjectRegex    = regexp.MustCompile(fmt.Sprintf("^%s$", subjectExpr))
 	resourceIDRegex = regexp.MustCompile(fmt.Sprintf("^%s$", resourceIDExpr))
 	subjectIDRegex  = regexp.MustCompile(fmt.Sprintf("^%s$", subjectIDExpr))
 )
@@ -85,6 +83,15 @@ func MustParse(relString string) Relationship {
 	return parsed
 }
 
+var subjectRelIndex = slices.Index(parserRegex.SubexpNames(), "subjectRel")
+var caveatNameIndex = slices.Index(parserRegex.SubexpNames(), "caveatName")
+var caveatContextIndex = slices.Index(parserRegex.SubexpNames(), "caveatContext")
+var resourceIDIndex = slices.Index(parserRegex.SubexpNames(), "resourceID")
+var subjectIDIndex = slices.Index(parserRegex.SubexpNames(), "subjectID")
+var resourceTypeIndex = slices.Index(parserRegex.SubexpNames(), "resourceType")
+var resourceRelIndex = slices.Index(parserRegex.SubexpNames(), "resourceRel")
+var subjectTypeIndex = slices.Index(parserRegex.SubexpNames(), "subjectType")
+
 // Parse unmarshals the string form of a Tuple and returns an error on failure,
 //
 // This function treats both missing and Ellipsis relations equally.
@@ -95,19 +102,18 @@ func Parse(relString string) (Relationship, error) {
 	}
 
 	subjectRelation := Ellipsis
-	subjectRelIndex := slices.Index(parserRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		subjectRelation = groups[subjectRelIndex]
 	}
 
-	caveatName := groups[slices.Index(parserRegex.SubexpNames(), "caveatName")]
+	caveatName := groups[caveatNameIndex]
 	var optionalCaveat *core.ContextualizedCaveat
 	if caveatName != "" {
 		optionalCaveat = &core.ContextualizedCaveat{
 			CaveatName: caveatName,
 		}
 
-		caveatContextString := groups[slices.Index(parserRegex.SubexpNames(), "caveatContext")]
+		caveatContextString := groups[caveatContextIndex]
 		if len(caveatContextString) > 0 {
 			contextMap := make(map[string]any, 1)
 			err := json.Unmarshal([]byte(caveatContextString), &contextMap)
@@ -124,12 +130,12 @@ func Parse(relString string) (Relationship, error) {
 		}
 	}
 
-	resourceID := groups[slices.Index(parserRegex.SubexpNames(), "resourceID")]
+	resourceID := groups[resourceIDIndex]
 	if err := ValidateResourceID(resourceID); err != nil {
 		return Relationship{}, fmt.Errorf("invalid resource id: %w", err)
 	}
 
-	subjectID := groups[slices.Index(parserRegex.SubexpNames(), "subjectID")]
+	subjectID := groups[subjectIDIndex]
 	if err := ValidateSubjectID(subjectID); err != nil {
 		return Relationship{}, fmt.Errorf("invalid subject id: %w", err)
 	}
@@ -137,12 +143,12 @@ func Parse(relString string) (Relationship, error) {
 	return Relationship{
 		RelationshipReference: RelationshipReference{
 			Resource: ObjectAndRelation{
-				ObjectType: groups[slices.Index(parserRegex.SubexpNames(), "resourceType")],
+				ObjectType: groups[resourceTypeIndex],
 				ObjectID:   resourceID,
-				Relation:   groups[slices.Index(parserRegex.SubexpNames(), "resourceRel")],
+				Relation:   groups[resourceRelIndex],
 			},
 			Subject: ObjectAndRelation{
-				ObjectType: groups[slices.Index(parserRegex.SubexpNames(), "subjectType")],
+				ObjectType: groups[subjectTypeIndex],
 				ObjectID:   subjectID,
 				Relation:   subjectRelation,
 			},
