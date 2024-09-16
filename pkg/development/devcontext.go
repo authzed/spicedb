@@ -248,11 +248,11 @@ func loadCompiled(
 			// NOTE: zeroes are fine here to mean "unknown"
 			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
 			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: cverr.Error(),
@@ -279,11 +279,11 @@ func loadCompiled(
 			// NOTE: zeroes are fine here to mean "unknown"
 			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
 			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
@@ -319,11 +319,11 @@ func loadCompiled(
 			// NOTE: zeroes are fine here to mean "unknown"
 			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
 			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),

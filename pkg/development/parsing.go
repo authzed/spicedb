@@ -52,11 +52,11 @@ func convertSourceError(source devinterface.DeveloperError_Source, err *spiceerr
 	// NOTE: zeroes are fine here to mean "unknown"
 	lineNumber, castErr := safecast.ToUint32(err.LineNumber)
 	if castErr != nil {
-		log.Err(castErr)
+		log.Err(castErr).Msg("could not cast lineNumber to uint32")
 	}
 	columnPosition, castErr := safecast.ToUint32(err.ColumnPosition)
 	if castErr != nil {
-		log.Err(castErr)
+		log.Err(castErr).Msg("could not cast columnPosition to uint32")
 	}
 	return &devinterface.DeveloperError{
 		Message: err.Error(),

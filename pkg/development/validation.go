@@ -95,11 +95,11 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 		// NOTE: zeroes are fine here on failure.
 		lineNumber, err := safecast.ToUint32(expectedSubject.SourcePosition.LineNumber)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
 		columnPosition, err := safecast.ToUint32(expectedSubject.SourcePosition.ColumnPosition)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 		if subjectWithExceptions == nil {
 			failures = append(failures, &devinterface.DeveloperError{
@@ -210,11 +210,11 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 		if !ok {
 			onrLineNumber, err := safecast.ToUint32(onrKey.SourcePosition.LineNumber)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast lineNumber to uint32")
 			}
 			onrColumnPosition, err := safecast.ToUint32(onrKey.SourcePosition.ColumnPosition)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",

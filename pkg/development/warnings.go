@@ -43,11 +43,11 @@ func warningForPosition(warningName string, message string, sourceCode string, s
 	// NOTE: zeroes on failure are fine here.
 	lineNumber, err := safecast.ToUint32(sourcePosition.ZeroIndexedLineNumber)
 	if err != nil {
-		log.Err(err)
+		log.Err(err).Msg("could not cast lineNumber to uint32")
 	}
 	columnNumber, err := safecast.ToUint32(sourcePosition.ZeroIndexedColumnPosition)
 	if err != nil {
-		log.Err(err)
+		log.Err(err).Msg("could not cast columnPosition to uint32")
 	}
 
 	return &devinterface.DeveloperWarning{

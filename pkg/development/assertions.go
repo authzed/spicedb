@@ -47,11 +47,11 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 		// NOTE: zeroes are fine here to mean "unknown"
 		lineNumber, err := safecast.ToUint32(assertion.SourcePosition.LineNumber)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
 		columnPosition, err := safecast.ToUint32(assertion.SourcePosition.ColumnPosition)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 
 		if tpl.Caveat != nil {

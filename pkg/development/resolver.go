@@ -97,11 +97,11 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		// NOTE: zeroes are fine here to mean "unknown"
 		lineNumber, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
 		columnPosition, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 		relationPosition := input.Position{
 			LineNumber:     lineNumber,
@@ -155,11 +155,11 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		// NOTE: zeroes are fine here to mean "unknown"
 		lineNumber, err := safecast.ToInt(def.SourcePosition.ZeroIndexedLineNumber)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
 		columnPosition, err := safecast.ToInt(def.SourcePosition.ZeroIndexedColumnPosition)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 
 		defPosition := input.Position{
@@ -198,11 +198,11 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		// NOTE: zeroes are fine here to mean "unknown"
 		lineNumber, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedLineNumber)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
 		columnPosition, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedColumnPosition)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 
 		defPosition := input.Position{

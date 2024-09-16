@@ -30,11 +30,11 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 		// NOTE: zeroes are fine here on failure.
 		uintLine, err := safecast.ToUint32(line)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast lineNumber to uint32")
 		}
 		uintColumn, err := safecast.ToUint32(col)
 		if err != nil {
-			log.Err(err)
+			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 		return nil, &devinterface.DeveloperError{
 			Message: contextError.BaseCompilerError.BaseMessage,
