@@ -12,6 +12,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -107,7 +108,7 @@ func (r relationship) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("rel", r.String())
 }
 
-func (r relationship) Relationship() *v1.Relationship {
+func (r relationship) V1Relationship() *v1.Relationship {
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: r.namespace,
@@ -124,10 +125,10 @@ func (r relationship) Relationship() *v1.Relationship {
 	}
 }
 
-func (r relationship) RelationTuple() (*core.RelationTuple, error) {
+func (r relationship) Relationship() (tuple.Relationship, error) {
 	cr, err := r.caveat.ContextualizedCaveat()
 	if err != nil {
-		return nil, err
+		return tuple.Relationship{}, err
 	}
 
 	var ig *core.RelationshipIntegrity
@@ -135,19 +136,21 @@ func (r relationship) RelationTuple() (*core.RelationTuple, error) {
 		ig = r.integrity.RelationshipIntegrity()
 	}
 
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: r.namespace,
-			ObjectId:  r.resourceID,
-			Relation:  r.relation,
+	return tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: r.namespace,
+				ObjectID:   r.resourceID,
+				Relation:   r.relation,
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: r.subjectNamespace,
+				ObjectID:   r.subjectObjectID,
+				Relation:   r.subjectRelation,
+			},
 		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: r.subjectNamespace,
-			ObjectId:  r.subjectObjectID,
-			Relation:  r.subjectRelation,
-		},
-		Caveat:    cr,
-		Integrity: ig,
+		OptionalCaveat:    cr,
+		OptionalIntegrity: ig,
 	}, nil
 }
 

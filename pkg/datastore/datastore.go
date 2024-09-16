@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"fmt"
+	"iter"
 	"slices"
 	"sort"
 	"strings"
@@ -47,7 +48,7 @@ type RevisionChanges struct {
 	Revision Revision
 
 	// RelationshipChanges are any relationships that were changed at this revision.
-	RelationshipChanges []*core.RelationTupleUpdate
+	RelationshipChanges []tuple.RelationshipUpdate
 
 	// ChangedDefinitions are any definitions that were added or changed at this revision.
 	ChangedDefinitions []SchemaDefinition
@@ -108,20 +109,20 @@ type RelationshipsFilter struct {
 }
 
 // Test returns true iff the given relationship is matched by this filter.
-func (rf RelationshipsFilter) Test(relationship *core.RelationTuple) bool {
-	if rf.OptionalResourceType != "" && rf.OptionalResourceType != relationship.ResourceAndRelation.Namespace {
+func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
+	if rf.OptionalResourceType != "" && rf.OptionalResourceType != relationship.Resource.ObjectType {
 		return false
 	}
 
-	if len(rf.OptionalResourceIds) > 0 && !slices.Contains(rf.OptionalResourceIds, relationship.ResourceAndRelation.ObjectId) {
+	if len(rf.OptionalResourceIds) > 0 && !slices.Contains(rf.OptionalResourceIds, relationship.Resource.ObjectID) {
 		return false
 	}
 
-	if rf.OptionalResourceIDPrefix != "" && !strings.HasPrefix(relationship.ResourceAndRelation.ObjectId, rf.OptionalResourceIDPrefix) {
+	if rf.OptionalResourceIDPrefix != "" && !strings.HasPrefix(relationship.Resource.ObjectID, rf.OptionalResourceIDPrefix) {
 		return false
 	}
 
-	if rf.OptionalResourceRelation != "" && rf.OptionalResourceRelation != relationship.ResourceAndRelation.Relation {
+	if rf.OptionalResourceRelation != "" && rf.OptionalResourceRelation != relationship.Resource.Relation {
 		return false
 	}
 
@@ -135,7 +136,7 @@ func (rf RelationshipsFilter) Test(relationship *core.RelationTuple) bool {
 	}
 
 	if rf.OptionalCaveatName != "" {
-		if relationship.Caveat == nil || relationship.Caveat.CaveatName != rf.OptionalCaveatName {
+		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatName {
 			return false
 		}
 	}
@@ -288,12 +289,12 @@ type SubjectsSelector struct {
 }
 
 // Test returns true iff the given subject is matched by this filter.
-func (ss SubjectsSelector) Test(subject *core.ObjectAndRelation) bool {
-	if ss.OptionalSubjectType != "" && ss.OptionalSubjectType != subject.Namespace {
+func (ss SubjectsSelector) Test(subject tuple.ObjectAndRelation) bool {
+	if ss.OptionalSubjectType != "" && ss.OptionalSubjectType != subject.ObjectType {
 		return false
 	}
 
-	if len(ss.OptionalSubjectIds) > 0 && !slices.Contains(ss.OptionalSubjectIds, subject.ObjectId) {
+	if len(ss.OptionalSubjectIds) > 0 && !slices.Contains(ss.OptionalSubjectIds, subject.ObjectID) {
 		return false
 	}
 
@@ -446,7 +447,7 @@ type ReadWriteTransaction interface {
 	CounterRegisterer
 
 	// WriteRelationships takes a list of tuple mutations and applies them to the datastore.
-	WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error
+	WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error
 
 	// DeleteRelationships deletes relationships that match the provided filter, with
 	// the optional limit. If a limit is provided and reached, the method will return
@@ -489,7 +490,7 @@ type BulkWriteRelationshipSource interface {
 	//
 	// Note: sources may re-use the same memory address for every tuple, data
 	// may change on every call to next even if the pointer has not changed.
-	Next(ctx context.Context) (*core.RelationTuple, error)
+	Next(ctx context.Context) (*tuple.Relationship, error)
 }
 
 type WatchContent int
@@ -752,21 +753,7 @@ type Stats struct {
 }
 
 // RelationshipIterator is an iterator over matched tuples.
-type RelationshipIterator interface {
-	// Next returns the next tuple in the result set.
-	Next() *core.RelationTuple
-
-	// Cursor returns a cursor that can be used to resume reading of relationships
-	// from the last relationship returned. Only applies if a sort ordering was
-	// requested.
-	Cursor() (options.Cursor, error)
-
-	// Err after receiving a nil response, the caller must check for an error.
-	Err() error
-
-	// Close cancels the query and closes any open connections.
-	Close()
-}
+type RelationshipIterator iter.Seq2[tuple.Relationship, error]
 
 // Revision is an interface for a comparable revision type that can be different for
 // each datastore implementation.
