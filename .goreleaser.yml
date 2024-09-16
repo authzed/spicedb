@@ -1,4 +1,6 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 ---
+version: 2
 git:
   tag_sort: "-version:creatordate"
   prerelease_suffix: "-"
@@ -189,12 +191,12 @@ docker_manifests:
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 changelog:
   use: "github-native"
   sort: "asc"
 nightly:
-  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
 release:
   draft: false
   prerelease: "auto"

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -383,6 +385,12 @@ func (rwt *pgReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.R
 }
 
 func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, filter *v1.RelationshipFilter, limit uint64) (bool, error) {
+	// validate the limit
+	intLimit, err := safecast.ToInt64(limit)
+	if err != nil {
+		return false, fmt.Errorf("limit argument could not safely be cast to int64: %w", err)
+	}
+
 	// Construct a select query for the relationships to be removed.
 	query := selectForDelete
 
@@ -444,7 +452,7 @@ func (rwt *pgReadWriteTXN) deleteRelationshipsWithLimit(ctx context.Context, fil
 		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
-	return result.RowsAffected() == int64(limit), nil
+	return result.RowsAffected() == intLimit, nil
 }
 
 func (rwt *pgReadWriteTXN) deleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {

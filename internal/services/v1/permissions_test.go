@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/authzed-go/pkg/responsemeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -1648,6 +1649,8 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 
 							for i := 0; i < 5; i++ {
 								var trailer metadata.MD
+								uintLimit, err := safecast.ToUint32(limit)
+								require.NoError(err)
 								lookupClient, err := client.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 									ResourceObjectType: tc.objectType,
 									Permission:         tc.permission,
@@ -1657,7 +1660,7 @@ func TestLookupResourcesWithCursors(t *testing.T) {
 											AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 										},
 									},
-									OptionalLimit:  uint32(limit),
+									OptionalLimit:  uintLimit,
 									OptionalCursor: currentCursor,
 								}, grpc.Trailer(&trailer))
 

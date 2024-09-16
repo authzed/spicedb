@@ -4,8 +4,10 @@
 package cache
 
 import (
+	"math"
 	"sync"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/maypok86/otter"
 	"github.com/rs/zerolog"
 )
@@ -66,7 +68,13 @@ func (wtc *otterCache[K, V]) Get(key K) (V, bool) {
 
 func (wtc *otterCache[K, V]) Set(key K, value V, cost int64) bool {
 	keyString := key.KeyString()
-	return wtc.cache.Set(keyString, valueAndCost[V]{value, uint32(cost)})
+	uintCost, err := safecast.ToUint32(cost)
+	if err != nil {
+		// We make an assumption that if the cast fails, it's because the value
+		// was too big, so we set to maxint in that case.
+		uintCost = math.MaxUint32
+	}
+	return wtc.cache.Set(keyString, valueAndCost[V]{value, uintCost})
 }
 
 func (wtc *otterCache[K, V]) Wait() {

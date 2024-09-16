@@ -11,6 +11,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -292,6 +293,8 @@ func TestReadRelationships(t *testing.T) {
 								testExpected[k] = struct{}{}
 							}
 
+							uintPageSize, err := safecast.ToUint32(pageSize)
+							require.NoError(err)
 							for i := 0; i < 20; i++ {
 								stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 									Consistency: &v1.Consistency{
@@ -300,7 +303,7 @@ func TestReadRelationships(t *testing.T) {
 										},
 									},
 									RelationshipFilter: tc.filter,
-									OptionalLimit:      uint32(pageSize),
+									OptionalLimit:      uintPageSize,
 									OptionalCursor:     currentCursor,
 								})
 								require.NoError(err)
@@ -1240,6 +1243,8 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 			t.Cleanup(cleanup)
 
 			iterations := 0
+			uintBatchSize, err := safecast.ToUint32(batchSize)
+			require.NoError(err)
 			for i := 0; i < 10; i++ {
 				iterations++
 
@@ -1252,7 +1257,7 @@ func TestDeleteRelationshipsBeyondLimitPartial(t *testing.T) {
 					RelationshipFilter: &v1.RelationshipFilter{
 						ResourceType: "document",
 					},
-					OptionalLimit:                 uint32(batchSize),
+					OptionalLimit:                 uintBatchSize,
 					OptionalAllowPartialDeletions: true,
 				})
 				require.NoError(err)

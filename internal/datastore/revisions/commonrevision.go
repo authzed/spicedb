@@ -77,10 +77,3 @@ type WithTimestampRevision interface {
 	TimestampNanoSec() int64
 	ConstructForTimestamp(timestampNanoSec int64) WithTimestampRevision
 }
-
-// WithIntegerRepresentation is an interface that can be implemented by a revision to
-// provide an integer representation of the revision.
-type WithIntegerRepresentation interface {
-	datastore.Revision
-	IntegerRepresentation() (int64, uint32)
-}

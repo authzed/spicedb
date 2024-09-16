@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ccoveille/go-safecast"
+
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -91,9 +94,18 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 	}
 
 	relationReference := func(relation *core.Relation, ts *typesystem.TypeSystem) (*SchemaReference, error) {
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
+		if err != nil {
+			log.Err(err).Msg("could not cast lineNumber to uint32")
+		}
+		columnPosition, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
+		if err != nil {
+			log.Err(err).Msg("could not cast columnPosition to uint32")
+		}
 		relationPosition := input.Position{
-			LineNumber:     int(relation.SourcePosition.ZeroIndexedLineNumber),
-			ColumnPosition: int(relation.SourcePosition.ZeroIndexedColumnPosition),
+			LineNumber:     lineNumber,
+			ColumnPosition: columnPosition,
 		}
 
 		targetSourceCode, err := generator.GenerateRelationSource(relation)
@@ -139,9 +151,20 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		}
 
 		def := ts.Namespace()
+
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, err := safecast.ToInt(def.SourcePosition.ZeroIndexedLineNumber)
+		if err != nil {
+			log.Err(err).Msg("could not cast lineNumber to uint32")
+		}
+		columnPosition, err := safecast.ToInt(def.SourcePosition.ZeroIndexedColumnPosition)
+		if err != nil {
+			log.Err(err).Msg("could not cast columnPosition to uint32")
+		}
+
 		defPosition := input.Position{
-			LineNumber:     int(def.SourcePosition.ZeroIndexedLineNumber),
-			ColumnPosition: int(def.SourcePosition.ZeroIndexedColumnPosition),
+			LineNumber:     lineNumber,
+			ColumnPosition: columnPosition,
 		}
 
 		docComment := ""
@@ -172,9 +195,19 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 	// Caveat Type reference.
 	if caveatDef, ok := r.caveatTypeReferenceChain(nodeChain); ok {
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedLineNumber)
+		if err != nil {
+			log.Err(err).Msg("could not cast lineNumber to uint32")
+		}
+		columnPosition, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedColumnPosition)
+		if err != nil {
+			log.Err(err).Msg("could not cast columnPosition to uint32")
+		}
+
 		defPosition := input.Position{
-			LineNumber:     int(caveatDef.SourcePosition.ZeroIndexedLineNumber),
-			ColumnPosition: int(caveatDef.SourcePosition.ZeroIndexedColumnPosition),
+			LineNumber:     lineNumber,
+			ColumnPosition: columnPosition,
 		}
 
 		var caveatSourceCode strings.Builder

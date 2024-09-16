@@ -1,4 +1,5 @@
 ---
+version: 2
 builds:
   - main: "./cmd/spicedb"
     env:
@@ -96,6 +97,6 @@ docker_manifests:
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 nightly:
-  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"

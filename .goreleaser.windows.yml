@@ -1,4 +1,5 @@
 ---
+version: 2
 git:
   tag_sort: "-version:creatordate"
   prerelease_suffix: "-"
@@ -32,7 +33,6 @@ chocolateys:
     owners: "AuthZed, Inc"
     title: "SpiceDB"
     project_url: "https://github.com/authzed/spicedb"
-    use: "archive"
     url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     icon_url: "https://authzed.com/favicon.svg"
     copyright: "2024 AuthZed, Inc"
@@ -50,6 +50,6 @@ chocolateys:
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 nightly:
-  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"

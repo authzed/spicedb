@@ -185,7 +185,10 @@ func newPostgresDatastore(
 
 	// Setup the config for each of the read and write pools.
 	readPoolConfig := pgConfig.Copy()
-	config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	err = config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	if err != nil {
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+	}
 
 	readPoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		RegisterTypes(conn.TypeMap())
@@ -195,7 +198,10 @@ func newPostgresDatastore(
 	var writePoolConfig *pgxpool.Config
 	if isPrimary {
 		writePoolConfig = pgConfig.Copy()
-		config.writePoolOpts.ConfigurePgx(writePoolConfig)
+		err = config.writePoolOpts.ConfigurePgx(writePoolConfig)
+		if err != nil {
+			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
+		}
 
 		writePoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 			RegisterTypes(conn.TypeMap())

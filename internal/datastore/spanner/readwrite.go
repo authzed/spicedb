@@ -8,6 +8,7 @@ import (
 	"cloud.google.com/go/spanner"
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/datastore/revisions"
@@ -179,7 +180,12 @@ func deleteWithFilter(ctx context.Context, rwt *spanner.ReadWriteTransaction, fi
 		numDeleted = nu
 	}
 
-	if delLimit > 0 && uint64(numDeleted) == delLimit {
+	uintNumDeleted, err := safecast.ToUint64(numDeleted)
+	if err != nil {
+		return false, spiceerrors.MustBugf("numDeleted was negative: %v", err)
+	}
+
+	if delLimit > 0 && uintNumDeleted == delLimit {
 		return true, nil
 	}
 

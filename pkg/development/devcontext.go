@@ -7,6 +7,7 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	humanize "github.com/dustin/go-humanize"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -244,13 +245,22 @@ func loadCompiled(
 
 		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
 		if ok {
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: cverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: errWithSource.SourceCodeString,
-				Line:    uint32(errWithSource.LineNumber),
-				Column:  uint32(errWithSource.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 		} else {
 			errors = append(errors, &devinterface.DeveloperError{
@@ -266,14 +276,23 @@ func loadCompiled(
 		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
 					Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 					Source:  devinterface.DeveloperError_SCHEMA,
 					Context: errWithSource.SourceCodeString,
-					Line:    uint32(errWithSource.LineNumber),
-					Column:  uint32(errWithSource.ColumnPosition),
+					Line:    lineNumber,
+					Column:  columnPosition,
 				})
 				continue
 			}
@@ -297,13 +316,22 @@ func loadCompiled(
 
 		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
 		if ok {
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: errWithSource.SourceCodeString,
-				Line:    uint32(errWithSource.LineNumber),
-				Column:  uint32(errWithSource.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 		} else {
 			errors = append(errors, &devinterface.DeveloperError{

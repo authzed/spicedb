@@ -6,6 +6,8 @@ import (
 
 	"golang.org/x/exp/maps"
 
+	"github.com/ccoveille/go-safecast"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -118,7 +120,12 @@ func (ch *Changes[R, K]) adjustByteSize(item sized, delta int) error {
 		return spiceerrors.MustBugf("byte size underflow")
 	}
 
-	if ch.currentByteSize > int64(ch.maxByteSize) {
+	currentByteSize, err := safecast.ToUint64(ch.currentByteSize)
+	if err != nil {
+		return spiceerrors.MustBugf("could not cast currentByteSize to uint64: %v", err)
+	}
+
+	if currentByteSize > ch.maxByteSize {
 		return datastore.NewMaximumChangesSizeExceededError(ch.maxByteSize)
 	}
 

@@ -56,15 +56,11 @@ func (ir TransactionIDRevision) TransactionID() uint64 {
 }
 
 func (ir TransactionIDRevision) String() string {
-	return strconv.FormatInt(int64(ir), 10)
+	return strconv.FormatUint(uint64(ir), 10)
 }
 
 func (ir TransactionIDRevision) WithInexactFloat64() float64 {
 	return float64(ir)
-}
-
-func (ir TransactionIDRevision) IntegerRepresentation() (int64, uint32) {
-	return int64(ir), 0
 }
 
 var _ datastore.Revision = TransactionIDRevision(0)

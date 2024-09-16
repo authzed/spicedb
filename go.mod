@@ -1,6 +1,6 @@
 module github.com/authzed/spicedb
 
-go 1.22.4
+go 1.22.7
 
 require (
 	buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.34.2-20240802094132-5b212ab78fb7.2
@@ -136,6 +136,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.5 // indirect
 	github.com/aws/smithy-go v1.20.4 // indirect
 	github.com/bombsimon/wsl/v4 v4.4.1 // indirect
+	github.com/ccoveille/go-safecast v1.1.0 // indirect
 	github.com/cilium/ebpf v0.9.1 // indirect
 	github.com/containerd/cgroups/v3 v3.0.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect

@@ -551,12 +551,17 @@ func (tqs QueryExecutor) ExecuteQuery(
 		query = query.After(queryOpts.After, queryOpts.Sort)
 	}
 
-	limit := math.MaxInt
+	var limit uint64
+	// NOTE: we use a uint here because it lines up with the
+	// assignments in this function, but we set it to MaxInt64
+	// because that's the biggest value that postgres and friends
+	// treat as valid.
+	limit = math.MaxInt64
 	if queryOpts.Limit != nil {
-		limit = int(*queryOpts.Limit)
+		limit = *queryOpts.Limit
 	}
 
-	toExecute := query.limit(uint64(limit))
+	toExecute := query.limit(limit)
 	sql, args, err := toExecute.queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
@@ -567,7 +572,8 @@ func (tqs QueryExecutor) ExecuteQuery(
 		return nil, err
 	}
 
-	if len(queryTuples) > limit {
+	lenQueryTuples := uint64(len(queryTuples))
+	if lenQueryTuples > limit {
 		queryTuples = queryTuples[:limit]
 	}
 

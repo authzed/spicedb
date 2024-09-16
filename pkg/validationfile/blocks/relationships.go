@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	yamlv3 "gopkg.in/yaml.v3"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -44,13 +45,23 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			continue
 		}
 
+		// +1 for the key, and *2 for newlines in YAML
+		errorLine, err := safecast.ToUint64(node.Line + 1 + (index * 2))
+		if err != nil {
+			return err
+		}
+		column, err := safecast.ToUint64(node.Column)
+		if err != nil {
+			return err
+		}
+
 		tpl := tuple.Parse(trimmed)
 		if tpl == nil {
 			return spiceerrors.NewErrorWithSource(
 				fmt.Errorf("error parsing relationship `%s`", trimmed),
 				trimmed,
-				uint64(node.Line+1+(index*2)), // +1 for the key, and *2 for newlines in YAML
-				uint64(node.Column),
+				errorLine,
+				column,
 			)
 		}
 
@@ -59,8 +70,8 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			return spiceerrors.NewErrorWithSource(
 				fmt.Errorf("found repeated relationship `%s`", trimmed),
 				trimmed,
-				uint64(node.Line+1+(index*2)), // +1 for the key, and *2 for newlines in YAML
-				uint64(node.Column),
+				errorLine,
+				column,
 			)
 		}
 		seenTuples[tuple.StringWithoutCaveat(tpl)] = true

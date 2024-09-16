@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -55,12 +56,16 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 	}
 
 	paddedLogicalClockStr := pieces[1] + strings.Repeat("0", logicalClockLength-len(pieces[1]))
-	logicalclock, err := strconv.ParseInt(paddedLogicalClockStr, 10, 32)
+	logicalclock, err := strconv.ParseUint(paddedLogicalClockStr, 10, 32)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 	}
 
-	return HLCRevision{timestamp, uint32(logicalclock) + logicalClockOffset}, nil
+	uintLogicalClock, err := safecast.ToUint32(logicalclock)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("could not cast logicalclock to uint32: %v", err)
+	}
+	return HLCRevision{timestamp, uintLogicalClock + logicalClockOffset}, nil
 }
 
 // HLCRevisionFromString parses a string into a hybrid logical clock revision.
@@ -138,10 +143,6 @@ func (hlc HLCRevision) InexactFloat64() float64 {
 
 func (hlc HLCRevision) ConstructForTimestamp(timestamp int64) WithTimestampRevision {
 	return HLCRevision{timestamp, 0}
-}
-
-func (hlc HLCRevision) IntegerRepresentation() (int64, uint32) {
-	return hlc.time, hlc.logicalclock
 }
 
 func (hlc HLCRevision) AsDecimal() (decimal.Decimal, error) {

@@ -5,10 +5,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/google/go-cmp/cmp"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/developmentmembership"
+	log "github.com/authzed/spicedb/internal/logging"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -90,14 +92,23 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 	encounteredSubjects := map[string]struct{}{}
 	for _, expectedSubject := range expectedSubjects {
 		subjectWithExceptions := expectedSubject.SubjectWithExceptions
+		// NOTE: zeroes are fine here on failure.
+		lineNumber, err := safecast.ToUint32(expectedSubject.SourcePosition.LineNumber)
+		if err != nil {
+			log.Err(err).Msg("could not cast lineNumber to uint32")
+		}
+		columnPosition, err := safecast.ToUint32(expectedSubject.SourcePosition.ColumnPosition)
+		if err != nil {
+			log.Err(err).Msg("could not cast columnPosition to uint32")
+		}
 		if subjectWithExceptions == nil {
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, no expected subject specified in `%s`", tuple.StringONR(onr), expectedSubject.ValidationString),
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
-				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
-				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 			continue
 		}
@@ -111,8 +122,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
-				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
-				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 			continue
 		}
@@ -133,8 +144,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
-				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
-				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 		}
 
@@ -159,8 +170,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 					Source:  devinterface.DeveloperError_VALIDATION_YAML,
 					Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 					Context: string(expectedSubject.ValidationString),
-					Line:    uint32(expectedSubject.SourcePosition.LineNumber),
-					Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+					Line:    lineNumber,
+					Column:  columnPosition,
 				})
 			}
 		} else {
@@ -172,8 +183,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 					Source:  devinterface.DeveloperError_VALIDATION_YAML,
 					Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 					Context: string(expectedSubject.ValidationString),
-					Line:    uint32(expectedSubject.SourcePosition.LineNumber),
-					Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+					Line:    lineNumber,
+					Column:  columnPosition,
 				})
 			}
 		}
@@ -187,8 +198,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Kind:    devinterface.DeveloperError_MISSING_EXPECTED_RELATIONSHIP,
 				Context: string(expectedSubject.ValidationString),
-				Line:    uint32(expectedSubject.SourcePosition.LineNumber),
-				Column:  uint32(expectedSubject.SourcePosition.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 		}
 	}
@@ -197,6 +208,14 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 	for _, foundSubject := range fs.ListFound() {
 		_, ok := encounteredSubjects[tuple.StringONR(foundSubject.Subject())]
 		if !ok {
+			onrLineNumber, err := safecast.ToUint32(onrKey.SourcePosition.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			onrColumnPosition, err := safecast.ToUint32(onrKey.SourcePosition.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",
 					tuple.StringONR(onr),
@@ -205,8 +224,8 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 				Context: tuple.StringONR(onr),
-				Line:    uint32(onrKey.SourcePosition.LineNumber),
-				Column:  uint32(onrKey.SourcePosition.ColumnPosition),
+				Line:    onrLineNumber,
+				Column:  onrColumnPosition,
 			})
 		}
 	}

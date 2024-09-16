@@ -68,7 +68,7 @@ func (gc *fakeGC) DeleteBeforeTx(_ context.Context, rev datastore.Revision) (Del
 
 	revInt := rev.(revisions.TransactionIDRevision).TransactionID()
 
-	return gc.deleter.DeleteBeforeTx(int64(revInt))
+	return gc.deleter.DeleteBeforeTx(revInt)
 }
 
 func (gc *fakeGC) HasGCRun() bool {
@@ -101,22 +101,22 @@ func (gc *fakeGC) GetMetrics() gcMetrics {
 
 // Allows specifying different deletion behaviors for tests
 type gcDeleter interface {
-	DeleteBeforeTx(revision int64) (DeletionCounts, error)
+	DeleteBeforeTx(revision uint64) (DeletionCounts, error)
 }
 
 // Always error trying to perform a delete
 type alwaysErrorDeleter struct{}
 
-func (alwaysErrorDeleter) DeleteBeforeTx(_ int64) (DeletionCounts, error) {
+func (alwaysErrorDeleter) DeleteBeforeTx(_ uint64) (DeletionCounts, error) {
 	return DeletionCounts{}, fmt.Errorf("delete error")
 }
 
 // Only error on specific revisions
 type revisionErrorDeleter struct {
-	errorOnRevisions []int64
+	errorOnRevisions []uint64
 }
 
-func (d revisionErrorDeleter) DeleteBeforeTx(revision int64) (DeletionCounts, error) {
+func (d revisionErrorDeleter) DeleteBeforeTx(revision uint64) (DeletionCounts, error) {
 	if slices.Contains(d.errorOnRevisions, revision) {
 		return DeletionCounts{}, fmt.Errorf("delete error")
 	}
@@ -178,7 +178,7 @@ func TestGCFailureBackoffReset(t *testing.T) {
 		// Error on revisions 1 - 5, giving the exponential
 		// backoff enough time to fail the test if the interval
 		// is not reset properly.
-		errorOnRevisions: []int64{1, 2, 3, 4, 5},
+		errorOnRevisions: []uint64{1, 2, 3, 4, 5},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())

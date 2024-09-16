@@ -11,6 +11,8 @@ import (
 
 	"google.golang.org/grpc/codes"
 
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -702,10 +704,15 @@ func (es *experimentalServer) ExperimentalCountRelationships(ctx context.Context
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
+	uintCount, err := safecast.ToUint64(count)
+	if err != nil {
+		return nil, spiceerrors.MustBugf("count should not be negative")
+	}
+
 	return &v1.ExperimentalCountRelationshipsResponse{
 		CounterResult: &v1.ExperimentalCountRelationshipsResponse_ReadCounterValue{
 			ReadCounterValue: &v1.ReadCounterValue{
-				RelationshipCount: uint64(count),
+				RelationshipCount: uintCount,
 				ReadAt:            zedtoken.MustNewFromRevision(headRev),
 			},
 		},

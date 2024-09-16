@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 
@@ -115,7 +116,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 	for _, objectType := range testCases {
 		expected := sortedStandardData(objectType, options.ByResource)
 		for limit := 1; limit <= len(expected)+1; limit++ {
-			testLimit := uint64(limit)
+			testLimit, _ := safecast.ToUint64(limit)
 			t.Run(fmt.Sprintf("%s-%d", objectType, limit), func(t *testing.T) {
 				require := require.New(t)
 				ctx := context.Background()
@@ -214,7 +215,7 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 		}
 
 		for limit := 1; limit <= len(expected); limit++ {
-			testLimit := uint64(limit)
+			testLimit, _ := safecast.ToUint64(limit)
 
 			t.Run(tc.name, func(t *testing.T) {
 				require := require.New(t)
@@ -267,7 +268,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 		}
 
 		for batchSize := 1; batchSize <= len(expected); batchSize++ {
-			testLimit := uint64(batchSize)
+			testLimit, _ := safecast.ToUint64(batchSize)
 			expected := expected
 
 			t.Run(fmt.Sprintf("%s-batches-%d", tc.name, batchSize), func(t *testing.T) {

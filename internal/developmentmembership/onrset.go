@@ -1,6 +1,8 @@
 package developmentmembership
 
 import (
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -28,7 +30,9 @@ func NewONRSet(onrs ...*core.ObjectAndRelation) ONRSet {
 
 // Length returns the size of the set.
 func (ons ONRSet) Length() uint64 {
-	return uint64(ons.onrs.Len())
+	// This is the length of a set so we should never fall out of bounds.
+	length, _ := safecast.ToUint64(ons.onrs.Len())
+	return length
 }
 
 // IsEmpty returns whether the set is empty.

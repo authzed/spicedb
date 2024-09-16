@@ -6,11 +6,13 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ccoveille/go-safecast"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var _ common.GarbageCollector = (*Datastore)(nil)
@@ -64,7 +66,12 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 		return datastore.NoRevision, nil
 	}
 
-	return revisions.NewForTransactionID(uint64(value.Int64)), nil
+	uintValue, err := safecast.ToUint64(value.Int64)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("value could not be cast to uint64: %v", err)
+	}
+
+	return revisions.NewForTransactionID(uintValue), nil
 }
 
 // - implementation misses metrics

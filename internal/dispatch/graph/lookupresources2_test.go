@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -701,6 +702,10 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 					foundChunks := [][]*v1.DispatchLookupResources2Response{}
 					for {
 						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
+
+						uintPageSize, err := safecast.ToUint32(pageSize)
+						require.NoError(err)
+
 						err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 							ResourceRelation: tc.permission,
 							SubjectRelation:  RR(tc.subject.Namespace, "..."),
@@ -710,7 +715,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
 							},
-							OptionalLimit:  uint32(pageSize),
+							OptionalLimit:  uintPageSize,
 							OptionalCursor: currentCursor,
 						}, stream)
 						require.NoError(err)

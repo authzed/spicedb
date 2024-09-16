@@ -175,7 +175,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		DispatchCount: 1,
 	})
 
-	limit := 0
+	limit := uint64(0)
 	var startCursor options.Cursor
 
 	rrRequestHash, err := computeReadRelationshipsRequestHash(req)
@@ -203,9 +203,9 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 
 	pageSize := ps.config.MaxDatastoreReadPageSize
 	if req.OptionalLimit > 0 {
-		limit = int(req.OptionalLimit)
-		if uint64(limit) < pageSize {
-			pageSize = uint64(limit)
+		limit = uint64(req.OptionalLimit)
+		if limit < pageSize {
+			pageSize = limit
 		}
 	}
 
@@ -232,7 +232,7 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 	targetRel := tuple.NewRelationship()
 	targetCaveat := &v1.ContextualizedCaveat{}
-	returnedCount := 0
+	var returnedCount uint64
 
 	dispatchCursor := &dispatchv1.Cursor{
 		DispatchVersion: 1,
@@ -423,13 +423,13 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 			}
 			defer iter.Close()
 
-			counter := 0
+			counter := uint64(0)
 			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
 				if iter.Err() != nil {
 					return ps.rewriteError(ctx, err)
 				}
 
-				if counter == int(limit) {
+				if counter == limit {
 					return ps.rewriteError(ctx, NewCouldNotTransactionallyDeleteErr(req.RelationshipFilter, req.OptionalLimit))
 				}
 

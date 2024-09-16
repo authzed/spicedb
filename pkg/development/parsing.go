@@ -1,6 +1,9 @@
 package development
 
 import (
+	"github.com/ccoveille/go-safecast"
+
+	log "github.com/authzed/spicedb/internal/logging"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -46,12 +49,21 @@ func convertError(source devinterface.DeveloperError_Source, err error) *devinte
 }
 
 func convertSourceError(source devinterface.DeveloperError_Source, err *spiceerrors.ErrorWithSource) *devinterface.DeveloperError {
+	// NOTE: zeroes are fine here to mean "unknown"
+	lineNumber, castErr := safecast.ToUint32(err.LineNumber)
+	if castErr != nil {
+		log.Err(castErr).Msg("could not cast lineNumber to uint32")
+	}
+	columnPosition, castErr := safecast.ToUint32(err.ColumnPosition)
+	if castErr != nil {
+		log.Err(castErr).Msg("could not cast columnPosition to uint32")
+	}
 	return &devinterface.DeveloperError{
 		Message: err.Error(),
 		Kind:    devinterface.DeveloperError_PARSE_ERROR,
 		Source:  source,
-		Line:    uint32(err.LineNumber),
-		Column:  uint32(err.ColumnPosition),
+		Line:    lineNumber,
+		Column:  columnPosition,
 		Context: err.SourceCodeString,
 	}
 }

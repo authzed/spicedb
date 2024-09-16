@@ -10,6 +10,7 @@ import (
 
 	"github.com/IBM/pgxpoolprometheus"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,6 +29,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 func init() {
@@ -99,13 +101,19 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	err = config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	if err != nil {
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+	}
 
 	writePoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	err = config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	if err != nil {
+		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
+	}
 
 	initCtx, initCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer initCancel()
@@ -414,8 +422,14 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 	if writeMin > 0 {
 		writeMin--
 	}
-	writeTotal := uint32(cds.writePool.Stat().TotalConns())
-	readTotal := uint32(cds.readPool.Stat().TotalConns())
+	writeTotal, err := safecast.ToUint32(cds.writePool.Stat().TotalConns())
+	if err != nil {
+		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast writeTotal to uint32: %v", err)
+	}
+	readTotal, err := safecast.ToUint32(cds.readPool.Stat().TotalConns())
+	if err != nil {
+		return datastore.ReadyState{}, spiceerrors.MustBugf("could not cast readTotal to uint32: %v", err)
+	}
 	if writeTotal < writeMin || readTotal < readMin {
 		return datastore.ReadyState{
 			Message: fmt.Sprintf(

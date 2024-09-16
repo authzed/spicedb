@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var ParseRevisionString = revisions.RevisionParser(revisions.TransactionID)
@@ -175,5 +178,10 @@ func (mds *Datastore) createNewTransaction(ctx context.Context, tx *sql.Tx) (new
 		return 0, fmt.Errorf("createNewTransaction: failed to get last inserted id: %w", err)
 	}
 
-	return uint64(lastInsertID), nil
+	uintLastInsertID, err := safecast.ToUint64(lastInsertID)
+	if err != nil {
+		return 0, spiceerrors.MustBugf("lastInsertID was negative: %v", err)
+	}
+
+	return uintLastInsertID, nil
 }

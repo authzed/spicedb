@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -141,12 +142,16 @@ func (p *RetryPool) ID() string {
 
 // MaxConns returns the MaxConns configured on the underlying pool
 func (p *RetryPool) MaxConns() uint32 {
-	return uint32(p.pool.Config().MaxConns)
+	// This should be non-negative
+	maxConns, _ := safecast.ToUint32(p.pool.Config().MaxConns)
+	return maxConns
 }
 
 // MinConns returns the MinConns configured on the underlying pool
 func (p *RetryPool) MinConns() uint32 {
-	return uint32(p.pool.Config().MinConns)
+	// This should be non-negative
+	minConns, _ := safecast.ToUint32(p.pool.Config().MinConns)
+	return minConns
 }
 
 // ExecFunc is a replacement for pgxpool.Pool.Exec that allows resetting the

@@ -8,6 +8,8 @@ import (
 
 	yamlv3 "gopkg.in/yaml.v3"
 
+	"github.com/ccoveille/go-safecast"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -59,13 +61,22 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
+	line, err := safecast.ToUint64(node.Line)
+	if err != nil {
+		return err
+	}
+	column, err := safecast.ToUint64(node.Column)
+	if err != nil {
+		return err
+	}
+
 	parsed := tuple.ParseONR(ors.ObjectRelationString)
 	if parsed == nil {
 		return spiceerrors.NewErrorWithSource(
 			fmt.Errorf("could not parse %s", ors.ObjectRelationString),
 			ors.ObjectRelationString,
-			uint64(node.Line),
-			uint64(node.Column),
+			line,
+			column,
 		)
 	}
 
@@ -122,13 +133,22 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
+	line, err := safecast.ToUint64(node.Line)
+	if err != nil {
+		return err
+	}
+	column, err := safecast.ToUint64(node.Column)
+	if err != nil {
+		return err
+	}
+
 	subjectWithExceptions, subErr := es.ValidationString.Subject()
 	if subErr != nil {
 		return spiceerrors.NewErrorWithSource(
 			subErr,
 			subErr.SourceCodeString,
-			uint64(node.Line)+subErr.LineNumber,
-			uint64(node.Column)+subErr.ColumnPosition,
+			line+subErr.LineNumber,
+			column+subErr.ColumnPosition,
 		)
 	}
 
@@ -137,8 +157,8 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewErrorWithSource(
 			onrErr,
 			onrErr.SourceCodeString,
-			uint64(node.Line)+onrErr.LineNumber,
-			uint64(node.Column)+onrErr.ColumnPosition,
+			line+onrErr.LineNumber,
+			column+onrErr.ColumnPosition,
 		)
 	}
 

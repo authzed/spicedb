@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/exaring/otelpgx"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	zerologadapter "github.com/jackc/pgx-zerolog"
@@ -300,15 +301,23 @@ type PoolOptions struct {
 }
 
 // ConfigurePgx applies PoolOptions to a pgx connection pool confiugration.
-func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
+func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) error {
 	if opts.MaxOpenConns != nil {
-		pgxConfig.MaxConns = int32(*opts.MaxOpenConns)
+		maxConns, err := safecast.ToInt32(*opts.MaxOpenConns)
+		if err != nil {
+			return err
+		}
+		pgxConfig.MaxConns = maxConns
 	}
 
 	// Default to keeping the pool maxed out at all times.
 	pgxConfig.MinConns = pgxConfig.MaxConns
 	if opts.MinOpenConns != nil {
-		pgxConfig.MinConns = int32(*opts.MinOpenConns)
+		minConns, err := safecast.ToInt32(*opts.MinOpenConns)
+		if err != nil {
+			return err
+		}
+		pgxConfig.MinConns = minConns
 	}
 
 	if pgxConfig.MaxConns > 0 && pgxConfig.MinConns > 0 && pgxConfig.MaxConns < pgxConfig.MinConns {
@@ -335,6 +344,7 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) {
 
 	ConfigurePGXLogger(pgxConfig.ConnConfig)
 	ConfigureOTELTracer(pgxConfig.ConnConfig)
+	return nil
 }
 
 type QuerierFuncs struct {

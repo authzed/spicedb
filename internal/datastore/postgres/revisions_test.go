@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +51,9 @@ func TestRevisionOrdering(t *testing.T) {
 func TestRevisionSerDe(t *testing.T) {
 	maxSizeList := make([]uint64, 20)
 	for i := range maxSizeList {
-		maxSizeList[i] = maxInt - uint64(len(maxSizeList)) + uint64(i)
+		// i should be nonnegative
+		index, _ := safecast.ToUint64(i)
+		maxSizeList[i] = maxInt - uint64(len(maxSizeList)) + index
 	}
 
 	testCases := []struct {
@@ -85,7 +88,8 @@ func TestRevisionSerDe(t *testing.T) {
 }
 
 func TestTxIDTimestampAvailable(t *testing.T) {
-	testTimestamp := uint64(time.Now().Unix())
+	// Timestamps should be non-negative
+	testTimestamp, _ := safecast.ToUint64(time.Now().Unix())
 	snapshot := snap(0, 5, 1)
 	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalNanosTimestamp: testTimestamp}
 	receivedTimestamp, ok := pgr.OptionalNanosTimestamp()

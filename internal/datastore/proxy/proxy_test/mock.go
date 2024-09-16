@@ -4,6 +4,7 @@ import (
 	"context"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -289,7 +290,9 @@ func (dm *MockReadWriteTransaction) DeleteNamespaces(_ context.Context, nsNames 
 
 func (dm *MockReadWriteTransaction) BulkLoad(_ context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	args := dm.Called(iter)
-	return uint64(args.Int(0)), args.Error(1)
+	// We're assuming this is non-negative.
+	uintArg, _ := safecast.ToUint64(args.Int(0))
+	return uintArg, args.Error(1)
 }
 
 func (dm *MockReadWriteTransaction) ReadCaveatByName(_ context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {

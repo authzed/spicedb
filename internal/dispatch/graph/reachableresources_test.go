@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
@@ -1240,6 +1241,9 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 					var currentCursor *v1.Cursor
 					for {
 						stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
+						uintPageSize, err := safecast.ToUint32(pageSize)
+						require.NoError(err)
+
 						err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
 							ResourceRelation: tc.permission,
 							SubjectRelation: &core.RelationReference{
@@ -1252,7 +1256,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 								DepthRemaining: 50,
 							},
 							OptionalCursor: currentCursor,
-							OptionalLimit:  uint32(pageSize),
+							OptionalLimit:  uintPageSize,
 						}, stream)
 						require.NoError(err)
 

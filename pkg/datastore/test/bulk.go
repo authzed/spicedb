@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 
@@ -37,10 +38,12 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 				t,
 			)
 
+			// This is statically defined so we can cast straight.
+			uintTc, _ := safecast.ToUint64(tc)
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				loaded, err := rwt.BulkLoad(ctx, bulkSource)
 				require.NoError(err)
-				require.Equal(uint64(tc), loaded)
+				require.Equal(uintTc, loaded)
 				return err
 			})
 			require.NoError(err)
@@ -136,10 +139,12 @@ func BulkUploadEditCaveat(t *testing.T, tester DatastoreTester) {
 		t,
 	)
 
+	// This is statically defined so we can cast straight.
+	uintTc, _ := safecast.ToUint64(tc)
 	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		loaded, err := rwt.BulkLoad(ctx, bulkSource)
 		require.NoError(err)
-		require.Equal(uint64(tc), loaded)
+		require.Equal(uintTc, loaded)
 		return err
 	})
 	require.NoError(err)

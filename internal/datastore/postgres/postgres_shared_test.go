@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"sync"
@@ -14,6 +15,15 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/samber/lo"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
@@ -25,14 +35,6 @@ import (
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/samber/lo"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"golang.org/x/sync/errgroup"
 )
 
 const pgSerializationFailure = "40001"
@@ -1464,7 +1466,10 @@ func StrictReadModeTest(t *testing.T, ds datastore.Datastore) {
 	// Perform a read at a manually constructed revision beyond head, which should fail.
 	badRev := postgresRevision{
 		snapshot: pgSnapshot{
-			xmax: 9999999999999999999,
+			// NOTE: the struct defines this value as uint64, but the underlying
+			// revision is defined as an int64, so we run into an overflow issue
+			// if we try and use a big uint64.
+			xmax: math.MaxInt64,
 		},
 	}
 

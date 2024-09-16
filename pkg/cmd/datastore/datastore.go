@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
@@ -469,6 +470,11 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		return nil, errors.New("read replicas are not supported for the CockroachDB datastore engine")
 	}
 
+	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	if err != nil {
+		return nil, errors.New("max-retries could not be cast to uint8")
+	}
+
 	return crdb.NewCRDBDatastore(
 		ctx,
 		opts.URI,
@@ -488,7 +494,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.WriteConnMaxLifetimeJitter(opts.WriteConnPool.MaxLifetimeJitter),
 		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
-		crdb.MaxRetries(uint8(opts.MaxRetries)),
+		crdb.MaxRetries(maxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
@@ -514,7 +520,11 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 
 	replicas := make([]datastore.StrictReadDatastore, 0, len(opts.ReadReplicaURIs))
 	for index, replicaURI := range opts.ReadReplicaURIs {
-		replica, err := newPostgresReplicaDatastore(ctx, uint32(index), replicaURI, opts)
+		uintIndex, err := safecast.ToUint32(index)
+		if err != nil {
+			return nil, errors.New("too many replicas")
+		}
+		replica, err := newPostgresReplicaDatastore(ctx, uintIndex, replicaURI, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -524,13 +534,18 @@ func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore
 	return proxy.NewStrictReplicatedDatastore(primary, replicas...)
 }
 
-func commonPostgresDatastoreOptions(opts Config) []postgres.Option {
+func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
+	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	if err != nil {
+		return nil, errors.New("max-retries could not be cast to uint8")
+	}
+
 	return []postgres.Option{
 		postgres.EnableTracing(),
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		postgres.MaxRetries(uint8(opts.MaxRetries)),
+		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
-	}
+	}, nil
 }
 
 func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.StrictReadDatastore, error) {
@@ -545,7 +560,11 @@ func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, repli
 		postgres.ReadStrictMode( /* strict read mode is required for Postgres read replicas */ true),
 	}
 
-	pgOpts = append(pgOpts, commonPostgresDatastoreOptions(opts)...)
+	commonOptions, err := commonPostgresDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	pgOpts = append(pgOpts, commonOptions...)
 	return postgres.NewReadOnlyPostgresDatastore(ctx, replicaURI, replicaIndex, pgOpts...)
 }
 
@@ -575,7 +594,11 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.MigrationPhase(opts.MigrationPhase),
 	}
 
-	pgOpts = append(pgOpts, commonPostgresDatastoreOptions(opts)...)
+	commonOptions, err := commonPostgresDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	pgOpts = append(pgOpts, commonOptions...)
 	return postgres.NewPostgresDatastore(ctx, opts.URI, pgOpts...)
 }
 
@@ -617,7 +640,11 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 
 	replicas := make([]datastore.ReadOnlyDatastore, 0, len(opts.ReadReplicaURIs))
 	for index, replicaURI := range opts.ReadReplicaURIs {
-		replica, err := newMySQLReplicaDatastore(ctx, uint32(index), replicaURI, opts)
+		uintIndex, err := safecast.ToUint32(index)
+		if err != nil {
+			return nil, errors.New("too many replicas")
+		}
+		replica, err := newMySQLReplicaDatastore(ctx, uintIndex, replicaURI, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -627,16 +654,21 @@ func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, e
 	return proxy.NewCheckingReplicatedDatastore(primary, replicas...)
 }
 
-func commonMySQLDatastoreOptions(opts Config) []mysql.Option {
+func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
+	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	if err != nil {
+		return nil, errors.New("max-retries could not be cast to uint8")
+	}
+
 	return []mysql.Option{
 		mysql.TablePrefix(opts.TablePrefix),
-		mysql.MaxRetries(uint8(opts.MaxRetries)),
+		mysql.MaxRetries(maxRetries),
 		mysql.OverrideLockWaitTimeout(1),
 		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
-	}
+	}, nil
 }
 
 func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
@@ -649,7 +681,11 @@ func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaU
 		mysql.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
 	}
 
-	mysqlOpts = append(mysqlOpts, commonMySQLDatastoreOptions(opts)...)
+	commonOptions, err := commonMySQLDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	mysqlOpts = append(mysqlOpts, commonOptions...)
 	return mysql.NewReadOnlyMySQLDatastore(ctx, replicaURI, replicaIndex, mysqlOpts...)
 }
 
@@ -668,7 +704,11 @@ func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datas
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
 	}
 
-	mysqlOpts = append(mysqlOpts, commonMySQLDatastoreOptions(opts)...)
+	commonOptions, err := commonMySQLDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	mysqlOpts = append(mysqlOpts, commonOptions...)
 	return mysql.NewMySQLDatastore(ctx, opts.URI, mysqlOpts...)
 }
 

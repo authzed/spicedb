@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
 	"github.com/jzelinskie/stringz"
 	"github.com/pbnjay/memory"
@@ -74,18 +75,23 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 		return nil, fmt.Errorf("error parsing cache max memory: `%s`: %w", cc.MaxCost, err)
 	}
 
+	intMaxCost, err := safecast.ToInt64(maxCost)
+	if err != nil {
+		return nil, fmt.Errorf("could not cast max cost to int64")
+	}
+
 	if cc.CacheKindForTesting != "" {
 		switch cc.CacheKindForTesting {
 		case "theine":
 			return cache.NewTheineCache[K, V](&cache.Config{
-				MaxCost:     int64(maxCost),
+				MaxCost:     intMaxCost,
 				NumCounters: cc.NumCounters,
 				DefaultTTL:  cc.defaultTTL,
 			})
 
 		case "otter":
 			return cache.NewOtterCache[K, V](&cache.Config{
-				MaxCost:     int64(maxCost),
+				MaxCost:     intMaxCost,
 				NumCounters: cc.NumCounters,
 				DefaultTTL:  cc.defaultTTL,
 			})
@@ -97,14 +103,14 @@ func CompleteCache[K cache.KeyString, V any](cc *CacheConfig) (cache.Cache[K, V]
 
 	if cc.Metrics {
 		return cache.NewStandardCacheWithMetrics[K, V](cc.Name, &cache.Config{
-			MaxCost:     int64(maxCost),
+			MaxCost:     intMaxCost,
 			NumCounters: cc.NumCounters,
 			DefaultTTL:  cc.defaultTTL,
 		})
 	}
 
 	return cache.NewStandardCache[K, V](&cache.Config{
-		MaxCost:     int64(maxCost),
+		MaxCost:     intMaxCost,
 		NumCounters: cc.NumCounters,
 		DefaultTTL:  cc.defaultTTL,
 	})

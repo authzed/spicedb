@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ccoveille/go-safecast"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -501,7 +503,11 @@ func (ls *parallelLimitedIndexedStream[Q]) completedTaskIndex(index int) error {
 
 		if ls.toPublishTaskIndex == 0 {
 			// Remove the already emitted data from the overall limits.
-			if err := ls.ci.limits.markAlreadyPublished(uint32(ls.countingStream.PublishedCount())); err != nil {
+			publishedCount, err := safecast.ToUint32(ls.countingStream.PublishedCount())
+			if err != nil {
+				return spiceerrors.MustBugf("cannot cast published count to uint32: %v", err)
+			}
+			if err := ls.ci.limits.markAlreadyPublished(publishedCount); err != nil {
 				return err
 			}
 

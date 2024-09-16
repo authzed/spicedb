@@ -146,16 +146,16 @@ func TestPaginatedIterator(t *testing.T) {
 			require := require.New(t)
 
 			tpls := make([]*core.RelationTuple, 0, tc.totalRelationships)
-			for i := 0; i < int(tc.totalRelationships); i++ {
+			for i := uint64(0); i < tc.totalRelationships; i++ {
 				tpls = append(tpls, &core.RelationTuple{
 					ResourceAndRelation: &core.ObjectAndRelation{
 						Namespace: "document",
-						ObjectId:  strconv.Itoa(i),
+						ObjectId:  strconv.FormatUint(i, 10),
 						Relation:  "owner",
 					},
 					Subject: &core.ObjectAndRelation{
 						Namespace: "user",
-						ObjectId:  strconv.Itoa(i),
+						ObjectId:  strconv.FormatUint(i, 10),
 						Relation:  datastore.Ellipsis,
 					},
 				})

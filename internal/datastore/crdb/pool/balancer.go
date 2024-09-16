@@ -3,11 +3,13 @@ package pool
 import (
 	"context"
 	"hash/maphash"
+	"math"
 	"math/rand"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
@@ -84,7 +86,15 @@ type nodeConnectionBalancer[P balancePoolConn[C], C balanceConn] struct {
 // newNodeConnectionBalancer is generic over underlying connection types for
 // testing purposes. Callers should use the exported NewNodeConnectionBalancer.
 func newNodeConnectionBalancer[P balancePoolConn[C], C balanceConn](pool balanceablePool[P, C], healthTracker *NodeHealthTracker, interval time.Duration) *nodeConnectionBalancer[P, C] {
-	seed := int64(new(maphash.Hash).Sum64())
+	seed := int64(0)
+	for seed == 0 {
+		// Sum64 returns a uint64, and safecast will return 0 if it's not castable,
+		// which will happen about half the time (?). We just keep running it until
+		// we get a seed that fits in the box.
+		// Subtracting math.MaxInt64 should mean that we retain the entire range of
+		// possible values.
+		seed, _ = safecast.ToInt64(new(maphash.Hash).Sum64() - math.MaxInt64)
+	}
 	return &nodeConnectionBalancer[P, C]{
 		ticker:        time.NewTicker(interval),
 		sem:           semaphore.NewWeighted(1),
@@ -147,7 +157,9 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 		}
 	}
 
-	nodeCount := uint32(p.healthTracker.HealthyNodeCount())
+	// It's highly unlikely that we'll ever have an overflow in
+	// this context, so we cast directly.
+	nodeCount, _ := safecast.ToUint32(p.healthTracker.HealthyNodeCount())
 	if nodeCount == 0 {
 		nodeCount = 1
 	}
@@ -203,7 +215,7 @@ func (p *nodeConnectionBalancer[P, C]) mustPruneConnections(ctx context.Context)
 		// it's possible for the difference in connections between nodes to differ by up to
 		// the number of nodes.
 		if p.healthTracker.HealthyNodeCount() == 0 ||
-			uint32(i) < p.pool.MaxConns()%uint32(p.healthTracker.HealthyNodeCount()) {
+			i < int(p.pool.MaxConns())%p.healthTracker.HealthyNodeCount() {
 			perNodeMax++
 		}
 
