@@ -246,8 +246,14 @@ func loadCompiled(
 		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
 		if ok {
 			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, _ := safecast.ToUint32(errWithSource.LineNumber)
-			columnPosition, _ := safecast.ToUint32(errWithSource.ColumnPosition)
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err)
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err)
+			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: cverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
@@ -271,8 +277,14 @@ func loadCompiled(
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
 			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, _ := safecast.ToUint32(errWithSource.LineNumber)
-			columnPosition, _ := safecast.ToUint32(errWithSource.ColumnPosition)
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err)
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err)
+			}
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
@@ -305,8 +317,14 @@ func loadCompiled(
 		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
 		if ok {
 			// NOTE: zeroes are fine here to mean "unknown"
-			lineNumber, _ := safecast.ToUint32(errWithSource.LineNumber)
-			columnPosition, _ := safecast.ToUint32(errWithSource.ColumnPosition)
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err)
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err)
+			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/namespace"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
@@ -40,8 +41,14 @@ func warningForPosition(warningName string, message string, sourceCode string, s
 	}
 
 	// NOTE: zeroes on failure are fine here.
-	lineNumber, _ := safecast.ToUint32(sourcePosition.ZeroIndexedLineNumber)
-	columnNumber, _ := safecast.ToUint32(sourcePosition.ZeroIndexedColumnPosition)
+	lineNumber, err := safecast.ToUint32(sourcePosition.ZeroIndexedLineNumber)
+	if err != nil {
+		log.Err(err)
+	}
+	columnNumber, err := safecast.ToUint32(sourcePosition.ZeroIndexedColumnPosition)
+	if err != nil {
+		log.Err(err)
+	}
 
 	return &devinterface.DeveloperWarning{
 		Message:    message + " (" + warningName + ")",

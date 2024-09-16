@@ -6,6 +6,7 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/caveats"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -94,8 +95,14 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 
 	relationReference := func(relation *core.Relation, ts *typesystem.TypeSystem) (*SchemaReference, error) {
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
-		columnPosition, _ := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
+		lineNumber, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedLineNumber)
+		if err != nil {
+			log.Err(err)
+		}
+		columnPosition, err := safecast.ToInt(relation.SourcePosition.ZeroIndexedColumnPosition)
+		if err != nil {
+			log.Err(err)
+		}
 		relationPosition := input.Position{
 			LineNumber:     lineNumber,
 			ColumnPosition: columnPosition,
@@ -146,8 +153,14 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 		def := ts.Namespace()
 
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, _ := safecast.ToInt(def.SourcePosition.ZeroIndexedLineNumber)
-		columnPosition, _ := safecast.ToInt(def.SourcePosition.ZeroIndexedColumnPosition)
+		lineNumber, err := safecast.ToInt(def.SourcePosition.ZeroIndexedLineNumber)
+		if err != nil {
+			log.Err(err)
+		}
+		columnPosition, err := safecast.ToInt(def.SourcePosition.ZeroIndexedColumnPosition)
+		if err != nil {
+			log.Err(err)
+		}
 
 		defPosition := input.Position{
 			LineNumber:     lineNumber,
@@ -183,8 +196,14 @@ func (r *Resolver) ReferenceAtPosition(source input.Source, position input.Posit
 	// Caveat Type reference.
 	if caveatDef, ok := r.caveatTypeReferenceChain(nodeChain); ok {
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, _ := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedLineNumber)
-		columnPosition, _ := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedColumnPosition)
+		lineNumber, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedLineNumber)
+		if err != nil {
+			log.Err(err)
+		}
+		columnPosition, err := safecast.ToInt(caveatDef.SourcePosition.ZeroIndexedColumnPosition)
+		if err != nil {
+			log.Err(err)
+		}
 
 		defPosition := input.Position{
 			LineNumber:     lineNumber,

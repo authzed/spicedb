@@ -10,6 +10,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/authzed/spicedb/internal/developmentmembership"
+	log "github.com/authzed/spicedb/internal/logging"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -92,8 +93,14 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 	for _, expectedSubject := range expectedSubjects {
 		subjectWithExceptions := expectedSubject.SubjectWithExceptions
 		// NOTE: zeroes are fine here on failure.
-		lineNumber, _ := safecast.ToUint32(expectedSubject.SourcePosition.LineNumber)
-		columnPosition, _ := safecast.ToUint32(expectedSubject.SourcePosition.ColumnPosition)
+		lineNumber, err := safecast.ToUint32(expectedSubject.SourcePosition.LineNumber)
+		if err != nil {
+			log.Err(err)
+		}
+		columnPosition, err := safecast.ToUint32(expectedSubject.SourcePosition.ColumnPosition)
+		if err != nil {
+			log.Err(err)
+		}
 		if subjectWithExceptions == nil {
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, no expected subject specified in `%s`", tuple.StringONR(onr), expectedSubject.ValidationString),
@@ -201,8 +208,14 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 	for _, foundSubject := range fs.ListFound() {
 		_, ok := encounteredSubjects[tuple.StringONR(foundSubject.Subject())]
 		if !ok {
-			onrLineNumber, _ := safecast.ToUint32(onrKey.SourcePosition.LineNumber)
-			onrColumnPosition, _ := safecast.ToUint32(onrKey.SourcePosition.ColumnPosition)
+			onrLineNumber, err := safecast.ToUint32(onrKey.SourcePosition.LineNumber)
+			if err != nil {
+				log.Err(err)
+			}
+			onrColumnPosition, err := safecast.ToUint32(onrKey.SourcePosition.ColumnPosition)
+			if err != nil {
+				log.Err(err)
+			}
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",
 					tuple.StringONR(onr),

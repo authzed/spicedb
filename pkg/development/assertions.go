@@ -6,6 +6,7 @@ import (
 	v1t "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 
+	log "github.com/authzed/spicedb/internal/logging"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -44,8 +45,14 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 		tpl := tuple.MustFromRelationship[*v1t.ObjectReference, *v1t.SubjectReference, *v1t.ContextualizedCaveat](assertion.Relationship)
 
 		// NOTE: zeroes are fine here to mean "unknown"
-		lineNumber, _ := safecast.ToUint32(assertion.SourcePosition.LineNumber)
-		columnPosition, _ := safecast.ToUint32(assertion.SourcePosition.ColumnPosition)
+		lineNumber, err := safecast.ToUint32(assertion.SourcePosition.LineNumber)
+		if err != nil {
+			log.Err(err)
+		}
+		columnPosition, err := safecast.ToUint32(assertion.SourcePosition.ColumnPosition)
+		if err != nil {
+			log.Err(err)
+		}
 
 		if tpl.Caveat != nil {
 			failures = append(failures, &devinterface.DeveloperError{
