@@ -43,13 +43,11 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	for _, nsDef := range nsDefs {
 		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name})
 		require.NoError(t, err)
-		t.Cleanup(iter.Close)
 
-		if iter.Next() != nil {
+		for range iter {
 			foundRels = true
+			break
 		}
-
-		iter.Close()
 	}
 	require.True(t, foundRels, "no relationships provided")
 
@@ -69,9 +67,9 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 	for _, nsDef := range nsDefs {
 		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: nsDef.Definition.Name})
 		require.NoError(t, err)
-		t.Cleanup(iter.Close)
 
-		require.Nil(t, iter.Next(), "relationships still exist")
-		iter.Close()
+		for range iter {
+			require.Fail(t, "relationships still exist")
+		}
 	}
 }

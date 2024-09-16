@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func TestDownstreamErrors(t *testing.T) {
@@ -200,21 +201,22 @@ func TestPaginatedIterator(t *testing.T) {
 	}
 }
 
-func generateMock(tpls []*core.RelationTuple, pageSize uint64, order options.SortOrder) *mockedReader {
+func generateMock(rels []tuple.Relationship, pageSize uint64, order options.SortOrder) *mockedReader {
 	mock := &mockedReader{}
-	tplsLen := uint64(len(tpls))
+	relsLen := uint64(len(rels))
 
 	var last options.Cursor
-	for i := uint64(0); i <= tplsLen; i += pageSize {
+	for i := uint64(0); i <= relsLen; i += pageSize {
 		pastLastIndex := i + pageSize
-		if pastLastIndex > tplsLen {
-			pastLastIndex = tplsLen
+		if pastLastIndex > relsLen {
+			pastLastIndex = relsLen
 		}
 
-		iter := common.NewSliceRelationshipIterator(tpls[i:pastLastIndex], order)
+		iter := common.NewSliceRelationshipIterator(rels[i:pastLastIndex], order)
 		mock.On("QueryRelationships", last, order, pageSize).Return(iter, nil)
-		if tplsLen > 0 {
-			last = tpls[pastLastIndex-1]
+		if relsLen > 0 {
+			l := rels[pastLastIndex-1]
+			last = options.Cursor(&l)
 		}
 	}
 

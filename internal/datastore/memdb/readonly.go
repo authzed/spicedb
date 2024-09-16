@@ -148,7 +148,7 @@ func (r *memdbReader) QueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit, queryOpts.Sort)
+		iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit)
 		return iter, nil
 
 	case options.BySubject:
@@ -210,7 +210,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse, queryOpts.SortForReverse)
+		iter := newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse)
 		return iter, nil
 
 	case options.BySubject:
@@ -513,23 +513,25 @@ func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs tuple.ObjectAndRelati
 	return lhsNamespace == rhs.ObjectType && lhsObjectID == rhs.ObjectID && lhsRelation == rhs.Relation
 }
 
-func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64, order options.SortOrder) datastore.RelationshipIterator {
+func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64) datastore.RelationshipIterator {
 	var count uint64
 	return func(yield func(tuple.Relationship, error) bool) {
-		foundRaw := it.Next()
-		if foundRaw == nil {
-			return
-		}
+		for {
+			foundRaw := it.Next()
+			if foundRaw == nil {
+				return
+			}
 
-		if limit != nil && count >= *limit {
-			return
-		}
+			if limit != nil && count >= *limit {
+				return
+			}
 
-		rt, err := foundRaw.(*relationship).Relationship()
-		if !yield(rt, err) {
-			return
+			rt, err := foundRaw.(*relationship).Relationship()
+			if !yield(rt, err) {
+				return
+			}
+			count++
 		}
-		count++
 	}
 }
 
