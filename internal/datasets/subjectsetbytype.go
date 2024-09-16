@@ -19,24 +19,24 @@ func NewSubjectByTypeSet() *SubjectByTypeSet {
 }
 
 // AddSubjectOf adds the subject found in the given relationship, along with its caveat.
-func (s *SubjectByTypeSet) AddSubjectOf(relationship *core.RelationTuple) error {
-	return s.AddSubject(relationship.Subject, relationship.Caveat)
+func (s *SubjectByTypeSet) AddSubjectOf(relationship tuple.Relationship) error {
+	return s.AddSubject(relationship.Subject, relationship.OptionalCaveat)
 }
 
 // AddConcreteSubject adds a non-caveated subject to the set.
-func (s *SubjectByTypeSet) AddConcreteSubject(subject *core.ObjectAndRelation) error {
+func (s *SubjectByTypeSet) AddConcreteSubject(subject tuple.ObjectAndRelation) error {
 	return s.AddSubject(subject, nil)
 }
 
 // AddSubject adds the specified subject to the set.
-func (s *SubjectByTypeSet) AddSubject(subject *core.ObjectAndRelation, caveat *core.ContextualizedCaveat) error {
-	key := tuple.JoinRelRef(subject.Namespace, subject.Relation)
+func (s *SubjectByTypeSet) AddSubject(subject tuple.ObjectAndRelation, caveat *core.ContextualizedCaveat) error {
+	key := tuple.JoinRelRef(subject.ObjectType, subject.Relation)
 	if _, ok := s.byType[key]; !ok {
 		s.byType[key] = NewSubjectSet()
 	}
 
 	return s.byType[key].Add(&v1.FoundSubject{
-		SubjectId:        subject.ObjectId,
+		SubjectId:        subject.ObjectID,
 		CaveatExpression: wrapCaveat(caveat),
 	})
 }

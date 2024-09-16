@@ -98,12 +98,9 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 		i := i
 		g.Go(func() error {
 			_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-				updates := []*corev1.RelationTupleUpdate{}
+				updates := []tuple.RelationshipUpdate{}
 				for j := 0; j < 500; j++ {
-					updates = append(updates, &corev1.RelationTupleUpdate{
-						Operation: corev1.RelationTupleUpdate_TOUCH,
-						Tuple:     tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j)),
-					})
+					updates = append(updates, tuple.Touch(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))))
 				}
 
 				return rwt.WriteRelationships(ctx, updates)

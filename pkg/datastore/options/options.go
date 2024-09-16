@@ -3,7 +3,8 @@ package options
 import (
 	"google.golang.org/protobuf/types/known/structpb"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.query_options.go . QueryOptions ReverseQueryOptions RWTOptions
@@ -26,7 +27,12 @@ const (
 	BySubject
 )
 
-type Cursor *core.RelationTuple
+type Cursor *tuple.Relationship
+
+func ToCursor(r tuple.Relationship) Cursor {
+	spiceerrors.DebugAssert(r.ValidateNotEmpty, "cannot create cursor from empty relationship")
+	return Cursor(&r)
+}
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
