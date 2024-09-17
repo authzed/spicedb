@@ -35,7 +35,7 @@ func OrderingTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
-	tRequire := testfixtures.TupleChecker{Require: require.New(t), DS: ds}
+	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range testCases {
 		tc := tc
@@ -79,7 +79,7 @@ func LimitTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
-	tRequire := testfixtures.TupleChecker{Require: require.New(t), DS: ds}
+	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, objectType := range testCases {
 		expected := sortedStandardData(objectType, options.ByResource)
@@ -165,7 +165,7 @@ func OrderedLimitTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
-	tRequire := testfixtures.TupleChecker{Require: require.New(t), DS: ds}
+	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range orderedTestCases {
 		expected := sortedStandardData(tc.objectType, tc.sortOrder)
@@ -203,7 +203,7 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	ds, rev := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
-	tRequire := testfixtures.TupleChecker{Require: require.New(t), DS: ds}
+	tRequire := testfixtures.RelationshipChecker{Require: require.New(t), DS: ds}
 
 	for _, tc := range orderedTestCases {
 		expected := sortedStandardData(tc.objectType, tc.sortOrder)

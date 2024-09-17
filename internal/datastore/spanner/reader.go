@@ -52,7 +52,7 @@ func (sr spannerReader) CountRelationships(ctx context.Context, name string) (in
 		return 0, err
 	}
 
-	builder, err := common.NewSchemaQueryFilterer(schema, countTuples, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	builder, err := common.NewSchemaQueryFilterer(schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -328,7 +328,7 @@ var queryTuples = sql.Select(
 	colCaveatContext,
 ).From(tableRelationship)
 
-var countTuples = sql.Select("COUNT(*)").From(tableRelationship)
+var countRels = sql.Select("COUNT(*)").From(tableRelationship)
 
 var queryTuplesForDelete = sql.Select(
 	colNamespace,

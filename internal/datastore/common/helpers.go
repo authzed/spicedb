@@ -11,8 +11,8 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// WriteTuples is a convenience method to perform the same update operation on a set of relationships
-func WriteTuples(ctx context.Context, ds datastore.Datastore, op tuple.UpdateOperation, rels ...tuple.Relationship) (datastore.Revision, error) {
+// WriteRelationships is a convenience method to perform the same update operation on a set of relationships
+func WriteRelationships(ctx context.Context, ds datastore.Datastore, op tuple.UpdateOperation, rels ...tuple.Relationship) (datastore.Revision, error) {
 	updates := make([]tuple.RelationshipUpdate, 0, len(rels))
 	for _, rel := range rels {
 		ru := tuple.RelationshipUpdate{
@@ -21,11 +21,11 @@ func WriteTuples(ctx context.Context, ds datastore.Datastore, op tuple.UpdateOpe
 		}
 		updates = append(updates, ru)
 	}
-	return UpdateTuplesInDatastore(ctx, ds, updates...)
+	return UpdateRelationshipsInDatastore(ctx, ds, updates...)
 }
 
-// UpdateTuplesInDatastore is a convenience method to perform multiple relation update operations on a Datastore
-func UpdateTuplesInDatastore(ctx context.Context, ds datastore.Datastore, updates ...tuple.RelationshipUpdate) (datastore.Revision, error) {
+// UpdateRelationshipsInDatastore is a convenience method to perform multiple relation update operations on a Datastore
+func UpdateRelationshipsInDatastore(ctx context.Context, ds datastore.Datastore, updates ...tuple.RelationshipUpdate) (datastore.Revision, error) {
 	return ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteRelationships(ctx, updates)
 	})

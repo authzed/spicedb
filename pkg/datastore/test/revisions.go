@@ -47,7 +47,7 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 			var writtenAt datastore.Revision
 			tpl := makeTestRel("first", "owner")
 			for i := 0; i < 10; i++ {
-				writtenAt, err = common.WriteTuples(ctx, ds, tuple.UpdateOperationTouch, tpl)
+				writtenAt, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl)
 				require.NoError(err)
 			}
 			require.True(writtenAt.GreaterThan(postSetupRevision))

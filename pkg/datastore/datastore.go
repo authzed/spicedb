@@ -752,7 +752,8 @@ type Stats struct {
 	ObjectTypeStatistics []ObjectTypeStat
 }
 
-// RelationshipIterator is an iterator over matched tuples.
+// RelationshipIterator is an iterator over matched tuples. It is a single use
+// iterator.
 type RelationshipIterator iter.Seq2[tuple.Relationship, error]
 
 func IteratorToSlice(iter RelationshipIterator) ([]tuple.Relationship, error) {

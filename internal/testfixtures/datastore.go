@@ -160,7 +160,7 @@ func StandardDatastoreWithData(ds datastore.Datastore, require *require.Assertio
 		require.NotNil(rel)
 		rels = append(rels, rel)
 	}
-	revision, err := common.WriteTuples(ctx, ds, tuple.UpdateOperationCreate, rels...)
+	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
 	require.NoError(err)
 
 	return ds, revision
@@ -189,7 +189,7 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 		}
 		rels = append(rels, rel)
 	}
-	revision, err := common.WriteTuples(ctx, ds, tuple.UpdateOperationCreate, rels...)
+	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
 	return ds, revision
 }
 
@@ -274,14 +274,14 @@ func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objec
 	return newRevision
 }
 
-// TupleChecker is a helper type which provides an easy way for collecting relationships/tuples from
+// RelationshipChecker is a helper type which provides an easy way for collecting relationships from
 // an iterator and verify those found.
-type TupleChecker struct {
+type RelationshipChecker struct {
 	Require *require.Assertions
 	DS      datastore.Datastore
 }
 
-func (tc TupleChecker) ExactRelationshipIterator(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) datastore.RelationshipIterator {
+func (tc RelationshipChecker) ExactRelationshipIterator(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) datastore.RelationshipIterator {
 	filter := tuple.ToV1Filter(rel)
 	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
 	tc.Require.NoError(err)
@@ -291,7 +291,7 @@ func (tc TupleChecker) ExactRelationshipIterator(ctx context.Context, rel tuple.
 	return iter
 }
 
-func (tc TupleChecker) VerifyIteratorCount(iter datastore.RelationshipIterator, count int) {
+func (tc RelationshipChecker) VerifyIteratorCount(iter datastore.RelationshipIterator, count int) {
 	foundCount := 0
 	for _, err := range iter {
 		tc.Require.NoError(err)
@@ -300,7 +300,7 @@ func (tc TupleChecker) VerifyIteratorCount(iter datastore.RelationshipIterator, 
 	tc.Require.Equal(count, foundCount)
 }
 
-func (tc TupleChecker) VerifyIteratorResults(iter datastore.RelationshipIterator, rels ...tuple.Relationship) {
+func (tc RelationshipChecker) VerifyIteratorResults(iter datastore.RelationshipIterator, rels ...tuple.Relationship) {
 	toFind := mapz.NewSet[string]()
 	for _, rel := range rels {
 		toFind.Add(tuple.MustString(rel))
@@ -317,7 +317,7 @@ func (tc TupleChecker) VerifyIteratorResults(iter datastore.RelationshipIterator
 	tc.Require.True(toFind.IsEmpty(), "did not find some expected relationships: %#v", toFind.AsSlice())
 }
 
-func (tc TupleChecker) VerifyOrderedIteratorResults(iter datastore.RelationshipIterator, rels ...tuple.Relationship) options.Cursor {
+func (tc RelationshipChecker) VerifyOrderedIteratorResults(iter datastore.RelationshipIterator, rels ...tuple.Relationship) options.Cursor {
 	expected := make([]tuple.Relationship, 0, len(rels))
 	for rel, err := range iter {
 		tc.Require.NoError(err)
@@ -340,12 +340,12 @@ func (tc TupleChecker) VerifyOrderedIteratorResults(iter datastore.RelationshipI
 	return cursor
 }
 
-func (tc TupleChecker) RelationshipExists(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) {
+func (tc RelationshipChecker) RelationshipExists(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) {
 	iter := tc.ExactRelationshipIterator(ctx, rel, rev)
 	tc.VerifyIteratorResults(iter, rel)
 }
 
-func (tc TupleChecker) NoRelationshipExists(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) {
+func (tc RelationshipChecker) NoRelationshipExists(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) {
 	iter := tc.ExactRelationshipIterator(ctx, rel, rev)
 	tc.VerifyIteratorResults(iter)
 }

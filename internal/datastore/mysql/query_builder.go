@@ -64,7 +64,7 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.QueryRelationshipExistsQuery = queryRelationshipExists(driver.RelationTuple())
 	builder.WriteTupleQuery = writeTuple(driver.RelationTuple())
 	builder.QueryChangedQuery = queryChanged(driver.RelationTuple())
-	builder.CountTupleQuery = countTuples(driver.RelationTuple())
+	builder.CountTupleQuery = countRels(driver.RelationTuple())
 
 	// caveat builders
 	builder.ReadCaveatQuery = readCaveat(driver.Caveat())
@@ -177,7 +177,7 @@ func queryTuples(tableTuple string) sq.SelectBuilder {
 	).From(tableTuple)
 }
 
-func countTuples(tableTuple string) sq.SelectBuilder {
+func countRels(tableTuple string) sq.SelectBuilder {
 	return sb.Select(
 		"count(*)",
 	).From(tableTuple)

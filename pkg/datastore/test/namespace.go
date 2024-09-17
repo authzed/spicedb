@@ -149,7 +149,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
 	docTpl, err := tuple.Parse(testfixtures.StandardRelationships[0])
 	require.NoError(err)
 	require.NotNil(docTpl)
