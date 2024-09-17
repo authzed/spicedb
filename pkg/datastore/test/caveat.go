@@ -144,12 +144,12 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 
 	rel := createTestCaveatedRel(t, "document:companyplan#somerelation@folder:company#...", coreCaveat.Name)
-	rev, err := common.WriteTuples(ctx, sds, tuple.UpdateOperationCreate, rel)
+	rev, err := common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
 
 	// RelationTupleUpdate_CREATE of the same tuple and different caveat context will fail
-	_, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationCreate, rel)
+	_, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel)
 	req.ErrorAs(err, &common.CreateRelationshipExistsError{})
 
 	// RelationTupleUpdate_TOUCH does update the caveat context for a caveated relationship that already exists
@@ -159,32 +159,32 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(t, err)
 
 	rel.OptionalCaveat.Context = st
-	rev, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationTouch, rel)
+	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationTouch, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
 
 	// RelationTupleUpdate_TOUCH does update the caveat name for a caveated relationship that already exists
 	rel.OptionalCaveat.CaveatName = anotherCoreCaveat.Name
-	rev, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationTouch, rel)
+	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationTouch, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
 
 	// TOUCH can remove caveat from relationship
 	caveatContext := rel.OptionalCaveat
 	rel.OptionalCaveat = nil
-	rev, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationTouch, rel)
+	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationTouch, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
 
 	// TOUCH can store caveat in relationship with no caveat
 	rel.OptionalCaveat = caveatContext
-	rev, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationTouch, rel)
+	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationTouch, rel)
 	req.NoError(err)
 	assertRelCorrectlyStored(req, ds, rev, rel)
 
 	// RelationTupleUpdate_DELETE ignores caveat part of the request
 	rel.OptionalCaveat.CaveatName = "rando"
-	rev, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationDelete, rel)
+	rev, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationDelete, rel)
 	req.NoError(err)
 	iter, err := ds.SnapshotReader(rev).QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: rel.Resource.ObjectType,
@@ -198,7 +198,7 @@ func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
 
 	// Caveated tuple can reference non-existing caveat - controller layer is responsible for validation
 	rel = createTestCaveatedRel(t, "document:rando#somerelation@folder:company#...", "rando")
-	_, err = common.WriteTuples(ctx, sds, tuple.UpdateOperationCreate, rel)
+	_, err = common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel)
 	req.NoError(err)
 }
 
@@ -222,7 +222,7 @@ func CaveatedRelationshipFilterTest(t *testing.T, tester DatastoreTester) {
 	rel := createTestCaveatedRel(t, "document:companyplan#parent@folder:company#...", coreCaveat.Name)
 	anotherTpl := createTestCaveatedRel(t, "document:anothercompanyplan#parent@folder:company#...", anotherCoreCaveat.Name)
 	nonCaveatedTpl := tuple.MustParse("document:yetanothercompanyplan#parent@folder:company#...")
-	rev, err := common.WriteTuples(ctx, sds, tuple.UpdateOperationCreate, rel, anotherTpl, nonCaveatedTpl)
+	rev, err := common.WriteRelationships(ctx, sds, tuple.UpdateOperationCreate, rel, anotherTpl, nonCaveatedTpl)
 	req.NoError(err)
 
 	// filter by first caveat
@@ -298,7 +298,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	revBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	writeRev, err := common.WriteTuples(ctx, ds, tuple.UpdateOperationCreate, relWithContext)
+	writeRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relWithContext)
 	require.NoError(t, err)
 	require.NotEqual(t, revBeforeWrite, writeRev, "found same transaction IDs: %v and %v", revBeforeWrite, writeRev)
 
@@ -314,7 +314,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	secondRevBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	secondWriteRev, err := common.WriteTuples(ctx, ds, tuple.UpdateOperationCreate, tupleWithEmptyContext)
+	secondWriteRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tupleWithEmptyContext)
 	require.NoError(t, err)
 	require.NotEqual(t, secondRevBeforeWrite, secondWriteRev)
 
@@ -327,7 +327,7 @@ func CaveatedRelationshipWatchTest(t *testing.T, tester DatastoreTester) {
 	thirdRevBeforeWrite, err := ds.HeadRevision(ctx)
 	require.NoError(t, err)
 
-	thirdWriteRev, err := common.WriteTuples(ctx, ds, tuple.UpdateOperationCreate, tupleWithNilContext)
+	thirdWriteRev, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tupleWithNilContext)
 	req.NoError(err)
 	require.NotEqual(t, thirdRevBeforeWrite, thirdWriteRev)
 

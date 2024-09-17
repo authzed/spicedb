@@ -49,7 +49,7 @@ func BulkUploadTest(t *testing.T, tester DatastoreTester) {
 			})
 			require.NoError(err)
 
-			tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
+			tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
 
 			head, err := ds.HeadRevision(ctx)
 			require.NoError(err)

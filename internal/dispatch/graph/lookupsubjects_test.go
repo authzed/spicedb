@@ -204,7 +204,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	tpl := tuple.Parse("folder:oops#owner@folder:oops#owner")
-	revision, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
+	revision, err := common.WriteRelationships(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 
 	dis := NewLocalOnlyDispatcher(10, 100)
