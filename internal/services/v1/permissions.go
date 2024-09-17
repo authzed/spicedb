@@ -1163,7 +1163,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 
 	// Record usage metrics
 	respMetadata := &dispatch.ResponseMeta{
-		DispatchCount:       batches,
+		DispatchCount: batches,
 	}
 	usagemetrics.SetInContext(ctx, respMetadata)
 
