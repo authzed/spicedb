@@ -1075,6 +1075,8 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 	}
 
 	emptyRels := make([]*v1.Relationship, limit)
+	// The number of batches/dispatches for the purpose of usage metrics
+	var batches uint32
 	for _, ns := range namespaces {
 		rels := emptyRels
 
@@ -1154,7 +1156,16 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 			}); err != nil {
 				return shared.RewriteErrorWithoutConfig(ctx, err)
 			}
+			// Increment batches for usagemetrics
+			batches++
 		}
 	}
+
+	// Record usage metrics
+	respMetadata := &dispatch.ResponseMeta{
+		DispatchCount:       batches,
+	}
+	usagemetrics.SetInContext(ctx, respMetadata)
+
 	return nil
 }
