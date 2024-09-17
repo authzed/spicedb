@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/ccoveille/go-safecast"
+	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -2042,4 +2045,362 @@ func relToCheckBulkRequestItem(rel string) *v1.CheckBulkPermissionsRequestItem {
 		item.Context = r.OptionalCaveat.Context
 	}
 	return item
+}
+
+func TestImportBulkRelationships(t *testing.T) {
+	testCases := []struct {
+		name       string
+		batchSize  func() uint64
+		numBatches int
+	}{
+		{"one small batch", constBatch(1), 1},
+		{"one big batch", constBatch(10_000), 1},
+		{"many small batches", constBatch(5), 1_000},
+		{"one empty batch", constBatch(0), 1},
+		{"small random batches", randomBatch(1, 10), 100},
+		{"big random batches", randomBatch(1_000, 3_000), 50},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			client := v1.NewPermissionsServiceClient(conn)
+			t.Cleanup(cleanup)
+
+			ctx := context.Background()
+
+			writer, err := client.ImportBulkRelationships(ctx)
+			require.NoError(err)
+
+			var expectedTotal uint64
+			for batchNum := 0; batchNum < tc.numBatches; batchNum++ {
+				batchSize := tc.batchSize()
+				batch := make([]*v1.Relationship, 0, batchSize)
+
+				for i := uint64(0); i < batchSize; i++ {
+					batch = append(batch, rel(
+						tf.DocumentNS.Name,
+						strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
+						"viewer",
+						tf.UserNS.Name,
+						strconv.FormatUint(i, 10),
+						"",
+					))
+				}
+
+				err := writer.Send(&v1.ImportBulkRelationshipsRequest{
+					Relationships: batch,
+				})
+				require.NoError(err)
+
+				expectedTotal += batchSize
+			}
+
+			resp, err := writer.CloseAndRecv()
+			require.NoError(err)
+			require.Equal(expectedTotal, resp.NumLoaded)
+
+			readerClient := v1.NewPermissionsServiceClient(conn)
+			stream, err := readerClient.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType: tf.DocumentNS.Name,
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+				},
+			})
+			require.NoError(err)
+
+			var readBack uint64
+			for _, err = stream.Recv(); err == nil; _, err = stream.Recv() {
+				readBack++
+			}
+			require.ErrorIs(err, io.EOF)
+			require.Equal(expectedTotal, readBack)
+		})
+	}
+}
+
+func TestExportBulkRelationshipsBeyondAllowedLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	resp, err := client.ExportBulkRelationships(context.Background(), &v1.ExportBulkRelationshipsRequest{
+		OptionalLimit: 10000005,
+	})
+	require.NoError(err)
+
+	_, err = resp.Recv()
+	require.Error(err)
+	require.Contains(err.Error(), "provided limit 10000005 is greater than maximum allowed of 100000")
+}
+
+func TestExportBulkRelationships(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	nsAndRels := []struct {
+		namespace string
+		relation  string
+	}{
+		{tf.DocumentNS.Name, "viewer"},
+		{tf.FolderNS.Name, "viewer"},
+		{tf.DocumentNS.Name, "owner"},
+		{tf.FolderNS.Name, "owner"},
+		{tf.DocumentNS.Name, "editor"},
+		{tf.FolderNS.Name, "editor"},
+	}
+
+	totalToWrite := 1_000
+	expectedRels := set.NewStringSetWithSize(totalToWrite)
+	batch := make([]*v1.Relationship, totalToWrite)
+	for i := range batch {
+		nsAndRel := nsAndRels[i%len(nsAndRels)]
+		rel := rel(
+			nsAndRel.namespace,
+			strconv.Itoa(i),
+			nsAndRel.relation,
+			tf.UserNS.Name,
+			strconv.Itoa(i),
+			"",
+		)
+		batch[i] = rel
+		expectedRels.Add(tuple.MustStringRelationship(rel))
+	}
+
+	ctx := context.Background()
+	writer, err := client.ImportBulkRelationships(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, writer.Send(&v1.ImportBulkRelationshipsRequest{
+		Relationships: batch,
+	}))
+
+	resp, err := writer.CloseAndRecv()
+	require.NoError(t, err)
+	numLoaded, err := safecast.ToInt(resp.NumLoaded)
+	require.NoError(t, err)
+	require.Equal(t, totalToWrite, numLoaded)
+
+	testCases := []struct {
+		batchSize      uint32
+		paginateEveryN int
+	}{
+		{1_000, math.MaxInt},
+		{10, math.MaxInt},
+		{1_000, 1},
+		{100, 5},
+		{97, 7},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%d-%d", tc.batchSize, tc.paginateEveryN), func(t *testing.T) {
+			require := require.New(t)
+
+			var totalRead int
+			remainingRels := expectedRels.Copy()
+			require.Equal(totalToWrite, expectedRels.Size())
+			var cursor *v1.Cursor
+
+			var done bool
+			for !done {
+				streamCtx, cancel := context.WithCancel(ctx)
+
+				stream, err := client.ExportBulkRelationships(streamCtx, &v1.ExportBulkRelationshipsRequest{
+					OptionalLimit:  tc.batchSize,
+					OptionalCursor: cursor,
+				})
+				require.NoError(err)
+
+				for i := 0; i < tc.paginateEveryN; i++ {
+					batch, err := stream.Recv()
+					if errors.Is(err, io.EOF) {
+						done = true
+						break
+					}
+
+					require.NoError(err)
+					require.LessOrEqual(uint64(len(batch.Relationships)), uint64(tc.batchSize))
+					require.NotNil(batch.AfterResultCursor)
+					require.NotEmpty(batch.AfterResultCursor.Token)
+
+					cursor = batch.AfterResultCursor
+					totalRead += len(batch.Relationships)
+
+					for _, rel := range batch.Relationships {
+						remainingRels.Remove(tuple.MustStringRelationship(rel))
+					}
+				}
+
+				cancel()
+			}
+
+			require.Equal(totalToWrite, totalRead)
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
+		})
+	}
+}
+
+func TestExportBulkRelationshipsWithFilter(t *testing.T) {
+	testCases := []struct {
+		name          string
+		filter        *v1.RelationshipFilter
+		expectedCount int
+	}{
+		{
+			"basic filter",
+			&v1.RelationshipFilter{
+				ResourceType: tf.DocumentNS.Name,
+			},
+			500,
+		},
+		{
+			"filter by resource ID",
+			&v1.RelationshipFilter{
+				OptionalResourceId: "12",
+			},
+			1,
+		},
+		{
+			"filter by resource ID prefix",
+			&v1.RelationshipFilter{
+				OptionalResourceIdPrefix: "1",
+			},
+			111,
+		},
+		{
+			"filter by resource ID prefix and resource type",
+			&v1.RelationshipFilter{
+				ResourceType:             tf.DocumentNS.Name,
+				OptionalResourceIdPrefix: "1",
+			},
+			55,
+		},
+		{
+			"filter by invalid resource type",
+			&v1.RelationshipFilter{
+				ResourceType: "invalid",
+			},
+			0,
+		},
+	}
+
+	batchSize := uint32(14)
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+
+			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+			client := v1.NewPermissionsServiceClient(conn)
+			t.Cleanup(cleanup)
+
+			nsAndRels := []struct {
+				namespace string
+				relation  string
+			}{
+				{tf.DocumentNS.Name, "viewer"},
+				{tf.FolderNS.Name, "viewer"},
+				{tf.DocumentNS.Name, "owner"},
+				{tf.FolderNS.Name, "owner"},
+				{tf.DocumentNS.Name, "editor"},
+				{tf.FolderNS.Name, "editor"},
+			}
+
+			expectedRels := set.NewStringSetWithSize(1000)
+			batch := make([]*v1.Relationship, 1000)
+			for i := range batch {
+				nsAndRel := nsAndRels[i%len(nsAndRels)]
+				rel := rel(
+					nsAndRel.namespace,
+					strconv.Itoa(i),
+					nsAndRel.relation,
+					tf.UserNS.Name,
+					strconv.Itoa(i),
+					"",
+				)
+				batch[i] = rel
+
+				if tc.filter != nil {
+					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
+					require.NoError(err)
+					if !filter.Test(tuple.MustFromRelationship(rel)) {
+						continue
+					}
+				}
+
+				expectedRels.Add(tuple.MustStringRelationship(rel))
+			}
+
+			require.Equal(tc.expectedCount, expectedRels.Size())
+
+			ctx := context.Background()
+			writer, err := client.ImportBulkRelationships(ctx)
+			require.NoError(err)
+
+			require.NoError(writer.Send(&v1.ImportBulkRelationshipsRequest{
+				Relationships: batch,
+			}))
+
+			_, err = writer.CloseAndRecv()
+			require.NoError(err)
+
+			var totalRead uint64
+			remainingRels := expectedRels.Copy()
+			var cursor *v1.Cursor
+
+			foundRels := mapz.NewSet[string]()
+			for {
+				streamCtx, cancel := context.WithCancel(ctx)
+
+				stream, err := client.ExportBulkRelationships(streamCtx, &v1.ExportBulkRelationshipsRequest{
+					OptionalRelationshipFilter: tc.filter,
+					OptionalLimit:              batchSize,
+					OptionalCursor:             cursor,
+				})
+				require.NoError(err)
+
+				batch, err := stream.Recv()
+				if errors.Is(err, io.EOF) {
+					cancel()
+					break
+				}
+
+				require.NoError(err)
+				relLength, err := safecast.ToUint32(len(batch.Relationships))
+				require.NoError(err)
+				require.LessOrEqual(relLength, batchSize)
+				require.NotNil(batch.AfterResultCursor)
+				require.NotEmpty(batch.AfterResultCursor.Token)
+
+				cursor = batch.AfterResultCursor
+				totalRead += uint64(len(batch.Relationships))
+
+				for _, rel := range batch.Relationships {
+					if tc.filter != nil {
+						filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
+						require.NoError(err)
+						require.True(filter.Test(tuple.MustFromRelationship(rel)), "relationship did not match filter: %s", rel)
+					}
+
+					require.True(remainingRels.Has(tuple.MustStringRelationship(rel)), "relationship was not expected or was repeated: %s", rel)
+					remainingRels.Remove(tuple.MustStringRelationship(rel))
+					foundRels.Add(tuple.MustStringRelationship(rel))
+				}
+
+				cancel()
+			}
+
+			// These are statically defined.
+			expectedCount, _ := safecast.ToUint64(tc.expectedCount)
+			require.Equal(expectedCount, totalRead, "found: %v", foundRels.AsSlice())
+			require.True(remainingRels.IsEmpty(), "rels were not exported %#v", remainingRels.List())
+		})
+	}
 }
