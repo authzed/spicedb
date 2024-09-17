@@ -474,12 +474,18 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 			IntegrityData: datastore.Feature{
 				Status: datastore.FeatureSupported,
 			},
+			ContinuousCheckpointing: datastore.Feature{
+				Status: datastore.FeatureSupported,
+			},
 		}, nil
 	}
 
 	return &datastore.Features{
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
+		},
+		ContinuousCheckpointing: datastore.Feature{
+			Status: datastore.FeatureSupported,
 		},
 	}, nil
 }
@@ -500,7 +506,11 @@ func (cds *crdbDatastore) tableTupleName() string {
 }
 
 func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, error) {
-	features := datastore.Features{}
+	features := datastore.Features{
+		ContinuousCheckpointing: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+	}
 	if cds.supportsIntegrity {
 		features.IntegrityData.Status = datastore.FeatureSupported
 	}
