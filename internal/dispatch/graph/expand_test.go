@@ -286,7 +286,7 @@ func TestMaxDepthExpand(t *testing.T) {
 	tpl := tuple.Parse("folder:oops#parent@folder:oops")
 	ctx := datastoremw.ContextWithHandle(context.Background())
 
-	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	revision, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 

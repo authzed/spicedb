@@ -36,7 +36,7 @@ var (
 		colCaveatContext,
 	).From(tableTuple)
 
-	countTuples = psql.Select("COUNT(*)").From(tableTuple)
+	countRels = psql.Select("COUNT(*)").From(tableTuple)
 
 	schema = common.NewSchemaInformation(
 		colNamespace,
@@ -82,7 +82,7 @@ func (r *pgReader) CountRelationships(ctx context.Context, name string) (int, er
 		return 0, err
 	}
 
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countTuples), r.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countRels), r.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}

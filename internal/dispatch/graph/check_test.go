@@ -163,7 +163,7 @@ func TestMaxDepth(t *testing.T) {
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	revision, err := common.UpdateTuplesInDatastore(ctx, ds, mutation)
+	revision, err := common.UpdateRelationshipsInDatastore(ctx, ds, mutation)
 	require.NoError(err)
 
 	dispatch := NewLocalOnlyDispatcher(10, 100)

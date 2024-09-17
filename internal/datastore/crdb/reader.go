@@ -27,7 +27,7 @@ const (
 var (
 	queryReadNamespace = psql.Select(colConfig, colTimestamp)
 
-	countTuples = psql.Select("count(*)")
+	countRels = psql.Select("count(*)")
 
 	schema = common.NewSchemaInformation(
 		colNamespace,
@@ -74,7 +74,7 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	query := cr.fromBuilder(countTuples, cr.tupleTableName)
+	query := cr.fromBuilder(countRels, cr.tupleTableName)
 	builder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
