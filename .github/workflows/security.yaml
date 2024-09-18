@@ -71,8 +71,7 @@ jobs:
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"
-          # Pinned because of a regression in 2.2.0
-          version: "2.2.0"
+          version: "2.3.2"
           args: "release --clean --split --snapshot --single-target --skip=chocolatey"
         env:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
