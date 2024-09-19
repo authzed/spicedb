@@ -33,7 +33,9 @@ jobs:
       - uses: "goreleaser/goreleaser-action@v6"
         with:
           distribution: "goreleaser-pro"
-          version: &goreleaser_version "2.3.2"
+          # NOTE: keep in sync with goreleaser version in other job.
+          # github actions don't allow yaml anchors.
+          version: "2.3.2"
           args: "release --clean --config=.goreleaser.windows.yml"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -69,7 +71,9 @@ jobs:
       - uses: "goreleaser/goreleaser-action@v6"
         with:
           distribution: "goreleaser-pro"
-          version: &goreleaser_version
+          # NOTE: keep in sync with goreleaser version in other job.
+          # github actions don't allow yaml anchors.
+          version: "2.3.2"
           args: "release --clean"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
