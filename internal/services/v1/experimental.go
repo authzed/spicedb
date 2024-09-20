@@ -295,7 +295,7 @@ func (es *experimentalServer) BulkExportRelationships(
 // BulkExport implements the BulkExportRelationships API functionality. Given a datastore.Datastore, it will
 // export stream via the sender all relationships matched by the incoming request.
 // If no cursor is provided, it will fallback to the provided revision.
-func BulkExport(ctx context.Context, ds datastore.Datastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
+func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize uint64, req *v1.BulkExportRelationshipsRequest, fallbackRevision datastore.Revision, sender func(response *v1.BulkExportRelationshipsResponse) error) error {
 	if req.OptionalLimit > 0 && uint64(req.OptionalLimit) > batchSize {
 		return shared.RewriteErrorWithoutConfig(ctx, NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), batchSize))
 	}
@@ -752,7 +752,7 @@ func queryForEach(
 	return cur, nil
 }
 
-func decodeCursor(ds datastore.Datastore, encoded *v1.Cursor) (datastore.Revision, string, *core.RelationTuple, error) {
+func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore.Revision, string, *core.RelationTuple, error) {
 	decoded, err := cursor.Decode(encoded)
 	if err != nil {
 		return datastore.NoRevision, "", nil, err
