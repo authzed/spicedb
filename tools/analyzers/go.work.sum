@@ -398,6 +398,7 @@ cloud.google.com/go/compute v1.27.0/go.mod h1:LG5HwRmWFKM2C5XxHRiNzkLLXW48WwvyVC
 cloud.google.com/go/compute v1.27.2 h1:5cE5hdrwJV/92ravlwIFRGnyH9CpLGhh4N0ZDVTU+BA=
 cloud.google.com/go/compute v1.27.2/go.mod h1:YQuHkNEwP3bIz4LBYQqf4DIMfFtTDtnEgnwG0mJQQ9I=
 cloud.google.com/go/compute v1.27.4 h1:XM8ulx6crjdl09XBfji7viFgZOEQuIxBwKmjRH9Rtmc=
+cloud.google.com/go/compute v1.28.0 h1:OPtBxMcheSS+DWfci803qvPly3d4w7Eu5ztKBcFfzwk=
 cloud.google.com/go/contactcenterinsights v1.9.1 h1:hy4L0bc3fQNZZrhPjuoH62RiisD5B71/S1OZNunsTRk=
 cloud.google.com/go/contactcenterinsights v1.9.1/go.mod h1:bsg/R7zGLYMVxFFzfh9ooLTruLRCG9fnzhH9KznHhbM=
 cloud.google.com/go/contactcenterinsights v1.10.0 h1:YR2aPedGVQPpFBZXJnPkqRj8M//8veIZZH5ZvICoXnI=
@@ -2129,6 +2130,7 @@ golang.org/x/mod v0.11.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
 golang.org/x/mod v0.13.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/mod v0.15.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/mod v0.17.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
+golang.org/x/mod v0.20.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/net v0.10.0/go.mod h1:0qNGK6F8kojg2nk9dLZ2mShWaEBan6FAoqfSigmmuDg=
 golang.org/x/net v0.12.0/go.mod h1:zEVYFnQC7m/vmpQFELhcD1EWkZlX69l4oqgmer6hfKA=
 golang.org/x/net v0.15.0/go.mod h1:idbUs1IY1+zTqbi8yxTbhexhEEk5ur9LInksu6HrEpk=
