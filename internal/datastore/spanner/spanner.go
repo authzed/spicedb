@@ -320,9 +320,6 @@ func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureUnsupported,
 		},
-		ContinuousCheckpointing: datastore.Feature{
-			Status: datastore.FeatureSupported,
-		},
 	}, nil
 }
 

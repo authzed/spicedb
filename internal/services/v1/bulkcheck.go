@@ -35,8 +35,6 @@ type bulkChecker struct {
 	dispatchChunkSize uint16
 }
 
-const maxBulkCheckCount = 10000
-
 func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBulkPermissionsRequest) (*v1.CheckBulkPermissionsResponse, error) {
 	atRevision, checkedAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {

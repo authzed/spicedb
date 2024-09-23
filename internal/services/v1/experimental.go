@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
 	"github.com/ccoveille/go-safecast"
@@ -102,7 +101,8 @@ func NewExperimentalServer(dispatch dispatch.Dispatcher, permServerConfig Permis
 				streamtimeout.MustStreamServerInterceptor(config.StreamReadTimeout),
 			),
 		},
-		maxBatchSize: uint64(config.MaxExportBatchSize),
+		defaultBatchSize: uint64(config.DefaultExportBatchSize),
+		maxBatchSize:     uint64(config.MaxExportBatchSize),
 		bulkChecker: &bulkChecker{
 			maxAPIDepth:          permServerConfig.MaximumAPIDepth,
 			maxCaveatContextSize: permServerConfig.MaxCaveatContextSize,
@@ -117,7 +117,8 @@ type experimentalServer struct {
 	v1.UnimplementedExperimentalServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	maxBatchSize uint64
+	defaultBatchSize uint64
+	maxBatchSize     uint64
 
 	bulkChecker *bulkChecker
 }
@@ -205,7 +206,6 @@ func extractBatchNewReferencedNamespacesAndCaveats(
 	return lo.Keys(newNamespaces), lo.Keys(newCaveats)
 }
 
-// TODO: this is now duplicate code with ImportBulkRelationships
 func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalService_BulkImportRelationshipsServer) error {
 	ds := datastoremw.MustFromContext(stream.Context())
 
@@ -278,10 +278,9 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 	})
 }
 
-// TODO: this is now duplicate code with ExportBulkRelationships
 func (es *experimentalServer) BulkExportRelationships(
 	req *v1.BulkExportRelationshipsRequest,
-	resp grpc.ServerStreamingServer[v1.BulkExportRelationshipsResponse],
+	resp v1.ExperimentalService_BulkExportRelationshipsServer,
 ) error {
 	ctx := resp.Context()
 	atRevision, _, err := consistency.RevisionFromContext(ctx)
@@ -433,6 +432,8 @@ func BulkExport(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 	}
 	return nil
 }
+
+const maxBulkCheckCount = 10000
 
 func (es *experimentalServer) BulkCheckPermission(ctx context.Context, req *v1.BulkCheckPermissionRequest) (*v1.BulkCheckPermissionResponse, error) {
 	convertedReq := toCheckBulkPermissionsRequest(req)

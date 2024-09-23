@@ -196,11 +196,6 @@ var lintArrowReferencingRelation = ttuCheck{
 		}
 
 		for _, subjectType := range allowedSubjectTypes {
-			// Skip for arrow referencing relations in the same namespace.
-			if subjectType.Namespace == ts.Namespace().Name {
-				continue
-			}
-
 			nts, err := ts.TypeSystemForNamespace(ctx, subjectType.Namespace)
 			if err != nil {
 				return nil, err

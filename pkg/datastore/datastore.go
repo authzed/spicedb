@@ -713,11 +713,6 @@ type Features struct {
 	// Watch is enabled if the underlying datastore can support the Watch api.
 	Watch Feature
 
-	// ContinuousCheckpointing is enabled if the underlying datastore supports continuous checkpointing
-	// via the Watch API. If not supported, clients of the Watch API may expect checkpoints only when
-	// new transactions are committed.
-	ContinuousCheckpointing Feature
-
 	// IntegrityData is enabled if the underlying datastore supports retrieving and storing
 	// integrity information.
 	IntegrityData Feature

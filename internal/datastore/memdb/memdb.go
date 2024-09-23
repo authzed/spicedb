@@ -320,9 +320,6 @@ func (mdb *memdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 		IntegrityData: datastore.Feature{
 			Status: datastore.FeatureSupported,
 		},
-		ContinuousCheckpointing: datastore.Feature{
-			Status: datastore.FeatureUnsupported,
-		},
 	}, nil
 }
 

@@ -71,11 +71,12 @@ jobs:
         id: "goreleaser"
         with:
           distribution: "goreleaser-pro"
-          version: "2.3.2"
+          # Pinned because of a regression in 2.2.0
+          version: "2.2.0"
           args: "release --clean --split --snapshot --single-target --skip=chocolatey"
         env:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
       - name: "Obtain container image to scan"
-        run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64_v1/metadata.json --raw-output)" >> $GITHUB_ENV'
+        run: 'echo "IMAGE_VERSION=$(jq .version dist/linux_amd64/metadata.json --raw-output)" >> $GITHUB_ENV'
       - name: "run trivy on release image"
         run: "docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format table --exit-code 1 --ignore-unfixed --vuln-type os,library --no-progress --severity CRITICAL,HIGH,MEDIUM authzed/spicedb:v${{ env.IMAGE_VERSION }}-amd64"

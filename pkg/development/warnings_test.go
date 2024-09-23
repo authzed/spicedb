@@ -202,18 +202,6 @@ func TestWarnings(t *testing.T) {
 				SourceCode: "view",
 			},
 		},
-		{
-			name: "arrow referencing relation in the same namespace",
-			schema: `definition user {}
-
-			definition document {
-				relation parent: document
-				relation viewer: user
-				permission view = parent->viewer
-			}
-			`,
-			expectedWarning: nil,
-		},
 	}
 
 	for _, tc := range tcs {
