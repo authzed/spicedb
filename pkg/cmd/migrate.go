@@ -7,7 +7,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil/v2"
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/spf13/cobra"
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
@@ -17,9 +16,9 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
-	"github.com/authzed/spicedb/pkg/runtime"
 )
 
 func RegisterMigrateFlags(cmd *cobra.Command) {
@@ -32,10 +31,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().Uint64("migration-backfill-batch-size", 1000, "number of items to migrate per iteration of a datastore backfill")
 	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 
-	otel := cobraotel.New("spicedb")
-	otel.RegisterFlags(cmd.Flags())
-	termination.RegisterFlags(cmd.Flags())
-	runtime.RegisterFlags(cmd.Flags())
+	util.RegisterCommonFlags(cmd)
 }
 
 func NewMigrateCommand(programName string) *cobra.Command {
@@ -149,6 +145,7 @@ func runMigration[D migrate.Driver[C, T], C any, T any](
 
 func RegisterHeadFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-engine", "postgres", fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
+	util.RegisterCommonFlags(cmd)
 }
 
 func NewHeadCommand(programName string) *cobra.Command {

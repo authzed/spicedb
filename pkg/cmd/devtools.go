@@ -17,7 +17,6 @@ import (
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobragrpc"
 	"github.com/jzelinskie/cobrautil/v2/cobrahttp"
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/stringz"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -29,7 +28,7 @@ import (
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
-	"github.com/authzed/spicedb/pkg/runtime"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
@@ -45,10 +44,7 @@ func RegisterDevtoolsFlags(cmd *cobra.Command) {
 	cmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
 	cmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
 
-	otel := cobraotel.New(cmd.Use)
-	otel.RegisterFlags(cmd.Flags())
-	termination.RegisterFlags(cmd.Flags())
-	runtime.RegisterFlags(cmd.Flags())
+	util.RegisterCommonFlags(cmd)
 }
 
 func NewDevtoolsCommand(programName string) *cobra.Command {
