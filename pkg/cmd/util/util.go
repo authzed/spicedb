@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -31,6 +32,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
+	"github.com/authzed/spicedb/pkg/runtime"
 	"github.com/authzed/spicedb/pkg/x509util"
 )
 
@@ -448,3 +451,14 @@ func (d *disabledHTTPServer) ListenAndServe() error {
 }
 
 func (d *disabledHTTPServer) Close() {}
+
+// Registers flags that are common to many commands.
+// NOTE: these used to be registered in the root command
+// so that they were shared across all commands, but this
+// made it difficult to organize the flags, so we lifted them here.
+func RegisterCommonFlags(cmd *cobra.Command) {
+	otel := cobraotel.New("spicedb")
+	otel.RegisterFlags(cmd.Flags())
+	termination.RegisterFlags(cmd.Flags())
+	runtime.RegisterFlags(cmd.Flags())
+}

@@ -3,14 +3,12 @@ package cmd
 import (
 	"context"
 
-	"github.com/jzelinskie/cobrautil/v2/cobraotel"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/termination"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 	"github.com/authzed/spicedb/pkg/cmd/util"
-	"github.com/authzed/spicedb/pkg/runtime"
 )
 
 func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
@@ -32,9 +30,7 @@ func RegisterTestingFlags(cmd *cobra.Command, config *testserver.Config) {
 	cmd.Flags().Uint32Var(&config.MaxLookupResourcesLimit, "max-lookup-resources-limit", 1000, "maximum number of resources that can be looked up in a single request")
 	cmd.Flags().Uint32Var(&config.MaxBulkExportRelationshipsLimit, "max-bulk-export-relationships-limit", 10_000, "maximum number of relationships that can be exported in a single request")
 	cmd.Flags().BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "enables the experimental version of the lookup resources API")
-	otel := cobraotel.New("spicedb")
-	otel.RegisterFlags(cmd.Flags())
-	runtime.RegisterFlags(cmd.Flags())
+	util.RegisterCommonFlags(cmd)
 }
 
 func NewTestingCommand(programName string, config *testserver.Config) *cobra.Command {
