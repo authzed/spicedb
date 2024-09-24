@@ -5,26 +5,24 @@ import (
 	"fmt"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/sharederrors"
+	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
-
-// ErrRequestCanceled occurs when a request has been canceled.
-type ErrRequestCanceled struct {
-	error
-}
-
-// NewRequestCanceledErr constructs a new request was canceled error.
-func NewRequestCanceledErr() error {
-	return ErrRequestCanceled{
-		error: errors.New("request canceled"),
-	}
-}
 
 // ErrCheckFailure occurs when check failed in some manner. Note this should not apply to
 // namespaces and relations not being found.
 type ErrCheckFailure struct {
 	error
+}
+
+func (e ErrCheckFailure) Unwrap() error {
+	return e.error
 }
 
 // NewCheckFailureErr constructs a new check failed error.
@@ -38,6 +36,10 @@ func NewCheckFailureErr(baseErr error) error {
 // namespaces and relations not being found.
 type ErrExpansionFailure struct {
 	error
+}
+
+func (e ErrExpansionFailure) Unwrap() error {
+	return e.error
 }
 
 // NewExpansionFailureErr constructs a new expansion failed error.
@@ -139,15 +141,32 @@ func NewRelationMissingTypeInfoErr(nsName string, relationName string) error {
 	}
 }
 
-// ErrInvalidArgument occurs when a request sent has an invalid argument.
-type ErrInvalidArgument struct {
+// ErrWildcardNotAllowed occurs when a request sent has an invalid wildcard argument.
+type ErrWildcardNotAllowed struct {
 	error
+
+	fieldName string
 }
 
-// NewErrInvalidArgument constructs a request sent has an invalid argument.
-func NewErrInvalidArgument(baseErr error) error {
-	return ErrInvalidArgument{
-		error: baseErr,
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrWildcardNotAllowed) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_WILDCARD_NOT_ALLOWED,
+			map[string]string{
+				"field": err.fieldName,
+			},
+		),
+	)
+}
+
+// NewWildcardNotAllowedErr constructs an error indicating that a wildcard was not allowed.
+func NewWildcardNotAllowedErr(message string, fieldName string) error {
+	return ErrWildcardNotAllowed{
+		error:     fmt.Errorf("invalid argument: %s", message),
+		fieldName: fieldName,
 	}
 }
 
@@ -161,4 +180,34 @@ func NewUnimplementedErr(baseErr error) error {
 	return ErrUnimplemented{
 		error: baseErr,
 	}
+}
+
+func (e ErrUnimplemented) Unwrap() error {
+	return e.error
+}
+
+// ErrInvalidCursor is returned when a cursor is no longer valid.
+type ErrInvalidCursor struct {
+	error
+}
+
+// NewInvalidCursorErr constructs a new unimplemented error.
+func NewInvalidCursorErr(dispatchCursorVersion uint32, cursor *dispatch.Cursor) error {
+	return ErrInvalidCursor{
+		error: fmt.Errorf("the supplied cursor is no longer valid: found version %d, expected version %d", cursor.DispatchVersion, dispatchCursorVersion),
+	}
+}
+
+// GRPCStatus implements retrieving the gRPC status for the error.
+func (err ErrInvalidCursor) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_INVALID_CURSOR,
+			map[string]string{
+				"details": "cursor was used against an incompatible version of SpiceDB",
+			},
+		),
+	)
 }

@@ -10,9 +10,10 @@ linters-settings:
     packages:
       - 'github.com/jmoiron/sqlx'
       - 'github.com/jackc/pgx'
-  gosec:
-    excludes:
-      - 'G404' # Allow the usage of math/rand
+  revive:
+    rules:
+      - name: 'unused-parameter'
+        disabled: true
 linters:
   enable:
     - 'bidichk'
@@ -56,11 +57,11 @@ issues:
       linters:
         - 'staticcheck'
       text: 'SA1019'
-    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go' # Ignore manual definition of metadata map
+    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go'  # Ignore manual definition of metadata map
       linters:
         - 'stylecheck'
       text: 'ST1003'
-    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go' # Ignore manual definition of metadata map
+    - path: 'pkg/proto/core/v1/core.pb.validate.manual.go'  # Ignore manual definition of metadata map
       linters:
         - 'revive'
       text: 'var-naming'

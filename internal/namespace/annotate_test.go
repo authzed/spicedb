@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 func TestAnnotateNamespace(t *testing.T) {
@@ -17,7 +18,6 @@ func TestAnnotateNamespace(t *testing.T) {
 	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	empty := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source: input.Source("schema"),
 		SchemaString: `definition document {
@@ -29,13 +29,13 @@ func TestAnnotateNamespace(t *testing.T) {
 	permission other = editor - viewer
 	permission also_aliased = viewer
 }`,
-	}, &empty)
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
 	lastRevision, err := ds.HeadRevision(context.Background())
 	require.NoError(err)
 
-	ts, err := NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+	ts, err := typesystem.NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 	require.NoError(err)
 
 	ctx := context.Background()
@@ -45,13 +45,13 @@ func TestAnnotateNamespace(t *testing.T) {
 	aerr := AnnotateNamespace(vts)
 	require.NoError(aerr)
 
-	require.NotEmpty(ts.relationMap["aliased"].AliasingRelation)
-	require.NotEmpty(ts.relationMap["also_aliased"].AliasingRelation)
-	require.Empty(ts.relationMap["computed"].AliasingRelation)
-	require.Empty(ts.relationMap["other"].AliasingRelation)
+	require.NotEmpty(ts.MustGetRelation("aliased").AliasingRelation)
+	require.NotEmpty(ts.MustGetRelation("also_aliased").AliasingRelation)
+	require.Empty(ts.MustGetRelation("computed").AliasingRelation)
+	require.Empty(ts.MustGetRelation("other").AliasingRelation)
 
-	require.NotEmpty(ts.relationMap["also_aliased"].CanonicalCacheKey)
-	require.NotEmpty(ts.relationMap["aliased"].CanonicalCacheKey)
-	require.NotEmpty(ts.relationMap["computed"].CanonicalCacheKey)
-	require.NotEmpty(ts.relationMap["other"].CanonicalCacheKey)
+	require.NotEmpty(ts.MustGetRelation("also_aliased").CanonicalCacheKey)
+	require.NotEmpty(ts.MustGetRelation("aliased").CanonicalCacheKey)
+	require.NotEmpty(ts.MustGetRelation("computed").CanonicalCacheKey)
+	require.NotEmpty(ts.MustGetRelation("other").CanonicalCacheKey)
 }

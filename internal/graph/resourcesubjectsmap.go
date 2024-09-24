@@ -1,23 +1,34 @@
 package graph
 
 import (
+	"sort"
 	"sync"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 type syncONRSet struct {
-	items sync.Map
+	sync.Mutex
+	items map[string]struct{}
 }
 
 func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
 	key := tuple.StringONR(onr)
-	_, existed := s.items.LoadOrStore(key, struct{}{})
+	s.Lock()
+	_, existed := s.items[key]
+	if !existed {
+		s.items[key] = struct{}{}
+	}
+	s.Unlock()
 	return !existed
+}
+
+func NewSyncONRSet() *syncONRSet {
+	return &syncONRSet{items: make(map[string]struct{})}
 }
 
 // resourcesSubjectMap is a multimap which tracks mappings from found resource IDs
@@ -25,19 +36,27 @@ func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
 // is conditional due to the use of a caveat on the relationship which formed the mapping.
 type resourcesSubjectMap struct {
 	resourceType         *core.RelationReference
-	resourcesAndSubjects *util.MultiMap[string, subjectInfo]
+	resourcesAndSubjects *mapz.MultiMap[string, subjectInfo]
 }
 
 // subjectInfo is the information about a subject contained in a resourcesSubjectMap.
 type subjectInfo struct {
-	subjectID  string
+	subjectID string
+
 	isCaveated bool
 }
 
 func newResourcesSubjectMap(resourceType *core.RelationReference) resourcesSubjectMap {
 	return resourcesSubjectMap{
 		resourceType:         resourceType,
-		resourcesAndSubjects: util.NewMultiMap[string, subjectInfo](),
+		resourcesAndSubjects: mapz.NewMultiMap[string, subjectInfo](),
+	}
+}
+
+func newResourcesSubjectMapWithCapacity(resourceType *core.RelationReference, capacity uint32) resourcesSubjectMap {
+	return resourcesSubjectMap{
+		resourceType:         resourceType,
+		resourcesAndSubjects: mapz.NewMultiMapWithCap[string, subjectInfo](capacity),
 	}
 }
 
@@ -82,7 +101,7 @@ func (rsm resourcesSubjectMap) len() int {
 // its use by concurrent callers.
 type dispatchableResourcesSubjectMap struct {
 	resourceType         *core.RelationReference
-	resourcesAndSubjects util.ReadOnlyMultimap[string, subjectInfo]
+	resourcesAndSubjects mapz.ReadOnlyMultimap[string, subjectInfo]
 }
 
 func (rsm dispatchableResourcesSubjectMap) isEmpty() bool {
@@ -116,7 +135,12 @@ func (rsm dispatchableResourcesSubjectMap) filterSubjectIDsToDispatch(dispatched
 // is directly found or requires an additional Check operation.
 func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoint bool) []*v1.ReachableResource {
 	resources := make([]*v1.ReachableResource, 0, rsm.resourcesAndSubjects.Len())
-	for _, resourceID := range rsm.resourcesAndSubjects.Keys() {
+
+	// Sort for stability.
+	sortedResourceIds := rsm.resourcesAndSubjects.Keys()
+	sort.Strings(sortedResourceIds)
+
+	for _, resourceID := range sortedResourceIds {
 		status := v1.ReachableResource_REQUIRES_CHECK
 		if isDirectEntrypoint {
 			status = v1.ReachableResource_HAS_PERMISSION
@@ -129,11 +153,15 @@ func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoi
 
 		for _, info := range subjectInfos {
 			subjectIDs = append(subjectIDs, info.subjectID)
+
 			if !info.isCaveated {
 				allCaveated = false
 				nonCaveatedSubjectIDs = append(nonCaveatedSubjectIDs, info.subjectID)
 			}
 		}
+
+		// Sort for stability.
+		sort.Strings(subjectIDs)
 
 		// If all the incoming edges are caveated, then the entire status has to be marked as a check
 		// is required. Otherwise, if there is at least *one* non-caveated incoming edge, then we can
@@ -155,58 +183,53 @@ func (rsm dispatchableResourcesSubjectMap) asReachableResources(isDirectEntrypoi
 	return resources
 }
 
-// mapFoundResources takes in found resources and maps them via their parent relationships to
-// the resulting found resources.
-func (rsm dispatchableResourcesSubjectMap) mapFoundResources(foundResources []*v1.ReachableResource, isDirectEntrypoint bool) ([]*v1.ReachableResource, error) {
-	// For each found resource, lookup the associated entry(s) for the "ForSubjectIDs" and
+// mapFoundResource takes in a found resource and maps it via its parent relationship to
+// the resulting found resource.
+func (rsm dispatchableResourcesSubjectMap) mapFoundResource(foundResource *v1.ReachableResource, isDirectEntrypoint bool) (*v1.ReachableResource, error) {
+	// For the found resource, lookup the associated entry(s) for the "ForSubjectIDs" and
 	// check if *all* are conditional. If so, then the overall status *must* be conditional.
 	// Otherwise, the status depends on the status of the incoming result and whether the result
 	// was for a direct entrypoint.
-	resources := make([]*v1.ReachableResource, 0, len(foundResources))
-	for _, foundResource := range foundResources {
-		// Start with the status from the found resource.
-		status := foundResource.ResultStatus
+	// Start with the status from the found resource.
+	status := foundResource.ResultStatus
 
-		// If not a direct entrypoint, then the status, by definition, is to require a check.
-		if !isDirectEntrypoint {
-			status = v1.ReachableResource_REQUIRES_CHECK
-		}
-
-		forSubjectIDs := util.NewSet[string]()
-		nonCaveatedSubjectIDs := util.NewSet[string]()
-		for _, forSubjectID := range foundResource.ForSubjectIds {
-			// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
-			infos, ok := rsm.resourcesAndSubjects.Get(forSubjectID)
-			if !ok {
-				return nil, spiceerrors.MustBugf("missing for subject ID")
-			}
-
-			for _, info := range infos {
-				forSubjectIDs.Add(info.subjectID)
-				if !info.isCaveated {
-					nonCaveatedSubjectIDs.Add(info.subjectID)
-				}
-			}
-		}
-
-		// If there are some non-caveated IDs, return those and mark as the parent status.
-		if nonCaveatedSubjectIDs.Len() > 0 {
-			resources = append(resources, &v1.ReachableResource{
-				ResourceId:    foundResource.ResourceId,
-				ForSubjectIds: nonCaveatedSubjectIDs.AsSlice(),
-				ResultStatus:  status,
-			})
-			continue
-		}
-
-		// Otherwise, everything is caveated, so return the full set of subject IDs and mark
-		// as a check is required.
-		resources = append(resources, &v1.ReachableResource{
-			ResourceId:    foundResource.ResourceId,
-			ForSubjectIds: forSubjectIDs.AsSlice(),
-			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-		})
+	// If not a direct entrypoint, then the status, by definition, is to require a check.
+	if !isDirectEntrypoint {
+		status = v1.ReachableResource_REQUIRES_CHECK
 	}
 
-	return resources, nil
+	forSubjectIDs := mapz.NewSet[string]()
+	nonCaveatedSubjectIDs := mapz.NewSet[string]()
+	for _, forSubjectID := range foundResource.ForSubjectIds {
+		// Map from the incoming subject ID to the subject ID(s) that caused the dispatch.
+		infos, ok := rsm.resourcesAndSubjects.Get(forSubjectID)
+		if !ok {
+			return nil, spiceerrors.MustBugf("missing for subject ID")
+		}
+
+		for _, info := range infos {
+			forSubjectIDs.Insert(info.subjectID)
+
+			if !info.isCaveated {
+				nonCaveatedSubjectIDs.Insert(info.subjectID)
+			}
+		}
+	}
+
+	// If there are some non-caveated IDs, return those and mark as the parent status.
+	if nonCaveatedSubjectIDs.Len() > 0 {
+		return &v1.ReachableResource{
+			ResourceId:    foundResource.ResourceId,
+			ForSubjectIds: nonCaveatedSubjectIDs.AsSlice(),
+			ResultStatus:  status,
+		}, nil
+	}
+
+	// Otherwise, everything is caveated, so return the full set of subject IDs and mark
+	// as a check is required.
+	return &v1.ReachableResource{
+		ResourceId:    foundResource.ResourceId,
+		ForSubjectIds: forSubjectIDs.AsSlice(),
+		ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
+	}, nil
 }

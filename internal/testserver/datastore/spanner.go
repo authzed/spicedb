@@ -25,19 +25,20 @@ import (
 )
 
 type spannerTest struct {
-	hostname string
+	hostname        string
+	targetMigration string
 }
 
 // RunSpannerForTesting returns a RunningEngineForTest for spanner
-func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
+func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigration string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
-	name := fmt.Sprintf("postgres-%s", uuid.New().String())
+	name := fmt.Sprintf("spanner-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         name,
 		Repository:   "gcr.io/cloud-spanner-emulator/emulator",
-		Tag:          "latest",
+		Tag:          "1.5.11",
 		ExposedPorts: []string{"9010/tcp"},
 		NetworkID:    bridgeNetworkName,
 	})
@@ -75,7 +76,9 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string) RunningEngineF
 		return err
 	}))
 
-	builder := &spannerTest{}
+	builder := &spannerTest{
+		targetMigration: targetMigration,
+	}
 	if bridgeNetworkName != "" {
 		builder.hostname = name
 	}
@@ -135,10 +138,10 @@ func (b *spannerTest) NewDatabase(t testing.TB) string {
 func (b *spannerTest) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	db := b.NewDatabase(t)
 
-	migrationDriver, err := migrations.NewSpannerDriver(db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
+	migrationDriver, err := migrations.NewSpannerDriver(context.Background(), db, "", os.Getenv("SPANNER_EMULATOR_HOST"))
 	require.NoError(t, err)
 
-	err = migrations.SpannerMigrations.Run(context.Background(), migrationDriver, migrate.Head, migrate.LiveRun)
+	err = migrations.SpannerMigrations.Run(context.Background(), migrationDriver, b.targetMigration, migrate.LiveRun)
 	require.NoError(t, err)
 
 	return initFunc("spanner", db)

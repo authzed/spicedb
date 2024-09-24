@@ -105,7 +105,7 @@ NodeTypeFile
             NodeTypeUnionExpression
               end-rune = 281
               input-source = multiple definition test
-              start-rune = 255
+              start-rune = 248
               left-expr =>
                 NodeTypeUnionExpression
                   end-rune = 262

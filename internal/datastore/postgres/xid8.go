@@ -41,6 +41,15 @@ func (n xid8) Uint64Value() (xid8, error) {
 	return n, nil
 }
 
+// TextValue is the implementation of pgx.TextValuer.
+// Achieves the same as the codecs, but slightly more efficient in pgx because it skips reflection
+func (n xid8) TextValue() (pgtype.Text, error) {
+	return pgtype.Text{
+		Valid:  n.Valid,
+		String: strconv.FormatUint(n.Uint64, 10),
+	}, nil
+}
+
 type Uint64Codec struct{}
 
 func (Uint64Codec) FormatSupported(format int16) bool {
@@ -130,7 +139,7 @@ func (c Uint64Codec) DecodeDatabaseSQLValue(m *pgtype.Map, oid uint32, format in
 	if err != nil {
 		return nil, err
 	}
-	return int64(n), nil
+	return n, nil
 }
 
 func (c Uint64Codec) DecodeValue(m *pgtype.Map, oid uint32, format int16, src []byte) (any, error) {

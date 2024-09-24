@@ -2,11 +2,12 @@ package postgres
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/exp/slices"
 )
 
 // RegisterTypes registers pgSnapshot and xid8 with a pgtype.ConnInfo.
@@ -23,6 +24,8 @@ func RegisterTypes(m *pgtype.Map) {
 	})
 	m.RegisterDefaultPgType(pgSnapshot{}, "snapshot")
 	m.RegisterDefaultPgType(xid8{}, "xid")
+	// needed for text query modes (exec, and simple), so that caveats are serialized as JSONB
+	m.RegisterDefaultPgType(map[string]any{}, "jsonb")
 }
 
 type SnapshotCodec struct {
@@ -256,7 +259,9 @@ func (s pgSnapshot) markInProgress(txid uint64) pgSnapshot {
 	var numToDrop int
 	startingXipLen := len(newSnapshot.xipList)
 	for numToDrop = 0; numToDrop < startingXipLen; numToDrop++ {
-		if newSnapshot.xipList[startingXipLen-1-numToDrop] != newSnapshot.xmax-uint64(numToDrop)-1 {
+		// numToDrop should be nonnegative
+		uintNumToDrop, _ := safecast.ToUint64(numToDrop)
+		if newSnapshot.xipList[startingXipLen-1-numToDrop] != newSnapshot.xmax-uintNumToDrop-1 {
 			break
 		}
 	}

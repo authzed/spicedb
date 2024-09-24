@@ -21,6 +21,10 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 
 	ds, _ = testfixtures.StandardDatastoreWithData(ds, require)
 
+	// stats use follower reads, need to wait a bit so that the base tables
+	// have a chance to be follower-read
+	time.Sleep(5 * time.Second)
+
 	for retryCount := statsRetryCount; retryCount >= 0; retryCount-- {
 		stats, err := ds.Statistics(ctx)
 		require.NoError(err)
@@ -30,7 +34,7 @@ func StatsTest(t *testing.T, tester DatastoreTester) {
 
 		if stats.EstimatedRelationshipCount == uint64(0) && retryCount > 0 {
 			// Sleep for a bit to get the stats table to update.
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 

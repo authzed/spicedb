@@ -26,7 +26,6 @@ func (n *Node) ToOption() NodeOption {
 		to.HTTPPort = n.HTTPPort
 		to.DispatchPort = n.DispatchPort
 		to.MetricsPort = n.MetricsPort
-		to.DashboardPort = n.DashboardPort
 		to.HedgingEnabled = n.HedgingEnabled
 		to.Pid = n.Pid
 		to.Cancel = n.Cancel
@@ -102,13 +101,6 @@ func WithDispatchPort(dispatchPort int) NodeOption {
 func WithMetricsPort(metricsPort int) NodeOption {
 	return func(n *Node) {
 		n.MetricsPort = metricsPort
-	}
-}
-
-// WithDashboardPort returns an option that can set DashboardPort on a Node
-func WithDashboardPort(dashboardPort int) NodeOption {
-	return func(n *Node) {
-		n.DashboardPort = dashboardPort
 	}
 }
 

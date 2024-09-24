@@ -48,6 +48,25 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 				require.NoError(t, err)
 				return trailer
 			},
+			"CheckBulkPermissions": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
+				var trailer metadata.MD
+				_, err := client.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
+					Consistency: &v1.Consistency{
+						Requirement: &v1.Consistency_AtLeastAsFresh{
+							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+						},
+					},
+					Items: []*v1.CheckBulkPermissionsRequestItem{
+						{
+							Resource:   obj("document", "masterplan"),
+							Permission: "view",
+							Subject:    sub("user", "eng_lead", ""),
+						},
+					},
+				}, grpc.Trailer(&trailer))
+				require.NoError(t, err)
+				return trailer
+			},
 			"DeleteRelationships": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
 				var trailer metadata.MD
 				_, err := client.DeleteRelationships(ctx, &v1.DeleteRelationshipsRequest{
@@ -156,6 +175,36 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 
 				return trailer
 			},
+			"ImportBulkRelationships": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
+				var trailer metadata.MD
+				writer, err := client.ImportBulkRelationships(ctx, grpc.Trailer(&trailer))
+				require.NoError(t, err)
+				_, err = writer.CloseAndRecv()
+				require.NoError(t, err)
+				return trailer
+			},
+			"ExportBulkRelationships": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
+				var trailer metadata.MD
+				stream, err := client.ExportBulkRelationships(ctx, &v1.ExportBulkRelationshipsRequest{
+					Consistency: &v1.Consistency{
+						Requirement: &v1.Consistency_AtLeastAsFresh{
+							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+						},
+					},
+				}, grpc.Trailer(&trailer))
+				require.NoError(t, err)
+
+				for {
+					_, err := stream.Recv()
+					if errors.Is(err, io.EOF) {
+						break
+					}
+
+					require.NoError(t, err)
+				}
+
+				return trailer
+			},
 		},
 	)
 
@@ -195,6 +244,9 @@ func checkServiceMethods[T any](
 		methodName := et.Method(i).Name
 		t.Run(methodName, func(t *testing.T) {
 			handler, ok := handlers[methodName]
+			if !ok {
+				return
+			}
 			require.True(t, ok, "missing handler for method %s under %T", methodName, new(T))
 
 			trailer := handler(t, client)

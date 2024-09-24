@@ -2,6 +2,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
@@ -132,7 +134,7 @@ func (p *sourceParser) consumeCaveat() AstNode {
 }
 
 func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
-	exprNode := p.startNode(dslshape.NodeTypeCaveatExpession)
+	exprNode := p.startNode(dslshape.NodeTypeCaveatExpression)
 	defer p.mustFinishNode()
 
 	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
@@ -319,18 +321,6 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 	return refNode
 }
 
-// consumeSpecificType consumes an identifier as a specific type reference, with optional caveat.
-func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
-	specificNode := p.consumeSpecificType()
-
-	caveatNode, ok := p.tryConsumeWithCaveat()
-	if ok {
-		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
-	}
-
-	return specificNode
-}
-
 // tryConsumeWithCaveat tries to consume a caveat `with` expression.
 func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 	if !p.isKeyword("with") {
@@ -353,10 +343,22 @@ func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
 	return caveatNode, true
 }
 
-// consumeSpecificType consumes an identifier as a specific type reference.
-func (p *sourceParser) consumeSpecificType() AstNode {
-	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
+// consumeSpecificTypeWithCaveat consumes an identifier as a specific type reference, with optional caveat.
+func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
+	specificNode := p.consumeSpecificTypeWithoutFinish()
 	defer p.mustFinishNode()
+
+	caveatNode, ok := p.tryConsumeWithCaveat()
+	if ok {
+		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
+	}
+
+	return specificNode
+}
+
+// consumeSpecificTypeOpen consumes an identifier as a specific type reference.
+func (p *sourceParser) consumeSpecificTypeWithoutFinish() AstNode {
+	specificNode := p.startNode(dslshape.NodeTypeSpecificTypeReference)
 
 	typeName, ok := p.consumeTypePath()
 	if !ok {
@@ -392,22 +394,23 @@ func (p *sourceParser) consumeSpecificType() AstNode {
 }
 
 func (p *sourceParser) consumeTypePath() (string, bool) {
-	typeNameOrNamespace, ok := p.consumeIdentifier()
-	if !ok {
-		return "", false
+	var segments []string
+
+	for {
+		segment, ok := p.consumeIdentifier()
+		if !ok {
+			return "", false
+		}
+
+		segments = append(segments, segment)
+
+		_, ok = p.tryConsume(lexer.TokenTypeDiv)
+		if !ok {
+			break
+		}
 	}
 
-	_, ok = p.tryConsume(lexer.TokenTypeDiv)
-	if !ok {
-		return typeNameOrNamespace, true
-	}
-
-	typeName, ok := p.consumeIdentifier()
-	if !ok {
-		return "", false
-	}
-
-	return typeNameOrNamespace + "/" + typeName, true
+	return strings.Join(segments, "/"), true
 }
 
 // consumePermission consumes a permission.
@@ -475,7 +478,40 @@ func (p *sourceParser) tryConsumeComputeExpression(subTryExprFn tryParserFn, bin
 // ```foo->bar->baz->meh```
 func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 	rightNodeBuilder := func(leftNode AstNode, operatorToken lexer.Lexeme) (AstNode, bool) {
-		rightNode, ok := p.tryConsumeBaseExpression()
+		// Check for an arrow function.
+		if operatorToken.Kind == lexer.TokenTypePeriod {
+			functionName, ok := p.consumeIdentifier()
+			if !ok {
+				return nil, false
+			}
+
+			// TODO(jschorr): Change to keywords in schema v2.
+			if functionName != "any" && functionName != "all" {
+				p.emitErrorf("Expected 'any' or 'all' for arrow function, found: %s", functionName)
+				return nil, false
+			}
+
+			if _, ok := p.consume(lexer.TokenTypeLeftParen); !ok {
+				return nil, false
+			}
+
+			rightNode, ok := p.tryConsumeIdentifierLiteral()
+			if !ok {
+				return nil, false
+			}
+
+			if _, ok := p.consume(lexer.TokenTypeRightParen); !ok {
+				return nil, false
+			}
+
+			exprNode := p.createNode(dslshape.NodeTypeArrowExpression)
+			exprNode.Connect(dslshape.NodeExpressionPredicateLeftExpr, leftNode)
+			exprNode.Connect(dslshape.NodeExpressionPredicateRightExpr, rightNode)
+			exprNode.MustDecorate(dslshape.NodeArrowExpressionFunctionName, functionName)
+			return exprNode, true
+		}
+
+		rightNode, ok := p.tryConsumeIdentifierLiteral()
 		if !ok {
 			return nil, false
 		}
@@ -486,7 +522,7 @@ func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 		exprNode.Connect(dslshape.NodeExpressionPredicateRightExpr, rightNode)
 		return exprNode, true
 	}
-	return p.performLeftRecursiveParsing(p.tryConsumeIdentifierLiteral, rightNodeBuilder, nil, lexer.TokenTypeRightArrow)
+	return p.performLeftRecursiveParsing(p.tryConsumeIdentifierLiteral, rightNodeBuilder, nil, lexer.TokenTypeRightArrow, lexer.TokenTypePeriod)
 }
 
 // tryConsumeBaseExpression attempts to consume base compute expressions (identifiers, parenthesis).

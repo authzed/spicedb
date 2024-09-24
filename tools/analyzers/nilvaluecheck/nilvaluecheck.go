@@ -4,22 +4,14 @@ import (
 	"flag"
 	"go/ast"
 	"go/token"
+	"slices"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
-
+	"github.com/samber/lo"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
-
-func sliceMap(s []string, f func(value string) string) []string {
-	mapped := make([]string, 0, len(s))
-	for _, value := range s {
-		mapped = append(mapped, f(value))
-	}
-	return mapped
-}
 
 func Analyzer() *analysis.Analyzer {
 	flagSet := flag.NewFlagSet("nilvaluecheck", flag.ExitOnError)
@@ -32,7 +24,7 @@ func Analyzer() *analysis.Analyzer {
 		Run: func(pass *analysis.Pass) (any, error) {
 			// Check for a skipped package.
 			if len(*skip) > 0 {
-				skipped := sliceMap(strings.Split(*skip, ","), strings.TrimSpace)
+				skipped := lo.Map(strings.Split(*skip, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
 				for _, s := range skipped {
 					if strings.Contains(pass.Pkg.Path(), s) {
 						return nil, nil
@@ -47,9 +39,9 @@ func Analyzer() *analysis.Analyzer {
 				(*ast.DeclStmt)(nil),
 			}
 
-			typePaths := sliceMap(strings.Split(*disallowedPaths, ","), strings.TrimSpace)
+			typePaths := lo.Map(strings.Split(*disallowedPaths, ","), func(path string, _ int) string { return strings.TrimSpace(path) })
 			hasTypePath := func(path string) bool {
-				return stringz.SliceContains(typePaths, path)
+				return slices.Contains(typePaths, path)
 			}
 
 			inspect.WithStack(nodeFilter, func(n ast.Node, push bool, stack []ast.Node) bool {

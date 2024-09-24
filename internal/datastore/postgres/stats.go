@@ -7,6 +7,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -27,6 +28,18 @@ var (
 				Where(sq.Eq{colRelname: tableTuple})
 )
 
+func (pgd *pgDatastore) datastoreUniqueID(ctx context.Context) (string, error) {
+	idSQL, idArgs, err := queryUniqueID.ToSql()
+	if err != nil {
+		return "", fmt.Errorf("unable to generate query sql: %w", err)
+	}
+
+	var uniqueID string
+	return uniqueID, pgx.BeginTxFunc(ctx, pgd.readPool, pgd.readTxOptions, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, idSQL, idArgs...).Scan(&uniqueID)
+	})
+}
+
 func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	idSQL, idArgs, err := queryUniqueID.ToSql()
 	if err != nil {
@@ -44,7 +57,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 
 	var uniqueID string
 	var nsDefs []datastore.RevisionedNamespace
-	var relCount int64
+	var relCount float64
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgd.readTxOptions, func(tx pgx.Tx) error {
 		if pgd.analyzeBeforeStatistics {
 			if _, err := tx.Exec(ctx, "ANALYZE "+tableTuple); err != nil {
@@ -56,7 +69,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 			return fmt.Errorf("unable to query unique ID: %w", err)
 		}
 
-		nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, filterer)
+		nsDefsWithRevisions, err := loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), filterer)
 		if err != nil {
 			return fmt.Errorf("unable to load namespaces: %w", err)
 		}

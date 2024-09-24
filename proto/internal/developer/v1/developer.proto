@@ -1,13 +1,13 @@
 syntax = "proto3";
 package developer.v1;
 
-option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
-
-import "validate/validate.proto";
+import "authzed/api/v1/debug.proto";
 import "core/v1/core.proto";
 import "dispatch/v1/dispatch.proto";
 import "google/protobuf/struct.proto";
-import "authzed/api/v1/debug.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/authzed/spicedb/pkg/proto/developer/v1";
 
 // DeveloperRequest is a single request made to the developer platform, containing zero or more
 // operations to run.
@@ -47,11 +47,12 @@ message Operation {
   RunAssertionsParameters assertions_parameters = 2;
   RunValidationParameters validation_parameters = 3;
   FormatSchemaParameters format_schema_parameters = 4;
+  SchemaWarningsParameters schema_warnings_parameters = 5;
 }
 
 // OperationsResults holds the results for the operations, indexed by the operation.
 message OperationsResults {
-  map<uint64, OperationResult> results = 1;  
+  map<uint64, OperationResult> results = 1;
 }
 
 // OperationResult contains the result data given to the callback for an operation.
@@ -60,6 +61,22 @@ message OperationResult {
   RunAssertionsResult assertions_result = 2;
   RunValidationResult validation_result = 3;
   FormatSchemaResult format_schema_result = 4;
+  SchemaWarningsResult schema_warnings_result = 5;
+}
+
+// DeveloperWarning represents a single warning raised by the development package.
+message DeveloperWarning {
+  // message is the message for the developer warning.
+  string message = 1;
+
+  // line is the 1-indexed line for the developer warning.
+  uint32 line = 2;
+
+  // column is the 1-indexed column on the line for the developer warning.
+  uint32 column = 3;
+
+  // source_code is the source code for the developer warning, if any.
+  string source_code = 4;
 }
 
 // DeveloperError represents a single error raised by the development package. Unlike an internal
@@ -89,16 +106,30 @@ message DeveloperError {
   }
 
   string message = 1;
+
+  // line is the 1-indexed line for the developer error.
   uint32 line = 2;
+
+  // column is the 1-indexed column on the line for the developer error.
   uint32 column = 3;
+
+  // source is the source location of the error.
   Source source = 4;
   ErrorKind kind = 5;
-  
+
   repeated string path = 6;
 
   // context holds the context for the error. For schema issues, this will be the
   // name of the object type. For relationship issues, the full relationship string.
   string context = 7;
+
+  // debug_information is the debug information for the dispatched check, if this error was raised
+  // due to an assertion failure.
+  dispatch.v1.DebugInformation check_debug_information = 8;
+
+  // resolved_debug_information is the V1 API debug information for the check, if this error was raised
+  // due to an assertion failure.
+  authzed.api.v1.DebugInformation check_resolved_debug_information = 9;
 }
 
 // DeveloperErrors represents the developer error(s) found after the run has completed.
@@ -113,7 +144,7 @@ message CheckOperationParameters {
   core.v1.ObjectAndRelation subject = 2;
 
   /** caveat_context consists of any named values that are defined at write time for the caveat expression **/
-  google.protobuf.Struct caveat_context = 3 [ (validate.rules).message.required = false ];
+  google.protobuf.Struct caveat_context = 3 [(validate.rules).message.required = false];
 }
 
 // CheckOperationsResult is the result for a `check` operation.
@@ -184,10 +215,21 @@ message RunValidationResult {
 
 // FormatSchemaParameters are the parameters for a `formatSchema` operation.
 message FormatSchemaParameters {
-    // empty
+  // empty
 }
 
 // FormatSchemaResult is the result of the `formatSchema` operation.
 message FormatSchemaResult {
   string formatted_schema = 1;
+}
+
+
+// SchemaWarningsParameters are the parameters for a `schemaWarnings` operation.
+message SchemaWarningsParameters {
+  // empty
+}
+
+// SchemaWarningsResult is the result of the `schemaWarnings` operation.
+message SchemaWarningsResult {
+  repeated DeveloperWarning warnings = 1;
 }

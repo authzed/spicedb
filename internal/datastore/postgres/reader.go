@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -15,9 +16,10 @@ import (
 )
 
 type pgReader struct {
-	txSource      pgxcommon.TxFactory
-	querySplitter common.TupleQuerySplitter
-	filterer      queryFilterer
+	query                pgxcommon.DBFuncQuerier
+	executor             common.QueryExecutor
+	filterer             queryFilterer
+	filterMaximumIDCount uint16
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -34,6 +36,8 @@ var (
 		colCaveatContext,
 	).From(tableTuple)
 
+	countTuples = psql.Select("COUNT(*)").From(tableTuple)
+
 	schema = common.NewSchemaInformation(
 		colNamespace,
 		colObjectID,
@@ -48,24 +52,130 @@ var (
 	readNamespace = psql.
 			Select(colConfig, colCreatedXid).
 			From(tableNamespace)
+
+	readCounters = psql.
+			Select(colCounterName, colCounterFilter, colCounterCurrentCount, colCounterSnapshot).
+			From(tableRelationshipCounter)
 )
 
 const (
 	errUnableToReadConfig     = "unable to read namespace config: %w"
+	errUnableToReadFilter     = "unable to read relationship filter: %w"
 	errUnableToListNamespaces = "unable to list namespaces: %w"
 )
+
+func (r *pgReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	// Ensure the counter is registered.
+	counters, err := r.lookupCounters(ctx, name)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(counters) == 0 {
+		return 0, datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	filter := counters[0].Filter
+
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(filter)
+	if err != nil {
+		return 0, err
+	}
+
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countTuples), r.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	sql, args, err := qBuilder.UnderlyingQueryBuilder().ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("unable to count relationships: %w", err)
+	}
+
+	var count int
+	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		if !rows.Next() {
+			return datastore.NewCounterNotRegisteredErr(name)
+		}
+
+		if err := rows.Scan(&count); err != nil {
+			return fmt.Errorf("unable to read counter: %w", err)
+		}
+		return rows.Err()
+	}, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+const noFilterOnCounterName = ""
+
+func (r *pgReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return r.lookupCounters(ctx, noFilterOnCounterName)
+}
+
+func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
+	query := readCounters
+	if optionalName != noFilterOnCounterName {
+		query = query.Where(sq.Eq{colCounterName: optionalName})
+	}
+
+	sql, args, err := r.filterer(query).ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("unable to lookup counters: %w", err)
+	}
+
+	var counters []datastore.RelationshipCounter
+	err = r.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var name string
+			var filter []byte
+			var snapshot *pgSnapshot
+			var currentCount int
+
+			if err := rows.Scan(&name, &filter, &currentCount, &snapshot); err != nil {
+				return fmt.Errorf("unable to read counter: %w", err)
+			}
+
+			loaded := &core.RelationshipFilter{}
+			if err := loaded.UnmarshalVT(filter); err != nil {
+				return fmt.Errorf(errUnableToReadFilter, err)
+			}
+
+			revision := datastore.NoRevision
+			if snapshot != nil {
+				revision = postgresRevision{snapshot: *snapshot}
+			}
+
+			counters = append(counters, datastore.RelationshipCounter{
+				Name:               name,
+				Filter:             loaded,
+				Count:              currentCount,
+				ComputedAtRevision: revision,
+			})
+		}
+		return rows.Err()
+	}, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to query counters: %w", err)
+	}
+
+	return counters, nil
+}
 
 func (r *pgReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples), r.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	return r.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (r *pgReader) ReverseQueryRelationships(
@@ -73,7 +183,7 @@ func (r *pgReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples)).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples), r.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -87,20 +197,16 @@ func (r *pgReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return r.querySplitter.SplitAndExecuteQuery(ctx,
+	return r.executor.ExecuteQuery(ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.ReverseLimit),
+		options.WithLimit(queryOpts.LimitForReverse),
+		options.WithAfter(queryOpts.AfterForReverse),
+		options.WithSort(queryOpts.SortForReverse),
 	)
 }
 
 func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
-	}
-	defer txCleanup(ctx)
-
-	loaded, version, err := r.loadNamespace(ctx, nsName, tx, r.filterer)
+	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.filterer)
 	switch {
 	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 		return nil, datastore.NoRevision, err
@@ -111,7 +217,7 @@ func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*cor
 	}
 }
 
-func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBReader, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
+func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxcommon.DBFuncQuerier, filterer queryFilterer) (*core.NamespaceDefinition, postgresRevision, error) {
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -130,13 +236,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 }
 
 func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer txCleanup(ctx)
-
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, r.filterer)
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.filterer)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -149,18 +249,12 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 		return nil, nil
 	}
 
-	tx, txCleanup, err := r.txSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer txCleanup(ctx)
-
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, func(original sq.SelectBuilder) sq.SelectBuilder {
 		return r.filterer(original).Where(clause)
 	})
 	if err != nil {
@@ -172,7 +266,7 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 
 func loadAllNamespaces(
 	ctx context.Context,
-	tx pgxcommon.DBReader,
+	tx pgxcommon.DBFuncQuerier,
 	filterer queryFilterer,
 ) ([]datastore.RevisionedNamespace, error) {
 	sql, args, err := filterer(readNamespace).ToSql()
@@ -180,32 +274,29 @@ func loadAllNamespaces(
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, sql, args...)
+	var nsDefs []datastore.RevisionedNamespace
+	err = tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
+		for rows.Next() {
+			var config []byte
+			var version xid8
+
+			if err := rows.Scan(&config, &version); err != nil {
+				return err
+			}
+
+			loaded := &core.NamespaceDefinition{}
+			if err := loaded.UnmarshalVT(config); err != nil {
+				return fmt.Errorf(errUnableToReadConfig, err)
+			}
+
+			revision := revisionForVersion(version)
+
+			nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
+		}
+		return rows.Err()
+	}, sql, args...)
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	var nsDefs []datastore.RevisionedNamespace
-	for rows.Next() {
-		var config []byte
-		var version xid8
-
-		if err := rows.Scan(&config, &version); err != nil {
-			return nil, err
-		}
-
-		loaded := &core.NamespaceDefinition{}
-		if err := loaded.UnmarshalVT(config); err != nil {
-			return nil, fmt.Errorf(errUnableToReadConfig, err)
-		}
-
-		revision := revisionForVersion(version)
-
-		nsDefs = append(nsDefs, datastore.RevisionedNamespace{Definition: loaded, LastWrittenRevision: revision})
-	}
-	if rows.Err() != nil {
-		return nil, rows.Err()
 	}
 
 	return nsDefs, nil
@@ -213,7 +304,7 @@ func loadAllNamespaces(
 
 // revisionForVersion synthesizes a snapshot where the specified version is always visible.
 func revisionForVersion(version xid8) postgresRevision {
-	return postgresRevision{pgSnapshot{
+	return postgresRevision{snapshot: pgSnapshot{
 		xmin: version.Uint64 + 1,
 		xmax: version.Uint64 + 1,
 	}}

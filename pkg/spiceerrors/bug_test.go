@@ -8,7 +8,7 @@ import (
 )
 
 func TestMustBug(t *testing.T) {
-	require.True(t, isInTests())
+	require.True(t, IsInTests())
 	assert.Panics(t, func() {
 		err := MustBugf("some error")
 		require.NotNil(t, err)

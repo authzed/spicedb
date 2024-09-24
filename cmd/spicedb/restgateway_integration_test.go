@@ -14,7 +14,6 @@ import (
 )
 
 func TestRESTGateway(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
 
 	tester, err := newTester(t,

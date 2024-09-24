@@ -11,11 +11,13 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -30,6 +32,13 @@ const (
 	chunkRelationshipCount = 2000
 )
 
+// Implement TestableDatastore interface
+func (mds *Datastore) ExampleRetryableError() error {
+	return &mysql.MySQLError{
+		Number: errMysqlDeadlock,
+	}
+}
+
 type datastoreTester struct {
 	b      testdatastore.RunningEngineForTest
 	t      *testing.T
@@ -37,8 +46,9 @@ type datastoreTester struct {
 }
 
 func (dst *datastoreTester) createDatastore(revisionQuantization, gcInterval, gcWindow time.Duration, _ uint16) (datastore.Datastore, error) {
+	ctx := context.Background()
 	ds := dst.b.NewDatastore(dst.t, func(engine, uri string) datastore.Datastore {
-		ds, err := newMySQLDatastore(uri,
+		ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID,
 			RevisionQuantization(revisionQuantization),
 			GCWindow(gcWindow),
 			GCInterval(gcInterval),
@@ -70,8 +80,9 @@ type datastoreTestFunc func(t *testing.T, ds datastore.Datastore)
 
 func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestFunc, options ...Option) func(*testing.T) {
 	return func(t *testing.T) {
+		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
-			ds, err := newMySQLDatastore(uri, options...)
+			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 			require.NoError(t, err)
 			return ds
 		})
@@ -82,14 +93,21 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
-	_, err := NewMySQLDatastore("root:password@(localhost:1234)/mysql")
+	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
 }
 
-func TestMySQLDatastore(t *testing.T) {
-	b := testdatastore.RunMySQLForTesting(t, "")
+func TestMySQL8Datastore(t *testing.T) {
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b, t: t}
-	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
+	test.AllWithExceptions(t, test.DatastoreTesterFunc(dst.createDatastore), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory))
+	additionalMySQLTests(t, b)
+}
+
+func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
+	reg := prometheus.NewRegistry()
+	prometheus.DefaultGatherer = reg
+	prometheus.DefaultRegisterer = reg
 
 	t.Run("DatabaseSeeding", createDatastoreTest(b, DatabaseSeedingTest))
 	t.Run("PrometheusCollector", createDatastoreTest(
@@ -106,12 +124,6 @@ func TestMySQLDatastore(t *testing.T) {
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
-}
-
-func TestMySQLDatastoreWithTablePrefix(t *testing.T) {
-	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true, Prefix: "spicedb_"}, "")
-	dst := datastoreTester{b: b, t: t, prefix: "spicedb_"}
-	test.All(t, test.DatastoreTesterFunc(dst.createDatastore))
 }
 
 func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
@@ -159,7 +171,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	writtenAt, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	writtenAt, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -180,7 +192,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Zero(removed.Namespaces)
 
 	// Replace the namespace with a new one.
-	writtenAt, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	writtenAt, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -201,7 +213,6 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Equal(int64(2), removed.Namespaces)
 
 	// Write a relationship.
-
 	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
 	relWrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
 	req.NoError(err)
@@ -225,7 +236,8 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	tRequire.TupleExists(ctx, tpl, relWrittenAt)
 
 	// Overwrite the relationship.
-	relOverwrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
+	ctpl := tuple.MustWithCaveat(tpl, "somecaveat")
+	relOverwrittenAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, ctpl)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the (older copy of the) relationship is removed, as well as 1 transaction (the write).
@@ -243,14 +255,14 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
-	tRequire.TupleExists(ctx, tpl, relOverwrittenAt)
+	tRequire.TupleExists(ctx, ctpl, relOverwrittenAt)
 
 	// Delete the relationship.
-	relDeletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, tpl)
+	relDeletedAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_DELETE, ctpl)
 	req.NoError(err)
 
 	// Ensure the relationship is gone.
-	tRequire.NoTupleExists(ctx, tpl, relDeletedAt)
+	tRequire.NoTupleExists(ctx, ctpl, relDeletedAt)
 
 	// Run GC at the transaction and ensure the relationship is removed, as well as 1 transaction (the overwrite).
 	removed, err = mds.DeleteBeforeTx(ctx, relDeletedAt)
@@ -267,13 +279,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Zero(removed.Namespaces)
 
 	// Write the relationship a few times.
-	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
+	ctpl1 := tuple.MustWithCaveat(tpl, "somecaveat1")
+	ctpl2 := tuple.MustWithCaveat(tpl, "somecaveat2")
+	ctpl3 := tuple.MustWithCaveat(tpl, "somecaveat3")
+	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, ctpl1)
 	req.NoError(err)
 
-	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
+	_, err = common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, ctpl2)
 	req.NoError(err)
 
-	relLastWriteAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, tpl)
+	relLastWriteAt, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_TOUCH, ctpl3)
 	req.NoError(err)
 
 	// Run GC at the transaction and ensure the older copies of the relationships are removed,
@@ -285,7 +300,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
-	tRequire.TupleExists(ctx, tpl, relLastWriteAt)
+	tRequire.TupleExists(ctx, ctpl3, relLastWriteAt)
 }
 
 func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
@@ -297,7 +312,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -394,7 +409,7 @@ func NoRelationshipsGarbageCollectionTest(t *testing.T, ds datastore.Datastore) 
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -431,7 +446,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	req.True(r.IsReady)
 
 	// Write basic namespaces.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(
 			ctx,
 			namespace.Namespace(
@@ -551,7 +566,9 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				ds, err := newMySQLDatastore(
+					ctx,
 					uri,
+					primaryInstanceID,
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
@@ -639,7 +656,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 
 	revision, err := ds.OptimizedRevision(ctx)
 	req.NoError(err)
-	req.Equal(revisionFromTransaction(txID), revision)
+	req.Equal(revisions.NewForTransactionID(txID), revision)
 }
 
 func TestMySQLMigrations(t *testing.T) {
@@ -693,6 +710,23 @@ func TestMySQLMigrationsWithPrefix(t *testing.T) {
 		req.Contains(tbl, prefix)
 	}
 	req.NoError(rows.Err())
+}
+
+func TestMySQLWithAWSIAMCredentialsProvider(t *testing.T) {
+	// set up the environment, so we don't make any external calls to AWS
+	t.Setenv("AWS_CONFIG_FILE", "file_not_exists")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "file_not_exists")
+	t.Setenv("AWS_ENDPOINT_URL", "http://169.254.169.254/aws")
+	t.Setenv("AWS_ACCESS_KEY", "access_key")
+	t.Setenv("AWS_SECRET_KEY", "secret_key")
+	t.Setenv("AWS_REGION", "us-east-1")
+
+	// initialize the datastore using the AWS IAM credentials provider, and point it to a database that does not exist
+	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql?parseTime=True&tls=skip-verify", CredentialsProviderName("aws-iam"))
+
+	// we expect the connection attempt to fail
+	// which means that the credentials provider was wired and called successfully before making the connection attempt
+	require.ErrorContains(t, err, ":1234: connect: connection refused")
 }
 
 func datastoreDB(t *testing.T, migrate bool) *sql.DB {

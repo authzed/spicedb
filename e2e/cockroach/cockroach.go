@@ -67,7 +67,7 @@ func (c *Node) ConnectionString(dbName string) string {
 }
 
 // Connect connects directly to the cockroach instance and caches the connection
-func (c *Node) Connect(ctx context.Context, out io.Writer, dbName string) error {
+func (c *Node) Connect(ctx context.Context, _ io.Writer, dbName string) error {
 	if c.pid < 1 {
 		return fmt.Errorf("can't connect to unstarted cockroach")
 	}

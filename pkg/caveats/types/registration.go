@@ -3,8 +3,10 @@ package types
 import (
 	"fmt"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types/ref"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common/types/ref"
+
+	"github.com/authzed/spicedb/pkg/genutil"
 )
 
 var definitions = map[string]typeDefinition{}
@@ -27,7 +29,7 @@ type typeDefinition struct {
 	localName string
 
 	// childTypeCount is the number of generics on the type, if any.
-	childTypeCount uint
+	childTypeCount uint8
 
 	// asVariableType converts the type definition into a VariableType.
 	asVariableType func(childTypes []VariableType) (*VariableType, error)
@@ -55,14 +57,19 @@ func registerBasicType(keyword string, celType *cel.Type, converter typedValueCo
 // registerGenericType registers a type with at least one generic.
 func registerGenericType(
 	keyword string,
-	childTypeCount uint,
+	childTypeCount uint8,
 	asVariableType func(childTypes []VariableType) VariableType,
 ) func(childTypes ...VariableType) (VariableType, error) {
 	definitions[keyword] = typeDefinition{
 		localName:      keyword,
 		childTypeCount: childTypeCount,
 		asVariableType: func(childTypes []VariableType) (*VariableType, error) {
-			if uint(len(childTypes)) != childTypeCount {
+			childTypeLength, err := genutil.EnsureUInt8(len(childTypes))
+			if err != nil {
+				return nil, err
+			}
+
+			if childTypeLength != childTypeCount {
 				return nil, fmt.Errorf("type `%s` requires %d generic types; found %d", keyword, childTypeCount, len(childTypes))
 			}
 
@@ -71,7 +78,12 @@ func registerGenericType(
 		},
 	}
 	return func(childTypes ...VariableType) (VariableType, error) {
-		if uint(len(childTypes)) != childTypeCount {
+		childTypeLength, err := genutil.EnsureUInt8(len(childTypes))
+		if err != nil {
+			return VariableType{}, err
+		}
+
+		if childTypeLength != childTypeCount {
 			return VariableType{}, fmt.Errorf("invalid number of parameters given to type constructor. expected: %d, found: %d", childTypeCount, len(childTypes))
 		}
 
@@ -80,7 +92,7 @@ func registerGenericType(
 }
 
 // registerCustomType registers a custom type that wraps a base CEL type.
-func registerCustomType(keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) VariableType {
+func registerCustomType[T CustomType](keyword string, baseCelType *cel.Type, converter typedValueConverter, opts ...cel.EnvOption) VariableType {
 	CustomTypes[keyword] = opts
 	return registerBasicType(keyword, baseCelType, converter)
 }

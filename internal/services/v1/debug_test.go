@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	"github.com/authzed/authzed-go/pkg/responsemeta"
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -20,9 +20,9 @@ import (
 	tf "github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -45,11 +45,11 @@ type debugCheckInfo struct {
 
 func expectDebugFrames(permissionNames ...string) rda {
 	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
-		found := util.NewSet[string]()
+		found := mapz.NewSet[string]()
 		for _, sp := range debugInfo.Check.GetSubProblems().Traces {
 			for _, permissionName := range permissionNames {
 				if sp.Permission == permissionName {
-					found.Add(permissionName)
+					found.Insert(permissionName)
 				}
 			}
 		}
@@ -304,6 +304,37 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			},
 		},
 		{
+			"ip address caveat",
+			`definition user {}
+
+			caveat has_valid_ip(user_ip ipaddress, allowed_range string) {
+				user_ip.in_cidr(allowed_range)
+			}
+			
+			definition resource {
+				relation viewer: user | user with has_valid_ip
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`resource:first#viewer@user:sarah[has_valid_ip:{"allowed_range":"192.168.0.0/16"}]`),
+			},
+			[]debugCheckInfo{
+				{
+					"sarah as viewer",
+					debugCheckRequest{
+						obj("resource", "first"),
+						"viewer",
+						sub("user", "sarah", ""),
+						map[string]any{
+							"user_ip": "192.168.1.100",
+						},
+					},
+					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+					0,
+					nil,
+				},
+			},
+		},
+		{
 			"multiple caveated debug",
 			`definition user {}
 			
@@ -342,7 +373,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`anothercondition == "hello world" && somecondition == 42`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`(anothercondition == "hello world") && (somecondition == 42)`)},
 				},
 				{
 					"sarah as not viewer due to org",
@@ -357,7 +388,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`anothercondition == "hello world"`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`(anothercondition == "hello world") && (somecondition == 42)`)},
 				},
 				{
 					"sarah as not viewer due to viewer",
@@ -372,7 +403,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					},
 					v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 					1,
-					[]rda{expectDebugFrames("member"), expectCaveat(`anothercondition == "hello world" && somecondition == 42`)},
+					[]rda{expectDebugFrames("member"), expectCaveat(`(anothercondition == "hello world") && (somecondition == 42)`)},
 				},
 				{
 					"sarah as partially conditional viewer",
@@ -403,8 +434,48 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					1,
 					[]rda{
 						expectDebugFrames("member"),
-						expectMissingContext("anothercondition"),
+						expectMissingContext("anothercondition", "somecondition"),
 					},
+				},
+			},
+		},
+		{
+			"reused caveat parameter name is renamed in debug frame",
+			`definition user {}
+			
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			caveat anothercaveat(somecondition int) {
+				somecondition == 41
+			}
+
+			definition org {
+				relation member: user with somecaveat
+			}
+
+			 definition document {
+				relation parent: org with anothercaveat
+				permission view = parent->member
+			 }
+			`,
+			[]*core.RelationTuple{
+				tuple.MustParse(`document:first#parent@org:someorg[anothercaveat:{"somecondition":41}]`),
+				tuple.MustParse(`org:someorg#member@user:sarah[somecaveat:{"somecondition":42}]`),
+			},
+			[]debugCheckInfo{
+				{
+					"sarah has view permission",
+					debugCheckRequest{
+						obj("document", "first"),
+						"view",
+						sub("user", "sarah", ""),
+						map[string]any{},
+					},
+					v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
+					1,
+					[]rda{expectDebugFrames("member"), expectCaveat(`(somecondition__0 == 41) && (somecondition__1 == 42)`)},
 				},
 			},
 		},
@@ -414,7 +485,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
-			conn, cleanup, _, revision := testserver.NewTestServer(req, testTimedeltas[0], memdb.DisableGC, true,
+			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
 				func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 					return tf.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, req)
 				})
@@ -452,11 +523,10 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 					encodedDebugInfo, err := responsemeta.GetResponseTrailerMetadataOrNil(trailer, responsemeta.DebugInformation)
 					req.NoError(err)
 
-					req.NotNil(encodedDebugInfo)
+					// DebugInfo No longer comes as part of the trailer
+					req.Nil(encodedDebugInfo)
 
-					debugInfo := &v1.DebugInformation{}
-					err = protojson.Unmarshal([]byte(*encodedDebugInfo), debugInfo)
-					req.NoError(err)
+					debugInfo := checkResp.DebugTrace
 					req.NotEmpty(debugInfo.SchemaUsed)
 
 					req.Equal(stc.checkRequest.resource.ObjectType, debugInfo.Check.Resource.ObjectType)

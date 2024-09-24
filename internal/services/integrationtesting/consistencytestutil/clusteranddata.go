@@ -15,9 +15,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testserver"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
@@ -34,24 +35,24 @@ type ConsistencyClusterAndData struct {
 
 // LoadDataAndCreateClusterForTesting loads the data found in a consistency test file,
 // builds a cluster for it, and returns both the data and cluster.
-func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, revisionDelta time.Duration) ConsistencyClusterAndData {
+func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, revisionDelta time.Duration, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
 	ds, err := memdb.NewMemdbDatastore(0, revisionDelta, memdb.DisableGC)
 	require.NoError(err)
 
-	return BuildDataAndCreateClusterForTesting(t, consistencyTestFilePath, ds)
+	return BuildDataAndCreateClusterForTesting(t, consistencyTestFilePath, ds, additionalServerOptions...)
 }
 
 // BuildDataAndCreateClusterForTesting loads the data found in a consistency test file,
 // builds a cluster for it, and returns both the data and cluster.
-func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, ds datastore.Datastore) ConsistencyClusterAndData {
+func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, ds datastore.Datastore, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
 	populated, revision, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{consistencyTestFilePath})
 	require.NoError(err)
 
-	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
+	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds, additionalServerOptions...)
 	t.Cleanup(cleanup)
 
 	dsCtx := datastoremw.ContextWithHandle(context.Background())
@@ -59,7 +60,7 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 
 	// Validate the type system for each namespace.
 	for _, nsDef := range populated.NamespaceDefinitions {
-		_, ts, err := namespace.ReadNamespaceAndTypes(
+		_, ts, err := typesystem.ReadNamespaceAndTypes(
 			dsCtx,
 			nsDef.Name,
 			ds.SnapshotReader(revision),
@@ -82,12 +83,12 @@ func BuildDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath s
 // caching enabled.
 func CreateDispatcherForTesting(t *testing.T, withCaching bool) dispatch.Dispatcher {
 	require := require.New(t)
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit)
+	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, 100)
 	if withCaching {
 		cachingDispatcher, err := caching.NewCachingDispatcher(nil, false, "", &keys.CanonicalKeyHandler{})
 		require.NoError(err)
 
-		localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10))
+		localDispatcher := graph.NewDispatcher(cachingDispatcher, graph.SharedConcurrencyLimits(10), 100)
 		t.Cleanup(func() {
 			err := localDispatcher.Close()
 			require.NoError(err)

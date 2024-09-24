@@ -18,7 +18,7 @@ import (
 
 func ServiceTesters(conn *grpc.ClientConn) []ServiceTester {
 	return []ServiceTester{
-		v1ServiceTester{v1.NewPermissionsServiceClient(conn)},
+		v1ServiceTester{v1.NewPermissionsServiceClient(conn), v1.NewExperimentalServiceClient(conn)},
 	}
 }
 
@@ -28,8 +28,11 @@ type ServiceTester interface {
 	Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error)
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
-	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error)
+	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
 	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
+	// NOTE: ExperimentalService/BulkCheckPermission has been promoted to PermissionsService/CheckBulkPermissions
+	BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error)
+	CheckBulk(ctx context.Context, items []*v1.CheckBulkPermissionsRequestItem, atRevision datastore.Revision) ([]*v1.CheckBulkPermissionsPair, error)
 }
 
 func optionalizeRelation(relation string) string {
@@ -43,6 +46,7 @@ func optionalizeRelation(relation string) string {
 // v1ServiceTester tests the V1 API.
 type v1ServiceTester struct {
 	permClient v1.PermissionsServiceClient
+	expClient  v1.ExperimentalServiceClient
 }
 
 func (v1st v1ServiceTester) Name() string {
@@ -143,13 +147,13 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 			return nil, err
 		}
 
-		tuples = append(tuples, tuple.MustFromRelationship(resp.Relationship))
+		tuples = append(tuples, tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](resp.Relationship))
 	}
 
 	return tuples, nil
 }
 
-func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision) (map[string]*v1.LookupResourcesResponse, error) {
+func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error) {
 	lookupResp, err := v1st.permClient.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 		ResourceObjectType: resourceRelation.Namespace,
 		Permission:         resourceRelation.Relation,
@@ -165,12 +169,15 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
 			},
 		},
+		OptionalLimit:  limit,
+		OptionalCursor: cursor,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	found := map[string]*v1.LookupResourcesResponse{}
+	var lastCursor *v1.Cursor
+	found := []*v1.LookupResourcesResponse{}
 	for {
 		resp, err := lookupResp.Recv()
 		if errors.Is(err, io.EOF) {
@@ -178,12 +185,13 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		found[resp.ResourceObjectId] = resp
+		found = append(found, resp)
+		lastCursor = resp.AfterResultCursor
 	}
-	return found, nil
+	return found, lastCursor, nil
 }
 
 func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
@@ -229,4 +237,36 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.Obj
 		found[resp.Subject.SubjectObjectId] = resp
 	}
 	return found, nil
+}
+
+func (v1st v1ServiceTester) BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error) {
+	result, err := v1st.expClient.BulkCheckPermission(ctx, &v1.BulkCheckPermissionRequest{
+		Items: items,
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Pairs, nil
+}
+
+func (v1st v1ServiceTester) CheckBulk(ctx context.Context, items []*v1.CheckBulkPermissionsRequestItem, atRevision datastore.Revision) ([]*v1.CheckBulkPermissionsPair, error) {
+	result, err := v1st.permClient.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
+		Items: items,
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(atRevision),
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Pairs, nil
 }

@@ -1,7 +1,7 @@
 package spiceerrors
 
 import (
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 type WithMetadata interface {

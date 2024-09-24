@@ -21,8 +21,19 @@ import (
 
 // ServerConfig is configuration for the test server.
 type ServerConfig struct {
-	MaxUpdatesPerWrite    uint16
-	MaxPreconditionsCount uint16
+	MaxUpdatesPerWrite              uint16
+	MaxPreconditionsCount           uint16
+	MaxRelationshipContextSize      int
+	StreamingAPITimeout             time.Duration
+	UseExperimentalLookupResources2 bool
+}
+
+var DefaultTestServerConfig = ServerConfig{
+	MaxUpdatesPerWrite:              1000,
+	MaxPreconditionsCount:           1000,
+	StreamingAPITimeout:             30 * time.Second,
+	MaxRelationshipContextSize:      25000,
+	UseExperimentalLookupResources2: false,
 }
 
 // NewTestServer creates a new test server, using defaults for the config.
@@ -33,10 +44,7 @@ func NewTestServer(require *require.Assertions,
 	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	return NewTestServerWithConfig(require, revisionQuantization, gcWindow, schemaPrefixRequired,
-		ServerConfig{
-			MaxUpdatesPerWrite:    1000,
-			MaxPreconditionsCount: 1000,
-		},
+		DefaultTestServerConfig,
 		dsInitFunc)
 }
 
@@ -50,15 +58,29 @@ func NewTestServerWithConfig(require *require.Assertions,
 ) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	emptyDS, err := memdb.NewMemdbDatastore(0, revisionQuantization, gcWindow)
 	require.NoError(err)
+
+	return NewTestServerWithConfigAndDatastore(require, revisionQuantization, gcWindow, schemaPrefixRequired, config, emptyDS, dsInitFunc)
+}
+
+func NewTestServerWithConfigAndDatastore(require *require.Assertions,
+	revisionQuantization time.Duration,
+	gcWindow time.Duration,
+	schemaPrefixRequired bool,
+	config ServerConfig,
+	emptyDS datastore.Datastore,
+	dsInitFunc func(datastore.Datastore, *require.Assertions) (datastore.Datastore, datastore.Revision),
+) (*grpc.ClientConn, func(), datastore.Datastore, datastore.Revision) {
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
-	srv, err := server.NewConfigWithOptions(
+	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(config.MaxPreconditionsCount),
 		server.WithMaximumUpdatesPerWrite(config.MaxUpdatesPerWrite),
+		server.WithStreamingAPITimeout(config.StreamingAPITimeout),
 		server.WithMaxCaveatContextSize(4096),
+		server.WithMaxRelationshipContextSize(config.MaxRelationshipContextSize),
 		server.WithGRPCServer(util.GRPCServerConfig{
 			Network: util.BufferedNetwork,
 			Enabled: true,
@@ -67,33 +89,52 @@ func NewTestServerWithConfig(require *require.Assertions,
 		server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
 			return ctx, nil
 		}),
-		server.WithHTTPGateway(util.HTTPServerConfig{Enabled: false}),
-		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
-		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
+		server.WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-		server.SetMiddlewareModification([]server.MiddlewareModification{
+		server.WithEnableExperimentalLookupResources(config.UseExperimentalLookupResources2),
+		server.SetUnaryMiddlewareModification([]server.MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation: server.OperationReplaceAllUnsafe,
-				Middlewares: []server.ReferenceableMiddleware{
+				Middlewares: []server.ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "logging",
-						UnaryMiddleware:     logging.UnaryServerInterceptor(),
-						StreamingMiddleware: logging.StreamServerInterceptor(),
+						Name:       "logging",
+						Middleware: logging.UnaryServerInterceptor(),
 					},
 					{
-						Name:                "datastore",
-						UnaryMiddleware:     datastoremw.UnaryServerInterceptor(ds),
-						StreamingMiddleware: datastoremw.StreamServerInterceptor(ds),
+						Name:       "datastore",
+						Middleware: datastoremw.UnaryServerInterceptor(ds),
 					},
 					{
-						Name:                "consistency",
-						UnaryMiddleware:     consistency.UnaryServerInterceptor(),
-						StreamingMiddleware: consistency.StreamServerInterceptor(),
+						Name:       "consistency",
+						Middleware: consistency.UnaryServerInterceptor(),
 					},
 					{
-						Name:                "servicespecific",
-						UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
-						StreamingMiddleware: servicespecific.StreamServerInterceptor,
+						Name:       "servicespecific",
+						Middleware: servicespecific.UnaryServerInterceptor,
+					},
+				},
+			},
+		}),
+		server.SetStreamingMiddlewareModification([]server.MiddlewareModification[grpc.StreamServerInterceptor]{
+			{
+				Operation: server.OperationReplaceAllUnsafe,
+				Middlewares: []server.ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+					{
+						Name:       "logging",
+						Middleware: logging.StreamServerInterceptor(),
+					},
+					{
+						Name:       "datastore",
+						Middleware: datastoremw.StreamServerInterceptor(ds),
+					},
+					{
+						Name:       "consistency",
+						Middleware: consistency.StreamServerInterceptor(),
+					},
+					{
+						Name:       "servicespecific",
+						Middleware: servicespecific.StreamServerInterceptor,
 					},
 				},
 			},
@@ -105,7 +146,8 @@ func NewTestServerWithConfig(require *require.Assertions,
 		require.NoError(srv.Run(ctx))
 	}()
 
-	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock())
+	// TODO: move off of WithBlock
+	conn, err := srv.GRPCDialContext(ctx, grpc.WithBlock()) // nolint: staticcheck
 	require.NoError(err)
 
 	return conn, func() {

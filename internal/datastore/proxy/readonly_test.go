@@ -4,14 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -34,13 +33,13 @@ func TestRWOperationErrors(t *testing.T) {
 	ds := NewReadonlyDatastore(delegate)
 	ctx := context.Background()
 
-	rev, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, "fake")
 	})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "user"})
 	})
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
@@ -51,7 +50,7 @@ func TestRWOperationErrors(t *testing.T) {
 	require.Equal(datastore.NoRevision, rev)
 }
 
-var expectedRevision = revision.NewFromDecimal(decimal.NewFromInt(123))
+var expectedRevision = revisions.NewForTransactionID(123)
 
 func TestReadyStatePassthrough(t *testing.T) {
 	require := require.New(t)
@@ -122,7 +121,7 @@ func TestWatchPassthrough(t *testing.T) {
 		make(<-chan error),
 	).Times(1)
 
-	ds.Watch(ctx, expectedRevision)
+	ds.Watch(ctx, expectedRevision, datastore.WatchJustRelationships())
 	delegate.AssertExpectations(t)
 }
 

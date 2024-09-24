@@ -14,10 +14,12 @@ import (
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
@@ -25,11 +27,11 @@ func NewSchemaServer(additiveOnly bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
-				grpcvalidate.UnaryServerInterceptor(true),
+				grpcvalidate.UnaryServerInterceptor(),
 				usagemetrics.UnaryServerInterceptor(),
 			),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(true),
+				grpcvalidate.StreamServerInterceptor(),
 				usagemetrics.StreamServerInterceptor(),
 			),
 		},
@@ -44,24 +46,28 @@ type schemaServer struct {
 	additiveOnly bool
 }
 
+func (ss *schemaServer) rewriteError(ctx context.Context, err error) error {
+	return shared.RewriteError(ctx, err, nil)
+}
+
 func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest) (*v1.ReadSchemaResponse, error) {
 	// Schema is always read from the head revision.
 	ds := datastoremw.MustFromContext(ctx)
 	headRevision, err := ds.HeadRevision(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	reader := ds.SnapshotReader(headRevision)
 
 	nsDefs, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	caveatDefs, err := reader.ListAllCaveats(ctx)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	if len(nsDefs) == 0 {
@@ -79,15 +85,21 @@ func (ss *schemaServer) ReadSchema(ctx context.Context, _ *v1.ReadSchemaRequest)
 
 	schemaText, _, err := generator.GenerateSchema(schemaDefinitions)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
+	}
+
+	dispatchCount, err := genutil.EnsureUInt32(len(nsDefs) + len(caveatDefs))
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-		DispatchCount: uint32(len(nsDefs) + len(caveatDefs)),
+		DispatchCount: dispatchCount,
 	})
 
 	return &v1.ReadSchemaResponse{
 		SchemaText: schemaText,
+		ReadAt:     zedtoken.MustNewFromRevision(headRevision),
 	}, nil
 }
 
@@ -97,36 +109,43 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	ds := datastoremw.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
-	}, &emptyDefaultPrefix)
+	}, compiler.AllowUnprefixedObjectType())
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 	log.Ctx(ctx).Trace().Int("objectDefinitions", len(compiled.ObjectDefinitions)).Int("caveatDefinitions", len(compiled.CaveatDefinitions)).Msg("compiled namespace definitions")
 
 	// Do as much validation as we can before talking to the datastore.
 	validated, err := shared.ValidateSchemaChanges(ctx, compiled, ss.additiveOnly)
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
 	// Update the schema.
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		applied, err := shared.ApplySchemaChanges(ctx, rwt, validated)
 		if err != nil {
 			return err
 		}
+
+		dispatchCount, err := genutil.EnsureUInt32(applied.TotalOperationCount)
+		if err != nil {
+			return err
+		}
+
 		usagemetrics.SetInContext(ctx, &dispatchv1.ResponseMeta{
-			DispatchCount: applied.TotalOperationCount,
+			DispatchCount: dispatchCount,
 		})
 		return nil
 	})
 	if err != nil {
-		return nil, rewriteError(ctx, err)
+		return nil, ss.rewriteError(ctx, err)
 	}
 
-	return &v1.WriteSchemaResponse{}, nil
+	return &v1.WriteSchemaResponse{
+		WrittenAt: zedtoken.MustNewFromRevision(revision),
+	}, nil
 }

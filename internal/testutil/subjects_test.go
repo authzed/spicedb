@@ -11,13 +11,14 @@ import (
 )
 
 var (
-	caveatexpr = caveats.CaveatExprForTesting
-	caveatAnd  = caveats.And
-	caveatOr   = caveats.Or
-	sub        = FoundSubject
-	wc         = Wildcard
-	csub       = CaveatedFoundSubject
-	cwc        = CaveatedWildcard
+	caveatexpr   = caveats.CaveatExprForTesting
+	caveatAnd    = caveats.And
+	caveatOr     = caveats.Or
+	caveatInvert = caveats.Invert
+	sub          = FoundSubject
+	wc           = Wildcard
+	csub         = CaveatedFoundSubject
+	cwc          = CaveatedWildcard
 )
 
 func TestCompareSubjects(t *testing.T) {
@@ -54,6 +55,21 @@ func TestCompareSubjects(t *testing.T) {
 		{
 			sub("1"),
 			sub("2"),
+			false,
+		},
+		{
+			csub("1", caveatexpr("first")),
+			csub("1", caveatInvert(caveatexpr("first"))),
+			false,
+		},
+		{
+			csub("1", caveatInvert(caveatexpr("first"))),
+			csub("1", caveatInvert(caveatexpr("first"))),
+			true,
+		},
+		{
+			csub("1", caveatInvert(caveatexpr("first"))),
+			csub("1", caveatInvert(caveatexpr("second"))),
 			false,
 		},
 		{

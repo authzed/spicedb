@@ -1,6 +1,8 @@
 package services
 
 import (
+	"time"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"google.golang.org/grpc"
@@ -40,7 +42,7 @@ const (
 )
 
 const (
-	// Empty string is used for grpc health check requests for the overall system.
+	// OverallServerHealthCheckKey is used for grpc health check requests for the overall system.
 	OverallServerHealthCheckKey = ""
 )
 
@@ -52,14 +54,16 @@ func RegisterGrpcServices(
 	schemaServiceOption SchemaServiceOption,
 	watchServiceOption WatchServiceOption,
 	permSysConfig v1svc.PermissionsServerConfig,
+	watchHeartbeatDuration time.Duration,
 ) {
 	healthManager.RegisterReportedService(OverallServerHealthCheckKey)
 
 	v1.RegisterPermissionsServiceServer(srv, v1svc.NewPermissionsServer(dispatch, permSysConfig))
+	v1.RegisterExperimentalServiceServer(srv, v1svc.NewExperimentalServer(dispatch, permSysConfig))
 	healthManager.RegisterReportedService(v1.PermissionsService_ServiceDesc.ServiceName)
 
 	if watchServiceOption == WatchServiceEnabled {
-		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer())
+		v1.RegisterWatchServiceServer(srv, v1svc.NewWatchServer(watchHeartbeatDuration))
 		healthManager.RegisterReportedService(v1.WatchService_ServiceDesc.ServiceName)
 	}
 

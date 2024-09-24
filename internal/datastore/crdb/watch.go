@@ -2,35 +2,69 @@ package crdb
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
-	queryChangefeed       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s', min_checkpoint_frequency = '0';"
-	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '1s';"
+	queryChangefeed       = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s', min_checkpoint_frequency = '0';"
+	queryChangefeedPreV22 = "EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', resolved = '%s';"
 )
+
+var retryHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Namespace: "spicedb",
+	Subsystem: "datastore",
+	Name:      "crdb_watch_retries",
+	Help:      "watch retry distribution",
+	Buckets:   []float64{0, 1, 2, 5, 10, 20, 50},
+})
+
+func init() {
+	prometheus.MustRegister(retryHistogram)
+}
 
 type changeDetails struct {
 	Resolved string
 	Updated  string
 	After    *struct {
-		CaveatContext map[string]any `json:"caveat_context"`
-		CaveatName    string         `json:"caveat_name"`
+		Namespace                 string `json:"namespace"`
+		SerializedNamespaceConfig string `json:"serialized_config"`
+
+		CaveatName                 string `json:"name"`
+		SerializedCaveatDefinition string `json:"definition"`
+
+		RelationshipCaveatContext map[string]any `json:"caveat_context"`
+		RelationshipCaveatName    string         `json:"caveat_name"`
+
+		IntegrityKeyID     *string `json:"integrity_key_id"`
+		IntegrityHashAsHex *string `json:"integrity_hash"`
+		TimestampAsString  *string `json:"timestamp"`
 	}
 }
 
-func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	updates := make(chan *datastore.RevisionChanges, cds.watchBufferLength)
+func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+	watchBufferLength := options.WatchBufferLength
+	if watchBufferLength <= 0 {
+		watchBufferLength = cds.watchBufferLength
+	}
+
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	features, err := cds.Features(ctx)
@@ -39,9 +73,29 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	if !features.Watch.Enabled {
+	if features.Watch.Status != datastore.FeatureSupported {
 		errs <- datastore.NewWatchDisabledErr(fmt.Sprintf("%s. See https://spicedb.dev/d/enable-watch-api-crdb", features.Watch.Reason))
 		return updates, errs
+	}
+
+	go cds.watch(ctx, afterRevision, options, updates, errs)
+
+	return updates, errs
+}
+
+func (cds *crdbDatastore) watch(
+	ctx context.Context,
+	afterRevision datastore.Revision,
+	opts datastore.WatchOptions,
+	updates chan *datastore.RevisionChanges,
+	errs chan error,
+) {
+	defer close(updates)
+	defer close(errs)
+
+	watchConnectTimeout := opts.WatchConnectTimeout
+	if watchConnectTimeout <= 0 {
+		watchConnectTimeout = cds.watchConnectTimeout
 	}
 
 	// get non-pooled connection for watch
@@ -49,156 +103,311 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	// changefeed data, instead of using a connection pool as most client
 	// drivers do by default."
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
-	conn, err := pgx.Connect(ctx, cds.dburl)
+	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, watchConnectTimeout)
 	if err != nil {
 		errs <- err
-		return updates, errs
+		return
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	tableNames := make([]string, 0, 3)
+	if opts.Content&datastore.WatchRelationships == datastore.WatchRelationships {
+		tableNames = append(tableNames, cds.tableTupleName())
+	}
+	if opts.Content&datastore.WatchSchema == datastore.WatchSchema {
+		tableNames = append(tableNames, tableNamespace)
+		tableNames = append(tableNames, tableCaveat)
 	}
 
-	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, tableTuple, afterRevision)
+	if len(tableNames) == 0 {
+		errs <- fmt.Errorf("at least relationships or schema must be specified")
+		return
+	}
 
-	go func() {
-		defer close(updates)
-		defer close(errs)
+	if opts.CheckpointInterval < 0 {
+		errs <- fmt.Errorf("invalid checkpoint interval given")
+		return
+	}
 
-		pendingChanges := make(map[string]*datastore.RevisionChanges)
+	// Default: 1s
+	resolvedDuration := 1 * time.Second
+	if opts.CheckpointInterval > 0 {
+		resolvedDuration = opts.CheckpointInterval
+	}
 
-		changes, err := conn.Query(ctx, interpolated)
-		if err != nil {
-			if errors.Is(ctx.Err(), context.Canceled) {
-				errs <- datastore.NewWatchCanceledErr()
-			} else {
-				errs <- err
-			}
+	resolvedDurationString := strconv.FormatInt(resolvedDuration.Milliseconds(), 10) + "ms"
+	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
+
+	sendError := func(err error) {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			errs <- datastore.NewWatchCanceledErr()
 			return
 		}
 
-		// We call Close async here because it can be slow and blocks closing the channels. There is
-		// no return value so we're not really losing anything.
-		defer func() { go changes.Close() }()
+		if pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err) {
+			errs <- datastore.NewWatchTemporaryErr(err)
+			return
+		}
 
-		for changes.Next() {
-			var unused interface{}
-			var changeJSON []byte
-			var primaryKeyValuesJSON []byte
+		errs <- err
+	}
 
-			if err := changes.Scan(&unused, &primaryKeyValuesJSON, &changeJSON); err != nil {
-				if errors.Is(ctx.Err(), context.Canceled) {
-					errs <- datastore.NewWatchCanceledErr()
-				} else {
-					errs <- err
-				}
+	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout <= 0 {
+		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
+	}
+
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
+	}
+
+	changes, err := conn.Query(ctx, interpolated)
+	if err != nil {
+		sendError(err)
+		return
+	}
+
+	// We call Close async here because it can be slow and blocks closing the channels. There is
+	// no return value so we're not really losing anything.
+	defer func() { go changes.Close() }()
+
+	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
+
+	for changes.Next() {
+		var tableNameBytes []byte
+		var changeJSON []byte
+		var primaryKeyValuesJSON []byte
+
+		// Pull in the table name, the primary key(s) and change information.
+		if err := changes.Scan(&tableNameBytes, &primaryKeyValuesJSON, &changeJSON); err != nil {
+			sendError(err)
+			return
+		}
+
+		var details changeDetails
+		if err := json.Unmarshal(changeJSON, &details); err != nil {
+			sendError(err)
+			return
+		}
+
+		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before or at it.
+		// Therefore, at this point, we issue tracked updates from before that time, and the checkpoint update.
+		if details.Resolved != "" {
+			rev, err := revisions.HLCRevisionFromString(details.Resolved)
+			if err != nil {
+				sendError(fmt.Errorf("malformed resolved timestamp: %w", err))
 				return
 			}
 
-			var details changeDetails
-			if err := json.Unmarshal(changeJSON, &details); err != nil {
-				errs <- err
-				return
-			}
-
-			if details.Resolved != "" {
-				// This entry indicates that we are ready to potentially emit some changes
-				resolved, err := cds.RevisionFromString(details.Resolved)
-				if err != nil {
-					errs <- err
+			for _, revChange := range tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev) {
+				revChange := revChange
+				if !sendChange(&revChange) {
 					return
 				}
+			}
 
-				var toEmit []*datastore.RevisionChanges
-				for ts, values := range pendingChanges {
-					if resolved.GreaterThan(values.Revision) {
-						delete(pendingChanges, ts)
-
-						toEmit = append(toEmit, values)
-					}
+			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				if !sendChange(&datastore.RevisionChanges{
+					Revision:     rev,
+					IsCheckpoint: true,
+				}) {
+					return
 				}
-
-				sort.Slice(toEmit, func(i, j int) bool {
-					return toEmit[i].Revision.LessThan(toEmit[j].Revision)
-				})
-
-				for _, change := range toEmit {
-					select {
-					case updates <- change:
-					default:
-						errs <- datastore.NewWatchDisconnectedErr()
-						return
-					}
-				}
-
-				continue
 			}
+			continue
+		}
 
-			var pkValues [6]string
-			if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
-				errs <- err
-				return
-			}
+		// Otherwise, this a notification of a row change.
+		tableName := string(tableNameBytes)
 
-			revision, err := cds.RevisionFromString(details.Updated)
-			if err != nil {
-				errs <- fmt.Errorf("malformed update timestamp: %w", err)
-				return
-			}
+		var pkValues []string
+		if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
+			sendError(err)
+			return
+		}
 
+		switch tableName {
+		case cds.tableTupleName():
 			var caveatName string
 			var caveatContext map[string]any
-			if details.After != nil && details.After.CaveatName != "" {
-				caveatName = details.After.CaveatName
-				caveatContext = details.After.CaveatContext
+			if details.After != nil && details.After.RelationshipCaveatName != "" {
+				caveatName = details.After.RelationshipCaveatName
+				caveatContext = details.After.RelationshipCaveatContext
 			}
 			ctxCaveat, err := common.ContextualizedCaveatFrom(caveatName, caveatContext)
 			if err != nil {
-				errs <- err
+				sendError(err)
 				return
 			}
 
-			oneChange := &core.RelationTupleUpdate{
-				Tuple: &core.RelationTuple{
-					ResourceAndRelation: &core.ObjectAndRelation{
-						Namespace: pkValues[0],
-						ObjectId:  pkValues[1],
-						Relation:  pkValues[2],
-					},
-					Subject: &core.ObjectAndRelation{
-						Namespace: pkValues[3],
-						ObjectId:  pkValues[4],
-						Relation:  pkValues[5],
-					},
-					Caveat: ctxCaveat,
+			var integrity *core.RelationshipIntegrity
+
+			if details.After != nil && details.After.IntegrityKeyID != nil && details.After.IntegrityHashAsHex != nil && details.After.TimestampAsString != nil {
+				hexString := *details.After.IntegrityHashAsHex
+				hashBytes, err := hex.DecodeString(hexString[2:]) // drop the \x
+				if err != nil {
+					sendError(fmt.Errorf("could not decode hash bytes: %w", err))
+					return
+				}
+
+				timestampString := *details.After.TimestampAsString
+				parsedTime, err := time.Parse("2006-01-02T15:04:05.999999999", timestampString)
+				if err != nil {
+					sendError(fmt.Errorf("could not parse timestamp: %w", err))
+					return
+				}
+
+				integrity = &core.RelationshipIntegrity{
+					KeyId:    *details.After.IntegrityKeyID,
+					Hash:     hashBytes,
+					HashedAt: timestamppb.New(parsedTime),
+				}
+			}
+
+			tuple := &core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: pkValues[0],
+					ObjectId:  pkValues[1],
+					Relation:  pkValues[2],
 				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: pkValues[3],
+					ObjectId:  pkValues[4],
+					Relation:  pkValues[5],
+				},
+				Caveat:    ctxCaveat,
+				Integrity: integrity,
+			}
+
+			rev, err := revisions.HLCRevisionFromString(details.Updated)
+			if err != nil {
+				sendError(fmt.Errorf("malformed update timestamp: %w", err))
+				return
 			}
 
 			if details.After == nil {
-				oneChange.Operation = core.RelationTupleUpdate_DELETE
+				if err := tracked.AddRelationshipChange(ctx, rev, tuple, core.RelationTupleUpdate_DELETE); err != nil {
+					sendError(err)
+					return
+				}
 			} else {
-				oneChange.Operation = core.RelationTupleUpdate_TOUCH
+				if err := tracked.AddRelationshipChange(ctx, rev, tuple, core.RelationTupleUpdate_TOUCH); err != nil {
+					sendError(err)
+					return
+				}
 			}
 
-			pending, ok := pendingChanges[details.Updated]
-			if !ok {
-				pending = &datastore.RevisionChanges{
-					Revision: revision,
-				}
-				pendingChanges[details.Updated] = pending
+		case tableNamespace:
+			if len(pkValues) != 1 {
+				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
+				return
 			}
-			pending.Changes = append(pending.Changes, oneChange)
-		}
 
-		if changes.Err() != nil {
-			if errors.Is(ctx.Err(), context.Canceled) {
-				closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer closeCancel()
-				if err := conn.Close(closeCtx); err != nil {
-					errs <- err
-				}
-				errs <- datastore.NewWatchCanceledErr()
-			} else {
-				errs <- changes.Err()
+			definitionName := pkValues[0]
+
+			rev, err := revisions.HLCRevisionFromString(details.Updated)
+			if err != nil {
+				sendError(fmt.Errorf("malformed update timestamp: %w", err))
+				return
 			}
-			return
+
+			if details.After != nil && details.After.SerializedNamespaceConfig != "" {
+				namespaceDef := &core.NamespaceDefinition{}
+				defBytes, err := hex.DecodeString(details.After.SerializedNamespaceConfig[2:]) // drop the \x
+				if err != nil {
+					sendError(fmt.Errorf("could not decode namespace definition: %w", err))
+					return
+				}
+
+				if err := namespaceDef.UnmarshalVT(defBytes); err != nil {
+					sendError(fmt.Errorf("could not unmarshal namespace definition: %w", err))
+					return
+				}
+				err = tracked.AddChangedDefinition(ctx, rev, namespaceDef)
+				if err != nil {
+					sendError(err)
+					return
+				}
+			} else {
+				err = tracked.AddDeletedNamespace(ctx, rev, definitionName)
+				if err != nil {
+					sendError(err)
+					return
+				}
+			}
+
+		case tableCaveat:
+			if len(pkValues) != 1 {
+				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
+				return
+			}
+
+			definitionName := pkValues[0]
+
+			rev, err := revisions.HLCRevisionFromString(details.Updated)
+			if err != nil {
+				sendError(fmt.Errorf("malformed update timestamp: %w", err))
+				return
+			}
+
+			if details.After != nil && details.After.SerializedCaveatDefinition != "" {
+				caveatDef := &core.CaveatDefinition{}
+				defBytes, err := hex.DecodeString(details.After.SerializedCaveatDefinition[2:]) // drop the \x
+				if err != nil {
+					sendError(fmt.Errorf("could not decode caveat definition: %w", err))
+					return
+				}
+
+				if err := caveatDef.UnmarshalVT(defBytes); err != nil {
+					sendError(fmt.Errorf("could not unmarshal caveat definition: %w", err))
+					return
+				}
+
+				err = tracked.AddChangedDefinition(ctx, rev, caveatDef)
+				if err != nil {
+					sendError(err)
+					return
+				}
+			} else {
+				err = tracked.AddDeletedCaveat(ctx, rev, definitionName)
+				if err != nil {
+					sendError(err)
+					return
+				}
+			}
 		}
-	}()
-	return updates, errs
+	}
+
+	if changes.Err() != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer closeCancel()
+			if err := conn.Close(closeCtx); err != nil {
+				errs <- err
+				return
+			}
+			errs <- datastore.NewWatchCanceledErr()
+		} else {
+			errs <- changes.Err()
+		}
+		return
+	}
 }

@@ -7,6 +7,8 @@ import (
 	datastore "github.com/authzed/spicedb/pkg/cmd/datastore"
 	util "github.com/authzed/spicedb/pkg/cmd/util"
 	datastore1 "github.com/authzed/spicedb/pkg/datastore"
+	defaults "github.com/creasty/defaults"
+	helpers "github.com/ecordell/optgen/helpers"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	grpc "google.golang.org/grpc"
 	"time"
@@ -23,12 +25,22 @@ func NewConfigWithOptions(opts ...ConfigOption) *Config {
 	return c
 }
 
+// NewConfigWithOptionsAndDefaults creates a new Config with the passed in options set starting from the defaults
+func NewConfigWithOptionsAndDefaults(opts ...ConfigOption) *Config {
+	c := &Config{}
+	defaults.MustSet(c)
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
 // ToOption returns a new ConfigOption that sets the values from the passed in Config
 func (c *Config) ToOption() ConfigOption {
 	return func(to *Config) {
 		to.GRPCServer = c.GRPCServer
 		to.GRPCAuthFunc = c.GRPCAuthFunc
-		to.PresharedKey = c.PresharedKey
+		to.PresharedSecureKey = c.PresharedSecureKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
 		to.DisableVersionResponse = c.DisableVersionResponse
 		to.HTTPGateway = c.HTTPGateway
@@ -39,6 +51,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.DatastoreConfig = c.DatastoreConfig
 		to.Datastore = c.Datastore
 		to.MaxCaveatContextSize = c.MaxCaveatContextSize
+		to.MaxRelationshipContextSize = c.MaxRelationshipContextSize
+		to.EnableExperimentalWatchableSchemaCache = c.EnableExperimentalWatchableSchemaCache
+		to.SchemaWatchHeartbeat = c.SchemaWatchHeartbeat
 		to.NamespaceCacheConfig = c.NamespaceCacheConfig
 		to.SchemaPrefixesRequired = c.SchemaPrefixesRequired
 		to.DispatchServer = c.DispatchServer
@@ -55,6 +70,9 @@ func (c *Config) ToOption() ConfigOption {
 		to.Dispatcher = c.Dispatcher
 		to.DispatchHashringReplicationFactor = c.DispatchHashringReplicationFactor
 		to.DispatchHashringSpread = c.DispatchHashringSpread
+		to.DispatchChunkSize = c.DispatchChunkSize
+		to.DispatchSecondaryUpstreamAddrs = c.DispatchSecondaryUpstreamAddrs
+		to.DispatchSecondaryUpstreamExprs = c.DispatchSecondaryUpstreamExprs
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.DisableV1SchemaAPI = c.DisableV1SchemaAPI
@@ -62,20 +80,101 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaximumUpdatesPerWrite = c.MaximumUpdatesPerWrite
 		to.MaximumPreconditionCount = c.MaximumPreconditionCount
 		to.MaxDatastoreReadPageSize = c.MaxDatastoreReadPageSize
-		to.DashboardAPI = c.DashboardAPI
+		to.StreamingAPITimeout = c.StreamingAPITimeout
+		to.WatchHeartbeat = c.WatchHeartbeat
+		to.MaxReadRelationshipsLimit = c.MaxReadRelationshipsLimit
+		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
+		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
+		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
+		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 		to.MetricsAPI = c.MetricsAPI
-		to.MiddlewareModification = c.MiddlewareModification
+		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
+		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
 		to.DispatchUnaryMiddleware = c.DispatchUnaryMiddleware
 		to.DispatchStreamingMiddleware = c.DispatchStreamingMiddleware
 		to.SilentlyDisableTelemetry = c.SilentlyDisableTelemetry
 		to.TelemetryCAOverridePath = c.TelemetryCAOverridePath
 		to.TelemetryEndpoint = c.TelemetryEndpoint
 		to.TelemetryInterval = c.TelemetryInterval
+		to.EnableRequestLogs = c.EnableRequestLogs
+		to.EnableResponseLogs = c.EnableResponseLogs
+		to.DisableGRPCLatencyHistogram = c.DisableGRPCLatencyHistogram
 	}
+}
+
+// DebugMap returns a map form of Config for debugging
+func (c Config) DebugMap() map[string]any {
+	debugMap := map[string]any{}
+	debugMap["GRPCServer"] = helpers.DebugValue(c.GRPCServer, false)
+	debugMap["GRPCAuthFunc"] = helpers.DebugValue(c.GRPCAuthFunc, false)
+	debugMap["PresharedSecureKey"] = helpers.SensitiveDebugValue(c.PresharedSecureKey)
+	debugMap["ShutdownGracePeriod"] = helpers.DebugValue(c.ShutdownGracePeriod, false)
+	debugMap["DisableVersionResponse"] = helpers.DebugValue(c.DisableVersionResponse, false)
+	debugMap["HTTPGateway"] = helpers.DebugValue(c.HTTPGateway, false)
+	debugMap["HTTPGatewayUpstreamAddr"] = helpers.DebugValue(c.HTTPGatewayUpstreamAddr, false)
+	debugMap["HTTPGatewayUpstreamTLSCertPath"] = helpers.DebugValue(c.HTTPGatewayUpstreamTLSCertPath, false)
+	debugMap["HTTPGatewayCorsEnabled"] = helpers.DebugValue(c.HTTPGatewayCorsEnabled, false)
+	debugMap["HTTPGatewayCorsAllowedOrigins"] = helpers.DebugValue(c.HTTPGatewayCorsAllowedOrigins, true)
+	debugMap["DatastoreConfig"] = helpers.DebugValue(c.DatastoreConfig, false)
+	debugMap["Datastore"] = helpers.DebugValue(c.Datastore, false)
+	debugMap["MaxCaveatContextSize"] = helpers.DebugValue(c.MaxCaveatContextSize, false)
+	debugMap["MaxRelationshipContextSize"] = helpers.DebugValue(c.MaxRelationshipContextSize, false)
+	debugMap["EnableExperimentalWatchableSchemaCache"] = helpers.DebugValue(c.EnableExperimentalWatchableSchemaCache, false)
+	debugMap["SchemaWatchHeartbeat"] = helpers.DebugValue(c.SchemaWatchHeartbeat, false)
+	debugMap["NamespaceCacheConfig"] = helpers.DebugValue(c.NamespaceCacheConfig, false)
+	debugMap["SchemaPrefixesRequired"] = helpers.DebugValue(c.SchemaPrefixesRequired, false)
+	debugMap["DispatchServer"] = helpers.DebugValue(c.DispatchServer, false)
+	debugMap["DispatchMaxDepth"] = helpers.DebugValue(c.DispatchMaxDepth, false)
+	debugMap["GlobalDispatchConcurrencyLimit"] = helpers.DebugValue(c.GlobalDispatchConcurrencyLimit, false)
+	debugMap["DispatchConcurrencyLimits"] = helpers.DebugValue(c.DispatchConcurrencyLimits, false)
+	debugMap["DispatchUpstreamAddr"] = helpers.DebugValue(c.DispatchUpstreamAddr, false)
+	debugMap["DispatchUpstreamCAPath"] = helpers.DebugValue(c.DispatchUpstreamCAPath, false)
+	debugMap["DispatchUpstreamTimeout"] = helpers.DebugValue(c.DispatchUpstreamTimeout, false)
+	debugMap["DispatchClientMetricsEnabled"] = helpers.DebugValue(c.DispatchClientMetricsEnabled, false)
+	debugMap["DispatchClientMetricsPrefix"] = helpers.DebugValue(c.DispatchClientMetricsPrefix, false)
+	debugMap["DispatchClusterMetricsEnabled"] = helpers.DebugValue(c.DispatchClusterMetricsEnabled, false)
+	debugMap["DispatchClusterMetricsPrefix"] = helpers.DebugValue(c.DispatchClusterMetricsPrefix, false)
+	debugMap["Dispatcher"] = helpers.DebugValue(c.Dispatcher, false)
+	debugMap["DispatchHashringReplicationFactor"] = helpers.DebugValue(c.DispatchHashringReplicationFactor, false)
+	debugMap["DispatchHashringSpread"] = helpers.DebugValue(c.DispatchHashringSpread, false)
+	debugMap["DispatchChunkSize"] = helpers.DebugValue(c.DispatchChunkSize, false)
+	debugMap["DispatchSecondaryUpstreamAddrs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamAddrs, false)
+	debugMap["DispatchSecondaryUpstreamExprs"] = helpers.DebugValue(c.DispatchSecondaryUpstreamExprs, false)
+	debugMap["DispatchCacheConfig"] = helpers.DebugValue(c.DispatchCacheConfig, false)
+	debugMap["ClusterDispatchCacheConfig"] = helpers.DebugValue(c.ClusterDispatchCacheConfig, false)
+	debugMap["DisableV1SchemaAPI"] = helpers.DebugValue(c.DisableV1SchemaAPI, false)
+	debugMap["V1SchemaAdditiveOnly"] = helpers.DebugValue(c.V1SchemaAdditiveOnly, false)
+	debugMap["MaximumUpdatesPerWrite"] = helpers.DebugValue(c.MaximumUpdatesPerWrite, false)
+	debugMap["MaximumPreconditionCount"] = helpers.DebugValue(c.MaximumPreconditionCount, false)
+	debugMap["MaxDatastoreReadPageSize"] = helpers.DebugValue(c.MaxDatastoreReadPageSize, false)
+	debugMap["StreamingAPITimeout"] = helpers.DebugValue(c.StreamingAPITimeout, false)
+	debugMap["WatchHeartbeat"] = helpers.DebugValue(c.WatchHeartbeat, false)
+	debugMap["MaxReadRelationshipsLimit"] = helpers.DebugValue(c.MaxReadRelationshipsLimit, false)
+	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
+	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
+	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
+	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
+	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
+	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
+	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
+	debugMap["TelemetryEndpoint"] = helpers.DebugValue(c.TelemetryEndpoint, false)
+	debugMap["TelemetryInterval"] = helpers.DebugValue(c.TelemetryInterval, false)
+	debugMap["EnableRequestLogs"] = helpers.DebugValue(c.EnableRequestLogs, false)
+	debugMap["EnableResponseLogs"] = helpers.DebugValue(c.EnableResponseLogs, false)
+	debugMap["DisableGRPCLatencyHistogram"] = helpers.DebugValue(c.DisableGRPCLatencyHistogram, false)
+	return debugMap
 }
 
 // ConfigWithOptions configures an existing Config with the passed in options set
 func ConfigWithOptions(c *Config, opts ...ConfigOption) *Config {
+	for _, o := range opts {
+		o(c)
+	}
+	return c
+}
+
+// WithOptions configures the receiver Config with the passed in options set
+func (c *Config) WithOptions(opts ...ConfigOption) *Config {
 	for _, o := range opts {
 		o(c)
 	}
@@ -96,17 +195,17 @@ func WithGRPCAuthFunc(gRPCAuthFunc auth.AuthFunc) ConfigOption {
 	}
 }
 
-// WithPresharedKey returns an option that can append PresharedKeys to Config.PresharedKey
-func WithPresharedKey(presharedKey string) ConfigOption {
+// WithPresharedSecureKey returns an option that can append PresharedSecureKeys to Config.PresharedSecureKey
+func WithPresharedSecureKey(presharedSecureKey string) ConfigOption {
 	return func(c *Config) {
-		c.PresharedKey = append(c.PresharedKey, presharedKey)
+		c.PresharedSecureKey = append(c.PresharedSecureKey, presharedSecureKey)
 	}
 }
 
-// SetPresharedKey returns an option that can set PresharedKey on a Config
-func SetPresharedKey(presharedKey []string) ConfigOption {
+// SetPresharedSecureKey returns an option that can set PresharedSecureKey on a Config
+func SetPresharedSecureKey(presharedSecureKey []string) ConfigOption {
 	return func(c *Config) {
-		c.PresharedKey = presharedKey
+		c.PresharedSecureKey = presharedSecureKey
 	}
 }
 
@@ -184,6 +283,27 @@ func WithDatastore(datastore datastore1.Datastore) ConfigOption {
 func WithMaxCaveatContextSize(maxCaveatContextSize int) ConfigOption {
 	return func(c *Config) {
 		c.MaxCaveatContextSize = maxCaveatContextSize
+	}
+}
+
+// WithMaxRelationshipContextSize returns an option that can set MaxRelationshipContextSize on a Config
+func WithMaxRelationshipContextSize(maxRelationshipContextSize int) ConfigOption {
+	return func(c *Config) {
+		c.MaxRelationshipContextSize = maxRelationshipContextSize
+	}
+}
+
+// WithEnableExperimentalWatchableSchemaCache returns an option that can set EnableExperimentalWatchableSchemaCache on a Config
+func WithEnableExperimentalWatchableSchemaCache(enableExperimentalWatchableSchemaCache bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalWatchableSchemaCache = enableExperimentalWatchableSchemaCache
+	}
+}
+
+// WithSchemaWatchHeartbeat returns an option that can set SchemaWatchHeartbeat on a Config
+func WithSchemaWatchHeartbeat(schemaWatchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.SchemaWatchHeartbeat = schemaWatchHeartbeat
 	}
 }
 
@@ -299,6 +419,41 @@ func WithDispatchHashringSpread(dispatchHashringSpread uint8) ConfigOption {
 	}
 }
 
+// WithDispatchChunkSize returns an option that can set DispatchChunkSize on a Config
+func WithDispatchChunkSize(dispatchChunkSize uint16) ConfigOption {
+	return func(c *Config) {
+		c.DispatchChunkSize = dispatchChunkSize
+	}
+}
+
+// WithDispatchSecondaryUpstreamAddrs returns an option that can append DispatchSecondaryUpstreamAddrss to Config.DispatchSecondaryUpstreamAddrs
+func WithDispatchSecondaryUpstreamAddrs(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamAddrs[key] = value
+	}
+}
+
+// SetDispatchSecondaryUpstreamAddrs returns an option that can set DispatchSecondaryUpstreamAddrs on a Config
+func SetDispatchSecondaryUpstreamAddrs(dispatchSecondaryUpstreamAddrs map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamAddrs = dispatchSecondaryUpstreamAddrs
+	}
+}
+
+// WithDispatchSecondaryUpstreamExprs returns an option that can append DispatchSecondaryUpstreamExprss to Config.DispatchSecondaryUpstreamExprs
+func WithDispatchSecondaryUpstreamExprs(key string, value string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamExprs[key] = value
+	}
+}
+
+// SetDispatchSecondaryUpstreamExprs returns an option that can set DispatchSecondaryUpstreamExprs on a Config
+func SetDispatchSecondaryUpstreamExprs(dispatchSecondaryUpstreamExprs map[string]string) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryUpstreamExprs = dispatchSecondaryUpstreamExprs
+	}
+}
+
 // WithDispatchCacheConfig returns an option that can set DispatchCacheConfig on a Config
 func WithDispatchCacheConfig(dispatchCacheConfig CacheConfig) ConfigOption {
 	return func(c *Config) {
@@ -348,10 +503,52 @@ func WithMaxDatastoreReadPageSize(maxDatastoreReadPageSize uint64) ConfigOption 
 	}
 }
 
-// WithDashboardAPI returns an option that can set DashboardAPI on a Config
-func WithDashboardAPI(dashboardAPI util.HTTPServerConfig) ConfigOption {
+// WithStreamingAPITimeout returns an option that can set StreamingAPITimeout on a Config
+func WithStreamingAPITimeout(streamingAPITimeout time.Duration) ConfigOption {
 	return func(c *Config) {
-		c.DashboardAPI = dashboardAPI
+		c.StreamingAPITimeout = streamingAPITimeout
+	}
+}
+
+// WithWatchHeartbeat returns an option that can set WatchHeartbeat on a Config
+func WithWatchHeartbeat(watchHeartbeat time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.WatchHeartbeat = watchHeartbeat
+	}
+}
+
+// WithMaxReadRelationshipsLimit returns an option that can set MaxReadRelationshipsLimit on a Config
+func WithMaxReadRelationshipsLimit(maxReadRelationshipsLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxReadRelationshipsLimit = maxReadRelationshipsLimit
+	}
+}
+
+// WithMaxDeleteRelationshipsLimit returns an option that can set MaxDeleteRelationshipsLimit on a Config
+func WithMaxDeleteRelationshipsLimit(maxDeleteRelationshipsLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxDeleteRelationshipsLimit = maxDeleteRelationshipsLimit
+	}
+}
+
+// WithMaxLookupResourcesLimit returns an option that can set MaxLookupResourcesLimit on a Config
+func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxLookupResourcesLimit = maxLookupResourcesLimit
+	}
+}
+
+// WithMaxBulkExportRelationshipsLimit returns an option that can set MaxBulkExportRelationshipsLimit on a Config
+func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32) ConfigOption {
+	return func(c *Config) {
+		c.MaxBulkExportRelationshipsLimit = maxBulkExportRelationshipsLimit
+	}
+}
+
+// WithEnableExperimentalLookupResources returns an option that can set EnableExperimentalLookupResources on a Config
+func WithEnableExperimentalLookupResources(enableExperimentalLookupResources bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalLookupResources = enableExperimentalLookupResources
 	}
 }
 
@@ -362,17 +559,31 @@ func WithMetricsAPI(metricsAPI util.HTTPServerConfig) ConfigOption {
 	}
 }
 
-// WithMiddlewareModification returns an option that can append MiddlewareModifications to Config.MiddlewareModification
-func WithMiddlewareModification(middlewareModification MiddlewareModification) ConfigOption {
+// WithUnaryMiddlewareModification returns an option that can append UnaryMiddlewareModifications to Config.UnaryMiddlewareModification
+func WithUnaryMiddlewareModification(unaryMiddlewareModification MiddlewareModification[grpc.UnaryServerInterceptor]) ConfigOption {
 	return func(c *Config) {
-		c.MiddlewareModification = append(c.MiddlewareModification, middlewareModification)
+		c.UnaryMiddlewareModification = append(c.UnaryMiddlewareModification, unaryMiddlewareModification)
 	}
 }
 
-// SetMiddlewareModification returns an option that can set MiddlewareModification on a Config
-func SetMiddlewareModification(middlewareModification []MiddlewareModification) ConfigOption {
+// SetUnaryMiddlewareModification returns an option that can set UnaryMiddlewareModification on a Config
+func SetUnaryMiddlewareModification(unaryMiddlewareModification []MiddlewareModification[grpc.UnaryServerInterceptor]) ConfigOption {
 	return func(c *Config) {
-		c.MiddlewareModification = middlewareModification
+		c.UnaryMiddlewareModification = unaryMiddlewareModification
+	}
+}
+
+// WithStreamingMiddlewareModification returns an option that can append StreamingMiddlewareModifications to Config.StreamingMiddlewareModification
+func WithStreamingMiddlewareModification(streamingMiddlewareModification MiddlewareModification[grpc.StreamServerInterceptor]) ConfigOption {
+	return func(c *Config) {
+		c.StreamingMiddlewareModification = append(c.StreamingMiddlewareModification, streamingMiddlewareModification)
+	}
+}
+
+// SetStreamingMiddlewareModification returns an option that can set StreamingMiddlewareModification on a Config
+func SetStreamingMiddlewareModification(streamingMiddlewareModification []MiddlewareModification[grpc.StreamServerInterceptor]) ConfigOption {
+	return func(c *Config) {
+		c.StreamingMiddlewareModification = streamingMiddlewareModification
 	}
 }
 
@@ -429,5 +640,26 @@ func WithTelemetryEndpoint(telemetryEndpoint string) ConfigOption {
 func WithTelemetryInterval(telemetryInterval time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.TelemetryInterval = telemetryInterval
+	}
+}
+
+// WithEnableRequestLogs returns an option that can set EnableRequestLogs on a Config
+func WithEnableRequestLogs(enableRequestLogs bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableRequestLogs = enableRequestLogs
+	}
+}
+
+// WithEnableResponseLogs returns an option that can set EnableResponseLogs on a Config
+func WithEnableResponseLogs(enableResponseLogs bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableResponseLogs = enableResponseLogs
+	}
+}
+
+// WithDisableGRPCLatencyHistogram returns an option that can set DisableGRPCLatencyHistogram on a Config
+func WithDisableGRPCLatencyHistogram(disableGRPCLatencyHistogram bool) ConfigOption {
+	return func(c *Config) {
+		c.DisableGRPCLatencyHistogram = disableGRPCLatencyHistogram
 	}
 }

@@ -245,8 +245,7 @@ func (p *sourceParser) tryConsumeWithComments(types ...lexer.TokenType) (comment
 // properly handles decoration of the nodes with their proper start and end run locations and
 // comments.
 func (p *sourceParser) performLeftRecursiveParsing(subTryExprFn tryParserFn, rightNodeBuilder rightNodeConstructor, rightTokenTester lookaheadParserFn, operatorTokens ...lexer.TokenType) (AstNode, bool) {
-	var currentLeftToken commentedLexeme
-	currentLeftToken = p.currentToken
+	leftMostToken := p.currentToken
 
 	// Consume the left side of the expression.
 	leftNode, ok := subTryExprFn()
@@ -290,11 +289,10 @@ func (p *sourceParser) performLeftRecursiveParsing(subTryExprFn tryParserFn, rig
 			return currentLeftNode, true
 		}
 
-		p.decorateStartRuneAndComments(exprNode, currentLeftToken)
+		p.decorateStartRuneAndComments(exprNode, leftMostToken)
 		p.decorateEndRune(exprNode, p.previousToken)
 
 		currentLeftNode = exprNode
-		currentLeftToken = operatorToken
 	}
 
 	return currentLeftNode, true

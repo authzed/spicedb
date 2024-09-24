@@ -4,19 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/spicedb/internal/datasets"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
+	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ValidatedLookupSubjectsRequest represents a request after it has been validated and parsed for internal
@@ -27,13 +33,14 @@ type ValidatedLookupSubjectsRequest struct {
 }
 
 // NewConcurrentLookupSubjects creates an instance of ConcurrentLookupSubjects.
-func NewConcurrentLookupSubjects(d dispatch.LookupSubjects, concurrencyLimit uint16) *ConcurrentLookupSubjects {
-	return &ConcurrentLookupSubjects{d, concurrencyLimit}
+func NewConcurrentLookupSubjects(d dispatch.LookupSubjects, concurrencyLimit uint16, dispatchChunkSize uint16) *ConcurrentLookupSubjects {
+	return &ConcurrentLookupSubjects{d, concurrencyLimit, dispatchChunkSize}
 }
 
 type ConcurrentLookupSubjects struct {
-	d                dispatch.LookupSubjects
-	concurrencyLimit uint16
+	d                 dispatch.LookupSubjects
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 func (cl *ConcurrentLookupSubjects) LookupSubjects(
@@ -100,7 +107,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 ) error {
 	// TODO(jschorr): use type information to skip subject relations that cannot reach the subject type.
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             req.ResourceRelation.Namespace,
+		OptionalResourceType:     req.ResourceRelation.Namespace,
 		OptionalResourceRelation: req.ResourceRelation.Relation,
 		OptionalResourceIds:      req.ResourceIds,
 	})
@@ -111,7 +118,7 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 
 	toDispatchByType := datasets.NewSubjectByTypeSet()
 	foundSubjectsByResourceID := datasets.NewSubjectSetByResourceID()
-	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return it.Err()
@@ -187,16 +194,199 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 	}, stream)
 }
 
-func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
+type resourceDispatchTracker struct {
+	ctx            context.Context
+	cancelDispatch context.CancelFunc
+	resourceID     string
+
+	subjectsSet datasets.SubjectSet
+	metadata    *v1.ResponseMeta
+
+	isFirstUpdate bool
+	wasCanceled   bool
+
+	lock sync.Mutex
+}
+
+func lookupViaIntersectionTupleToUserset(
 	ctx context.Context,
+	cl *ConcurrentLookupSubjects,
 	parentRequest ValidatedLookupSubjectsRequest,
 	parentStream dispatch.LookupSubjectsStream,
-	ttu *core.TupleToUserset,
+	ttu *core.FunctionedTupleToUserset,
 ) error {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-		ResourceType:             parentRequest.ResourceRelation.Namespace,
-		OptionalResourceRelation: ttu.Tupleset.Relation,
+		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
+		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
+		OptionalResourceIds:      parentRequest.ResourceIds,
+	})
+	if err != nil {
+		return err
+	}
+	defer it.Close()
+
+	// TODO(jschorr): Find a means of doing this without dispatching per subject, per resource. Perhaps
+	// there is a way we can still dispatch to all the subjects at once, and then intersect the results
+	// afterwards.
+	resourceDispatchTrackerByResourceID := make(map[string]*resourceDispatchTracker)
+
+	cancelCtx, checkCancel := context.WithCancel(ctx)
+	defer checkCancel()
+
+	// For each found tuple, dispatch a lookup subjects request and collect its results.
+	// We need to intersect between *all* the found subjects for each resource ID.
+	var ttuCaveat *core.CaveatExpression
+	taskrunner := taskrunner.NewPreloadedTaskRunner(cancelCtx, cl.concurrencyLimit, 1)
+	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+		if it.Err() != nil {
+			return it.Err()
+		}
+
+		// If the relationship has a caveat, add it to the overall TTU caveat. Since this is an intersection
+		// of *all* branches, the caveat will be applied to all found subjects, so this is a safe approach.
+		if tpl.Caveat != nil {
+			ttuCaveat = caveatAnd(ttuCaveat, wrapCaveat(tpl.Caveat))
+		}
+
+		if err := namespace.CheckNamespaceAndRelation(ctx, tpl.Subject.Namespace, ttu.GetComputedUserset().Relation, false, ds); err != nil {
+			if !errors.As(err, &namespace.ErrRelationNotFound{}) {
+				return err
+			}
+
+			continue
+		}
+
+		// Create a data structure to track the intersection of subjects for the particular resource. If the resource's subject set
+		// ends up empty anywhere along the way, the dispatches for *that resource* will be canceled early.
+		resourceID := tpl.ResourceAndRelation.ObjectId
+		dispatchInfoForResource, ok := resourceDispatchTrackerByResourceID[resourceID]
+		if !ok {
+			dispatchCtx, cancelDispatch := context.WithCancel(cancelCtx)
+			dispatchInfoForResource = &resourceDispatchTracker{
+				ctx:            dispatchCtx,
+				cancelDispatch: cancelDispatch,
+				resourceID:     resourceID,
+				subjectsSet:    datasets.NewSubjectSet(),
+				metadata:       emptyMetadata,
+				isFirstUpdate:  true,
+				lock:           sync.Mutex{},
+			}
+			resourceDispatchTrackerByResourceID[resourceID] = dispatchInfoForResource
+		}
+
+		tpl := tpl
+		taskrunner.Add(func(ctx context.Context) error {
+			// Collect all results for this branch of the resource ID.
+			// TODO(jschorr): once LS has cursoring (and thus, ordering), we can move to not collecting everything up before intersecting
+			// for this branch of the resource ID.
+			collectingStream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](dispatchInfoForResource.ctx)
+			err := cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
+				ResourceRelation: &core.RelationReference{
+					Namespace: tpl.Subject.Namespace,
+					Relation:  ttu.GetComputedUserset().Relation,
+				},
+				ResourceIds:     []string{tpl.Subject.ObjectId},
+				SubjectRelation: parentRequest.SubjectRelation,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     parentRequest.Revision.String(),
+					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+				},
+			}, collectingStream)
+			if err != nil {
+				// Check if the dispatches for the resource were canceled, and if so, return nil to stop the task.
+				dispatchInfoForResource.lock.Lock()
+				wasCanceled := dispatchInfoForResource.wasCanceled
+				dispatchInfoForResource.lock.Unlock()
+
+				if wasCanceled {
+					if errors.Is(err, context.Canceled) {
+						return nil
+					}
+
+					errStatus, ok := status.FromError(err)
+					if ok && errStatus.Code() == codes.Canceled {
+						return nil
+					}
+				}
+
+				return err
+			}
+
+			// Collect the results into a subject set.
+			results := datasets.NewSubjectSet()
+			collectedMetadata := emptyMetadata
+			for _, result := range collectingStream.Results() {
+				collectedMetadata = combineResponseMetadata(collectedMetadata, result.Metadata)
+				for _, foundSubjects := range result.FoundSubjectsByResourceId {
+					if err := results.UnionWith(foundSubjects.FoundSubjects); err != nil {
+						return fmt.Errorf("failed to UnionWith under lookupSubjectsIntersection: %w", err)
+					}
+				}
+			}
+
+			dispatchInfoForResource.lock.Lock()
+			defer dispatchInfoForResource.lock.Unlock()
+
+			dispatchInfoForResource.metadata = combineResponseMetadata(dispatchInfoForResource.metadata, collectedMetadata)
+
+			// If the first update for the resource, set the subjects set to the results.
+			if dispatchInfoForResource.isFirstUpdate {
+				dispatchInfoForResource.isFirstUpdate = false
+				dispatchInfoForResource.subjectsSet = results
+			} else {
+				// Otherwise, intersect the results with the existing subjects set.
+				err := dispatchInfoForResource.subjectsSet.IntersectionDifference(results)
+				if err != nil {
+					return err
+				}
+			}
+
+			// If the subjects set is empty, cancel the dispatch for any further results for this resource ID.
+			if dispatchInfoForResource.subjectsSet.IsEmpty() {
+				dispatchInfoForResource.wasCanceled = true
+				dispatchInfoForResource.cancelDispatch()
+			}
+
+			return nil
+		})
+	}
+	it.Close()
+
+	// Wait for all dispatched operations to complete.
+	if err := taskrunner.StartAndWait(); err != nil {
+		return err
+	}
+
+	// For each resource ID, intersect the found subjects from each stream.
+	metadata := emptyMetadata
+	currentSubjectsByResourceID := map[string]*v1.FoundSubjects{}
+
+	for incomingResourceID, tracker := range resourceDispatchTrackerByResourceID {
+		currentSubjects := tracker.subjectsSet
+		currentSubjects = currentSubjects.WithParentCaveatExpression(ttuCaveat)
+		currentSubjectsByResourceID[incomingResourceID] = currentSubjects.AsFoundSubjects()
+
+		metadata = combineResponseMetadata(metadata, tracker.metadata)
+	}
+
+	return parentStream.Publish(&v1.DispatchLookupSubjectsResponse{
+		FoundSubjectsByResourceId: currentSubjectsByResourceID,
+		Metadata:                  metadata,
+	})
+}
+
+func lookupViaTupleToUserset[T relation](
+	ctx context.Context,
+	cl *ConcurrentLookupSubjects,
+	parentRequest ValidatedLookupSubjectsRequest,
+	parentStream dispatch.LookupSubjectsStream,
+	ttu ttu[T],
+) error {
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
+	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
+		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		OptionalResourceIds:      parentRequest.ResourceIds,
 	})
 	if err != nil {
@@ -205,7 +395,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 	defer it.Close()
 
 	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
-	relationshipsBySubjectONR := util.NewMultiMap[string, *core.RelationTuple]()
+	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
 	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 		if it.Err() != nil {
 			return it.Err()
@@ -222,14 +412,14 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 		relationshipsBySubjectONR.Add(tuple.StringONR(&core.ObjectAndRelation{
 			Namespace: tpl.Subject.Namespace,
 			ObjectId:  tpl.Subject.ObjectId,
-			Relation:  ttu.ComputedUserset.Relation,
+			Relation:  ttu.GetComputedUserset().Relation,
 		}), tpl)
 	}
 	it.Close()
 
 	// Map the found subject types by the computed userset relation, so that we dispatch to it.
 	toDispatchByComputedRelationType, err := toDispatchByTuplesetType.Map(func(resourceType *core.RelationReference) (*core.RelationReference, error) {
-		if err := namespace.CheckNamespaceAndRelation(ctx, resourceType.Namespace, ttu.ComputedUserset.Relation, false, ds); err != nil {
+		if err := namespace.CheckNamespaceAndRelation(ctx, resourceType.Namespace, ttu.GetComputedUserset().Relation, false, ds); err != nil {
 			if errors.As(err, &namespace.ErrRelationNotFound{}) {
 				return nil, nil
 			}
@@ -239,7 +429,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaTupleToUserset(
 
 		return &core.RelationReference{
 			Namespace: resourceType.Namespace,
-			Relation:  ttu.ComputedUserset.Relation,
+			Relation:  ttu.GetComputedUserset().Relation,
 		}, nil
 	})
 	if err != nil {
@@ -301,15 +491,31 @@ func (cl *ConcurrentLookupSubjects) lookupSetOperation(
 
 		case *core.SetOperation_Child_TupleToUserset:
 			g.Go(func() error {
-				return cl.lookupViaTupleToUserset(subCtx, req, stream, child.TupleToUserset)
+				return lookupViaTupleToUserset(subCtx, cl, req, stream, child.TupleToUserset)
 			})
+
+		case *core.SetOperation_Child_FunctionedTupleToUserset:
+			switch child.FunctionedTupleToUserset.Function {
+			case core.FunctionedTupleToUserset_FUNCTION_ANY:
+				g.Go(func() error {
+					return lookupViaTupleToUserset(subCtx, cl, req, stream, child.FunctionedTupleToUserset)
+				})
+
+			case core.FunctionedTupleToUserset_FUNCTION_ALL:
+				g.Go(func() error {
+					return lookupViaIntersectionTupleToUserset(subCtx, cl, req, stream, child.FunctionedTupleToUserset)
+				})
+
+			default:
+				return spiceerrors.MustBugf("unknown function in lookup subjects: %v", child.FunctionedTupleToUserset.Function)
+			}
 
 		case *core.SetOperation_Child_XNil:
 			// Purposely do nothing.
 			continue
 
 		default:
-			return fmt.Errorf("unknown set operation child `%T` in expand", child)
+			return spiceerrors.MustBugf("unknown set operation child `%T` in lookup subjects", child)
 		}
 	}
 
@@ -325,7 +531,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
 	toDispatchByType *datasets.SubjectByTypeSet,
-	relationshipsBySubjectONR *util.MultiMap[string, *core.RelationTuple],
+	relationshipsBySubjectONR *mapz.MultiMap[string, *core.RelationTuple],
 	parentStream dispatch.LookupSubjectsStream,
 ) error {
 	if toDispatchByType.IsEmpty() {
@@ -416,7 +622,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 		}
 
 		// Dispatch the found subjects as the resources of the next step.
-		util.ForEachChunk(resourceIds, maxDispatchChunkSize, func(resourceIdChunk []string) {
+		slicez.ForEachChunk(resourceIds, cl.dispatchChunkSize, func(resourceIdChunk []string) {
 			g.Go(func() error {
 				return cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 					ResourceRelation: resourceType,

@@ -1,0 +1,55 @@
+---
+version: 2
+git:
+  tag_sort: "-version:creatordate"
+  prerelease_suffix: "-"
+before:
+  hooks:
+    - "go run mage.go gen:completions"
+builds:
+  - main: "./cmd/spicedb"
+    env:
+      - "CGO_ENABLED=0"
+    goos:
+      - "windows"
+    goarch:
+      - "amd64"
+      - "arm64"
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - "-s -w"
+      - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
+archives:
+  - files:
+      - "README.md"
+      - "LICENSE"
+      - "completions/*"
+    format_overrides:
+      - goos: "windows"
+        format: "zip"
+chocolateys:
+  - name: "spicedb"
+    package_source_url: "https://github.com/authzed/spicedb"
+    owners: "AuthZed, Inc"
+    title: "SpiceDB"
+    project_url: "https://github.com/authzed/spicedb"
+    url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    icon_url: "https://authzed.com/favicon.svg"
+    copyright: "2024 AuthZed, Inc"
+    license_url: "https://github.com/authzed/spicedb/blob/main/LICENSE"
+    project_source_url: "https://github.com/authzed/spicedb"
+    docs_url: "https://authzed.com/docs"
+    bug_tracker_url: "https://github.com/authzed/spicedb/issues"
+    tags: "spicedb zanzibar authz rebac rbac abac fga"
+    summary: "SpiceDB is a graph database purpose-built for storing and evaluating access control data."
+    description: |
+      Open Source, Google Zanzibar-inspired permissions database to enable fine-grained access control for customer applications
+    release_notes: "https://github.com/authzed/spicedb/releases/tag/v{{ .Version }}"
+    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+    source_repo: "https://push.chocolatey.org/"
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+nightly:
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"

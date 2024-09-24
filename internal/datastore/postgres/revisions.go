@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -33,9 +35,8 @@ const (
 	//   %[4] Quantization period (in nanoseconds)
 	//   %[5] Name of snapshot column
 	querySelectRevision = `
-	WITH selected AS (SELECT COALESCE(
-		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1),
-		NULL
+	WITH selected AS (SELECT (
+		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 / %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1)
 	) as xid)
 	SELECT selected.xid,
 	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
@@ -67,6 +68,9 @@ const (
 	SELECT minvalid.%[1]s, minvalid.%[5]s, pg_current_snapshot() FROM minvalid;`
 
 	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
+
+	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
+	queryLatestXID            = `SELECT max(xid) FROM relation_tuple_transaction;`
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
@@ -80,7 +84,7 @@ func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Re
 
 	snapshot = snapshot.markComplete(revision.Uint64)
 
-	return postgresRevision{snapshot}, validForNanos, nil
+	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, nil
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
@@ -95,7 +99,7 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 		return datastore.NoRevision, fmt.Errorf(errRevision, err)
 	}
 
-	return postgresRevision{snapshot}, nil
+	return postgresRevision{snapshot: snapshot}, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
@@ -111,7 +115,7 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 		return fmt.Errorf(errCheckRevision, err)
 	}
 
-	if revisionRaw.GreaterThan(postgresRevision{currentSnapshot}) {
+	if revisionRaw.GreaterThan(postgresRevision{snapshot: currentSnapshot}) {
 		return datastore.NewInvalidRevisionErr(revision, datastore.CouldNotDetermineRevision)
 	}
 	if minSnapshot.markComplete(minXid.Uint64).GreaterThan(revision.snapshot) {
@@ -123,10 +127,11 @@ func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore
 
 // RevisionFromString reverses the encoding process performed by MarshalBinary and String.
 func (pgd *pgDatastore) RevisionFromString(revisionStr string) (datastore.Revision, error) {
-	return parseRevision(revisionStr)
+	return ParseRevisionString(revisionStr)
 }
 
-func parseRevision(revisionStr string) (rev datastore.Revision, err error) {
+// ParseRevisionString parses a revision string into a Postgres revision.
+func ParseRevisionString(revisionStr string) (rev datastore.Revision, err error) {
 	rev, err = parseRevisionProto(revisionStr)
 	if err != nil {
 		decimalRev, decimalErr := parseRevisionDecimal(revisionStr)
@@ -150,24 +155,47 @@ func parseRevisionProto(revisionStr string) (datastore.Revision, error) {
 		return datastore.NoRevision, fmt.Errorf(errRevisionFormat, err)
 	}
 
-	xminInt := int64(decoded.Xmin)
+	xminInt, err := safecast.ToInt64(decoded.Xmin)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmin to int64")
+	}
 
 	var xips []uint64
 	if len(decoded.RelativeXips) > 0 {
 		xips = make([]uint64, len(decoded.RelativeXips))
 		for i, relativeXip := range decoded.RelativeXips {
-			xips[i] = uint64(xminInt + relativeXip)
+			xip := xminInt + relativeXip
+			uintXip, err := safecast.ToUint64(xip)
+			if err != nil {
+				return datastore.NoRevision, spiceerrors.MustBugf("could not cast xip to int64")
+			}
+			xips[i] = uintXip
 		}
 	}
 
+	xmax, err := safecast.ToUint64(xminInt + decoded.RelativeXmax)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("could not cast xmax to int64")
+	}
+
 	return postgresRevision{
-		pgSnapshot{
+		snapshot: pgSnapshot{
 			xmin:    decoded.Xmin,
-			xmax:    uint64(xminInt + decoded.RelativeXmax),
+			xmax:    xmax,
 			xipList: xips,
 		},
+		optionalTxID:           xid8{Uint64: decoded.OptionalTxid, Valid: decoded.OptionalTxid != 0},
+		optionalNanosTimestamp: decoded.OptionalTimestamp,
 	}, nil
 }
+
+// MaxLegacyXIPDelta is the maximum allowed delta between the xmin and
+// xmax revisions IDs on a *legacy* revision stored as a revision decimal.
+// This is set to prevent a delta that is too large from blowing out the
+// memory usage of the allocated slice, or even causing a panic in the case
+// of a VERY large delta (which can be produced by, for example, a CRDB revision
+// being given to a Postgres datastore accidentally).
+const MaxLegacyXIPDelta = 1000
 
 // parseRevisionDecimal parses a deprecated decimal.Decimal encoding of the revision
 // with an optional xmin component, in the format of revision.xmin, e.g. 100.99.
@@ -203,13 +231,19 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 
 	var xipList []uint64
 	if xmax > xmin {
+		// Ensure that the delta is not too large to cause memory issues or a panic.
+		if xmax-xmin > MaxLegacyXIPDelta {
+			return nil, fmt.Errorf("received revision delta in excess of that expected; are you sure you're not passing a ZedToken from an incompatible datastore?")
+		}
+
+		// TODO(jschorr): Remove this deprecated code path once we have per-datastore-marked ZedTokens.
 		xipList = make([]uint64, 0, xmax-xmin)
 		for i := xmin; i < xid; i++ {
 			xipList = append(xipList, i)
 		}
 	}
 
-	return postgresRevision{pgSnapshot{
+	return postgresRevision{snapshot: pgSnapshot{
 		xmin:    xmin,
 		xmax:    xmax,
 		xipList: xipList,
@@ -220,12 +254,17 @@ func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, newSnaps
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	err = tx.QueryRow(ctx, createTxn).Scan(&newXID, &newSnapshot)
+	cterr := tx.QueryRow(ctx, createTxn).Scan(&newXID, &newSnapshot)
+	if cterr != nil {
+		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
+	}
 	return
 }
 
 type postgresRevision struct {
-	snapshot pgSnapshot
+	snapshot               pgSnapshot
+	optionalTxID           xid8
+	optionalNanosTimestamp uint64
 }
 
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
@@ -247,6 +286,10 @@ func (pr postgresRevision) LessThan(rhsRaw datastore.Revision) bool {
 	return ok && pr.snapshot.LessThan(rhs.snapshot)
 }
 
+func (pr postgresRevision) DebugString() string {
+	return pr.snapshot.String()
+}
+
 func (pr postgresRevision) String() string {
 	return base64.StdEncoding.EncodeToString(pr.mustMarshalBinary())
 }
@@ -259,19 +302,50 @@ func (pr postgresRevision) mustMarshalBinary() []byte {
 	return serialized
 }
 
+// OptionalTransactionID returns the transaction ID at which this revision happened. This value is optionally
+// loaded from the database and may not be present.
+func (pr postgresRevision) OptionalTransactionID() (xid8, bool) {
+	if !pr.optionalTxID.Valid {
+		return xid8{}, false
+	}
+
+	return pr.optionalTxID, true
+}
+
+// OptionalNanosTimestamp returns a unix epoch timestamp in nanos representing the time at which the transaction committed
+// as defined by the Postgres primary. This is not guaranteed to be monotonically increasing
+func (pr postgresRevision) OptionalNanosTimestamp() (uint64, bool) {
+	if pr.optionalNanosTimestamp == 0 {
+		return 0, false
+	}
+
+	return pr.optionalNanosTimestamp, true
+}
+
 // MarshalBinary creates a version of the snapshot that uses relative encoding
 // for xmax and xip list values to save bytes when encoded as varint protos.
 // For example, snapshot 1001:1004:1001,1003 becomes 1000:3:0,2.
 func (pr postgresRevision) MarshalBinary() ([]byte, error) {
-	xminInt := int64(pr.snapshot.xmin)
+	xminInt, err := safecast.ToInt64(pr.snapshot.xmin)
+	if err != nil {
+		return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64: %v", err)
+	}
 	relativeXips := make([]int64, len(pr.snapshot.xipList))
 	for i, xip := range pr.snapshot.xipList {
-		relativeXips[i] = int64(xip) - xminInt
+		intXip, err := safecast.ToInt64(xip)
+		if err != nil {
+			return nil, spiceerrors.MustBugf("could not safely cast snapshot xip to int64: %v", err)
+		}
+		relativeXips[i] = intXip - xminInt
 	}
 
+	relativeXmax, err := safecast.ToInt64(pr.snapshot.xmax)
+	if err != nil {
+		return nil, spiceerrors.MustBugf("could not safely cast snapshot xmax to int64: %v", err)
+	}
 	protoRevision := implv1.PostgresRevision{
 		Xmin:         pr.snapshot.xmin,
-		RelativeXmax: int64(pr.snapshot.xmax) - xminInt,
+		RelativeXmax: relativeXmax - xminInt,
 		RelativeXips: relativeXips,
 	}
 
@@ -280,6 +354,6 @@ func (pr postgresRevision) MarshalBinary() ([]byte, error) {
 
 var _ datastore.Revision = postgresRevision{}
 
-func revisionKeyFunc(rev revisionWithXid) uint64 {
-	return rev.tx.Uint64
+func revisionKeyFunc(rev postgresRevision) uint64 {
+	return rev.optionalTxID.Uint64
 }

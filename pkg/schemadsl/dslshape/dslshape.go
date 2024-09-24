@@ -15,8 +15,8 @@ const (
 	NodeTypeDefinition       // A definition.
 	NodeTypeCaveatDefinition // A caveat definition.
 
-	NodeTypeCaveatParameter // A caveat parameter.
-	NodeTypeCaveatExpession // A caveat expression.
+	NodeTypeCaveatParameter  // A caveat parameter.
+	NodeTypeCaveatExpression // A caveat expression.
 
 	NodeTypeRelation   // A relation
 	NodeTypePermission // A permission
@@ -92,7 +92,7 @@ const (
 	NodeCaveatDefinitionPredicateExpession = "caveat-definition-expression"
 
 	//
-	// NodeTypeCaveatExpession
+	// NodeTypeCaveatExpression
 	//
 
 	// The raw CEL expression, in string form.
@@ -168,6 +168,13 @@ const (
 
 	// The expression to compute the permission.
 	NodePermissionPredicateComputeExpression = "compute-expression"
+
+	//
+	// NodeTypeArrowExpression
+	//
+
+	// The name of the function in the arrow expression.
+	NodeArrowExpressionFunctionName = "function-name"
 
 	//
 	// NodeTypeIdentifer

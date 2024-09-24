@@ -5,10 +5,9 @@ import (
 	"net/netip"
 	"reflect"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
-	"github.com/google/cel-go/common/types/traits"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common/types"
+	"github.com/authzed/cel-go/common/types/ref"
 )
 
 // ParseIPAddress parses the string form of an IP Address into an IPAddress object type.
@@ -26,11 +25,15 @@ func MustParseIPAddress(ip string) IPAddress {
 	return ipAddress
 }
 
-var ipaddressCelType = types.NewTypeValue("IPAddress", traits.ReceiverType)
+var ipaddressCelType = cel.OpaqueType("IPAddress")
 
 // IPAddress defines a custom type for representing an IP Address in caveats.
 type IPAddress struct {
 	ip netip.Addr
+}
+
+func (ipa IPAddress) SerializedString() string {
+	return ipa.ip.String()
 }
 
 func (ipa IPAddress) ConvertToNative(typeDesc reflect.Type) (interface{}, error) {
@@ -67,7 +70,7 @@ func (ipa IPAddress) Value() interface{} {
 	return ipa
 }
 
-var IPAddressType = registerCustomType(
+var IPAddressType = registerCustomType[IPAddress](
 	"ipaddress",
 	cel.ObjectType("IPAddress"),
 	func(value any) (any, error) {

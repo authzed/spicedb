@@ -3,9 +3,23 @@ package cache
 import (
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/dustin/go-humanize"
 	"github.com/rs/zerolog"
 )
+
+// KeyString is an interface for keys that can be converted to strings.
+type KeyString interface {
+	comparable
+	KeyString() string
+}
+
+// StringKey is a simple string key.
+type StringKey string
+
+func (sk StringKey) KeyString() string {
+	return string(sk)
+}
 
 // Config for caching.
 // See: https://github.com/outcaste-io/ristretto#Config
@@ -39,19 +53,20 @@ type Config struct {
 }
 
 func (c *Config) MarshalZerologObject(e *zerolog.Event) {
+	maxCost, _ := safecast.ToUint64(c.MaxCost)
 	e.
-		Str("maxCost", humanize.IBytes(uint64(c.MaxCost))).
+		Str("maxCost", humanize.IBytes(maxCost)).
 		Int64("numCounters", c.NumCounters).
 		Dur("defaultTTL", c.DefaultTTL)
 }
 
 // Cache defines an interface for a generic cache.
-type Cache interface {
+type Cache[K KeyString, V any] interface {
 	// Get returns the value for the given key in the cache, if it exists.
-	Get(key any) (any, bool)
+	Get(key K) (V, bool)
 
 	// Set sets a value for the key in the cache, with the given cost.
-	Set(key, entry any, cost int64) bool
+	Set(key K, entry V, cost int64) bool
 
 	// Wait waits for the cache to process and apply updates.
 	Wait()
@@ -81,18 +96,18 @@ type Metrics interface {
 }
 
 // NoopCache returns a cache that does nothing.
-func NoopCache() Cache { return &noopCache{} }
+func NoopCache[K KeyString, V any]() Cache[K, V] { return &noopCache[K, V]{} }
 
-type noopCache struct{}
+type noopCache[K KeyString, V any] struct{}
 
-var _ Cache = (*noopCache)(nil)
+var _ Cache[StringKey, any] = (*noopCache[StringKey, any])(nil)
 
-func (no *noopCache) Get(_ any) (any, bool)      { return nil, false }
-func (no *noopCache) Set(_, _ any, _ int64) bool { return false }
-func (no *noopCache) Wait()                      {}
-func (no *noopCache) Close()                     {}
-func (no *noopCache) GetMetrics() Metrics        { return &noopMetrics{} }
-func (no *noopCache) MarshalZerologObject(e *zerolog.Event) {
+func (no *noopCache[K, V]) Get(_ K) (V, bool)          { return *new(V), false }
+func (no *noopCache[K, V]) Set(_ K, _ V, _ int64) bool { return false }
+func (no *noopCache[K, V]) Wait()                      {}
+func (no *noopCache[K, V]) Close()                     {}
+func (no *noopCache[K, V]) GetMetrics() Metrics        { return &noopMetrics{} }
+func (no *noopCache[K, V]) MarshalZerologObject(e *zerolog.Event) {
 	e.Bool("enabled", false)
 }
 

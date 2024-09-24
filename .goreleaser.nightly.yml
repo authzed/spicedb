@@ -1,0 +1,102 @@
+---
+version: 2
+builds:
+  - main: "./cmd/spicedb"
+    env:
+      - "CGO_ENABLED=0"
+    goos:
+      - "linux"
+    goarch:
+      - "amd64"
+      - "arm64"
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - "-s -w"
+      - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
+dockers:
+  # AMD64
+  - image_templates:
+      - &amd_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64"
+      - &amd_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64"
+      - &amd_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64"
+    dockerfile: &dockerfile "Dockerfile.release"
+    goos: "linux"
+    goarch: "amd64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  # AMD64 (debug)
+  - image_templates:
+      - &amd_debug_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64-debug"
+      - &amd_debug_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64-debug"
+      - &amd_debug_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-amd64-debug"
+    dockerfile: &dockerfile "Dockerfile.release"
+    goos: "linux"
+    goarch: "amd64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=BASE=cgr.dev/chainguard/busybox"
+  # ARM64
+  - image_templates:
+      - &arm_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
+      - &arm_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
+      - &arm_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64"
+    dockerfile: *dockerfile
+    goos: "linux"
+    goarch: "arm64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+  # ARM64 (debug)
+  - image_templates:
+      - &arm_debug_image_quay "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64-debug"
+      - &arm_debug_image_gh "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64-debug"
+      - &arm_debug_image_dh "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-arm64-debug"
+    dockerfile: *dockerfile
+    goos: "linux"
+    goarch: "arm64"
+    use: "buildx"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=BASE=cgr.dev/chainguard/busybox"
+docker_manifests:
+  # Quay
+  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
+    image_templates: [*amd_image_quay, *arm_image_quay]
+  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest"
+    image_templates: [*amd_image_quay, *arm_image_quay]
+  # GitHub Registry
+  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
+    image_templates: [*amd_image_gh, *arm_image_gh]
+  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest"
+    image_templates: [*amd_image_gh, *arm_image_gh]
+  # Docker Hub
+  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}"
+    image_templates: [*amd_image_dh, *arm_image_dh]
+  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest"
+    image_templates: [*amd_image_dh, *arm_image_dh]
+
+  # Debug Images:
+
+  # Quay (debug)
+  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
+    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay]
+  - name_template: "quay.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
+    image_templates: [*amd_debug_image_quay, *arm_debug_image_quay]
+  # GitHub Registry
+  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
+    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh]
+  - name_template: "ghcr.io/authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
+    image_templates: [*amd_debug_image_gh, *arm_debug_image_gh]
+  # Docker Hub
+  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:v{{ .Version }}-debug"
+    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh]
+  - name_template: "authzed/spicedb{{ if .IsNightly }}-git{{ end }}:latest-debug"
+    image_templates: [*amd_debug_image_dh, *arm_debug_image_dh]
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+nightly:
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"

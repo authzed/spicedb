@@ -4,32 +4,63 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 )
 
 const errWatchError = "watch error: %w"
 
-func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	ar := afterRevision.(revision.Decimal)
+func (mdb *memdbDatastore) Watch(ctx context.Context, ar datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+	watchBufferLength := options.WatchBufferLength
+	if watchBufferLength == 0 {
+		watchBufferLength = mdb.watchBufferLength
+	}
 
-	updates := make(chan *datastore.RevisionChanges, mdb.watchBufferLength)
+	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
+
+	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout == 0 {
+		watchBufferWriteTimeout = mdb.watchBufferWriteTimeout
+	}
+
+	sendChange := func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
+	}
 
 	go func() {
 		defer close(updates)
 		defer close(errs)
 
-		currentTxn := ar.IntPart()
+		currentTxn := ar.(revisions.TimestampRevision).TimestampNanoSec()
 
 		for {
 			var stagedUpdates []*datastore.RevisionChanges
 			var watchChan <-chan struct{}
 			var err error
-			stagedUpdates, currentTxn, watchChan, err = mdb.loadChanges(ctx, currentTxn)
+			stagedUpdates, currentTxn, watchChan, err = mdb.loadChanges(ctx, currentTxn, options)
 			if err != nil {
 				errs <- err
 				return
@@ -37,10 +68,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
-				select {
-				case updates <- changeToWrite:
-				default:
-					errs <- datastore.NewWatchDisconnectedErr()
+				if !sendChange(changeToWrite) {
 					return
 				}
 			}
@@ -65,7 +93,7 @@ func (mdb *memdbDatastore) Watch(ctx context.Context, afterRevision datastore.Re
 	return updates, errs
 }
 
-func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
+func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64, options datastore.WatchOptions) ([]*datastore.RevisionChanges, int64, <-chan struct{}, error) {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
@@ -81,7 +109,23 @@ func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64) ([]*
 	lastRevision := currentTxn
 	for changeRaw := it.Next(); changeRaw != nil; changeRaw = it.Next() {
 		change := changeRaw.(*changelog)
-		changes = append(changes, &change.changes)
+
+		if options.Content&datastore.WatchRelationships == datastore.WatchRelationships && len(change.changes.RelationshipChanges) > 0 {
+			changes = append(changes, &change.changes)
+		}
+
+		if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints && change.revisionNanos > lastRevision {
+			changes = append(changes, &datastore.RevisionChanges{
+				Revision:     revisions.NewForTimestamp(change.revisionNanos),
+				IsCheckpoint: true,
+			})
+		}
+
+		if options.Content&datastore.WatchSchema == datastore.WatchSchema &&
+			len(change.changes.ChangedDefinitions) > 0 || len(change.changes.DeletedCaveats) > 0 || len(change.changes.DeletedNamespaces) > 0 {
+			changes = append(changes, &change.changes)
+		}
+
 		lastRevision = change.revisionNanos
 	}
 

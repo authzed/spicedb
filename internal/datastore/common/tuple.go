@@ -1,17 +1,16 @@
 package common
 
 import (
-	"runtime"
-
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // NewSliceRelationshipIterator creates a datastore.TupleIterator instance from a materialized slice of tuples.
 func NewSliceRelationshipIterator(tuples []*core.RelationTuple, order options.SortOrder) datastore.RelationshipIterator {
 	iter := &sliceRelationshipIterator{tuples: tuples, order: order}
-	runtime.SetFinalizer(iter, MustIteratorBeClosed)
+	spiceerrors.SetFinalizerForDebugging(iter, MustIteratorBeClosed)
 	return iter
 }
 

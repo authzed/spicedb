@@ -9,8 +9,16 @@ type SomeIterator struct{}
 func (si *SomeIterator) Close() {
 }
 
+func (si *SomeIterator) Err() error {
+	return nil
+}
+
 func (si *SomeIterator) Next() any {
 	return nil
+}
+
+func (si *SomeIterator) Cursor() (int, error) {
+	return 42, nil
 }
 
 func MissingNonDeferClose() {
@@ -109,6 +117,44 @@ func SentToFunctionUnderSwitch() {
 	}
 }
 
+func AccessedAfterLoop() error {
+	cur := 0
+	for {
+		si, err := CreateIteratorOrError()
+		if err != nil {
+			return nil
+		}
+
+		for tpl := si.Next(); tpl != nil; tpl = si.Next() {
+			// do nothing
+		}
+		if si.Err() != nil {
+			return si.Err()
+		}
+
+		if cur == 0 {
+			si.Close()
+			continue
+		}
+
+		cur, err = si.Cursor()
+		si.Close()
+
+		if err != nil {
+			return err
+		}
+		fmt.Println(cur)
+	}
+}
+
+func AccessedDirectly() error {
+	var err error
+	si := CreateIterator()
+	_, err = si.Cursor()
+	si.Close()
+	return err
+}
+
 func ThirdFunction(si *SomeIterator) error {
 	return nil
 }
@@ -119,4 +165,8 @@ func AnotherFunction(si *SomeIterator) {
 
 func CreateIterator() *SomeIterator {
 	return &SomeIterator{}
+}
+
+func CreateIteratorOrError() (*SomeIterator, error) {
+	return &SomeIterator{}, nil
 }

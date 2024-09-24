@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	CRDBTestVersionTag = "v22.2.0"
+	CRDBTestVersionTag = "v23.1.16"
 
 	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
 )
@@ -40,7 +40,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForT
 	name := fmt.Sprintf("crds-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
-		Repository: "cockroachdb/cockroach",
+		Repository: "mirror.gcr.io/cockroachdb/cockroach",
 		Tag:        CRDBTestVersionTag,
 		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 		NetworkID:  bridgeNetworkName,

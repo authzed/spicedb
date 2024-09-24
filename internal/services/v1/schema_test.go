@@ -23,10 +23,12 @@ func TestSchemaWriteNoPrefix(t *testing.T) {
 	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
 	t.Cleanup(cleanup)
 	client := v1.NewSchemaServiceClient(conn)
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	resp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: `definition user {}`,
 	})
 	require.NoError(t, err)
+	require.NotNil(t, resp.WrittenAt)
+	require.NotEmpty(t, resp.WrittenAt.Token)
 }
 
 func TestSchemaWriteInvalidSchema(t *testing.T) {
@@ -69,14 +71,18 @@ func TestSchemaWriteAndReadBack(t *testing.T) {
 
 	userSchema := "caveat someCaveat(somecondition int) {\n\tsomecondition == 42\n}\n\ndefinition example/document {\n\trelation viewer: example/user | example/user with someCaveat\n}\n\ndefinition example/user {}"
 
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	writeResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: userSchema,
 	})
 	require.NoError(t, err)
+	require.NotNil(t, writeResp.WrittenAt)
+	require.NotEmpty(t, writeResp.WrittenAt.Token)
 
 	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
 	require.NoError(t, err)
 	require.Equal(t, userSchema, readback.SchemaText)
+	require.NotNil(t, readback.ReadAt)
+	require.NotEmpty(t, readback.ReadAt.Token)
 }
 
 func TestSchemaDeleteRelation(t *testing.T) {
@@ -86,7 +92,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	v1client := v1.NewPermissionsServiceClient(conn)
 
 	// Write a basic schema.
-	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	writeResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -95,6 +101,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 		}`,
 	})
 	require.NoError(t, err)
+	require.NotNil(t, writeResp.WrittenAt)
+	require.NotEmpty(t, writeResp.WrittenAt.Token)
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
@@ -115,7 +123,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 
 	// Attempt to delete the `anotherrelation` relation, which should succeed.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	updateResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 	
 		definition example/document {
@@ -123,6 +131,8 @@ func TestSchemaDeleteRelation(t *testing.T) {
 		}`,
 	})
 	require.Nil(t, err)
+	require.NotNil(t, updateResp.WrittenAt)
+	require.NotEmpty(t, updateResp.WrittenAt.Token)
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
@@ -133,12 +143,14 @@ func TestSchemaDeleteRelation(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to delete the `somerelation` relation, which should succeed.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	deleteRelResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: `definition example/user {}
 		
 			definition example/document {}`,
 	})
 	require.Nil(t, err)
+	require.NotNil(t, deleteRelResp.WrittenAt)
+	require.NotEmpty(t, deleteRelResp.WrittenAt.Token)
 }
 
 func TestSchemaDeletePermission(t *testing.T) {
@@ -390,10 +402,12 @@ func TestSchemaEmpty(t *testing.T) {
 	require.Nil(t, err)
 
 	// Attempt to empty the schema, which should succeed.
-	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+	emptyResp, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 		Schema: ``,
 	})
 	require.Nil(t, err)
+	require.NotNil(t, emptyResp.WrittenAt)
+	require.NotEmpty(t, emptyResp.WrittenAt.Token)
 
 	// Ensure it was deleted.
 	_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
@@ -548,4 +562,26 @@ func TestSchemaUnchangedNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, docRevision.GreaterThan(userRevision))
+}
+
+func TestSchemaInvalid(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, false, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+
+	// Write a schema that references an invalid type.
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `definition org {
+			relation admin: user
+			relation member: user
+		
+			permission read = admin + member
+			permission create = admin
+			permission update = admin
+			permission delete = admin
+			permission * = read + create + update + delete // <= crash case
+		}`,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.ErrorContains(t, err, "found token TokenTypeStar")
 }

@@ -33,25 +33,27 @@ func TestApplySchemaChanges(t *testing.T) {
 	`, nil, require)
 
 	// Update the schema and ensure it works.
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source: input.Source("schema"),
 		SchemaString: `
 			definition user {}
 
-			definition organization {}
+			definition organization {
+				relation member: user
+				permission admin = member
+			}
 
 			caveat catchTwentyTwo(value int) {
 			  value == 22
 			}
 		`,
-	}, &emptyDefaultPrefix)
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
 	validated, err := ValidateSchemaChanges(context.Background(), compiled, false)
 	require.NoError(err)
 
-	_, err = ds.ReadWriteTx(context.Background(), func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		applied, err := ApplySchemaChanges(context.Background(), rwt, validated)
 		require.NoError(err)
 
@@ -59,6 +61,13 @@ func TestApplySchemaChanges(t *testing.T) {
 		require.Equal(applied.RemovedObjectDefNames, []string{"document"})
 		require.Equal(applied.NewCaveatDefNames, []string{"catchTwentyTwo"})
 		require.Equal(applied.RemovedCaveatDefNames, []string{"hasFortyTwo"})
+
+		orgDef, err := rwt.LookupNamespacesWithNames(ctx, []string{"organization"})
+		require.NoError(err)
+		require.Len(orgDef, 1)
+
+		require.NotEmpty(orgDef[0].Definition.Relation[0].CanonicalCacheKey)
+		require.NotEmpty(orgDef[0].Definition.Relation[1].CanonicalCacheKey)
 		return nil
 	})
 	require.NoError(err)

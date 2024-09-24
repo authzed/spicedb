@@ -117,9 +117,9 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, err)
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
 	ctx, cancel := context.WithCancel(context.Background())
-	srv, err := server.NewConfigWithOptions(
+	srv, err := server.NewConfigWithOptionsAndDefaults(
 		server.WithDatastore(ds),
-		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1)),
+		server.WithDispatcher(graph.NewLocalOnlyDispatcher(1, 100)),
 		server.WithDispatchMaxDepth(50),
 		server.WithMaximumPreconditionCount(1000),
 		server.WithMaximumUpdatesPerWrite(1000),
@@ -133,28 +133,43 @@ func TestCertRotation(t *testing.T) {
 		server.WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) {
 			return ctx, nil
 		}),
-		server.WithHTTPGateway(util.HTTPServerConfig{Enabled: false}),
-		server.WithDashboardAPI(util.HTTPServerConfig{Enabled: false}),
-		server.WithMetricsAPI(util.HTTPServerConfig{Enabled: false}),
+		server.WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-		server.SetMiddlewareModification([]server.MiddlewareModification{
+		server.SetUnaryMiddlewareModification([]server.MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation: server.OperationReplaceAllUnsafe,
-				Middlewares: []server.ReferenceableMiddleware{
+				Middlewares: []server.ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "datastore",
-						UnaryMiddleware:     datastoremw.UnaryServerInterceptor(ds),
-						StreamingMiddleware: datastoremw.StreamServerInterceptor(ds),
+						Name:       "datastore",
+						Middleware: datastoremw.UnaryServerInterceptor(ds),
 					},
 					{
-						Name:                "consistency",
-						UnaryMiddleware:     consistency.UnaryServerInterceptor(),
-						StreamingMiddleware: consistency.StreamServerInterceptor(),
+						Name:       "consistency",
+						Middleware: consistency.UnaryServerInterceptor(),
 					},
 					{
-						Name:                "servicespecific",
-						UnaryMiddleware:     servicespecific.UnaryServerInterceptor,
-						StreamingMiddleware: servicespecific.StreamServerInterceptor,
+						Name:       "servicespecific",
+						Middleware: servicespecific.UnaryServerInterceptor,
+					},
+				},
+			},
+		}),
+		server.SetStreamingMiddlewareModification([]server.MiddlewareModification[grpc.StreamServerInterceptor]{
+			{
+				Operation: server.OperationReplaceAllUnsafe,
+				Middlewares: []server.ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+					{
+						Name:       "datastore",
+						Middleware: datastoremw.StreamServerInterceptor(ds),
+					},
+					{
+						Name:       "consistency",
+						Middleware: consistency.StreamServerInterceptor(),
+					},
+					{
+						Name:       "servicespecific",
+						Middleware: servicespecific.StreamServerInterceptor,
 					},
 				},
 			},

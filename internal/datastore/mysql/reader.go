@@ -7,12 +7,11 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -23,20 +22,23 @@ type txFactory func(context.Context) (*sql.Tx, txCleanupFunc, error)
 type mysqlReader struct {
 	*QueryBuilder
 
-	txSource      txFactory
-	querySplitter common.TupleQuerySplitter
-	filterer      queryFilterer
+	txSource             txFactory
+	executor             common.QueryExecutor
+	filterer             queryFilterer
+	filterMaximumIDCount uint16
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
 
 const (
-	errUnableToReadConfig     = "unable to read namespace config: %w"
-	errUnableToListNamespaces = "unable to list namespaces: %w"
-	errUnableToQueryTuples    = "unable to query tuples: %w"
+	errUnableToReadConfig        = "unable to read namespace config: %w"
+	errUnableToListNamespaces    = "unable to list namespaces: %w"
+	errUnableToQueryTuples       = "unable to query tuples: %w"
+	errUnableToReadCounters      = "unable to read counters: %w"
+	errUnableToReadCounterFilter = "unable to read counter filter: %w"
+	errUnableToReadCount         = "unable to read count: %w"
 )
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 var schema = common.NewSchemaInformation(
 	colNamespace,
 	colObjectID,
@@ -45,21 +47,140 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
-	common.TupleComparison,
+	common.ExpandedLogicComparison,
 )
+
+func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	// Ensure the counter is registered.
+	counters, err := mr.lookupCounters(ctx, name)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(counters) == 0 {
+		return 0, datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	relFilter, err := datastore.RelationshipsFilterFromCoreFilter(counters[0].Filter)
+	if err != nil {
+		return 0, err
+	}
+
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.CountTupleQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	if err != nil {
+		return 0, err
+	}
+
+	sql, args, err := qBuilder.UnderlyingQueryBuilder().ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("unable to count relationships: %w", err)
+	}
+
+	tx, txCleanup, err := mr.txSource(ctx)
+	if err != nil {
+		return 0, fmt.Errorf(errUnableToReadCount, err)
+	}
+	defer common.LogOnError(ctx, txCleanup)
+
+	var count int
+	rows, err := tx.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	defer common.LogOnError(ctx, rows.Close)
+
+	if rows.Err() != nil {
+		return 0, rows.Err()
+	}
+
+	if !rows.Next() {
+		if rows.Err() != nil {
+			return 0, rows.Err()
+		}
+
+		return 0, datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	if err := rows.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+const noFilterOnCounterName = ""
+
+func (mr *mysqlReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return mr.lookupCounters(ctx, noFilterOnCounterName)
+}
+
+func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
+	query := mr.filterer(mr.ReadCounterQuery)
+	if optionalName != noFilterOnCounterName {
+		query = query.Where(sq.Eq{colCounterName: optionalName})
+	}
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("unable to lookup counters: %w", err)
+	}
+
+	tx, txCleanup, err := mr.txSource(ctx)
+	if err != nil {
+		return nil, fmt.Errorf(errUnableToReadCounters, err)
+	}
+	defer common.LogOnError(ctx, txCleanup)
+
+	rows, err := tx.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer common.LogOnError(ctx, rows.Close)
+
+	var counters []datastore.RelationshipCounter
+	for rows.Next() {
+		var name string
+		var config []byte
+		var currentCount int
+		var txID uint64
+		if err := rows.Scan(&name, &config, &currentCount, &txID); err != nil {
+			return nil, err
+		}
+
+		filter := &core.RelationshipFilter{}
+		if err := filter.UnmarshalVT(config); err != nil {
+			return nil, fmt.Errorf(errUnableToReadCounterFilter, err)
+		}
+
+		var rev datastore.Revision = revisions.NewForTransactionID(txID)
+		if txID == 0 {
+			rev = datastore.NoRevision
+		}
+
+		counters = append(counters, datastore.RelationshipCounter{
+			Name:               name,
+			Filter:             filter,
+			Count:              currentCount,
+			ComputedAtRevision: rev,
+		})
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return counters, nil
+}
 
 func (mr *mysqlReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
 
-	return mr.querySplitter.SplitAndExecuteQuery(ctx, qBuilder, opts...)
+	return mr.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (mr *mysqlReader) ReverseQueryRelationships(
@@ -67,8 +188,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery)).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery), mr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -82,15 +202,16 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	return mr.querySplitter.SplitAndExecuteQuery(
+	return mr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.ReverseLimit),
+		options.WithLimit(queryOpts.LimitForReverse),
+		options.WithAfter(queryOpts.AfterForReverse),
+		options.WithSort(queryOpts.SortForReverse),
 	)
 }
 
 func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)
@@ -109,7 +230,6 @@ func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (
 }
 
 func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery sq.SelectBuilder) (*core.NamespaceDefinition, datastore.Revision, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	ctx, span := tracer.Start(ctx, "loadNamespace")
 	defer span.End()
 
@@ -119,8 +239,8 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 	}
 
 	var config []byte
-	var version decimal.Decimal
-	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &version)
+	var txID uint64
+	err = tx.QueryRowContext(ctx, query, args...).Scan(&config, &txID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = datastore.NewNamespaceNotFoundErr(namespace)
@@ -133,11 +253,10 @@ func loadNamespace(ctx context.Context, namespace string, tx *sql.Tx, baseQuery 
 		return nil, datastore.NoRevision, err
 	}
 
-	return loaded, revision.NewFromDecimal(version), nil
+	return loaded, revisions.NewForTransactionID(txID), nil
 }
 
 func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -159,7 +278,6 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 		return nil, nil
 	}
 
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	tx, txCleanup, err := mr.txSource(ctx)
 	if err != nil {
 		return nil, err
@@ -182,7 +300,6 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 }
 
 func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
@@ -198,8 +315,8 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 
 	for rows.Next() {
 		var config []byte
-		var version decimal.Decimal
-		if err := rows.Scan(&config, &version); err != nil {
+		var txID uint64
+		if err := rows.Scan(&config, &txID); err != nil {
 			return nil, err
 		}
 
@@ -210,7 +327,7 @@ func loadAllNamespaces(ctx context.Context, tx *sql.Tx, queryBuilder sq.SelectBu
 
 		nsDefs = append(nsDefs, datastore.RevisionedNamespace{
 			Definition:          loaded,
-			LastWrittenRevision: revision.NewFromDecimal(version),
+			LastWrittenRevision: revisions.NewForTransactionID(txID),
 		})
 	}
 	if rows.Err() != nil {

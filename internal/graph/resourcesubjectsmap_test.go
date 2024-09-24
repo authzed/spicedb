@@ -49,6 +49,11 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ForSubjectIds: []string{"first"},
 		},
 		{
+			ResourceId:    "fourth",
+			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
+			ForSubjectIds: []string{"sarah"},
+		},
+		{
 			ResourceId:    "second",
 			ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
 			ForSubjectIds: []string{"second"},
@@ -58,12 +63,7 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
 			ForSubjectIds: []string{"tom"},
 		},
-		{
-			ResourceId:    "fourth",
-			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-			ForSubjectIds: []string{"sarah"},
-		},
-	}, directAsResources, sortByResource, "different resources")
+	}, directAsResources, nil, "different resources")
 
 	notDirectAsResources := locked.asReachableResources(false)
 	testutil.RequireProtoSlicesEqual(t, []*v1.ReachableResource{
@@ -73,6 +73,11 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ForSubjectIds: []string{"first"},
 		},
 		{
+			ResourceId:    "fourth",
+			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
+			ForSubjectIds: []string{"sarah"},
+		},
+		{
 			ResourceId:    "second",
 			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
 			ForSubjectIds: []string{"second"},
@@ -82,12 +87,7 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
 			ForSubjectIds: []string{"tom"},
 		},
-		{
-			ResourceId:    "fourth",
-			ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-			ForSubjectIds: []string{"sarah"},
-		},
-	}, notDirectAsResources, sortByResource, "different resources")
+	}, notDirectAsResources, nil, "different resources")
 }
 
 func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
@@ -144,7 +144,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 				{
 					ResourceId:    "first",
 					ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-					ForSubjectIds: []string{"tom", "sarah"},
+					ForSubjectIds: []string{"sarah", "tom"},
 				},
 			},
 		},
@@ -162,7 +162,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 				{
 					ResourceId:    "first",
 					ResultStatus:  v1.ReachableResource_REQUIRES_CHECK,
-					ForSubjectIds: []string{"tom", "sarah"},
+					ForSubjectIds: []string{"sarah", "tom"},
 				},
 				{
 					ResourceId:    "second",
@@ -423,8 +423,13 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 					}
 
 					locked := rsm.asReadOnly()
-					resources, err := locked.mapFoundResources(tc.foundResources, isDirectEntrypoint)
-					require.NoError(t, err)
+
+					resources := make([]*v1.ReachableResource, 0, len(tc.foundResources))
+					for _, resource := range tc.foundResources {
+						r, err := locked.mapFoundResource(resource, isDirectEntrypoint)
+						require.NoError(t, err)
+						resources = append(resources, r)
+					}
 
 					for _, r := range resources {
 						sort.Strings(r.ForSubjectIds)

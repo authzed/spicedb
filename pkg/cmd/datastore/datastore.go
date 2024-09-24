@@ -2,11 +2,14 @@ package datastore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/ccoveille/go-safecast"
 	"github.com/spf13/pflag"
 
 	"github.com/authzed/spicedb/internal/datastore/crdb"
@@ -20,7 +23,9 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-type engineBuilderFunc func(options Config) (datastore.Datastore, error)
+type engineBuilderFunc func(ctx context.Context, options Config) (datastore.Datastore, error)
+
+const MaxReplicaCount = 16
 
 const (
 	MemoryEngine    = "memory"
@@ -38,13 +43,14 @@ var BuilderForEngine = map[string]engineBuilderFunc{
 	MySQLEngine:     newMySQLDatastore,
 }
 
+//go:generate go run github.com/ecordell/optgen -output zz_generated.connpool.options.go . ConnPoolConfig
 type ConnPoolConfig struct {
-	MaxIdleTime         time.Duration
-	MaxLifetime         time.Duration
-	MaxLifetimeJitter   time.Duration
-	MaxOpenConns        int
-	MinOpenConns        int
-	HealthCheckInterval time.Duration
+	MaxIdleTime         time.Duration `debugmap:"visible"`
+	MaxLifetime         time.Duration `debugmap:"visible"`
+	MaxLifetimeJitter   time.Duration `debugmap:"visible"`
+	MaxOpenConns        int           `debugmap:"visible"`
+	MinOpenConns        int           `debugmap:"visible"`
+	HealthCheckInterval time.Duration `debugmap:"visible"`
 }
 
 func DefaultReadConnPool() *ConnPoolConfig {
@@ -89,61 +95,86 @@ func deprecateUnifiedConnFlags(flagSet *pflag.FlagSet) {
 	_ = flagSet.MarkDeprecated("datastore-conn-healthcheck-interval", warning)
 }
 
-//go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
+//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.options.go . Config
 type Config struct {
-	Engine               string
-	URI                  string
-	GCWindow             time.Duration
-	LegacyFuzzing        time.Duration
-	RevisionQuantization time.Duration
+	Engine                      string        `debugmap:"visible"`
+	URI                         string        `debugmap:"sensitive"`
+	GCWindow                    time.Duration `debugmap:"visible"`
+	LegacyFuzzing               time.Duration `debugmap:"visible"`
+	RevisionQuantization        time.Duration `debugmap:"visible"`
+	MaxRevisionStalenessPercent float64       `debugmap:"visible"`
+	CredentialsProviderName     string        `debugmap:"visible"`
+	FilterMaximumIDCount        uint16        `debugmap:"hidden" default:"100"`
 
 	// Options
-	ReadConnPool           ConnPoolConfig
-	WriteConnPool          ConnPoolConfig
-	SplitQueryCount        uint16
-	ReadOnly               bool
-	EnableDatastoreMetrics bool
-	DisableStats           bool
+	ReadConnPool           ConnPoolConfig `debugmap:"visible"`
+	WriteConnPool          ConnPoolConfig `debugmap:"visible"`
+	ReadOnly               bool           `debugmap:"visible"`
+	EnableDatastoreMetrics bool           `debugmap:"visible"`
+	DisableStats           bool           `debugmap:"visible"`
+
+	// Read Replicas
+	ReadReplicaConnPool                ConnPoolConfig `debugmap:"visible"`
+	ReadReplicaURIs                    []string       `debugmap:"sensitive"`
+	ReadReplicaCredentialsProviderName string         `debugmap:"visible"`
 
 	// Bootstrap
-	BootstrapFiles        []string
-	BootstrapFileContents map[string][]byte
-	BootstrapOverwrite    bool
-	BootstrapTimeout      time.Duration
+	BootstrapFiles        []string          `debugmap:"visible-format"`
+	BootstrapFileContents map[string][]byte `debugmap:"visible"`
+	BootstrapOverwrite    bool              `debugmap:"visible"`
+	BootstrapTimeout      time.Duration     `debugmap:"visible"`
 
 	// Hedging
-	RequestHedgingEnabled          bool
-	RequestHedgingInitialSlowValue time.Duration
-	RequestHedgingMaxRequests      uint64
-	RequestHedgingQuantile         float64
+	RequestHedgingEnabled          bool          `debugmap:"visible"`
+	RequestHedgingInitialSlowValue time.Duration `debugmap:"visible"`
+	RequestHedgingMaxRequests      uint64        `debugmap:"visible"`
+	RequestHedgingQuantile         float64       `debugmap:"visible"`
 
 	// CRDB
-	FollowerReadDelay time.Duration
-	MaxRetries        int
-	OverlapKey        string
-	OverlapStrategy   string
+	FollowerReadDelay         time.Duration `debugmap:"visible"`
+	MaxRetries                int           `debugmap:"visible"`
+	OverlapKey                string        `debugmap:"visible"`
+	OverlapStrategy           string        `debugmap:"visible"`
+	EnableConnectionBalancing bool          `debugmap:"visible"`
+	ConnectRate               time.Duration `debugmap:"visible"`
 
 	// Postgres
-	GCInterval         time.Duration
-	GCMaxOperationTime time.Duration
+	GCInterval         time.Duration `debugmap:"visible"`
+	GCMaxOperationTime time.Duration `debugmap:"visible"`
 
 	// Spanner
-	SpannerCredentialsFile string
-	SpannerEmulatorHost    string
+	SpannerCredentialsFile string `debugmap:"visible"`
+	SpannerCredentialsJSON []byte `debugmap:"sensitive"`
+	SpannerEmulatorHost    string `debugmap:"visible"`
+	SpannerMinSessions     uint64 `debugmap:"visible"`
+	SpannerMaxSessions     uint64 `debugmap:"visible"`
 
 	// MySQL
-	TablePrefix string
+	TablePrefix string `debugmap:"visible"`
+
+	// Relationship Integrity
+	RelationshipIntegrityEnabled     bool            `debugmap:"visible"`
+	RelationshipIntegrityCurrentKey  RelIntegrityKey `debugmap:"visible"`
+	RelationshipIntegrityExpiredKeys []string        `debugmap:"visible"`
 
 	// Internal
-	WatchBufferLength uint16
+	WatchBufferLength       uint16        `debugmap:"visible"`
+	WatchBufferWriteTimeout time.Duration `debugmap:"visible"`
+	WatchConnectTimeout     time.Duration `debugmap:"visible"`
 
 	// Migrations
-	MigrationPhase string
+	MigrationPhase string `debugmap:"visible"`
+}
+
+//go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
+type RelIntegrityKey struct {
+	KeyID       string `debugmap:"visible"`
+	KeyFilename string `debugmap:"visible"`
 }
 
 // RegisterDatastoreFlags adds datastore flags to a cobra command.
-func RegisterDatastoreFlags(cmd *cobra.Command, opts *Config) error {
-	return RegisterDatastoreFlagsWithPrefix(cmd.Flags(), "", opts)
+func RegisterDatastoreFlags(flagset *pflag.FlagSet, opts *Config) error {
+	return RegisterDatastoreFlagsWithPrefix(flagset, "", opts)
 }
 
 // RegisterDatastoreFlagsWithPrefix adds datastore flags to a cobra command, with each flag prefixed with the provided
@@ -159,20 +190,39 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 
 	flagSet.StringVar(&opts.Engine, flagName("datastore-engine"), defaults.Engine, fmt.Sprintf(`type of datastore to initialize (%s)`, datastore.EngineOptions()))
 	flagSet.StringVar(&opts.URI, flagName("datastore-conn-uri"), defaults.URI, `connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")`)
+	flagSet.StringVar(&opts.CredentialsProviderName, flagName("datastore-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
+
+	flagSet.StringArrayVar(&opts.ReadReplicaURIs, flagName("datastore-read-replica-conn-uri"), []string{}, "connection string used by remote datastores for read replicas (e.g. \"postgres://postgres:password@localhost:5432/spicedb\"). Only supported for postgres and mysql.")
+	flagSet.StringVar(&opts.ReadReplicaCredentialsProviderName, flagName("datastore-read-replica-credentials-provider-name"), defaults.CredentialsProviderName, fmt.Sprintf(`retrieve datastore credentials dynamically using (%s)`, datastore.CredentialsProviderOptions()))
 
 	var legacyConnPool ConnPoolConfig
 	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn", DefaultReadConnPool(), &legacyConnPool)
 	deprecateUnifiedConnFlags(flagSet)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-read", &legacyConnPool, &opts.ReadConnPool)
-	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-connpool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-read", &legacyConnPool, &opts.ReadConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-conn-pool-write", DefaultWriteConnPool(), &opts.WriteConnPool)
+	RegisterConnPoolFlagsWithPrefix(flagSet, "datastore-read-replica-conn-pool", DefaultReadConnPool(), &opts.ReadReplicaConnPool)
+
+	normalizeFunc := flagSet.GetNormalizeFunc()
+	flagSet.SetNormalizeFunc(func(f *pflag.FlagSet, name string) pflag.NormalizedName {
+		if normalizeFunc != nil {
+			name = string(normalizeFunc(f, name))
+		}
+		if strings.HasPrefix(name, "datastore-connpool") {
+			return pflag.NormalizedName(strings.ReplaceAll(name, "connpool", "conn-pool"))
+		}
+		return pflag.NormalizedName(name)
+	})
+
+	var unusedSplitQueryCount uint16
 
 	flagSet.DurationVar(&opts.GCWindow, flagName("datastore-gc-window"), defaults.GCWindow, "amount of time before revisions are garbage collected")
 	flagSet.DurationVar(&opts.GCInterval, flagName("datastore-gc-interval"), defaults.GCInterval, "amount of time between passes of garbage collection (postgres driver only)")
 	flagSet.DurationVar(&opts.GCMaxOperationTime, flagName("datastore-gc-max-operation-time"), defaults.GCMaxOperationTime, "maximum amount of time a garbage collection pass can operate before timing out (postgres driver only)")
 	flagSet.DurationVar(&opts.RevisionQuantization, flagName("datastore-revision-quantization-interval"), defaults.RevisionQuantization, "boundary interval to which to round the quantized revision")
+	flagSet.Float64Var(&opts.MaxRevisionStalenessPercent, flagName("datastore-revision-quantization-max-staleness-percent"), defaults.MaxRevisionStalenessPercent, "float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%)")
 	flagSet.BoolVar(&opts.ReadOnly, flagName("datastore-readonly"), defaults.ReadOnly, "set the service to read-only mode")
 	flagSet.StringSliceVar(&opts.BootstrapFiles, flagName("datastore-bootstrap-files"), defaults.BootstrapFiles, "bootstrap data yaml files to load")
-	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data")
+	flagSet.BoolVar(&opts.BootstrapOverwrite, flagName("datastore-bootstrap-overwrite"), defaults.BootstrapOverwrite, "overwrite any existing data with bootstrap data (this can be quite slow)")
 	flagSet.DurationVar(&opts.BootstrapTimeout, flagName("datastore-bootstrap-timeout"), defaults.BootstrapTimeout, "maximum duration before timeout for the bootstrap data to be written")
 	flagSet.BoolVar(&opts.RequestHedgingEnabled, flagName("datastore-request-hedging"), defaults.RequestHedgingEnabled, "enable request hedging")
 	flagSet.DurationVar(&opts.RequestHedgingInitialSlowValue, flagName("datastore-request-hedging-initial-slow-value"), defaults.RequestHedgingInitialSlowValue, "initial value to use for slow datastore requests, before statistics have been collected")
@@ -181,15 +231,25 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled prometheus metrics from the datastore")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
 	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
-	flagSet.Uint16Var(&opts.SplitQueryCount, flagName("datastore-query-userset-batch-size"), 1024, "number of usersets after which a relationship query will be split into multiple queries")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
-	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("prefix", "static", "insecure") (cockroach driver only)`)
+	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (cockroach driver only - see https://spicedb.dev/d/crdb-overlap for details)"`)
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
+	flagSet.BoolVar(&opts.EnableConnectionBalancing, flagName("datastore-connection-balancing"), defaults.EnableConnectionBalancing, "enable connection balancing between database nodes (cockroach driver only)")
+	flagSet.DurationVar(&opts.ConnectRate, flagName("datastore-connect-rate"), 100*time.Millisecond, "rate at which new connections are allowed to the datastore (at a rate of 1/duration) (cockroach driver only)")
 	flagSet.StringVar(&opts.SpannerCredentialsFile, flagName("datastore-spanner-credentials"), "", "path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)")
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
+	flagSet.Uint64Var(&opts.SpannerMinSessions, flagName("datastore-spanner-min-sessions"), 100, "minimum number of sessions across all Spanner gRPC connections the client can have at a given time")
+	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
-	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how many events the watch buffer should queue before forcefully disconnecting reader")
+	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
+	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
+	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
+
+	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. only supported on CRDB")
+	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
+	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyFilename, flagName("datastore-relationship-integrity-current-key-filename"), "", "current key filename for relationship integrity checks")
+	flagSet.StringArrayVar(&opts.RelationshipIntegrityExpiredKeys, flagName("datastore-relationship-integrity-expired-keys"), []string{}, "config for expired keys for relationship integrity checks")
 
 	// disabling stats is only for tests
 	flagSet.BoolVar(&opts.DisableStats, flagName("datastore-disable-stats"), false, "disable recording relationship counts to the stats table")
@@ -202,39 +262,56 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
 	}
 
+	flagSet.Uint16Var(&unusedSplitQueryCount, flagName("datastore-query-userset-batch-size"), 1024, "number of usersets after which a relationship query will be split into multiple queries")
+	if err := flagSet.MarkHidden(flagName("datastore-query-userset-batch-size")); err != nil {
+		return fmt.Errorf("failed to mark flag as hidden: %w", err)
+	}
+
 	return nil
 }
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
-		Engine:                         MemoryEngine,
-		GCWindow:                       24 * time.Hour,
-		LegacyFuzzing:                  -1,
-		RevisionQuantization:           5 * time.Second,
-		ReadConnPool:                   *DefaultReadConnPool(),
-		WriteConnPool:                  *DefaultWriteConnPool(),
-		SplitQueryCount:                1024,
-		ReadOnly:                       false,
-		MaxRetries:                     10,
-		OverlapKey:                     "key",
-		OverlapStrategy:                "static",
-		GCInterval:                     3 * time.Minute,
-		GCMaxOperationTime:             1 * time.Minute,
-		WatchBufferLength:              1024,
-		EnableDatastoreMetrics:         true,
-		DisableStats:                   false,
-		BootstrapFiles:                 []string{},
-		BootstrapTimeout:               10 * time.Second,
-		BootstrapOverwrite:             false,
-		RequestHedgingEnabled:          true,
-		RequestHedgingInitialSlowValue: 10000000,
-		RequestHedgingMaxRequests:      1_000_000,
-		RequestHedgingQuantile:         0.95,
-		SpannerCredentialsFile:         "",
-		SpannerEmulatorHost:            "",
-		TablePrefix:                    "",
-		MigrationPhase:                 "",
-		FollowerReadDelay:              4_800 * time.Millisecond,
+		Engine:                           MemoryEngine,
+		GCWindow:                         24 * time.Hour,
+		LegacyFuzzing:                    -1,
+		RevisionQuantization:             5 * time.Second,
+		MaxRevisionStalenessPercent:      .1, // 10%
+		ReadConnPool:                     *DefaultReadConnPool(),
+		WriteConnPool:                    *DefaultWriteConnPool(),
+		ReadReplicaConnPool:              *DefaultReadConnPool(),
+		ReadReplicaURIs:                  []string{},
+		ReadOnly:                         false,
+		MaxRetries:                       10,
+		OverlapKey:                       "key",
+		OverlapStrategy:                  "static",
+		ConnectRate:                      100 * time.Millisecond,
+		EnableConnectionBalancing:        true,
+		GCInterval:                       3 * time.Minute,
+		GCMaxOperationTime:               1 * time.Minute,
+		WatchBufferLength:                1024,
+		WatchBufferWriteTimeout:          1 * time.Second,
+		WatchConnectTimeout:              1 * time.Second,
+		EnableDatastoreMetrics:           true,
+		DisableStats:                     false,
+		BootstrapFiles:                   []string{},
+		BootstrapTimeout:                 10 * time.Second,
+		BootstrapOverwrite:               false,
+		RequestHedgingEnabled:            false,
+		RequestHedgingInitialSlowValue:   10000000,
+		RequestHedgingMaxRequests:        1_000_000,
+		RequestHedgingQuantile:           0.95,
+		SpannerCredentialsFile:           "",
+		SpannerEmulatorHost:              "",
+		TablePrefix:                      "",
+		MigrationPhase:                   "",
+		FollowerReadDelay:                4_800 * time.Millisecond,
+		SpannerMinSessions:               100,
+		SpannerMaxSessions:               400,
+		FilterMaximumIDCount:             100,
+		RelationshipIntegrityEnabled:     false,
+		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
+		RelationshipIntegrityExpiredKeys: []string{},
 	}
 }
 
@@ -256,7 +333,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	}
 	log.Ctx(ctx).Info().Msgf("using %s datastore engine", opts.Engine)
 
-	ds, err := dsBuilder(*opts)
+	ds, err := dsBuilder(ctx, *opts)
 	if err != nil {
 		return nil, err
 	}
@@ -274,25 +351,33 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine datastore state before applying bootstrap data: %w", err)
 		}
-		if opts.BootstrapOverwrite || len(nsDefs) == 0 {
-			log.Ctx(ctx).Info().Msg("initializing datastore from bootstrap files")
 
-			if len(opts.BootstrapFiles) > 0 {
-				_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
-				}
+		if opts.BootstrapOverwrite {
+			log.Ctx(ctx).Info().Msg("deleting existing data before applying bootstrap data (this may take a bit)")
+			if err := datastore.DeleteAllData(ctx, ds); err != nil {
+				return nil, fmt.Errorf("failed to delete existing data before applying bootstrap data: %w", err)
 			}
-
-			if len(opts.BootstrapFileContents) > 0 {
-				_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.BootstrapFileContents)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
-				}
-			}
-		} else {
+			log.Ctx(ctx).Info().Msg("deleted existing data before applying bootstrap data")
+		} else if len(nsDefs) > 0 {
 			return nil, errors.New("cannot apply bootstrap data: schema or tuples already exist in the datastore. Delete existing data or set the flag --datastore-bootstrap-overwrite=true")
 		}
+
+		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("initializing datastore from bootstrap files")
+
+		if len(opts.BootstrapFiles) > 0 {
+			_, _, err = validationfile.PopulateFromFiles(ctx, ds, opts.BootstrapFiles)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load bootstrap files: %w", err)
+			}
+		}
+
+		if len(opts.BootstrapFileContents) > 0 {
+			_, _, err = validationfile.PopulateFromFilesContents(ctx, ds, opts.BootstrapFileContents)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load bootstrap file contents: %w", err)
+			}
+		}
+		log.Ctx(ctx).Info().Strs("files", opts.BootstrapFiles).Msg("completed datastore initialization from bootstrap files")
 	}
 
 	if opts.RequestHedgingEnabled {
@@ -318,14 +403,84 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 		log.Ctx(ctx).Warn().Msg("setting the datastore to read-only")
 		ds = proxy.NewReadonlyDatastore(ds)
 	}
+
+	if opts.RelationshipIntegrityEnabled {
+		log.Ctx(ctx).Info().Msg("enabling relationship integrity checks")
+
+		keyBytes, err := os.ReadFile(opts.RelationshipIntegrityCurrentKey.KeyFilename)
+		if err != nil {
+			return nil, fmt.Errorf("error in opening current key file: %w", err)
+		}
+
+		currentKey := proxy.KeyConfig{
+			ID:    opts.RelationshipIntegrityCurrentKey.KeyID,
+			Bytes: keyBytes,
+		}
+
+		expiredKeys, err := readExpiredKeys(opts.RelationshipIntegrityExpiredKeys)
+		if err != nil {
+			return nil, fmt.Errorf("error in reading expired keys: %w", err)
+		}
+
+		wrapped, err := proxy.NewRelationshipIntegrityProxy(ds, currentKey, expiredKeys)
+		if err != nil {
+			return nil, fmt.Errorf("error in configuring relationship integrity checks: %w", err)
+		}
+
+		ds = wrapped
+	}
+
 	return ds, nil
 }
 
-func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
+type expiredKeyStruct struct {
+	KeyID       string    `json:"key_id"`
+	KeyFilename string    `json:"key_filename"`
+	ExpiredAt   time.Time `json:"expired_at"`
+}
+
+func readExpiredKeys(expiredKeyStrings []string) ([]proxy.KeyConfig, error) {
+	expiredKeys := make([]proxy.KeyConfig, 0, len(expiredKeyStrings))
+	for index, keyString := range expiredKeyStrings {
+		key := expiredKeyStruct{}
+		err := json.Unmarshal([]byte(keyString), &key)
+		if err != nil {
+			return nil, fmt.Errorf("error in unmarshalling expired key #%d: %w", index+1, err)
+		}
+
+		keyBytes, err := os.ReadFile(key.KeyFilename)
+		if err != nil {
+			return nil, fmt.Errorf("error in opening current key file: %w", err)
+		}
+
+		expiredAt := key.ExpiredAt
+		expiredKey := proxy.KeyConfig{
+			ID:        key.KeyID,
+			Bytes:     keyBytes,
+			ExpiredAt: &expiredAt,
+		}
+		expiredKeys = append(expiredKeys, expiredKey)
+	}
+
+	return expiredKeys, nil
+}
+
+func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the CockroachDB datastore engine")
+	}
+
+	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	if err != nil {
+		return nil, errors.New("max-retries could not be cast to uint8")
+	}
+
 	return crdb.NewCRDBDatastore(
+		ctx,
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
 		crdb.RevisionQuantization(opts.RevisionQuantization),
+		crdb.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		crdb.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		crdb.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		crdb.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
@@ -338,22 +493,88 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 		crdb.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
 		crdb.WriteConnMaxLifetimeJitter(opts.WriteConnPool.MaxLifetimeJitter),
 		crdb.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
-		crdb.SplitAtUsersetCount(opts.SplitQueryCount),
 		crdb.FollowerReadDelay(opts.FollowerReadDelay),
-		crdb.MaxRetries(uint8(opts.MaxRetries)),
+		crdb.MaxRetries(maxRetries),
 		crdb.OverlapKey(opts.OverlapKey),
 		crdb.OverlapStrategy(opts.OverlapStrategy),
 		crdb.WatchBufferLength(opts.WatchBufferLength),
-		crdb.DisableStats(opts.DisableStats),
+		crdb.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		crdb.WatchConnectTimeout(opts.WatchConnectTimeout),
 		crdb.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		crdb.WithEnableConnectionBalancing(opts.EnableConnectionBalancing),
+		crdb.ConnectRate(opts.ConnectRate),
+		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 	)
 }
 
-func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
+func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	primary, err := newPostgresPrimaryDatastore(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create primary datastore: %w", err)
+	}
+
+	if len(opts.ReadReplicaURIs) > MaxReplicaCount {
+		return nil, fmt.Errorf("too many read replicas, max is %d", MaxReplicaCount)
+	}
+
+	replicas := make([]datastore.StrictReadDatastore, 0, len(opts.ReadReplicaURIs))
+	for index, replicaURI := range opts.ReadReplicaURIs {
+		uintIndex, err := safecast.ToUint32(index)
+		if err != nil {
+			return nil, errors.New("too many replicas")
+		}
+		replica, err := newPostgresReplicaDatastore(ctx, uintIndex, replicaURI, opts)
+		if err != nil {
+			return nil, err
+		}
+		replicas = append(replicas, replica)
+	}
+
+	return proxy.NewStrictReplicatedDatastore(primary, replicas...)
+}
+
+func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
+	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	if err != nil {
+		return nil, errors.New("max-retries could not be cast to uint8")
+	}
+
+	return []postgres.Option{
+		postgres.EnableTracing(),
+		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		postgres.MaxRetries(maxRetries),
+		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+	}, nil
+}
+
+func newPostgresReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.StrictReadDatastore, error) {
 	pgOpts := []postgres.Option{
+		postgres.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
+		postgres.ReadConnsMaxOpen(opts.ReadReplicaConnPool.MaxOpenConns),
+		postgres.ReadConnsMinOpen(opts.ReadReplicaConnPool.MinOpenConns),
+		postgres.ReadConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
+		postgres.ReadConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
+		postgres.ReadConnMaxLifetimeJitter(opts.ReadReplicaConnPool.MaxLifetimeJitter),
+		postgres.ReadConnHealthCheckInterval(opts.ReadReplicaConnPool.HealthCheckInterval),
+		postgres.ReadStrictMode( /* strict read mode is required for Postgres read replicas */ true),
+	}
+
+	commonOptions, err := commonPostgresDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	pgOpts = append(pgOpts, commonOptions...)
+	return postgres.NewReadOnlyPostgresDatastore(ctx, replicaURI, replicaIndex, pgOpts...)
+}
+
+func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	pgOpts := []postgres.Option{
+		postgres.CredentialsProviderName(opts.CredentialsProviderName),
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
+		postgres.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		postgres.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		postgres.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
@@ -366,33 +587,109 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.WriteConnMaxLifetime(opts.WriteConnPool.MaxLifetime),
 		postgres.WriteConnMaxLifetimeJitter(opts.ReadConnPool.MaxLifetimeJitter),
 		postgres.WriteConnHealthCheckInterval(opts.WriteConnPool.HealthCheckInterval),
-		postgres.SplitAtUsersetCount(opts.SplitQueryCount),
 		postgres.GCInterval(opts.GCInterval),
 		postgres.GCMaxOperationTime(opts.GCMaxOperationTime),
-		postgres.EnableTracing(),
 		postgres.WatchBufferLength(opts.WatchBufferLength),
-		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		postgres.MaxRetries(uint8(opts.MaxRetries)),
+		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		postgres.MigrationPhase(opts.MigrationPhase),
 	}
-	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
+
+	commonOptions, err := commonPostgresDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	pgOpts = append(pgOpts, commonOptions...)
+	return postgres.NewPostgresDatastore(ctx, opts.URI, pgOpts...)
 }
 
-func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
+func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the Spanner datastore engine")
+	}
+
 	return spanner.NewSpannerDatastore(
+		ctx,
 		opts.URI,
 		spanner.FollowerReadDelay(opts.FollowerReadDelay),
-		spanner.GCInterval(opts.GCInterval),
-		spanner.GCWindow(opts.GCWindow),
-		spanner.GCEnabled(!opts.ReadOnly),
+		spanner.RevisionQuantization(opts.RevisionQuantization),
+		spanner.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		spanner.CredentialsFile(opts.SpannerCredentialsFile),
+		spanner.CredentialsJSON(opts.SpannerCredentialsJSON),
 		spanner.WatchBufferLength(opts.WatchBufferLength),
+		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
+		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
+		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
+		spanner.MinSessionCount(opts.SpannerMinSessions),
+		spanner.MaxSessionCount(opts.SpannerMaxSessions),
+		spanner.MigrationPhase(opts.MigrationPhase),
+		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 	)
 }
 
-func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
+func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
+	primary, err := newMySQLPrimaryDatastore(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(opts.ReadReplicaURIs) > MaxReplicaCount {
+		return nil, fmt.Errorf("too many read replicas, max is %d", MaxReplicaCount)
+	}
+
+	replicas := make([]datastore.ReadOnlyDatastore, 0, len(opts.ReadReplicaURIs))
+	for index, replicaURI := range opts.ReadReplicaURIs {
+		uintIndex, err := safecast.ToUint32(index)
+		if err != nil {
+			return nil, errors.New("too many replicas")
+		}
+		replica, err := newMySQLReplicaDatastore(ctx, uintIndex, replicaURI, opts)
+		if err != nil {
+			return nil, err
+		}
+		replicas = append(replicas, replica)
+	}
+
+	return proxy.NewCheckingReplicatedDatastore(primary, replicas...)
+}
+
+func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
+	maxRetries, err := safecast.ToUint8(opts.MaxRetries)
+	if err != nil {
+		return nil, errors.New("max-retries could not be cast to uint8")
+	}
+
+	return []mysql.Option{
+		mysql.TablePrefix(opts.TablePrefix),
+		mysql.MaxRetries(maxRetries),
+		mysql.OverrideLockWaitTimeout(1),
+		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
+		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
+		mysql.RevisionQuantization(opts.RevisionQuantization),
+		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+	}, nil
+}
+
+func newMySQLReplicaDatastore(ctx context.Context, replicaIndex uint32, replicaURI string, opts Config) (datastore.ReadOnlyDatastore, error) {
+	mysqlOpts := []mysql.Option{
+		mysql.MaxOpenConns(opts.ReadReplicaConnPool.MaxOpenConns),
+		mysql.ConnMaxIdleTime(opts.ReadReplicaConnPool.MaxIdleTime),
+		mysql.ConnMaxLifetime(opts.ReadReplicaConnPool.MaxLifetime),
+		mysql.WatchBufferLength(opts.WatchBufferLength),
+		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		mysql.CredentialsProviderName(opts.ReadReplicaCredentialsProviderName),
+	}
+
+	commonOptions, err := commonMySQLDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	mysqlOpts = append(mysqlOpts, commonOptions...)
+	return mysql.NewReadOnlyMySQLDatastore(ctx, replicaURI, replicaIndex, mysqlOpts...)
+}
+
+func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	mysqlOpts := []mysql.Option{
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
@@ -402,18 +699,24 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.MaxOpenConns(opts.ReadConnPool.MaxOpenConns),
 		mysql.ConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
 		mysql.ConnMaxLifetime(opts.ReadConnPool.MaxLifetime),
-		mysql.RevisionQuantization(opts.RevisionQuantization),
-		mysql.TablePrefix(opts.TablePrefix),
 		mysql.WatchBufferLength(opts.WatchBufferLength),
-		mysql.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
-		mysql.MaxRetries(uint8(opts.MaxRetries)),
-		mysql.OverrideLockWaitTimeout(1),
-		mysql.SplitAtUsersetCount(opts.SplitQueryCount),
+		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
+		mysql.CredentialsProviderName(opts.CredentialsProviderName),
 	}
-	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
+
+	commonOptions, err := commonMySQLDatastoreOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+	mysqlOpts = append(mysqlOpts, commonOptions...)
+	return mysql.NewMySQLDatastore(ctx, opts.URI, mysqlOpts...)
 }
 
-func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
+func newMemoryDatstore(_ context.Context, opts Config) (datastore.Datastore, error) {
+	if len(opts.ReadReplicaURIs) > 0 {
+		return nil, errors.New("read replicas are not supported for the in-memory datastore engine")
+	}
+
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
 }

@@ -1,0 +1,13 @@
+---
+schema: |-
+
+  definition user {}
+  definition resource {
+    relation reader: user
+
+    permission read = reader
+  }
+
+relationships: |
+
+  resource:doc1#reader@user:user1

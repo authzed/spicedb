@@ -7,7 +7,9 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	humanize "github.com/dustin/go-humanize"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	maingraph "github.com/authzed/spicedb/internal/graph"
+	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/consistency"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
@@ -31,6 +34,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 const defaultConnBufferSize = humanize.MiByte
@@ -79,7 +83,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 	}
 
 	var inputErrors []*devinterface.DeveloperError
-	currentRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	currentRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		inputErrors, err = loadCompiled(ctx, compiled, rwt)
 		if err != nil || len(inputErrors) > 0 {
 			return err
@@ -109,7 +113,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		Datastore:      ds,
 		CompiledSchema: compiled,
 		Revision:       currentRevision,
-		Dispatcher:     graph.NewLocalOnlyDispatcher(10),
+		Dispatcher:     graph.NewLocalOnlyDispatcher(10, 100),
 	}, nil, nil
 }
 
@@ -147,14 +151,13 @@ func (dc *DevContext) RunV1InMemoryService() (*grpc.ClientConn, func(), error) {
 		}
 	}()
 
-	conn, err := grpc.DialContext(
+	conn, err := grpchelpers.DialAndWait(
 		context.Background(),
 		"",
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return listener.Dial()
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	return conn, func() {
 		conn.Close()
@@ -201,7 +204,7 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 			continue
 		}
 
-		err = relationships.ValidateRelationshipUpdates(ctx, rwt, []*core.RelationTupleUpdate{tuple.Touch(tpl)})
+		err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, []*core.RelationTuple{tpl})
 		if err != nil {
 			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tplString)
 			if devErr != nil {
@@ -226,7 +229,7 @@ func loadCompiled(
 	rwt datastore.ReadWriteTransaction,
 ) ([]*devinterface.DeveloperError, error) {
 	errors := make([]*devinterface.DeveloperError, 0, len(compiled.OrderedDefinitions))
-	resolver := namespace.ResolverForPredefinedDefinitions(namespace.PredefinedElements{
+	resolver := typesystem.ResolverForPredefinedDefinitions(typesystem.PredefinedElements{
 		Namespaces: compiled.ObjectDefinitions,
 		Caveats:    compiled.CaveatDefinitions,
 	})
@@ -242,13 +245,22 @@ func loadCompiled(
 
 		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
 		if ok {
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: cverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: errWithSource.SourceCodeString,
-				Line:    uint32(errWithSource.LineNumber),
-				Column:  uint32(errWithSource.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 		} else {
 			errors = append(errors, &devinterface.DeveloperError{
@@ -261,17 +273,26 @@ func loadCompiled(
 	}
 
 	for _, nsDef := range compiled.ObjectDefinitions {
-		ts, terr := namespace.NewNamespaceTypeSystem(nsDef, resolver)
+		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
 			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			if ok {
 				errors = append(errors, &devinterface.DeveloperError{
 					Message: terr.Error(),
 					Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 					Source:  devinterface.DeveloperError_SCHEMA,
 					Context: errWithSource.SourceCodeString,
-					Line:    uint32(errWithSource.LineNumber),
-					Column:  uint32(errWithSource.ColumnPosition),
+					Line:    lineNumber,
+					Column:  columnPosition,
 				})
 				continue
 			}
@@ -295,13 +316,22 @@ func loadCompiled(
 
 		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
 		if ok {
+			// NOTE: zeroes are fine here to mean "unknown"
+			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
+			if err != nil {
+				log.Err(err).Msg("could not cast lineNumber to uint32")
+			}
+			columnPosition, err := safecast.ToUint32(errWithSource.ColumnPosition)
+			if err != nil {
+				log.Err(err).Msg("could not cast columnPosition to uint32")
+			}
 			errors = append(errors, &devinterface.DeveloperError{
 				Message: tverr.Error(),
 				Kind:    devinterface.DeveloperError_SCHEMA_ISSUE,
 				Source:  devinterface.DeveloperError_SCHEMA,
 				Context: errWithSource.SourceCodeString,
-				Line:    uint32(errWithSource.LineNumber),
-				Column:  uint32(errWithSource.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 		} else {
 			errors = append(errors, &devinterface.DeveloperError{
@@ -326,10 +356,24 @@ func distinguishGraphError(ctx context.Context, dispatchError error, source devi
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
 	var invalidRelError relationships.ErrInvalidSubjectType
+	var maxDepthErr dispatch.MaxDepthExceededError
 
-	if errors.Is(dispatchError, dispatch.ErrMaxDepth) {
+	if errors.As(dispatchError, &maxDepthErr) {
 		return &devinterface.DeveloperError{
 			Message: dispatchError.Error(),
+			Source:  source,
+			Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
+			Line:    line,
+			Column:  column,
+			Context: context,
+		}, nil
+	}
+
+	details, ok := spiceerrors.GetDetails[*errdetails.ErrorInfo](dispatchError)
+	if ok && details.Reason == "ERROR_REASON_MAXIMUM_DEPTH_EXCEEDED" {
+		status, _ := status.FromError(dispatchError)
+		return &devinterface.DeveloperError{
+			Message: status.Message(),
 			Source:  source,
 			Kind:    devinterface.DeveloperError_MAXIMUM_RECURSION,
 			Line:    line,
@@ -384,12 +428,6 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &relNotFoundError):
 		fallthrough
 
-	case errors.As(err, &maingraph.ErrRequestCanceled{}):
-		return status.Errorf(codes.Canceled, "request canceled: %s", err)
-
-	case errors.As(err, &maingraph.ErrInvalidArgument{}):
-		return status.Errorf(codes.InvalidArgument, "%s", err)
-
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 
@@ -399,6 +437,12 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &maingraph.ErrAlwaysFail{}):
 		log.Ctx(ctx).Err(err).Msg("internal graph error in devcontext")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
+
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Errorf(codes.DeadlineExceeded, "%s", err)
+
+	case errors.Is(err, context.Canceled):
+		return status.Errorf(codes.Canceled, "%s", err)
 
 	default:
 		log.Ctx(ctx).Err(err).Msg("unexpected graph error in devcontext")

@@ -9,9 +9,9 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 type validatingDatastore struct {
@@ -31,15 +31,16 @@ func (vd validatingDatastore) SnapshotReader(revision datastore.Revision) datast
 func (vd validatingDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	if f == nil {
 		return datastore.NoRevision, fmt.Errorf("nil delegate function")
 	}
 
-	return vd.Datastore.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	return vd.Datastore.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		txDelegate := validatingReadWriteTransaction{validatingSnapshotReader{rwt}, rwt}
-		return f(txDelegate)
-	})
+		return f(ctx, txDelegate)
+	}, opts...)
 }
 
 func (vd validatingDatastore) Unwrap() datastore.Datastore {
@@ -87,17 +88,18 @@ func (vsr validatingSnapshotReader) LookupNamespacesWithNames(
 	return read, nil
 }
 
+func (vsr validatingSnapshotReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	return vsr.delegate.CountRelationships(ctx, name)
+}
+
+func (vsr validatingSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	return vsr.delegate.LookupCounters(ctx)
+}
+
 func (vsr validatingSnapshotReader) QueryRelationships(ctx context.Context,
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	queryOpts := options.NewQueryOptionsWithOptions(opts...)
-	for _, sub := range queryOpts.Usersets {
-		if err := sub.Validate(); err != nil {
-			return nil, err
-		}
-	}
-
 	return vsr.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
@@ -178,6 +180,22 @@ type validatingReadWriteTransaction struct {
 	delegate datastore.ReadWriteTransaction
 }
 
+func (vrwt validatingReadWriteTransaction) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	if err := filter.Validate(); err != nil {
+		return err
+	}
+
+	return vrwt.delegate.RegisterCounter(ctx, name, filter)
+}
+
+func (vrwt validatingReadWriteTransaction) UnregisterCounter(ctx context.Context, name string) error {
+	return vrwt.delegate.UnregisterCounter(ctx, name)
+}
+
+func (vrwt validatingReadWriteTransaction) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	return vrwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
+}
+
 func (vrwt validatingReadWriteTransaction) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
 	for _, newConfig := range newConfigs {
 		if err := newConfig.Validate(); err != nil {
@@ -197,7 +215,7 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	}
 
 	// Ensure there are no duplicate mutations.
-	tupleSet := util.NewSet[string]()
+	tupleSet := mapz.NewSet[string]()
 	for _, mutation := range mutations {
 		if err := mutation.Validate(); err != nil {
 			return err
@@ -211,12 +229,12 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	return vrwt.delegate.WriteRelationships(ctx, mutations)
 }
 
-func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (vrwt validatingReadWriteTransaction) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
 	if err := filter.Validate(); err != nil {
-		return err
+		return false, err
 	}
 
-	return vrwt.delegate.DeleteRelationships(ctx, filter)
+	return vrwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 
 func (vrwt validatingReadWriteTransaction) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
@@ -225,6 +243,10 @@ func (vrwt validatingReadWriteTransaction) WriteCaveats(ctx context.Context, cav
 
 func (vrwt validatingReadWriteTransaction) DeleteCaveats(ctx context.Context, names []string) error {
 	return vrwt.delegate.DeleteCaveats(ctx, names)
+}
+
+func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source datastore.BulkWriteRelationshipSource) (uint64, error) {
+	return vrwt.delegate.BulkLoad(ctx, source)
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.

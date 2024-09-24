@@ -5,6 +5,7 @@ import (
 	"time"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 type postgresOptions struct {
@@ -12,17 +13,21 @@ type postgresOptions struct {
 
 	maxRevisionStalenessPercent float64
 
-	watchBufferLength    uint16
-	revisionQuantization time.Duration
-	gcWindow             time.Duration
-	gcInterval           time.Duration
-	gcMaxOperationTime   time.Duration
-	splitAtUsersetCount  uint16
-	maxRetries           uint8
+	credentialsProviderName string
+
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	revisionQuantization    time.Duration
+	gcWindow                time.Duration
+	gcInterval              time.Duration
+	gcMaxOperationTime      time.Duration
+	maxRetries              uint8
+	filterMaximumIDCount    uint16
 
 	enablePrometheusStats   bool
 	analyzeBeforeStatistics bool
 	gcEnabled               bool
+	readStrictMode          bool
 
 	migrationPhase string
 
@@ -49,15 +54,18 @@ const (
 	errQuantizationTooLarge = "revision quantization interval (%s) must be less than GC window (%s)"
 
 	defaultWatchBufferLength                 = 128
+	defaultWatchBufferWriteTimeout           = 1 * time.Second
 	defaultGarbageCollectionWindow           = 24 * time.Hour
 	defaultGarbageCollectionInterval         = time.Minute * 3
 	defaultGarbageCollectionMaxOperationTime = time.Minute
-	defaultUsersetBatchSize                  = 1024
 	defaultQuantization                      = 5 * time.Second
 	defaultMaxRevisionStalenessPercent       = 0.1
 	defaultEnablePrometheusStats             = false
 	defaultMaxRetries                        = 10
 	defaultGCEnabled                         = true
+	defaultCredentialsProviderName           = ""
+	defaultReadStrictMode                    = false
+	defaultFilterMaximumIDCount              = 100
 )
 
 // Option provides the facility to configure how clients within the
@@ -70,13 +78,16 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		gcInterval:                  defaultGarbageCollectionInterval,
 		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
 		watchBufferLength:           defaultWatchBufferLength,
-		splitAtUsersetCount:         defaultUsersetBatchSize,
+		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
 		revisionQuantization:        defaultQuantization,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
 		maxRetries:                  defaultMaxRetries,
 		gcEnabled:                   defaultGCEnabled,
+		credentialsProviderName:     defaultCredentialsProviderName,
+		readStrictMode:              defaultReadStrictMode,
 		queryInterceptor:            nil,
+		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 	}
 
 	for _, option := range options {
@@ -96,15 +107,21 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		return computed, fmt.Errorf("unknown migration phase: %s", computed.migrationPhase)
 	}
 
+	if computed.filterMaximumIDCount == 0 {
+		computed.filterMaximumIDCount = 100
+		log.Warn().Msg("filterMaximumIDCount not set, defaulting to 100")
+	}
+
 	return computed, nil
 }
 
-// SplitAtUsersetCount is the batch size for which userset queries will be
-// split into smaller queries.
+// ReadStrictMode sets whether strict mode is used for reads in the Postgres reader. If enabled,
+// an assertion is added into the WHERE clause of all read queries to ensure that the revision
+// being read is available on the read connection.
 //
-// This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
-	return func(po *postgresOptions) { po.splitAtUsersetCount = splitAtUsersetCount }
+// Strict mode is disabled by default, as the default behavior is to read from the primary.
+func ReadStrictMode(readStrictMode bool) Option {
+	return func(po *postgresOptions) { po.readStrictMode = readStrictMode }
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max
@@ -239,6 +256,12 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 	return func(po *postgresOptions) { po.watchBufferLength = watchBufferLength }
 }
 
+// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
+// after which the caller to the watch will be disconnected.
+func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
+	return func(po *postgresOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
 // RevisionQuantization is the time bucket size to which advertised
 // revisions will be rounded.
 //
@@ -333,4 +356,17 @@ func WithQueryInterceptor(interceptor pgxcommon.QueryInterceptor) Option {
 // Steady-state configuration (e.g. fully migrated) by default
 func MigrationPhase(phase string) Option {
 	return func(po *postgresOptions) { po.migrationPhase = phase }
+}
+
+// CredentialsProviderName is the name of the CredentialsProvider implementation to use
+// for dynamically retrieving the datastore credentials at runtime
+//
+// Empty by default.
+func CredentialsProviderName(credentialsProviderName string) Option {
+	return func(po *postgresOptions) { po.credentialsProviderName = credentialsProviderName }
+}
+
+// FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
+func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
+	return func(po *postgresOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
 }

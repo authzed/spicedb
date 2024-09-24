@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,13 +16,21 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/services/shared"
+	"github.com/authzed/spicedb/pkg/cursor"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-type hasConsistency interface {
-	GetConsistency() *v1.Consistency
-}
+var ConsistentyCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "middleware",
+	Name:      "consistency_assigned_total",
+	Help:      "Count of the consistencies used per request",
+}, []string{"method", "source"})
+
+type hasConsistency interface{ GetConsistency() *v1.Consistency }
+
+type hasOptionalCursor interface{ GetOptionalCursor() *v1.Cursor }
 
 type ctxKeyType struct{}
 
@@ -74,9 +84,33 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	var revision datastore.Revision
 	consistency := req.GetConsistency()
 
+	withOptionalCursor, hasOptionalCursor := req.(hasOptionalCursor)
+
 	switch {
+	case hasOptionalCursor && withOptionalCursor.GetOptionalCursor() != nil:
+		// Always use the revision encoded in the cursor.
+		ConsistentyCounter.WithLabelValues("snapshot", "cursor").Inc()
+
+		requestedRev, err := cursor.DecodeToDispatchRevision(withOptionalCursor.GetOptionalCursor(), ds)
+		if err != nil {
+			return rewriteDatastoreError(ctx, err)
+		}
+
+		err = ds.CheckRevision(ctx, requestedRev)
+		if err != nil {
+			return rewriteDatastoreError(ctx, err)
+		}
+
+		revision = requestedRev
+
 	case consistency == nil || consistency.GetMinimizeLatency():
 		// Minimize Latency: Use the datastore's current revision, whatever it may be.
+		source := "request"
+		if consistency == nil {
+			source = "server"
+		}
+		ConsistentyCounter.WithLabelValues("minlatency", source).Inc()
+
 		databaseRev, err := ds.OptimizedRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(ctx, err)
@@ -85,6 +119,8 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
+		ConsistentyCounter.WithLabelValues("full", "request").Inc()
+
 		databaseRev, err := ds.HeadRevision(ctx)
 		if err != nil {
 			return rewriteDatastoreError(ctx, err)
@@ -94,14 +130,23 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	case consistency.GetAtLeastAsFresh() != nil:
 		// At least as fresh as: Pick one of the datastore's revision and that specified, which
 		// ever is later.
-		picked, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
+		picked, pickedRequest, err := pickBestRevision(ctx, consistency.GetAtLeastAsFresh(), ds)
 		if err != nil {
 			return rewriteDatastoreError(ctx, err)
 		}
+
+		source := "server"
+		if pickedRequest {
+			source = "request"
+		}
+		ConsistentyCounter.WithLabelValues("atleast", source).Inc()
+
 		revision = picked
 
 	case consistency.GetAtExactSnapshot() != nil:
 		// Exact snapshot: Use the revision as encoded in the zed token.
+		ConsistentyCounter.WithLabelValues("snapshot", "request").Inc()
+
 		requestedRev, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot(), ds)
 		if err != nil {
 			return errInvalidZedToken
@@ -124,6 +169,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 
 var bypassServiceWhitelist = map[string]struct{}{
 	"/grpc.reflection.v1alpha.ServerReflection/": {},
+	"/grpc.reflection.v1.ServerReflection/":      {},
 	"/grpc.health.v1.Health/":                    {},
 }
 
@@ -165,9 +211,7 @@ type recvWrapper struct {
 	ctx context.Context
 }
 
-func (s *recvWrapper) Context() context.Context {
-	return s.ctx
-}
+func (s *recvWrapper) Context() context.Context { return s.ctx }
 
 func (s *recvWrapper) RecvMsg(m interface{}) error {
 	if err := s.ServerStream.RecvMsg(m); err != nil {
@@ -178,26 +222,29 @@ func (s *recvWrapper) RecvMsg(m interface{}) error {
 	return AddRevisionToContext(s.ctx, m, ds)
 }
 
-func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (datastore.Revision, error) {
+// pickBestRevision compares the provided ZedToken with the optimized revision of the datastore, and returns the most
+// recent one. The boolean return value will be true if the provided ZedToken is the most recent, false otherwise.
+func pickBestRevision(ctx context.Context, requested *v1.ZedToken, ds datastore.Datastore) (datastore.Revision, bool, error) {
 	// Calculate a revision as we see fit
 	databaseRev, err := ds.OptimizedRevision(ctx)
 	if err != nil {
-		return datastore.NoRevision, err
+		return datastore.NoRevision, false, err
 	}
 
 	if requested != nil {
 		requestedRev, err := zedtoken.DecodeRevision(requested, ds)
 		if err != nil {
-			return datastore.NoRevision, errInvalidZedToken
+			return datastore.NoRevision, false, errInvalidZedToken
 		}
 
 		if databaseRev.GreaterThan(requestedRev) {
-			return databaseRev, nil
+			return databaseRev, false, nil
 		}
-		return requestedRev, nil
+
+		return requestedRev, true, nil
 	}
 
-	return databaseRev, nil
+	return databaseRev, false, nil
 }
 
 func rewriteDatastoreError(ctx context.Context, err error) error {

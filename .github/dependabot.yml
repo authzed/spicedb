@@ -7,9 +7,22 @@ updates:
       interval: "monthly"
     labels:
       - "area/dependencies"
+    groups:
+      go-mod:
+        patterns: ["*"]
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "monthly"
     labels:
       - "area/dependencies"
+    groups:
+      docker:
+        patterns: ["*"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns: ["*"]

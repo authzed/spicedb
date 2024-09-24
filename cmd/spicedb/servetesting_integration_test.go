@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
+	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -27,9 +29,8 @@ import (
 )
 
 func TestTestServer(t *testing.T) {
-	t.Parallel()
 	require := require.New(t)
-
+	key := uuid.NewString()
 	tester, err := newTester(t,
 		&dockertest.RunOptions{
 			Repository: "authzed/spicedb",
@@ -44,27 +45,34 @@ func TestTestServer(t *testing.T) {
 			},
 			ExposedPorts: []string{"50051/tcp", "50052/tcp", "8443/tcp", "8444/tcp"},
 		},
-		"",
+		key,
 		false,
 	)
 	require.NoError(err)
 	defer tester.cleanup()
 
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken(key)}
+	conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.port), options...)
 	require.NoError(err)
 	defer conn.Close()
 
-	resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-	require.NoError(err)
-	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
-
-	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	roConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), options...)
 	require.NoError(err)
 	defer roConn.Close()
 
-	resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
-	require.NoError(err)
-	require.Equal(healthpb.HealthCheckResponse_SERVING, resp.GetStatus())
+	require.Eventually(func() bool {
+		resp, err := healthpb.NewHealthClient(conn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			return false
+		}
+
+		resp, err = healthpb.NewHealthClient(roConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			return false
+		}
+
+		return true
+	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
 
 	v1client := v1.NewPermissionsServiceClient(conn)
 	rov1client := v1.NewPermissionsServiceClient(roConn)
@@ -115,9 +123,18 @@ func TestTestServer(t *testing.T) {
 	require.Equal(v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION, v1Resp.Permissionship)
 
 	// Try a call with a different auth header and ensure it fails.
-	authedConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithInsecure(), grpcutil.WithInsecureBearerToken("someothertoken"))
+	authedConn, err := grpc.Dial(fmt.Sprintf("localhost:%s", tester.readonlyPort), grpc.WithTransportCredentials(insecure.NewCredentials()), grpcutil.WithInsecureBearerToken("someothertoken"))
 	require.NoError(err)
 	defer authedConn.Close()
+
+	require.Eventually(func() bool {
+		resp, err := healthpb.NewHealthClient(authedConn).Check(context.Background(), &healthpb.HealthCheckRequest{Service: "authzed.api.v1.SchemaService"})
+		if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			return false
+		}
+
+		return true
+	}, 5*time.Second, 5*time.Millisecond, "was unable to connect to running service(s)")
 
 	authedv1client := v1.NewPermissionsServiceClient(authedConn)
 	_, err = authedv1client.CheckPermission(context.Background(), checkReq)
@@ -127,10 +144,12 @@ func TestTestServer(t *testing.T) {
 
 	// Make an HTTP call and ensure it succeeds.
 	readUrl := fmt.Sprintf("http://localhost:%s/v1/schema/read", tester.httpPort)
-	hresp, err := http.Post(readUrl, "", nil)
+	req, err := http.NewRequest("POST", readUrl, nil)
+	req.Header.Add("Authorization", "Bearer "+key)
+	hresp, err := http.DefaultClient.Do(req)
 	require.NoError(err)
 
-	body, err := ioutil.ReadAll(hresp.Body)
+	body, err := io.ReadAll(hresp.Body)
 	require.NoError(err)
 
 	require.Equal(200, hresp.StatusCode)
@@ -158,54 +177,55 @@ type spicedbHandle struct {
 	cleanup          func()
 }
 
+const retryCount = 5
+
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
-	pool, err := dockertest.NewPool("")
-	if err != nil {
-		return nil, fmt.Errorf("Could not connect to docker: %w", err)
-	}
-
-	resource, err := pool.RunWithOptions(containerOpts)
-	if err != nil {
-		return nil, fmt.Errorf("Could not start resource: %w", err)
-	}
-
-	port := resource.GetPort("50051/tcp")
-	readonlyPort := resource.GetPort("50052/tcp")
-	httpPort := resource.GetPort("8443/tcp")
-	readonlyHttpPort := resource.GetPort("8444/tcp")
-
-	cleanup := func() {
-		// When you're done, kill and remove the container
-		if err = pool.Purge(resource); err != nil {
-			log.Fatalf("Could not purge resource: %s", err)
-		}
-	}
-
-	// Give the service time to boot.
-	require.Eventually(t, func() bool {
-		conn, err := grpc.Dial(
-			fmt.Sprintf("localhost:%s", port),
-			grpc.WithInsecure(),
-			grpcutil.WithInsecureBearerToken(token),
-		)
+	for i := 0; i < retryCount; i++ {
+		pool, err := dockertest.NewPool("")
 		if err != nil {
-			return false
+			return nil, fmt.Errorf("could not connect to docker: %w", err)
 		}
 
-		client := v1.NewSchemaServiceClient(conn)
+		pool.MaxWait = 30 * time.Second
 
-		if withExistingSchema {
-			_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
-			if err != nil {
-				s, ok := status.FromError(err)
-				require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
+		resource, err := pool.RunWithOptions(containerOpts)
+		if err != nil {
+			return nil, fmt.Errorf("could not start resource: %w", err)
+		}
+
+		port := resource.GetPort("50051/tcp")
+		readonlyPort := resource.GetPort("50052/tcp")
+		httpPort := resource.GetPort("8443/tcp")
+		readonlyHttpPort := resource.GetPort("8444/tcp")
+
+		cleanup := func() {
+			// When you're done, kill and remove the container
+			if err = pool.Purge(resource); err != nil {
+				log.Fatalf("Could not purge resource: %s", err)
 			}
-			return err == nil
 		}
 
-		// Write a basic schema.
-		_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
-			Schema: `
+		// Give the service time to boot.
+		err = pool.Retry(func() error {
+			conn, err := grpc.Dial(
+				fmt.Sprintf("localhost:%s", port),
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+				grpcutil.WithInsecureBearerToken(token),
+			)
+			if err != nil {
+				return err
+			}
+
+			client := v1.NewSchemaServiceClient(conn)
+
+			if withExistingSchema {
+				_, err = client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+				return err
+			}
+
+			// Write a basic schema.
+			_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+				Schema: `
 			definition user {}
 			
 			definition resource {
@@ -215,20 +235,24 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 				permission view = reader + writer
 			}
 			`,
+			})
+
+			return err
 		})
-
 		if err != nil {
-			s, ok := status.FromError(err)
-			require.True(t, !ok || s.Code() == codes.Unavailable, fmt.Sprintf("Found unexpected error: %v", err))
+			fmt.Printf("got error on startup: %v\n", err)
+			cleanup()
+			continue
 		}
-		return err == nil
-	}, 3*time.Second, 10*time.Millisecond, "could not start test server")
 
-	return &spicedbHandle{
-		port:             port,
-		readonlyPort:     readonlyPort,
-		httpPort:         httpPort,
-		readonlyHttpPort: readonlyHttpPort,
-		cleanup:          cleanup,
-	}, nil
+		return &spicedbHandle{
+			port:             port,
+			readonlyPort:     readonlyPort,
+			httpPort:         httpPort,
+			readonlyHttpPort: readonlyHttpPort,
+			cleanup:          cleanup,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("hit maximum retries when trying to spawn test server")
 }

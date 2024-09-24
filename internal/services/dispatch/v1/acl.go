@@ -34,9 +34,9 @@ func NewDispatchServer(localDispatch dispatch.Dispatcher) dispatchv1.DispatchSer
 	return &dispatchServer{
 		localDispatch: localDispatch,
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
-			Unary: grpcvalidate.UnaryServerInterceptor(true),
+			Unary: grpcvalidate.UnaryServerInterceptor(),
 			Stream: middleware.ChainStreamServer(
-				grpcvalidate.StreamServerInterceptor(true),
+				grpcvalidate.StreamServerInterceptor(),
 				streamtimeout.MustStreamServerInterceptor(streamAPITimeout),
 			),
 		},
@@ -53,17 +53,28 @@ func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *dispatchv1.Di
 	return resp, rewriteGraphError(ctx, err)
 }
 
-func (ds *dispatchServer) DispatchLookup(ctx context.Context, req *dispatchv1.DispatchLookupRequest) (*dispatchv1.DispatchLookupResponse, error) {
-	resp, err := ds.localDispatch.DispatchLookup(ctx, req)
-	return resp, rewriteGraphError(ctx, err)
-}
-
 func (ds *dispatchServer) DispatchReachableResources(
 	req *dispatchv1.DispatchReachableResourcesRequest,
 	resp dispatchv1.DispatchService_DispatchReachableResourcesServer,
 ) error {
 	return ds.localDispatch.DispatchReachableResources(req,
 		dispatch.WrapGRPCStream[*dispatchv1.DispatchReachableResourcesResponse](resp))
+}
+
+func (ds *dispatchServer) DispatchLookupResources(
+	req *dispatchv1.DispatchLookupResourcesRequest,
+	resp dispatchv1.DispatchService_DispatchLookupResourcesServer,
+) error {
+	return ds.localDispatch.DispatchLookupResources(req,
+		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResourcesResponse](resp))
+}
+
+func (ds *dispatchServer) DispatchLookupResources2(
+	req *dispatchv1.DispatchLookupResources2Request,
+	resp dispatchv1.DispatchService_DispatchLookupResources2Server,
+) error {
+	return ds.localDispatch.DispatchLookupResources2(req,
+		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResources2Response](resp))
 }
 
 func (ds *dispatchServer) DispatchLookupSubjects(
@@ -79,20 +90,25 @@ func (ds *dispatchServer) Close() error {
 }
 
 func rewriteGraphError(ctx context.Context, err error) error {
+	// Check if the error can be directly used.
+	if st, ok := status.FromError(err); ok {
+		return st.Err()
+	}
+
 	switch {
-	case errors.As(err, &graph.ErrRequestCanceled{}):
-		return status.Errorf(codes.Canceled, "request canceled: %s", err)
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Errorf(codes.DeadlineExceeded, "%s", err)
 	case errors.Is(err, context.Canceled):
 		return status.Errorf(codes.Canceled, "%s", err)
+	case status.Code(err) == codes.Canceled:
+		return err
 	case err == nil:
 		return nil
 
 	case errors.As(err, &graph.ErrAlwaysFail{}):
 		fallthrough
 	default:
-		log.Ctx(ctx).Err(err).Msg("unexpected graph error")
+		log.Ctx(ctx).Err(err).Msg("unexpected dispatch graph error")
 		return err
 	}
 }

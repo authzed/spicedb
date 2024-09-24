@@ -31,7 +31,7 @@ func TestDownstreamErrors(t *testing.T) {
 			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, defaultPageSize).
 			Return(nilIter, defaultError)
 
-		_, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder)
+		_, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder, nil)
 		require.ErrorIs(err, defaultError)
 		require.True(ds.AssertExpectations(t))
 	})
@@ -49,7 +49,7 @@ func TestDownstreamErrors(t *testing.T) {
 			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, defaultPageSize).
 			Return(iterMock, nil)
 
-		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder)
+		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder, nil)
 		require.NoError(err)
 		require.NotNil(iter)
 
@@ -77,7 +77,7 @@ func TestDownstreamErrors(t *testing.T) {
 			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, defaultPageSize).
 			Return(iterMock, nil)
 
-		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder)
+		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, defaultPageSize, defaultSortOrder, nil)
 		require.NoError(err)
 		require.NotNil(iter)
 
@@ -94,6 +94,35 @@ func TestDownstreamErrors(t *testing.T) {
 
 		require.True(iterMock.AssertExpectations(t))
 		require.True(ds.AssertExpectations(t))
+	})
+
+	t.Run("OnReaderAfterSuccess", func(t *testing.T) {
+		require := require.New(t)
+
+		iterMock := &mockedIterator{}
+		iterMock.On("Next").Return(&core.RelationTuple{}).Once()
+		iterMock.On("Next").Return(nil).Once()
+		iterMock.On("Err").Return(nil).Once()
+		iterMock.On("Cursor").Return(options.Cursor(nil), nil).Once()
+		iterMock.On("Close")
+
+		ds := &mockedReader{}
+		ds.
+			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, uint64(1)).
+			Return(iterMock, nil).Once().
+			On("QueryRelationships", options.Cursor(nil), defaultSortOrder, uint64(1)).
+			Return(nil, defaultError).Once()
+
+		iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{}, 1, defaultSortOrder, nil)
+		require.NoError(err)
+		require.NotNil(iter)
+
+		require.NotNil(iter.Next())
+		require.NoError(iter.Err())
+
+		require.Nil(iter.Next())
+		require.Error(iter.Err())
+		iter.Close()
 	})
 }
 
@@ -117,16 +146,16 @@ func TestPaginatedIterator(t *testing.T) {
 			require := require.New(t)
 
 			tpls := make([]*core.RelationTuple, 0, tc.totalRelationships)
-			for i := 0; i < int(tc.totalRelationships); i++ {
+			for i := uint64(0); i < tc.totalRelationships; i++ {
 				tpls = append(tpls, &core.RelationTuple{
 					ResourceAndRelation: &core.ObjectAndRelation{
 						Namespace: "document",
-						ObjectId:  strconv.Itoa(i),
+						ObjectId:  strconv.FormatUint(i, 10),
 						Relation:  "owner",
 					},
 					Subject: &core.ObjectAndRelation{
 						Namespace: "user",
-						ObjectId:  strconv.Itoa(i),
+						ObjectId:  strconv.FormatUint(i, 10),
 						Relation:  datastore.Ellipsis,
 					},
 				})
@@ -136,8 +165,8 @@ func TestPaginatedIterator(t *testing.T) {
 
 			ctx := context.Background()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
-				ResourceType: "unused",
-			}, tc.pageSize, options.ByResource)
+				OptionalResourceType: "unused",
+			}, tc.pageSize, options.ByResource, nil)
 			require.NoError(err)
 			defer iter.Close()
 
@@ -203,7 +232,11 @@ func (m *mockedReader) QueryRelationships(
 ) (datastore.RelationshipIterator, error) {
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 	args := m.Called(queryOpts.After, queryOpts.Sort, *queryOpts.Limit)
-	return args.Get(0).(datastore.RelationshipIterator), args.Error(1)
+	potentialRelIter := args.Get(0)
+	if potentialRelIter == nil {
+		return nil, args.Error(1)
+	}
+	return potentialRelIter.(datastore.RelationshipIterator), args.Error(1)
 }
 
 func (m *mockedReader) ReverseQueryRelationships(
@@ -211,6 +244,14 @@ func (m *mockedReader) ReverseQueryRelationships(
 	_ datastore.SubjectsFilter,
 	_ ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
+	panic("not implemented")
+}
+
+func (m *mockedReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	panic("not implemented")
+}
+
+func (m *mockedReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	panic("not implemented")
 }
 
@@ -246,12 +287,20 @@ var _ datastore.RelationshipIterator = &mockedIterator{}
 
 func (m *mockedIterator) Next() *core.RelationTuple {
 	args := m.Called()
-	return args.Get(0).(*core.RelationTuple)
+	potentialTuple := args.Get(0)
+	if potentialTuple == nil {
+		return nil
+	}
+	return potentialTuple.(*core.RelationTuple)
 }
 
 func (m *mockedIterator) Cursor() (options.Cursor, error) {
 	args := m.Called()
-	return args.Get(0).(options.Cursor), args.Error(1)
+	potentialCursor := args.Get(0)
+	if potentialCursor == nil {
+		return nil, args.Error(1)
+	}
+	return potentialCursor.(options.Cursor), args.Error(1)
 }
 
 func (m *mockedIterator) Err() error {

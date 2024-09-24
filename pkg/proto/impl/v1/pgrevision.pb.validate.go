@@ -61,6 +61,10 @@ func (m *PostgresRevision) validate(all bool) error {
 
 	// no validation rules for RelativeXmax
 
+	// no validation rules for OptionalTxid
+
+	// no validation rules for OptionalTimestamp
+
 	if len(errors) > 0 {
 		return PostgresRevisionMultiError(errors)
 	}

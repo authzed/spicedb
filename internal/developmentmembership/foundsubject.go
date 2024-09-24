@@ -11,7 +11,7 @@ import (
 
 // NewFoundSubject creates a new FoundSubject for a subject and a set of its resources.
 func NewFoundSubject(subject *core.DirectSubject, resources ...*core.ObjectAndRelation) FoundSubject {
-	return FoundSubject{subject.Subject, nil, subject.CaveatExpression, tuple.NewONRSet(resources...)}
+	return FoundSubject{subject.Subject, nil, subject.CaveatExpression, NewONRSet(resources...)}
 }
 
 // FoundSubject contains a single found subject and all the relationships in which that subject
@@ -28,7 +28,7 @@ type FoundSubject struct {
 
 	// relations are the relations under which the subject lives that informed the locating
 	// of this subject for the root ONR.
-	relationships *tuple.ONRSet
+	relationships ONRSet
 }
 
 // GetSubjectId is named to match the Subject interface for the BaseSubjectSet.

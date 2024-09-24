@@ -27,6 +27,13 @@ func WithCodeAndDetails(err error, code codes.Code, details ...protoiface.Messag
 	return created
 }
 
+// WithCodeAndDetailsAsError returns an error containing the error's message, the given
+// status code and any supplied details.
+func WithCodeAndDetailsAsError(err error, code codes.Code, details ...protoiface.MessageV1) error {
+	status := WithCodeAndDetails(err, code, details...)
+	return errWithStatus{err, status}
+}
+
 // ForReason returns an ErrorInfo block for a specific error reason as defined in the V1 API.
 func ForReason(reason v1.ErrorReason, metadata map[string]string) *errdetails.ErrorInfo {
 	return &errdetails.ErrorInfo{
@@ -48,6 +55,21 @@ func WithCodeAndReason(err error, code codes.Code, reason v1.ErrorReason) error 
 
 	status := WithCodeAndDetails(err, code, ForReason(reason, metadata))
 	return errWithStatus{err, status}
+}
+
+type SupportsAdditionalMetadata interface {
+	WithAdditionalDetails(key MetadataKey, value string)
+}
+
+// WithAdditionalDetails adds an additional details field to the error if it is possible.
+func WithAdditionalDetails(err error, key MetadataKey, value string) bool {
+	var supportsAdditionalDetails SupportsAdditionalMetadata
+	if ok := errors.As(err, &supportsAdditionalDetails); ok {
+		supportsAdditionalDetails.WithAdditionalDetails(key, value)
+		return true
+	}
+
+	return false
 }
 
 type errWithStatus struct {

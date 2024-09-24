@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/authzed/spicedb/internal/caveats"
 
@@ -59,7 +58,7 @@ func (ce *ConcurrentExpander) expandDirect(
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
 			OptionalResourceRelation: req.ResourceAndRelation.Relation,
 		})
@@ -191,11 +190,22 @@ func (ce *ConcurrentExpander) expandSetOperation(ctx context.Context, req Valida
 		case *core.SetOperation_Child_UsersetRewrite:
 			requests = append(requests, ce.expandUsersetRewrite(ctx, req, child.UsersetRewrite))
 		case *core.SetOperation_Child_TupleToUserset:
-			requests = append(requests, ce.expandTupleToUserset(ctx, req, child.TupleToUserset))
+			requests = append(requests, expandTupleToUserset(ctx, ce, req, child.TupleToUserset, expandAny))
+		case *core.SetOperation_Child_FunctionedTupleToUserset:
+			switch child.FunctionedTupleToUserset.Function {
+			case core.FunctionedTupleToUserset_FUNCTION_ANY:
+				requests = append(requests, expandTupleToUserset(ctx, ce, req, child.FunctionedTupleToUserset, expandAny))
+
+			case core.FunctionedTupleToUserset_FUNCTION_ALL:
+				requests = append(requests, expandTupleToUserset(ctx, ce, req, child.FunctionedTupleToUserset, expandAll))
+
+			default:
+				return expandError(spiceerrors.MustBugf("unknown function `%s` in expand", child.FunctionedTupleToUserset.Function))
+			}
 		case *core.SetOperation_Child_XNil:
 			requests = append(requests, emptyExpansion(req.ResourceAndRelation))
 		default:
-			return expandError(fmt.Errorf("unknown set operation child `%T` in expand", child))
+			return expandError(spiceerrors.MustBugf("unknown set operation child `%T` in expand", child))
 		}
 	}
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
@@ -253,13 +263,21 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	})
 }
 
-func (ce *ConcurrentExpander) expandTupleToUserset(_ context.Context, req ValidatedExpandRequest, ttu *core.TupleToUserset) ReduceableExpandFunc {
+type expandFunc func(ctx context.Context, start *core.ObjectAndRelation, requests []ReduceableExpandFunc) ExpandResult
+
+func expandTupleToUserset[T relation](
+	_ context.Context,
+	ce *ConcurrentExpander,
+	req ValidatedExpandRequest,
+	ttu ttu[T],
+	expandFunc expandFunc,
+) ReduceableExpandFunc {
 	return func(ctx context.Context, resultChan chan<- ExpandResult) {
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 		it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
-			ResourceType:             req.ResourceAndRelation.Namespace,
+			OptionalResourceType:     req.ResourceAndRelation.Namespace,
 			OptionalResourceIds:      []string{req.ResourceAndRelation.ObjectId},
-			OptionalResourceRelation: ttu.Tupleset.Relation,
+			OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
 		})
 		if err != nil {
 			resultChan <- expandResultError(NewExpansionFailureErr(err), emptyMetadata)
@@ -274,12 +292,12 @@ func (ce *ConcurrentExpander) expandTupleToUserset(_ context.Context, req Valida
 				return
 			}
 
-			toDispatch := ce.expandComputedUserset(ctx, req, ttu.ComputedUserset, tpl)
+			toDispatch := ce.expandComputedUserset(ctx, req, ttu.GetComputedUserset(), tpl)
 			requestsToDispatch = append(requestsToDispatch, decorateWithCaveatIfNecessary(toDispatch, caveats.CaveatAsExpr(tpl.Caveat)))
 		}
 		it.Close()
 
-		resultChan <- expandAny(ctx, req.ResourceAndRelation, requestsToDispatch)
+		resultChan <- expandFunc(ctx, req.ResourceAndRelation, requestsToDispatch)
 	}
 }
 
@@ -335,7 +353,7 @@ func expandSetOperation(
 			}
 			children = append(children, result.Resp.TreeNode)
 		case <-ctx.Done():
-			return expandResultError(NewRequestCanceledErr(), responseMetadata)
+			return expandResultError(context.Canceled, responseMetadata)
 		}
 	}
 
@@ -388,7 +406,7 @@ func expandOne(ctx context.Context, request ReduceableExpandFunc) ExpandResult {
 		}
 		return result
 	case <-ctx.Done():
-		return expandResultError(NewRequestCanceledErr(), emptyMetadata)
+		return expandResultError(context.Canceled, emptyMetadata)
 	}
 }
 

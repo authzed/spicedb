@@ -23,7 +23,7 @@ var (
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "loaded_relationships_count",
-		Buckets:   []float64{1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
+		Buckets:   []float64{0, 1, 3, 10, 32, 100, 316, 1000, 3162, 10000},
 		Help:      "total number of relationships loaded for a query",
 	})
 
@@ -72,10 +72,14 @@ func (p *observableProxy) SnapshotReader(rev datastore.Revision) datastore.Reade
 	return &observableReader{delegateReader}
 }
 
-func (p *observableProxy) ReadWriteTx(ctx context.Context, f datastore.TxUserFunc) (datastore.Revision, error) {
-	return p.delegate.ReadWriteTx(ctx, func(delegateRWT datastore.ReadWriteTransaction) error {
-		return f(&observableRWT{&observableReader{delegateRWT}, delegateRWT})
-	})
+func (p *observableProxy) ReadWriteTx(
+	ctx context.Context,
+	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
+) (datastore.Revision, error) {
+	return p.delegate.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
+		return f(ctx, &observableRWT{&observableReader{delegateRWT}, delegateRWT})
+	}, opts...)
 }
 
 func (p *observableProxy) OptimizedRevision(ctx context.Context) (datastore.Revision, error) {
@@ -105,8 +109,8 @@ func (p *observableProxy) RevisionFromString(serialized string) (datastore.Revis
 	return p.delegate.RevisionFromString(serialized)
 }
 
-func (p *observableProxy) Watch(ctx context.Context, afterRevision datastore.Revision) (<-chan *datastore.RevisionChanges, <-chan error) {
-	return p.delegate.Watch(ctx, afterRevision)
+func (p *observableProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+	return p.delegate.Watch(ctx, afterRevision, options)
 }
 
 func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, error) {
@@ -116,11 +120,19 @@ func (p *observableProxy) Features(ctx context.Context) (*datastore.Features, er
 	return p.delegate.Features(ctx)
 }
 
+func (p *observableProxy) OfflineFeatures() (*datastore.Features, error) {
+	return p.delegate.OfflineFeatures()
+}
+
 func (p *observableProxy) Statistics(ctx context.Context) (datastore.Stats, error) {
 	ctx, closer := observe(ctx, "Statistics")
 	defer closer()
 
 	return p.delegate.Statistics(ctx)
+}
+
+func (p *observableProxy) Unwrap() datastore.Datastore {
+	return p.delegate
 }
 
 func (p *observableProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
@@ -133,6 +145,22 @@ func (p *observableProxy) ReadyState(ctx context.Context) (datastore.ReadyState,
 func (p *observableProxy) Close() error { return p.delegate.Close() }
 
 type observableReader struct{ delegate datastore.Reader }
+
+func (r *observableReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	ctx, closer := observe(ctx, "CountRelationships", trace.WithAttributes(
+		attribute.String("name", name),
+	))
+	defer closer()
+
+	return r.delegate.CountRelationships(ctx, name)
+}
+
+func (r *observableReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	ctx, closer := observe(ctx, "LookupCounters")
+	defer closer()
+
+	return r.delegate.LookupCounters(ctx)
+}
 
 func (r *observableReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
 	ctx, closer := observe(ctx, "ReadCaveatByName", trace.WithAttributes(
@@ -185,7 +213,11 @@ func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName strin
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	ctx, closer := observe(ctx, "QueryRelationships")
+	ctx, closer := observe(ctx, "QueryRelationships", trace.WithAttributes(
+		attribute.String("resourceType", filter.OptionalResourceType),
+		attribute.String("resourceRelation", filter.OptionalResourceRelation),
+		attribute.String("caveatName", filter.OptionalCaveatName),
+	))
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)
 	if err != nil {
@@ -230,6 +262,35 @@ func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjec
 type observableRWT struct {
 	*observableReader
 	delegate datastore.ReadWriteTransaction
+}
+
+func (rwt *observableRWT) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	ctx, closer := observe(ctx, "RegisterCounter", trace.WithAttributes(
+		attribute.String("name", name),
+	))
+	defer closer()
+
+	return rwt.delegate.RegisterCounter(ctx, name, filter)
+}
+
+func (rwt *observableRWT) UnregisterCounter(ctx context.Context, name string) error {
+	ctx, closer := observe(ctx, "UnregisterCounter", trace.WithAttributes(
+		attribute.String("name", name),
+	))
+	defer closer()
+
+	return rwt.delegate.UnregisterCounter(ctx, name)
+}
+
+func (rwt *observableRWT) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	ctx, closer := observe(ctx, "StoreCounterValue", trace.WithAttributes(
+		attribute.String("name", name),
+		attribute.Int("value", value),
+		attribute.String("revision", computedAtRevision.String()),
+	))
+	defer closer()
+
+	return rwt.delegate.StoreCounterValue(ctx, name, value, computedAtRevision)
 }
 
 func (rwt *observableRWT) WriteCaveats(ctx context.Context, caveats []*core.CaveatDefinition) error {
@@ -287,20 +348,33 @@ func (rwt *observableRWT) DeleteNamespaces(ctx context.Context, nsNames ...strin
 	return rwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
-func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *observableRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
 	ctx, closer := observe(ctx, "DeleteRelationships", trace.WithAttributes(
 		filterToAttributes(filter)...,
 	))
 	defer closer()
 
-	return rwt.delegate.DeleteRelationships(ctx, filter)
+	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
+}
+
+func (rwt *observableRWT) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	ctx, closer := observe(ctx, "BulkLoad")
+	defer closer()
+
+	return rwt.delegate.BulkLoad(ctx, iter)
 }
 
 func observe(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, func()) {
 	ctx, span := tracer.Start(ctx, name, opts...)
 	timer := prometheus.NewTimer(queryLatency.WithLabelValues(name))
+	closed := false
 
 	return ctx, func() {
+		if closed {
+			return
+		}
+
+		closed = true
 		timer.ObserveDuration()
 		span.End()
 	}

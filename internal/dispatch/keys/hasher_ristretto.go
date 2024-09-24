@@ -10,13 +10,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-type dispatchCacheKeyHashComputeOption int
-
-const (
-	computeOnlyStableHash dispatchCacheKeyHashComputeOption = 0
-	computeBothHashes     dispatchCacheKeyHashComputeOption = 1
-)
-
 // dispatchCacheKeyHash computres a DispatchCheckKey for the given prefix and any hashable values.
 func dispatchCacheKeyHash(prefix cachePrefix, atRevision string, computeOption dispatchCacheKeyHashComputeOption, args ...hashableValue) DispatchCacheKey {
 	hasher := newDispatchCacheKeyHasher(prefix, computeOption)

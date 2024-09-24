@@ -2,7 +2,7 @@ package testutil
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,7 +15,7 @@ import (
 
 // AreProtoEqual returns whether the expected and required protocol buffer messages are equal, via proto.Equal.
 // If the messages are not equal, returns an error.
-func AreProtoEqual[T proto.Message](expected T, found T, message string, args ...any) error {
+func AreProtoEqual[T proto.Message](expected, found T, message string, args ...any) error {
 	areEqual := proto.Equal(expected, found)
 	if areEqual {
 		return nil
@@ -40,7 +40,7 @@ func indent(value string) string {
 }
 
 // RequireProtoEqual ensures that the expected and required protocol buffer messages are equal, via proto.Equal.
-func RequireProtoEqual[T proto.Message](t *testing.T, expected T, found T, message string, args ...any) {
+func RequireProtoEqual[T proto.Message](t testing.TB, expected, found T, message string, args ...any) {
 	areEqual := AreProtoEqual(expected, found, message, args...)
 	require.NoError(t, areEqual)
 }
@@ -54,7 +54,7 @@ func formatMessages[T proto.Message](messages []T) string {
 }
 
 // AreProtoSlicesEqual returns whether the slices of protocol buffers are equal via protocol buffer comparison.
-func AreProtoSlicesEqual[T proto.Message](expected []T, found []T, sorter SortFunction[T], message string, args ...any) error {
+func AreProtoSlicesEqual[T proto.Message](expected, found []T, cmp func(a, b T) int, message string, args ...any) error {
 	formattedMessage := fmt.Sprintf(message, args...)
 
 	if len(expected) != len(found) {
@@ -67,8 +67,10 @@ func AreProtoSlicesEqual[T proto.Message](expected []T, found []T, sorter SortFu
 		)
 	}
 
-	sort.Sort(sortByFunc[T]{expected, sorter})
-	sort.Sort(sortByFunc[T]{found, sorter})
+	if cmp != nil {
+		slices.SortFunc(expected, cmp)
+		slices.SortFunc(found, cmp)
+	}
 
 	for index := range expected {
 		err := AreProtoEqual(expected[index], found[index], "%s\n\nFound mismatch for element at index %d", formattedMessage, index)
@@ -80,24 +82,9 @@ func AreProtoSlicesEqual[T proto.Message](expected []T, found []T, sorter SortFu
 	return nil
 }
 
-// SortFunction is a sorting function used for ordering two protocol buffers. Returns an integer
-// representing the order, same as strings.Compare.
-type SortFunction[T proto.Message] func(first T, second T) int
-
 // RequireProtoSlicesEqual ensures that the expected slices of protocol buffers are equal. The
 // sort function is used to sort the messages before comparison.
-func RequireProtoSlicesEqual[T proto.Message](t *testing.T, expected []T, found []T, sorter SortFunction[T], message string, args ...any) {
-	err := AreProtoSlicesEqual(expected, found, sorter, message, args...)
+func RequireProtoSlicesEqual[T proto.Message](t testing.TB, expected, found []T, cmp func(a, b T) int, message string, args ...any) {
+	err := AreProtoSlicesEqual(expected, found, cmp, message, args...)
 	require.NoError(t, err)
-}
-
-type sortByFunc[T proto.Message] struct {
-	e []T
-	f SortFunction[T]
-}
-
-func (a sortByFunc[T]) Len() int      { return len(a.e) }
-func (a sortByFunc[T]) Swap(i, j int) { a.e[i], a.e[j] = a.e[j], a.e[i] }
-func (a sortByFunc[T]) Less(i, j int) bool {
-	return a.f(a.e[i], a.e[j]) < 0
 }

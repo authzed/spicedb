@@ -11,18 +11,19 @@ type traceInterceptor struct {
 	sqlmw.NullInterceptor
 }
 
-func (ti *traceInterceptor) ConnBeginTx(ctx context.Context, conn driver.ConnBeginTx, opts driver.TxOptions) (driver.Tx, error) {
+func (ti *traceInterceptor) ConnBeginTx(ctx context.Context, conn driver.ConnBeginTx, opts driver.TxOptions) (context.Context, driver.Tx, error) {
 	ctx, span := tracer.Start(ctx, "ConnBeginTx")
 	defer span.End()
 
-	return conn.BeginTx(ctx, opts)
+	tx, err := conn.BeginTx(ctx, opts)
+	return ctx, tx, err
 }
 
-func (ti *traceInterceptor) ConnPrepareContext(ctx context.Context, conn driver.ConnPrepareContext, query string) (driver.Stmt, error) {
+func (ti *traceInterceptor) ConnPrepareContext(ctx context.Context, conn driver.ConnPrepareContext, query string) (context.Context, driver.Stmt, error) {
 	ctx, span := tracer.Start(ctx, "ConnPrepareContext")
 	defer span.End()
-
-	return conn.PrepareContext(ctx, query)
+	stmt, err := conn.PrepareContext(ctx, query)
+	return ctx, stmt, err
 }
 
 func (ti *traceInterceptor) ConnPing(ctx context.Context, conn driver.Pinger) error {
@@ -39,11 +40,12 @@ func (ti *traceInterceptor) ConnExecContext(ctx context.Context, conn driver.Exe
 	return conn.ExecContext(ctx, query, args)
 }
 
-func (ti *traceInterceptor) ConnQueryContext(ctx context.Context, conn driver.QueryerContext, query string, args []driver.NamedValue) (driver.Rows, error) {
+func (ti *traceInterceptor) ConnQueryContext(ctx context.Context, conn driver.QueryerContext, query string, args []driver.NamedValue) (context.Context, driver.Rows, error) {
 	ctx, span := tracer.Start(ctx, "ConnQueryContext")
 	defer span.End()
 
-	return conn.QueryContext(ctx, query, args)
+	rows, err := conn.QueryContext(ctx, query, args)
+	return ctx, rows, err
 }
 
 // Connector interceptors
@@ -70,11 +72,12 @@ func (ti *traceInterceptor) StmtExecContext(ctx context.Context, conn driver.Stm
 	return conn.ExecContext(ctx, args)
 }
 
-func (ti *traceInterceptor) StmtQueryContext(ctx context.Context, conn driver.StmtQueryContext, _ string, args []driver.NamedValue) (driver.Rows, error) {
+func (ti *traceInterceptor) StmtQueryContext(ctx context.Context, conn driver.StmtQueryContext, _ string, args []driver.NamedValue) (context.Context, driver.Rows, error) {
 	ctx, span := tracer.Start(ctx, "StmtQueryContext")
 	defer span.End()
 
-	return conn.QueryContext(ctx, args)
+	rows, err := conn.QueryContext(ctx, args)
+	return ctx, rows, err
 }
 
 func (ti *traceInterceptor) StmtClose(ctx context.Context, conn driver.Stmt) error {

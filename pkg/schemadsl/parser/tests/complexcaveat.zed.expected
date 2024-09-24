@@ -1,5 +1,5 @@
 NodeTypeFile
-  end-rune = 305
+  end-rune = 321
   input-source = complex caveat test
   start-rune = 0
   child-node =>
@@ -14,7 +14,7 @@ NodeTypeFile
       input-source = complex caveat test
       start-rune = 23
       caveat-definition-expression =>
-        NodeTypeCaveatExpession
+        NodeTypeCaveatExpression
           caveat-expression-expressionstr = somecondition == 42 && somebool || something == "hi there" &&
   ({
     "themap": 42
@@ -48,14 +48,14 @@ NodeTypeFile
               type-name = bool
     NodeTypeCaveatDefinition
       caveat-definition-name = anothercaveat
-      end-rune = 285
+      end-rune = 301
       input-source = complex caveat test
       start-rune = 193
       caveat-definition-expression =>
-        NodeTypeCaveatExpession
-          caveat-expression-expressionstr = somelist.contains("hiya")
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = somelist.contains("hiya") && somemap?.foo
 
-          end-rune = 284
+          end-rune = 300
           input-source = complex caveat test
           start-rune = 259
       parameters =>
@@ -95,6 +95,6 @@ NodeTypeFile
                   type-name = int
     NodeTypeDefinition
       definition-name = user
-      end-rune = 305
+      end-rune = 321
       input-source = complex caveat test
-      start-rune = 288
+      start-rune = 304

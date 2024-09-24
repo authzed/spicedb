@@ -14,7 +14,7 @@ NodeTypeFile
       input-source = unclosed caveat test
       start-rune = 23
       caveat-definition-expression =>
-        NodeTypeCaveatExpession
+        NodeTypeCaveatExpression
           caveat-expression-expressionstr = somemap{
 
   

@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 var UserNS = ns.Namespace("user")
@@ -104,6 +105,9 @@ var FolderNS = ns.Namespace(
 	),
 )
 
+// StandardTuples defines standard tuples for tests.
+// NOTE: some tests index directly into this slice, so if you're adding a new tuple, add it
+// at the *end*.
 var StandardTuples = []string{
 	"document:companyplan#parent@folder:company#...",
 	"document:masterplan#parent@folder:strategy#...",
@@ -124,6 +128,7 @@ var StandardTuples = []string{
 	"document:specialplan#viewer_and_editor@user:missingrolegal#...",
 	"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#...",
 	"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#...",
+	"document:ownerplan#viewer@user:owner#...",
 }
 
 // EmptyDatastore returns an empty datastore for testing.
@@ -164,7 +169,7 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	ds, _ = StandardDatastoreWithSchema(ds, require)
 	ctx := context.Background()
 
-	_, err := ds.ReadWriteTx(ctx, func(tx datastore.ReadWriteTransaction) error {
+	_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
 		return tx.WriteCaveats(ctx, createTestCaveat(require))
 	})
 	require.NoError(err)
@@ -211,16 +216,15 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 	ctx := context.Background()
 	validating := NewValidatingDatastore(ds)
 
-	emptyDefaultPrefix := ""
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: schema,
-	}, &emptyDefaultPrefix)
+	}, compiler.AllowUnprefixedObjectType())
 	require.NoError(err)
 
 	_ = writeDefinitions(validating, require, compiled.ObjectDefinitions, compiled.CaveatDefinitions)
 
-	newRevision, err := validating.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	newRevision, err := validating.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		mutations := make([]*core.RelationTupleUpdate, 0, len(relationships))
 		for _, rel := range relationships {
 			mutations = append(mutations, tuple.Create(rel.CloneVT()))
@@ -237,15 +241,15 @@ func DatastoreFromSchemaAndTestRelationships(ds datastore.Datastore, schema stri
 
 func writeDefinitions(ds datastore.Datastore, require *require.Assertions, objectDefs []*core.NamespaceDefinition, caveatDefs []*core.CaveatDefinition) datastore.Revision {
 	ctx := context.Background()
-	newRevision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	newRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		if len(caveatDefs) > 0 {
 			err := rwt.WriteCaveats(ctx, caveatDefs)
 			require.NoError(err)
 		}
 
 		for _, nsDef := range objectDefs {
-			ts, err := namespace.NewNamespaceTypeSystem(nsDef,
-				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+			ts, err := typesystem.NewNamespaceTypeSystem(nsDef,
+				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
 					Namespaces: objectDefs,
 					Caveats:    caveatDefs,
 				}))
@@ -276,7 +280,10 @@ type TupleChecker struct {
 
 func (tc TupleChecker) ExactRelationshipIterator(ctx context.Context, tpl *core.RelationTuple, rev datastore.Revision) datastore.RelationshipIterator {
 	filter := tuple.MustToFilter(tpl)
-	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, datastore.RelationshipsFilterFromPublicFilter(filter))
+	dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(filter)
+	tc.Require.NoError(err)
+
+	iter, err := tc.DS.SnapshotReader(rev).QueryRelationships(ctx, dsFilter)
 	tc.Require.NoError(err)
 	return iter
 }
@@ -316,7 +323,7 @@ func (tc TupleChecker) VerifyOrderedIteratorResults(iter datastore.RelationshipI
 		expectedStr := tuple.MustString(tpl)
 
 		found := iter.Next()
-		tc.Require.NotNil(found)
+		tc.Require.NotNil(found, "expected %s, but found no additional results", expectedStr)
 
 		foundStr := tuple.MustString(found)
 		tc.Require.Equal(expectedStr, foundStr)

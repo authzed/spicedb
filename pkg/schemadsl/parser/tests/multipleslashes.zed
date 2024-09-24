@@ -1,0 +1,9 @@
+definition org/team/user {}
+
+definition foo/bar/baz {
+    relation viewer: org/team/user with foo/bar/only_on_tuesday
+}
+
+caveat foo/bar/only_on_tuesday(day_of_week string) {
+  day_of_week == 'tuesday'
+}

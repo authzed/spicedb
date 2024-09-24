@@ -20,7 +20,6 @@ import (
 	expand "github.com/authzed/spicedb/internal/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/graph"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -138,7 +137,7 @@ var (
 )
 
 func TestExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		start                 *core.ObjectAndRelation
@@ -276,7 +275,7 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	require := require.New(t)
 
@@ -290,10 +289,9 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
 	require.NoError(err)
-	require.True(revision.GreaterThan(datastore.NoRevision))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	dispatch := NewLocalOnlyDispatcher(10)
+	dispatch := NewLocalOnlyDispatcher(10, 100)
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
 		ResourceAndRelation: ONR("folder", "oops", "view"),
@@ -307,8 +305,8 @@ func TestMaxDepthExpand(t *testing.T) {
 	require.Error(err)
 }
 
-func TestCaveatedExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, goleakIgnores...)
+func TestExpandOverSchema(t *testing.T) {
+	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
 		name          string
@@ -320,6 +318,180 @@ func TestCaveatedExpand(t *testing.T) {
 		expansionMode    v1.DispatchExpandRequest_ExpansionMode
 		expectedTreeText string
 	}{
+		{
+			"basic any arrow",
+			`
+			definition user {}
+
+			definition folder {
+				relation viewer: user
+			}
+			
+			definition document {
+				relation folder: folder
+				permission view = folder->viewer
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#folder@folder:testfolder1"),
+				tuple.MustParse("document:testdoc#folder@folder:testfolder2"),
+				tuple.MustParse("folder:testfolder1#viewer@user:tom"),
+				tuple.MustParse("folder:testfolder1#viewer@user:fred"),
+				tuple.MustParse("folder:testfolder2#viewer@user:sarah"),
+			},
+
+			tuple.ParseONR("document:testdoc#view"),
+
+			v1.DispatchExpandRequest_SHALLOW,
+			`intermediate_node:  {
+				operation:  UNION
+				child_nodes:  {
+				intermediate_node:  {
+					operation:  UNION
+					child_nodes:  {
+					leaf_node:  {
+						subjects:  {
+						subject:  {
+							namespace:  "user"
+							object_id:  "fred"
+							relation:  "..."
+						}
+						}
+						subjects:  {
+						subject:  {
+							namespace:  "user"
+							object_id:  "tom"
+							relation:  "..."
+						}
+						}
+					}
+					expanded:  {
+						namespace:  "folder"
+						object_id:  "testfolder1"
+						relation:  "viewer"
+					}
+					}
+					child_nodes:  {
+					leaf_node:  {
+						subjects:  {
+						subject:  {
+							namespace:  "user"
+							object_id:  "sarah"
+							relation:  "..."
+						}
+						}
+					}
+					expanded:  {
+						namespace:  "folder"
+						object_id:  "testfolder2"
+						relation:  "viewer"
+					}
+					}
+				}
+				expanded:  {
+					namespace:  "document"
+					object_id:  "testdoc"
+					relation:  "view"
+				}
+				}
+			}
+			expanded:  {
+				namespace:  "document"
+				object_id:  "testdoc"
+				relation:  "view"
+			}`,
+		},
+		{
+			"basic all arrow",
+			`
+			definition user {}
+
+			definition folder {
+				relation viewer: user
+			}
+			
+			definition document {
+				relation folder: folder
+				permission view = folder.all(viewer)
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("document:testdoc#folder@folder:testfolder1"),
+				tuple.MustParse("document:testdoc#folder@folder:testfolder2"),
+				tuple.MustParse("folder:testfolder1#viewer@user:tom"),
+				tuple.MustParse("folder:testfolder1#viewer@user:fred"),
+				tuple.MustParse("folder:testfolder2#viewer@user:tom"),
+				tuple.MustParse("folder:testfolder2#viewer@user:sarah"),
+			},
+
+			tuple.ParseONR("document:testdoc#view"),
+
+			v1.DispatchExpandRequest_SHALLOW,
+			`
+			intermediate_node: {
+				operation: UNION
+				child_nodes: {
+				intermediate_node: {
+					operation: INTERSECTION
+					child_nodes: {
+					leaf_node: {
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "fred"
+							relation: "..."
+						}
+						}
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "tom"
+							relation: "..."
+						}
+						}
+					}
+					expanded: {
+						namespace: "folder"
+						object_id: "testfolder1"
+						relation: "viewer"
+					}
+					}
+					child_nodes: {
+					leaf_node: {
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "sarah"
+							relation: "..."
+						}
+						}
+						subjects: {
+						subject: {
+							namespace: "user"
+							object_id: "tom"
+							relation: "..."
+						}
+						}
+					}
+					expanded: {
+						namespace: "folder"
+						object_id: "testfolder2"
+						relation: "viewer"
+					}
+					}
+				}
+				expanded: {
+					namespace: "document"
+					object_id: "testdoc"
+					relation: "view"
+				}
+				}
+			}
+			expanded: {
+				namespace: "document"
+				object_id: "testdoc"
+				relation: "view"
+			}
+			`,
+		},
 		{
 			"basic caveated subject",
 			`
@@ -630,6 +802,95 @@ func TestCaveatedExpand(t *testing.T) {
 				object_id:  "testdoc"
 				relation:  "view"
 			}
+			`,
+		},
+		{
+			"recursive caveated indirect arrow",
+			`definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+		  
+			definition folder {
+				relation container: folder with somecaveat
+				relation member: user
+				permission view = container->member
+			}
+		  
+			definition resource {
+				relation folder: folder
+				permission view = folder->view
+			}`,
+			[]*core.RelationTuple{
+				tuple.MustParse("resource:someresource#folder@folder:first"),
+				tuple.MustParse("folder:first#container@folder:second[somecaveat]"),
+				tuple.MustParse("folder:first#member@user:notreachable"),
+				tuple.MustParse("folder:second#member@user:tom"),
+			},
+			tuple.ParseONR("resource:someresource#view"),
+			v1.DispatchExpandRequest_RECURSIVE,
+			`
+			intermediate_node: {
+				operation: UNION
+				child_nodes: {
+				  intermediate_node: {
+					operation: UNION
+					child_nodes: {
+					  intermediate_node: {
+						operation: UNION
+						child_nodes: {
+						  intermediate_node: {
+							operation: UNION
+							child_nodes: {
+							  leaf_node: {
+								subjects: {
+								  subject: {
+									namespace: "user"
+									object_id: "tom"
+									relation: "..."
+								  }
+								}
+							  }
+							  expanded: {
+								namespace: "folder"
+								object_id: "second"
+								relation: "member"
+							  }
+							  caveat_expression: {
+								caveat: {
+								  caveat_name: "somecaveat"
+								  context: {}
+								}
+							  }
+							}
+						  }
+						  expanded: {
+							namespace: "folder"
+							object_id: "first"
+							relation: "view"
+						  }
+						}
+					  }
+					  expanded: {
+						namespace: "folder"
+						object_id: "first"
+						relation: "view"
+					  }
+					}
+				  }
+				  expanded: {
+					namespace: "resource"
+					object_id: "someresource"
+					relation: "view"
+				  }
+				}
+			  }
+			  expanded: {
+				namespace: "resource"
+				object_id: "someresource"
+				relation: "view"
+			  }
 			`,
 		},
 	}

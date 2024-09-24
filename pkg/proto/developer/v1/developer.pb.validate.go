@@ -634,6 +634,35 @@ func (m *Operation) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetSchemaWarningsParameters()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, OperationValidationError{
+					field:  "SchemaWarningsParameters",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, OperationValidationError{
+					field:  "SchemaWarningsParameters",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSchemaWarningsParameters()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return OperationValidationError{
+				field:  "SchemaWarningsParameters",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return OperationMultiError(errors)
 	}
@@ -997,6 +1026,35 @@ func (m *OperationResult) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetSchemaWarningsResult()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, OperationResultValidationError{
+					field:  "SchemaWarningsResult",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, OperationResultValidationError{
+					field:  "SchemaWarningsResult",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSchemaWarningsResult()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return OperationResultValidationError{
+				field:  "SchemaWarningsResult",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return OperationResultMultiError(errors)
 	}
@@ -1075,6 +1133,114 @@ var _ interface {
 	ErrorName() string
 } = OperationResultValidationError{}
 
+// Validate checks the field values on DeveloperWarning with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
+func (m *DeveloperWarning) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DeveloperWarning with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// DeveloperWarningMultiError, or nil if none found.
+func (m *DeveloperWarning) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DeveloperWarning) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Message
+
+	// no validation rules for Line
+
+	// no validation rules for Column
+
+	// no validation rules for SourceCode
+
+	if len(errors) > 0 {
+		return DeveloperWarningMultiError(errors)
+	}
+
+	return nil
+}
+
+// DeveloperWarningMultiError is an error wrapping multiple validation errors
+// returned by DeveloperWarning.ValidateAll() if the designated constraints
+// aren't met.
+type DeveloperWarningMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DeveloperWarningMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DeveloperWarningMultiError) AllErrors() []error { return m }
+
+// DeveloperWarningValidationError is the validation error returned by
+// DeveloperWarning.Validate if the designated constraints aren't met.
+type DeveloperWarningValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DeveloperWarningValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DeveloperWarningValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DeveloperWarningValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DeveloperWarningValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DeveloperWarningValidationError) ErrorName() string { return "DeveloperWarningValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DeveloperWarningValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDeveloperWarning.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DeveloperWarningValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DeveloperWarningValidationError{}
+
 // Validate checks the field values on DeveloperError with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -1108,6 +1274,64 @@ func (m *DeveloperError) validate(all bool) error {
 	// no validation rules for Kind
 
 	// no validation rules for Context
+
+	if all {
+		switch v := interface{}(m.GetCheckDebugInformation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DeveloperErrorValidationError{
+					field:  "CheckDebugInformation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DeveloperErrorValidationError{
+					field:  "CheckDebugInformation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCheckDebugInformation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DeveloperErrorValidationError{
+				field:  "CheckDebugInformation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetCheckResolvedDebugInformation()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, DeveloperErrorValidationError{
+					field:  "CheckResolvedDebugInformation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, DeveloperErrorValidationError{
+					field:  "CheckResolvedDebugInformation",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCheckResolvedDebugInformation()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return DeveloperErrorValidationError{
+				field:  "CheckResolvedDebugInformation",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return DeveloperErrorMultiError(errors)
@@ -2588,3 +2812,241 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = FormatSchemaResultValidationError{}
+
+// Validate checks the field values on SchemaWarningsParameters with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SchemaWarningsParameters) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SchemaWarningsParameters with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SchemaWarningsParametersMultiError, or nil if none found.
+func (m *SchemaWarningsParameters) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SchemaWarningsParameters) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return SchemaWarningsParametersMultiError(errors)
+	}
+
+	return nil
+}
+
+// SchemaWarningsParametersMultiError is an error wrapping multiple validation
+// errors returned by SchemaWarningsParameters.ValidateAll() if the designated
+// constraints aren't met.
+type SchemaWarningsParametersMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SchemaWarningsParametersMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SchemaWarningsParametersMultiError) AllErrors() []error { return m }
+
+// SchemaWarningsParametersValidationError is the validation error returned by
+// SchemaWarningsParameters.Validate if the designated constraints aren't met.
+type SchemaWarningsParametersValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SchemaWarningsParametersValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SchemaWarningsParametersValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SchemaWarningsParametersValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SchemaWarningsParametersValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SchemaWarningsParametersValidationError) ErrorName() string {
+	return "SchemaWarningsParametersValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SchemaWarningsParametersValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSchemaWarningsParameters.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SchemaWarningsParametersValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SchemaWarningsParametersValidationError{}
+
+// Validate checks the field values on SchemaWarningsResult with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SchemaWarningsResult) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SchemaWarningsResult with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SchemaWarningsResultMultiError, or nil if none found.
+func (m *SchemaWarningsResult) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SchemaWarningsResult) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetWarnings() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, SchemaWarningsResultValidationError{
+						field:  fmt.Sprintf("Warnings[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, SchemaWarningsResultValidationError{
+						field:  fmt.Sprintf("Warnings[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return SchemaWarningsResultValidationError{
+					field:  fmt.Sprintf("Warnings[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return SchemaWarningsResultMultiError(errors)
+	}
+
+	return nil
+}
+
+// SchemaWarningsResultMultiError is an error wrapping multiple validation
+// errors returned by SchemaWarningsResult.ValidateAll() if the designated
+// constraints aren't met.
+type SchemaWarningsResultMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SchemaWarningsResultMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SchemaWarningsResultMultiError) AllErrors() []error { return m }
+
+// SchemaWarningsResultValidationError is the validation error returned by
+// SchemaWarningsResult.Validate if the designated constraints aren't met.
+type SchemaWarningsResultValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SchemaWarningsResultValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SchemaWarningsResultValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SchemaWarningsResultValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SchemaWarningsResultValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SchemaWarningsResultValidationError) ErrorName() string {
+	return "SchemaWarningsResultValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SchemaWarningsResultValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSchemaWarningsResult.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SchemaWarningsResultValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SchemaWarningsResultValidationError{}

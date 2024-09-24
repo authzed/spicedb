@@ -6,17 +6,29 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/shopspring/decimal"
+	"github.com/ccoveille/go-safecast"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 var _ common.GarbageCollector = (*Datastore)(nil)
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
+func (mds *Datastore) HasGCRun() bool {
+	return mds.gcHasRun.Load()
+}
+
+func (mds *Datastore) MarkGCCompleted() {
+	mds.gcHasRun.Store(true)
+}
+
+func (mds *Datastore) ResetGCCompleted() {
+	mds.gcHasRun.Store(false)
+}
+
 func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()
@@ -35,7 +47,6 @@ func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	return now.UTC(), nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - main difference is how the PSQL driver handles null values
 func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datastore.Revision, error) {
 	// Find the highest transaction ID before the GC window.
@@ -54,10 +65,15 @@ func (mds *Datastore) TxIDBefore(ctx context.Context, before time.Time) (datasto
 		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
 		return datastore.NoRevision, nil
 	}
-	return revision.NewFromDecimal(decimal.NewFromInt(value.Int64)), nil
+
+	uintValue, err := safecast.ToUint64(value.Int64)
+	if err != nil {
+		return datastore.NoRevision, spiceerrors.MustBugf("value could not be cast to uint64: %v", err)
+	}
+
+	return revisions.NewForTransactionID(uintValue), nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - implementation misses metrics
 func (mds *Datastore) DeleteBeforeTx(
 	ctx context.Context,
@@ -83,7 +99,6 @@ func (mds *Datastore) DeleteBeforeTx(
 	return
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // - query was reworked to make it compatible with Vitess
 // - API differences with PSQL driver
 func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {

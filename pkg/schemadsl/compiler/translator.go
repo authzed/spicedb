@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/caveats"
-
-	"github.com/authzed/spicedb/pkg/util"
-
+	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
+	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/namespace"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 )
@@ -23,11 +21,12 @@ type translationContext struct {
 	objectTypePrefix *string
 	mapper           input.PositionMapper
 	schemaString     string
+	skipValidate     bool
 }
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
 	var prefix, name string
-	if err := stringz.SplitExact(definitionName, "/", &prefix, &name); err != nil {
+	if err := stringz.SplitInto(definitionName, "/", &prefix, &name); err != nil {
 		if tctx.objectTypePrefix == nil {
 			return "", fmt.Errorf("found reference `%s` without prefix", definitionName)
 		}
@@ -49,7 +48,7 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
-	names := util.NewSet[string]()
+	names := mapz.NewSet[string]()
 
 	for _, definitionNode := range root.GetChildren() {
 		var definition SchemaDefinition
@@ -85,6 +84,8 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 		CaveatDefinitions:  caveatDefinitions,
 		ObjectDefinitions:  objectDefinitions,
 		OrderedDefinitions: orderedDefinitions,
+		rootNode:           root,
+		mapper:             tctx.mapper,
 	}, nil
 }
 
@@ -150,12 +151,12 @@ func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core
 		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
 	}
 
-	source, err := caveats.NewSource(expressionString, rnge.Start(), caveatPath)
+	source, err := caveats.NewSource(expressionString, caveatPath)
 	if err != nil {
 		return nil, defNode.ErrorWithSourcef(expressionString, "invalid expression: %w", err)
 	}
 
-	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source)
+	compiled, err := caveats.CompileCaveatWithSource(env, caveatPath, source, rnge.Start())
 	if err != nil {
 		return nil, expressionStringNode.ErrorWithSourcef(expressionString, "invalid expression for caveat `%s`: %w", definitionName, err)
 	}
@@ -222,10 +223,12 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 	if len(relationsAndPermissions) == 0 {
 		ns := namespace.Namespace(nspath)
 		ns.Metadata = addComments(ns.Metadata, defNode)
+		ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
-		err = ns.Validate()
-		if err != nil {
-			return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+		if !tctx.skipValidate {
+			if err = ns.Validate(); err != nil {
+				return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+			}
 		}
 
 		return ns, nil
@@ -235,9 +238,10 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 	ns.Metadata = addComments(ns.Metadata, defNode)
 	ns.SourcePosition = getSourcePosition(defNode, tctx.mapper)
 
-	err = ns.Validate()
-	if err != nil {
-		return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+	if !tctx.skipValidate {
+		if err := ns.Validate(); err != nil {
+			return nil, defNode.Errorf("error in object definition %s: %w", nspath, err)
+		}
 	}
 
 	return ns, nil
@@ -258,9 +262,13 @@ func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.Sour
 		return nil
 	}
 
+	// We're okay with these being zero if the cast fails.
+	uintLine, _ := safecast.ToUint64(line)
+	uintCol, _ := safecast.ToUint64(col)
+
 	return &core.SourcePosition{
-		ZeroIndexedLineNumber:     uint64(line),
-		ZeroIndexedColumnPosition: uint64(col),
+		ZeroIndexedLineNumber:     uintLine,
+		ZeroIndexedColumnPosition: uintCol,
 	}
 }
 
@@ -332,9 +340,10 @@ func translateRelation(tctx translationContext, relationNode *dslNode) (*core.Re
 		return nil, err
 	}
 
-	err = relation.Validate()
-	if err != nil {
-		return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
+	if !tctx.skipValidate {
+		if err := relation.Validate(); err != nil {
+			return nil, relationNode.Errorf("error in relation %s: %w", relationName, err)
+		}
 	}
 
 	return relation, nil
@@ -361,9 +370,10 @@ func translatePermission(tctx translationContext, permissionNode *dslNode) (*cor
 		return nil, err
 	}
 
-	err = permission.Validate()
-	if err != nil {
-		return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
+	if !tctx.skipValidate {
+		if err := permission.Validate(); err != nil {
+			return nil, permissionNode.Errorf("error in permission %s: %w", permissionName, err)
+		}
 	}
 
 	return permission, nil
@@ -515,6 +525,15 @@ func translateExpressionOperationDirect(tctx translationContext, expressionOpNod
 			return nil, err
 		}
 
+		if expressionOpNode.Has(dslshape.NodeArrowExpressionFunctionName) {
+			functionName, err := expressionOpNode.GetString(dslshape.NodeArrowExpressionFunctionName)
+			if err != nil {
+				return nil, err
+			}
+
+			return namespace.MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation), nil
+		}
+
 		return namespace.TupleToUserset(tuplesetRelation, usersetRelation), nil
 
 	case dslshape.NodeTypeUnionExpression:
@@ -585,9 +604,10 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 			return nil, typeRefNode.Errorf("invalid caveat: %w", err)
 		}
 
-		err = ref.Validate()
-		if err != nil {
-			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+		if !tctx.skipValidate {
+			if err := ref.Validate(); err != nil {
+				return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+			}
 		}
 
 		ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
@@ -614,16 +634,17 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		return nil, typeRefNode.Errorf("invalid caveat: %w", err)
 	}
 
-	err = ref.Validate()
-	if err != nil {
-		return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+	if !tctx.skipValidate {
+		if err := ref.Validate(); err != nil {
+			return nil, typeRefNode.Errorf("invalid type relation: %w", err)
+		}
 	}
 
 	ref.SourcePosition = getSourcePosition(typeRefNode, tctx.mapper)
 	return ref, nil
 }
 
-func addWithCaveats(_ translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
 	caveats := typeRefNode.List(dslshape.NodeSpecificReferencePredicateCaveat)
 	if len(caveats) == 0 {
 		return nil
@@ -638,8 +659,13 @@ func addWithCaveats(_ translationContext, typeRefNode *dslNode, ref *core.Allowe
 		return err
 	}
 
+	nspath, err := tctx.prefixedPath(name)
+	if err != nil {
+		return err
+	}
+
 	ref.RequiredCaveat = &core.AllowedCaveat{
-		CaveatName: name,
+		CaveatName: nspath,
 	}
 	return nil
 }

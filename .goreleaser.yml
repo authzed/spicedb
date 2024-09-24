@@ -1,11 +1,18 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 ---
+version: 2
+git:
+  tag_sort: "-version:creatordate"
+  prerelease_suffix: "-"
+before:
+  hooks:
+    - "go run mage.go gen:completions"
 builds:
   - main: "./cmd/spicedb"
     env:
       - "CGO_ENABLED=0"
     goos:
       - "linux"
-      - "windows"
       - "darwin"
     goarch:
       - "amd64"
@@ -14,6 +21,11 @@ builds:
     ldflags:
       - "-s -w"
       - "-X github.com/jzelinskie/cobrautil/v2.Version=v{{ .Version }}"
+archives:
+  - files:
+      - "README.md"
+      - "LICENSE"
+      - "completions/*"
 nfpms:
   - vendor: "authzed inc."
     homepage: "https://spicedb.io"
@@ -25,41 +37,76 @@ nfpms:
       - "apk"
       - "deb"
       - "rpm"
+    contents:
+      - src: "./completions/spicedb.bash"
+        dst: "/usr/share/bash-completion/completions/spicedb"
+        file_info:
+          mode: 0644
+      - src: "./completions/spicedb.fish"
+        dst: "/usr/share/fish/vendor_completions.d/spicedb.fish"
+        file_info:
+          mode: 0644
+      - src: "./completions/spicedb.zsh"
+        dst: "/usr/share/zsh/vendor-completions/_spicedb"
+        file_info:
+          mode: 0644
 furies:
   - account: "authzed"
     secret_name: "GEMFURY_PUSH_TOKEN"
-brews:
-  - tap:
-      owner: "authzed"
-      name: "homebrew-tap"
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
-    download_strategy: "CurlDownloadStrategy"
-    commit_author:
-      name: "authzedbot"
-      email: "infrastructure@authzed.com"
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-    homepage: "https://authzed.com/"
-    description: "SpiceDB is a Zanzibar-inspired database that stores, computes, and validates application permissions."
+    disable: "{{ gt (len .Prerelease) 0 }}"
+snapcrafts:
+  - name: "spicedb"
+    publish: true
+    summary: "A database that stores, computes, and validates application permissions"
+    description: |
+      SpiceDB is an open source, Google Zanzibar-inspired database for creating and managing security-critical application permissions.
+
+      Developers create a schema and use client libraries to apply the schema to the database, insert relationships into the database, and query the database to efficiently check permissions in their applications.
+    grade: "stable"
+    confinement: "strict"
     license: "Apache-2.0"
-    folder: "Formula"
-    pull_request:
-      enabled: true
-    custom_block: |
-      head "https://github.com/authzed/spicedb.git", :branch => "main"
-    dependencies:
-      - name: "go"
-        type: "build"
-    test: |
-      system "#{bin}/spicedb version"
-    install: |
-      if !File.exists? "spicedb"
-        system "go build --ldflags \"-s -w -X github.com/jzelinskie/cobrautil/v2.Version=$(git describe --always --abbrev=7 --dirty --tags)\" ./cmd/spicedb"
-      end
-      bin.install "spicedb"
-      (bash_completion/"spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "bash")
-      (zsh_completion/"_spicedb").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "zsh")
-      (fish_completion/"spicedb.fish").write Utils.safe_popen_read("#{bin}/spicedb", "completion", "fish")
+    base: "core22"
+    apps:
+      spicedb:
+        command: "spicedb"
+        completer: "completions/spicedb.bash"
+        plugs:
+          - "network-bind"
+          - "network"
+brews:
+  - name: "{{.ProjectName}}"
+    <<: &brew-shared
+      description: "Google Zanzibar-inspired permissions database for fine-grained access control"
+      homepage: "https://github.com/authzed/spicedb"
+      license: "Apache-2.0"
+      dependencies:
+        - name: "go"
+          type: "build"
+      custom_block: |
+        head "https://github.com/authzed/spicedb.git", :branch => "main"
+      url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+      install: |
+        if build.head?
+          versionVar = "github.com/jzelinskie/cobrautil/v2.Version"
+          versionCmd = "$(git describe --always --abbrev=7 --dirty --tags)"
+          system "go build --ldflags '-s -w -X #{versionVar}=#{versionCmd}' ./cmd/spicedb"
+        end
+        bin.install "spicedb"
+        generate_completions_from_executable(bin/"spicedb", "completion", shells: [:bash, :zsh, :fish])
+      test: |
+        system "#{bin}/spicedb version"
+      repository:
+        owner: "authzed"
+        name: "homebrew-tap"
+        token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      commit_author:
+        name: "authzedbot"
+        email: "infrastructure@authzed.com"
+      commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+      directory: "Formula"
+      skip_upload: "auto"
+  - name: "{{.ProjectName}}@{{.Version}}"
+    <<: *brew-shared
 dockers:
   # AMD64
   - image_templates:
@@ -144,14 +191,14 @@ docker_manifests:
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 changelog:
   use: "github-native"
   sort: "asc"
 nightly:
-  name_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-{{ .ShortCommit }}"
 release:
-  draft: true
+  draft: false
   prerelease: "auto"
   mode: "replace"
   footer: |

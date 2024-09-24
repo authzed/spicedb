@@ -104,6 +104,7 @@ func TestParser(t *testing.T) {
 		{"indented comments test", "indentedcomments"},
 		{"parens test", "parens"},
 		{"multiple parens test", "multiparen"},
+		{"multiple slashes in object type", "multipleslashes"},
 		{"wildcard test", "wildcard"},
 		{"broken wildcard test", "brokenwildcard"},
 		{"nil test", "nil"},
@@ -113,6 +114,14 @@ func TestParser(t *testing.T) {
 		{"empty caveat test", "emptycaveat"},
 		{"unclosed caveat test", "unclosedcaveat"},
 		{"invalid caveat expr test", "invalidcaveatexpr"},
+		{"associativity test", "associativity"},
+		{"super large test", "superlarge"},
+		{"invalid permission name test", "invalid_perm_name"},
+		{"union positions test", "unionpos"},
+		{"arrow operations test", "arrowops"},
+		{"arrow illegal operations test", "arrowillegalops"},
+		{"arrow illegal function test", "arrowillegalfunc"},
+		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
 	}
 
 	for _, test := range parserTests {

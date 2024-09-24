@@ -5,23 +5,17 @@ on:  # yamllint disable-line rule:truthy
     types: ["created"]
 permissions:
   contents: "write"
-env:
-  GO_VERSION: "~1.20.3"
 jobs:
   build:
     name: "Build WASM"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
         with:
           ref: "${{ env.GITHUB_SHA }}"
       - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
-      - run: |
-          echo "Building WASM..."
-          GOOS=js GOARCH=wasm go build  -o dist/development.wasm ./pkg/development/wasm/...
-          echo "Build complete"
+      - name: "Build WASM"
+        run: "go run mage.go build:wasm"
       - uses: "shogo82148/actions-upload-release-asset@v1"
         with:
           upload_url: "${{ github.event.release.upload_url }}"

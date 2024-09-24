@@ -3,11 +3,12 @@ package blocks
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
-
 	yamlv3 "gopkg.in/yaml.v3"
+
+	"github.com/ccoveille/go-safecast"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
@@ -60,13 +61,22 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
+	line, err := safecast.ToUint64(node.Line)
+	if err != nil {
+		return err
+	}
+	column, err := safecast.ToUint64(node.Column)
+	if err != nil {
+		return err
+	}
+
 	parsed := tuple.ParseONR(ors.ObjectRelationString)
 	if parsed == nil {
 		return spiceerrors.NewErrorWithSource(
 			fmt.Errorf("could not parse %s", ors.ObjectRelationString),
 			ors.ObjectRelationString,
-			uint64(node.Line),
-			uint64(node.Column),
+			line,
+			column,
 		)
 	}
 
@@ -123,13 +133,22 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return convertYamlError(err)
 	}
 
+	line, err := safecast.ToUint64(node.Line)
+	if err != nil {
+		return err
+	}
+	column, err := safecast.ToUint64(node.Column)
+	if err != nil {
+		return err
+	}
+
 	subjectWithExceptions, subErr := es.ValidationString.Subject()
 	if subErr != nil {
 		return spiceerrors.NewErrorWithSource(
 			subErr,
 			subErr.SourceCodeString,
-			uint64(node.Line)+subErr.LineNumber,
-			uint64(node.Column)+subErr.ColumnPosition,
+			line+subErr.LineNumber,
+			column+subErr.ColumnPosition,
 		)
 	}
 
@@ -138,8 +157,8 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 		return spiceerrors.NewErrorWithSource(
 			onrErr,
 			onrErr.SourceCodeString,
-			uint64(node.Line)+onrErr.LineNumber,
-			uint64(node.Column)+onrErr.ColumnPosition,
+			line+onrErr.LineNumber,
+			column+onrErr.ColumnPosition,
 		)
 	}
 
@@ -179,13 +198,13 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 	}
 
-	subjectONRString := groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
+	subjectONRString := groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
 	subjectONR := tuple.ParseSubjectONR(subjectONRString)
 	if subjectONR == nil {
 		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectONRString), subjectONRString, 0, 0)
 	}
 
-	exceptionsString := strings.TrimSpace(groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
+	exceptionsString := strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
 	var exceptions []SubjectAndCaveat
 
 	if len(exceptionsString) > 0 {
@@ -207,7 +226,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 		}
 	}
 
-	isCaveated := len(strings.TrimSpace(groups[stringz.SliceIndex(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "caveat")])) > 0
+	isCaveated := len(strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "caveat")])) > 0
 	return &SubjectWithExceptions{SubjectAndCaveat{subjectONR, isCaveated}, exceptions}, nil
 }
 

@@ -1,12 +1,15 @@
 ---
 name: "Pull Request Labeler"
 on:  # yamllint disable-line rule:truthy
-  - "pull_request_target"
+  pull_request_target:
+  merge_group:
+    types:
+      - "checks_requested"
 jobs:
   triage:
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/labeler@v3"
+      - uses: "actions/labeler@v5"
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           sync-labels: true

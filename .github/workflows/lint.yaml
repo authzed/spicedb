@@ -7,91 +7,43 @@ on: # yamllint disable-line rule:truthy
       - "main"
   pull_request:
     branches: ["*"]
-env:
-  GO_VERSION: "~1.20.3"
+  merge_group:
+    types:
+      - "checks_requested"
 jobs:
+  go-license-check:
+    name: "License Check"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "authzed/actions/setup-go@main"
+      - name: "Check Licenses"
+        uses: "authzed/actions/go-license-check@main"
+        with:
+          ignore: "buf.build" # Has no license information
+
   go-lint:
     name: "Lint Go"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
+      - name: "Lint Go"
+        run: "go run mage.go lint:go"
+      - uses: "chainguard-dev/actions/nodiff@main"
         with:
-          go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/gofumpt@main"
-      - uses: "authzed/actions/gofumpt@main"
-        with:
-          working_directory: "e2e"
-      - uses: "authzed/actions/go-mod-tidy@main"
-      - uses: "authzed/actions/go-mod-tidy@main"
-        with:
-          working_directory: "e2e"
-      - uses: "authzed/actions/go-mod-tidy@main"
-        with:
-          working_directory: "tools/analyzers"
-      - uses: "authzed/actions/go-generate@main"
-      - uses: "authzed/actions/golangci-lint@main"
-      - uses: "authzed/actions/golangci-lint@main"
-        with:
-          working_directory: "e2e"
-      - uses: "authzed/actions/go-build@main"
-        with:
-          working_directory: "tools/analyzers"
-      - name: "Run custom analyzers"
-        run: >
-          ./tools/analyzers/analyzers
-          -nilvaluecheck
-          -nilvaluecheck.skip-pkg "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-          -nilvaluecheck.disallowed-nil-return-type-paths "*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchCheckResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchExpandResponse,*github.com/authzed/spicedb/pkg/proto/dispatch/v1.DispatchLookupResponse"
-          -exprstatementcheck
-          -exprstatementcheck.disallowed-expr-statement-types "*github.com/rs/zerolog.Event:MarshalZerologObject:missing Send or Msg on zerolog log Event"
-          -closeafterusagecheck
-          -closeafterusagecheck.must-be-closed-after-usage-types="github.com/authzed/spicedb/pkg/datastore.RelationshipIterator"
-          -closeafterusagecheck.skip-pkg="github.com/authzed/spicedb/pkg/datastore,github.com/authzed/spicedb/internal/datastore,github.com/authzed/spicedb/internal/testfixtures"
-          -paniccheck
-          -paniccheck.skip-files="_test,zz_"
-          ./...
-      - uses: "authzed/actions/govulncheck@main"
+          path: ""
+          fixup-command: "go run mage.go lint:go"
 
   extra-lint:
     name: "Lint YAML & Markdown"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/yaml-lint@main"
-      - uses: "authzed/actions/markdown-lint@main"
-      - uses: "ludeeus/action-shellcheck@2.0.0"
+      - uses: "actions/checkout@v4"
+      - uses: "authzed/actions/setup-go@main"
+      - name: "Lint Everything Else"
+        run: "go run mage.go lint:extra"
+      - uses: "chainguard-dev/actions/nodiff@main"
         with:
-          scandir: "./hack"
-
-  codeql:
-    name: "Analyze with CodeQL"
-    runs-on: "ubuntu-latest-8-cores"
-    permissions:
-      actions: "read"
-      contents: "read"
-      security-events: "write"
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ["go"]
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/codeql@main"
-
-  trivy:
-    name: "Analyze with Trivy"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "aquasecurity/trivy-action@0.9.0"
-        with:
-          scan-type: "fs"
-          ignore-unfixed: true
-          format: "sarif"
-          output: "trivy-results.sarif"
-          severity: "CRITICAL"
-      - name: "Upload Trivy scan results to GitHub Security tab"
-        uses: "github/codeql-action/upload-sarif@v2"
-        with:
-          sarif_file: "trivy-results.sarif"
+          path: ""
+          fixup-command: "go run mage.go lint:extra"

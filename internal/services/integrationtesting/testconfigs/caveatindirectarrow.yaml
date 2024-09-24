@@ -1,0 +1,41 @@
+---
+schema: |-
+  definition user {}
+
+  caveat team_is_admin(admin_teams list<string>, self string) {
+  	self in admin_teams
+  }
+
+  definition team {
+  	relation admin: team with team_is_admin
+  	relation member: user
+  	permission view = admin->member
+  }
+
+  definition resource {
+  	relation team: team
+  	permission can_view = team->view
+  }
+relationships: |-
+  // team definition
+  team:A#admin@team:A[team_is_admin:{"self":"A"}]
+  team:B#admin@team:B[team_is_admin:{"self":"B"}]
+  team:C#admin@team:C[team_is_admin:{"self":"C"}]
+  // team members
+  team:A#member@user:clara
+  // resources
+  resource:1#team@team:B
+  resource:2#team@team:C
+  resource:3#team@team:C
+  resource:4#team@team:A
+  resource:5#team@team:B
+  resource:6#team@team:B
+  resource:7#team@team:C
+assertions:
+  assertTrue:
+    - 'resource:4#can_view@user:clara with {"admin_teams": ["A"]}'
+  assertCaveated:
+    - "resource:4#can_view@user:clara"
+  assertFalse:
+    - 'resource:4#can_view@user:clara with {"admin_teams": ["B"]}'
+    - 'resource:1#can_view@user:clara with {"admin_teams": ["B"]}'

@@ -1,9 +1,5 @@
 package spanner
 
-import (
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-)
-
 const (
 	tableNamespace     = "namespace_config"
 	colNamespaceName   = "namespace"
@@ -21,19 +17,6 @@ const (
 	colCaveatName       = "caveat_name"
 	colCaveatContext    = "caveat_context"
 
-	tableChangelog            = "changelog"
-	colChangeUUID             = "uuid"
-	colChangeTS               = "timestamp"
-	colChangeOp               = "operation"
-	colChangeNamespace        = "namespace"
-	colChangeObjectID         = "object_id"
-	colChangeRelation         = "relation"
-	colChangeUsersetNamespace = "userset_namespace"
-	colChangeUsersetObjectID  = "userset_object_id"
-	colChangeUsersetRelation  = "userset_relation"
-	colChangeCaveatName       = "caveat_name"
-	colChangeCaveatContext    = "caveat_context"
-
 	tableCaveat         = "caveat"
 	colName             = "name"
 	colCaveatDefinition = "definition"
@@ -42,13 +25,11 @@ const (
 	tableMetadata = "metadata"
 	colUniqueID   = "unique_id"
 
-	tableCounters = "relationship_estimate_counters"
-	colID         = "id"
-	colCount      = "count"
-
-	colChangeOpCreate = 1
-	colChangeOpTouch  = 2
-	colChangeOpDelete = 3
+	tableRelationshipCounter     = "relationship_counter"
+	colCounterName               = "name"
+	colCounterSerializedFilter   = "serialized_filter"
+	colCounterCurrentCount       = "current_count"
+	colCounterUpdatedAtTimestamp = "updated_at_timestamp"
 )
 
 var allRelationshipCols = []string{
@@ -61,25 +42,4 @@ var allRelationshipCols = []string{
 	colTimestamp,
 	colCaveatName,
 	colCaveatContext,
-}
-
-var allChangelogCols = []string{
-	colChangeTS,
-	colChangeUUID,
-	colChangeOp,
-	colChangeNamespace,
-	colChangeObjectID,
-	colChangeRelation,
-	colChangeUsersetNamespace,
-	colChangeUsersetObjectID,
-	colChangeUsersetRelation,
-	colChangeCaveatName,
-	colChangeCaveatContext,
-}
-
-// Both creates and touches are emitted as touched to match other datastores.
-var opMap = map[int64]core.RelationTupleUpdate_Operation{
-	colChangeOpCreate: core.RelationTupleUpdate_TOUCH,
-	colChangeOpTouch:  core.RelationTupleUpdate_TOUCH,
-	colChangeOpDelete: core.RelationTupleUpdate_DELETE,
 }

@@ -11,10 +11,10 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // ObjectAndPermission contains an object ID and whether it is a caveated result.
@@ -51,13 +51,13 @@ const (
 // and subjects found for consistency testing.
 type AccessibilitySet struct {
 	// ResourcesByNamespace is a multimap of all defined resources, by resource namespace.
-	ResourcesByNamespace *util.MultiMap[string, *core.ObjectAndRelation]
+	ResourcesByNamespace *mapz.MultiMap[string, *core.ObjectAndRelation]
 
 	// SubjectsByNamespace is a multimap of all defined subjects, by subject namespace.
-	SubjectsByNamespace *util.MultiMap[string, *core.ObjectAndRelation]
+	SubjectsByNamespace *mapz.MultiMap[string, *core.ObjectAndRelation]
 
 	// RelationshipsByResourceNamespace is a multimap of all defined relationships, by resource namespace.
-	RelationshipsByResourceNamespace *util.MultiMap[string, *core.RelationTuple]
+	RelationshipsByResourceNamespace *mapz.MultiMap[string, *core.RelationTuple]
 
 	// UncomputedPermissionshipByRelationship is a map from a relationship string of the form
 	// "resourceType:resourceObjectID#permission@subjectType:subjectObjectID" to its
@@ -80,10 +80,10 @@ type AccessibilitySet struct {
 // outside of testing.
 func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *AccessibilitySet {
 	// Compute all relationships and objects by namespace.
-	relsByResourceNamespace := util.NewMultiMap[string, *core.RelationTuple]()
-	resourcesByNamespace := util.NewMultiMap[string, *core.ObjectAndRelation]()
-	subjectsByNamespace := util.NewMultiMap[string, *core.ObjectAndRelation]()
-	allObjectIds := util.NewSet[string]()
+	relsByResourceNamespace := mapz.NewMultiMap[string, *core.RelationTuple]()
+	resourcesByNamespace := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
+	subjectsByNamespace := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
+	allObjectIds := mapz.NewSet[string]()
 
 	for _, tpl := range ccd.Populated.Tuples {
 		relsByResourceNamespace.Add(tpl.ResourceAndRelation.Namespace, tpl)
@@ -107,7 +107,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 	headRevision, err := ccd.DataStore.HeadRevision(ccd.Ctx)
 	require.NoError(t, err)
 
-	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit)
+	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, 100)
 	permissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	uncomputedPermissionshipByRelationship := map[string]dispatchv1.ResourceCheckResult_Membership{}
 	accessibilityByRelationship := map[string]Accessibility{}
@@ -133,6 +133,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     headRevision.String(),
 							DepthRemaining: 50,
+							TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(50),
 						},
 					})
 					require.NoError(t, err)
@@ -164,6 +165,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 									MaximumDepth:  50,
 								},
 								possibleResourceID,
+								100,
 							)
 							require.NoError(t, err)
 							membership = cr.Membership
@@ -304,11 +306,14 @@ func (as *AccessibilitySet) SubjectTypes() []*core.RelationReference {
 // AllSubjectsNoWildcards returns all *defined*, non-wildcard subjects found.
 func (as *AccessibilitySet) AllSubjectsNoWildcards() []*core.ObjectAndRelation {
 	subjects := make([]*core.ObjectAndRelation, 0)
+	seenSubjects := mapz.NewSet[string]()
 	for _, subject := range as.SubjectsByNamespace.Values() {
 		if subject.ObjectId == tuple.PublicWildcard {
 			continue
 		}
-		subjects = append(subjects, subject)
+		if seenSubjects.Add(tuple.StringONR(subject)) {
+			subjects = append(subjects, subject)
+		}
 	}
 	return subjects
 }
@@ -356,6 +361,7 @@ func isAccessibleViaWildcardOnly(
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,
+			TraversalBloom: dispatchv1.MustNewTraversalBloomFilter(100),
 		},
 		ExpansionMode: dispatchv1.DispatchExpandRequest_RECURSIVE,
 	})

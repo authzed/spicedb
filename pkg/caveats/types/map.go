@@ -1,15 +1,15 @@
 package types
 
 import (
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common/types"
+	"github.com/authzed/cel-go/common/types/ref"
 )
 
 func init() {
-	registerMethodOnDefinedType(cel.MapType(cel.StringType, cel.AnyType),
+	registerMethodOnDefinedType(cel.MapType(cel.StringType, cel.DynType),
 		"isSubtreeOf",
-		[]*cel.Type{cel.MapType(cel.StringType, cel.AnyType)},
+		[]*cel.Type{cel.MapType(cel.StringType, cel.DynType)},
 		cel.BoolType,
 		func(arg ...ref.Val) ref.Val {
 			map0 := arg[0].Value().(map[string]any)

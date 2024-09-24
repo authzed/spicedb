@@ -63,6 +63,8 @@ func (hm *healthManager) Checker(ctx context.Context) func() error {
 	return func() error {
 		// Run immediately for the initial check
 		backoffInterval := backoff.NewExponentialBackOff()
+		backoffInterval.MaxElapsedTime = 0
+
 		ticker := time.After(0)
 
 		for {

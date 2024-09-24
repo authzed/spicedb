@@ -1,35 +1,45 @@
 ---
 "area/api devtools":
-  - "cmd/spicedb/developer.go"
+  - changed-files:
+      - any-glob-to-any-file: "cmd/spicedb/developer.go"
 "area/api http":
-  - "internal/gateway/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "internal/gateway/**/*"
 "area/api v0":
-  - "internal/services/v0/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "internal/services/v0/**/*"
 "area/api v1":
-  - "internal/services/v1/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "internal/services/v1/**/*"
 "area/cli":
-  - "cmd/**/*"
-  - "pkg/cmd/**/*"
+  - changed-files:
+      - any-glob-to-any-file: ["cmd/**/*", "pkg/cmd/**/*"]
 "area/dashboard":
-  - "internal/dashboard/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "internal/dashboard/**/*"
 "area/datastore":
-  - "internal/datastore/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "internal/datastore/**/*"
 "area/dependencies":
-  - "Dockerfile"
-  - "go.mod"
-  - "go.sum"
+  - changed-files:
+      - any-glob-to-any-file: ["Dockerfile", "go.mod", "go.sum"]
 "area/dispatch":
-  - "internal/dispatch/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "internal/dispatch/**/*"
 "area/docs":
-  - "CODE-OF-CONDUCT.md"
-  - "CONTRIBUTING.md"
-  - "DCO"
-  - "LICENSE"
-  - "README.md"
+  - changed-files:
+      - any-glob-to-any-file:
+          [
+            "CODE-OF-CONDUCT.md",
+            "CONTRIBUTING.md",
+            "DCO",
+            "LICENSE",
+            "README.md",
+          ]
 "area/schema":
-  - "pkg/schemadsl/**/*"
+  - changed-files:
+      - any-glob-to-any-file: "pkg/schemadsl/**/*"
 "area/tooling":
-  - "**/*_test.go"
-  - ".github/**/*"
-  - ".*"
-  - "Dockerfile*"
+  - changed-files:
+      - any-glob-to-any-file:
+          ["**/*_test.go", ".github/**/*", ".*", "Dockerfile*"]

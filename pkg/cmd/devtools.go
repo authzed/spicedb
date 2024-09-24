@@ -13,9 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/go-logr/zerologr"
-	grpczerolog "github.com/grpc-ecosystem/go-grpc-middleware/providers/zerolog/v2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobragrpc"
 	"github.com/jzelinskie/cobrautil/v2/cobrahttp"
@@ -29,6 +27,8 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	v0svc "github.com/authzed/spicedb/internal/services/v0"
 	"github.com/authzed/spicedb/pkg/cmd/server"
+	"github.com/authzed/spicedb/pkg/cmd/termination"
+	"github.com/authzed/spicedb/pkg/cmd/util"
 )
 
 func RegisterDevtoolsFlags(cmd *cobra.Command) {
@@ -43,6 +43,8 @@ func RegisterDevtoolsFlags(cmd *cobra.Command) {
 	cmd.Flags().String("s3-bucket", "", "s3 bucket name for s3 share store")
 	cmd.Flags().String("s3-endpoint", "", "s3 endpoint for s3 share store")
 	cmd.Flags().String("s3-region", "auto", "s3 region for s3 share store")
+
+	util.RegisterCommonFlags(cmd)
 }
 
 func NewDevtoolsCommand(programName string) *cobra.Command {
@@ -51,18 +53,19 @@ func NewDevtoolsCommand(programName string) *cobra.Command {
 		Short:   "runs the developer tools service",
 		Long:    "Serves the authzed.api.v0.DeveloperService which is used for development tooling such as the Authzed Playground",
 		PreRunE: server.DefaultPreRunE(programName),
-		RunE:    runfunc,
+		RunE:    termination.PublishError(runfunc),
 		Args:    cobra.ExactArgs(0),
 	}
 }
 
 func runfunc(cmd *cobra.Command, _ []string) error {
+	grpcUnaryInterceptor, _ := server.GRPCMetrics(false)
 	grpcBuilder := grpcServiceBuilder()
 	grpcServer, err := grpcBuilder.ServerFromFlags(cmd,
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
-			grpclog.UnaryServerInterceptor(grpczerolog.InterceptorLogger(log.Logger)),
-			otelgrpc.UnaryServerInterceptor(),
-			grpcprom.UnaryServerInterceptor,
+			grpclog.UnaryServerInterceptor(server.InterceptorLogger(log.Logger)),
+			grpcUnaryInterceptor,
 		))
 	if err != nil {
 		log.Ctx(cmd.Context()).Fatal().Err(err).Msg("failed to create gRPC server")
@@ -126,7 +129,7 @@ func httpMetricsServiceBuilder() *cobrahttp.Builder {
 	return cobrahttp.New("metrics",
 		cobrahttp.WithLogger(zerologr.New(&log.Logger)),
 		cobrahttp.WithFlagPrefix("metrics"),
-		cobrahttp.WithHandler(server.MetricsHandler(server.DisableTelemetryHandler)),
+		cobrahttp.WithHandler(server.MetricsHandler(server.DisableTelemetryHandler, nil)),
 	)
 }
 

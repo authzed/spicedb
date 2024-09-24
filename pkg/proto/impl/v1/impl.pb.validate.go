@@ -559,6 +559,259 @@ var _ interface {
 	ErrorName() string
 } = DecodedZedTokenValidationError{}
 
+// Validate checks the field values on DecodedCursor with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *DecodedCursor) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on DecodedCursor with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in DecodedCursorMultiError, or
+// nil if none found.
+func (m *DecodedCursor) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *DecodedCursor) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.VersionOneof.(type) {
+	case *DecodedCursor_V1:
+		if v == nil {
+			err := DecodedCursorValidationError{
+				field:  "VersionOneof",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetV1()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, DecodedCursorValidationError{
+						field:  "V1",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, DecodedCursorValidationError{
+						field:  "V1",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetV1()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return DecodedCursorValidationError{
+					field:  "V1",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return DecodedCursorMultiError(errors)
+	}
+
+	return nil
+}
+
+// DecodedCursorMultiError is an error wrapping multiple validation errors
+// returned by DecodedCursor.ValidateAll() if the designated constraints
+// aren't met.
+type DecodedCursorMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m DecodedCursorMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m DecodedCursorMultiError) AllErrors() []error { return m }
+
+// DecodedCursorValidationError is the validation error returned by
+// DecodedCursor.Validate if the designated constraints aren't met.
+type DecodedCursorValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e DecodedCursorValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e DecodedCursorValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e DecodedCursorValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e DecodedCursorValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e DecodedCursorValidationError) ErrorName() string { return "DecodedCursorValidationError" }
+
+// Error satisfies the builtin error interface
+func (e DecodedCursorValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sDecodedCursor.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = DecodedCursorValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = DecodedCursorValidationError{}
+
+// Validate checks the field values on V1Cursor with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *V1Cursor) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on V1Cursor with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in V1CursorMultiError, or nil
+// if none found.
+func (m *V1Cursor) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *V1Cursor) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Revision
+
+	// no validation rules for CallAndParametersHash
+
+	// no validation rules for DispatchVersion
+
+	// no validation rules for Flags
+
+	if len(errors) > 0 {
+		return V1CursorMultiError(errors)
+	}
+
+	return nil
+}
+
+// V1CursorMultiError is an error wrapping multiple validation errors returned
+// by V1Cursor.ValidateAll() if the designated constraints aren't met.
+type V1CursorMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m V1CursorMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m V1CursorMultiError) AllErrors() []error { return m }
+
+// V1CursorValidationError is the validation error returned by
+// V1Cursor.Validate if the designated constraints aren't met.
+type V1CursorValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e V1CursorValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e V1CursorValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e V1CursorValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e V1CursorValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e V1CursorValidationError) ErrorName() string { return "V1CursorValidationError" }
+
+// Error satisfies the builtin error interface
+func (e V1CursorValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sV1Cursor.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = V1CursorValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = V1CursorValidationError{}
+
 // Validate checks the field values on DocComment with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.

@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync/atomic"
 	"time"
+
+	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/dlmiddlecote/sqlstats"
@@ -19,13 +22,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
+	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
 	"github.com/authzed/spicedb/internal/datastore/common"
-	"github.com/authzed/spicedb/internal/datastore/common/revisions"
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
-	"github.com/authzed/spicedb/internal/datastore/proxy"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -48,11 +51,18 @@ const (
 	colCaveatName       = "caveat_name"
 	colCaveatContext    = "caveat_context"
 
+	colCounterName              = "name"
+	colCounterSerializedFilter  = "serialized_filter"
+	colCounterCurrentCount      = "current_count"
+	colCounterUpdatedAtRevision = "count_updated_at_revision"
+
 	errUnableToInstantiate = "unable to instantiate datastore: %w"
 	liveDeletedTxnID       = uint64(math.MaxInt64)
 	batchDeleteSize        = 1000
 	noLastInsertID         = 0
 	seedingTimeout         = 10 * time.Second
+
+	primaryInstanceID = -1
 
 	// https://dev.mysql.com/doc/mysql-errors/8.0/en/server-error-reference.html#error_er_lock_wait_timeout
 	errMysqlLockWaitTimeout = 1205
@@ -93,16 +103,31 @@ type sqlFilter interface {
 //
 // URI: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
 // See https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html
-func NewMySQLDatastore(uri string, options ...Option) (datastore.Datastore, error) {
-	ds, err := newMySQLDatastore(uri, options...)
+func NewMySQLDatastore(ctx context.Context, uri string, options ...Option) (datastore.Datastore, error) {
+	ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	return proxy.NewSeparatingContextDatastoreProxy(ds), nil
+	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
 }
 
-func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
+func NewReadOnlyMySQLDatastore(
+	ctx context.Context,
+	url string,
+	index uint32,
+	options ...Option,
+) (datastore.ReadOnlyDatastore, error) {
+	ds, err := newMySQLDatastore(ctx, url, int(index), options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return datastoreinternal.NewSeparatingContextDatastoreProxy(ds), nil
+}
+
+func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, options ...Option) (*Datastore, error) {
+	isPrimary := replicaIndex == primaryInstanceID
 	config, err := generateConfig(options)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
@@ -110,16 +135,31 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 
 	parsedURI, err := mysql.ParseDSN(uri)
 	if err != nil {
-		return nil, fmt.Errorf("NewMySQLDatastore: could not parse connection URI `%s`: %w", uri, err)
+		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: could not parse connection URI", err, uri)
 	}
 
 	if !parsedURI.ParseTime {
-		return nil, fmt.Errorf("NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter. See https://spicedb.dev/d/parse-time-mysql for more details. Found: `%s`", uri)
+		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see https://spicedb.dev/d/parse-time-mysql for more details")
 	}
 
-	connector, err := mysql.MySQLDriver{}.OpenConnector(uri)
+	// Setup the credentials provider
+	var credentialsProvider datastore.CredentialsProvider
+	if config.credentialsProviderName != "" {
+		credentialsProvider, err = datastore.NewCredentialsProvider(ctx, config.credentialsProviderName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = mysqlCommon.MaybeAddCredentialsProviderHook(parsedURI, credentialsProvider)
 	if err != nil {
-		return nil, fmt.Errorf("NewMySQLDatastore: failed to create connector: %w", err)
+		return nil, err
+	}
+
+	// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
+	connector, err := mysql.NewConnector(parsedURI)
+	if err != nil {
+		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
 	}
 
 	if config.lockWaitTimeoutSeconds != nil {
@@ -128,7 +168,7 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 			"innodb_lock_wait_timeout": strconv.FormatUint(uint64(*config.lockWaitTimeoutSeconds), 10),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("NewMySQLDatastore: failed to add session variables to connector: %w", err)
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to add session variables to connector", err, uri)
 		}
 	}
 
@@ -136,17 +176,24 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	if config.enablePrometheusStats {
 		connector, err = instrumentConnector(connector)
 		if err != nil {
-			return nil, fmt.Errorf("NewMySQLDatastore: unable to instrument connector: %w", err)
+			return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: unable to instrument connector", err, uri)
+		}
+
+		dbName := "spicedb"
+		if replicaIndex != primaryInstanceID {
+			dbName = fmt.Sprintf("spicedb_replica_%d", replicaIndex)
 		}
 
 		db = sql.OpenDB(connector)
-		collector := sqlstats.NewStatsCollector("spicedb", db)
+		collector := sqlstats.NewStatsCollector(dbName, db)
 		if err := prometheus.Register(collector); err != nil {
 			return nil, fmt.Errorf(errUnableToInstantiate, err)
 		}
 
-		if err := common.RegisterGCMetrics(); err != nil {
-			return nil, fmt.Errorf(errUnableToInstantiate, err)
+		if isPrimary {
+			if err := common.RegisterGCMetrics(); err != nil {
+				return nil, fmt.Errorf(errUnableToInstantiate, err)
+			}
 		}
 	} else {
 		db = sql.OpenDB(connector)
@@ -196,28 +243,32 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	)
 
 	store := &Datastore{
-		db:                     db,
-		driver:                 driver,
-		url:                    uri,
-		revisionQuantization:   config.revisionQuantization,
-		gcWindow:               config.gcWindow,
-		gcInterval:             config.gcInterval,
-		gcTimeout:              config.gcMaxOperationTime,
-		gcCtx:                  gcCtx,
-		cancelGc:               cancelGc,
-		watchBufferLength:      config.watchBufferLength,
-		usersetBatchSize:       config.splitAtUsersetCount,
-		optimizedRevisionQuery: revisionQuery,
-		validTransactionQuery:  validTransactionQuery,
-		createTxn:              createTxn,
-		createBaseTxn:          createBaseTxn,
-		QueryBuilder:           queryBuilder,
-		readTxOptions:          &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
-		maxRetries:             config.maxRetries,
-		analyzeBeforeStats:     config.analyzeBeforeStats,
+		db:                      db,
+		driver:                  driver,
+		url:                     uri,
+		revisionQuantization:    config.revisionQuantization,
+		gcWindow:                config.gcWindow,
+		gcInterval:              config.gcInterval,
+		gcTimeout:               config.gcMaxOperationTime,
+		gcCtx:                   gcCtx,
+		cancelGc:                cancelGc,
+		watchBufferLength:       config.watchBufferLength,
+		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
+		optimizedRevisionQuery:  revisionQuery,
+		validTransactionQuery:   validTransactionQuery,
+		createTxn:               createTxn,
+		createBaseTxn:           createBaseTxn,
+		QueryBuilder:            queryBuilder,
+		readTxOptions:           &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
+		maxRetries:              config.maxRetries,
+		analyzeBeforeStats:      config.analyzeBeforeStats,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
+		CommonDecoder: revisions.CommonDecoder{
+			Kind: revisions.TransactionID,
+		},
+		filterMaximumIDCount: config.filterMaximumIDCount,
 	}
 
 	store.SetOptimizedRevisionFunc(store.optimizedRevisionFunc)
@@ -230,28 +281,27 @@ func newMySQLDatastore(uri string, options ...Option) (*Datastore, error) {
 	}
 
 	// Start a goroutine for garbage collection.
-	if store.gcInterval > 0*time.Minute && config.gcEnabled {
-		store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
-		store.gcGroup.Go(func() error {
-			return common.StartGarbageCollector(
-				store.gcCtx,
-				store,
-				store.gcInterval,
-				store.gcWindow,
-				store.gcTimeout,
-			)
-		})
-	} else {
-		log.Warn().Msg("datastore background garbage collection disabled")
+	if isPrimary {
+		if store.gcInterval > 0*time.Minute && config.gcEnabled {
+			store.gcGroup, store.gcCtx = errgroup.WithContext(store.gcCtx)
+			store.gcGroup.Go(func() error {
+				return common.StartGarbageCollector(
+					store.gcCtx,
+					store,
+					store.gcInterval,
+					store.gcWindow,
+					store.gcTimeout,
+				)
+			})
+		} else {
+			log.Warn().Msg("datastore background garbage collection disabled")
+		}
 	}
 
 	return store, nil
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func (mds *Datastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	rev := revisionRaw.(revision.Decimal)
-
+func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
 		if err != nil {
@@ -261,28 +311,30 @@ func (mds *Datastore) SnapshotReader(revisionRaw datastore.Revision) datastore.R
 		return tx, tx.Rollback, nil
 	}
 
-	querySplitter := common.TupleQuerySplitter{
-		Executor:         newMySQLExecutor(mds.db),
-		UsersetBatchSize: mds.usersetBatchSize,
+	executor := common.QueryExecutor{
+		Executor: newMySQLExecutor(mds.db),
 	}
 
 	return &mysqlReader{
 		mds.QueryBuilder,
 		createTxFunc,
-		querySplitter,
+		executor,
 		buildLivingObjectFilterForRevision(rev),
+		mds.filterMaximumIDCount,
 	}
 }
 
 func noCleanup() error { return nil }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 // ReadWriteTx starts a read/write transaction, which will be committed if no error is
 // returned and rolled back if an error is returned.
 func (mds *Datastore) ReadWriteTx(
 	ctx context.Context,
 	fn datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
+	config := options.NewRWTOptionsWithOptions(opts...)
+
 	var err error
 	for i := uint8(0); i <= mds.maxRetries; i++ {
 		var newTxnID uint64
@@ -296,34 +348,49 @@ func (mds *Datastore) ReadWriteTx(
 				return tx, noCleanup, nil
 			}
 
-			querySplitter := common.TupleQuerySplitter{
-				Executor:         newMySQLExecutor(tx),
-				UsersetBatchSize: mds.usersetBatchSize,
+			executor := common.QueryExecutor{
+				Executor: newMySQLExecutor(tx),
 			}
 
 			rwt := &mysqlReadWriteTXN{
 				&mysqlReader{
 					mds.QueryBuilder,
 					longLivedTx,
-					querySplitter,
+					executor,
 					currentlyLivingObjects,
+					mds.filterMaximumIDCount,
 				},
+				mds.driver.RelationTuple(),
 				tx,
 				newTxnID,
 			}
 
-			return fn(rwt)
+			return fn(ctx, rwt)
 		}); err != nil {
-			if isErrorRetryable(err) {
+			if !config.DisableRetries && isErrorRetryable(err) {
 				continue
 			}
 
-			return datastore.NoRevision, err
+			return datastore.NoRevision, wrapError(err)
 		}
 
-		return revisionFromTransaction(newTxnID), nil
+		return revisions.NewForTransactionID(newTxnID), nil
 	}
-	return datastore.NoRevision, fmt.Errorf("max retries exceeded: %w", err)
+	if !config.DisableRetries {
+		err = fmt.Errorf("max retries exceeded: %w", err)
+	}
+
+	return datastore.NoRevision, wrapError(err)
+}
+
+// wrapError maps any mysql internal error into a SpiceDB typed error or an error
+// that implements GRPCStatus().
+func wrapError(err error) error {
+	if cerr := convertToWriteConstraintError(err); cerr != nil {
+		return cerr
+	}
+
+	return err
 }
 
 func isErrorRetryable(err error) bool {
@@ -413,13 +480,14 @@ type Datastore struct {
 	url                string
 	analyzeBeforeStats bool
 
-	revisionQuantization time.Duration
-	gcWindow             time.Duration
-	gcInterval           time.Duration
-	gcTimeout            time.Duration
-	watchBufferLength    uint16
-	usersetBatchSize     uint16
-	maxRetries           uint8
+	revisionQuantization    time.Duration
+	gcWindow                time.Duration
+	gcInterval              time.Duration
+	gcTimeout               time.Duration
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	maxRetries              uint8
+	filterMaximumIDCount    uint16
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
@@ -427,18 +495,18 @@ type Datastore struct {
 	gcGroup  *errgroup.Group
 	gcCtx    context.Context
 	cancelGc context.CancelFunc
+	gcHasRun atomic.Bool
 
 	createTxn     string
 	createBaseTxn string
 
 	*QueryBuilder
 	*revisions.CachedOptimizedRevisions
-	revision.DecimalDecoder
+	revisions.CommonDecoder
 }
 
 // Close closes the data store.
 func (mds *Datastore) Close() error {
-	// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 	mds.cancelGc()
 	if mds.gcGroup != nil {
 		if err := mds.gcGroup.Wait(); err != nil && !errors.Is(err, context.Canceled) {
@@ -495,7 +563,21 @@ func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, err
 }
 
 func (mds *Datastore) Features(_ context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+	return mds.OfflineFeatures()
+}
+
+func (mds *Datastore) OfflineFeatures() (*datastore.Features, error) {
+	return &datastore.Features{
+		Watch: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+		ContinuousCheckpointing: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+	}, nil
 }
 
 // isSeeded determines if the backing database has been seeded
@@ -578,10 +660,9 @@ func (mds *Datastore) seedDatabase(ctx context.Context) error {
 	})
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
-func buildLivingObjectFilterForRevision(revision revision.Decimal) queryFilterer {
+func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilterer {
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
-		return original.Where(sq.LtOrEq{colCreatedTxn: transactionFromRevision(revision)}).
+		return original.Where(sq.LtOrEq{colCreatedTxn: revision.(revisions.TransactionIDRevision).TransactionID()}).
 			Where(sq.Or{
 				sq.Eq{colDeletedTxn: liveDeletedTxnID},
 				sq.Gt{colDeletedTxn: revision},
@@ -589,7 +670,6 @@ func buildLivingObjectFilterForRevision(revision revision.Decimal) queryFilterer
 	}
 }
 
-// TODO (@vroldanbet) dupe from postgres datastore - need to refactor
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }

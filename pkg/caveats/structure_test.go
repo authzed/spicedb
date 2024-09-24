@@ -4,9 +4,8 @@ import (
 	"sort"
 	"testing"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 )
@@ -96,9 +95,12 @@ func TestReferencedParameters(t *testing.T) {
 
 			sort.Strings(tc.referencedParamNames)
 
-			found := compiled.ReferencedParameters(maps.Keys(tc.env.variables)).AsSlice()
-			sort.Strings(found)
-			require.Equal(t, tc.referencedParamNames, found)
+			found, err := compiled.ReferencedParameters(maps.Keys(tc.env.variables))
+			require.NoError(t, err)
+
+			foundSlice := found.AsSlice()
+			sort.Strings(foundSlice)
+			require.Equal(t, tc.referencedParamNames, foundSlice)
 		})
 	}
 }

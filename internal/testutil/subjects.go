@@ -1,19 +1,20 @@
 package testutil
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/util"
 )
 
 // WrapFoundSubject wraps the given subject into a pointer to it, unless nil, in which case this method returns
@@ -67,12 +68,14 @@ func Wildcard(exclusions ...string) *v1.FoundSubject {
 
 // RequireEquivalentSets requires that the given sets of subjects are equivalent.
 func RequireEquivalentSets(t *testing.T, expected []*v1.FoundSubject, found []*v1.FoundSubject) {
+	t.Helper()
 	err := CheckEquivalentSets(expected, found)
-	require.NoError(t, err, "found different subject sets: %v", err)
+	require.NoError(t, err, "found different subject sets: %v \n %v", err, found)
 }
 
 // RequireExpectedSubject requires that the given expected and produced subjects match.
 func RequireExpectedSubject(t *testing.T, expected *v1.FoundSubject, produced **v1.FoundSubject) {
+	t.Helper()
 	if expected == nil {
 		require.Nil(t, produced)
 	} else {
@@ -90,8 +93,8 @@ func CheckEquivalentSets(expected []*v1.FoundSubject, found []*v1.FoundSubject) 
 		return fmt.Errorf("found mismatch in number of elements:\n\texpected: %s\n\tfound: %s", FormatSubjects(expected), FormatSubjects(found))
 	}
 
-	sort.Sort(sortByID(expected))
-	sort.Sort(sortByID(found))
+	slices.SortFunc(expected, CmpSubjects)
+	slices.SortFunc(found, CmpSubjects)
 
 	for index := range expected {
 		err := CheckEquivalentSubjects(expected[index], found[index])
@@ -210,7 +213,7 @@ func checkEquivalentCaveatExprs(expected *core.CaveatExpression, found *core.Cav
 	// so we compare by building a boolean table for each referenced caveat name and then checking all combinations
 	// of boolean inputs to ensure the expressions produce the same output. Note that while this isn't the most
 	// efficient means of comparison, it is logically correct.
-	referencedNamesSet := util.NewSet[string]()
+	referencedNamesSet := mapz.NewSet[string]()
 	collectReferencedNames(expected, referencedNamesSet)
 	collectReferencedNames(found, referencedNamesSet)
 
@@ -321,9 +324,9 @@ func combinatorialValues(names []string) []map[string]bool {
 }
 
 // collectReferencedNames collects all referenced caveat names into the given set.
-func collectReferencedNames(expr *core.CaveatExpression, nameSet *util.Set[string]) {
+func collectReferencedNames(expr *core.CaveatExpression, nameSet *mapz.Set[string]) {
 	if expr.GetCaveat() != nil {
-		nameSet.Add(expr.GetCaveat().CaveatName)
+		nameSet.Insert(expr.GetCaveat().CaveatName)
 		return
 	}
 
@@ -332,8 +335,7 @@ func collectReferencedNames(expr *core.CaveatExpression, nameSet *util.Set[strin
 	}
 }
 
-type sortByID []*v1.FoundSubject
-
-func (a sortByID) Len() int           { return len(a) }
-func (a sortByID) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a sortByID) Less(i, j int) bool { return strings.Compare(a[i].SubjectId, a[j].SubjectId) < 0 }
+// CmpSubjects compares FoundSubjects such that they can be sorted.
+func CmpSubjects(a, b *v1.FoundSubject) int {
+	return cmp.Compare(a.SubjectId, b.SubjectId)
+}

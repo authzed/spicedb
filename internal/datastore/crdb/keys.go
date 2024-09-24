@@ -1,10 +1,16 @@
 package crdb
 
-import "strings"
+import (
+	"context"
+	"strings"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
+	"google.golang.org/grpc/metadata"
+)
 
 type keySet map[string]struct{}
 
-func newKeySet() keySet {
+func newKeySet(_ context.Context) keySet {
 	return make(map[string]struct{})
 }
 
@@ -48,4 +54,24 @@ func prefix(s string) string {
 		return defaultOverlapKey
 	}
 	return prefix
+}
+
+// overlapKeysFromContext reads the request-provided initial overlap key set
+// from the grpc request metadata.
+func overlapKeysFromContext(ctx context.Context) keySet {
+	keys := newKeySet(ctx)
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return keys
+	}
+
+	for _, keyList := range md[string(requestmeta.RequestOverlapKey)] {
+		for _, key := range strings.Split(keyList, ",") {
+			key = strings.TrimSpace(key)
+			if len(key) > 0 {
+				keys[key] = struct{}{}
+			}
+		}
+	}
+	return keys
 }

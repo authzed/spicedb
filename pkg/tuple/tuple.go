@@ -1,16 +1,22 @@
 package tuple
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"reflect"
 	"regexp"
+	"slices"
+	"sort"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
-	"golang.org/x/exp/maps"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -23,11 +29,11 @@ const (
 )
 
 const (
-	namespaceNameExpr = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
+	namespaceNameExpr = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]"
 	resourceIDExpr    = "([a-zA-Z0-9/_|\\-=+]{1,})"
 	subjectIDExpr     = "([a-zA-Z0-9/_|\\-=+]{1,})|\\*"
 	relationExpr      = "[a-z][a-z0-9_]{1,62}[a-z0-9]"
-	caveatNameExpr    = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)?[a-z][a-z0-9_]{1,62}[a-z0-9]"
+	caveatNameExpr    = "([a-z][a-z0-9_]{1,61}[a-z0-9]/)*[a-z][a-z0-9_]{1,62}[a-z0-9]"
 )
 
 var onrExpr = fmt.Sprintf(
@@ -118,6 +124,14 @@ func StringWithoutCaveat(tpl *core.RelationTuple) string {
 	return fmt.Sprintf("%s@%s", StringONR(tpl.ResourceAndRelation), StringONR(tpl.Subject))
 }
 
+func MustStringCaveat(caveat *core.ContextualizedCaveat) string {
+	caveatString, err := StringCaveat(caveat)
+	if err != nil {
+		panic(err)
+	}
+	return caveatString
+}
+
 // StringCaveat converts a contextualized caveat to a string. If the caveat is nil or empty, returns empty string.
 func StringCaveat(caveat *core.ContextualizedCaveat) (string, error) {
 	if caveat == nil || caveat.CaveatName == "" {
@@ -164,7 +178,7 @@ func MustParse(tpl string) *core.RelationTuple {
 	if parsed := Parse(tpl); parsed != nil {
 		return parsed
 	}
-	panic("failed to parse tuple")
+	panic("failed to parse tuple: " + tpl)
 }
 
 // Parse unmarshals the string form of a Tuple and returns nil if there is a
@@ -178,19 +192,19 @@ func Parse(tpl string) *core.RelationTuple {
 	}
 
 	subjectRelation := Ellipsis
-	subjectRelIndex := stringz.SliceIndex(parserRegex.SubexpNames(), "subjectRel")
+	subjectRelIndex := slices.Index(parserRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		subjectRelation = groups[subjectRelIndex]
 	}
 
-	caveatName := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "caveatName")]
+	caveatName := groups[slices.Index(parserRegex.SubexpNames(), "caveatName")]
 	var optionalCaveat *core.ContextualizedCaveat
 	if caveatName != "" {
 		optionalCaveat = &core.ContextualizedCaveat{
 			CaveatName: caveatName,
 		}
 
-		caveatContextString := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "caveatContext")]
+		caveatContextString := groups[slices.Index(parserRegex.SubexpNames(), "caveatContext")]
 		if len(caveatContextString) > 0 {
 			contextMap := make(map[string]any, 1)
 			err := json.Unmarshal([]byte(caveatContextString), &contextMap)
@@ -207,24 +221,24 @@ func Parse(tpl string) *core.RelationTuple {
 		}
 	}
 
-	resourceID := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceID")]
+	resourceID := groups[slices.Index(parserRegex.SubexpNames(), "resourceID")]
 	if err := ValidateResourceID(resourceID); err != nil {
 		return nil
 	}
 
-	subjectID := groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectID")]
+	subjectID := groups[slices.Index(parserRegex.SubexpNames(), "subjectID")]
 	if err := ValidateSubjectID(subjectID); err != nil {
 		return nil
 	}
 
 	return &core.RelationTuple{
 		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceType")],
+			Namespace: groups[slices.Index(parserRegex.SubexpNames(), "resourceType")],
 			ObjectId:  resourceID,
-			Relation:  groups[stringz.SliceIndex(parserRegex.SubexpNames(), "resourceRel")],
+			Relation:  groups[slices.Index(parserRegex.SubexpNames(), "resourceRel")],
 		},
 		Subject: &core.ObjectAndRelation{
-			Namespace: groups[stringz.SliceIndex(parserRegex.SubexpNames(), "subjectType")],
+			Namespace: groups[slices.Index(parserRegex.SubexpNames(), "subjectType")],
 			ObjectId:  subjectID,
 			Relation:  subjectRelation,
 		},
@@ -259,6 +273,23 @@ func Delete(tpl *core.RelationTuple) *core.RelationTupleUpdate {
 		Operation: core.RelationTupleUpdate_DELETE,
 		Tuple:     tpl,
 	}
+}
+
+// Equal returns true if the two relationships are exactly the same.
+func Equal(lhs, rhs *core.RelationTuple) bool {
+	return OnrEqual(lhs.ResourceAndRelation, rhs.ResourceAndRelation) && OnrEqual(lhs.Subject, rhs.Subject) && caveatEqual(lhs.Caveat, rhs.Caveat)
+}
+
+func caveatEqual(lhs, rhs *core.ContextualizedCaveat) bool {
+	if lhs == nil && rhs == nil {
+		return true
+	}
+
+	if lhs == nil || rhs == nil {
+		return false
+	}
+
+	return lhs.CaveatName == rhs.CaveatName && proto.Equal(lhs.Context, rhs.Context)
 }
 
 // MustToRelationship converts a RelationTuple into a Relationship. Will panic if
@@ -418,7 +449,7 @@ func UpdateToRelationshipUpdate(update *core.RelationTupleUpdate) *v1.Relationsh
 }
 
 // MustFromRelationship converts a Relationship into a RelationTuple.
-func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
+func MustFromRelationship[R objectReference, S subjectReference[R], C caveat](r relationship[R, S, C]) *core.RelationTuple {
 	if err := r.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid relationship: %#v %s", r, err))
 	}
@@ -426,7 +457,7 @@ func MustFromRelationship(r *v1.Relationship) *core.RelationTuple {
 }
 
 // MustFromRelationships converts a slice of Relationship's into a slice of RelationTuple's.
-func MustFromRelationships(rels []*v1.Relationship) []*core.RelationTuple {
+func MustFromRelationships[R objectReference, S subjectReference[R], C caveat](rels []relationship[R, S, C]) []*core.RelationTuple {
 	tuples := make([]*core.RelationTuple, 0, len(rels))
 	for _, rel := range rels {
 		tpl := MustFromRelationship(rel)
@@ -436,26 +467,57 @@ func MustFromRelationships(rels []*v1.Relationship) []*core.RelationTuple {
 }
 
 // FromRelationship converts a Relationship into a RelationTuple.
-func FromRelationship(r *v1.Relationship) *core.RelationTuple {
-	var caveat *core.ContextualizedCaveat
-	if r.OptionalCaveat != nil {
-		caveat = &core.ContextualizedCaveat{
-			CaveatName: r.OptionalCaveat.CaveatName,
-			Context:    r.OptionalCaveat.Context,
-		}
+func FromRelationship[T objectReference, S subjectReference[T], C caveat](r relationship[T, S, C]) *core.RelationTuple {
+	rel := &core.RelationTuple{
+		ResourceAndRelation: &core.ObjectAndRelation{},
+		Subject:             &core.ObjectAndRelation{},
+		Caveat:              &core.ContextualizedCaveat{},
 	}
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: r.Resource.ObjectType,
-			ObjectId:  r.Resource.ObjectId,
-			Relation:  r.Relation,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: r.Subject.Object.ObjectType,
-			ObjectId:  r.Subject.Object.ObjectId,
-			Relation:  stringz.DefaultEmpty(r.Subject.OptionalRelation, Ellipsis),
-		},
-		Caveat: caveat,
+
+	CopyRelationshipToRelationTuple(r, rel)
+
+	return rel
+}
+
+func CopyRelationshipToRelationTuple[T objectReference, S subjectReference[T], C caveat](r relationship[T, S, C], dst *core.RelationTuple) {
+	if !reflect.ValueOf(r.GetOptionalCaveat()).IsZero() {
+		dst.Caveat.CaveatName = r.GetOptionalCaveat().GetCaveatName()
+		dst.Caveat.Context = r.GetOptionalCaveat().GetContext()
+	} else {
+		dst.Caveat = nil
+	}
+
+	dst.ResourceAndRelation.Namespace = r.GetResource().GetObjectType()
+	dst.ResourceAndRelation.ObjectId = r.GetResource().GetObjectId()
+	dst.ResourceAndRelation.Relation = r.GetRelation()
+	dst.Subject.Namespace = r.GetSubject().GetObject().GetObjectType()
+	dst.Subject.ObjectId = r.GetSubject().GetObject().GetObjectId()
+	dst.Subject.Relation = stringz.DefaultEmpty(r.GetSubject().GetOptionalRelation(), Ellipsis)
+}
+
+// CopyRelationTupleToRelationship copies a source core.RelationTuple to a
+// destination v1.Relationship without allocating new memory. It requires that
+// the structure for the destination be pre-allocated for the fixed parts, and
+// an optional caveat context be provided for use when the source contains a
+// caveat.
+func CopyRelationTupleToRelationship(
+	src *core.RelationTuple,
+	dst *v1.Relationship,
+	dstCaveat *v1.ContextualizedCaveat,
+) {
+	dst.Resource.ObjectType = src.ResourceAndRelation.Namespace
+	dst.Resource.ObjectId = src.ResourceAndRelation.ObjectId
+	dst.Relation = src.ResourceAndRelation.Relation
+	dst.Subject.Object.ObjectType = src.Subject.Namespace
+	dst.Subject.Object.ObjectId = src.Subject.ObjectId
+	dst.Subject.OptionalRelation = stringz.Default(src.Subject.Relation, "", Ellipsis)
+
+	if src.Caveat != nil {
+		dst.OptionalCaveat = dstCaveat
+		dst.OptionalCaveat.CaveatName = src.Caveat.CaveatName
+		dst.OptionalCaveat.Context = src.Caveat.Context
+	} else {
+		dst.OptionalCaveat = nil
 	}
 }
 
@@ -476,7 +538,7 @@ func UpdateFromRelationshipUpdate(update *v1.RelationshipUpdate) *core.RelationT
 
 	return &core.RelationTupleUpdate{
 		Operation: op,
-		Tuple:     FromRelationship(update.Relationship),
+		Tuple:     FromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](update.Relationship),
 	}
 }
 
@@ -512,4 +574,96 @@ func WithCaveat(tpl *core.RelationTuple, caveatName string, contexts ...map[stri
 		Context:    context,
 	}
 	return tpl, nil
+}
+
+// CanonicalBytes converts a tuple to a canonical set of bytes. If the tuple is nil or empty, returns nil.
+// Can be used for hashing purposes.
+func CanonicalBytes(tpl *core.RelationTuple) ([]byte, error) {
+	if tpl == nil {
+		return nil, nil
+	}
+
+	var sb bytes.Buffer
+	sb.WriteString(tpl.ResourceAndRelation.Namespace)
+	sb.WriteString(":")
+	sb.WriteString(tpl.ResourceAndRelation.ObjectId)
+	sb.WriteString("#")
+	sb.WriteString(tpl.ResourceAndRelation.Relation)
+	sb.WriteString("@")
+	sb.WriteString(tpl.Subject.Namespace)
+	sb.WriteString(":")
+	sb.WriteString(tpl.Subject.ObjectId)
+	sb.WriteString("#")
+	sb.WriteString(tpl.Subject.Relation)
+
+	if tpl.Caveat != nil && tpl.Caveat.CaveatName != "" {
+		sb.WriteString(" with ")
+		sb.WriteString(tpl.Caveat.CaveatName)
+
+		if tpl.Caveat.Context != nil && len(tpl.Caveat.Context.Fields) > 0 {
+			sb.WriteString(":")
+			if err := writeCanonicalContext(&sb, tpl.Caveat.Context); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return sb.Bytes(), nil
+}
+
+func writeCanonicalContext(sb *bytes.Buffer, context *structpb.Struct) error {
+	sb.WriteString("{")
+	for i, key := range sortedContextKeys(context.Fields) {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(key)
+		sb.WriteString(":")
+		if err := writeCanonicalContextValue(sb, context.Fields[key]); err != nil {
+			return err
+		}
+	}
+	sb.WriteString("}")
+	return nil
+}
+
+func writeCanonicalContextValue(sb *bytes.Buffer, value *structpb.Value) error {
+	switch value.Kind.(type) {
+	case *structpb.Value_NullValue:
+		sb.WriteString("null")
+	case *structpb.Value_NumberValue:
+		sb.WriteString(fmt.Sprintf("%f", value.GetNumberValue()))
+	case *structpb.Value_StringValue:
+		sb.WriteString(value.GetStringValue())
+	case *structpb.Value_BoolValue:
+		sb.WriteString(fmt.Sprintf("%t", value.GetBoolValue()))
+	case *structpb.Value_StructValue:
+		if err := writeCanonicalContext(sb, value.GetStructValue()); err != nil {
+			return err
+		}
+	case *structpb.Value_ListValue:
+		sb.WriteString("[")
+		for i, elem := range value.GetListValue().Values {
+			if i > 0 {
+				sb.WriteString(",")
+			}
+			if err := writeCanonicalContextValue(sb, elem); err != nil {
+				return err
+			}
+		}
+		sb.WriteString("]")
+	default:
+		return spiceerrors.MustBugf("unknown structpb.Value type: %T", value.Kind)
+	}
+
+	return nil
+}
+
+func sortedContextKeys(fields map[string]*structpb.Value) []string {
+	keys := make([]string, 0, len(fields))
+	for key := range fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

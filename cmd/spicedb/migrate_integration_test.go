@@ -7,11 +7,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jzelinskie/stringz"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,6 @@ import (
 var toSkip = []string{"memory"}
 
 func TestMigrate(t *testing.T) {
-	t.Parallel()
 	bridgeNetworkName := fmt.Sprintf("bridge-%s", uuid.New().String())
 
 	pool, err := dockertest.NewPool("")
@@ -39,7 +38,7 @@ func TestMigrate(t *testing.T) {
 	})
 
 	for _, engineKey := range datastore.Engines {
-		if stringz.SliceContains(toSkip, engineKey) {
+		if slices.Contains(toSkip, engineKey) {
 			continue
 		}
 

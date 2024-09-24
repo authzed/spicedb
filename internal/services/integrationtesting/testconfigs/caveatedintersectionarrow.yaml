@@ -1,0 +1,55 @@
+---
+schema: |+
+  definition user {}
+
+  definition team {
+    relation direct_member: user with membercaveat
+    permission member = direct_member
+  }
+
+  caveat membercaveat(memberparam int) {
+    memberparam >= 42
+  }
+
+  caveat teamcaveat(teamparam int) {
+    teamparam < 42
+  }
+
+  definition resource {
+    relation team: team with teamcaveat
+    permission view_by_all = team.all(member)
+  }
+
+relationships: |-
+  team:first#direct_member@user:tom[membercaveat]
+  resource:firstresource#team@team:first[teamcaveat]
+
+  team:team2-1#direct_member@user:tom[membercaveat:{"memberparam": 43}]
+  team:team2-2#direct_member@user:tom[membercaveat:{"memberparam": 44}]
+  resource:positivecaveated#team@team:team2-1[teamcaveat:{"teamparam": 1}]
+  resource:positivecaveated#team@team:team2-2[teamcaveat:{"teamparam": 2}]
+
+  team:team3-1#direct_member@user:tom[membercaveat:{"memberparam": 43}]
+  team:team3-2#direct_member@user:tom[membercaveat:{"memberparam": 44}]
+  resource:negativeteam#team@team:team3-1[teamcaveat:{"teamparam": 100}]
+  resource:negativeteam#team@team:team3-2[teamcaveat:{"teamparam": 2}]
+
+  team:team4-1#direct_member@user:tom[membercaveat:{"memberparam": 3}]
+  team:team4-2#direct_member@user:tom[membercaveat:{"memberparam": 44}]
+  resource:negativemember#team@team:team4-1[teamcaveat:{"teamparam": 1}]
+  resource:negativemember#team@team:team4-2[teamcaveat:{"teamparam": 2}]
+
+assertions:
+  assertTrue:
+    - 'resource:firstresource#view_by_all@user:tom with {"memberparam": 42, "teamparam": 41}'
+    - "resource:positivecaveated#view_by_all@user:tom"
+  assertCaveated:
+    - "resource:firstresource#view_by_all@user:tom"
+    - 'resource:firstresource#view_by_all@user:tom with {"memberparam": 42}'
+    - 'resource:firstresource#view_by_all@user:tom with {"teamparam": 41}'
+  assertFalse:
+    - 'resource:firstresource#view_by_all@user:tom with {"memberparam": 1, "teamparam": 41}'
+    - 'resource:firstresource#view_by_all@user:tom with {"memberparam": 42, "teamparam": 100}'
+    - 'resource:firstresource#view_by_all@user:tom with {"memberparam": 1, "teamparam": 100}'
+    - "resource:negativeteam#view_by_all@user:tom"
+    - "resource:negativemember#view_by_all@user:tom"

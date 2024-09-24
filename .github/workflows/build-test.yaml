@@ -4,139 +4,135 @@ on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
-    paths:
-      - ".github/workflows/build-test.yaml"
-      - "buf.gen.yaml"
-      - "buf.work.yaml"
-      - "Dockerfile"
-      - "go.mod"
-      - "go.sum"
-      - "cmd/**"
-      - "pkg/**"
-      - "e2e/**"
-      - "internal/**"
-      - "proto/**"
   pull_request:
     branches:
       - "*"
-    paths:
-      - ".github/workflows/build-test.yaml"
-      - "buf.gen.yaml"
-      - "buf.work.yaml"
-      - "Dockerfile"
-      - "go.mod"
-      - "go.sum"
-      - "cmd/**"
-      - "pkg/**"
-      - "e2e/**"
-      - "internal/**"
-      - "proto/**"
+  merge_group:
+    types:
+      - "checks_requested"
 env:
-  GO_VERSION: "~1.20.3"
+  DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
+  DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
 jobs:
+  paths-filter:
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    outputs:
+      codechange: "${{ steps.code-filter.outputs.codechange }}"
+      protochange: "${{ steps.proto-filter.outputs.protochange }}"
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "dorny/paths-filter@v3"
+        id: "code-filter"
+        with:
+          filters: |
+            codechange:
+              - ".github/workflows/build-test.yaml"
+              - "Dockerfile"
+              - "go.mod"
+              - "go.sum"
+              - "cmd/**"
+              - "pkg/**"
+              - "e2e/**"
+              - "internal/**"
+      - uses: "dorny/paths-filter@v3"
+        id: "proto-filter"
+        with:
+          filters: |
+            protochange:
+              - "buf.gen.yaml"
+              - "buf.work.yaml"
+              - "proto/**"
+              - "go.mod"
   build:
-    name: "Build Binary"
-    runs-on: "ubuntu-latest"
+    name: "Build Binary & Image"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
+      - uses: "docker/login-action@v3"
         with:
-          go-version: "${{ env.GO_VERSION }}"
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - uses: "authzed/actions/go-build@main"
-
-  image-build:
-    name: "Build Container Image"
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/docker-build@main"
-        with:
-          push: false
-          tags: "authzed/spicedb:ci"
-          buildx: false
-          qemu: false
-      - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          working_directory: "cmd/spicedb"
-          tags: "docker,image"
+      - name: "Image tests"
+        run: "go run mage.go test:image"
 
   unit:
     name: "Unit"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,skipintegrationtests"
-          timeout: "10m"
+      - name: "Unit tests"
+        run: "go run mage.go test:unit"
 
   integration:
     name: "Integration Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
+      - uses: "docker/login-action@v3"
         with:
-          go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,docker"
-          timeout: "15m"
-          working_directory: "internal/services/integrationtesting"
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Integration tests"
+        run: "go run mage.go test:integration"
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
     strategy:
       fail-fast: false
       matrix:
-        datastore: ["crdb", "mysql", "postgres", "spanner"]
+        datastore: ["crdb", "mysql", "postgres", "spanner", "pgbouncer"]
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
       - uses: "authzed/actions/setup-go@main"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "docker/login-action@v3"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
         with:
-          go-version: "${{ env.GO_VERSION }}"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          tags: "ci,docker"
-          timeout: "10m"
-          working_directory: "internal/datastore/${{ matrix.datastore }}"
-
-  datastoreconsistency:
-    name: "Datastore Consistency Tests"
-    runs-on: "ubuntu-latest"
-    strategy:
-      fail-fast: false
-      matrix:
-        datastore: ["cockroachdb", "mysql", "postgres", "spanner"]
-    steps:
-      - uses: "actions/checkout@v3"
-      - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
-      - name: "Run Datastore Consistency Tests"
-        working-directory: "internal/services/integrationtesting"
-        run: "go test --failfast -count=1 -timeout '10m' --tags='ci,docker,datastoreconsistency' ./... -run TestConsistencyPerDatastore/${{ matrix.datastore }}"
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Integration tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        run: "go run mage.go testds:${{ matrix.datastore }}"
+      - name: "Integration tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        run: "go run mage.go testcons:${{ matrix.datastore }}"
 
   e2e:
     name: "E2E"
-    runs-on: "ubuntu-latest-8-cores"
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
         with:
-          go-version: "${{ env.GO_VERSION }}"
           go-version-file: "e2e/go.mod"
           cache-dependency-path: "e2e/go.sum"
       - name: "Cache Binaries"
         id: "cache-binaries"
-        uses: "actions/cache@v2"
+        uses: "buildjet/cache@v4"
         with:
           path: |
             e2e/newenemy/cockroach
@@ -150,7 +146,7 @@ jobs:
         run: |
           curl https://binaries.cockroachdb.com/cockroach-v22.1.5.linux-amd64.tgz | tar -xz && mv cockroach-v22.1.5.linux-amd64/cockroach ./cockroach
           curl -fsSL https://mirrors.chaos-mesh.org/chaosd-v1.1.1-linux-amd64.tar.gz | tar -xz && mv chaosd-v1.1.1-linux-amd64/chaosd ./chaosd
-      - uses: "actions/cache@v2"
+      - uses: "buildjet/cache@v4"
         with:
           path: |
             ~/.cache/go-build
@@ -166,7 +162,7 @@ jobs:
         working-directory: "e2e/newenemy"
         run: |
           go test -v -timeout 11m ./...
-      - uses: "actions/upload-artifact@v2"
+      - uses: "actions/upload-artifact@v4"
         if: "always()"
         # this upload step is really flaky, don't fail the job if it fails
         continue-on-error: true
@@ -175,44 +171,47 @@ jobs:
           path: "e2e/newenemy/*.log"
   analyzers-unit-tests:
     name: "Analyzers Unit Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
         with:
-          go-version: "${{ env.GO_VERSION }}"
           go-version-file: "tools/analyzers/go.mod"
           cache-dependency-path: "tools/analyzers/go.sum"
-      - uses: "authzed/actions/go-test@main"
-        with:
-          working_directory: "tools/analyzers"
+      - name: "Analyzer tests"
+        run: "go run mage.go test:analyzers"
   development:
     name: "WASM Tests"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
-      - name: "Install wasmbrowsertest"
-        run: "go install github.com/agnivade/wasmbrowsertest@latest"
-      - name: "Run WASM Tests"
-        run: "GOOS=js GOARCH=wasm go test ./pkg/development/wasm/... -exec wasmbrowsertest"
+      - name: "WASM tests"
+        run: "go run mage.go test:wasm"
 
   protobuf:
     name: "Generate Protobufs"
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.protochange == 'true'
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
       - uses: "authzed/actions/setup-go@main"
+      - name: "Generate Protos"
+        run: "go run mage.go gen:proto"
+      - uses: "chainguard-dev/actions/nodiff@main"
         with:
-          go-version: "${{ env.GO_VERSION }}"
-      - name: "Install Go Tools"
-        run: "./hack/install-tools.sh"
-      - uses: "authzed/actions/buf-generate@main"
-        with:
-          github_token: "${{ secrets.GITHUB_TOKEN }}"
-      - uses: "bufbuild/buf-breaking-action@v1.1.1"
+          path: ""
+          fixup-command: "go run mage.go gen:proto"
+      - uses: "bufbuild/buf-setup-action@v1"
+      - uses: "bufbuild/buf-breaking-action@v1.1.4"
         if: "github.event_name == 'pull_request'"
         env:
           BUF_INPUT_HTTPS_USERNAME: "${{ github.actor }}"

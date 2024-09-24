@@ -7,30 +7,32 @@ on:  # yamllint disable-line rule:truthy
 permissions:
   contents: "write"
   packages: "write"
-env:
-  GO_VERSION: "~1.20.3"
 jobs:
   goreleaser:
-    runs-on: "ubuntu-latest"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
     steps:
-      - uses: "actions/checkout@v3"
+      - uses: "actions/checkout@v4"
         with:
           fetch-depth: 0
       - uses: "authzed/actions/setup-go@main"
-        with:
-          go-version: "${{ env.GO_VERSION }}"
+      - name: "Install snapcraft"
+        run: |
+          sudo snap install snapcraft --channel=8.x/stable --classic
+          mkdir -p $HOME/.cache/snapcraft/download
+          mkdir -p $HOME/.cache/snapcraft/stage-packages
       - uses: "authzed/actions/docker-login@main"
         with:
           quayio_token: "${{ secrets.QUAYIO_PASSWORD }}"
           github_token: "${{ secrets.GITHUB_TOKEN }}"
           dockerhub_token: "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}"
-      - uses: "docker/setup-qemu-action@v1"
-      - uses: "docker/setup-buildx-action@v1"
-      - uses: "goreleaser/goreleaser-action@v4"
+      - uses: "docker/setup-qemu-action@v3"
+      - uses: "docker/setup-buildx-action@v3"
+      - uses: "goreleaser/goreleaser-action@v6"
         with:
           distribution: "goreleaser-pro"
-          version: "latest"
-          args: "release -f nightly.goreleaser.yml --clean --nightly"
+          # Pinned because of a regression in 2.3.0
+          version: "2.2.0"
+          args: "release -f .goreleaser.nightly.yml --clean --nightly"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"

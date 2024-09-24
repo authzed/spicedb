@@ -1,0 +1,287 @@
+---
+schema: |+
+  definition user {}
+
+  definition organization {
+    relation admin: user
+    relation member: user
+    permission is_member = member + admin
+  }
+
+  definition document {
+    relation banned: user
+    relation viewer: user | user:*
+    relation org: organization
+
+    permission edit = org->is_member
+    permission view = (viewer - banned) + edit
+    permission vsb = viewer - banned
+    permission indirect_view = vsb + edit
+    permission vsb_plus_nil = vsb + nil
+  }
+
+relationships: |
+  // 100 direct resources for user:fred
+  // for docid in range(0, 100):
+  //    document:doc-{docid}#viewer@user:fred
+  document:doc-0#viewer@user:fred
+  document:doc-1#viewer@user:fred
+  document:doc-2#viewer@user:fred
+  document:doc-3#viewer@user:fred
+  document:doc-4#viewer@user:fred
+  document:doc-5#viewer@user:fred
+  document:doc-6#viewer@user:fred
+  document:doc-7#viewer@user:fred
+  document:doc-8#viewer@user:fred
+  document:doc-9#viewer@user:fred
+  document:doc-10#viewer@user:fred
+  document:doc-11#viewer@user:fred
+  document:doc-12#viewer@user:fred
+  document:doc-13#viewer@user:fred
+  document:doc-14#viewer@user:fred
+  document:doc-15#viewer@user:fred
+  document:doc-16#viewer@user:fred
+  document:doc-17#viewer@user:fred
+  document:doc-18#viewer@user:fred
+  document:doc-19#viewer@user:fred
+  document:doc-20#viewer@user:fred
+  document:doc-21#viewer@user:fred
+  document:doc-22#viewer@user:fred
+  document:doc-23#viewer@user:fred
+  document:doc-24#viewer@user:fred
+  document:doc-25#viewer@user:fred
+  document:doc-26#viewer@user:fred
+  document:doc-27#viewer@user:fred
+  document:doc-28#viewer@user:fred
+  document:doc-29#viewer@user:fred
+  document:doc-30#viewer@user:fred
+  document:doc-31#viewer@user:fred
+  document:doc-32#viewer@user:fred
+  document:doc-33#viewer@user:fred
+  document:doc-34#viewer@user:fred
+  document:doc-35#viewer@user:fred
+  document:doc-36#viewer@user:fred
+  document:doc-37#viewer@user:fred
+  document:doc-38#viewer@user:fred
+  document:doc-39#viewer@user:fred
+  document:doc-40#viewer@user:fred
+  document:doc-41#viewer@user:fred
+  document:doc-42#viewer@user:fred
+  document:doc-43#viewer@user:fred
+  document:doc-44#viewer@user:fred
+  document:doc-45#viewer@user:fred
+  document:doc-46#viewer@user:fred
+  document:doc-47#viewer@user:fred
+  document:doc-48#viewer@user:fred
+  document:doc-49#viewer@user:fred
+  document:doc-50#viewer@user:fred
+  document:doc-51#viewer@user:fred
+  document:doc-52#viewer@user:fred
+  document:doc-53#viewer@user:fred
+  document:doc-54#viewer@user:fred
+  document:doc-55#viewer@user:fred
+  document:doc-56#viewer@user:fred
+  document:doc-57#viewer@user:fred
+  document:doc-58#viewer@user:fred
+  document:doc-59#viewer@user:fred
+  document:doc-60#viewer@user:fred
+  document:doc-61#viewer@user:fred
+  document:doc-62#viewer@user:fred
+  document:doc-63#viewer@user:fred
+  document:doc-64#viewer@user:fred
+  document:doc-65#viewer@user:fred
+  document:doc-66#viewer@user:fred
+  document:doc-67#viewer@user:fred
+  document:doc-68#viewer@user:fred
+  document:doc-69#viewer@user:fred
+  document:doc-70#viewer@user:fred
+  document:doc-71#viewer@user:fred
+  document:doc-72#viewer@user:fred
+  document:doc-73#viewer@user:fred
+  document:doc-74#viewer@user:fred
+  document:doc-75#viewer@user:fred
+  document:doc-76#viewer@user:fred
+  document:doc-77#viewer@user:fred
+  document:doc-78#viewer@user:fred
+  document:doc-79#viewer@user:fred
+  document:doc-80#viewer@user:fred
+  document:doc-81#viewer@user:fred
+  document:doc-82#viewer@user:fred
+  document:doc-83#viewer@user:fred
+  document:doc-84#viewer@user:fred
+  document:doc-85#viewer@user:fred
+  document:doc-86#viewer@user:fred
+  document:doc-87#viewer@user:fred
+  document:doc-88#viewer@user:fred
+  document:doc-89#viewer@user:fred
+  document:doc-90#viewer@user:fred
+  document:doc-91#viewer@user:fred
+  document:doc-92#viewer@user:fred
+  document:doc-93#viewer@user:fred
+  document:doc-94#viewer@user:fred
+  document:doc-95#viewer@user:fred
+  document:doc-96#viewer@user:fred
+  document:doc-97#viewer@user:fred
+  document:doc-98#viewer@user:fred
+  document:doc-99#viewer@user:fred
+
+  // Fred is banned from the last 20.
+  // for docid in range(80, 100):
+  //    document:doc-{docid}#banned@user:fred
+  document:doc-80#banned@user:fred
+  document:doc-81#banned@user:fred
+  document:doc-82#banned@user:fred
+  document:doc-83#banned@user:fred
+  document:doc-84#banned@user:fred
+  document:doc-85#banned@user:fred
+  document:doc-86#banned@user:fred
+  document:doc-87#banned@user:fred
+  document:doc-88#banned@user:fred
+  document:doc-89#banned@user:fred
+  document:doc-90#banned@user:fred
+  document:doc-91#banned@user:fred
+  document:doc-92#banned@user:fred
+  document:doc-93#banned@user:fred
+  document:doc-94#banned@user:fred
+  document:doc-95#banned@user:fred
+  document:doc-96#banned@user:fred
+  document:doc-97#banned@user:fred
+  document:doc-98#banned@user:fred
+  document:doc-99#banned@user:fred
+
+  // The first 90 documents have empty orgs.
+  // for docid in range(0, 90):
+  //    document:doc-{docid}#org@organization:emptyorg
+  document:doc-0#org@organization:emptyorg
+  document:doc-1#org@organization:emptyorg
+  document:doc-2#org@organization:emptyorg
+  document:doc-3#org@organization:emptyorg
+  document:doc-4#org@organization:emptyorg
+  document:doc-5#org@organization:emptyorg
+  document:doc-6#org@organization:emptyorg
+  document:doc-7#org@organization:emptyorg
+  document:doc-8#org@organization:emptyorg
+  document:doc-9#org@organization:emptyorg
+  document:doc-10#org@organization:emptyorg
+  document:doc-11#org@organization:emptyorg
+  document:doc-12#org@organization:emptyorg
+  document:doc-13#org@organization:emptyorg
+  document:doc-14#org@organization:emptyorg
+  document:doc-15#org@organization:emptyorg
+  document:doc-16#org@organization:emptyorg
+  document:doc-17#org@organization:emptyorg
+  document:doc-18#org@organization:emptyorg
+  document:doc-19#org@organization:emptyorg
+  document:doc-20#org@organization:emptyorg
+  document:doc-21#org@organization:emptyorg
+  document:doc-22#org@organization:emptyorg
+  document:doc-23#org@organization:emptyorg
+  document:doc-24#org@organization:emptyorg
+  document:doc-25#org@organization:emptyorg
+  document:doc-26#org@organization:emptyorg
+  document:doc-27#org@organization:emptyorg
+  document:doc-28#org@organization:emptyorg
+  document:doc-29#org@organization:emptyorg
+  document:doc-30#org@organization:emptyorg
+  document:doc-31#org@organization:emptyorg
+  document:doc-32#org@organization:emptyorg
+  document:doc-33#org@organization:emptyorg
+  document:doc-34#org@organization:emptyorg
+  document:doc-35#org@organization:emptyorg
+  document:doc-36#org@organization:emptyorg
+  document:doc-37#org@organization:emptyorg
+  document:doc-38#org@organization:emptyorg
+  document:doc-39#org@organization:emptyorg
+  document:doc-40#org@organization:emptyorg
+  document:doc-41#org@organization:emptyorg
+  document:doc-42#org@organization:emptyorg
+  document:doc-43#org@organization:emptyorg
+  document:doc-44#org@organization:emptyorg
+  document:doc-45#org@organization:emptyorg
+  document:doc-46#org@organization:emptyorg
+  document:doc-47#org@organization:emptyorg
+  document:doc-48#org@organization:emptyorg
+  document:doc-49#org@organization:emptyorg
+  document:doc-50#org@organization:emptyorg
+  document:doc-51#org@organization:emptyorg
+  document:doc-52#org@organization:emptyorg
+  document:doc-53#org@organization:emptyorg
+  document:doc-54#org@organization:emptyorg
+  document:doc-55#org@organization:emptyorg
+  document:doc-56#org@organization:emptyorg
+  document:doc-57#org@organization:emptyorg
+  document:doc-58#org@organization:emptyorg
+  document:doc-59#org@organization:emptyorg
+  document:doc-60#org@organization:emptyorg
+  document:doc-61#org@organization:emptyorg
+  document:doc-62#org@organization:emptyorg
+  document:doc-63#org@organization:emptyorg
+  document:doc-64#org@organization:emptyorg
+  document:doc-65#org@organization:emptyorg
+  document:doc-66#org@organization:emptyorg
+  document:doc-67#org@organization:emptyorg
+  document:doc-68#org@organization:emptyorg
+  document:doc-69#org@organization:emptyorg
+  document:doc-70#org@organization:emptyorg
+  document:doc-71#org@organization:emptyorg
+  document:doc-72#org@organization:emptyorg
+  document:doc-73#org@organization:emptyorg
+  document:doc-74#org@organization:emptyorg
+  document:doc-75#org@organization:emptyorg
+  document:doc-76#org@organization:emptyorg
+  document:doc-77#org@organization:emptyorg
+  document:doc-78#org@organization:emptyorg
+  document:doc-79#org@organization:emptyorg
+  document:doc-80#org@organization:emptyorg
+  document:doc-81#org@organization:emptyorg
+  document:doc-82#org@organization:emptyorg
+  document:doc-83#org@organization:emptyorg
+  document:doc-84#org@organization:emptyorg
+  document:doc-85#org@organization:emptyorg
+  document:doc-86#org@organization:emptyorg
+  document:doc-87#org@organization:emptyorg
+  document:doc-88#org@organization:emptyorg
+  document:doc-89#org@organization:emptyorg
+
+  // The last 10 documents have organizations, which bypasses the ban
+  // for docid in range(90, 93):
+  //    document:doc-{docid}#org@organization:someorg
+  document:doc-90#org@organization:someorg
+  document:doc-91#org@organization:someorg
+  document:doc-92#org@organization:someorg
+
+  // for docid in range(93, 95):
+  //    document:doc-{docid}#org@organization:anotherorg
+  document:doc-93#org@organization:anotherorg
+  document:doc-94#org@organization:anotherorg
+
+  // for docid in range(95, 100):
+  //    document:doc-{docid}#org@organization:someorg
+  //    document:doc-{docid}#org@organization:anotherorg
+  document:doc-95#org@organization:someorg
+  document:doc-95#org@organization:anotherorg
+  document:doc-96#org@organization:someorg
+  document:doc-96#org@organization:anotherorg
+  document:doc-97#org@organization:someorg
+  document:doc-97#org@organization:anotherorg
+  document:doc-98#org@organization:someorg
+  document:doc-98#org@organization:anotherorg
+  document:doc-99#org@organization:someorg
+  document:doc-99#org@organization:anotherorg
+
+  // Fred is a member of someorg and an admin of anotherorg.
+  organization:someorg#member@user:fred
+  organization:anotherorg#admin@user:fred
+
+  // Some public documents.
+  // for docid in range(0, 5):
+  //    document:public-doc-{docid}#viewer@user:*
+  document:public-doc-0#viewer@user:*
+  document:public-doc-1#viewer@user:*
+  document:public-doc-2#viewer@user:*
+  document:public-doc-3#viewer@user:*
+  document:public-doc-4#viewer@user:*
+
+  // Fred is banned from public docs 2 and 4.
+  document:public-doc-2#banned@user:fred
+  document:public-doc-4#banned@user:fred

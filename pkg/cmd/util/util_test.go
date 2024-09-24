@@ -17,7 +17,7 @@ func TestDisabledGRPC(t *testing.T) {
 }
 
 func TestDisabledHTTP(t *testing.T) {
-	s, err := (&HTTPServerConfig{Enabled: false}).Complete(zerolog.InfoLevel, nil)
+	s, err := (&HTTPServerConfig{HTTPEnabled: false}).Complete(zerolog.InfoLevel, nil)
 	require.NoError(t, err)
 	require.NoError(t, s.ListenAndServe())
 	s.Close()

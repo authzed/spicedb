@@ -4,17 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 	"github.com/jzelinskie/stringz"
-	"google.golang.org/protobuf/proto"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -22,6 +26,7 @@ const (
 	errUnableToDeleteConfig        = "unable to delete namespace config: %w"
 	errUnableToWriteRelationships  = "unable to write relationships: %w"
 	errUnableToDeleteRelationships = "unable to delete relationships: %w"
+	errUnableToSerializeFilter     = "unable to serialize relationship filter: %w"
 )
 
 var (
@@ -46,8 +51,8 @@ type crdbReadWriteTXN struct {
 }
 
 var (
-	upsertTupleSuffix = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s",
+	upsertTupleSuffixWithoutIntegrity = fmt.Sprintf(
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -59,22 +64,34 @@ var (
 		colCaveatContextName,
 		colCaveatContext,
 		colCaveatContext,
+		colCaveatContextName,
+		colCaveatContextName,
+		colCaveatContext,
+		colCaveatContext,
 	)
 
-	queryWriteTuple = psql.Insert(tableTuple).Columns(
+	upsertTupleSuffixWithIntegrity = fmt.Sprintf(
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
 		colRelation,
 		colUsersetNamespace,
 		colUsersetObjectID,
 		colUsersetRelation,
+		colTimestamp,
+		colCaveatContextName,
 		colCaveatContextName,
 		colCaveatContext,
+		colCaveatContext,
+		colIntegrityKeyID,
+		colIntegrityKeyID,
+		colIntegrityHash,
+		colIntegrityHash,
+		colCaveatContextName,
+		colCaveatContextName,
+		colCaveatContext,
+		colCaveatContext,
 	)
-
-	queryTouchTuple = queryWriteTuple.Suffix(upsertTupleSuffix)
-
-	queryDeleteTuples = psql.Delete(tableTuple)
 
 	queryTouchTransaction = fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES ($1::text) ON CONFLICT (%s) DO UPDATE SET %s = now()",
@@ -83,14 +100,169 @@ var (
 		colTransactionKey,
 		colTimestamp,
 	)
+
+	queryWriteCounter = psql.Insert(tableRelationshipCounter).Columns(
+		colCounterName,
+		colCounterSerializedFilter,
+		colCounterCurrentCount,
+		colCounterUpdatedAt,
+	)
+
+	queryUpdateCounter = psql.Update(tableRelationshipCounter)
+
+	queryDeleteCounter = psql.Delete(tableRelationshipCounter)
 )
 
+func (rwt *crdbReadWriteTXN) insertQuery() sq.InsertBuilder {
+	return psql.Insert(rwt.tupleTableName)
+}
+
+func (rwt *crdbReadWriteTXN) queryDeleteTuples() sq.DeleteBuilder {
+	return psql.Delete(rwt.tupleTableName)
+}
+
+func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
+	if rwt.withIntegrity {
+		return rwt.insertQuery().Columns(
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatContextName,
+			colCaveatContext,
+			colIntegrityKeyID,
+			colIntegrityHash,
+		)
+	}
+
+	return rwt.insertQuery().Columns(
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
+	)
+}
+
+func (rwt *crdbReadWriteTXN) queryTouchTuple() sq.InsertBuilder {
+	if rwt.withIntegrity {
+		return rwt.queryWriteTuple().Suffix(upsertTupleSuffixWithIntegrity)
+	}
+
+	return rwt.queryWriteTuple().Suffix(upsertTupleSuffixWithoutIntegrity)
+}
+
+func (rwt *crdbReadWriteTXN) RegisterCounter(ctx context.Context, name string, filter *core.RelationshipFilter) error {
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) > 0 {
+		return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+	}
+
+	// Add the counter to the table.
+	serialized, err := filter.MarshalVT()
+	if err != nil {
+		return fmt.Errorf(errUnableToSerializeFilter, err)
+	}
+
+	sql, args, err := queryWriteCounter.Values(
+		name,
+		serialized,
+		0,
+		nil,
+	).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to create counter SQL: %w", err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		// If this is a constraint violation, return that the filter is already registered.
+		if pgxcommon.IsConstraintFailureError(err) {
+			return datastore.NewCounterAlreadyRegisteredErr(name, filter)
+		}
+
+		return fmt.Errorf("unable to register counter: %w", err)
+	}
+
+	return nil
+}
+
+func (rwt *crdbReadWriteTXN) UnregisterCounter(ctx context.Context, name string) error {
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	// Remove the counter from the table.
+	sql, args, err := queryDeleteCounter.Where(sq.Eq{colCounterName: name}).ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to unregister counter: %w", err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to unregister counter: %w", err)
+	}
+
+	return nil
+}
+
+func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string, value int, computedAtRevision datastore.Revision) error {
+	counters, err := rwt.lookupCounters(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if len(counters) == 0 {
+		return datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	computedAtRevisionTimestamp, err := computedAtRevision.(revisions.HLCRevision).AsDecimal()
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	// Update the counter in the table.
+	sql, args, err := queryUpdateCounter.
+		Set(colCounterCurrentCount, value).
+		Set(colCounterUpdatedAt, computedAtRevisionTimestamp).
+		Where(sq.Eq{colCounterName: name}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	_, err = rwt.tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return fmt.Errorf("unable to store counter value: %w", err)
+	}
+
+	return nil
+}
+
 func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	bulkWrite := queryWriteTuple
+	bulkWrite := rwt.queryWriteTuple()
 	var bulkWriteCount int64
 
-	bulkTouch := queryTouchTuple
+	bulkTouch := rwt.queryTouchTuple()
 	var bulkTouchCount int64
+
+	bulkDelete := rwt.queryDeleteTuples()
+	bulkDeleteOr := sq.Or{}
+	var bulkDeleteCount int64
 
 	// Process the actual updates
 	for _, mutation := range mutations {
@@ -103,49 +275,69 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 			caveatContext = rel.Caveat.Context.AsMap()
 		}
 
+		var integrityKeyID *string
+		var integrityHash []byte
+
+		if rel.Integrity != nil {
+			if !rwt.withIntegrity {
+				return spiceerrors.MustBugf("attempted to write a relationship with integrity, but the datastore does not support integrity")
+			}
+
+			integrityKeyID = &rel.Integrity.KeyId
+			integrityHash = rel.Integrity.Hash
+		} else if rwt.withIntegrity {
+			return spiceerrors.MustBugf("attempted to write a relationship without integrity, but the datastore requires integrity")
+		}
+
+		values := []any{
+			rel.ResourceAndRelation.Namespace,
+			rel.ResourceAndRelation.ObjectId,
+			rel.ResourceAndRelation.Relation,
+			rel.Subject.Namespace,
+			rel.Subject.ObjectId,
+			rel.Subject.Relation,
+			caveatName,
+			caveatContext,
+		}
+
+		if rwt.withIntegrity {
+			values = append(values, integrityKeyID, integrityHash)
+		}
+
 		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
 		rwt.addOverlapKey(rel.Subject.Namespace)
 
 		switch mutation.Operation {
 		case core.RelationTupleUpdate_TOUCH:
 			rwt.relCountChange++
-			bulkTouch = bulkTouch.Values(
-				rel.ResourceAndRelation.Namespace,
-				rel.ResourceAndRelation.ObjectId,
-				rel.ResourceAndRelation.Relation,
-				rel.Subject.Namespace,
-				rel.Subject.ObjectId,
-				rel.Subject.Relation,
-				caveatName,
-				caveatContext,
-			)
+			bulkTouch = bulkTouch.Values(values...)
 			bulkTouchCount++
+
 		case core.RelationTupleUpdate_CREATE:
 			rwt.relCountChange++
-			bulkWrite = bulkWrite.Values(
-				rel.ResourceAndRelation.Namespace,
-				rel.ResourceAndRelation.ObjectId,
-				rel.ResourceAndRelation.Relation,
-				rel.Subject.Namespace,
-				rel.Subject.ObjectId,
-				rel.Subject.Relation,
-				caveatName,
-				caveatContext,
-			)
+			bulkWrite = bulkWrite.Values(values...)
 			bulkWriteCount++
+
 		case core.RelationTupleUpdate_DELETE:
 			rwt.relCountChange--
-			sql, args, err := queryDeleteTuples.Where(exactRelationshipClause(rel)).ToSql()
-			if err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
+			bulkDeleteOr = append(bulkDeleteOr, exactRelationshipClause(rel))
+			bulkDeleteCount++
 
-			if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-				return fmt.Errorf(errUnableToWriteRelationships, err)
-			}
 		default:
 			log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
 			return fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
+		}
+	}
+
+	if bulkDeleteCount > 0 {
+		bulkDelete = bulkDelete.Where(bulkDeleteOr)
+		sql, args, err := bulkDelete.ToSql()
+		if err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
+			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
 
@@ -164,12 +356,6 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 		}
 
 		if _, err := rwt.tx.Exec(ctx, sql, args...); err != nil {
-			// If a unique constraint violation is returned, then its likely that the cause
-			// was an existing relationship given as a CREATE.
-			if cerr := pgxcommon.ConvertToWriteConstraintError(livingTupleConstraint, err); cerr != nil {
-				return cerr
-			}
-
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 	}
@@ -188,15 +374,27 @@ func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
 	}
 }
 
-func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter) error {
+func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := queryDeleteTuples.Where(sq.Eq{colNamespace: filter.ResourceType})
+	query := rwt.queryDeleteTuples()
+
+	if filter.ResourceType != "" {
+		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
+	}
 	if filter.OptionalResourceId != "" {
 		query = query.Where(sq.Eq{colObjectID: filter.OptionalResourceId})
 	}
 	if filter.OptionalRelation != "" {
 		query = query.Where(sq.Eq{colRelation: filter.OptionalRelation})
 	}
+	if filter.OptionalResourceIdPrefix != "" {
+		if strings.Contains(filter.OptionalResourceIdPrefix, "%") {
+			return false, fmt.Errorf("unable to delete relationships with a prefix containing the %% character")
+		}
+
+		query = query.Where(sq.Like{colObjectID: filter.OptionalResourceIdPrefix + "%"})
+	}
+
 	rwt.addOverlapKey(filter.ResourceType)
 
 	// Add clauses for the SubjectFilter
@@ -210,19 +408,38 @@ func (rwt *crdbReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1
 		}
 		rwt.addOverlapKey(subjectFilter.SubjectType)
 	}
+
+	// Add the limit, if any.
+	delOpts := options.NewDeleteOptionsWithOptionsAndDefaults(opts...)
+	var delLimit uint64
+	if delOpts.DeleteLimit != nil && *delOpts.DeleteLimit > 0 {
+		delLimit = *delOpts.DeleteLimit
+	}
+
+	if delLimit > 0 {
+		query = query.Limit(delLimit)
+	}
+
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	modified, err := rwt.tx.Exec(ctx, sql, args...)
 	if err != nil {
-		return fmt.Errorf(errUnableToDeleteRelationships, err)
+		return false, fmt.Errorf(errUnableToDeleteRelationships, err)
 	}
 
 	rwt.relCountChange -= modified.RowsAffected()
+	rowsAffected, err := safecast.ToUint64(modified.RowsAffected())
+	if err != nil {
+		return false, spiceerrors.MustBugf("could not cast RowsAffected to uint64: %v", err)
+	}
+	if delLimit > 0 && rowsAffected == delLimit {
+		return true, nil
+	}
 
-	return nil
+	return false, nil
 }
 
 func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*core.NamespaceDefinition) error {
@@ -231,7 +448,7 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 	for _, newConfig := range newConfigs {
 		rwt.addOverlapKey(newConfig.Name)
 
-		serialized, err := proto.Marshal(newConfig)
+		serialized, err := newConfig.MarshalVT()
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteConfig, err)
 		}
@@ -251,12 +468,13 @@ func (rwt *crdbReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...
 }
 
 func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
 	// For each namespace, check they exist and collect predicates for the
 	// "WHERE" clause to delete the namespaces and associated tuples.
 	nsClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	for _, nsName := range nsNames {
-		_, timestamp, err := rwt.loadNamespace(ctx, rwt.tx, nsName)
+		_, timestamp, err := rwt.loadNamespace(ctx, querier, nsName)
 		if err != nil {
 			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
 				return err
@@ -280,7 +498,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := queryDeleteTuples.Where(sq.Or(tplClauses)).ToSql()
+	deleteTupleSQL, deleteTupleArgs, err := rwt.queryDeleteTuples().Where(sq.Or(tplClauses)).ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
@@ -294,6 +512,39 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 	rwt.relCountChange -= numRowsDeleted
 
 	return nil
+}
+
+var copyCols = []string{
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatContextName,
+	colCaveatContext,
+}
+
+var copyColsWithIntegrity = []string{
+	colNamespace,
+	colObjectID,
+	colRelation,
+	colUsersetNamespace,
+	colUsersetObjectID,
+	colUsersetRelation,
+	colCaveatContextName,
+	colCaveatContext,
+	colIntegrityKeyID,
+	colIntegrityHash,
+	colTimestamp,
+}
+
+func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
+	if rwt.withIntegrity {
+		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.tupleTableName, copyColsWithIntegrity, iter)
+	}
+
+	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.tupleTableName, copyCols, iter)
 }
 
 var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}

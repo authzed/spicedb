@@ -43,12 +43,13 @@ var (
 		Help:      "The number of stale namespaces deleted by the datastore garbage collection.",
 	})
 
-	gcFailureCounter = prometheus.NewCounter(prometheus.CounterOpts{
+	gcFailureCounterConfig = prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore",
 		Name:      "gc_failure_total",
 		Help:      "The number of failed runs of the datastore garbage collection.",
-	})
+	}
+	gcFailureCounter = prometheus.NewCounter(gcFailureCounterConfig)
 )
 
 // RegisterGCMetrics registers garbage collection metrics to the default
@@ -72,6 +73,10 @@ func RegisterGCMetrics() error {
 // GarbageCollector represents any datastore that supports external garbage
 // collection.
 type GarbageCollector interface {
+	HasGCRun() bool
+	MarkGCCompleted()
+	ResetGCCompleted()
+
 	ReadyState(context.Context) (datastore.ReadyState, error)
 	Now(context.Context) (time.Time, error)
 	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
@@ -98,15 +103,21 @@ var MaxGCInterval = 60 * time.Minute
 // StartGarbageCollector loops forever until the context is canceled and
 // performs garbage collection on the provided interval.
 func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, window, timeout time.Duration) error {
-	log.Ctx(ctx).Info().
-		Dur("interval", interval).
-		Msg("datastore garbage collection worker started")
+	return startGarbageCollectorWithMaxElapsedTime(ctx, gc, interval, window, 0, timeout, gcFailureCounter)
+}
 
+func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageCollector, interval, window, maxElapsedTime, timeout time.Duration, failureCounter prometheus.Counter) error {
 	backoffInterval := backoff.NewExponentialBackOff()
 	backoffInterval.InitialInterval = interval
-	backoffInterval.MaxElapsedTime = maxDuration(MaxGCInterval, interval)
+	backoffInterval.MaxInterval = max(MaxGCInterval, interval)
+	backoffInterval.MaxElapsedTime = maxElapsedTime
+	backoffInterval.Reset()
 
 	nextInterval := interval
+
+	log.Ctx(ctx).Info().
+		Dur("interval", nextInterval).
+		Msg("datastore garbage collection worker started")
 
 	for {
 		select {
@@ -116,16 +127,25 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 			return ctx.Err()
 
 		case <-time.After(nextInterval):
+			log.Ctx(ctx).Info().
+				Dur("interval", nextInterval).
+				Dur("window", window).
+				Dur("timeout", timeout).
+				Msg("running garbage collection worker")
+
 			err := RunGarbageCollection(gc, window, timeout)
 			if err != nil {
-				gcFailureCounter.Inc()
+				failureCounter.Inc()
 				nextInterval = backoffInterval.NextBackOff()
 				log.Ctx(ctx).Warn().Err(err).
 					Dur("next-attempt-in", nextInterval).
 					Msg("error attempting to perform garbage collection")
 				continue
 			}
+
 			backoffInterval.Reset()
+			nextInterval = interval
+
 			log.Ctx(ctx).Debug().
 				Dur("next-run-in", interval).
 				Msg("datastore garbage collection scheduled for next run")
@@ -133,19 +153,16 @@ func StartGarbageCollector(ctx context.Context, gc GarbageCollector, interval, w
 	}
 }
 
-func maxDuration(d1 time.Duration, d2 time.Duration) time.Duration {
-	if d1 > d2 {
-		return d1
-	}
-	return d2
-}
-
 // RunGarbageCollection runs garbage collection for the datastore.
 func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
+	defer span.End()
+
 	// Before attempting anything, check if the datastore is ready.
+	startTime := time.Now()
 	ready, err := gc.ReadyState(ctx)
 	if err != nil {
 		return err
@@ -156,7 +173,6 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 		return nil
 	}
 
-	startTime := time.Now()
 	now, err := gc.Now(ctx)
 	if err != nil {
 		return fmt.Errorf("error retrieving now: %w", err)
@@ -168,21 +184,26 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	}
 
 	collected, err := gc.DeleteBeforeTx(ctx, watermark)
+
+	// even if an error happened, garbage would have been collected. This makes sure these are reflected even if the
+	// worker eventually fails or times out.
+	gcRelationshipsCounter.Add(float64(collected.Relationships))
+	gcTransactionsCounter.Add(float64(collected.Transactions))
+	gcNamespacesCounter.Add(float64(collected.Namespaces))
+	collectionDuration := time.Since(startTime)
+	gcDurationHistogram.Observe(collectionDuration.Seconds())
+
 	if err != nil {
 		return fmt.Errorf("error deleting in gc: %w", err)
 	}
 
-	collectionDuration := time.Since(startTime)
-	log.Ctx(ctx).Debug().
+	log.Ctx(ctx).Info().
 		Stringer("highestTxID", watermark).
 		Dur("duration", collectionDuration).
 		Time("nowTime", now).
 		Interface("collected", collected).
 		Msg("datastore garbage collection completed successfully")
 
-	gcDurationHistogram.Observe(collectionDuration.Seconds())
-	gcRelationshipsCounter.Add(float64(collected.Relationships))
-	gcTransactionsCounter.Add(float64(collected.Transactions))
-	gcNamespacesCounter.Add(float64(collected.Namespaces))
+	gc.MarkGCCompleted()
 	return nil
 }

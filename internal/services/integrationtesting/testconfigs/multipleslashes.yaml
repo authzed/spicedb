@@ -1,0 +1,37 @@
+---
+schema: |+
+    definition org/identity_team/user {}
+
+    definition org/identity_team/group {
+    	relation member: org/identity_team/user | org/identity_team/group#member
+    }
+
+    definition org/docs_team/resource {
+        relation host: org/infra_team/resource
+
+    	relation viewer: org/identity_team/group#member | org/identity_team/group#member with foo/bar/only_on_tuesday
+    }
+
+    definition org/infra_team/resource {
+    	relation viewer: org/identity_team/group#member | org/identity_team/group#member with foo/bar/only_on_tuesday
+    }
+
+    caveat foo/bar/only_on_tuesday(day_of_week string) {
+      day_of_week == 'tuesday'
+    }
+
+relationships: >-
+    org/identity_team/group:ultragroup#member@org/identity_team/user:someguy#...
+
+    org/identity_team/group:megagroup#member@org/identity_team/group:ultragroup#member
+
+    org/identity_team/group:supergroup#member@org/identity_team/group:megagroup#member
+
+    org/identity_team/group:subgroup#member@org/identity_team/group:supergroup#member
+
+    org/docs_team/resource:someresource#viewer@org/identity_team/group:subgroup#member
+
+    org/docs_team/resource:someresource#host@org/infra_team/resource:prod-box
+assertions:
+    assertTrue: []
+    assertFalse: []

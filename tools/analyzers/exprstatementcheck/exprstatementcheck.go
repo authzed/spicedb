@@ -4,22 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"slices"
 	"strings"
 
-	"github.com/jzelinskie/stringz"
-
+	"github.com/samber/lo"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
-
-func sliceMap(s []string, f func(value string) string) []string {
-	mapped := make([]string, 0, len(s))
-	for _, value := range s {
-		mapped = append(mapped, f(value))
-	}
-	return mapped
-}
 
 type disallowedExprStatementConfig struct {
 	fullTypePath       string
@@ -48,7 +40,7 @@ func Analyzer() *analysis.Analyzer {
 		Run: func(pass *analysis.Pass) (any, error) {
 			// Check for a skipped package.
 			if len(*skip) > 0 {
-				skipped := sliceMap(strings.Split(*skip, ","), strings.TrimSpace)
+				skipped := lo.Map(strings.Split(*skip, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
 				for _, s := range skipped {
 					if strings.Contains(pass.Pkg.Path(), s) {
 						return nil, nil
@@ -99,7 +91,7 @@ func Analyzer() *analysis.Analyzer {
 						if len(config.ignoredMethodNames) > 0 {
 							for _, parent := range stack {
 								if funcDecl, ok := parent.(*ast.FuncDecl); ok {
-									if stringz.SliceContains(config.ignoredMethodNames, funcDecl.Name.Name) {
+									if slices.Contains(config.ignoredMethodNames, funcDecl.Name.Name) {
 										break switchStatement
 									}
 								}

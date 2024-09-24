@@ -2,7 +2,6 @@ package dispatch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -10,9 +9,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
-
-// ErrMaxDepth is returned from CheckDepth when the max depth is exceeded.
-var ErrMaxDepth = errors.New("max depth exceeded: this usually indicates a recursive or too deep data dependency")
 
 // ReadyState represents the ready state of the dispatcher.
 type ReadyState struct {
@@ -27,9 +23,10 @@ type ReadyState struct {
 type Dispatcher interface {
 	Check
 	Expand
-	Lookup
 	ReachableResources
+	LookupResources
 	LookupSubjects
+	LookupResources2
 
 	// Close closes the dispatcher.
 	Close() error
@@ -50,12 +47,6 @@ type Expand interface {
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error)
 }
 
-// Lookup interface describes just the methods required to dispatch lookup requests.
-type Lookup interface {
-	// DispatchLookup submits a single lookup request and returns its result.
-	DispatchLookup(ctx context.Context, req *v1.DispatchLookupRequest) (*v1.DispatchLookupResponse, error)
-}
-
 // ReachableResourcesStream is an alias for the stream to which reachable resources will be written.
 type ReachableResourcesStream = Stream[*v1.DispatchReachableResourcesResponse]
 
@@ -65,6 +56,27 @@ type ReachableResources interface {
 	DispatchReachableResources(
 		req *v1.DispatchReachableResourcesRequest,
 		stream ReachableResourcesStream,
+	) error
+}
+
+// LookupResourcesStream is an alias for the stream to which found resources will be written.
+type LookupResourcesStream = Stream[*v1.DispatchLookupResourcesResponse]
+
+// LookupResources interface describes just the methods required to dispatch LookupResources requests.
+type LookupResources interface {
+	// DispatchLookupResources submits a single lookup request and returns its result.
+	DispatchLookupResources(
+		req *v1.DispatchLookupResourcesRequest,
+		stream LookupResourcesStream,
+	) error
+}
+
+type LookupResources2Stream = Stream[*v1.DispatchLookupResources2Response]
+
+type LookupResources2 interface {
+	DispatchLookupResources2(
+		req *v1.DispatchLookupResources2Request,
+		stream LookupResources2Stream,
 	) error
 }
 
@@ -80,15 +92,15 @@ type LookupSubjects interface {
 	) error
 }
 
-// HasMetadata is an interface for requests containing resolver metadata.
-type HasMetadata interface {
+// DispatchableRequest is an interface for requests.
+type DispatchableRequest interface {
 	zerolog.LogObjectMarshaler
 
 	GetMetadata() *v1.ResolverMeta
 }
 
 // CheckDepth returns ErrMaxDepth if there is insufficient depth remaining to dispatch.
-func CheckDepth(ctx context.Context, req HasMetadata) error {
+func CheckDepth(ctx context.Context, req DispatchableRequest) error {
 	metadata := req.GetMetadata()
 	if metadata == nil {
 		log.Ctx(ctx).Warn().Object("request", req).Msg("request missing metadata")
@@ -96,7 +108,7 @@ func CheckDepth(ctx context.Context, req HasMetadata) error {
 	}
 
 	if metadata.DepthRemaining == 0 {
-		return ErrMaxDepth
+		return NewMaxDepthExceededError(req)
 	}
 
 	return nil
@@ -108,11 +120,4 @@ func AddResponseMetadata(existing *v1.ResponseMeta, incoming *v1.ResponseMeta) {
 	existing.DispatchCount += incoming.DispatchCount
 	existing.CachedDispatchCount += incoming.CachedDispatchCount
 	existing.DepthRequired = max(existing.DepthRequired, incoming.DepthRequired)
-}
-
-func max(x, y uint32) uint32 {
-	if x < y {
-		return y
-	}
-	return x
 }

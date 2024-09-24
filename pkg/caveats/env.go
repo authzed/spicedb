@@ -3,7 +3,7 @@ package caveats
 import (
 	"fmt"
 
-	"github.com/google/cel-go/cel"
+	"github.com/authzed/cel-go/cel"
 
 	"github.com/authzed/spicedb/pkg/caveats/types"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -72,10 +72,20 @@ func (e *Environment) asCelEnvironment() (*cel.Env, error) {
 	// DefaultUTCTimeZone: ensure all timestamps are evaluated at UTC
 	opts = append(opts, cel.DefaultUTCTimeZone(true))
 
+	// OptionalTypes: enable optional typing syntax, e.g. `sometype?.foo`
+	// See: https://github.com/google/cel-spec/wiki/proposal-246
+	opts = append(opts, cel.OptionalTypes(cel.OptionalTypesVersion(0)))
+
 	// EnableMacroCallTracking: enables tracking of call macros so when we call AstToString we get
 	// back out the expected expressions.
-	// See: https://github.com/google/cel-go/issues/474
+	// See: https://github.com/authzed/cel-go/issues/474
 	opts = append(opts, cel.EnableMacroCallTracking())
+
+	// ParserExpressionSizeLimit: disable the size limit for codepoints in expressions.
+	// This has to be disabled due to us padding out the whitespace in expression parsing based on
+	// schema size. We instead do our own expression size check in the Compile method.
+	// TODO(jschorr): Remove this once the whitespace hack is removed.
+	opts = append(opts, cel.ParserExpressionSizeLimit(-1))
 
 	for name, varType := range e.variables {
 		opts = append(opts, cel.Variable(name, varType.CelType()))

@@ -22,16 +22,23 @@ var companyPlanFolder = &v1.RelationshipFilter{
 	},
 }
 
+var prefixMatch = &v1.RelationshipFilter{
+	OptionalResourceIdPrefix: "c",
+}
+
+var prefixNoMatch = &v1.RelationshipFilter{
+	OptionalResourceIdPrefix: "zzz",
+}
+
 func TestPreconditions(t *testing.T) {
 	require := require.New(t)
 	uninitialized, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
-	ds, revision := testfixtures.StandardDatastoreWithData(uninitialized, require)
-	require.True(revision.GreaterThan(datastore.NoRevision))
+	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)
 
 	ctx := context.Background()
-	_, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,
@@ -42,6 +49,18 @@ func TestPreconditions(t *testing.T) {
 			{
 				Operation: v1.Precondition_OPERATION_MUST_NOT_MATCH,
 				Filter:    companyPlanFolder,
+			},
+		}))
+		require.NoError(checkPreconditions(ctx, rwt, []*v1.Precondition{
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter:    prefixMatch,
+			},
+		}))
+		require.Error(checkPreconditions(ctx, rwt, []*v1.Precondition{
+			{
+				Operation: v1.Precondition_OPERATION_MUST_MATCH,
+				Filter:    prefixNoMatch,
 			},
 		}))
 		return nil

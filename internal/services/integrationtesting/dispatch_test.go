@@ -5,11 +5,11 @@ package integrationtesting_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/jzelinskie/stringz"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner"
@@ -315,7 +315,7 @@ func TestDispatchIntegration(t *testing.T) {
 	}
 
 	for _, engine := range datastore.Engines {
-		if stringz.SliceContains(blacklist, engine) {
+		if slices.Contains(blacklist, engine) {
 			continue
 		}
 		b := testdatastore.RunDatastoreEngine(t, engine)

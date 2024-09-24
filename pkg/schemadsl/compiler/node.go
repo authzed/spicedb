@@ -107,6 +107,16 @@ func (tn *dslNode) GetString(predicateName string) (string, error) {
 	return value, nil
 }
 
+func (tn *dslNode) AllSubNodes() []*dslNode {
+	nodes := []*dslNode{}
+	for _, childList := range tn.children {
+		for e := childList.Front(); e != nil; e = e.Next() {
+			nodes = append(nodes, e.Value.(*dslNode))
+		}
+	}
+	return nodes
+}
+
 func (tn *dslNode) GetChildren() []*dslNode {
 	return tn.List(dslshape.NodePredicateChild)
 }

@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/authzed/spicedb/pkg/util"
-
 	log "github.com/authzed/spicedb/internal/logging"
 	dsctx "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/relationships"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
 // PopulatedValidationFile contains the fully parsed information from a validation file.
@@ -93,7 +93,12 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 				schema += parsed.Schema.Schema + "\n\n"
 			}
 
-			log.Ctx(ctx).Info().Str("filePath", filePath).Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).Msg("adding schema definitions")
+			log.Ctx(ctx).Info().Str("filePath", filePath).
+				Int("definitionCount", len(defs)).
+				Int("caveatDefinitionCount", len(parsed.Schema.CompiledSchema.CaveatDefinitions)).
+				Int("schemaDefinitionCount", len(parsed.Schema.CompiledSchema.OrderedDefinitions)).
+				Msg("adding schema definitions")
+
 			objectDefs = append(objectDefs, defs...)
 			caveatDefs = append(caveatDefs, parsed.Schema.CompiledSchema.CaveatDefinitions...)
 		}
@@ -107,7 +112,7 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 	}
 
 	// Load the definitions and relationships into the datastore.
-	revision, err := ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
+	revision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		// Write the caveat definitions.
 		err := rwt.WriteCaveats(ctx, caveatDefs)
 		if err != nil {
@@ -116,9 +121,10 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 
 		// Validate and write the object definitions.
 		for _, objectDef := range objectDefs {
-			ts, err := namespace.NewNamespaceTypeSystem(objectDef,
-				namespace.ResolverForDatastoreReader(rwt).WithPredefinedElements(namespace.PredefinedElements{
+			ts, err := typesystem.NewNamespaceTypeSystem(objectDef,
+				typesystem.ResolverForDatastoreReader(rwt).WithPredefinedElements(typesystem.PredefinedElements{
 					Namespaces: objectDefs,
+					Caveats:    caveatDefs,
 				}))
 			if err != nil {
 				return err
@@ -143,18 +149,22 @@ func PopulateFromFilesContents(ctx context.Context, ds datastore.Datastore, file
 		return err
 	})
 
-	util.ForEachChunk(updates, 500, func(updates []*core.RelationTupleUpdate) {
+	slicez.ForEachChunk(updates, 500, func(chunked []*core.RelationTupleUpdate) {
 		if err != nil {
 			return
 		}
 
-		revision, err = ds.ReadWriteTx(ctx, func(rwt datastore.ReadWriteTransaction) error {
-			err = relationships.ValidateRelationshipUpdates(ctx, rwt, updates)
+		chunkedTuples := make([]*core.RelationTuple, 0, len(chunked))
+		for _, update := range chunked {
+			chunkedTuples = append(chunkedTuples, update.Tuple)
+		}
+		revision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, chunkedTuples)
 			if err != nil {
 				return err
 			}
 
-			return rwt.WriteRelationships(ctx, updates)
+			return rwt.WriteRelationships(ctx, chunked)
 		})
 	})
 

@@ -3,7 +3,9 @@ package testserver
 import (
 	"context"
 	"fmt"
+	"time"
 
+	helpers "github.com/ecordell/optgen/helpers"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -11,30 +13,38 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/gateway"
 	log "github.com/authzed/spicedb/internal/logging"
-	consistencymw "github.com/authzed/spicedb/internal/middleware/consistency"
-	dispatchmw "github.com/authzed/spicedb/internal/middleware/dispatcher"
 	"github.com/authzed/spicedb/internal/middleware/pertoken"
 	"github.com/authzed/spicedb/internal/middleware/readonly"
-	"github.com/authzed/spicedb/internal/middleware/servicespecific"
 	"github.com/authzed/spicedb/internal/services"
 	"github.com/authzed/spicedb/internal/services/health"
 	v1svc "github.com/authzed/spicedb/internal/services/v1"
+	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/util"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-const maxDepth = 50
+const (
+	maxDepth                = 50
+	defaultConcurrencyLimit = 10
+	defaultMaxChunkSize     = 100
+)
 
 //go:generate go run github.com/ecordell/optgen -output zz_generated.options.go . Config
 type Config struct {
-	GRPCServer               util.GRPCServerConfig
-	ReadOnlyGRPCServer       util.GRPCServerConfig
-	HTTPGateway              util.HTTPServerConfig
-	ReadOnlyHTTPGateway      util.HTTPServerConfig
-	LoadConfigs              []string
-	MaximumUpdatesPerWrite   uint16
-	MaximumPreconditionCount uint16
-	MaxCaveatContextSize     int
+	GRPCServer                        util.GRPCServerConfig `debugmap:"visible"`
+	ReadOnlyGRPCServer                util.GRPCServerConfig `debugmap:"visible"`
+	HTTPGateway                       util.HTTPServerConfig `debugmap:"visible"`
+	ReadOnlyHTTPGateway               util.HTTPServerConfig `debugmap:"visible"`
+	LoadConfigs                       []string              `debugmap:"visible"`
+	MaximumUpdatesPerWrite            uint16                `debugmap:"visible"`
+	MaximumPreconditionCount          uint16                `debugmap:"visible"`
+	MaxCaveatContextSize              int                   `debugmap:"visible"`
+	MaxRelationshipContextSize        int                   `debugmap:"visible"`
+	MaxReadRelationshipsLimit         uint32                `debugmap:"visible"`
+	MaxDeleteRelationshipsLimit       uint32                `debugmap:"visible"`
+	MaxLookupResourcesLimit           uint32                `debugmap:"visible"`
+	MaxBulkExportRelationshipsLimit   uint32                `debugmap:"visible"`
+	EnableExperimentalLookupResources bool                  `debugmap:"visible"`
 }
 
 type RunnableTestServer interface {
@@ -50,7 +60,9 @@ func (dr datastoreReady) ReadyState(_ context.Context) (datastore.ReadyState, er
 }
 
 func (c *Config) Complete() (RunnableTestServer, error) {
-	dispatcher := graph.NewLocalOnlyDispatcher(10)
+	log.Ctx(context.Background()).Info().Fields(helpers.Flatten(c.DebugMap())).Msg("configuration")
+
+	dispatcher := graph.NewLocalOnlyDispatcher(defaultConcurrencyLimit, defaultMaxChunkSize)
 
 	datastoreMiddleware := pertoken.NewMiddleware(c.LoadConfigs)
 
@@ -64,26 +76,39 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 			services.V1SchemaServiceEnabled,
 			services.WatchServiceEnabled,
 			v1svc.PermissionsServerConfig{
-				MaxPreconditionsCount: c.MaximumPreconditionCount,
-				MaxUpdatesPerWrite:    c.MaximumUpdatesPerWrite,
-				MaximumAPIDepth:       maxDepth,
-				MaxCaveatContextSize:  c.MaxCaveatContextSize,
+				MaxPreconditionsCount:           c.MaximumPreconditionCount,
+				MaxUpdatesPerWrite:              c.MaximumUpdatesPerWrite,
+				MaximumAPIDepth:                 maxDepth,
+				MaxCaveatContextSize:            c.MaxCaveatContextSize,
+				MaxReadRelationshipsLimit:       c.MaxReadRelationshipsLimit,
+				MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
+				MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
+				MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
+				DispatchChunkSize:               defaultMaxChunkSize,
 			},
+			1*time.Second,
 		)
 	}
+
+	opts := *server.NewMiddlewareOptionWithOptions(server.WithAuthFunc(func(ctx context.Context) (context.Context, error) {
+		// Turn off the default auth system.
+		return ctx, nil
+	}))
+	opts = opts.WithDatastoreMiddleware(datastoreMiddleware)
+
+	unaryMiddleware, err := server.DefaultUnaryMiddleware(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	streamMiddleware, err := server.DefaultStreamingMiddleware(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	gRPCSrv, err := c.GRPCServer.Complete(zerolog.InfoLevel, registerServices,
-		grpc.ChainUnaryInterceptor(
-			datastoreMiddleware.UnaryServerInterceptor(),
-			dispatchmw.UnaryServerInterceptor(dispatcher),
-			consistencymw.UnaryServerInterceptor(),
-			servicespecific.UnaryServerInterceptor,
-		),
-		grpc.ChainStreamInterceptor(
-			datastoreMiddleware.StreamServerInterceptor(),
-			dispatchmw.StreamServerInterceptor(dispatcher),
-			consistencymw.StreamServerInterceptor(),
-			servicespecific.StreamServerInterceptor,
-		),
+		grpc.ChainUnaryInterceptor(unaryMiddleware.ToGRPCInterceptors()...),
+		grpc.ChainStreamInterceptor(streamMiddleware.ToGRPCInterceptors()...),
 	)
 	if err != nil {
 		return nil, err
@@ -91,18 +116,10 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 
 	readOnlyGRPCSrv, err := c.ReadOnlyGRPCServer.Complete(zerolog.InfoLevel, registerServices,
 		grpc.ChainUnaryInterceptor(
-			datastoreMiddleware.UnaryServerInterceptor(),
-			readonly.UnaryServerInterceptor(),
-			dispatchmw.UnaryServerInterceptor(dispatcher),
-			consistencymw.UnaryServerInterceptor(),
-			servicespecific.UnaryServerInterceptor,
+			append(unaryMiddleware.ToGRPCInterceptors(), readonly.UnaryServerInterceptor())...,
 		),
 		grpc.ChainStreamInterceptor(
-			datastoreMiddleware.StreamServerInterceptor(),
-			readonly.StreamServerInterceptor(),
-			dispatchmw.StreamServerInterceptor(dispatcher),
-			consistencymw.StreamServerInterceptor(),
-			servicespecific.StreamServerInterceptor,
+			append(streamMiddleware.ToGRPCInterceptors(), readonly.StreamServerInterceptor())...,
 		),
 	)
 	if err != nil {
@@ -114,7 +131,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
 
-	if c.HTTPGateway.Enabled {
+	if c.HTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
 	}
 
@@ -128,7 +145,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 		log.Fatal().Err(err).Msg("failed to initialize rest gateway")
 	}
 
-	if c.ReadOnlyHTTPGateway.Enabled {
+	if c.ReadOnlyHTTPGateway.HTTPEnabled {
 		log.Info().Msg("starting REST gateway")
 	}
 

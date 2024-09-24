@@ -9,21 +9,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
-	"github.com/shopspring/decimal"
 
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
+	Engine                   = "memory"
 	defaultWatchBufferLength = 128
-	numRetries               = 10
+	numAttempts              = 10
 )
 
-var errSerialization = errors.New("serialization error")
+var ErrSerialization = errors.New("serialization error")
 
 // DisableGC is a convenient constant for setting the garbage collection
 // interval high enough that it will never run.
@@ -55,47 +59,47 @@ func NewMemdbDatastore(
 	}
 
 	uniqueID := uuid.NewString()
-
-	negativeGCWindow := decimal.NewFromInt(gcWindow.Nanoseconds()).Mul(decimal.NewFromInt(-1))
-
 	return &memdbDatastore{
+		CommonDecoder: revisions.CommonDecoder{
+			Kind: revisions.Timestamp,
+		},
 		db: db,
 		revisions: []snapshot{
 			{
-				revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
+				revision: nowRevision(),
 				db:       db,
 			},
 		},
 
-		negativeGCWindow:   negativeGCWindow,
-		quantizationPeriod: decimal.NewFromInt(revisionQuantization.Nanoseconds()),
-		watchBufferLength:  watchBufferLength,
-		uniqueID:           uniqueID,
+		negativeGCWindow:        gcWindow.Nanoseconds() * -1,
+		quantizationPeriod:      revisionQuantization.Nanoseconds(),
+		watchBufferLength:       watchBufferLength,
+		watchBufferWriteTimeout: 100 * time.Millisecond,
+		uniqueID:                uniqueID,
 	}, nil
 }
 
 type memdbDatastore struct {
 	sync.RWMutex
-	revision.DecimalDecoder
+	revisions.CommonDecoder
 
 	db             *memdb.MemDB
 	revisions      []snapshot
 	activeWriteTxn *memdb.Txn
 
-	negativeGCWindow   decimal.Decimal
-	quantizationPeriod decimal.Decimal
-	watchBufferLength  uint16
-	uniqueID           string
+	negativeGCWindow        int64
+	quantizationPeriod      int64
+	watchBufferLength       uint16
+	watchBufferWriteTimeout time.Duration
+	uniqueID                string
 }
 
 type snapshot struct {
-	revision decimal.Decimal
+	revision revisions.TimestampRevision
 	db       *memdb.MemDB
 }
 
-func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datastore.Reader {
-	dr := revisionRaw.(revision.Decimal)
-
+func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
 
@@ -108,7 +112,7 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
-		return mdb.revisions[i].revision.GreaterThanOrEqual(dr.Decimal)
+		return mdb.revisions[i].revision.GreaterThan(dr) || mdb.revisions[i].revision.Equal(dr)
 	})
 
 	// handle the case when there is no revision snapshot newer than the requested revision
@@ -129,11 +133,22 @@ func (mdb *memdbDatastore) SnapshotReader(revisionRaw datastore.Revision) datast
 	return &memdbReader{noopTryLocker{}, txSrc, nil}
 }
 
+func (mdb *memdbDatastore) SupportsIntegrity() bool {
+	return true
+}
+
 func (mdb *memdbDatastore) ReadWriteTx(
-	_ context.Context,
+	ctx context.Context,
 	f datastore.TxUserFunc,
+	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
-	for i := 0; i < numRetries; i++ {
+	config := options.NewRWTOptionsWithOptions(opts...)
+	txNumAttempts := numAttempts
+	if config.DisableRetries {
+		txNumAttempts = 1
+	}
+
+	for i := 0; i < txNumAttempts; i++ {
 		var tx *memdb.Txn
 		createTxOnce := sync.Once{}
 		txSrc := func() (*memdb.Txn, error) {
@@ -143,7 +158,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 				defer mdb.Unlock()
 
 				if mdb.activeWriteTxn != nil {
-					err = errSerialization
+					err = ErrSerialization
 					return
 				}
 
@@ -162,7 +177,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		newRevision := mdb.newRevisionID()
 		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil}, newRevision}
-		if err := f(rwt); err != nil {
+		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {
 				tx.Abort()
@@ -170,7 +185,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 			}
 
 			// If the error was a serialization error, retry the transaction
-			if errors.Is(err, errSerialization) {
+			if errors.Is(err, ErrSerialization) {
 				mdb.Unlock()
 
 				// If we don't sleep here, we run out of retries instantaneously
@@ -187,40 +202,84 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		mdb.Lock()
 		defer mdb.Unlock()
 
-		// Record the changes that were made
-		newChanges := datastore.RevisionChanges{
-			Revision: newRevision,
-			Changes:  nil,
-		}
+		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 		if tx != nil {
 			for _, change := range tx.Changes() {
-				if change.Table == tableRelationship {
+				switch change.Table {
+				case tableRelationship:
 					if change.After != nil {
 						rt, err := change.After.(*relationship).RelationTuple()
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-						newChanges.Changes = append(newChanges.Changes, &corev1.RelationTupleUpdate{
-							Operation: corev1.RelationTupleUpdate_TOUCH,
-							Tuple:     rt,
-						})
-					}
-					if change.After == nil && change.Before != nil {
+
+						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, corev1.RelationTupleUpdate_TOUCH); err != nil {
+							return datastore.NoRevision, err
+						}
+					} else if change.After == nil && change.Before != nil {
 						rt, err := change.Before.(*relationship).RelationTuple()
 						if err != nil {
 							return datastore.NoRevision, err
 						}
-						newChanges.Changes = append(newChanges.Changes, &corev1.RelationTupleUpdate{
-							Operation: corev1.RelationTupleUpdate_DELETE,
-							Tuple:     rt,
-						})
+
+						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, corev1.RelationTupleUpdate_DELETE); err != nil {
+							return datastore.NoRevision, err
+						}
+					} else {
+						return datastore.NoRevision, spiceerrors.MustBugf("unexpected relationship change")
+					}
+				case tableNamespace:
+					if change.After != nil {
+						loaded := &corev1.NamespaceDefinition{}
+						if err := loaded.UnmarshalVT(change.After.(*namespace).configBytes); err != nil {
+							return datastore.NoRevision, err
+						}
+
+						err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
+					} else if change.After == nil && change.Before != nil {
+						err := tracked.AddDeletedNamespace(ctx, newRevision, change.Before.(*namespace).name)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
+					} else {
+						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
+					}
+				case tableCaveats:
+					if change.After != nil {
+						loaded := &corev1.CaveatDefinition{}
+						if err := loaded.UnmarshalVT(change.After.(*caveat).definition); err != nil {
+							return datastore.NoRevision, err
+						}
+
+						err := tracked.AddChangedDefinition(ctx, newRevision, loaded)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
+					} else if change.After == nil && change.Before != nil {
+						err := tracked.AddDeletedCaveat(ctx, newRevision, change.Before.(*caveat).name)
+						if err != nil {
+							return datastore.NoRevision, err
+						}
+					} else {
+						return datastore.NoRevision, spiceerrors.MustBugf("unexpected namespace change")
 					}
 				}
 			}
 
+			var rc datastore.RevisionChanges
+			changes := tracked.AsRevisionChanges(revisions.TimestampIDKeyLessThanFunc)
+			if len(changes) > 1 {
+				return datastore.NoRevision, spiceerrors.MustBugf("unexpected MemDB transaction with multiple revision changes")
+			} else if len(changes) == 1 {
+				rc = changes[0]
+			}
+
 			change := &changelog{
-				revisionNanos: newRevision.IntPart(),
-				changes:       newChanges,
+				revisionNanos: newRevision.TimestampNanoSec(),
+				changes:       rc,
 			}
 			if err := tx.Insert(tableChangelog, change); err != nil {
 				return datastore.NoRevision, fmt.Errorf("error writing changelog: %w", err)
@@ -236,11 +295,11 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		snap := mdb.db.Snapshot()
-		mdb.revisions = append(mdb.revisions, snapshot{newRevision.Decimal, snap})
+		mdb.revisions = append(mdb.revisions, snapshot{newRevision, snap})
 		return newRevision, nil
 	}
 
-	return datastore.NoRevision, errors.New("serialization max retries exceeded")
+	return datastore.NoRevision, NewSerializationMaxRetriesReachedErr(errors.New("serialization max retries exceeded; please reduce your parallel writes"))
 }
 
 func (mdb *memdbDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {
@@ -253,19 +312,32 @@ func (mdb *memdbDatastore) ReadyState(_ context.Context) (datastore.ReadyState, 
 	}, nil
 }
 
+func (mdb *memdbDatastore) OfflineFeatures() (*datastore.Features, error) {
+	return &datastore.Features{
+		Watch: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		IntegrityData: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		ContinuousCheckpointing: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
+	}, nil
+}
+
 func (mdb *memdbDatastore) Features(_ context.Context) (*datastore.Features, error) {
-	return &datastore.Features{Watch: datastore.Feature{Enabled: true}}, nil
+	return mdb.OfflineFeatures()
 }
 
 func (mdb *memdbDatastore) Close() error {
 	mdb.Lock()
 	defer mdb.Unlock()
 
-	// TODO Make this nil once we have removed all access to closed datastores
 	if db := mdb.db; db != nil {
 		mdb.revisions = []snapshot{
 			{
-				revision: revisionFromTimestamp(time.Now().UTC()).Decimal,
+				revision: nowRevision(),
 				db:       db,
 			},
 		}

@@ -1,0 +1,49 @@
+---
+schema: |+
+  definition user {}
+
+  definition team {
+    relation direct_member: user
+    permission member = direct_member
+  }
+
+  definition resource {
+    relation team: team
+    permission view_by_all = team.all(member)
+    permission view_by_any = team.any(member)
+  }
+
+relationships: |-
+  team:first#direct_member@user:tom
+  team:first#direct_member@user:fred
+  team:first#direct_member@user:sarah
+  team:second#direct_member@user:fred
+  team:second#direct_member@user:sarah
+  team:third#direct_member@user:sarah
+  resource:oneteam#team@team:first
+  resource:twoteams#team@team:first
+  resource:twoteams#team@team:second
+  resource:threeteams#team@team:first
+  resource:threeteams#team@team:second
+  resource:threeteams#team@team:third
+
+assertions:
+  assertTrue:
+    - "resource:oneteam#view_by_all@user:tom"
+    - "resource:oneteam#view_by_all@user:fred"
+    - "resource:oneteam#view_by_all@user:sarah"
+    - "resource:twoteams#view_by_all@user:fred"
+    - "resource:threeteams#view_by_all@user:sarah"
+    - "resource:oneteam#view_by_any@user:tom"
+    - "resource:oneteam#view_by_any@user:fred"
+    - "resource:oneteam#view_by_any@user:sarah"
+    - "resource:twoteams#view_by_any@user:tom"
+    - "resource:twoteams#view_by_any@user:fred"
+    - "resource:twoteams#view_by_any@user:sarah"
+    - "resource:threeteams#view_by_any@user:tom"
+    - "resource:threeteams#view_by_any@user:fred"
+    - "resource:threeteams#view_by_any@user:sarah"
+  assertFalse:
+    - "resource:twoteams#view_by_all@user:tom"
+    - "resource:threeteams#view_by_all@user:tom"
+    - "resource:threeteams#view_by_all@user:fred"

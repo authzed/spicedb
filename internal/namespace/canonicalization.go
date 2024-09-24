@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/typesystem"
 
 	"github.com/dalzilio/rudd"
 
@@ -36,7 +37,7 @@ const computedKeyPrefix = "%"
 // expressions in the namespace:
 //
 //	  definition somenamespace {
-//		    relation first: ...
+//		 relation first: ...
 //	              ^ index 0
 //	     relation second: ...
 //	              ^ index 1
@@ -54,8 +55,8 @@ const computedKeyPrefix = "%"
 // canonical representation of the binary expression. These hashes can then be used for caching,
 // representing the same *logical* expressions for a permission, even if the relations have
 // different names.
-func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
-	varMap, err := buildBddVarMap(typeSystem.nsDef.Relation, aliasMap)
+func computeCanonicalCacheKeys(typeSystem *typesystem.ValidatedNamespaceTypeSystem, aliasMap map[string]string) (map[string]string, error) {
+	varMap, err := buildBddVarMap(typeSystem.Namespace().Relation, aliasMap)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +71,8 @@ func computeCanonicalCacheKeys(typeSystem *ValidatedNamespaceTypeSystem, aliasMa
 	}
 
 	// For each permission, build a canonicalized cache key based on its expression.
-	cacheKeys := make(map[string]string, len(typeSystem.nsDef.Relation))
-	for _, rel := range typeSystem.nsDef.Relation {
+	cacheKeys := make(map[string]string, len(typeSystem.Namespace().Relation))
+	for _, rel := range typeSystem.Namespace().Relation {
 		rewrite := rel.GetUsersetRewrite()
 		if rewrite == nil {
 			// If the relation has no rewrite (making it a pure relation), then its canonical
@@ -154,6 +155,28 @@ func convertToBdd(relation *core.Relation, bdd *rudd.BDD, so *core.SetOperation,
 
 			values = append(values, builder(index, arrowIndex))
 
+		case *core.SetOperation_Child_FunctionedTupleToUserset:
+			switch child.FunctionedTupleToUserset.Function {
+			case core.FunctionedTupleToUserset_FUNCTION_ANY:
+				arrowIndex, err := varMap.GetArrow(child.FunctionedTupleToUserset.Tupleset.Relation, child.FunctionedTupleToUserset.ComputedUserset.Relation)
+				if err != nil {
+					return nil, err
+				}
+
+				values = append(values, builder(index, arrowIndex))
+
+			case core.FunctionedTupleToUserset_FUNCTION_ALL:
+				arrowIndex, err := varMap.GetIntersectionArrow(child.FunctionedTupleToUserset.Tupleset.Relation, child.FunctionedTupleToUserset.ComputedUserset.Relation)
+				if err != nil {
+					return nil, err
+				}
+
+				values = append(values, builder(index, arrowIndex))
+
+			default:
+				return nil, spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.Function)
+			}
+
 		case *core.SetOperation_Child_XNil:
 			values = append(values, builder(index, varMap.Nil()))
 
@@ -174,6 +197,15 @@ func (bvm bddVarMap) GetArrow(tuplesetName string, relName string) (int, error) 
 	index, ok := bvm.varMap[key]
 	if !ok {
 		return -1, spiceerrors.MustBugf("missing arrow key %s in varMap", key)
+	}
+	return index, nil
+}
+
+func (bvm bddVarMap) GetIntersectionArrow(tuplesetName string, relName string) (int, error) {
+	key := tuplesetName + "-(all)->" + relName
+	index, ok := bvm.varMap[key]
+	if !ok {
+		return -1, spiceerrors.MustBugf("missing intersection arrow key %s in varMap", key)
 	}
 	return index, nil
 }
@@ -212,15 +244,32 @@ func buildBddVarMap(relations []*core.Relation, aliasMap map[string]string) (bdd
 			continue
 		}
 
-		_, err := graph.WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) interface{} {
+		_, err := graph.WalkRewrite(rewrite, func(childOneof *core.SetOperation_Child) (interface{}, error) {
 			switch child := childOneof.ChildType.(type) {
 			case *core.SetOperation_Child_TupleToUserset:
 				key := child.TupleToUserset.Tupleset.Relation + "->" + child.TupleToUserset.ComputedUserset.Relation
 				if _, ok := varMap[key]; !ok {
 					varMap[key] = len(varMap)
 				}
+			case *core.SetOperation_Child_FunctionedTupleToUserset:
+				key := child.FunctionedTupleToUserset.Tupleset.Relation + "->" + child.FunctionedTupleToUserset.ComputedUserset.Relation
+
+				switch child.FunctionedTupleToUserset.Function {
+				case core.FunctionedTupleToUserset_FUNCTION_ANY:
+					// Use the key.
+
+				case core.FunctionedTupleToUserset_FUNCTION_ALL:
+					key = child.FunctionedTupleToUserset.Tupleset.Relation + "-(all)->" + child.FunctionedTupleToUserset.ComputedUserset.Relation
+
+				default:
+					return nil, spiceerrors.MustBugf("unknown function %v", child.FunctionedTupleToUserset.Function)
+				}
+
+				if _, ok := varMap[key]; !ok {
+					varMap[key] = len(varMap)
+				}
 			}
-			return nil
+			return nil, nil
 		})
 		if err != nil {
 			return bddVarMap{}, err

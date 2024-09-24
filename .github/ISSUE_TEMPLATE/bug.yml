@@ -1,0 +1,59 @@
+---
+name: "🐞 Bug Report"
+description: "Tell us about something that's not working the way we (probably) intend."
+labels: ["kind/bug", "state/triage"]
+body:
+  - type: "dropdown"
+    id: "platform"
+    validations:
+      required: true
+    attributes:
+      label: "What platforms are affected?"
+      multiple: true
+      options:
+        - "linux"
+        - "macos"
+        - "windows"
+        - "others"
+  - type: "dropdown"
+    id: "arch"
+    validations:
+      required: true
+    attributes:
+      label: "What architectures are affected?"
+      multiple: true
+      options:
+        - "amd64"
+        - "arm64"
+        - "others"
+  - type: "textarea"
+    id: "version"
+    validations:
+      required: true
+    attributes:
+      label: "What SpiceDB version are you using?"
+      placeholder: "v1.25.0"
+  - type: "textarea"
+    id: "repro"
+    validations:
+      required: true
+    attributes:
+      label: "Steps to Reproduce"
+      description: "How can we see what you're seeing? Specific is terrific."
+      placeholder: |-
+        1. foo
+        2. bar
+        3. baz
+  - type: "textarea"
+    id: "expected"
+    validations:
+      required: true
+    attributes:
+      label: "Expected Result"
+  - type: "textarea"
+    id: "actual"
+    validations:
+      required: true
+    attributes:
+      label: "Actual Result"
+      description: "Logs? Screenshots? Yes, please."

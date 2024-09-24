@@ -3,14 +3,17 @@ package memdb
 import (
 	"context"
 	"fmt"
-	"runtime"
+	"slices"
+	"sort"
+	"strings"
 
 	"github.com/hashicorp/go-memdb"
-	"github.com/jzelinskie/stringz"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 type txFactory func() (*memdb.Txn, error)
@@ -19,6 +22,87 @@ type memdbReader struct {
 	TryLocker
 	txSource txFactory
 	initErr  error
+}
+
+func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
+	counters, err := r.LookupCounters(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var found *core.RelationshipFilter
+	for _, counter := range counters {
+		if counter.Name == name {
+			found = counter.Filter
+			break
+		}
+	}
+
+	if found == nil {
+		return 0, datastore.NewCounterNotRegisteredErr(name)
+	}
+
+	coreFilter, err := datastore.RelationshipsFilterFromCoreFilter(found)
+	if err != nil {
+		return 0, err
+	}
+
+	iter, err := r.QueryRelationships(ctx, coreFilter)
+	if err != nil {
+		return 0, err
+	}
+	defer iter.Close()
+
+	count := 0
+	for iter.Next() != nil {
+		if iter.Err() != nil {
+			return 0, iter.Err()
+		}
+
+		count++
+	}
+	iter.Close()
+
+	return count, nil
+}
+
+func (r *memdbReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
+	if r.initErr != nil {
+		return nil, r.initErr
+	}
+
+	r.mustLock()
+	defer r.Unlock()
+
+	tx, err := r.txSource()
+	if err != nil {
+		return nil, err
+	}
+
+	var counters []datastore.RelationshipCounter
+
+	it, err := tx.LowerBound(tableCounters, indexID)
+	if err != nil {
+		return nil, err
+	}
+
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		found := foundRaw.(*counter)
+
+		loaded := &core.RelationshipFilter{}
+		if err := loaded.UnmarshalVT(found.filterBytes); err != nil {
+			return nil, err
+		}
+
+		counters = append(counters, datastore.RelationshipCounter{
+			Name:               found.name,
+			Filter:             loaded,
+			Count:              found.count,
+			ComputedAtRevision: found.updated,
+		})
+	}
+
+	return counters, nil
 }
 
 // QueryRelationships reads relationships starting from the resource side.
@@ -51,18 +135,30 @@ func (r *memdbReader) QueryRelationships(
 	}
 
 	matchingRelationshipsFilterFunc := filterFuncForFilters(
-		filter.ResourceType,
+		filter.OptionalResourceType,
 		filter.OptionalResourceIds,
+		filter.OptionalResourceIDPrefix,
 		filter.OptionalResourceRelation,
 		filter.OptionalSubjectsSelectors,
 		filter.OptionalCaveatName,
-		queryOpts.Usersets,
 		makeCursorFilterFn(queryOpts.After, queryOpts.Sort),
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
 
-	iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit, queryOpts.Sort)
-	return iter, nil
+	switch queryOpts.Sort {
+	case options.Unsorted:
+		fallthrough
+
+	case options.ByResource:
+		iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit, queryOpts.Sort)
+		return iter, nil
+
+	case options.BySubject:
+		return newSubjectSortedIterator(filteredIterator, queryOpts.Limit)
+
+	default:
+		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.Sort)
+	}
 }
 
 func mustHaveBeenClosed(iter *memdbTupleIterator) {
@@ -109,15 +205,28 @@ func (r *memdbReader) ReverseQueryRelationships(
 	matchingRelationshipsFilterFunc := filterFuncForFilters(
 		filterObjectType,
 		nil,
+		"",
 		filterRelation,
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		"",
-		nil,
-		noopCursorFilter,
+		makeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
 
-	return newMemdbTupleIterator(filteredIterator, queryOpts.ReverseLimit, options.Unsorted), nil
+	switch queryOpts.SortForReverse {
+	case options.Unsorted:
+		fallthrough
+
+	case options.ByResource:
+		iter := newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse, queryOpts.SortForReverse)
+		return iter, nil
+
+	case options.BySubject:
+		return newSubjectSortedIterator(filteredIterator, queryOpts.LimitForReverse)
+
+	default:
+		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.SortForReverse)
+	}
 }
 
 // ReadNamespace reads a namespace definition and version and returns it, and the revision at
@@ -247,11 +356,26 @@ func (r *memdbReader) mustLock() {
 }
 
 func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (memdb.ResultIterator, error) {
-	index := indexNamespace
-	args := []any{filter.ResourceType}
-	if filter.OptionalResourceRelation != "" {
+	// "_prefix" is a specialized index suffix used by github.com/hashicorp/go-memdb to match on
+	// a prefix of a string.
+	// See: https://github.com/hashicorp/go-memdb/blob/9940d4a14258e3b887bfb4bc6ebc28f65461a01c/txn.go#L531
+	index := indexNamespace + "_prefix"
+
+	var args []any
+	if filter.OptionalResourceType != "" {
+		args = append(args, filter.OptionalResourceType)
+		index = indexNamespace
+	} else {
+		args = append(args, "")
+	}
+
+	if filter.OptionalResourceType != "" && filter.OptionalResourceRelation != "" {
 		args = append(args, filter.OptionalResourceRelation)
 		index = indexNamespaceAndRelation
+	}
+
+	if len(args) == 0 {
+		return nil, spiceerrors.MustBugf("cannot specify an empty filter")
 	}
 
 	iter, err := txn.Get(tableRelationship, index, args...)
@@ -265,10 +389,10 @@ func iteratorForFilter(txn *memdb.Txn, filter datastore.RelationshipsFilter) (me
 func filterFuncForFilters(
 	optionalResourceType string,
 	optionalResourceIds []string,
+	optionalResourceIDPrefix string,
 	optionalRelation string,
 	optionalSubjectsSelectors []datastore.SubjectsSelector,
 	optionalCaveatFilter string,
-	usersets []*core.ObjectAndRelation,
 	cursorFilter func(*relationship) bool,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
@@ -277,7 +401,9 @@ func filterFuncForFilters(
 		switch {
 		case optionalResourceType != "" && optionalResourceType != tuple.namespace:
 			return true
-		case len(optionalResourceIds) > 0 && !stringz.SliceContains(optionalResourceIds, tuple.resourceID):
+		case len(optionalResourceIds) > 0 && !slices.Contains(optionalResourceIds, tuple.resourceID):
+			return true
+		case optionalResourceIDPrefix != "" && !strings.HasPrefix(tuple.resourceID, optionalResourceIDPrefix):
 			return true
 		case optionalRelation != "" && optionalRelation != tuple.relation:
 			return true
@@ -289,7 +415,7 @@ func filterFuncForFilters(
 			switch {
 			case len(selector.OptionalSubjectType) > 0 && selector.OptionalSubjectType != tuple.subjectNamespace:
 				return false
-			case len(selector.OptionalSubjectIds) > 0 && !stringz.SliceContains(selector.OptionalSubjectIds, tuple.subjectObjectID):
+			case len(selector.OptionalSubjectIds) > 0 && !slices.Contains(selector.OptionalSubjectIds, tuple.subjectObjectID):
 				return false
 			}
 
@@ -306,7 +432,7 @@ func filterFuncForFilters(
 				relations = append(relations, selector.RelationFilter.NonEllipsisRelation)
 			}
 
-			return len(relations) == 0 || stringz.SliceContains(relations, tuple.subjectRelation)
+			return len(relations) == 0 || slices.Contains(relations, tuple.subjectRelation)
 		}
 
 		if len(optionalSubjectsSelectors) > 0 {
@@ -323,19 +449,6 @@ func filterFuncForFilters(
 			}
 		}
 
-		if len(usersets) > 0 {
-			found := false
-			for _, filter := range usersets {
-				if filter.Namespace == tuple.subjectNamespace &&
-					filter.ObjectId == tuple.subjectObjectID &&
-					filter.Relation == tuple.subjectRelation {
-					found = true
-					break
-				}
-			}
-			return !found
-		}
-
 		return cursorFilter(tuple)
 	}
 }
@@ -350,9 +463,48 @@ func makeCursorFilterFn(after *core.RelationTuple, order options.SortOrder) func
 						(less(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) ||
 							eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject)))
 			}
+		case options.BySubject:
+			return func(tpl *relationship) bool {
+				return less(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) ||
+					(eq(tpl.subjectNamespace, tpl.subjectObjectID, tpl.subjectRelation, after.Subject) &&
+						(less(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation) ||
+							eq(tpl.namespace, tpl.resourceID, tpl.relation, after.ResourceAndRelation)))
+			}
 		}
 	}
 	return noopCursorFilter
+}
+
+func newSubjectSortedIterator(it memdb.ResultIterator, limit *uint64) (datastore.RelationshipIterator, error) {
+	results := make([]*core.RelationTuple, 0)
+
+	// Coalesce all of the results into memory
+	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
+		rt, err := foundRaw.(*relationship).RelationTuple()
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, rt)
+	}
+
+	// Sort them by subject
+	sort.Slice(results, func(i, j int) bool {
+		lhsRes := results[i].ResourceAndRelation
+		lhsSub := results[i].Subject
+		rhsRes := results[j].ResourceAndRelation
+		rhsSub := results[j].Subject
+		return less(lhsSub.Namespace, lhsSub.ObjectId, lhsSub.Relation, rhsSub) ||
+			(eq(lhsSub.Namespace, lhsSub.ObjectId, lhsSub.Relation, rhsSub) &&
+				(less(lhsRes.Namespace, lhsRes.ObjectId, lhsRes.Relation, rhsRes)))
+	})
+
+	// Limit them if requested
+	if limit != nil && uint64(len(results)) > *limit {
+		results = results[0:*limit]
+	}
+
+	return common.NewSliceRelationshipIterator(results, options.BySubject), nil
 }
 
 func noopCursorFilter(_ *relationship) bool {
@@ -371,7 +523,7 @@ func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs *core.ObjectAndRelati
 
 func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64, order options.SortOrder) *memdbTupleIterator {
 	iter := &memdbTupleIterator{it: it, limit: limit, order: order}
-	runtime.SetFinalizer(iter, mustHaveBeenClosed)
+	spiceerrors.SetFinalizerForDebugging(iter, mustHaveBeenClosed)
 	return iter
 }
 

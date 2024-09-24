@@ -1,10 +1,12 @@
 package caveats
 
 import (
+	"maps"
 	"time"
 
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/authzed/spicedb/pkg/caveats/types"
 )
 
 // ConvertContextToStruct converts the given context values into a context struct.
@@ -33,6 +35,9 @@ func convertCustomValues(value any) any {
 
 	case time.Duration:
 		return v.String()
+
+	case types.CustomType:
+		return v.SerializedString()
 
 	default:
 		return v

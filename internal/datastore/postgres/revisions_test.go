@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,8 +34,8 @@ func TestRevisionOrdering(t *testing.T) {
 		t.Run(fmt.Sprintf("%s:%s", tc.lhsSnapshot, tc.rhsSnapshot), func(t *testing.T) {
 			require := require.New(t)
 
-			lhs := postgresRevision{tc.lhsSnapshot}
-			rhs := postgresRevision{tc.rhsSnapshot}
+			lhs := postgresRevision{snapshot: tc.lhsSnapshot}
+			rhs := postgresRevision{snapshot: tc.rhsSnapshot}
 
 			require.Equal(tc.relationship == equal, lhs.Equal(rhs))
 			require.Equal(tc.relationship == equal, rhs.Equal(lhs))
@@ -49,7 +51,9 @@ func TestRevisionOrdering(t *testing.T) {
 func TestRevisionSerDe(t *testing.T) {
 	maxSizeList := make([]uint64, 20)
 	for i := range maxSizeList {
-		maxSizeList[i] = maxInt - uint64(len(maxSizeList)) + uint64(i)
+		// i should be nonnegative
+		index, _ := safecast.ToUint64(i)
+		maxSizeList[i] = maxInt - uint64(len(maxSizeList)) + index
 	}
 
 	testCases := []struct {
@@ -72,7 +76,7 @@ func TestRevisionSerDe(t *testing.T) {
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
-			rev := postgresRevision{tc.snapshot}
+			rev := postgresRevision{snapshot: tc.snapshot}
 			serialized := rev.String()
 			require.Equal(tc.expectedStr, serialized)
 
@@ -81,6 +85,27 @@ func TestRevisionSerDe(t *testing.T) {
 			require.Equal(rev, parsed)
 		})
 	}
+}
+
+func TestTxIDTimestampAvailable(t *testing.T) {
+	// Timestamps should be non-negative
+	testTimestamp, _ := safecast.ToUint64(time.Now().Unix())
+	snapshot := snap(0, 5, 1)
+	pgr := postgresRevision{snapshot: snapshot, optionalTxID: newXid8(1), optionalNanosTimestamp: testTimestamp}
+	receivedTimestamp, ok := pgr.OptionalNanosTimestamp()
+	require.True(t, ok)
+	require.Equal(t, receivedTimestamp, testTimestamp)
+	txid, ok := pgr.OptionalTransactionID()
+	require.True(t, ok)
+	require.Equal(t, newXid8(1), txid)
+
+	anotherRev := postgresRevision{snapshot: snapshot}
+	_, ok = anotherRev.OptionalNanosTimestamp()
+	require.False(t, ok)
+	_, ok = anotherRev.OptionalTransactionID()
+	require.False(t, ok)
+
+	pgr.Equal(anotherRev)
 }
 
 func TestRevisionParseOldDecimalFormat(t *testing.T) {
@@ -114,7 +139,7 @@ func TestRevisionParseOldDecimalFormat(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
-				require.Equal(postgresRevision{tc.snapshot}, parsed)
+				require.Equal(postgresRevision{snapshot: tc.snapshot}, parsed)
 			}
 		})
 	}
@@ -151,15 +176,20 @@ func TestCombinedRevisionParsing(t *testing.T) {
 		t.Run(tc.snapshot.String(), func(t *testing.T) {
 			require := require.New(t)
 
-			parsed, err := parseRevision(tc.inputStr)
+			parsed, err := ParseRevisionString(tc.inputStr)
 			if tc.expectErr {
 				require.Error(err)
 			} else {
 				require.NoError(err)
-				require.Equal(postgresRevision{tc.snapshot}, parsed)
+				require.Equal(postgresRevision{snapshot: tc.snapshot}, parsed)
 			}
 		})
 	}
+}
+
+func TestBrokenInvalidRevision(t *testing.T) {
+	_, err := ParseRevisionString("1693540940373045727.0000000001")
+	require.Error(t, err)
 }
 
 func FuzzRevision(f *testing.F) {

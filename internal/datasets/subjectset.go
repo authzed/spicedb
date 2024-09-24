@@ -36,6 +36,10 @@ func (ss SubjectSet) MustUnionWithSet(other SubjectSet) {
 	ss.BaseSubjectSet.MustUnionWithSet(other.BaseSubjectSet)
 }
 
+func (ss SubjectSet) Clone() SubjectSet {
+	return SubjectSet{ss.BaseSubjectSet.Clone()}
+}
+
 func (ss SubjectSet) UnionWithSet(other SubjectSet) error {
 	return ss.BaseSubjectSet.UnionWithSet(other.BaseSubjectSet)
 }

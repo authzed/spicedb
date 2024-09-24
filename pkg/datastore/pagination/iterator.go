@@ -18,6 +18,7 @@ func NewPaginatedIterator(
 	filter datastore.RelationshipsFilter,
 	pageSize uint64,
 	order options.SortOrder,
+	startCursor options.Cursor,
 ) (datastore.RelationshipIterator, error) {
 	pi := &paginatedIterator{
 		ctx:      ctx,
@@ -28,7 +29,7 @@ func NewPaginatedIterator(
 		delegate: common.NewSliceRelationshipIterator(nil, options.ByResource),
 	}
 
-	pi.startNewBatch(nil)
+	pi.startNewBatch(startCursor)
 
 	return pi, pi.err
 }
@@ -115,5 +116,7 @@ func (pi *paginatedIterator) Err() error {
 
 func (pi *paginatedIterator) Close() {
 	pi.closed = true
-	pi.delegate.Close()
+	if pi.delegate != nil {
+		pi.delegate.Close()
+	}
 }

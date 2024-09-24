@@ -3,6 +3,10 @@ package development
 import (
 	"fmt"
 
+	v1t "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/ccoveille/go-safecast"
+
+	log "github.com/authzed/spicedb/internal/logging"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -38,7 +42,17 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	var failures []*devinterface.DeveloperError
 
 	for _, assertion := range assertions {
-		tpl := tuple.MustFromRelationship(assertion.Relationship)
+		tpl := tuple.MustFromRelationship[*v1t.ObjectReference, *v1t.SubjectReference, *v1t.ContextualizedCaveat](assertion.Relationship)
+
+		// NOTE: zeroes are fine here to mean "unknown"
+		lineNumber, err := safecast.ToUint32(assertion.SourcePosition.LineNumber)
+		if err != nil {
+			log.Err(err).Msg("could not cast lineNumber to uint32")
+		}
+		columnPosition, err := safecast.ToUint32(assertion.SourcePosition.ColumnPosition)
+		if err != nil {
+			log.Err(err).Msg("could not cast columnPosition to uint32")
+		}
 
 		if tpl.Caveat != nil {
 			failures = append(failures, &devinterface.DeveloperError{
@@ -46,8 +60,8 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 				Source:  devinterface.DeveloperError_ASSERTION,
 				Kind:    devinterface.DeveloperError_UNKNOWN_RELATION,
 				Context: assertion.RelationshipWithContextString,
-				Line:    uint32(assertion.SourcePosition.LineNumber),
-				Column:  uint32(assertion.SourcePosition.ColumnPosition),
+				Line:    lineNumber,
+				Column:  columnPosition,
 			})
 			continue
 		}
@@ -58,8 +72,8 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 				devContext,
 				err,
 				devinterface.DeveloperError_ASSERTION,
-				uint32(assertion.SourcePosition.LineNumber),
-				uint32(assertion.SourcePosition.ColumnPosition),
+				lineNumber,
+				columnPosition,
 				assertion.RelationshipWithContextString,
 			)
 			if wireErr != nil {
@@ -70,12 +84,14 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			}
 		} else if cr.Permissionship != expected {
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf(fmtString, assertion.RelationshipWithContextString),
-				Source:  devinterface.DeveloperError_ASSERTION,
-				Kind:    devinterface.DeveloperError_ASSERTION_FAILED,
-				Context: assertion.RelationshipWithContextString,
-				Line:    uint32(assertion.SourcePosition.LineNumber),
-				Column:  uint32(assertion.SourcePosition.ColumnPosition),
+				Message:                       fmt.Sprintf(fmtString, assertion.RelationshipWithContextString),
+				Source:                        devinterface.DeveloperError_ASSERTION,
+				Kind:                          devinterface.DeveloperError_ASSERTION_FAILED,
+				Context:                       assertion.RelationshipWithContextString,
+				Line:                          lineNumber,
+				Column:                        columnPosition,
+				CheckDebugInformation:         cr.DispatchDebugInfo,
+				CheckResolvedDebugInformation: cr.V1DebugInfo,
 			})
 		}
 	}

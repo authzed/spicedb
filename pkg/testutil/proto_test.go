@@ -221,7 +221,7 @@ func TestAreProtoSlicesEqual(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			err := AreProtoSlicesEqual(tc.first, tc.second, func(first *core.ObjectAndRelation, second *core.ObjectAndRelation) int {
+			err := AreProtoSlicesEqual(tc.first, tc.second, func(first, second *core.ObjectAndRelation) int {
 				return strings.Compare(first.ObjectId, second.ObjectId)
 			}, "something went wrong")
 			require.True(t, (err == nil) == (tc.expectedEqual))

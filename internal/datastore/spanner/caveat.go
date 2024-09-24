@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -32,7 +33,7 @@ func (sr spannerReader) ReadCaveatByName(ctx context.Context, name string) (*cor
 	if err := loaded.UnmarshalVT(serialized); err != nil {
 		return nil, datastore.NoRevision, err
 	}
-	return loaded, revisionFromTimestamp(updated), nil
+	return loaded, revisions.NewForTime(updated), nil
 }
 
 func (sr spannerReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
@@ -61,6 +62,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 		keyset,
 		[]string{colCaveatDefinition, colCaveatTS},
 	)
+	defer iter.Stop()
 
 	var caveats []datastore.RevisionedCaveat
 	if err := iter.Do(func(row *spanner.Row) error {
@@ -76,7 +78,7 @@ func (sr spannerReader) listCaveats(ctx context.Context, caveatNames []string) (
 		}
 		caveats = append(caveats, datastore.RevisionedCaveat{
 			Definition:          loaded,
-			LastWrittenRevision: revisionFromTimestamp(updated),
+			LastWrittenRevision: revisions.NewForTime(updated),
 		})
 
 		return nil
@@ -103,7 +105,7 @@ func (rwt spannerReadWriteTXN) WriteCaveats(_ context.Context, caveats []*core.C
 		mutations = append(mutations, spanner.InsertOrUpdate(
 			tableCaveat,
 			[]string{colName, colCaveatDefinition, colCaveatTS},
-			[]interface{}{caveat.Name, serialized, spanner.CommitTimestamp},
+			[]any{caveat.Name, serialized, spanner.CommitTimestamp},
 		))
 	}
 
@@ -126,9 +128,9 @@ func (rwt spannerReadWriteTXN) DeleteCaveats(_ context.Context, names []string) 
 }
 
 func ContextualizedCaveatFrom(name spanner.NullString, context spanner.NullJSON) (*core.ContextualizedCaveat, error) {
-	if name.Valid {
+	if name.Valid && name.StringVal != "" {
 		var cctx map[string]any
-		if context.Valid {
+		if context.Valid && context.Value != nil {
 			cctx = context.Value.(map[string]any)
 		}
 		return common.ContextualizedCaveatFrom(name.StringVal, cctx)

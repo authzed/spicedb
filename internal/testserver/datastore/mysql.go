@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/mysql/migrations"
+	"github.com/authzed/spicedb/internal/datastore/mysql/version"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/secrets"
@@ -37,6 +38,7 @@ type mysqlTester struct {
 type MySQLTesterOptions struct {
 	Prefix                 string
 	MigrateForNewDatastore bool
+	UseV8                  bool
 }
 
 // RunMySQLForTesting returns a RunningEngineForTest for the mysql driver
@@ -51,12 +53,13 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
+	containerImageTag := version.MinimumSupportedMySQLVersion
+
 	name := fmt.Sprintf("mysql-%s", uuid.New().String())
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
-		Repository: "mysql",
-		Tag:        "5",
-		Platform:   "linux/amd64", // required because the mysql:5 image does not have arm support
+		Repository: "mirror.gcr.io/library/mysql",
+		Tag:        containerImageTag,
 		Env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
 		// increase max connections (default 151) to accommodate tests using the same docker container
 		Cmd:       []string{"--max-connections=500"},
@@ -113,14 +116,14 @@ func (mb *mysqlTester) NewDatabase(t testing.TB) string {
 }
 
 func (mb *mysqlTester) runMigrate(t testing.TB, dsn string) {
-	driver, err := migrations.NewMySQLDriverFromDSN(dsn, mb.options.Prefix)
+	driver, err := migrations.NewMySQLDriverFromDSN(dsn, mb.options.Prefix, datastore.NoCredentialsProvider)
 	require.NoError(t, err, "failed to create migration driver: %s", err)
 	err = migrations.Manager.Run(context.Background(), driver, migrate.Head, migrate.LiveRun)
 	require.NoError(t, err, "failed to run migration: %s", err)
 }
 
 func (mb *mysqlTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	dsn := mb.NewDatabase((t))
+	dsn := mb.NewDatabase(t)
 	if mb.options.MigrateForNewDatastore {
 		mb.runMigrate(t, dsn)
 	}

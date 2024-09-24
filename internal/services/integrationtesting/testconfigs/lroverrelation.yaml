@@ -1,0 +1,29 @@
+---
+schema: |-
+  definition user {}
+
+  definition organization {
+  	relation with_container: container
+  	permission entitled_service = with_container->view
+  }
+
+  definition granted_service {
+  	relation arbiter: organization#with_container
+  	permission service1 = arbiter->entitled_service
+  }
+
+  definition container {
+  	relation viewer: user
+  	permission view = viewer
+  }
+
+relationships: |-
+  container:s1#viewer@user:u1
+  container:s1#viewer@user:u2
+  organization:o1#with_container@container:s1
+  granted_service:gs1#arbiter@organization:o1#with_container
+assertions:
+  assertTrue:
+    - "granted_service:gs1#service1@user:u1"
+    - "granted_service:gs1#service1@user:u2"
+  assertFalse: []

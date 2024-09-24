@@ -2,9 +2,13 @@ package server
 
 import (
 	"context"
-	"errors"
 	"testing"
+	"time"
 
+	"github.com/authzed/spicedb/pkg/cmd/datastore"
+	"github.com/authzed/spicedb/pkg/cmd/util"
+
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -12,17 +16,16 @@ import (
 func TestInvalidModification(t *testing.T) {
 	for _, tt := range []struct {
 		name string
-		mod  MiddlewareModification
+		mod  MiddlewareModification[grpc.UnaryServerInterceptor]
 		err  string
 	}{
 		{
 			name: "invalid operation without dependency",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation: OperationReplace,
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Middleware: nil,
 					},
 				},
 			},
@@ -30,26 +33,24 @@ func TestInvalidModification(t *testing.T) {
 		},
 		{
 			name: "valid replace all without dependency",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation: OperationReplaceAllUnsafe,
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "foobar",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "foobar",
+						Middleware: nil,
 					},
 				},
 			},
 		},
 		{
 			name: "invalid unnamed middleware",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationAppend,
 				DependencyMiddlewareName: "foobar",
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Middleware: nil,
 					},
 				},
 			},
@@ -57,19 +58,17 @@ func TestInvalidModification(t *testing.T) {
 		},
 		{
 			name: "invalid modification with duplicate middlewares",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationAppend,
 				DependencyMiddlewareName: "foobar",
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "foo",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "foo",
+						Middleware: nil,
 					},
 					{
-						Name:                "foo",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "foo",
+						Middleware: nil,
 					},
 				},
 			},
@@ -89,42 +88,38 @@ func TestInvalidModification(t *testing.T) {
 }
 
 func TestNewMiddlewareChain(t *testing.T) {
-	mc, err := NewMiddlewareChain(ReferenceableMiddleware{
-		Name:                "foobar",
-		UnaryMiddleware:     nil,
-		StreamingMiddleware: nil,
+	mc, err := NewMiddlewareChain(ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+		Name:       "foobar",
+		Middleware: nil,
 	})
 	require.NoError(t, err)
 	require.Len(t, mc.chain, 1)
 
-	_, err = NewMiddlewareChain(ReferenceableMiddleware{
-		UnaryMiddleware:     nil,
-		StreamingMiddleware: nil,
+	_, err = NewMiddlewareChain(ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+		Middleware: nil,
 	})
 	require.ErrorContains(t, err, "unnamed middleware")
 }
 
 func TestChainValidate(t *testing.T) {
-	mc, err := NewMiddlewareChain(ReferenceableMiddleware{
-		Name:                "public",
-		UnaryMiddleware:     nil,
-		StreamingMiddleware: nil,
-	}, ReferenceableMiddleware{
-		Name:                "internal",
-		Internal:            true,
-		UnaryMiddleware:     nil,
-		StreamingMiddleware: nil,
+	mc, err := NewMiddlewareChain(ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+		Name:       "public",
+		Middleware: nil,
+	}, ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+		Name:       "internal",
+		Internal:   true,
+		Middleware: nil,
 	})
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name string
-		mod  MiddlewareModification
+		mod  MiddlewareModification[grpc.UnaryServerInterceptor]
 		err  string
 	}{
 		{
 			name: "invalid modification on non-existing dependency",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationReplace,
 				DependencyMiddlewareName: "doesnotexist",
 			},
@@ -132,14 +127,13 @@ func TestChainValidate(t *testing.T) {
 		},
 		{
 			name: "invalid modification that causes a duplicate",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationAppend,
 				DependencyMiddlewareName: "public",
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "public",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "public",
+						Middleware: nil,
 					},
 				},
 			},
@@ -147,14 +141,13 @@ func TestChainValidate(t *testing.T) {
 		},
 		{
 			name: "invalid replace of an internal middlewares",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationReplace,
 				DependencyMiddlewareName: "internal",
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "foobar",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "foobar",
+						Middleware: nil,
 					},
 				},
 			},
@@ -162,28 +155,26 @@ func TestChainValidate(t *testing.T) {
 		},
 		{
 			name: "valid replace of a public middleware",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationReplace,
 				DependencyMiddlewareName: "public",
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "foobar",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "foobar",
+						Middleware: nil,
 					},
 				},
 			},
 		},
 		{
 			name: "valid replace of a public middleware with same name",
-			mod: MiddlewareModification{
+			mod: MiddlewareModification[grpc.UnaryServerInterceptor]{
 				Operation:                OperationReplace,
 				DependencyMiddlewareName: "public",
-				Middlewares: []ReferenceableMiddleware{
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 					{
-						Name:                "public",
-						UnaryMiddleware:     nil,
-						StreamingMiddleware: nil,
+						Name:       "public",
+						Middleware: nil,
 					},
 				},
 			},
@@ -204,57 +195,48 @@ func TestChainValidate(t *testing.T) {
 func TestReplaceAllMiddleware(t *testing.T) {
 	// Test fully replacing default Middleware
 	var replaceUnary grpc.UnaryServerInterceptor = mockUnaryInterceptor{val: 1}.unaryIntercept
-	var replaceStream grpc.StreamServerInterceptor = mockStreamInterceptor{val: errors.New("1")}.streamIntercept
-	mod := MiddlewareModification{
+	mod := MiddlewareModification[grpc.UnaryServerInterceptor]{
 		Operation: OperationReplaceAllUnsafe,
-		Middlewares: []ReferenceableMiddleware{
+		Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			{
-				Name:                "foobar",
-				UnaryMiddleware:     replaceUnary,
-				StreamingMiddleware: replaceStream,
+				Name:       "foobar",
+				Middleware: replaceUnary,
 			},
 		},
 	}
 
-	mc, err := NewMiddlewareChain()
+	mc, err := NewMiddlewareChain[grpc.UnaryServerInterceptor]()
 	require.NoError(t, err)
 
 	err = mc.modify(mod)
 	require.NoError(t, err)
 
-	outUnary, outStream := mc.ToGRPCInterceptors()
+	outUnary := mc.ToGRPCInterceptors()
 	require.NoError(t, err)
 
 	expectedReplaceUnary, _ := replaceUnary(context.Background(), nil, nil, nil)
 	receivedReplaceUnary, _ := outUnary[0](context.Background(), nil, nil, nil)
-	expectedReplaceStreaming := replaceStream(nil, nil, nil, nil)
-	receivedReplaceStreaming := outStream[0](nil, nil, nil, nil)
 	require.Equal(t, expectedReplaceUnary, receivedReplaceUnary)
-	require.Equal(t, expectedReplaceStreaming, receivedReplaceStreaming)
 }
 
 func TestPrependMiddleware(t *testing.T) {
 	// Test prepending and appending to Default middleware
 	var replaceUnary grpc.UnaryServerInterceptor = mockUnaryInterceptor{val: 1}.unaryIntercept
-	var replaceStream grpc.StreamServerInterceptor = mockStreamInterceptor{val: errors.New("1")}.streamIntercept
 	var prependUnary grpc.UnaryServerInterceptor = mockUnaryInterceptor{val: 2}.unaryIntercept
-	var prependStream grpc.StreamServerInterceptor = mockStreamInterceptor{val: errors.New("2")}.streamIntercept
 	defaultMiddleware, err := NewMiddlewareChain(
-		ReferenceableMiddleware{
-			Name:                "foobar",
-			UnaryMiddleware:     replaceUnary,
-			StreamingMiddleware: replaceStream,
+		ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+			Name:       "foobar",
+			Middleware: replaceUnary,
 		})
 	require.NoError(t, err)
 
-	mod := MiddlewareModification{
+	mod := MiddlewareModification[grpc.UnaryServerInterceptor]{
 		Operation:                OperationPrepend,
 		DependencyMiddlewareName: "foobar",
-		Middlewares: []ReferenceableMiddleware{
+		Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			{
-				Name:                "prepended",
-				UnaryMiddleware:     prependUnary,
-				StreamingMiddleware: prependStream,
+				Name:       "prepended",
+				Middleware: prependUnary,
 			},
 		},
 	}
@@ -262,10 +244,9 @@ func TestPrependMiddleware(t *testing.T) {
 	require.NoError(t, err)
 
 	// testing function equality is not possible, so we test the results of executing the functions
-	outUnary, outStream := defaultMiddleware.ToGRPCInterceptors()
+	outUnary := defaultMiddleware.ToGRPCInterceptors()
 	require.NoError(t, err)
 	require.Len(t, outUnary, 2)
-	require.Len(t, outStream, 2)
 
 	expectedPrepend, _ := prependUnary(context.Background(), nil, nil, nil)
 	receivedPrepend, _ := outUnary[0](context.Background(), nil, nil, nil)
@@ -275,40 +256,27 @@ func TestPrependMiddleware(t *testing.T) {
 	receivedReplace, _ := outUnary[1](context.Background(), nil, nil, nil)
 	require.Equal(t, expectedReplace, receivedReplace)
 	require.NotEqual(t, receivedPrepend, receivedReplace)
-
-	expectedPrepend = prependStream(nil, nil, nil, nil)
-	receivedPrepend = outStream[0](nil, nil, nil, nil)
-	require.Equal(t, expectedPrepend, receivedPrepend)
-
-	expectedReplace = replaceStream(nil, nil, nil, nil)
-	receivedReplace = outStream[1](nil, nil, nil, nil)
-	require.Equal(t, expectedReplace, receivedReplace)
-	require.NotEqual(t, receivedPrepend, receivedReplace)
 }
 
 func TestAppendMiddleware(t *testing.T) {
 	// Test prepending and appending to Default middleware
 	var replaceUnary grpc.UnaryServerInterceptor = mockUnaryInterceptor{val: 1}.unaryIntercept
-	var replaceStream grpc.StreamServerInterceptor = mockStreamInterceptor{val: errors.New("1")}.streamIntercept
 	var appendUnary grpc.UnaryServerInterceptor = mockUnaryInterceptor{val: 3}.unaryIntercept
-	var appendStream grpc.StreamServerInterceptor = mockStreamInterceptor{val: errors.New("3")}.streamIntercept
-	defaultMiddleware := &MiddlewareChain{
-		chain: []ReferenceableMiddleware{
+	defaultMiddleware := &MiddlewareChain[grpc.UnaryServerInterceptor]{
+		chain: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			{
-				Name:                "foobar",
-				UnaryMiddleware:     replaceUnary,
-				StreamingMiddleware: replaceStream,
+				Name:       "foobar",
+				Middleware: replaceUnary,
 			},
 		},
 	}
-	mod := MiddlewareModification{
+	mod := MiddlewareModification[grpc.UnaryServerInterceptor]{
 		Operation:                OperationAppend,
 		DependencyMiddlewareName: "foobar",
-		Middlewares: []ReferenceableMiddleware{
+		Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			{
-				Name:                "appended",
-				UnaryMiddleware:     appendUnary,
-				StreamingMiddleware: appendStream,
+				Name:       "appended",
+				Middleware: appendUnary,
 			},
 		},
 	}
@@ -316,10 +284,9 @@ func TestAppendMiddleware(t *testing.T) {
 	require.NoError(t, err)
 
 	// testing function equality is not possible, so we test the results of executing the functions
-	outUnary, outStream := defaultMiddleware.ToGRPCInterceptors()
+	outUnary := defaultMiddleware.ToGRPCInterceptors()
 	require.NoError(t, err)
 	require.Len(t, outUnary, 2)
-	require.Len(t, outStream, 2)
 
 	expectedReplace, _ := replaceUnary(context.Background(), nil, nil, nil)
 	receivedReplace, _ := outUnary[0](context.Background(), nil, nil, nil)
@@ -327,50 +294,40 @@ func TestAppendMiddleware(t *testing.T) {
 	receivedAppend, _ := outUnary[1](context.Background(), nil, nil, nil)
 	require.Equal(t, expectedReplace, receivedReplace)
 	require.Equal(t, expectedAppend, receivedAppend)
-
-	expectedReplace = replaceStream(nil, nil, nil, nil)
-	receivedReplace = outStream[0](nil, nil, nil, nil)
-	expectedAppend = appendStream(nil, nil, nil, nil)
-	receivedAppend = outStream[1](context.Background(), nil, nil, nil)
-	require.Equal(t, expectedReplace, receivedReplace)
-	require.Equal(t, expectedAppend, receivedAppend)
 }
 
 func TestDeleteMiddleware(t *testing.T) {
-	defaultMiddleware := &MiddlewareChain{
-		chain: []ReferenceableMiddleware{
+	defaultMiddleware := &MiddlewareChain[grpc.UnaryServerInterceptor]{
+		chain: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			{
-				Name:                "foobar",
-				UnaryMiddleware:     mockUnaryInterceptor{}.unaryIntercept,
-				StreamingMiddleware: mockStreamInterceptor{}.streamIntercept,
+				Name:       "foobar",
+				Middleware: mockUnaryInterceptor{}.unaryIntercept,
 			},
 		},
 	}
-	mod := MiddlewareModification{
+	mod := MiddlewareModification[grpc.UnaryServerInterceptor]{
 		Operation:                OperationReplace,
 		DependencyMiddlewareName: "foobar",
 	}
 	err := defaultMiddleware.modify(mod)
 	require.NoError(t, err)
 
-	outUnary, outStream := defaultMiddleware.ToGRPCInterceptors()
+	outUnary := defaultMiddleware.ToGRPCInterceptors()
 	require.NoError(t, err)
 	require.Len(t, outUnary, 0)
-	require.Len(t, outStream, 0)
 }
 
 func TestCannotReplaceInternalMiddleware(t *testing.T) {
-	defaultMiddleware := &MiddlewareChain{
-		chain: []ReferenceableMiddleware{
+	defaultMiddleware := &MiddlewareChain[grpc.UnaryServerInterceptor]{
+		chain: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
 			{
-				Name:                "foobar",
-				Internal:            true,
-				UnaryMiddleware:     mockUnaryInterceptor{}.unaryIntercept,
-				StreamingMiddleware: mockStreamInterceptor{}.streamIntercept,
+				Name:       "foobar",
+				Internal:   true,
+				Middleware: mockUnaryInterceptor{}.unaryIntercept,
 			},
 		},
 	}
-	mod := MiddlewareModification{
+	mod := MiddlewareModification[grpc.UnaryServerInterceptor]{
 		Operation:                OperationReplace,
 		DependencyMiddlewareName: "foobar",
 	}
@@ -392,4 +349,169 @@ type mockStreamInterceptor struct {
 
 func (m mockStreamInterceptor) streamIntercept(_ interface{}, _ grpc.ServerStream, _ *grpc.StreamServerInfo, _ grpc.StreamHandler) error {
 	return m.val
+}
+
+func TestMiddlewareOrdering(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.DefaultDatastoreConfig().ToOption(),
+		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
+		datastore.WithRequestHedgingEnabled(false),
+	)
+	require.NoError(t, err)
+
+	c := ConfigWithOptions(
+		&Config{},
+		WithPresharedSecureKey("psk"),
+		WithDatastore(ds),
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+	)
+	rs, err := c.Complete(ctx)
+	require.NoError(t, err)
+
+	clientConn, err := rs.GRPCDialContext(ctx)
+	require.NoError(t, err)
+
+	psc := v1.NewPermissionsServiceClient(clientConn)
+
+	go func() {
+		_ = rs.Run(ctx)
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	req := &v1.CheckPermissionRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: "resource",
+			ObjectId:   "resource1",
+		},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+
+	_, err = psc.CheckPermission(ctx, req)
+	require.NoError(t, err)
+
+	lrreq := &v1.LookupResourcesRequest{
+		ResourceObjectType: "resource",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+	lrc, err := psc.LookupResources(ctx, lrreq)
+	require.NoError(t, err)
+
+	_, err = lrc.Recv()
+	require.NoError(t, err)
+}
+
+func TestIncorrectOrderAssertionFails(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ds, err := datastore.NewDatastore(ctx,
+		datastore.DefaultDatastoreConfig().ToOption(),
+		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
+		datastore.WithRequestHedgingEnabled(false),
+	)
+	require.NoError(t, err)
+	noopUnary := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+		return nil, nil
+	}
+	noopStreaming := func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		return handler(srv, ss)
+	}
+
+	c := ConfigWithOptions(
+		&Config{},
+		WithPresharedSecureKey("psk"),
+		WithDatastore(ds),
+		WithGRPCServer(util.GRPCServerConfig{
+			Network: util.BufferedNetwork,
+			Enabled: true,
+		}),
+		SetUnaryMiddlewareModification([]MiddlewareModification[grpc.UnaryServerInterceptor]{
+			{
+				Operation: OperationReplaceAllUnsafe,
+				Middlewares: []ReferenceableMiddleware[grpc.UnaryServerInterceptor]{
+					NewUnaryMiddleware().
+						WithName("test").
+						WithInterceptor(noopUnary).
+						EnsureAlreadyExecuted("does-not-exist").
+						Done(),
+				},
+			},
+		}),
+		SetStreamingMiddlewareModification([]MiddlewareModification[grpc.StreamServerInterceptor]{
+			{
+				Operation: OperationReplaceAllUnsafe,
+				Middlewares: []ReferenceableMiddleware[grpc.StreamServerInterceptor]{
+					NewStreamMiddleware().
+						WithName("test").
+						WithInterceptor(noopStreaming).
+						EnsureWrapperAlreadyExecuted("does-not-exist").
+						Done(),
+				},
+			},
+		}),
+	)
+	rs, err := c.Complete(ctx)
+	require.NoError(t, err)
+
+	clientConn, err := rs.GRPCDialContext(ctx)
+	require.NoError(t, err)
+
+	psc := v1.NewPermissionsServiceClient(clientConn)
+
+	go func() {
+		_ = rs.Run(ctx)
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	req := &v1.CheckPermissionRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: "resource",
+			ObjectId:   "resource1",
+		},
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+
+	_, err = psc.CheckPermission(ctx, req)
+	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
+
+	lrreq := &v1.LookupResourcesRequest{
+		ResourceObjectType: "resource",
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: "user",
+				ObjectId:   "user1",
+			},
+		},
+		Permission: "read",
+	}
+
+	lrc, err := psc.LookupResources(ctx, lrreq)
+	require.NoError(t, err)
+
+	_, err = lrc.Recv()
+	require.ErrorContains(t, err, "expected interceptor does-not-exist to be already executed")
 }

@@ -28,7 +28,6 @@ const (
 		version_num STRING(1024) NOT NULL
 	) PRIMARY KEY (version_num)`
 
-	// TODO see if we can make the operation smaller
 	createChangelog = `CREATE TABLE changelog (
 		timestamp TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
 		uuid STRING(36) NOT NULL,

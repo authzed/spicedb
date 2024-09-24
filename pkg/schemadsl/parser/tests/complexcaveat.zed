@@ -8,7 +8,7 @@ caveat somecaveat(somecondition uint, somebool bool) {
 }
 
 caveat anothercaveat(somemap map<string>, somelist list<int>) {
-  somelist.contains("hiya")
+  somelist.contains("hiya") && somemap?.foo
 }
 
 definition user {}

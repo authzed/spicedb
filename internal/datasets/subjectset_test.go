@@ -2598,13 +2598,13 @@ func TestIntersectConcreteWithWildcard(t *testing.T) {
 // it counts in binary and "activates" input funcs that match 1s in the binary representation
 // it doesn't check for overflow so don't go crazy
 func allSubsets[T any](objs []T, n int) [][]T {
-	maxInt := uint(math.Exp2(float64(len(objs)))) - 1
+	maxInt := uint64(math.Exp2(float64(len(objs)))) - 1
 	all := make([][]T, 0)
 
-	for i := uint(0); i < maxInt; i++ {
+	for i := uint64(0); i < maxInt; i++ {
 		set := make([]T, 0, n)
-		for digit := uint(0); digit < uint(len(objs)); digit++ {
-			mask := uint(1) << digit
+		for digit := uint64(0); digit < uint64(len(objs)); digit++ {
+			mask := uint64(1) << digit
 			if mask&i != 0 {
 				set = append(set, objs[digit])
 			}

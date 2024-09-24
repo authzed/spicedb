@@ -1,0 +1,44 @@
+---
+schema: |-
+  definition user {}
+
+  definition organization {
+  	relation entitled : service
+  	permission service = entitled->service
+  }
+
+  definition project {
+  	relation granted : granted_service
+  	permission service = granted->service
+  }
+
+  definition granted_service {
+  	relation arbiter : organization#entitled
+  	relation granted : service
+
+  	permission service1 = arbiter->service & granted->service
+  	permission service2 = granted->service & arbiter->service
+  }
+
+  definition service {
+  	relation servicer: user
+
+  	permission service = servicer
+  }
+
+  definition widget {
+  	relation project: project
+  	permission service = project->service
+  }
+relationships: |-
+  service:s1#servicer@user:u1
+  service:s1#servicer@user:u2
+  organization:o1#entitled@service:s1
+  granted_service:gs1#arbiter@organization:o1#entitled
+  service:just_u1#servicer@user:u1
+  granted_service:gs1#granted@service:just_u1
+  project:p1#granted@granted_service:gs1
+  widget:w1#project@project:p1
+assertions:
+  assertTrue: []
+  assertFalse: []

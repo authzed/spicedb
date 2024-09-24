@@ -122,6 +122,10 @@ func CaveatDefinition(env *caveats.Environment, name string, expr string) (*core
 
 // CompiledCaveatDefinition returns a new caveat definition.
 func CompiledCaveatDefinition(env *caveats.Environment, name string, compiled *caveats.CompiledCaveat) (*core.CaveatDefinition, error) {
+	if compiled == nil {
+		return nil, spiceerrors.MustBugf("compiled caveat is nil")
+	}
+
 	serialized, err := compiled.Serialize()
 	if err != nil {
 		return nil, err
@@ -139,6 +143,16 @@ func MustCaveatDefinition(env *caveats.Environment, name string, expr string) *c
 	if err != nil {
 		panic(err)
 	}
+	return cd
+}
+
+// MustCaveatDefinitionWithComment returns a new caveat definition.
+func MustCaveatDefinitionWithComment(env *caveats.Environment, name string, comment string, expr string) *core.CaveatDefinition {
+	cd, err := CaveatDefinition(env, name, expr)
+	if err != nil {
+		panic(err)
+	}
+	cd.Metadata, _ = AddComment(cd.Metadata, comment)
 	return cd
 }
 
@@ -214,6 +228,23 @@ func ComputedUserset(relation string) *core.SetOperation_Child {
 	}
 }
 
+// MustComputesUsersetWithSourcePosition creates a child for a set operation that follows a relation on the given starting object.
+func MustComputesUsersetWithSourcePosition(relation string, lineNumber uint64) *core.SetOperation_Child {
+	cu := &core.ComputedUserset{
+		Relation: relation,
+	}
+	cu.SourcePosition = &core.SourcePosition{
+		ZeroIndexedLineNumber:     lineNumber,
+		ZeroIndexedColumnPosition: 0,
+	}
+
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_ComputedUserset{
+			ComputedUserset: cu,
+		},
+	}
+}
+
 // TupleToUserset creates a child which first loads all tuples with the specific relation,
 // and then unions all children on the usersets found by following a relation on those loaded
 // tuples.
@@ -222,6 +253,39 @@ func TupleToUserset(tuplesetRelation, usersetRelation string) *core.SetOperation
 		ChildType: &core.SetOperation_Child_TupleToUserset{
 			TupleToUserset: &core.TupleToUserset{
 				Tupleset: &core.TupleToUserset_Tupleset{
+					Relation: tuplesetRelation,
+				},
+				ComputedUserset: &core.ComputedUserset{
+					Relation: usersetRelation,
+					Object:   core.ComputedUserset_TUPLE_USERSET_OBJECT,
+				},
+			},
+		},
+	}
+}
+
+// MustFunctionedTupleToUserset creates a child which first loads all tuples with the specific relation,
+// and then applies the function to all children on the usersets found by following a relation on those loaded
+// tuples.
+func MustFunctionedTupleToUserset(tuplesetRelation, functionName, usersetRelation string) *core.SetOperation_Child {
+	function := core.FunctionedTupleToUserset_FUNCTION_ANY
+
+	switch functionName {
+	case "any":
+		// already set to any
+
+	case "all":
+		function = core.FunctionedTupleToUserset_FUNCTION_ALL
+
+	default:
+		panic(spiceerrors.MustBugf("unknown function name: %s", functionName))
+	}
+
+	return &core.SetOperation_Child{
+		ChildType: &core.SetOperation_Child_FunctionedTupleToUserset{
+			FunctionedTupleToUserset: &core.FunctionedTupleToUserset{
+				Function: function,
+				Tupleset: &core.FunctionedTupleToUserset_Tupleset{
 					Relation: tuplesetRelation,
 				},
 				ComputedUserset: &core.ComputedUserset{

@@ -2,23 +2,15 @@ package closeafterusagecheck
 
 import (
 	"flag"
-	"fmt"
 	"go/ast"
+	"slices"
 	"strings"
 
-	"golang.org/x/exp/slices"
+	"github.com/samber/lo"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
 )
-
-func sliceMap(s []string, f func(value string) string) []string {
-	mapped := make([]string, 0, len(s))
-	for _, value := range s {
-		mapped = append(mapped, f(value))
-	}
-	return mapped
-}
 
 type nodeAndStack struct {
 	node  ast.Node
@@ -40,7 +32,7 @@ func Analyzer() *analysis.Analyzer {
 		Run: func(pass *analysis.Pass) (any, error) {
 			// Check for a skipped package.
 			if len(*skip) > 0 {
-				skipped := sliceMap(strings.Split(*skip, ","), strings.TrimSpace)
+				skipped := lo.Map(strings.Split(*skip, ","), func(skipped string, _ int) string { return strings.TrimSpace(skipped) })
 				for _, s := range skipped {
 					if strings.Contains(pass.Pkg.Path(), s) {
 						return nil, nil
@@ -114,7 +106,7 @@ func Analyzer() *analysis.Analyzer {
 					for _, expr := range s.Lhs {
 						foundType := pass.TypesInfo.TypeOf(expr)
 						if foundType == nil {
-							return false
+							continue
 						}
 
 						varTypeString := foundType.String()
@@ -197,18 +189,4 @@ func stIndex(statements []ast.Stmt, node ast.Node) int {
 	return slices.IndexFunc(statements, func(current ast.Stmt) bool {
 		return current == node
 	})
-}
-
-func min(x int, y int) int {
-	if x > y {
-		return y
-	}
-	return x
-}
-
-func printTypes(nodes []ast.Node) {
-	for _, n := range nodes {
-		fmt.Printf("%T, ", n)
-	}
-	fmt.Println()
 }

@@ -2,13 +2,15 @@
 
 ## Communication
 
-- Issues: [GitHub](https://github.com/authzed/spicedb/issues)
-- Email: [Google Groups](https://groups.google.com/g/authzed-oss)
-- Discord: [Zanzibar Discord](https://discord.gg/jTysUaxXzM)
+- Bug Reports & Feature Requests: [GitHub Issues]
+- Questions: [GitHub Discussions] or [Discord]
 
-All communication must follow our [Code of Conduct].
+All communication in these forums abides by our [Code of Conduct].
 
+[GitHub Issues]: https://github.com/authzed/spicedb/issues
 [Code of Conduct]: CODE-OF-CONDUCT.md
+[Github Discussions]: https://github.com/orgs/authzed/discussions/new?category=q-a
+[Discord]: https://authzed.com/discord
 
 ## Creating issues
 
@@ -35,6 +37,18 @@ Maintainers might ask for further information to resolve an issue.
 
 [filing-good-bugs]: http://fantasai.inkedblade.net/style/talks/filing-good-bugs/
 
+## Finding issues
+
+You can find issues by priority: [Urgent], [High], [Medium], [Low], [Maybe].
+There are also [good first issues].
+
+[Urgent]: https://github.com/authzed/spicedb/labels/priority%2F0%20urgent
+[High]: https://github.com/authzed/spicedb/labels/priority%2F1%20high
+[Medium]: https://github.com/authzed/spicedb/labels/priority%2F2%20medium
+[Low]: https://github.com/authzed/spicedb/labels/priority%2F3%20low
+[Maybe]: https://github.com/authzed/spicedb/labels/priority%2F4%20maybe
+[good first issues]: https://github.com/authzed/spicedb/labels/hint%2Fgood%20first%20issue
+
 ## Contribution flow
 
 This is a rough outline of what a contributor's workflow looks like:
@@ -57,20 +71,17 @@ If you do decide to try and contribute something, please submit an issue first s
 
 ## Legal requirements
 
-In order to protect both you and ourselves, all commits will require an explicit sign-off that acknowledges the [DCO].
+In order to protect the project, all contributors are required to sign our [Contributor License Agreement][cla] before their contribution is accepted.
 
-Sign-off commits end with the following line:
+The signing process has been automated by [CLA Assistant][cla-assistant] during the Pull Request review process and only requires responding with a comment acknowledging the agreement.
 
-```git
-Signed-off-by: Random J Developer <random@developer.example.org>
-```
-
-This can be done by using the `--signoff` (or `-s` for short) git flag to append this automatically to your commit message.
-If you have already authored a commit that is missing the signed-off, you can amend or rebase your commits and force push them to GitHub.
-
-[DCO]: /DCO
+[cla]: https://github.com/authzed/cla/blob/main/v2/icla.md
+[cla-assistant]: https://github.com/cla-assistant/cla-assistant
 
 ## Common tasks
+
+We use [mage](https://magefile.org/#installation) to run common tasks in the project.
+Mage can be installed system-wide, or can be run with no installation with `go run mage.go`
 
 ### Testing
 
@@ -80,14 +91,28 @@ In order to build and test the project, the [latest stable version of Go] and kn
 [working Go environment]: https://golang.org/doc/code.html
 
 ```sh
-go test -v ./...
+mage test:unit
 ```
 
 To run integration tests (for example when testing datastores):
 
 ```sh
-go test -v --failfast --tags 'ci,docker' -count=1 ./...
+mage test:integration
 ```
+
+Run `mage` or `mage -l` for a full list of test suites.
+
+### Linting
+
+SpiceDB uses several linters to maintain code and docs quality.
+
+Run them with:
+
+```sh
+mage lint:all
+```
+
+See `mage -l` to run specific linters.
 
 ### Adding dependencies
 
@@ -101,17 +126,17 @@ go get github.com/org/newdependency@version
 
 Continuous integration enforces that `go mod tidy` has been run.
 
+`mage deps:tidy` can be used to tidy all go modules in the project at once.
+
 ### Updating generated Protobuf code
 
 All [Protobuf] code is managed using [buf].
-The [shebang] at the top of `buf.gen.yaml` contains the [Buf Registry ref] that will be generated.
-You can regenerate the code by executing `buf.gen.yaml`:
+
+To regenerate the protos:
+
+```sh
+mage gen:proto
+```
 
 [Protobuf]: https://developers.google.com/protocol-buffers/
 [buf]: https://docs.buf.build/installation
-[shebang]: https://en.wikipedia.org/wiki/Shebang_(Unix)
-[Buf Registry ref]: https://buf.build/authzed/api/history
-
-```sh
-./buf.gen.yaml
-```

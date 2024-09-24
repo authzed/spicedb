@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/authzed/cel-go/cel"
 	"golang.org/x/exp/maps"
-
-	"github.com/google/cel-go/cel"
 )
 
 // VariableType defines the supported types of variables in caveats.

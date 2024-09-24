@@ -55,7 +55,7 @@ func (t testServer) PingList(_ *testpb.PingListRequest, server testpb.TestServic
 }
 
 func (t testServer) PingStream(stream testpb.TestService_PingStreamServer) error {
-	count := 0
+	count := int32(0)
 	for {
 		_, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
@@ -63,7 +63,7 @@ func (t testServer) PingStream(stream testpb.TestService_PingStreamServer) error
 		} else if err != nil {
 			return err
 		}
-		_ = stream.Send(&testpb.PingStreamResponse{Value: "", Counter: int32(count)})
+		_ = stream.Send(&testpb.PingStreamResponse{Value: "", Counter: count})
 		count++
 	}
 	return nil

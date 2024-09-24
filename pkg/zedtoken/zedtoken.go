@@ -7,10 +7,8 @@ import (
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/shopspring/decimal"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	zedtoken "github.com/authzed/spicedb/pkg/proto/impl/v1"
 )
 
@@ -87,7 +85,13 @@ func DecodeRevision(encoded *v1.ZedToken, ds revisionDecoder) (datastore.Revisio
 
 	switch ver := decoded.VersionOneof.(type) {
 	case *zedtoken.DecodedZedToken_DeprecatedV1Zookie:
-		return revision.NewFromDecimal(decimal.NewFromInt(int64(ver.DeprecatedV1Zookie.Revision))), nil
+		revString := fmt.Sprintf("%d", ver.DeprecatedV1Zookie.Revision)
+		parsed, err := ds.RevisionFromString(revString)
+		if err != nil {
+			return datastore.NoRevision, fmt.Errorf(errDecodeError, err)
+		}
+		return parsed, nil
+
 	case *zedtoken.DecodedZedToken_V1:
 		parsed, err := ds.RevisionFromString(ver.V1.Revision)
 		if err != nil {

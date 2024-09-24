@@ -51,12 +51,13 @@ func update(
 
 func TestWatch(t *testing.T) {
 	testCases := []struct {
-		name              string
-		objectTypesFilter []string
-		startCursor       *v1.ZedToken
-		mutations         []*v1.RelationshipUpdate
-		expectedCode      codes.Code
-		expectedUpdates   []*v1.RelationshipUpdate
+		name                string
+		objectTypesFilter   []string
+		relationshipFilters []*v1.RelationshipFilter
+		startCursor         *v1.ZedToken
+		mutations           []*v1.RelationshipUpdate
+		expectedCode        codes.Code
+		expectedUpdates     []*v1.RelationshipUpdate
 	}{
 		{
 			name:         "unfiltered watch",
@@ -87,6 +88,79 @@ func TestWatch(t *testing.T) {
 			},
 		},
 		{
+			name:         "watch with relationship filters",
+			expectedCode: codes.OK,
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					ResourceType: "document",
+				},
+				{
+					OptionalResourceIdPrefix: "d",
+				},
+			},
+			mutations: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			},
+			expectedUpdates: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			},
+		},
+		{
+			name:         "watch with modified relationship filters",
+			expectedCode: codes.OK,
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					ResourceType: "folder",
+				},
+			},
+			mutations: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			},
+			expectedUpdates: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			},
+		},
+		{
+			name:         "watch with resource ID prefix",
+			expectedCode: codes.OK,
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					OptionalResourceIdPrefix: "document1",
+				},
+			},
+			mutations: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			},
+			expectedUpdates: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+			},
+		},
+		{
+			name:         "watch with shorter resource ID prefix",
+			expectedCode: codes.OK,
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					OptionalResourceIdPrefix: "doc",
+				},
+			},
+			mutations: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_CREATE, "document", "document1", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_DELETE, "folder", "auditors", "viewer", "user", "auditor"),
+			},
+			expectedUpdates: []*v1.RelationshipUpdate{
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document1", "viewer", "user", "user1"),
+				update(v1.RelationshipUpdate_OPERATION_TOUCH, "document", "document2", "viewer", "user", "user1"),
+			},
+		},
+		{
 			name:         "invalid zedtoken",
 			startCursor:  &v1.ZedToken{Token: "bad-token"},
 			expectedCode: codes.InvalidArgument,
@@ -95,6 +169,35 @@ func TestWatch(t *testing.T) {
 			name:         "empty zedtoken fails validation",
 			startCursor:  &v1.ZedToken{Token: ""},
 			expectedCode: codes.InvalidArgument,
+		},
+		{
+			name: "watch with both kinds of filters",
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					OptionalResourceIdPrefix: "doc",
+				},
+			},
+			objectTypesFilter: []string{"document"},
+			expectedCode:      codes.InvalidArgument,
+		},
+		{
+			name: "watch with both fields of filter",
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					OptionalResourceIdPrefix: "doc",
+					OptionalResourceId:       "document1",
+				},
+			},
+			expectedCode: codes.InvalidArgument,
+		},
+		{
+			name: "watch with invalid filter resource type",
+			relationshipFilters: []*v1.RelationshipFilter{
+				{
+					ResourceType: "invalid",
+				},
+			},
+			expectedCode: codes.FailedPrecondition,
 		},
 	}
 
@@ -116,8 +219,9 @@ func TestWatch(t *testing.T) {
 			defer cancel()
 
 			stream, err := client.Watch(ctx, &v1.WatchRequest{
-				OptionalObjectTypes: tc.objectTypesFilter,
-				OptionalStartCursor: cursor,
+				OptionalObjectTypes:         tc.objectTypesFilter,
+				OptionalRelationshipFilters: tc.relationshipFilters,
+				OptionalStartCursor:         cursor,
 			})
 			require.NoError(err)
 

@@ -35,7 +35,7 @@ func init() {
 		return updateOp.Wait(ctx)
 	}, func(ctx context.Context, rwt *spanner.ReadWriteTransaction) error {
 		return rwt.BufferWrite([]*spanner.Mutation{
-			spanner.Insert("metadata", []string{"unique_id"}, []interface{}{uuid.NewString()}),
+			spanner.Insert("metadata", []string{"unique_id"}, []any{uuid.NewString()}),
 		})
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/typesystem"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	ns "github.com/authzed/spicedb/pkg/namespace"
@@ -374,6 +375,49 @@ func TestCanonicalization(t *testing.T) {
 				"second": computedKeyPrefix + "bfc8d945d7030961",
 			},
 		},
+		{
+			"canonicalization with functioned arrow expressions",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("owner", nil),
+				ns.MustRelation("viewer", nil),
+				ns.MustRelation("first", ns.Union(
+					ns.TupleToUserset("owner", "something"),
+				)),
+				ns.MustRelation("second", ns.Union(
+					ns.TupleToUserset("owner", "something"),
+				)),
+				ns.MustRelation("difftuple", ns.Union(
+					ns.TupleToUserset("viewer", "something"),
+				)),
+				ns.MustRelation("third", ns.Union(
+					ns.MustFunctionedTupleToUserset("owner", "any", "something"),
+				)),
+				ns.MustRelation("thirdwithall", ns.Union(
+					ns.MustFunctionedTupleToUserset("owner", "all", "something"),
+				)),
+				ns.MustRelation("allplusanother", ns.Union(
+					ns.MustFunctionedTupleToUserset("owner", "all", "something"),
+					ns.ComputedUserset("owner"),
+				)),
+				ns.MustRelation("anotherplusall", ns.Union(
+					ns.ComputedUserset("owner"),
+					ns.MustFunctionedTupleToUserset("owner", "all", "something"),
+				)),
+			),
+			"",
+			map[string]string{
+				"owner":          "owner",
+				"viewer":         "viewer",
+				"first":          computedKeyPrefix + "9fd2b03cabeb2e42",
+				"second":         computedKeyPrefix + "9fd2b03cabeb2e42",
+				"third":          computedKeyPrefix + "9fd2b03cabeb2e42",
+				"thirdwithall":   computedKeyPrefix + "eafa2f3f2d970680",
+				"difftuple":      computedKeyPrefix + "dddc650e89a7bf1a",
+				"allplusanother": computedKeyPrefix + "8b68ba1711b32ca4",
+				"anotherplusall": computedKeyPrefix + "8b68ba1711b32ca4",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -389,7 +433,7 @@ func TestCanonicalization(t *testing.T) {
 			lastRevision, err := ds.HeadRevision(context.Background())
 			require.NoError(err)
 
-			ts, err := NewNamespaceTypeSystem(tc.toCheck, ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts, err := typesystem.NewNamespaceTypeSystem(tc.toCheck, typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)
@@ -513,18 +557,17 @@ func TestCanonicalizationComparison(t *testing.T) {
 
 			ctx := context.Background()
 
-			empty := ""
 			schemaText := fmt.Sprintf(comparisonSchemaTemplate, tc.first, tc.second)
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
 				SchemaString: schemaText,
-			}, &empty)
+			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
 			lastRevision, err := ds.HeadRevision(context.Background())
 			require.NoError(err)
 
-			ts, err := NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
+			ts, err := typesystem.NewNamespaceTypeSystem(compiled.ObjectDefinitions[0], typesystem.ResolverForDatastoreReader(ds.SnapshotReader(lastRevision)))
 			require.NoError(err)
 
 			vts, terr := ts.Validate(ctx)

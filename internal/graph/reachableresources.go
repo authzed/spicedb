@@ -2,29 +2,37 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
-	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
-// NewConcurrentReachableResources creates an instance of ConcurrentReachableResources.
-func NewConcurrentReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16) *ConcurrentReachableResources {
-	return &ConcurrentReachableResources{d, concurrencyLimit}
+// dispatchVersion defines the "version" of this dispatcher. Must be incremented
+// anytime an incompatible change is made to the dispatcher itself or its cursor
+// production.
+const dispatchVersion = 1
+
+// NewCursoredReachableResources creates an instance of CursoredReachableResources.
+func NewCursoredReachableResources(d dispatch.ReachableResources, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredReachableResources {
+	return &CursoredReachableResources{d, concurrencyLimit, dispatchChunkSize}
 }
 
-// ConcurrentReachableResources exposes a method to perform ReachableResources requests, and
+// CursoredReachableResources exposes a method to perform ReachableResources requests, and
 // delegates subproblems to the provided dispatch.ReachableResources instance.
-type ConcurrentReachableResources struct {
-	d                dispatch.ReachableResources
-	concurrencyLimit uint16
+type CursoredReachableResources struct {
+	d                 dispatch.ReachableResources
+	concurrencyLimit  uint16
+	dispatchChunkSize uint16
 }
 
 // ValidatedReachableResourcesRequest represents a request after it has been validated and parsed for internal
@@ -34,48 +42,77 @@ type ValidatedReachableResourcesRequest struct {
 	Revision datastore.Revision
 }
 
-func (crr *ConcurrentReachableResources) ReachableResources(
+func (crr *CursoredReachableResources) ReachableResources(
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
-	ctx := stream.Context()
-	dispatched := &syncONRSet{}
-
 	if len(req.SubjectIds) == 0 {
 		return fmt.Errorf("no subjects ids given to reachable resources dispatch")
 	}
 
-	// If the resource type matches the subject type, yield directly as a one-to-one result
-	// for each subjectID.
-	if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
-		req.SubjectRelation.Relation == req.ResourceRelation.Relation {
-		resources := make([]*v1.ReachableResource, 0, len(req.SubjectIds))
-		for _, subjectID := range req.SubjectIds {
-			resources = append(resources, &v1.ReachableResource{
-				ResourceId:    subjectID,
-				ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
-				ForSubjectIds: []string{subjectID},
-			})
-		}
+	// Sort for stability.
+	sort.Strings(req.SubjectIds)
 
-		err := stream.Publish(&v1.DispatchReachableResourcesResponse{
-			Resources: resources,
-			Metadata:  emptyMetadata,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	// Load the type system and reachability graph to find the entrypoints for the reachability.
-	ds := datastoremw.MustFromContext(ctx)
-	reader := ds.SnapshotReader(req.Revision)
-	_, typeSystem, err := namespace.ReadNamespaceAndTypes(ctx, req.ResourceRelation.Namespace, reader)
+	ctx := stream.Context()
+	limits := newLimitTracker(req.OptionalLimit)
+	ci, err := newCursorInformation(req.OptionalCursor, limits, dispatchVersion)
 	if err != nil {
 		return err
 	}
 
-	rg := namespace.ReachabilityGraphFor(typeSystem.AsValidated())
+	return withSubsetInCursor(ci,
+		func(currentOffset int, nextCursorWith afterResponseCursor) error {
+			// If the resource type matches the subject type, yield directly as a one-to-one result
+			// for each subjectID.
+			if req.SubjectRelation.Namespace == req.ResourceRelation.Namespace &&
+				req.SubjectRelation.Relation == req.ResourceRelation.Relation {
+				for index, subjectID := range req.SubjectIds {
+					if index < currentOffset {
+						continue
+					}
+
+					if !ci.limits.prepareForPublishing() {
+						return nil
+					}
+
+					err := stream.Publish(&v1.DispatchReachableResourcesResponse{
+						Resource: &v1.ReachableResource{
+							ResourceId:    subjectID,
+							ResultStatus:  v1.ReachableResource_HAS_PERMISSION,
+							ForSubjectIds: []string{subjectID},
+						},
+						Metadata:            emptyMetadata,
+						AfterResponseCursor: nextCursorWith(index + 1),
+					})
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}, func(ci cursorInformation) error {
+			// Once done checking for the matching subject type, yield by dispatching over entrypoints.
+			return crr.afterSameType(ctx, ci, req, stream)
+		})
+}
+
+func (crr *CursoredReachableResources) afterSameType(
+	ctx context.Context,
+	ci cursorInformation,
+	req ValidatedReachableResourcesRequest,
+	parentStream dispatch.ReachableResourcesStream,
+) error {
+	dispatched := NewSyncONRSet()
+
+	// Load the type system and reachability graph to find the entrypoints for the reachability.
+	ds := datastoremw.MustFromContext(ctx)
+	reader := ds.SnapshotReader(req.Revision)
+	_, typeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, req.ResourceRelation.Namespace, reader)
+	if err != nil {
+		return err
+	}
+
+	rg := typesystem.ReachabilityGraphFor(typeSystem)
 	entrypoints, err := rg.OptimizedEntrypointsForSubjectToResource(ctx, &core.RelationReference{
 		Namespace: req.SubjectRelation.Namespace,
 		Relation:  req.SubjectRelation.Relation,
@@ -84,61 +121,49 @@ func (crr *ConcurrentReachableResources) ReachableResources(
 		return err
 	}
 
-	t := NewTaskRunner(ctx, crr.concurrencyLimit)
-
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
-	for _, entrypoint := range entrypoints {
-		switch entrypoint.EntrypointKind() {
-		case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-			err := crr.lookupRelationEntrypoint(ctx, t, entrypoint, rg, reader, req, stream, dispatched)
-			if err != nil {
-				return err
+	return withParallelizedStreamingIterableInCursor(ctx, ci, entrypoints, parentStream, crr.concurrencyLimit,
+		func(ctx context.Context, ci cursorInformation, entrypoint typesystem.ReachabilityEntrypoint, stream dispatch.ReachableResourcesStream) error {
+			switch entrypoint.EntrypointKind() {
+			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
+				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
+
+			case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
+				containingRelation := entrypoint.ContainingRelationOrPermission()
+				rewrittenSubjectRelation := &core.RelationReference{
+					Namespace: containingRelation.Namespace,
+					Relation:  containingRelation.Relation,
+				}
+
+				rsm := subjectIDsToResourcesMap(rewrittenSubjectRelation, req.SubjectIds)
+				drsm := rsm.asReadOnly()
+
+				return crr.redispatchOrReport(
+					ctx,
+					ci,
+					rewrittenSubjectRelation,
+					drsm,
+					rg,
+					entrypoint,
+					stream,
+					req,
+					dispatched,
+				)
+
+			case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
+				return crr.lookupTTUEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
+
+			default:
+				return spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind())
 			}
-
-		case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
-			containingRelation := entrypoint.ContainingRelationOrPermission()
-			rewrittenSubjectRelation := &core.RelationReference{
-				Namespace: containingRelation.Namespace,
-				Relation:  containingRelation.Relation,
-			}
-
-			rsm := subjectIDsToResourcesMap(rewrittenSubjectRelation, req.SubjectIds)
-			drsm := rsm.asReadOnly()
-
-			err := crr.redispatchOrReport(
-				ctx,
-				t,
-				rewrittenSubjectRelation,
-				drsm,
-				rg,
-				entrypoint,
-				stream,
-				req,
-				dispatched,
-			)
-			if err != nil {
-				return err
-			}
-
-		case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-			err := crr.lookupTTUEntrypoint(ctx, t, entrypoint, rg, reader, req, stream, dispatched)
-			if err != nil {
-				return err
-			}
-
-		default:
-			return spiceerrors.MustBugf("Unknown kind of entrypoint: %v", entrypoint.EntrypointKind())
-		}
-	}
-
-	return t.Wait()
+		})
 }
 
-func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
+func (crr *CursoredReachableResources) lookupRelationEntrypoint(
 	ctx context.Context,
-	t *TaskRunner,
-	entrypoint namespace.ReachabilityEntrypoint,
-	rg *namespace.ReachabilityGraph,
+	ci cursorInformation,
+	entrypoint typesystem.ReachabilityEntrypoint,
+	rg *typesystem.ReachabilityGraph,
 	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
@@ -149,7 +174,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
 		return err
 	}
 
-	_, relTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
+	_, relTypeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, relationReference.Namespace, reader)
 	if err != nil {
 		return err
 	}
@@ -165,7 +190,7 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
 	}
 
 	subjectIds := make([]string, 0, len(req.SubjectIds)+1)
-	if isDirectAllowed == namespace.DirectRelationValid {
+	if isDirectAllowed == typesystem.DirectRelationValid {
 		subjectIds = append(subjectIds, req.SubjectIds...)
 	}
 
@@ -175,99 +200,148 @@ func (crr *ConcurrentReachableResources) lookupRelationEntrypoint(
 			return err
 		}
 
-		if isWildcardAllowed == namespace.PublicSubjectAllowed {
+		if isWildcardAllowed == typesystem.PublicSubjectAllowed {
 			subjectIds = append(subjectIds, "*")
 		}
 	}
 
 	// Lookup the subjects and then redispatch/report results.
+	relationFilter := datastore.SubjectRelationFilter{
+		NonEllipsisRelation: req.SubjectRelation.Relation,
+	}
+
+	if req.SubjectRelation.Relation == tuple.Ellipsis {
+		relationFilter = datastore.SubjectRelationFilter{
+			IncludeEllipsisRelation: true,
+		}
+	}
+
 	subjectsFilter := datastore.SubjectsFilter{
 		SubjectType:        req.SubjectRelation.Namespace,
 		OptionalSubjectIds: subjectIds,
-		RelationFilter: datastore.SubjectRelationFilter{
-			NonEllipsisRelation: req.SubjectRelation.Relation,
+		RelationFilter:     relationFilter,
+	}
+
+	return crr.redispatchOrReportOverDatabaseQuery(
+		ctx,
+		redispatchOverDatabaseConfig{
+			ci:                 ci,
+			reader:             reader,
+			subjectsFilter:     subjectsFilter,
+			sourceResourceType: relationReference,
+			foundResourceType:  relationReference,
+			entrypoint:         entrypoint,
+			rg:                 rg,
+			concurrencyLimit:   crr.concurrencyLimit,
+			parentStream:       stream,
+			parentRequest:      req,
+			dispatched:         dispatched,
 		},
-	}
-
-	crr.scheduleChunkedRedispatch(t, reader, subjectsFilter, relationReference,
-		func(ctx context.Context, drsm dispatchableResourcesSubjectMap) error {
-			return crr.redispatchOrReport(ctx, t, relationReference, drsm, rg, entrypoint, stream, req, dispatched)
-		})
-	return nil
+	)
 }
 
-func min(a, b int) int {
-	if b < a {
-		return b
-	}
-	return a
+type redispatchOverDatabaseConfig struct {
+	ci cursorInformation
+
+	reader datastore.Reader
+
+	subjectsFilter     datastore.SubjectsFilter
+	sourceResourceType *core.RelationReference
+	foundResourceType  *core.RelationReference
+
+	entrypoint typesystem.ReachabilityEntrypoint
+	rg         *typesystem.ReachabilityGraph
+
+	concurrencyLimit uint16
+	parentStream     dispatch.ReachableResourcesStream
+	parentRequest    ValidatedReachableResourcesRequest
+	dispatched       *syncONRSet
 }
 
-func (crr *ConcurrentReachableResources) scheduleChunkedRedispatch(
-	t *TaskRunner,
-	reader datastore.Reader,
-	subjectsFilter datastore.SubjectsFilter,
-	resourceType *core.RelationReference,
-	handler func(ctx context.Context, resources dispatchableResourcesSubjectMap) error,
-) {
-	t.Schedule(func(ctx context.Context) error {
-		toBeHandled := make([]resourcesSubjectMap, 0)
-		it, err := reader.ReverseQueryRelationships(
-			ctx,
-			subjectsFilter,
-			options.WithResRelation(&options.ResourceRelation{
-				Namespace: resourceType.Namespace,
-				Relation:  resourceType.Relation,
-			}),
-		)
-		if err != nil {
-			return err
-		}
-		defer it.Close()
-
-		rsm := newResourcesSubjectMap(resourceType)
-		chunkIndex := 0
-		for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-			chunkSize := progressiveDispatchChunkSizes[min(chunkIndex, len(progressiveDispatchChunkSizes)-1)]
-			if it.Err() != nil {
-				return it.Err()
-			}
-
-			err := rsm.addRelationship(tpl)
+func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
+	ctx context.Context,
+	config redispatchOverDatabaseConfig,
+) error {
+	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
+		// Find the target resources for the subject.
+		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap], error) {
+			it, err := config.reader.ReverseQueryRelationships(
+				ctx,
+				config.subjectsFilter,
+				options.WithResRelation(&options.ResourceRelation{
+					Namespace: config.sourceResourceType.Namespace,
+					Relation:  config.sourceResourceType.Relation,
+				}),
+				options.WithSortForReverse(options.BySubject),
+				options.WithAfterForReverse(queryCursor),
+			)
 			if err != nil {
-				return err
+				return nil, err
+			}
+			defer it.Close()
+
+			// Chunk based on the FilterMaximumIDCount, to ensure we never send more than that amount of
+			// results to a downstream dispatch.
+			rsm := newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
+			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap], 0)
+			currentCursor := queryCursor
+
+			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
+				if it.Err() != nil {
+					return nil, it.Err()
+				}
+
+				if err := rsm.addRelationship(tpl); err != nil {
+					return nil, err
+				}
+
+				if rsm.len() == int(crr.dispatchChunkSize) {
+					toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{
+						item:   rsm.asReadOnly(),
+						cursor: currentCursor,
+					})
+					rsm = newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
+					currentCursor = tpl
+				}
+			}
+			it.Close()
+
+			if rsm.len() > 0 {
+				toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{
+					item:   rsm.asReadOnly(),
+					cursor: currentCursor,
+				})
 			}
 
-			if rsm.len() == int(chunkSize) {
-				chunkIndex++
-				toBeHandled = append(toBeHandled, rsm)
-				rsm = newResourcesSubjectMap(resourceType)
-			}
-		}
-		it.Close()
+			return toBeHandled, nil
+		},
 
-		if rsm.len() > 0 {
-			if rsm.len() > int(datastore.FilterMaximumIDCount) {
-				return fmt.Errorf("found reachableresources chunk in excess of expected max size")
-			}
-
-			toBeHandled = append(toBeHandled, rsm)
-		}
-
-		for _, rsmToHandle := range toBeHandled {
-			err := handler(ctx, rsmToHandle.asReadOnly())
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+		// Redispatch or report the results.
+		func(
+			ctx context.Context,
+			ci cursorInformation,
+			drsm dispatchableResourcesSubjectMap,
+			currentStream dispatch.ReachableResourcesStream,
+		) error {
+			return crr.redispatchOrReport(
+				ctx,
+				ci,
+				config.foundResourceType,
+				drsm,
+				config.rg,
+				config.entrypoint,
+				currentStream,
+				config.parentRequest,
+				config.dispatched,
+			)
+		},
+	)
 }
 
-func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context,
-	t *TaskRunner,
-	entrypoint namespace.ReachabilityEntrypoint,
-	rg *namespace.ReachabilityGraph,
+func (crr *CursoredReachableResources) lookupTTUEntrypoint(ctx context.Context,
+	ci cursorInformation,
+	entrypoint typesystem.ReachabilityEntrypoint,
+	rg *typesystem.ReachabilityGraph,
 	reader datastore.Reader,
 	req ValidatedReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
@@ -275,7 +349,7 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 ) error {
 	containingRelation := entrypoint.ContainingRelationOrPermission()
 
-	_, ttuTypeSystem, err := namespace.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
+	_, ttuTypeSystem, err := typesystem.ReadNamespaceAndTypes(ctx, containingRelation.Namespace, reader)
 	if err != nil {
 		return err
 	}
@@ -285,28 +359,15 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 		return err
 	}
 
-	// Determine the subject relation(s) for which to search. Note that we need to do so
-	// for both `...` as well as the subject's defined relation, as either is applicable in
-	// the tupleset (the relation is ignored when following the arrow).
-	relationFilter := datastore.SubjectRelationFilter{}
-
-	isEllipsisAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.SubjectRelation.Namespace, tuple.Ellipsis)
+	// Determine whether this TTU should be followed, which will be the case if the subject relation's namespace
+	// is allowed in any form on the relation; since arrows ignore the subject's relation (if any), we check
+	// for the subject namespace as a whole.
+	allowedRelations, err := ttuTypeSystem.GetAllowedDirectNamespaceSubjectRelations(tuplesetRelation, req.SubjectRelation.Namespace)
 	if err != nil {
 		return err
 	}
-	if isEllipsisAllowed == namespace.DirectRelationValid {
-		relationFilter = relationFilter.WithEllipsisRelation()
-	}
 
-	isDirectAllowed, err := ttuTypeSystem.IsAllowedDirectRelation(tuplesetRelation, req.SubjectRelation.Namespace, req.SubjectRelation.Relation)
-	if err != nil {
-		return err
-	}
-	if isDirectAllowed == namespace.DirectRelationValid {
-		relationFilter = relationFilter.WithNonEllipsisRelation(req.SubjectRelation.Relation)
-	}
-
-	if relationFilter.IsEmpty() {
+	if allowedRelations == nil {
 		return nil
 	}
 
@@ -314,7 +375,13 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 	subjectsFilter := datastore.SubjectsFilter{
 		SubjectType:        req.SubjectRelation.Namespace,
 		OptionalSubjectIds: req.SubjectIds,
-		RelationFilter:     relationFilter,
+	}
+
+	// Optimization: if there is a single allowed relation, pass it as a subject relation filter to make things faster
+	// on querying.
+	if allowedRelations.Len() == 1 {
+		allowedRelationName := allowedRelations.AsSlice()[0]
+		subjectsFilter.RelationFilter = datastore.SubjectRelationFilter{}.WithRelation(allowedRelationName)
 	}
 
 	tuplesetRelationReference := &core.RelationReference{
@@ -322,23 +389,35 @@ func (crr *ConcurrentReachableResources) lookupTTUEntrypoint(ctx context.Context
 		Relation:  tuplesetRelation,
 	}
 
-	crr.scheduleChunkedRedispatch(t, reader, subjectsFilter, tuplesetRelationReference,
-		func(ctx context.Context, drsm dispatchableResourcesSubjectMap) error {
-			return crr.redispatchOrReport(ctx, t, containingRelation, drsm, rg, entrypoint, stream, req, dispatched)
-		})
-	return nil
+	return crr.redispatchOrReportOverDatabaseQuery(
+		ctx,
+		redispatchOverDatabaseConfig{
+			ci:                 ci,
+			reader:             reader,
+			subjectsFilter:     subjectsFilter,
+			sourceResourceType: tuplesetRelationReference,
+			foundResourceType:  containingRelation,
+			entrypoint:         entrypoint,
+			rg:                 rg,
+			parentStream:       stream,
+			parentRequest:      req,
+			dispatched:         dispatched,
+		},
+	)
 }
+
+var errCanceledBecauseLimitReached = errors.New("canceled because the specified limit was reached")
 
 // redispatchOrReport checks if further redispatching is necessary for the found resource
 // type. If not, and the found resource type+relation matches the target resource type+relation,
 // the resource is reported to the parent stream.
-func (crr *ConcurrentReachableResources) redispatchOrReport(
+func (crr *CursoredReachableResources) redispatchOrReport(
 	ctx context.Context,
-	t *TaskRunner,
+	ci cursorInformation,
 	foundResourceType *core.RelationReference,
 	foundResources dispatchableResourcesSubjectMap,
-	rg *namespace.ReachabilityGraph,
-	entrypoint namespace.ReachabilityEntrypoint,
+	rg *typesystem.ReachabilityGraph,
+	entrypoint typesystem.ReachabilityEntrypoint,
 	parentStream dispatch.ReachableResourcesStream,
 	parentRequest ValidatedReachableResourcesRequest,
 	dispatched *syncONRSet,
@@ -354,69 +433,132 @@ func (crr *ConcurrentReachableResources) redispatchOrReport(
 		return err
 	}
 
-	// If there are no entrypoints, then no further dispatch is necessary.
-	if !hasResourceEntrypoints {
-		// If the found resource matches the target resource type and relation, yield the resource.
-		if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace &&
-			foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
-			return parentStream.Publish(&v1.DispatchReachableResourcesResponse{
-				Resources: foundResources.asReachableResources(entrypoint.IsDirectResult()),
-				Metadata:  emptyMetadata,
-			})
-		}
+	return withSubsetInCursor(ci,
+		func(currentOffset int, nextCursorWith afterResponseCursor) error {
+			if !hasResourceEntrypoints {
+				// If the found resource matches the target resource type and relation, yield the resource.
+				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace && foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
+					resources := foundResources.asReachableResources(entrypoint.IsDirectResult())
+					if len(resources) == 0 {
+						return nil
+					}
 
-		// Otherwise, we're done.
-		return nil
-	}
+					if currentOffset >= len(resources) {
+						return nil
+					}
 
-	// Otherwise, redispatch.
-	t.Schedule(func(ctx context.Context) error {
-		stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
-			Stream: parentStream,
-			Ctx:    ctx,
-			Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
-				// If the context has been closed, nothing more to do.
-				select {
-				case <-ctx.Done():
-					return nil, false, ctx.Err()
+					offsetted := resources[currentOffset:]
+					if len(offsetted) == 0 {
+						return nil
+					}
 
-				default:
+					for index, resource := range offsetted {
+						if !ci.limits.prepareForPublishing() {
+							return nil
+						}
+
+						err := parentStream.Publish(&v1.DispatchReachableResourcesResponse{
+							Resource:            resource,
+							Metadata:            emptyMetadata,
+							AfterResponseCursor: nextCursorWith(currentOffset + index + 1),
+						})
+						if err != nil {
+							return err
+						}
+					}
+					return nil
 				}
-
-				// Map the found resources via the subject+resources used for dispatching, to determine
-				// if any need to be made conditional due to caveats.
-				mapped, err := foundResources.mapFoundResources(result.Resources, entrypoint.IsDirectResult())
-				if err != nil {
-					return nil, false, err
-				}
-
-				return &v1.DispatchReachableResourcesResponse{
-					Resources: mapped,
-					Metadata:  addCallToResponseMetadata(result.Metadata),
-				}, true, nil
-			},
-		}
-
-		// The new subject type for dispatching was the found type of the *resource*.
-		newSubjectType := foundResourceType
-
-		// To avoid duplicate work, remove any subjects already dispatched.
-		filteredSubjectIDs := foundResources.filterSubjectIDsToDispatch(dispatched, newSubjectType)
-		if len(filteredSubjectIDs) == 0 {
+			}
 			return nil
-		}
+		}, func(ci cursorInformation) error {
+			if !hasResourceEntrypoints {
+				return nil
+			}
 
-		// Dispatch the found resources as the subjects for the next call, to continue the
-		// resolution.
-		return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-			ResourceRelation: parentRequest.ResourceRelation,
-			SubjectRelation:  newSubjectType,
-			SubjectIds:       filteredSubjectIDs,
-			Metadata: &v1.ResolverMeta{
-				AtRevision:     parentRequest.Revision.String(),
-				DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
-			},
-		}, stream)
-	})
-	return nil
+			// Branch the context so that the dispatch can be canceled without canceling the parent
+			// call.
+			sctx, cancelDispatch := branchContext(ctx)
+
+			needsCallAddedToMetadata := true
+			stream := &dispatch.WrappedDispatchStream[*v1.DispatchReachableResourcesResponse]{
+				Stream: parentStream,
+				Ctx:    sctx,
+				Processor: func(result *v1.DispatchReachableResourcesResponse) (*v1.DispatchReachableResourcesResponse, bool, error) {
+					// If the parent context has been closed, nothing more to do.
+					select {
+					case <-ctx.Done():
+						return nil, false, ctx.Err()
+
+					default:
+					}
+
+					// If we've exhausted the limit of resources to be returned, nothing more to do.
+					if ci.limits.hasExhaustedLimit() {
+						cancelDispatch(errCanceledBecauseLimitReached)
+						return nil, false, nil
+					}
+
+					// Map the found resources via the subject+resources used for dispatching, to determine
+					// if any need to be made conditional due to caveats.
+					mappedResource, err := foundResources.mapFoundResource(result.Resource, entrypoint.IsDirectResult())
+					if err != nil {
+						return nil, false, err
+					}
+
+					if !ci.limits.prepareForPublishing() {
+						cancelDispatch(errCanceledBecauseLimitReached)
+						return nil, false, nil
+					}
+
+					// The cursor for the response is that of the parent response + the cursor from the result itself.
+					afterResponseCursor, err := combineCursors(
+						ci.responsePartialCursor(),
+						result.AfterResponseCursor,
+					)
+					if err != nil {
+						return nil, false, err
+					}
+
+					// Only the first dispatched result gets the call added to it. This is to prevent overcounting
+					// of the batched dispatch.
+					var metadata *v1.ResponseMeta
+					if needsCallAddedToMetadata {
+						metadata = addCallToResponseMetadata(result.Metadata)
+						needsCallAddedToMetadata = false
+					} else {
+						metadata = addAdditionalDepthRequired(result.Metadata)
+					}
+
+					resp := &v1.DispatchReachableResourcesResponse{
+						Resource:            mappedResource,
+						Metadata:            metadata,
+						AfterResponseCursor: afterResponseCursor,
+					}
+					return resp, true, nil
+				},
+			}
+
+			// The new subject type for dispatching was the found type of the *resource*.
+			newSubjectType := foundResourceType
+
+			// To avoid duplicate work, remove any subjects already dispatched.
+			filteredSubjectIDs := foundResources.filterSubjectIDsToDispatch(dispatched, newSubjectType)
+			if len(filteredSubjectIDs) == 0 {
+				return nil
+			}
+
+			// Dispatch the found resources as the subjects for the next call, to continue the
+			// resolution.
+			return crr.d.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
+				ResourceRelation: parentRequest.ResourceRelation,
+				SubjectRelation:  newSubjectType,
+				SubjectIds:       filteredSubjectIDs,
+				Metadata: &v1.ResolverMeta{
+					AtRevision:     parentRequest.Revision.String(),
+					DepthRemaining: parentRequest.Metadata.DepthRemaining - 1,
+				},
+				OptionalCursor: ci.currentCursor,
+				OptionalLimit:  ci.limits.currentLimit,
+			}, stream)
+		})
 }

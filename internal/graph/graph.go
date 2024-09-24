@@ -2,40 +2,23 @@ package graph
 
 import (
 	"context"
-	"testing"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
-	"github.com/authzed/spicedb/pkg/datastore"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
 // Ellipsis relation is used to signify a semantic-free relationship.
 const Ellipsis = "..."
 
-// maxDispatchChunkSize is the maximum size for a dispatch chunk. Must be less than or equal
-// to the maximum ID count for filters in the datastore.
-var maxDispatchChunkSize uint16 = datastore.FilterMaximumIDCount
-
-// progressiveDispatchChunkSizes are chunk sizes growing over time for dispatching. All entries
-// must be less than or equal to the maximum ID count for filters in the datastore.
-var progressiveDispatchChunkSizes = []uint16{5, 10, 25, 50, maxDispatchChunkSize}
-
-// SetDispatchChunkSizesForTesting sets the dispatch chunk sizes for testing.
-func SetDispatchChunkSizesForTesting(t *testing.T, sizes []uint16) {
-	originalSizes := progressiveDispatchChunkSizes
-	maxDispatchChunkSize = sizes[len(sizes)-1]
-	progressiveDispatchChunkSizes = sizes
-	t.Cleanup(func() {
-		progressiveDispatchChunkSizes = originalSizes
-		maxDispatchChunkSize = originalSizes[len(sizes)-1]
-	})
-}
-
 // CheckResult is the data that is returned by a single check or sub-check.
 type CheckResult struct {
 	Resp *v1.DispatchCheckResponse
 	Err  error
+}
+
+func (cr CheckResult) ResultError() error {
+	return cr.Err
 }
 
 // ExpandResult is the data that is returned by a single expand or sub-expand.
@@ -44,10 +27,8 @@ type ExpandResult struct {
 	Err  error
 }
 
-// LookupResult is the data that is returned by a single lookup or sub-lookup.
-type LookupResult struct {
-	Resp *v1.DispatchLookupResponse
-	Err  error
+func (er ExpandResult) ResultError() error {
+	return er.Err
 }
 
 // ReduceableExpandFunc is a function that can be bound to a execution context.
@@ -69,14 +50,8 @@ func decrementDepth(md *v1.ResolverMeta) *v1.ResolverMeta {
 	return &v1.ResolverMeta{
 		AtRevision:     md.AtRevision,
 		DepthRemaining: md.DepthRemaining - 1,
+		TraversalBloom: md.TraversalBloom,
 	}
-}
-
-func max(x, y uint32) uint32 {
-	if x < y {
-		return y
-	}
-	return x
 }
 
 var emptyMetadata = &v1.ResponseMeta{}
@@ -98,6 +73,15 @@ func addCallToResponseMetadata(metadata *v1.ResponseMeta) *v1.ResponseMeta {
 	// + 1 for the current call.
 	return &v1.ResponseMeta{
 		DispatchCount:       metadata.DispatchCount + 1,
+		DepthRequired:       metadata.DepthRequired + 1,
+		CachedDispatchCount: metadata.CachedDispatchCount,
+		DebugInfo:           metadata.DebugInfo,
+	}
+}
+
+func addAdditionalDepthRequired(metadata *v1.ResponseMeta) *v1.ResponseMeta {
+	return &v1.ResponseMeta{
+		DispatchCount:       metadata.DispatchCount,
 		DepthRequired:       metadata.DepthRequired + 1,
 		CachedDispatchCount: metadata.CachedDispatchCount,
 		DebugInfo:           metadata.DebugInfo,

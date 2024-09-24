@@ -33,6 +33,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 		engineID := engineID
 
 		t.Run(engineID, func(t *testing.T) {
+			t.Parallel()
 			for _, filePath := range consistencyTestFiles {
 				filePath := filePath
 
@@ -46,7 +47,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 						dsconfig.WithRequestHedgingEnabled(false)))
 
 					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
-					dispatcher := graph.NewLocalOnlyDispatcher(10)
+					dispatcher := graph.NewLocalOnlyDispatcher(10, 100)
 					accessibilitySet := consistencytestutil.BuildAccessibilitySet(t, cad)
 
 					headRevision, err := cad.DataStore.HeadRevision(cad.Ctx)

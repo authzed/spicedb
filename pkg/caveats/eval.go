@@ -2,18 +2,13 @@ package caveats
 
 import (
 	"fmt"
-	"regexp"
-	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types/ref"
-	"github.com/google/cel-go/interpreter"
-	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
+	"github.com/authzed/cel-go/cel"
+	"github.com/authzed/cel-go/common/types"
+	"github.com/authzed/cel-go/common/types/ref"
 )
-
-var noSuchAttributeErrMessage = regexp.MustCompile(`^no such attribute: id: (.+), names: \[(.+)\]$`)
 
 // EvaluationConfig is configuration given to an EvaluateCaveatWithConfig call.
 type EvaluationConfig struct {
@@ -51,8 +46,12 @@ func (cr CaveatResult) PartialValue() (*CompiledCaveat, error) {
 		return nil, fmt.Errorf("result is fully evaluated")
 	}
 
-	expr := interpreter.PruneAst(cr.parentCaveat.ast.Expr(), cr.details.State())
-	return &CompiledCaveat{cr.parentCaveat.celEnv, cel.ParsedExprToAst(&exprpb.ParsedExpr{Expr: expr}), cr.parentCaveat.name}, nil
+	ast, err := cr.parentCaveat.celEnv.ResidualAst(cr.parentCaveat.ast, cr.details)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CompiledCaveat{cr.parentCaveat.celEnv, ast, cr.parentCaveat.name}, nil
 }
 
 // ContextValues returns the context values used when computing this result.
@@ -69,6 +68,11 @@ func (cr CaveatResult) ContextStruct() (*structpb.Struct, error) {
 // ExpressionString returns the human-readable expression string for the evaluated expression.
 func (cr CaveatResult) ExpressionString() (string, error) {
 	return cr.parentCaveat.ExprString()
+}
+
+// ParentCaveat returns the caveat that was evaluated to produce this result.
+func (cr CaveatResult) ParentCaveat() *CompiledCaveat {
+	return cr.parentCaveat
 }
 
 // MissingVarNames returns the name(s) of the missing variables.
@@ -106,46 +110,39 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 		return nil, err
 	}
 
-	pvars, err := cel.PartialVars(contextValues)
+	// Mark any unspecified variables as unknown, to ensure that partial application
+	// will result in producing a type of Unknown.
+	activation, err := env.PartialVars(contextValues)
 	if err != nil {
 		return nil, err
 	}
 
-	val, details, err := prg.Eval(pvars)
+	val, details, err := prg.Eval(activation)
 	if err != nil {
-		// From program.go:
-		// *  `val`, `details`, `nil` - Successful evaluation of a non-error result.
-		// *  `val`, `details`, `err` - Successful evaluation to an error result.
-		// *  `nil`, `details`, `err` - Unsuccessful evaluation.
-		//
-		// NOTE: This is done in this hacky way right now because CEL does not have
-		// well-typed errors. We should change to a better way to detect partial
-		// eval if/when CEL adds properly wrapped errors.
-		// See: https://github.com/google/cel-go/issues/25
-		if val != nil && strings.Contains(err.Error(), "no such attribute") {
-			found := noSuchAttributeErrMessage.FindStringSubmatch(err.Error())
-			if found != nil {
-				return &CaveatResult{
-					val:             val,
-					details:         details,
-					parentCaveat:    caveat,
-					contextValues:   contextValues,
-					missingVarNames: strings.Split(found[2], " "),
-					isPartial:       true,
-				}, nil
-			}
+		return nil, EvaluationErr{err}
+	}
 
-			return &CaveatResult{
-				val:             val,
-				details:         details,
-				parentCaveat:    caveat,
-				contextValues:   contextValues,
-				missingVarNames: nil,
-				isPartial:       true,
-			}, nil
+	// If the value produced has Unknown type, then it means required context was missing.
+	if types.IsUnknown(val) {
+		unknownVal := val.(*types.Unknown)
+		missingVarNames := make([]string, 0, len(unknownVal.IDs()))
+		for _, id := range unknownVal.IDs() {
+			trails, ok := unknownVal.GetAttributeTrails(id)
+			if ok {
+				for _, attributeTrail := range trails {
+					missingVarNames = append(missingVarNames, attributeTrail.String())
+				}
+			}
 		}
 
-		return nil, EvaluationErr{err}
+		return &CaveatResult{
+			val:             val,
+			details:         details,
+			parentCaveat:    caveat,
+			contextValues:   contextValues,
+			missingVarNames: missingVarNames,
+			isPartial:       true,
+		}, nil
 	}
 
 	return &CaveatResult{

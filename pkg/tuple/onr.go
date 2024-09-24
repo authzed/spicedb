@@ -1,10 +1,9 @@
 package tuple
 
 import (
+	"slices"
 	"sort"
 	"strings"
-
-	"github.com/jzelinskie/stringz"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -37,14 +36,14 @@ func ParseSubjectONR(subjectOnr string) *core.ObjectAndRelation {
 	}
 
 	relation := Ellipsis
-	subjectRelIndex := stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectRel")
+	subjectRelIndex := slices.Index(subjectRegex.SubexpNames(), "subjectRel")
 	if len(groups[subjectRelIndex]) > 0 {
 		relation = groups[subjectRelIndex]
 	}
 
 	return &core.ObjectAndRelation{
-		Namespace: groups[stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectType")],
-		ObjectId:  groups[stringz.SliceIndex(subjectRegex.SubexpNames(), "subjectID")],
+		Namespace: groups[slices.Index(subjectRegex.SubexpNames(), "subjectType")],
+		ObjectId:  groups[slices.Index(subjectRegex.SubexpNames(), "subjectID")],
 		Relation:  relation,
 	}
 }
@@ -58,9 +57,9 @@ func ParseONR(onr string) *core.ObjectAndRelation {
 	}
 
 	return &core.ObjectAndRelation{
-		Namespace: groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceType")],
-		ObjectId:  groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceID")],
-		Relation:  groups[stringz.SliceIndex(onrRegex.SubexpNames(), "resourceRel")],
+		Namespace: groups[slices.Index(onrRegex.SubexpNames(), "resourceType")],
+		ObjectId:  groups[slices.Index(onrRegex.SubexpNames(), "resourceID")],
+		Relation:  groups[slices.Index(onrRegex.SubexpNames(), "resourceRel")],
 	}
 }
 
@@ -93,10 +92,15 @@ func StringONR(onr *core.ObjectAndRelation) string {
 	if onr == nil {
 		return ""
 	}
-	if onr.Relation == Ellipsis {
-		return JoinObjectRef(onr.Namespace, onr.ObjectId)
+
+	return StringONRStrings(onr.Namespace, onr.ObjectId, onr.Relation)
+}
+
+func StringONRStrings(namespace, objectID, relation string) string {
+	if relation == Ellipsis {
+		return JoinObjectRef(namespace, objectID)
 	}
-	return JoinRelRef(JoinObjectRef(onr.Namespace, onr.ObjectId), onr.Relation)
+	return JoinRelRef(JoinObjectRef(namespace, objectID), relation)
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.
@@ -108,4 +112,13 @@ func StringsONRs(onrs []*core.ObjectAndRelation) []string {
 
 	sort.Strings(onrstrings)
 	return onrstrings
+}
+
+func OnrEqual(lhs, rhs *core.ObjectAndRelation) bool {
+	// Properties are sorted by highest to lowest cardinality to optimize for short-circuiting.
+	return lhs.ObjectId == rhs.ObjectId && lhs.Relation == rhs.Relation && lhs.Namespace == rhs.Namespace
+}
+
+func OnrEqualOrWildcard(tpl, target *core.ObjectAndRelation) bool {
+	return OnrEqual(tpl, target) || (tpl.ObjectId == PublicWildcard && tpl.Namespace == target.Namespace)
 }

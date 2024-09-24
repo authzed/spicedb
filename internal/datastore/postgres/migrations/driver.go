@@ -7,12 +7,18 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/lib/pq"
+	"go.opentelemetry.io/otel"
 
+	log "github.com/authzed/spicedb/internal/logging"
+
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
 const postgresMissingTableErrorCode = "42P01"
+
+var tracer = otel.Tracer("spicedb/internal/datastore/common")
 
 // AlembicPostgresDriver implements a schema migration facility for use in
 // SpiceDB's Postgres datastore.
@@ -23,13 +29,26 @@ type AlembicPostgresDriver struct {
 }
 
 // NewAlembicPostgresDriver creates a new driver with active connections to the database specified.
-func NewAlembicPostgresDriver(url string) (*AlembicPostgresDriver, error) {
-	connectStr, err := pq.ParseURL(url)
+func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvider datastore.CredentialsProvider) (*AlembicPostgresDriver, error) {
+	ctx, span := tracer.Start(ctx, "NewAlembicPostgresDriver")
+	defer span.End()
+
+	connConfig, err := pgx.ParseConfig(url)
 	if err != nil {
 		return nil, err
 	}
+	pgxcommon.ConfigurePGXLogger(connConfig)
+	pgxcommon.ConfigureOTELTracer(connConfig)
 
-	db, err := pgx.Connect(context.Background(), connectStr)
+	if credentialsProvider != nil {
+		log.Ctx(ctx).Debug().Str("name", credentialsProvider.Name()).Msg("using credentials provider")
+		connConfig.User, connConfig.Password, err = credentialsProvider.Get(ctx, fmt.Sprintf("%s:%d", connConfig.Host, connConfig.Port), connConfig.User)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	db, err := pgx.ConnectConfig(ctx, connConfig)
 	if err != nil {
 		return nil, err
 	}

@@ -7,12 +7,11 @@ import (
 	"fmt"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/revision"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -36,8 +35,8 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 	defer common.LogOnError(ctx, txCleanup)
 
 	var serializedDef []byte
-	var rev decimal.Decimal
-	err = tx.QueryRowContext(ctx, sqlStatement, args...).Scan(&serializedDef, &rev)
+	var txID uint64
+	err = tx.QueryRowContext(ctx, sqlStatement, args...).Scan(&serializedDef, &txID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, datastore.NoRevision, datastore.NewCaveatNameNotFoundErr(name)
@@ -49,7 +48,7 @@ func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
 	}
-	return &def, revision.NewFromDecimal(rev), nil
+	return &def, revisions.NewForTransactionID(txID), nil
 }
 
 func (mr *mysqlReader) LookupCaveatsWithNames(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
@@ -90,9 +89,9 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 	var caveats []datastore.RevisionedCaveat
 	for rows.Next() {
 		var defBytes []byte
-		var version decimal.Decimal
+		var txID uint64
 
-		err = rows.Scan(&defBytes, &version)
+		err = rows.Scan(&defBytes, &txID)
 		if err != nil {
 			return nil, fmt.Errorf(errListCaveats, err)
 		}
@@ -103,7 +102,7 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 		}
 		caveats = append(caveats, datastore.RevisionedCaveat{
 			Definition:          &c,
-			LastWrittenRevision: revision.NewFromDecimal(version),
+			LastWrittenRevision: revisions.NewForTransactionID(txID),
 		})
 	}
 	if rows.Err() != nil {

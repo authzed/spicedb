@@ -5,28 +5,34 @@ import (
 	"time"
 
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	log "github.com/authzed/spicedb/internal/logging"
 )
 
 type crdbOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
+	connectRate                 time.Duration
 
 	watchBufferLength           uint16
+	watchBufferWriteTimeout     time.Duration
+	watchConnectTimeout         time.Duration
 	revisionQuantization        time.Duration
 	followerReadDelay           time.Duration
 	maxRevisionStalenessPercent float64
 	gcWindow                    time.Duration
 	maxRetries                  uint8
-	splitAtUsersetCount         uint16
 	overlapStrategy             string
 	overlapKey                  string
-	disableStats                bool
-
-	enablePrometheusStats bool
+	enableConnectionBalancing   bool
+	analyzeBeforeStatistics     bool
+	filterMaximumIDCount        uint16
+	enablePrometheusStats       bool
+	withIntegrity               bool
 }
 
 const (
 	errQuantizationTooLarge = "revision quantization (%s) must be less than GC window (%s)"
 
+	overlapStrategyRequest  = "request"
 	overlapStrategyPrefix   = "prefix"
 	overlapStrategyStatic   = "static"
 	overlapStrategyInsecure = "insecure"
@@ -35,13 +41,19 @@ const (
 	defaultFollowerReadDelay           = 0 * time.Second
 	defaultMaxRevisionStalenessPercent = 0.1
 	defaultWatchBufferLength           = 128
+	defaultWatchBufferWriteTimeout     = 1 * time.Second
+	defaultWatchConnectTimeout         = 1 * time.Second
 	defaultSplitSize                   = 1024
 
 	defaultMaxRetries      = 5
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
 
-	defaultEnablePrometheusStats = false
+	defaultEnablePrometheusStats     = false
+	defaultEnableConnectionBalancing = true
+	defaultConnectRate               = 100 * time.Millisecond
+	defaultFilterMaximumIDCount      = 100
+	defaultWithIntegrity             = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -52,15 +64,19 @@ func generateConfig(options []Option) (crdbOptions, error) {
 	computed := crdbOptions{
 		gcWindow:                    24 * time.Hour,
 		watchBufferLength:           defaultWatchBufferLength,
+		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
+		watchConnectTimeout:         defaultWatchConnectTimeout,
 		revisionQuantization:        defaultRevisionQuantization,
 		followerReadDelay:           defaultFollowerReadDelay,
 		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		splitAtUsersetCount:         defaultSplitSize,
 		maxRetries:                  defaultMaxRetries,
 		overlapKey:                  defaultOverlapKey,
 		overlapStrategy:             defaultOverlapStrategy,
-		disableStats:                false,
 		enablePrometheusStats:       defaultEnablePrometheusStats,
+		enableConnectionBalancing:   defaultEnableConnectionBalancing,
+		connectRate:                 defaultConnectRate,
+		filterMaximumIDCount:        defaultFilterMaximumIDCount,
+		withIntegrity:               defaultWithIntegrity,
 	}
 
 	for _, option := range options {
@@ -76,17 +92,12 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		)
 	}
 
-	return computed, nil
-}
-
-// SplitAtUsersetCount is the batch size for which userset queries will be
-// split into smaller queries.
-//
-// This defaults to 1024.
-func SplitAtUsersetCount(splitAtUsersetCount uint16) Option {
-	return func(po *crdbOptions) {
-		po.splitAtUsersetCount = splitAtUsersetCount
+	if computed.filterMaximumIDCount == 0 {
+		computed.filterMaximumIDCount = 100
+		log.Warn().Msg("filterMaximumIDCount not set, defaulting to 100")
 	}
+
+	return computed, nil
 }
 
 // ReadConnHealthCheckInterval is the frequency at which both idle and max
@@ -221,6 +232,20 @@ func WatchBufferLength(watchBufferLength uint16) Option {
 	return func(po *crdbOptions) { po.watchBufferLength = watchBufferLength }
 }
 
+// WatchBufferWriteTimeout is the maximum timeout for writing to the watch buffer,
+// after which the caller to the watch will be disconnected.
+func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
+	return func(po *crdbOptions) { po.watchBufferWriteTimeout = watchBufferWriteTimeout }
+}
+
+// WatchConnectTimeout is the maximum timeout for connecting the watch stream
+// to the datastore.
+//
+// This value defaults to 1 second.
+func WatchConnectTimeout(watchConnectTimeout time.Duration) Option {
+	return func(po *crdbOptions) { po.watchConnectTimeout = watchConnectTimeout }
+}
+
 // RevisionQuantization is the time bucket size to which advertised revisions
 // will be rounded.
 //
@@ -253,6 +278,13 @@ func GCWindow(window time.Duration) Option {
 	return func(po *crdbOptions) { po.gcWindow = window }
 }
 
+// ConnectRate is the rate at which new datastore connections can be made.
+//
+// This is a duration, the rate is 1/period.
+func ConnectRate(rate time.Duration) Option {
+	return func(po *crdbOptions) { po.connectRate = rate }
+}
+
 // MaxRetries is the maximum number of times a retriable transaction will be
 // client-side retried.
 // Default: 5
@@ -272,15 +304,37 @@ func OverlapKey(key string) Option {
 	return func(po *crdbOptions) { po.overlapKey = key }
 }
 
-// DisableStats disables recording counts to the stats table
-func DisableStats(disable bool) Option {
-	return func(po *crdbOptions) { po.disableStats = disable }
-}
-
 // WithEnablePrometheusStats marks whether Prometheus metrics provided by the Postgres
 // clients being used by the datastore are enabled.
 //
 // Prometheus metrics are disabled by default.
 func WithEnablePrometheusStats(enablePrometheusStats bool) Option {
 	return func(po *crdbOptions) { po.enablePrometheusStats = enablePrometheusStats }
+}
+
+// WithEnableConnectionBalancing marks whether Prometheus metrics provided by the Postgres
+// clients being used by the datastore are enabled.
+//
+// Prometheus metrics are disabled by default.
+func WithEnableConnectionBalancing(connectionBalancing bool) Option {
+	return func(po *crdbOptions) { po.enableConnectionBalancing = connectionBalancing }
+}
+
+// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
+// run Analyze on the database before returning statistics. This should only be
+// used for debug and testing.
+//
+// Disabled by default.
+func DebugAnalyzeBeforeStatistics() Option {
+	return func(po *crdbOptions) { po.analyzeBeforeStatistics = true }
+}
+
+// FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
+func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
+	return func(po *crdbOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
+}
+
+// WithIntegrity marks whether the datastore should store and return integrity information.
+func WithIntegrity(withIntegrity bool) Option {
+	return func(po *crdbOptions) { po.withIntegrity = withIntegrity }
 }

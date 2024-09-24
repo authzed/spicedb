@@ -15,12 +15,14 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
-	"github.com/authzed/spicedb/pkg/datastore/revision"
+	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 
 	"github.com/authzed/spicedb/e2e"
@@ -153,17 +155,30 @@ func TestNoNewEnemy(t *testing.T) {
 	})
 
 	t.Log("start protected spicedb cluster")
-	protectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
+	requestProtectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
 		spice.WithGrpcPort(50061),
 		spice.WithDispatchPort(50062),
 		spice.WithHTTPPort(8444),
 		spice.WithMetricsPort(9100),
-		spice.WithDashboardPort(8100),
 		spice.WithDBName(dbName))
-	require.NoError(t, protectedSpiceDB.Start(ctx, tlog, "protected"))
-	require.NoError(t, protectedSpiceDB.Connect(ctx, tlog))
+	require.NoError(t, requestProtectedSpiceDB.Start(ctx, tlog, "reqprotected",
+		"--datastore-tx-overlap-strategy=request"))
+	require.NoError(t, requestProtectedSpiceDB.Connect(ctx, tlog))
 	t.Cleanup(func() {
-		require.NoError(t, protectedSpiceDB.Stop(tlog))
+		require.NoError(t, requestProtectedSpiceDB.Stop(tlog))
+	})
+
+	standardProtectedSpiceDB := spice.NewClusterFromCockroachCluster(crdb,
+		spice.WithGrpcPort(50071),
+		spice.WithDispatchPort(50072),
+		spice.WithHTTPPort(8454),
+		spice.WithMetricsPort(9200),
+		spice.WithDBName(dbName))
+	require.NoError(t, standardProtectedSpiceDB.Start(ctx, tlog, "stdprotected",
+		"--datastore-tx-overlap-strategy=static"))
+	require.NoError(t, standardProtectedSpiceDB.Connect(ctx, tlog))
+	t.Cleanup(func() {
+		require.NoError(t, standardProtectedSpiceDB.Stop(tlog))
 	})
 
 	t.Log("configure small ranges, single replicas, short ttl")
@@ -193,12 +208,23 @@ func TestNoNewEnemy(t *testing.T) {
 		sampleSize      int
 	}{
 		{
-			name: "protected from data newenemy",
+			name: "protected from data newenemy with standard overlap",
 			vulnerableProbe: func(count int) (bool, int) {
 				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, vulnerableSpiceDB, count, true)
 			},
 			protectedProbe: func(count int) (bool, int) {
-				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, protectedSpiceDB, count, false)
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, standardProtectedSpiceDB, count, false)
+			},
+			vulnerableMax: 20,
+			sampleSize:    5,
+		},
+		{
+			name: "protected from data newenemy per request",
+			vulnerableProbe: func(count int) (bool, int) {
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, vulnerableSpiceDB, count, true)
+			},
+			protectedProbe: func(count int) (bool, int) {
+				return checkDataNoNewEnemy(ctx, t, slowNodeID, crdb, requestProtectedSpiceDB, count, false)
 			},
 			vulnerableMax: 20,
 			sampleSize:    5,
@@ -325,11 +351,16 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 	time.Sleep(500 * time.Millisecond)
 
 	for i := 0; i < maxAttempts; i++ {
+		ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
+			string(requestmeta.RequestOverlapKey): fmt.Sprintf("test-%d", i),
+		}))
+
 		// exclude user by connecting user to blocklist
 		r1, err := spicedb[0].Client().V1().Permissions().WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
 			Updates: []*v1.RelationshipUpdate{blockusers[i]},
 		})
 		require.NoError(t, err)
+		t.Log("r1 token: ", r1.WrittenAt.Token)
 
 		// sleeping in between the writes seems to let cockroach clear out
 		// pending transactions in the background and has a better chance
@@ -343,6 +374,13 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 			Updates: []*v1.RelationshipUpdate{allowlists[i]},
 		})
 		require.NoError(t, err)
+		t.Log("r2 token: ", r2.WrittenAt.Token)
+
+		z1, _ := zedtoken.DecodeRevision(r1.WrittenAt, revisions.CommonDecoder{Kind: revisions.HybridLogicalClock})
+		z2, _ := zedtoken.DecodeRevision(r2.WrittenAt, revisions.CommonDecoder{Kind: revisions.HybridLogicalClock})
+
+		t.Log("z1 revision: ", z1)
+		t.Log("z2 revision: ", z2)
 
 		canHas, err := spicedb[1].Client().V1().Permissions().CheckPermission(context.Background(), &v1.CheckPermissionRequest{
 			Consistency: &v1.Consistency{Requirement: &v1.Consistency_AtExactSnapshot{AtExactSnapshot: r2.WrittenAt}},
@@ -366,8 +404,6 @@ func checkDataNoNewEnemy(ctx context.Context, t testing.TB, slowNodeID int, crdb
 		ns2AllowlistLeader := getLeaderNodeForNamespace(ctx, crdb[2].Conn(), allowlists[i].Relationship.Subject.Object.ObjectType)
 
 		r1leader, r2leader := getLeaderNode(ctx, crdb[2].Conn(), blockusers[i].Relationship), getLeaderNode(ctx, crdb[2].Conn(), allowlists[i].Relationship)
-		z1, _ := zedtoken.DecodeRevision(r1.WrittenAt, revision.DecimalDecoder{})
-		z2, _ := zedtoken.DecodeRevision(r2.WrittenAt, revision.DecimalDecoder{})
 		t.Log(sleep, z1, z2, z1.GreaterThan(z2), r1leader, r2leader, ns1BlocklistLeader, ns1UserLeader, ns2ResourceLeader, ns2AllowlistLeader)
 
 		if z1.GreaterThan(z2) {
