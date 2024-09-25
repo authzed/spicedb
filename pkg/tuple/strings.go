@@ -26,17 +26,21 @@ func MustSplitRelRef(relRef string) (namespace, relation string) {
 }
 
 // StringRR converts a RR object to a string.
-func StringRR(rr *core.RelationReference) string {
-	if rr == nil {
-		return ""
-	}
-
-	return JoinRelRef(rr.Namespace, rr.Relation)
+func StringRR(rr RelationReference) string {
+	return JoinRelRef(rr.ObjectType, rr.Relation)
 }
 
 // StringONR converts an ONR object to a string.
 func StringONR(onr ObjectAndRelation) string {
 	return StringONRStrings(onr.ObjectType, onr.ObjectID, onr.Relation)
+}
+
+func StringCoreRR(rr *core.RelationReference) string {
+	if rr == nil {
+		return ""
+	}
+
+	return JoinRelRef(rr.Namespace, rr.Relation)
 }
 
 // StringCoreONR converts a core ONR object to a string.
@@ -56,10 +60,10 @@ func StringONRStrings(namespace, objectID, relation string) string {
 }
 
 // StringsONRs converts ONR objects to a string slice, sorted.
-func StringsONRs(onrs []*core.ObjectAndRelation) []string {
+func StringsONRs(onrs []ObjectAndRelation) []string {
 	onrstrings := make([]string, 0, len(onrs))
 	for _, onr := range onrs {
-		onrstrings = append(onrstrings, StringCoreONR(onr))
+		onrstrings = append(onrstrings, StringONR(onr))
 	}
 
 	sort.Strings(onrstrings)

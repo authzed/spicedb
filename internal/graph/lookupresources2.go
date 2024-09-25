@@ -281,7 +281,6 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			if err != nil {
 				return nil, err
 			}
-			defer it.Close()
 
 			// Chunk based on the FilterMaximumIDCount, to ensure we never send more than that amount of
 			// results to a downstream dispatch.
@@ -289,16 +288,16 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
 
-			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-				if it.Err() != nil {
-					return nil, it.Err()
+			for rel, err := range it {
+				if err != nil {
+					return nil, err
 				}
 
 				var missingContextParameters []string
 
 				// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
-				if tpl.Caveat != nil && tpl.Caveat.CaveatName != "" {
-					caveatExpr := caveats.CaveatAsExpr(tpl.Caveat)
+				if rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "" {
+					caveatExpr := caveats.CaveatAsExpr(rel.OptionalCaveat)
 					runResult, err := caveats.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), config.reader, caveats.RunCaveatExpressionNoDebugging)
 					if err != nil {
 						return nil, err
@@ -318,7 +317,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 					}
 				}
 
-				if err := rsm.addRelationship(tpl, missingContextParameters); err != nil {
+				if err := rsm.addRelationship(rel, missingContextParameters); err != nil {
 					return nil, err
 				}
 
@@ -328,10 +327,9 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 						cursor: currentCursor,
 					})
 					rsm = newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
-					currentCursor = tpl
+					currentCursor = options.ToCursor(rel)
 				}
 			}
-			it.Close()
 
 			if rsm.len() > 0 {
 				toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap2]{
@@ -466,6 +464,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 	return withSubsetInCursor(ci,
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			if !hasResourceEntrypoints {
+
 				// If the found resource matches the target resource type and relation, potentially yield the resource.
 				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace && foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
 					resources := foundResources.asPossibleResources()
@@ -502,7 +501,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							checkHint, err := hints.HintForEntrypoint(
 								entrypoint,
 								resource.ResourceId,
-								parentRequest.TerminalSubject,
+								tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 								&v1.ResourceCheckResult{
 									Membership: v1.ResourceCheckResult_MEMBER,
 								})
@@ -513,8 +512,8 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 						}
 
 						resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, crr.dc, computed.CheckParameters{
-							ResourceType:  parentRequest.ResourceRelation,
-							Subject:       parentRequest.TerminalSubject,
+							ResourceType:  tuple.FromCoreRelationReference(parentRequest.ResourceRelation),
+							Subject:       tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 							CaveatContext: parentRequest.Context.AsMap(),
 							AtRevision:    parentRequest.Revision,
 							MaximumDepth:  parentRequest.Metadata.DepthRemaining - 1,

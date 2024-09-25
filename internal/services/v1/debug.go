@@ -140,7 +140,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		}
 
 		slices.SortFunc(subProblems, func(a, b *v1.CheckDebugTrace) int {
-			return cmp.Compare(tuple.StringObjectRef(a.Resource), tuple.StringObjectRef(a.Resource))
+			return cmp.Compare(tuple.V1StringObjectRef(a.Resource), tuple.V1StringObjectRef(a.Resource))
 		})
 
 		return &v1.CheckDebugTrace{

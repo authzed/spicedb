@@ -17,7 +17,7 @@ type syncONRSet struct {
 }
 
 func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
-	key := tuple.StringONR(onr)
+	key := tuple.StringONR(tuple.FromCoreObjectAndRelation(onr))
 	s.Lock()
 	_, existed := s.items[key]
 	if !existed {
@@ -70,13 +70,13 @@ func subjectIDsToResourcesMap(resourceType *core.RelationReference, subjectIDs [
 
 // addRelationship adds the relationship to the resource subject map, recording a mapping from
 // the resource of the relationship to the subject, as well as whether the relationship was caveated.
-func (rsm resourcesSubjectMap) addRelationship(rel *core.RelationTuple) error {
-	if rel.ResourceAndRelation.Namespace != rsm.resourceType.Namespace ||
-		rel.ResourceAndRelation.Relation != rsm.resourceType.Relation {
-		return spiceerrors.MustBugf("invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.ResourceAndRelation)
+func (rsm resourcesSubjectMap) addRelationship(rel tuple.Relationship) error {
+	if rel.Resource.ObjectType != rsm.resourceType.Namespace ||
+		rel.Resource.Relation != rsm.resourceType.Relation {
+		return spiceerrors.MustBugf("invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.Resource)
 	}
 
-	rsm.resourcesAndSubjects.Add(rel.ResourceAndRelation.ObjectId, subjectInfo{rel.Subject.ObjectId, rel.Caveat != nil && rel.Caveat.CaveatName != ""})
+	rsm.resourcesAndSubjects.Add(rel.Resource.ObjectID, subjectInfo{rel.Subject.ObjectID, rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != ""})
 	return nil
 }
 

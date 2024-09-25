@@ -419,12 +419,12 @@ func requireSameAllowedRelations(t *testing.T, found []*core.AllowedRelation, ex
 func requireSameSubjectRelations(t *testing.T, found []*core.RelationReference, expected ...*core.RelationReference) {
 	foundSet := mapz.NewSet[string]()
 	for _, f := range found {
-		foundSet.Add(tuple.StringRR(f))
+		foundSet.Add(tuple.StringCoreRR(f))
 	}
 
 	expectSet := mapz.NewSet[string]()
 	for _, e := range expected {
-		expectSet.Add(tuple.StringRR(e))
+		expectSet.Add(tuple.StringCoreRR(e))
 	}
 
 	foundSlice := foundSet.AsSlice()

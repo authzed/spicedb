@@ -56,7 +56,7 @@ func TestRelationReference(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RelationReference(tt.ns, tt.rel)
+			got := RRStringToCore(tt.ns, tt.rel)
 			require.Equal(t, tt.expected, got)
 		})
 	}

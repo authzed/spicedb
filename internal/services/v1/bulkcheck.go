@@ -172,12 +172,12 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 				err := namespace.CheckNamespaceAndRelations(ctx,
 					[]namespace.TypeAndRelationToCheck{
 						{
-							NamespaceName: group.params.ResourceType.Namespace,
+							NamespaceName: group.params.ResourceType.ObjectType,
 							RelationName:  group.params.ResourceType.Relation,
 							AllowEllipsis: false,
 						},
 						{
-							NamespaceName: group.params.Subject.Namespace,
+							NamespaceName: group.params.Subject.ObjectType,
 							RelationName:  stringz.DefaultEmpty(group.params.Subject.Relation, graph.Ellipsis),
 							AllowEllipsis: true,
 						},

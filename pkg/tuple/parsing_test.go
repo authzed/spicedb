@@ -441,7 +441,7 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := strings.Replace(MustRelString(tc.v1Format), " ", "", -1)
+			serialized := strings.Replace(MustV1RelString(tc.v1Format), " ", "", -1)
 			require.Equal(t, tc.expectedOutput, serialized)
 
 			withoutCaveat := V1StringRelationshipWithoutCaveat(tc.v1Format)
@@ -497,7 +497,7 @@ func TestConvert(t *testing.T) {
 			require.True(Equal(tc.relFormat, parsed))
 
 			relationship := ToV1Relationship(parsed)
-			relString := strings.Replace(MustRelString(relationship), " ", "", -1)
+			relString := strings.Replace(MustV1RelString(relationship), " ", "", -1)
 			require.Equal(tc.expectedOutput, relString)
 		})
 	}

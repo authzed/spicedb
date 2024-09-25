@@ -326,9 +326,9 @@ func TestReadRelationships(t *testing.T) {
 									dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 									require.NoError(err)
 
-									require.True(dsFilter.Test(tuple.MustFromRelationship(rel.Relationship)), "relationship did not match filter: %v", rel.Relationship)
+									require.True(dsFilter.Test(tuple.FromV1Relationship(rel.Relationship)), "relationship did not match filter: %v", rel.Relationship)
 
-									relString := tuple.MustRelString(rel.Relationship)
+									relString := tuple.MustV1RelString(rel.Relationship)
 									_, found := tc.expected[relString]
 									require.True(found, "relationship was not expected: %s", relString)
 
@@ -366,7 +366,7 @@ func TestWriteRelationships(t *testing.T) {
 	client := v1.NewPermissionsServiceClient(conn)
 	t.Cleanup(cleanup)
 
-	toWrite := []*core.RelationTuple{
+	toWrite := []tuple.Relationship{
 		tuple.MustParse("document:totallynew#parent@folder:plans"),
 		tuple.MustParse("document:--base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:--base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK=="),
 		tuple.MustParse("document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryincrediblysuuperlong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryincrediblysuuperlong"),
@@ -376,11 +376,11 @@ func TestWriteRelationships(t *testing.T) {
 	resp, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.MustToRelationship(toWrite[0]),
+			Relationship: tuple.ToV1Relationship(toWrite[0]),
 		}},
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.MustToFilter(toWrite[0]),
+			Filter:    tuple.ToV1Filter(toWrite[0]),
 		}},
 	})
 	require.Nil(resp)
@@ -395,7 +395,7 @@ func TestWriteRelationships(t *testing.T) {
 		"precondition_subject_type",
 	)
 
-	existing := tuple.Parse(tf.StandardTuples[0])
+	existing := tuple.MustParse(tf.StandardRelationships[0])
 	require.NotNil(existing)
 
 	// Write with a succeeding precondition
@@ -403,14 +403,14 @@ func TestWriteRelationships(t *testing.T) {
 	for _, tpl := range toWrite {
 		toWriteUpdates = append(toWriteUpdates, &v1.RelationshipUpdate{
 			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-			Relationship: tuple.MustToRelationship(tpl),
+			Relationship: tuple.ToV1Relationship(tpl),
 		})
 	}
 	resp, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: toWriteUpdates,
 		OptionalPreconditions: []*v1.Precondition{{
 			Operation: v1.Precondition_OPERATION_MUST_MATCH,
-			Filter:    tuple.MustToFilter(existing),
+			Filter:    tuple.ToV1Filter(existing),
 		}},
 	})
 	require.NoError(err)
@@ -420,8 +420,8 @@ func TestWriteRelationships(t *testing.T) {
 	// Ensure the written relationships exist
 	for _, tpl := range toWrite {
 		findWritten := &v1.RelationshipFilter{
-			ResourceType:       tpl.ResourceAndRelation.Namespace,
-			OptionalResourceId: tpl.ResourceAndRelation.ObjectId,
+			ResourceType:       tpl.Resource.ObjectType,
+			OptionalResourceId: tpl.Resource.ObjectID,
 		}
 
 		stream, err := client.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
@@ -430,7 +430,8 @@ func TestWriteRelationships(t *testing.T) {
 		require.NoError(err)
 		rel, err := stream.Recv()
 		require.NoError(err)
-		relStr, err := tuple.StringRelationship(rel.Relationship)
+
+		relStr, err := tuple.V1StringRelationship(rel.Relationship)
 		require.NoError(err)
 		require.Equal(tuple.MustString(tpl), relStr)
 
@@ -441,7 +442,7 @@ func TestWriteRelationships(t *testing.T) {
 		deleted, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 			Updates: []*v1.RelationshipUpdate{{
 				Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-				Relationship: tuple.MustToRelationship(tpl),
+				Relationship: tuple.ToV1Relationship(tpl),
 			}},
 		})
 		require.NoError(err)
@@ -472,7 +473,7 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 	_, err := client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{{
 			Operation:    v1.RelationshipUpdate_OPERATION_DELETE,
-			Relationship: tuple.MustToRelationship(toDelete),
+			Relationship: tuple.ToV1Relationship(toDelete),
 		}},
 	})
 	require.NoError(err)
@@ -491,12 +492,13 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 			caveatCtx, err := structpb.NewStruct(map[string]any{"expectedSecret": "hi"})
 			req.NoError(err)
 
-			toWrite.Caveat = &core.ContextualizedCaveat{
+			toWrite.OptionalCaveat = &core.ContextualizedCaveat{
 				CaveatName: "doesnotexist",
 				Context:    caveatCtx,
 			}
-			toWrite.Caveat.Context = caveatCtx
-			relWritten := tuple.MustToRelationship(toWrite)
+			toWrite.OptionalCaveat.Context = caveatCtx
+
+			relWritten := tuple.ToV1Relationship(toWrite)
 			writeReq := &v1.WriteRelationshipsRequest{
 				Updates: []*v1.RelationshipUpdate{{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -521,9 +523,9 @@ func TestWriteCaveatedRelationships(t *testing.T) {
 			req.True(proto.Equal(relWritten, relRead))
 
 			// issue the deletion
-			relToDelete := tuple.MustToRelationship(tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#..."))
+			relToDelete := tuple.ToV1Relationship(tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#..."))
 			if deleteWithCaveat {
-				relToDelete = tuple.MustToRelationship(tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...[test]"))
+				relToDelete = tuple.ToV1Relationship(tuple.MustParse("document:companyplan#caveated_viewer@user:johndoe#...[test]"))
 			}
 
 			deleteReq := &v1.WriteRelationshipsRequest{
@@ -1486,7 +1488,7 @@ func TestReadRelationshipsWithTimeout(t *testing.T) {
 			counter++
 			updates = append(updates, &v1.RelationshipUpdate{
 				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-				Relationship: tuple.MustToRelationship(tuple.Parse(fmt.Sprintf("document:doc%d#viewer@user:someguy", counter))),
+				Relationship: tuple.ToV1Relationship(tuple.MustParse(fmt.Sprintf("document:doc%d#viewer@user:someguy", counter))),
 			})
 		}
 
@@ -1574,7 +1576,7 @@ func readOfType(require *require.Assertions, resourceType string, client v1.Perm
 		}
 		require.NoError(err)
 
-		got[tuple.MustRelString(rel.Relationship)] = struct{}{}
+		got[tuple.MustV1RelString(rel.Relationship)] = struct{}{}
 	}
 	return got
 }
@@ -1590,8 +1592,8 @@ func readAll(require *require.Assertions, client v1.PermissionsServiceClient, to
 }
 
 func standardTuplesWithout(without map[string]struct{}) map[string]struct{} {
-	out := make(map[string]struct{}, len(tf.StandardTuples)-len(without))
-	for _, t := range tf.StandardTuples {
+	out := make(map[string]struct{}, len(tf.StandardRelationships)-len(without))
+	for _, t := range tf.StandardRelationships {
 		t = tuple.MustString(tuple.MustParse(t))
 		if _, ok := without[t]; ok {
 			continue
@@ -1619,7 +1621,7 @@ func TestManyConcurrentWriteRelationshipsReturnsSerializationErrorOnMemdb(t *tes
 			for j := 0; j < 500; j++ {
 				updates = append(updates, &v1.RelationshipUpdate{
 					Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-					Relationship: tuple.MustToRelationship(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))),
+					Relationship: tuple.ToV1Relationship(tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#viewer@user:tom", i, j))),
 				})
 			}
 

@@ -36,7 +36,7 @@ type reachableResource struct {
 	hasPermission bool
 }
 
-func reachable(onr *core.ObjectAndRelation, hasPermission bool) reachableResource {
+func reachable(onr tuple.ObjectAndRelation, hasPermission bool) reachableResource {
 	return reachableResource{
 		tuple.StringONR(onr), hasPermission,
 	}
@@ -46,8 +46,8 @@ func TestSimpleReachableResources(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
-		start     *core.RelationReference
-		target    *core.ObjectAndRelation
+		start     tuple.RelationReference
+		target    tuple.ObjectAndRelation
 		reachable []reachableResource
 	}{
 		{
@@ -148,7 +148,7 @@ func TestSimpleReachableResources(t *testing.T) {
 	for _, tc := range testCases {
 		name := fmt.Sprintf(
 			"%s#%s->%s",
-			tc.start.Namespace,
+			tc.start.ObjectType,
 			tc.start.Relation,
 			tuple.StringONR(tc.target),
 		)
@@ -162,12 +162,12 @@ func TestSimpleReachableResources(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ResourceRelation: tc.start,
+				ResourceRelation: tc.start.ToCoreRR(),
 				SubjectRelation: &core.RelationReference{
-					Namespace: tc.target.Namespace,
+					Namespace: tc.target.ObjectType,
 					Relation:  tc.target.Relation,
 				},
-				SubjectIds: []string{tc.target.ObjectId},
+				SubjectIds: []string{tc.target.ObjectID},
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -178,11 +178,9 @@ func TestSimpleReachableResources(t *testing.T) {
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
 				results = append(results, reachableResource{
-					tuple.StringONR(&core.ObjectAndRelation{
-						Namespace: tc.start.Namespace,
-						ObjectId:  streamResult.Resource.ResourceId,
-						Relation:  tc.start.Relation,
-					}),
+					tuple.StringONR(
+						tuple.ONR(tc.start.ObjectType, streamResult.Resource.ResourceId, tc.start.Relation),
+					),
 					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
 				})
 			}
@@ -204,8 +202,8 @@ func TestMaxDepthreachableResources(t *testing.T) {
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("document", "view"),
-		SubjectRelation:  RR("user", "..."),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		SubjectIds:       []string{"legal"},
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -226,8 +224,8 @@ func byONRAndPermission(a, b reachableResource) int {
 
 func BenchmarkReachableResources(b *testing.B) {
 	testCases := []struct {
-		start  *core.RelationReference
-		target *core.ObjectAndRelation
+		start  tuple.RelationReference
+		target tuple.ObjectAndRelation
 	}{
 		{
 			RR("document", "view"),
@@ -254,7 +252,7 @@ func BenchmarkReachableResources(b *testing.B) {
 	for _, tc := range testCases {
 		name := fmt.Sprintf(
 			"%s#%s->%s",
-			tc.start.Namespace,
+			tc.start.ObjectType,
 			tc.start.Relation,
 			tuple.StringONR(tc.target),
 		)
@@ -275,12 +273,12 @@ func BenchmarkReachableResources(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 				err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-					ResourceRelation: tc.start,
+					ResourceRelation: tc.start.ToCoreRR(),
 					SubjectRelation: &core.RelationReference{
-						Namespace: tc.target.Namespace,
+						Namespace: tc.target.ObjectType,
 						Relation:  tc.target.Relation,
 					},
-					SubjectIds: []string{tc.target.ObjectId},
+					SubjectIds: []string{tc.target.ObjectID},
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
@@ -288,13 +286,9 @@ func BenchmarkReachableResources(b *testing.B) {
 				}, stream)
 				require.NoError(err)
 
-				results := []*core.ObjectAndRelation{}
+				results := []tuple.ObjectAndRelation{}
 				for _, streamResult := range stream.Results() {
-					results = append(results, &core.ObjectAndRelation{
-						Namespace: tc.start.Namespace,
-						ObjectId:  streamResult.Resource.ResourceId,
-						Relation:  tc.start.Relation,
-					})
+					results = append(results, tuple.ONR(tc.start.ObjectType, streamResult.Resource.ResourceId, tc.start.Relation))
 				}
 				require.GreaterOrEqual(len(results), 0)
 			}
@@ -306,9 +300,9 @@ func TestCaveatedReachableResources(t *testing.T) {
 	testCases := []struct {
 		name          string
 		schema        string
-		relationships []*core.RelationTuple
-		start         *core.RelationReference
-		target        *core.ObjectAndRelation
+		relationships []tuple.Relationship
+		start         tuple.RelationReference
+		target        tuple.ObjectAndRelation
 		reachable     []reachableResource
 	}{
 		{
@@ -334,7 +328,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				permission view = viewer
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:foo#viewer@user:tom"),
 			},
 			RR("document", "view"),
@@ -354,7 +348,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 			},
 			RR("document", "view"),
@@ -378,7 +372,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#parent@organization:foo"),
 				tuple.MustWithCaveat(tuple.MustParse("organization:foo#viewer@user:tom"), "testcaveat"),
 			},
@@ -403,7 +397,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("organization:foo#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:somedoc#parent@organization:foo"), "testcaveat"),
 			},
@@ -424,7 +418,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:bar#viewer@user:tom"),
 			},
@@ -449,7 +443,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:bar#editor@user:tom"),
 				tuple.MustParse("document:bar#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
@@ -476,7 +470,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#editor@user:tom"),
 			},
@@ -500,7 +494,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#banned@user:tom"),
 			},
@@ -527,7 +521,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#folder@folder:maybe"), "testcaveat"),
 				tuple.MustParse("document:foo#folder@folder:always"),
 				tuple.MustParse("folder:always#viewer@user:tom"),
@@ -553,7 +547,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 				somecondition == 42
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:foo#viewer@user:tom"), "testcaveat"),
 				tuple.MustParse("document:foo#editor@user:tom"),
 			},
@@ -583,12 +577,12 @@ func TestCaveatedReachableResources(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ResourceRelation: tc.start,
+				ResourceRelation: tc.start.ToCoreRR(),
 				SubjectRelation: &core.RelationReference{
-					Namespace: tc.target.Namespace,
+					Namespace: tc.target.ObjectType,
 					Relation:  tc.target.Relation,
 				},
-				SubjectIds: []string{tc.target.ObjectId},
+				SubjectIds: []string{tc.target.ObjectID},
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -598,11 +592,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 			results := []reachableResource{}
 			for _, streamResult := range stream.Results() {
 				results = append(results, reachableResource{
-					tuple.StringONR(&core.ObjectAndRelation{
-						Namespace: tc.start.Namespace,
-						ObjectId:  streamResult.Resource.ResourceId,
-						Relation:  tc.start.Relation,
-					}),
+					tuple.StringONR(tuple.ONR(tc.start.ObjectType, streamResult.Resource.ResourceId, tc.start.Relation)),
 					streamResult.Resource.ResultStatus == v1.ReachableResource_HAS_PERMISSION,
 				})
 			}
@@ -624,12 +614,12 @@ func TestReachableResourcesWithConsistencyLimitOf1(t *testing.T) {
 	target := ONR("user", "owner", "...")
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 	err := dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("folder", "view"),
+		ResourceRelation: RR("folder", "view").ToCoreRR(),
 		SubjectRelation: &core.RelationReference{
-			Namespace: target.Namespace,
+			Namespace: target.ObjectType,
 			Relation:  target.Relation,
 		},
-		SubjectIds: []string{target.ObjectId},
+		SubjectIds: []string{target.ObjectID},
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -651,7 +641,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 	for i := 0; i < 25; i++ {
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#viewer@user:tom", i)))
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%d#namespace@namespace:ns%d", i, i)))
@@ -700,7 +690,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("resource", "view"),
+		ResourceRelation: RR("resource", "view").ToCoreRR(),
 		SubjectRelation: &core.RelationReference{
 			Namespace: "user",
 			Relation:  "...",
@@ -728,7 +718,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 
 	// tom and sarah have access via a single role on each.
 	for i := 0; i < 410; i++ {
@@ -774,7 +764,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 			ctxWithCancel, cancel := context.WithCancel(ctx)
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 			err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ResourceRelation: RR("resource", "view"),
+				ResourceRelation: RR("resource", "view").ToCoreRR(),
 				SubjectRelation: &core.RelationReference{
 					Namespace: "user",
 					Relation:  "...",
@@ -810,7 +800,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 			// and then move forward from there.
 			stream2 := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ResourceRelation: RR("resource", "view"),
+				ResourceRelation: RR("resource", "view").ToCoreRR(),
 				SubjectRelation: &core.RelationReference{
 					Namespace: "user",
 					Relation:  "...",
@@ -845,7 +835,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 
 	for i := 0; i < 410; i++ {
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
@@ -881,7 +871,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 				ctxWithCancel, cancel := context.WithCancel(ctx)
 				stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 				err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-					ResourceRelation: RR("resource", "view"),
+					ResourceRelation: RR("resource", "view").ToCoreRR(),
 					SubjectRelation: &core.RelationReference{
 						Namespace: "user",
 						Relation:  "...",
@@ -926,7 +916,7 @@ func TestReachableResourcesWithQueryError(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 
 	for i := 0; i < 410; i++ {
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
@@ -958,7 +948,7 @@ func TestReachableResourcesWithQueryError(t *testing.T) {
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("resource", "view"),
+		ResourceRelation: RR("resource", "view").ToCoreRR(),
 		SubjectRelation: &core.RelationReference{
 			Namespace: "user",
 			Relation:  "...",
@@ -1007,9 +997,9 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 	testCases := []struct {
 		name                string
 		schema              string
-		relationships       []*core.RelationTuple
-		permission          *core.RelationReference
-		subject             *core.ObjectAndRelation
+		relationships       []tuple.Relationship
+		permission          tuple.RelationReference
+		subject             tuple.ObjectAndRelation
 		expectedResourceIDs []string
 	}{
 		{
@@ -1022,8 +1012,8 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
+				genRels("document", "viewer", "user", "tom", 1510),
+				genRels("document", "editor", "user", "tom", 1510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1038,7 +1028,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			genTuples("document", "viewer", "user", "tom", 1010),
+			genRels("document", "viewer", "user", "tom", 1010),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 1010),
@@ -1053,8 +1043,8 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission view = viewer & editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 510),
-				genTuples("document", "editor", "user", "tom", 510),
+				genRels("document", "viewer", "user", "tom", 510),
+				genRels("document", "editor", "user", "tom", 510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1072,8 +1062,8 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission view = can_view + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+				genRels("document", "viewer", "user", "tom", 1310),
+				genRelsWithOffset("document", "editor", "user", "tom", 1250, 1200),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1091,7 +1081,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			genRelsWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
@@ -1106,8 +1096,8 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission view = viewer - banned
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+				genRels("document", "viewer", "user", "tom", 1310),
+				genRelsWithOffset("document", "banned", "user", "tom", 1210, 100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1125,7 +1115,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			genRelsWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
@@ -1143,8 +1133,8 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission view = folder->viewer
   			 }`,
 			joinTuples(
-				genTuples("folder", "viewer", "user", "tom", 150),
-				genSubjectTuples("document", "folder", "folder", "...", 150),
+				genRels("folder", "viewer", "user", "tom", 150),
+				genSubjectRels("document", "folder", "folder", "...", 150),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1160,8 +1150,8 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 15100),
-				genTuples("document", "editor", "user", "tom", 15100),
+				genRels("document", "viewer", "user", "tom", 15100),
+				genRels("document", "editor", "user", "tom", 15100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1180,28 +1170,19 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 				relation parent: folder
 				permission view = parent->view
   			 }`,
-			(func() []*core.RelationTuple {
+			(func() []tuple.Relationship {
 				// Generate 200 folders with tom as a viewer
-				tuples := make([]*core.RelationTuple, 0, 200*200)
+				rels := make([]tuple.Relationship, 0, 200*200)
 				for folderID := 0; folderID < 200; folderID++ {
-					tpl := &core.RelationTuple{
-						ResourceAndRelation: ONR("folder", fmt.Sprintf("folder-%d", folderID), "viewer"),
-						Subject:             ONR("user", "tom", "..."),
-					}
-					tuples = append(tuples, tpl)
+					rels = append(rels, tuple.MustParse(fmt.Sprintf("folder:folder-%d#viewer@user:tom", folderID)))
 
 					// Generate 200 documents for each folder.
 					for documentID := 0; documentID < 200; documentID++ {
-						docID := fmt.Sprintf("doc-%d-%d", folderID, documentID)
-						tpl := &core.RelationTuple{
-							ResourceAndRelation: ONR("document", docID, "parent"),
-							Subject:             ONR("folder", fmt.Sprintf("folder-%d", folderID), "..."),
-						}
-						tuples = append(tuples, tpl)
+						rels = append(rels, tuple.MustParse(fmt.Sprintf("document:doc-%d-%d#parent@folder:folder-%d", folderID, documentID, folderID)))
 					}
 				}
 
-				return tuples
+				return rels
 			})(),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -1245,12 +1226,12 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 						require.NoError(err)
 
 						err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-							ResourceRelation: tc.permission,
+							ResourceRelation: tc.permission.ToCoreRR(),
 							SubjectRelation: &core.RelationReference{
-								Namespace: tc.subject.Namespace,
+								Namespace: tc.subject.ObjectType,
 								Relation:  tc.subject.Relation,
 							},
-							SubjectIds: []string{tc.subject.ObjectId},
+							SubjectIds: []string{tc.subject.ObjectID},
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
@@ -1291,7 +1272,7 @@ func TestReachableResourcesWithPreCancelation(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 
 	for i := 0; i < 410; i++ {
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
@@ -1325,7 +1306,7 @@ func TestReachableResourcesWithPreCancelation(t *testing.T) {
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("resource", "view"),
+		ResourceRelation: RR("resource", "view").ToCoreRR(),
 		SubjectRelation: &core.RelationReference{
 			Namespace: "user",
 			Relation:  "...",
@@ -1346,7 +1327,7 @@ func TestReachableResourcesWithUnexpectedContextCancelation(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 
 	for i := 0; i < 410; i++ {
 		testRels = append(testRels, tuple.MustParse(fmt.Sprintf("resource:res%03d#viewer@user:tom", i)))
@@ -1378,7 +1359,7 @@ func TestReachableResourcesWithUnexpectedContextCancelation(t *testing.T) {
 	ctxWithCancel, cancel := context.WithCancel(ctx)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctxWithCancel)
 	err = dispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-		ResourceRelation: RR("resource", "view"),
+		ResourceRelation: RR("resource", "view").ToCoreRR(),
 		SubjectRelation: &core.RelationReference{
 			Namespace: "user",
 			Relation:  "...",
@@ -1431,7 +1412,7 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
-	testRels := make([]*core.RelationTuple, 0)
+	testRels := make([]tuple.Relationship, 0)
 	expectedResources := mapz.NewSet[string]()
 
 	for i := 0; i < 410; i++ {
@@ -1476,7 +1457,7 @@ func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchReachableResourcesResponse](ctx)
 			err = cachingDispatcher.DispatchReachableResources(&v1.DispatchReachableResourcesRequest{
-				ResourceRelation: RR("resource", "view"),
+				ResourceRelation: RR("resource", "view").ToCoreRR(),
 				SubjectRelation: &core.RelationReference{
 					Namespace: "user",
 					Relation:  "...",

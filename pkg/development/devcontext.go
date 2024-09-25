@@ -88,14 +88,50 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		if err != nil || len(inputErrors) > 0 {
 			return err
 		}
+
 		// Load the test relationships into the datastore.
-		inputErrors, err = loadTuples(ctx, requestContext.Relationships, rwt)
-		if err != nil || len(inputErrors) > 0 {
-			return err
+		relationships := make([]tuple.Relationship, 0, len(requestContext.Relationships))
+		for _, rel := range requestContext.Relationships {
+			convertedRel := tuple.FromCoreRelationTuple(rel)
+			if err := rel.Validate(); err != nil {
+				tplString, serr := tuple.String(convertedRel)
+				if serr != nil {
+					return serr
+				}
+
+				inputErrors = append(inputErrors, &devinterface.DeveloperError{
+					Message: err.Error(),
+					Source:  devinterface.DeveloperError_RELATIONSHIP,
+					Kind:    devinterface.DeveloperError_PARSE_ERROR,
+					Context: tplString,
+				})
+			}
+
+			if err := convertedRel.Validate(); err != nil {
+				tplString, serr := tuple.String(convertedRel)
+				if serr != nil {
+					return serr
+				}
+
+				inputErrors = append(inputErrors, &devinterface.DeveloperError{
+					Message: err.Error(),
+					Source:  devinterface.DeveloperError_RELATIONSHIP,
+					Kind:    devinterface.DeveloperError_PARSE_ERROR,
+					Context: tplString,
+				})
+			}
+
+			relationships = append(relationships, convertedRel)
 		}
 
-		return nil
+		ie, lerr := loadsRels(ctx, relationships, rwt)
+		if ie != nil {
+			inputErrors = append(inputErrors, ie...)
+		}
+
+		return lerr
 	})
+
 	if err != nil || len(inputErrors) > 0 {
 		return nil, &devinterface.DeveloperErrors{InputErrors: inputErrors}, err
 	}
@@ -184,29 +220,17 @@ func (dc *DevContext) Dispose() {
 	}
 }
 
-func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore.ReadWriteTransaction) ([]*devinterface.DeveloperError, error) {
-	devErrors := make([]*devinterface.DeveloperError, 0, len(tuples))
-	updates := make([]*core.RelationTupleUpdate, 0, len(tuples))
-	for _, tpl := range tuples {
-		tplString, err := tuple.String(tpl)
-		if err != nil {
-			return nil, err
-		}
+func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datastore.ReadWriteTransaction) ([]*devinterface.DeveloperError, error) {
+	devErrors := make([]*devinterface.DeveloperError, 0, len(rels))
+	updates := make([]tuple.RelationshipUpdate, 0, len(rels))
+	for _, rel := range rels {
+		if err := relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, rel); err != nil {
+			relString, err := tuple.String(rel)
+			if err != nil {
+				return nil, err
+			}
 
-		verr := tpl.Validate()
-		if verr != nil {
-			devErrors = append(devErrors, &devinterface.DeveloperError{
-				Message: verr.Error(),
-				Source:  devinterface.DeveloperError_RELATIONSHIP,
-				Kind:    devinterface.DeveloperError_PARSE_ERROR,
-				Context: tplString,
-			})
-			continue
-		}
-
-		err = relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, []*core.RelationTuple{tpl})
-		if err != nil {
-			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, tplString)
+			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, relString)
 			if devErr != nil {
 				devErrors = append(devErrors, devErr)
 				continue
@@ -215,11 +239,10 @@ func loadTuples(ctx context.Context, tuples []*core.RelationTuple, rwt datastore
 			return devErrors, wireErr
 		}
 
-		updates = append(updates, tuple.Touch(tpl))
+		updates = append(updates, tuple.Touch(rel))
 	}
 
 	err := rwt.WriteRelationships(ctx, updates)
-
 	return devErrors, err
 }
 

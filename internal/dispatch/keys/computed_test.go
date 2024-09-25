@@ -25,8 +25,8 @@ func TestKeyPrefixOverlap(t *testing.T) {
 }
 
 var (
-	ONR = tuple.ObjectAndRelation
-	RR  = tuple.RelationReference
+	ONR = tuple.CoreONR
+	RR  = tuple.CoreRR
 )
 
 func TestStableCacheKeys(t *testing.T) {
@@ -857,10 +857,10 @@ func TestCacheKeyNoOverlap(t *testing.T) {
 				t.Run(strings.Join(subjectIds, ","), func(t *testing.T) {
 					for _, resourceRelation := range resourceRelations {
 						resourceRelation := resourceRelation
-						t.Run(tuple.StringRR(resourceRelation), func(t *testing.T) {
+						t.Run(tuple.StringCoreRR(resourceRelation), func(t *testing.T) {
 							for _, subjectRelation := range subjectRelations {
 								subjectRelation := subjectRelation
-								t.Run(tuple.StringRR(subjectRelation), func(t *testing.T) {
+								t.Run(tuple.StringCoreRR(subjectRelation), func(t *testing.T) {
 									for _, revision := range revisions {
 										revision := revision
 										t.Run(revision, func(t *testing.T) {

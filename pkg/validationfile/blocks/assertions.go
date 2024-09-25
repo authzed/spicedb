@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	yamlv3 "gopkg.in/yaml.v3"
 
@@ -38,7 +37,7 @@ type Assertion struct {
 
 	// Relationship is the parsed relationship on which the assertion is being
 	// run.
-	Relationship *v1.Relationship
+	Relationship tuple.Relationship
 
 	// CaveatContext is the caveat context for the assertion, if any.
 	CaveatContext map[string]any
@@ -102,17 +101,17 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 		)
 	}
 
-	tpl := tuple.Parse(strings.TrimSpace(parts[0]))
-	if tpl == nil {
+	relationship, err := tuple.Parse(strings.TrimSpace(parts[0]))
+	if err != nil {
 		return spiceerrors.NewErrorWithSource(
-			fmt.Errorf("error parsing relationship in assertion `%s`", trimmed),
+			fmt.Errorf("error parsing relationship in assertion `%s`: %w", trimmed, err),
 			trimmed,
 			line,
 			column,
 		)
 	}
 
-	a.Relationship = tuple.MustToRelationship(tpl)
+	a.Relationship = relationship
 
 	if len(parts) == 2 {
 		caveatContextMap := make(map[string]any, 0)

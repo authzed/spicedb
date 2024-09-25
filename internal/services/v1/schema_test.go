@@ -106,7 +106,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -136,7 +136,7 @@ func TestSchemaDeleteRelation(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -173,7 +173,7 @@ func TestSchemaDeletePermission(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -211,7 +211,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#anotherrelation@example/user:someuser#..."),
 		))},
 	})
@@ -231,7 +231,7 @@ func TestSchemaChangeRelationToPermission(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#anotherrelation@example/user:someuser#..."),
 		))},
 	})
@@ -269,7 +269,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -283,7 +283,7 @@ func TestSchemaDeleteDefinition(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -319,7 +319,7 @@ func TestSchemaRemoveWildcard(t *testing.T) {
 
 	// Write the wildcard relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
@@ -344,7 +344,7 @@ definition example/user {}`
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:*"),
 		))},
 	})
@@ -381,7 +381,7 @@ func TestSchemaEmpty(t *testing.T) {
 
 	// Write a relationship for one of the relations.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -395,7 +395,7 @@ func TestSchemaEmpty(t *testing.T) {
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			tuple.MustParse("example/document:somedoc#somerelation@example/user:someuser#..."),
 		))},
 	})
@@ -477,13 +477,13 @@ func TestSchemaRemoveCaveat(t *testing.T) {
 	require.NoError(t, err)
 
 	toWrite := tuple.MustParse("document:somedoc#somerelation@user:tom")
-	toWrite.Caveat = &core.ContextualizedCaveat{
+	toWrite.OptionalCaveat = &core.ContextualizedCaveat{
 		CaveatName: "somecaveat",
 		Context:    caveatCtx,
 	}
 
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
 			toWrite,
 		))},
 	})
@@ -504,7 +504,7 @@ definition user {}`
 
 	// Delete the relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
 			toWrite,
 		))},
 	})

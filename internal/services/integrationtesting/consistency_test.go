@@ -170,11 +170,11 @@ func testForEachRelationship(
 	t *testing.T,
 	vctx validationContext,
 	prefix string,
-	handler func(t *testing.T, relationship *core.RelationTuple),
+	handler func(t *testing.T, relationship tuple.Relationship),
 ) {
 	t.Helper()
 
-	for _, relationship := range vctx.clusterAndData.Populated.Tuples {
+	for _, relationship := range vctx.clusterAndData.Populated.Relationships {
 		relationship := relationship
 		t.Run(fmt.Sprintf("%s_%s", prefix, tuple.MustString(relationship)),
 			func(t *testing.T) {
@@ -188,7 +188,7 @@ func testForEachResource(
 	t *testing.T,
 	vctx validationContext,
 	prefix string,
-	handler func(t *testing.T, resource *core.ObjectAndRelation),
+	handler func(t *testing.T, resource tuple.ObjectAndRelation),
 ) {
 	t.Helper()
 
@@ -203,12 +203,12 @@ func testForEachResource(
 			relation := relation
 			for _, resource := range resources {
 				resource := resource
-				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectId, relation.Name),
+				t.Run(fmt.Sprintf("%s_%s_%s_%s", prefix, resourceType.Name, resource.ObjectID, relation.Name),
 					func(t *testing.T) {
-						handler(t, &core.ObjectAndRelation{
-							Namespace: resourceType.Name,
-							ObjectId:  resource.ObjectId,
-							Relation:  relation.Name,
+						handler(t, tuple.ObjectAndRelation{
+							ObjectType: resourceType.Name,
+							ObjectID:   resource.ObjectID,
+							Relation:   relation.Name,
 						})
 					})
 			}
@@ -221,7 +221,7 @@ func testForEachResourceType(
 	t *testing.T,
 	vctx validationContext,
 	prefix string,
-	handler func(t *testing.T, resourceType *core.RelationReference),
+	handler func(t *testing.T, resourceType tuple.RelationReference),
 ) {
 	for _, resourceType := range vctx.clusterAndData.Populated.NamespaceDefinitions {
 		resourceType := resourceType
@@ -229,9 +229,9 @@ func testForEachResourceType(
 			relation := relation
 			t.Run(fmt.Sprintf("%s_%s_%s_", prefix, resourceType.Name, relation.Name),
 				func(t *testing.T) {
-					handler(t, &core.RelationReference{
-						Namespace: resourceType.Name,
-						Relation:  relation.Name,
+					handler(t, tuple.RelationReference{
+						ObjectType: resourceType.Name,
+						Relation:   relation.Name,
 					})
 				})
 		}
@@ -255,9 +255,9 @@ func ensureRelationshipWrites(t *testing.T, vctx validationContext) {
 
 // validateRelationshipReads ensures that all defined relationships are returned by the Read API.
 func validateRelationshipReads(t *testing.T, vctx validationContext) {
-	testForEachRelationship(t, vctx, "read", func(t *testing.T, relationship *core.RelationTuple) {
+	testForEachRelationship(t, vctx, "read", func(t *testing.T, relationship tuple.Relationship) {
 		foundRelationships, err := vctx.serviceTester.Read(context.Background(),
-			relationship.ResourceAndRelation.Namespace,
+			relationship.Resource.ObjectType,
 			vctx.revision,
 		)
 		require.NoError(t, err)
@@ -274,7 +274,7 @@ func validateRelationshipReads(t *testing.T, vctx validationContext) {
 // ensureNoExpansionErrors runs basic expansion on each relation and ensures no errors are raised.
 func ensureNoExpansionErrors(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "run_expand",
-		func(t *testing.T, resource *core.ObjectAndRelation) {
+		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			_, err := vctx.serviceTester.Expand(context.Background(),
 				resource,
 				vctx.revision,
@@ -286,12 +286,12 @@ func ensureNoExpansionErrors(t *testing.T, vctx validationContext) {
 // validateExpansionSubjects runs a fully recursive expand on each relation and ensures that all expected terminal subjects are reached.
 func validateExpansionSubjects(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_expand",
-		func(t *testing.T, resource *core.ObjectAndRelation) {
+		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			// Run a *recursive* expansion to collect all the reachable subjects.
 			resp, err := vctx.dispatcher.DispatchExpand(
 				vctx.clusterAndData.Ctx,
 				&dispatchv1.DispatchExpandRequest{
-					ResourceAndRelation: resource,
+					ResourceAndRelation: resource.ToCoreONR(),
 					Metadata: &dispatchv1.ResolverMeta{
 						AtRevision:     vctx.revision.String(),
 						DepthRemaining: 100,
@@ -361,7 +361,7 @@ func requireSubsetOf(t *testing.T, found []string, expected []string) {
 // only those expected.
 func validateLookupResources(t *testing.T, vctx validationContext) {
 	testForEachResourceType(t, vctx, "validate_lookup_resources",
-		func(t *testing.T, resourceRelation *core.RelationReference) {
+		func(t *testing.T, resourceRelation tuple.RelationReference) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
 				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
@@ -401,10 +401,10 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 
 							for _, resolvedResource := range resolvedResources {
 								permissionship, err := vctx.serviceTester.Check(context.Background(),
-									&core.ObjectAndRelation{
-										Namespace: resourceRelation.Namespace,
-										Relation:  resourceRelation.Relation,
-										ObjectId:  resolvedResource.ResourceObjectId,
+									tuple.ObjectAndRelation{
+										ObjectType: resourceRelation.ObjectType,
+										ObjectID:   resolvedResource.ResourceObjectId,
+										Relation:   resourceRelation.Relation,
 									},
 									subject,
 									vctx.revision,
@@ -423,7 +423,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 									expectedPermissionship,
 									permissionship,
 									"Found Check failure for relation %s:%s#%s and subject %s in lookup resources; expected %v, found %v",
-									resourceRelation.Namespace,
+									resourceRelation.ObjectType,
 									resolvedResource.ResourceObjectId,
 									resourceRelation.Relation,
 									tuple.StringONR(subject),
@@ -433,14 +433,14 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 
 								checkBulkItems = append(checkBulkItems, &v1.CheckBulkPermissionsRequestItem{
 									Resource: &v1.ObjectReference{
-										ObjectType: resourceRelation.Namespace,
+										ObjectType: resourceRelation.ObjectType,
 										ObjectId:   resolvedResource.ResourceObjectId,
 									},
 									Permission: resourceRelation.Relation,
 									Subject: &v1.SubjectReference{
 										Object: &v1.ObjectReference{
-											ObjectType: subject.Namespace,
-											ObjectId:   subject.ObjectId,
+											ObjectType: subject.ObjectType,
+											ObjectId:   subject.ObjectID,
 										},
 										OptionalRelation: stringz.Default(subject.Relation, "", tuple.Ellipsis),
 									},
@@ -466,10 +466,10 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 // validateLookupSubjects validates that the subjects that can access it are those expected.
 func validateLookupSubjects(t *testing.T, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_lookup_subjects",
-		func(t *testing.T, resource *core.ObjectAndRelation) {
+		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			for _, subjectType := range vctx.accessibilitySet.SubjectTypes() {
 				subjectType := subjectType
-				t.Run(fmt.Sprintf("%s#%s", subjectType.Namespace, subjectType.Relation),
+				t.Run(fmt.Sprintf("%s#%s", subjectType.ObjectType, subjectType.Relation),
 					func(t *testing.T) {
 						resolvedSubjects, err := vctx.serviceTester.LookupSubjects(context.Background(), resource, subjectType, vctx.revision, nil)
 						require.NoError(t, err)
@@ -498,12 +498,12 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 								},
 							} {
 								for _, assertion := range entry.assertions {
-									assertionRel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
-									if !assertionRel.ResourceAndRelation.EqualVT(resource) {
+									assertionRel := assertion.Relationship
+									if !tuple.ONREqual(assertionRel.Resource, resource) {
 										continue
 									}
 
-									if assertionRel.Subject.Namespace != subjectType.Namespace ||
+									if assertionRel.Subject.ObjectType != subjectType.ObjectType ||
 										assertionRel.Subject.Relation != subjectType.Relation {
 										continue
 									}
@@ -534,16 +534,16 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 										// can be caveated.
 										for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
 											if entry.requiresPermission {
-												require.NotEqual(t, excludedSubject.SubjectObjectId, assertionRel.Subject.ObjectId, "wildcard excludes the asserted subject ID: %s", assertionRel.Subject.ObjectId)
-											} else if excludedSubject.SubjectObjectId == assertionRel.Subject.ObjectId {
-												require.NotEqual(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, excludedSubject.Permissionship, "wildcard concretely excludes the asserted subject ID: %s", assertionRel.Subject.ObjectId)
+												require.NotEqual(t, excludedSubject.SubjectObjectId, assertionRel.Subject.ObjectID, "wildcard excludes the asserted subject ID: %s", assertionRel.Subject.ObjectID)
+											} else if excludedSubject.SubjectObjectId == assertionRel.Subject.ObjectID {
+												require.NotEqual(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, excludedSubject.Permissionship, "wildcard concretely excludes the asserted subject ID: %s", assertionRel.Subject.ObjectID)
 											}
 										}
 										continue
 									}
 
-									_, ok = resolvedSubjects[assertionRel.Subject.ObjectId]
-									require.True(t, ok, "missing expected subject %s from assertion %s", assertionRel.Subject.ObjectId, assertion.RelationshipWithContextString)
+									_, ok = resolvedSubjects[assertionRel.Subject.ObjectID]
+									require.True(t, ok, "missing expected subject %s from assertion %s", assertionRel.Subject.ObjectID, assertion.RelationshipWithContextString)
 								}
 							}
 						}
@@ -557,10 +557,10 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 							for _, excludedSubject := range resolvedSubject.ExcludedSubjects {
 								permissionship, err := vctx.serviceTester.Check(context.Background(),
 									resource,
-									&core.ObjectAndRelation{
-										Namespace: subjectType.Namespace,
-										ObjectId:  excludedSubject.SubjectObjectId,
-										Relation:  subjectType.Relation,
+									tuple.ObjectAndRelation{
+										ObjectType: subjectType.ObjectType,
+										ObjectID:   excludedSubject.SubjectObjectId,
+										Relation:   subjectType.Relation,
 									},
 									vctx.revision,
 									nil,
@@ -591,10 +591,10 @@ func validateLookupSubjects(t *testing.T, vctx validationContext) {
 								continue
 							}
 
-							subject := &core.ObjectAndRelation{
-								Namespace: subjectType.Namespace,
-								ObjectId:  resolvedSubject.Subject.SubjectObjectId,
-								Relation:  subjectType.Relation,
+							subject := tuple.ObjectAndRelation{
+								ObjectType: subjectType.ObjectType,
+								ObjectID:   resolvedSubject.Subject.SubjectObjectId,
+								Relation:   subjectType.Relation,
 							}
 
 							permissionship, err := vctx.serviceTester.Check(context.Background(),
@@ -661,26 +661,25 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							caveatContext = built
 						}
 
+						rel := tuple.ToV1Relationship(assertion.Relationship)
+
 						bulkCheckItems = append(bulkCheckItems, &v1.BulkCheckPermissionRequestItem{
-							Resource:   assertion.Relationship.Resource,
-							Permission: assertion.Relationship.Relation,
-							Subject:    assertion.Relationship.Subject,
+							Resource:   rel.Resource,
+							Permission: rel.Relation,
+							Subject:    rel.Subject,
 							Context:    caveatContext,
 						})
 
 						// Run each individual assertion.
 						assertion := assertion
 						t.Run(assertion.RelationshipWithContextString, func(t *testing.T) {
-							rel := tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](assertion.Relationship)
-							permissionship, err := vctx.serviceTester.Check(context.Background(), rel.ResourceAndRelation, rel.Subject, vctx.revision, assertion.CaveatContext)
+							rel := assertion.Relationship
+							permissionship, err := vctx.serviceTester.Check(context.Background(), rel.Resource, rel.Subject, vctx.revision, assertion.CaveatContext)
 							require.NoError(t, err)
 							require.Equal(t, entry.expectedPermissionship, permissionship, "Assertion `%s` returned %s; expected %s", tuple.MustString(rel), permissionship, entry.expectedPermissionship)
 
 							// Ensure the assertion passes LookupResources.
-							resolvedResources, _, err := vctx.serviceTester.LookupResources(context.Background(), &core.RelationReference{
-								Namespace: rel.ResourceAndRelation.Namespace,
-								Relation:  rel.ResourceAndRelation.Relation,
-							}, rel.Subject, vctx.revision, nil, 0)
+							resolvedResources, _, err := vctx.serviceTester.LookupResources(context.Background(), rel.Resource.RelationReference(), rel.Subject, vctx.revision, nil, 0)
 							require.NoError(t, err)
 
 							resolvedResourcesMap := map[string]*v1.LookupResourcesResponse{}
@@ -689,32 +688,32 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							}
 
 							resolvedResourceIds := maps.Keys(resolvedResourcesMap)
-							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.ResourceAndRelation, rel.Subject)
+							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.Resource, rel.Subject)
 
 							switch permissionship {
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
 								// If the caveat context given is empty, then the lookup result must not exist at all.
 								// Otherwise, it *could* be caveated or not exist, depending on the context given.
 								if len(assertion.CaveatContext) == 0 {
-									require.NotContains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+									require.NotContains(t, resolvedResourceIds, rel.Resource.ObjectID, "Found unexpected object %s in lookup for assertion %s", rel.Resource, rel)
 								} else if accessibility == consistencytestutil.NotAccessible {
-									found, ok := resolvedResourcesMap[rel.ResourceAndRelation.ObjectId]
+									found, ok := resolvedResourcesMap[rel.Resource.ObjectID]
 									require.True(t, !ok || found.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION) // LookupResources can be caveated, since we didn't rerun LookupResources with the context
 								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.Resource.ObjectID].Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
-								require.Contains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+								require.Contains(t, resolvedResourceIds, rel.Resource.ObjectID, "Missing object %s in lookup for assertion %s", rel.Resource, rel)
 								// If the caveat context given is empty, then the lookup result must be fully permissioned.
 								// Otherwise, it *could* be caveated or fully permissioned, depending on the context given.
 								if len(assertion.CaveatContext) == 0 {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedResourcesMap[rel.Resource.ObjectID].Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
-								require.Contains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
-								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+								require.Contains(t, resolvedResourceIds, rel.Resource.ObjectID, "Missing object %s in lookup for assertion %s", rel.Resource, rel)
+								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.Resource.ObjectID].Permissionship)
 
 							default:
 								panic("unknown permissionship")
@@ -738,9 +737,14 @@ func runAssertions(t *testing.T, vctx validationContext) {
 // validateDevelopment runs the development package against the validation context and
 // ensures its output matches that expected.
 func validateDevelopment(t *testing.T, vctx validationContext) {
+	rels := make([]*core.RelationTuple, 0, len(vctx.clusterAndData.Populated.Relationships))
+	for _, rel := range vctx.clusterAndData.Populated.Relationships {
+		rels = append(rels, rel.ToCoreTuple())
+	}
+
 	reqContext := &devinterface.RequestContext{
 		Schema:        vctx.clusterAndData.Populated.Schema,
-		Relationships: vctx.clusterAndData.Populated.Tuples,
+		Relationships: rels,
 	}
 
 	devContext, _, err := development.NewDevContext(context.Background(), reqContext)
@@ -760,7 +764,7 @@ func validateDevelopment(t *testing.T, vctx validationContext) {
 // returns the expected permissionship.
 func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext, vctx validationContext) {
 	testForEachResource(t, vctx, "validate_check_watch",
-		func(t *testing.T, resource *core.ObjectAndRelation) {
+		func(t *testing.T, resource tuple.ObjectAndRelation) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
 				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
@@ -830,7 +834,7 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 		}
 
 		relationship := tuple.MustParse(relString)
-		expectedMap[tuple.StringONR(relationship.ResourceAndRelation)] = []string{}
+		expectedMap[tuple.StringONR(relationship.Resource)] = []string{}
 	}
 
 	expectedRelations, err := yamlv2.Marshal(expectedMap)
@@ -857,7 +861,7 @@ func validateDevelopmentExpectedRels(t *testing.T, devContext *development.DevCo
 			require.NotNil(t, subjectWithExceptions, "Found expected relation without subject: %s", expectedSubject.ValidationString)
 
 			// For non-wildcard subjects, ensure they are accessible.
-			if subjectWithExceptions.Subject.Subject.ObjectId != tuple.PublicWildcard {
+			if subjectWithExceptions.Subject.Subject.ObjectID != tuple.PublicWildcard {
 				accessibility, permissionship, ok := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(resourceAndRelation, subjectWithExceptions.Subject.Subject)
 				require.True(t, ok, "missing expected subject %s in accessibility set", tuple.StringONR(subjectWithExceptions.Subject.Subject))
 

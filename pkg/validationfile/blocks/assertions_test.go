@@ -34,7 +34,7 @@ func TestParseAssertions(t *testing.T) {
 				AssertTrue: []Assertion{
 					{
 						"document:foo#view@user:someone",
-						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						tuple.MustParse("document:foo#view@user:someone"),
 						nil,
 						spiceerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
 					},
@@ -54,13 +54,13 @@ assertFalse:
 				AssertTrue: []Assertion{
 					{
 						"document:foo#view@user:someone",
-						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						tuple.MustParse("document:foo#view@user:someone"),
 						nil,
 						spiceerrors.SourcePosition{LineNumber: 2, ColumnPosition: 3},
 					},
 					{
 						"document:bar#view@user:sometwo",
-						tuple.MustToRelationship(tuple.MustParse("document:bar#view@user:sometwo")),
+						tuple.MustParse("document:bar#view@user:sometwo"),
 						nil,
 						spiceerrors.SourcePosition{LineNumber: 3, ColumnPosition: 3},
 					},
@@ -68,7 +68,7 @@ assertFalse:
 				AssertFalse: []Assertion{
 					{
 						"document:foo#write@user:someone",
-						tuple.MustToRelationship(tuple.MustParse("document:foo#write@user:someone")),
+						tuple.MustParse("document:foo#write@user:someone"),
 						nil,
 						spiceerrors.SourcePosition{LineNumber: 5, ColumnPosition: 3},
 					},
@@ -103,7 +103,7 @@ assertFalse: garbage
 				AssertTrue: []Assertion{
 					{
 						`document:foo#view@user:someone with {"foo": "bar"}`,
-						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						tuple.MustParse("document:foo#view@user:someone"),
 						map[string]any{
 							"foo": "bar",
 						},
@@ -129,7 +129,7 @@ assertFalse: garbage
 				AssertTrue: []Assertion{
 					{
 						`   document:foo#view@user:someone   with   {"foo":     "bar"}   `,
-						tuple.MustToRelationship(tuple.MustParse("document:foo#view@user:someone")),
+						tuple.MustParse("document:foo#view@user:someone"),
 						map[string]any{
 							"foo": "bar",
 						},

@@ -23,7 +23,7 @@ type hashableRelationReference struct {
 }
 
 func (hrr hashableRelationReference) AppendToHash(hasher hasherInterface) {
-	hasher.WriteString(tuple.StringRR(hrr.RelationReference))
+	hasher.WriteString(tuple.StringCoreRR(hrr.RelationReference))
 }
 
 type hashableResultSetting v1.DispatchCheckRequest_ResultsSetting

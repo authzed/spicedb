@@ -161,7 +161,7 @@ func withDatastoreCursorInCursor[T any, Q any](
 	var datastoreCursor options.Cursor
 	datastoreCursorString, _ := ci.headSectionValue()
 	if datastoreCursorString != "" {
-		datastoreCursor = tuple.MustParse(datastoreCursorString)
+		datastoreCursor = options.ToCursor(tuple.MustParse(datastoreCursorString))
 	}
 
 	if ci.limits.hasExhaustedLimit() {
@@ -185,7 +185,13 @@ func withDatastoreCursorInCursor[T any, Q any](
 
 	getItemCursor := func(taskIndex int) (cursorInformation, error) {
 		// Create an updated cursor referencing the current item's cursor, so that any items returned know to resume from this point.
-		currentCursor, err := ci.withOutgoingSection(tuple.StringWithoutCaveat(itemsToBeProcessed[taskIndex].cursor))
+		cursorRel := options.ToRelationship(itemsToBeProcessed[taskIndex].cursor)
+		cursorSection := ""
+		if cursorRel != nil {
+			cursorSection = tuple.StringWithoutCaveat(*cursorRel)
+		}
+
+		currentCursor, err := ci.withOutgoingSection(cursorSection)
 		if err != nil {
 			return currentCursor, err
 		}

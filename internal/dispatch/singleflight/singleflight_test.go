@@ -30,7 +30,7 @@ func TestSingleFlightDispatcher(t *testing.T) {
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"foo", "bar"},
 		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -78,7 +78,7 @@ func TestSingleFlightDispatcherDetectsLoop(t *testing.T) {
 	disp := New(mockDispatcher{f: f}, keyHandler)
 
 	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"foo", "bar"},
 		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -134,7 +134,7 @@ func TestSingleFlightDispatcherDetectsLoopThroughDelegate(t *testing.T) {
 	disp := New(New(mockDispatcher{f: f}, keyHandler), keyHandler)
 
 	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"foo", "bar"},
 		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -175,7 +175,7 @@ func TestSingleFlightDispatcherCancelation(t *testing.T) {
 	}
 
 	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"foo", "bar"},
 		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{
@@ -267,7 +267,7 @@ func TestSingleFlightDispatcherCheckBypassesIfMissingBloomFiler(t *testing.T) {
 	disp := New(mockDispatcher{f: f}, &keys.DirectKeyHandler{})
 
 	req := &v1.DispatchCheckRequest{
-		ResourceRelation: tuple.RelationReference("document", "view"),
+		ResourceRelation: tuple.RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"foo", "bar"},
 		Subject:          tuple.ONRStringToCore("user", "tom", "..."),
 		Metadata: &v1.ResolverMeta{

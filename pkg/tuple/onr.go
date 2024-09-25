@@ -39,6 +39,14 @@ func ParseSubjectONR(subjectOnr string) (ObjectAndRelation, error) {
 	}, nil
 }
 
+func MustParseSubjectONR(subjectOnr string) ObjectAndRelation {
+	parsed, err := ParseSubjectONR(subjectOnr)
+	if err != nil {
+		panic(err)
+	}
+	return parsed
+}
+
 // ParseONR converts a string representation of an ONR to an ObjectAndRelation object.
 func ParseONR(onr string) (ObjectAndRelation, error) {
 	groups := onrRegex.FindStringSubmatch(onr)

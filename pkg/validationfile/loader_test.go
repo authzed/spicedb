@@ -134,9 +134,9 @@ func TestPopulateFromFiles(t *testing.T) {
 			if tt.expectedError == "" {
 				require.NoError(err)
 
-				foundRelationships := make([]string, 0, len(parsed.Tuples))
-				for _, tpl := range parsed.Tuples {
-					foundRelationships = append(foundRelationships, tuple.MustString(tpl))
+				foundRelationships := make([]string, 0, len(parsed.Relationships))
+				for _, rel := range parsed.Relationships {
+					foundRelationships = append(foundRelationships, tuple.MustString(rel))
 				}
 
 				sort.Strings(tt.want)
