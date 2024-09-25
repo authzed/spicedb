@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/caveats"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -16,14 +15,14 @@ var caveatForTesting = caveats.CaveatForTesting
 func TestCheckDispatchSet(t *testing.T) {
 	tcs := []struct {
 		name              string
-		relationships     []*core.RelationTuple
+		relationships     []tuple.Relationship
 		dispatchChunkSize uint16
 		expectedChunks    []checkDispatchChunk
 		expectedMappings  map[string][]resourceIDAndCaveat
 	}{
 		{
 			"basic",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
 				tuple.MustParse("document:somedoc#viewer@group:3#member"),
@@ -31,7 +30,7 @@ func TestCheckDispatchSet(t *testing.T) {
 			100,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2", "3"},
 					hasIncomingCaveats: false,
 				},
@@ -50,7 +49,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"basic chunking",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
 				tuple.MustParse("document:somedoc#viewer@group:3#member"),
@@ -58,12 +57,12 @@ func TestCheckDispatchSet(t *testing.T) {
 			2,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"3"},
 					hasIncomingCaveats: false,
 				},
@@ -82,7 +81,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"different subject types",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
 				tuple.MustParse("document:somedoc#viewer@group:3#member"),
@@ -93,12 +92,12 @@ func TestCheckDispatchSet(t *testing.T) {
 			100,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2", "3"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "anothertype", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "anothertype", Relation: "member"},
 					resourceIds:        []string{"1", "2", "3"},
 					hasIncomingCaveats: false,
 				},
@@ -126,7 +125,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"different subject types mixed",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@anothertype:1#member"),
 				tuple.MustParse("document:somedoc#viewer@anothertype:2#member"),
@@ -137,12 +136,12 @@ func TestCheckDispatchSet(t *testing.T) {
 			100,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2", "3"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "anothertype", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "anothertype", Relation: "member"},
 					resourceIds:        []string{"1", "2", "3"},
 					hasIncomingCaveats: false,
 				},
@@ -170,7 +169,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"different subject types with chunking",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
 				tuple.MustParse("document:somedoc#viewer@group:3#member"),
@@ -181,22 +180,22 @@ func TestCheckDispatchSet(t *testing.T) {
 			2,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"3"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "anothertype", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "anothertype", Relation: "member"},
 					resourceIds:        []string{"1", "2"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "anothertype", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "anothertype", Relation: "member"},
 					resourceIds:        []string{"3"},
 					hasIncomingCaveats: false,
 				},
@@ -224,7 +223,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"some caveated members",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member[somecaveat]"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
 				tuple.MustParse("document:somedoc#viewer@group:3#member"),
@@ -232,7 +231,7 @@ func TestCheckDispatchSet(t *testing.T) {
 			100,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2", "3"},
 					hasIncomingCaveats: true,
 				},
@@ -251,7 +250,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"caveated members combined when chunking",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member[somecaveat]"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
 				tuple.MustParse("document:somedoc#viewer@group:3#member"),
@@ -260,12 +259,12 @@ func TestCheckDispatchSet(t *testing.T) {
 			2,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"2", "3"},
 					hasIncomingCaveats: false,
 				},
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "4"},
 					hasIncomingCaveats: true,
 				},
@@ -287,7 +286,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"different resources leading to the same subject",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member"),
 				tuple.MustParse("document:anotherdoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
@@ -296,7 +295,7 @@ func TestCheckDispatchSet(t *testing.T) {
 			2,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2"},
 					hasIncomingCaveats: false,
 				},
@@ -314,7 +313,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"different resources leading to the same subject with caveats",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#viewer@group:1#member[somecaveat]"),
 				tuple.MustParse("document:anotherdoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:2#member"),
@@ -323,7 +322,7 @@ func TestCheckDispatchSet(t *testing.T) {
 			2,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1", "2"},
 					hasIncomingCaveats: true,
 				},
@@ -341,7 +340,7 @@ func TestCheckDispatchSet(t *testing.T) {
 		},
 		{
 			"different resource leading to the same subject with caveats",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:anotherdoc#viewer@group:1#member"),
 				tuple.MustParse("document:thirddoc#viewer@group:1#member"),
 				tuple.MustParse("document:somedoc#viewer@group:1#member[somecaveat]"),
@@ -349,7 +348,7 @@ func TestCheckDispatchSet(t *testing.T) {
 			2,
 			[]checkDispatchChunk{
 				{
-					resourceType:       relationRef{namespace: "group", relation: "member"},
+					resourceType:       tuple.RelationReference{ObjectType: "group", Relation: "member"},
 					resourceIds:        []string{"1"},
 					hasIncomingCaveats: true,
 				},
@@ -379,10 +378,11 @@ func TestCheckDispatchSet(t *testing.T) {
 			require.ElementsMatch(t, tc.expectedChunks, chunks, "difference in expected chunks. found: %v", chunks)
 
 			for subjectString, expectedMappings := range tc.expectedMappings {
-				parsed := tuple.ParseSubjectONR(subjectString)
+				parsed, err := tuple.ParseSubjectONR(subjectString)
+				require.NoError(t, err)
 				require.NotNil(t, parsed)
 
-				mappings := set.mappingsForSubject(parsed.Namespace, parsed.ObjectId, parsed.Relation)
+				mappings := set.mappingsForSubject(parsed.ObjectType, parsed.ObjectID, parsed.Relation)
 				require.ElementsMatch(t, expectedMappings, mappings)
 			}
 		})

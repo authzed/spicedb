@@ -106,6 +106,11 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	reader datastore.Reader,
 ) error {
 	// TODO(jschorr): use type information to skip subject relations that cannot reach the subject type.
+
+	toDispatchByType := datasets.NewSubjectByTypeSet()
+	foundSubjectsByResourceID := datasets.NewSubjectSetByResourceID()
+	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
+
 	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     req.ResourceRelation.Namespace,
 		OptionalResourceRelation: req.ResourceRelation.Relation,
@@ -114,33 +119,28 @@ func (cl *ConcurrentLookupSubjects) lookupDirectSubjects(
 	if err != nil {
 		return err
 	}
-	defer it.Close()
 
-	toDispatchByType := datasets.NewSubjectByTypeSet()
-	foundSubjectsByResourceID := datasets.NewSubjectSetByResourceID()
-	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
-	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		if it.Err() != nil {
-			return it.Err()
+	for rel, err := range it {
+		if err != nil {
+			return err
 		}
 
-		if tpl.Subject.Namespace == req.SubjectRelation.Namespace &&
-			tpl.Subject.Relation == req.SubjectRelation.Relation {
-			if err := foundSubjectsByResourceID.AddFromRelationship(tpl); err != nil {
+		if rel.Subject.ObjectType == req.SubjectRelation.Namespace &&
+			rel.Subject.Relation == req.SubjectRelation.Relation {
+			if err := foundSubjectsByResourceID.AddFromRelationship(rel); err != nil {
 				return fmt.Errorf("failed to call AddFromRelationship in lookupDirectSubjects: %w", err)
 			}
 		}
 
-		if tpl.Subject.Relation != tuple.Ellipsis {
-			err := toDispatchByType.AddSubjectOf(tpl)
+		if rel.Subject.Relation != tuple.Ellipsis {
+			err := toDispatchByType.AddSubjectOf(rel)
 			if err != nil {
 				return err
 			}
 
-			relationshipsBySubjectONR.Add(tuple.StringONR(tpl.Subject), tpl)
+			relationshipsBySubjectONR.Add(rel.Subject, rel)
 		}
 	}
-	it.Close()
 
 	if !foundSubjectsByResourceID.IsEmpty() {
 		if err := stream.Publish(&v1.DispatchLookupSubjectsResponse{
@@ -224,7 +224,6 @@ func lookupViaIntersectionTupleToUserset(
 	if err != nil {
 		return err
 	}
-	defer it.Close()
 
 	// TODO(jschorr): Find a means of doing this without dispatching per subject, per resource. Perhaps
 	// there is a way we can still dispatch to all the subjects at once, and then intersect the results
@@ -238,18 +237,18 @@ func lookupViaIntersectionTupleToUserset(
 	// We need to intersect between *all* the found subjects for each resource ID.
 	var ttuCaveat *core.CaveatExpression
 	taskrunner := taskrunner.NewPreloadedTaskRunner(cancelCtx, cl.concurrencyLimit, 1)
-	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		if it.Err() != nil {
-			return it.Err()
+	for rel, err := range it {
+		if err != nil {
+			return err
 		}
 
 		// If the relationship has a caveat, add it to the overall TTU caveat. Since this is an intersection
 		// of *all* branches, the caveat will be applied to all found subjects, so this is a safe approach.
-		if tpl.Caveat != nil {
-			ttuCaveat = caveatAnd(ttuCaveat, wrapCaveat(tpl.Caveat))
+		if rel.OptionalCaveat != nil {
+			ttuCaveat = caveatAnd(ttuCaveat, wrapCaveat(rel.OptionalCaveat))
 		}
 
-		if err := namespace.CheckNamespaceAndRelation(ctx, tpl.Subject.Namespace, ttu.GetComputedUserset().Relation, false, ds); err != nil {
+		if err := namespace.CheckNamespaceAndRelation(ctx, rel.Subject.ObjectType, ttu.GetComputedUserset().Relation, false, ds); err != nil {
 			if !errors.As(err, &namespace.ErrRelationNotFound{}) {
 				return err
 			}
@@ -259,7 +258,7 @@ func lookupViaIntersectionTupleToUserset(
 
 		// Create a data structure to track the intersection of subjects for the particular resource. If the resource's subject set
 		// ends up empty anywhere along the way, the dispatches for *that resource* will be canceled early.
-		resourceID := tpl.ResourceAndRelation.ObjectId
+		resourceID := rel.Resource.ObjectID
 		dispatchInfoForResource, ok := resourceDispatchTrackerByResourceID[resourceID]
 		if !ok {
 			dispatchCtx, cancelDispatch := context.WithCancel(cancelCtx)
@@ -275,7 +274,7 @@ func lookupViaIntersectionTupleToUserset(
 			resourceDispatchTrackerByResourceID[resourceID] = dispatchInfoForResource
 		}
 
-		tpl := tpl
+		rel := rel
 		taskrunner.Add(func(ctx context.Context) error {
 			// Collect all results for this branch of the resource ID.
 			// TODO(jschorr): once LS has cursoring (and thus, ordering), we can move to not collecting everything up before intersecting
@@ -283,10 +282,10 @@ func lookupViaIntersectionTupleToUserset(
 			collectingStream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](dispatchInfoForResource.ctx)
 			err := cl.d.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
 				ResourceRelation: &core.RelationReference{
-					Namespace: tpl.Subject.Namespace,
+					Namespace: rel.Subject.ObjectType,
 					Relation:  ttu.GetComputedUserset().Relation,
 				},
-				ResourceIds:     []string{tpl.Subject.ObjectId},
+				ResourceIds:     []string{rel.Subject.ObjectID},
 				SubjectRelation: parentRequest.SubjectRelation,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     parentRequest.Revision.String(),
@@ -351,7 +350,6 @@ func lookupViaIntersectionTupleToUserset(
 			return nil
 		})
 	}
-	it.Close()
 
 	// Wait for all dispatched operations to complete.
 	if err := taskrunner.StartAndWait(); err != nil {
@@ -383,6 +381,9 @@ func lookupViaTupleToUserset[T relation](
 	parentStream dispatch.LookupSubjectsStream,
 	ttu ttu[T],
 ) error {
+	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
+	relationshipsBySubjectONR := mapz.NewMultiMap[tuple.ObjectAndRelation, tuple.Relationship]()
+
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     parentRequest.ResourceRelation.Namespace,
@@ -392,30 +393,22 @@ func lookupViaTupleToUserset[T relation](
 	if err != nil {
 		return err
 	}
-	defer it.Close()
 
-	toDispatchByTuplesetType := datasets.NewSubjectByTypeSet()
-	relationshipsBySubjectONR := mapz.NewMultiMap[string, *core.RelationTuple]()
-	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		if it.Err() != nil {
-			return it.Err()
+	for rel, err := range it {
+		if err != nil {
+			return err
 		}
 
 		// Add the subject to be dispatched.
-		err := toDispatchByTuplesetType.AddSubjectOf(tpl)
+		err := toDispatchByTuplesetType.AddSubjectOf(rel)
 		if err != nil {
 			return err
 		}
 
 		// Add the *rewritten* subject to the relationships multimap for mapping back to the associated
 		// relationship, as we will be mapping from the computed relation, not the tupleset relation.
-		relationshipsBySubjectONR.Add(tuple.StringONR(&core.ObjectAndRelation{
-			Namespace: tpl.Subject.Namespace,
-			ObjectId:  tpl.Subject.ObjectId,
-			Relation:  ttu.GetComputedUserset().Relation,
-		}), tpl)
+		relationshipsBySubjectONR.Add(tuple.ONR(rel.Subject.ObjectType, rel.Subject.ObjectID, ttu.GetComputedUserset().Relation), rel)
 	}
-	it.Close()
 
 	// Map the found subject types by the computed userset relation, so that we dispatch to it.
 	toDispatchByComputedRelationType, err := toDispatchByTuplesetType.Map(func(resourceType *core.RelationReference) (*core.RelationReference, error) {
@@ -531,7 +524,7 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 	ctx context.Context,
 	parentRequest ValidatedLookupSubjectsRequest,
 	toDispatchByType *datasets.SubjectByTypeSet,
-	relationshipsBySubjectONR *mapz.MultiMap[string, *core.RelationTuple],
+	relationshipsBySubjectONR *mapz.MultiMap[tuple.ObjectAndRelation, tuple.Relationship],
 	parentStream dispatch.LookupSubjectsStream,
 ) error {
 	if toDispatchByType.IsEmpty() {
@@ -571,27 +564,22 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 				//
 				mappedFoundSubjects := make(map[string]*v1.FoundSubjects)
 				for childResourceID, foundSubjects := range result.FoundSubjectsByResourceId {
-					subjectKey := tuple.StringONR(&core.ObjectAndRelation{
-						Namespace: resourceType.Namespace,
-						ObjectId:  childResourceID,
-						Relation:  resourceType.Relation,
-					})
-
+					subjectKey := tuple.ONR(resourceType.Namespace, childResourceID, resourceType.Relation)
 					relationships, _ := relationshipsBySubjectONR.Get(subjectKey)
 					if len(relationships) == 0 {
 						return nil, false, fmt.Errorf("missing relationships for subject key %v; please report this error", subjectKey)
 					}
 
 					for _, relationship := range relationships {
-						existing := mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId]
+						existing := mappedFoundSubjects[relationship.Resource.ObjectID]
 
 						// If the relationship has no caveat, simply map the resource ID.
-						if relationship.GetCaveat() == nil {
+						if relationship.OptionalCaveat == nil {
 							combined, err := combineFoundSubjects(existing, foundSubjects)
 							if err != nil {
 								return nil, false, fmt.Errorf("could not combine caveat-less subjects: %w", err)
 							}
-							mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combined
+							mappedFoundSubjects[relationship.Resource.ObjectID] = combined
 							continue
 						}
 
@@ -604,13 +592,13 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 
 						combined, err := combineFoundSubjects(
 							existing,
-							foundSubjectSet.WithParentCaveatExpression(wrapCaveat(relationship.Caveat)).AsFoundSubjects(),
+							foundSubjectSet.WithParentCaveatExpression(wrapCaveat(relationship.OptionalCaveat)).AsFoundSubjects(),
 						)
 						if err != nil {
 							return nil, false, fmt.Errorf("could not combine caveated subjects: %w", err)
 						}
 
-						mappedFoundSubjects[relationship.ResourceAndRelation.ObjectId] = combined
+						mappedFoundSubjects[relationship.Resource.ObjectID] = combined
 					}
 				}
 

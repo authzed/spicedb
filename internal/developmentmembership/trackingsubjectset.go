@@ -12,13 +12,13 @@ import (
 // NOTE: This is designed solely for the developer API and testing and should *not* be used in any
 // performance sensitive code.
 type TrackingSubjectSet struct {
-	setByType map[string]datasets.BaseSubjectSet[FoundSubject]
+	setByType map[tuple.RelationReference]datasets.BaseSubjectSet[FoundSubject]
 }
 
 // NewTrackingSubjectSet creates a new TrackingSubjectSet
 func NewTrackingSubjectSet() *TrackingSubjectSet {
 	tss := &TrackingSubjectSet{
-		setByType: map[string]datasets.BaseSubjectSet[FoundSubject]{},
+		setByType: map[tuple.RelationReference]datasets.BaseSubjectSet[FoundSubject]{},
 	}
 	return tss
 }
@@ -81,26 +81,25 @@ func (tss *TrackingSubjectSet) Add(subjectsAndResources ...FoundSubject) error {
 	return nil
 }
 
-func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[FoundSubject] {
+func (tss *TrackingSubjectSet) getSetForKey(key tuple.RelationReference) datasets.BaseSubjectSet[FoundSubject] {
 	if existing, ok := tss.setByType[key]; ok {
 		return existing
 	}
 
-	ns, rel := tuple.MustSplitRelRef(key)
 	created := datasets.NewBaseSubjectSet(
 		func(subjectID string, caveatExpression *core.CaveatExpression, excludedSubjects []FoundSubject, sources ...FoundSubject) FoundSubject {
 			fs := NewFoundSubject(&core.DirectSubject{
 				Subject: &core.ObjectAndRelation{
-					Namespace: ns,
+					Namespace: key.ObjectType,
 					ObjectId:  subjectID,
-					Relation:  rel,
+					Relation:  key.Relation,
 				},
 				CaveatExpression: caveatExpression,
 			})
 			fs.excludedSubjects = excludedSubjects
 			fs.caveatExpression = caveatExpression
 			for _, source := range sources {
-				fs.relationships.UpdateFrom(source.relationships)
+				fs.resources.UpdateFrom(source.resources)
 			}
 			return fs
 		},
@@ -110,21 +109,21 @@ func (tss *TrackingSubjectSet) getSetForKey(key string) datasets.BaseSubjectSet[
 }
 
 func (tss *TrackingSubjectSet) getSet(fs FoundSubject) datasets.BaseSubjectSet[FoundSubject] {
-	return tss.getSetForKey(tuple.JoinRelRef(fs.subject.Namespace, fs.subject.Relation))
+	return tss.getSetForKey(fs.subject.RelationReference())
 }
 
 // Get returns the found subject in the set, if any.
-func (tss *TrackingSubjectSet) Get(subject *core.ObjectAndRelation) (FoundSubject, bool) {
-	set, ok := tss.setByType[tuple.JoinRelRef(subject.Namespace, subject.Relation)]
+func (tss *TrackingSubjectSet) Get(subject tuple.ObjectAndRelation) (FoundSubject, bool) {
+	set, ok := tss.setByType[subject.RelationReference()]
 	if !ok {
 		return FoundSubject{}, false
 	}
 
-	return set.Get(subject.ObjectId)
+	return set.Get(subject.ObjectID)
 }
 
 // Contains returns true if the set contains the given subject.
-func (tss *TrackingSubjectSet) Contains(subject *core.ObjectAndRelation) bool {
+func (tss *TrackingSubjectSet) Contains(subject tuple.ObjectAndRelation) bool {
 	_, ok := tss.Get(subject)
 	return ok
 }
@@ -190,9 +189,9 @@ func (tss *TrackingSubjectSet) ApplyParentCaveatExpression(parentCaveatExpr *cor
 
 // removeExact removes the given subject(s) from the set. If the subject is a wildcard, only
 // the exact matching wildcard will be removed.
-func (tss *TrackingSubjectSet) removeExact(subjects ...*core.ObjectAndRelation) {
+func (tss *TrackingSubjectSet) removeExact(subjects ...tuple.ObjectAndRelation) {
 	for _, subject := range subjects {
-		if set, ok := tss.setByType[tuple.JoinRelRef(subject.Namespace, subject.Relation)]; ok {
+		if set, ok := tss.setByType[subject.RelationReference()]; ok {
 			set.UnsafeRemoveExact(FoundSubject{
 				subject: subject,
 			})

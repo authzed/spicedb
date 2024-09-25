@@ -10,6 +10,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type MockDatastore struct {
@@ -263,7 +264,7 @@ func (dm *MockReadWriteTransaction) LookupNamespacesWithNames(_ context.Context,
 	return args.Get(0).([]datastore.RevisionedNamespace), args.Error(1)
 }
 
-func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate) error {
+func (dm *MockReadWriteTransaction) WriteRelationships(_ context.Context, mutations []tuple.RelationshipUpdate) error {
 	args := dm.Called(mutations)
 	return args.Error(0)
 }

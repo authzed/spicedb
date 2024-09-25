@@ -1,9 +1,11 @@
 package tuple
 
 import (
+	"errors"
 	"fmt"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -33,6 +35,21 @@ func (onr ObjectAndRelation) WithRelation(relation string) ObjectAndRelation {
 	return onr
 }
 
+func (onr ObjectAndRelation) RelationReference() RelationReference {
+	return RelationReference{
+		ObjectType: onr.ObjectType,
+		Relation:   onr.Relation,
+	}
+}
+
+func (onr ObjectAndRelation) ToCoreONR() *core.ObjectAndRelation {
+	return &core.ObjectAndRelation{
+		Namespace: onr.ObjectType,
+		ObjectId:  onr.ObjectID,
+		Relation:  onr.Relation,
+	}
+}
+
 // RelationshipReference represents a reference to a relationship, i.e. those portions
 // of a relationship that are not the integrity or caveat and thus form the unique
 // identifier of the relationship.
@@ -48,6 +65,15 @@ type Relationship struct {
 	OptionalIntegrity *core.RelationshipIntegrity
 }
 
+func (r Relationship) ToCoreTuple() *core.RelationTuple {
+	return &core.RelationTuple{
+		ResourceAndRelation: r.Resource.ToCoreONR(),
+		Subject:             r.Subject.ToCoreONR(),
+		Caveat:              r.OptionalCaveat,
+		Integrity:           r.OptionalIntegrity,
+	}
+}
+
 const relStructSize = 112 /* size of the struct itself */
 
 func (r Relationship) SizeVT() int {
@@ -60,6 +86,18 @@ func (r Relationship) SizeVT() int {
 
 func (r Relationship) ValidateNotEmpty() bool {
 	return r.Resource.ObjectType != "" && r.Resource.ObjectID != "" && r.Subject.ObjectType != "" && r.Subject.ObjectID != "" && r.Resource.Relation != "" && r.Subject.Relation != ""
+}
+
+func (r Relationship) Validate() error {
+	if !r.ValidateNotEmpty() {
+		return errors.New("object and relation must not be empty")
+	}
+
+	if r.RelationshipReference.Resource.ObjectID == PublicWildcard {
+		return errors.New("invalid resource id")
+	}
+
+	return nil
 }
 
 // WithoutIntegrity returns a copy of the relationship without its integrity.
@@ -102,4 +140,44 @@ func (ru RelationshipUpdate) OperationString() string {
 
 func (ru RelationshipUpdate) DebugString() string {
 	return fmt.Sprintf("%s(%s)", ru.OperationString(), StringWithoutCaveat(ru.Relationship))
+}
+
+type RelationReference struct {
+	ObjectType string
+	Relation   string
+}
+
+func (rr RelationReference) ToCoreRR() *core.RelationReference {
+	return &core.RelationReference{
+		Namespace: rr.ObjectType,
+		Relation:  rr.Relation,
+	}
+}
+
+func ONR(namespace, objectID, relation string) ObjectAndRelation {
+	spiceerrors.DebugAssert(func() bool {
+		return namespace != "" && objectID != "" && relation != ""
+	}, "invalid ONR: %s %s %s", namespace, objectID, relation)
+
+	return ObjectAndRelation{
+		ObjectType: namespace,
+		ObjectID:   objectID,
+		Relation:   relation,
+	}
+}
+
+func ONRRef(namespace, objectID, relation string) *ObjectAndRelation {
+	onr := ONR(namespace, objectID, relation)
+	return &onr
+}
+
+func RR(namespace, relation string) RelationReference {
+	spiceerrors.DebugAssert(func() bool {
+		return namespace != "" && relation != ""
+	}, "invalid RR: %s %s", namespace, relation)
+
+	return RelationReference{
+		ObjectType: namespace,
+		Relation:   relation,
+	}
 }

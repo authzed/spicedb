@@ -26,7 +26,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var ONR = tuple.ObjectAndRelation
+var ONR = tuple.ONR
 
 func TestSimpleCheck(t *testing.T) {
 	t.Parallel()
@@ -37,7 +37,7 @@ func TestSimpleCheck(t *testing.T) {
 	}
 
 	type userset struct {
-		userset  *core.ObjectAndRelation
+		userset  tuple.ObjectAndRelation
 		expected []expected
 	}
 
@@ -108,8 +108,8 @@ func TestSimpleCheck(t *testing.T) {
 					tc.namespace,
 					tc.objectID,
 					expected.relation,
-					userset.userset.Namespace,
-					userset.userset.ObjectId,
+					userset.userset.ObjectType,
+					userset.userset.ObjectID,
 					userset.userset.Relation,
 					expected.isMember,
 				)
@@ -124,10 +124,10 @@ func TestSimpleCheck(t *testing.T) {
 					ctx, dispatch, revision := newLocalDispatcher(t)
 
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-						ResourceRelation: RR(tc.namespace, expected.relation),
+						ResourceRelation: RR(tc.namespace, expected.relation).ToCoreRR(),
 						ResourceIds:      []string{tc.objectID},
 						ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-						Subject:          userset.userset,
+						Subject:          userset.userset.ToCoreONR(),
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
@@ -158,7 +158,7 @@ func TestMaxDepth(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	mutation := tuple.Create(tuple.Parse("folder:oops#parent@folder:oops"))
+	mutation := tuple.Create(tuple.MustParse("folder:oops#parent@folder:oops"))
 
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
@@ -169,10 +169,10 @@ func TestMaxDepth(t *testing.T) {
 	dispatch := NewLocalOnlyDispatcher(10, 100)
 
 	_, err = dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceRelation: RR("folder", "view"),
+		ResourceRelation: RR("folder", "view").ToCoreRR(),
 		ResourceIds:      []string{"oops"},
 		ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-		Subject:          ONR("user", "fake", graph.Ellipsis),
+		Subject:          tuple.CoreONR("user", "fake", graph.Ellipsis),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -192,7 +192,7 @@ func TestCheckMetadata(t *testing.T) {
 	}
 
 	type userset struct {
-		userset  *core.ObjectAndRelation
+		userset  tuple.ObjectAndRelation
 		expected []expected
 	}
 
@@ -247,8 +247,8 @@ func TestCheckMetadata(t *testing.T) {
 					tc.namespace,
 					tc.objectID,
 					expected.relation,
-					userset.userset.Namespace,
-					userset.userset.ObjectId,
+					userset.userset.ObjectType,
+					userset.userset.ObjectID,
 					userset.userset.Relation,
 					expected.isMember,
 				)
@@ -262,10 +262,10 @@ func TestCheckMetadata(t *testing.T) {
 					ctx, dispatch, revision := newLocalDispatcher(t)
 
 					checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-						ResourceRelation: RR(tc.namespace, expected.relation),
+						ResourceRelation: RR(tc.namespace, expected.relation).ToCoreRR(),
 						ResourceIds:      []string{tc.objectID},
 						ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-						Subject:          userset.userset,
+						Subject:          userset.userset.ToCoreONR(),
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     revision.String(),
 							DepthRemaining: 50,
@@ -293,9 +293,9 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 	testCases := []struct {
 		name                      string
 		schema                    string
-		relationships             []*core.RelationTuple
-		resource                  *core.ObjectAndRelation
-		subject                   *core.ObjectAndRelation
+		relationships             []tuple.Relationship
+		resource                  tuple.ObjectAndRelation
+		subject                   tuple.ObjectAndRelation
 		expectedPermissionship    v1.ResourceCheckResult_Membership
 		expectedCaveat            *core.CaveatExpression
 		alternativeExpectedCaveat *core.CaveatExpression
@@ -309,7 +309,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 			},
 			ONR("document", "first", "view"),
@@ -327,7 +327,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#editor@user:tom"),
 			},
@@ -346,7 +346,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - editor
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 			},
 			ONR("document", "first", "view"),
@@ -364,7 +364,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#editor@user:tom"),
 			},
@@ -383,7 +383,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "first", "view"),
 			ONR("user", "tom", "..."),
 			v1.ResourceCheckResult_NOT_MEMBER,
@@ -399,7 +399,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 			},
 			ONR("document", "first", "view"),
@@ -417,7 +417,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#banned@user:tom"),
 			},
@@ -441,7 +441,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation group: group
 				permission view = group->view
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#group@group:first"),
 				tuple.MustParse("document:first#group@group:second"),
 				tuple.MustParse("group:first#member@user:tom"),
@@ -468,7 +468,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation group: group
 				permission view = group->view
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#group@group:first"),
 				tuple.MustParse("document:first#group@group:second"),
 				tuple.MustParse("group:first#member@user:tom"),
@@ -495,7 +495,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation group: group
 				permission view = group->view
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#group@group:first"),
 				tuple.MustParse("document:first#group@group:second"),
 				tuple.MustParse("group:first#member@user:tom"),
@@ -523,7 +523,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation group: group
 				permission view = group->view
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#group@group:first"),
 				tuple.MustParse("document:first#group@group:second"),
 				tuple.MustParse("group:first#member@user:tom"),
@@ -547,7 +547,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization
 				permission view = orgs->member
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("organization:second#member@user:tom"),
@@ -570,7 +570,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization
 				permission view = orgs.any(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("organization:second#member@user:tom"),
@@ -593,7 +593,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("organization:second#member@user:tom"),
@@ -616,7 +616,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("organization:first#member@user:tom"),
@@ -644,7 +644,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization | someotherresource
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("organization:first#member@user:tom"),
@@ -672,7 +672,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization | someotherresource
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("document:first#orgs@someotherresource:other"),
@@ -701,7 +701,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization | someotherresource
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("document:first#orgs@organization:second"),
 				tuple.MustParse("document:first#orgs@someotherresource:other"),
@@ -727,7 +727,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#orgs@organization:first"),
 				tuple.MustParse("organization:first#member@user:tom"),
 			},
@@ -749,7 +749,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation orgs: organization
 				permission view = orgs.all(member)
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("organization:first#member@user:tom"),
 			},
 			ONR("document", "first", "view"),
@@ -772,7 +772,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     permission view_by_all = team.all(member)
     permission view_by_any = team.any(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("team:first#direct_member@user:tom"),
 				tuple.MustParse("team:first#direct_member@user:fred"),
 				tuple.MustParse("team:first#direct_member@user:sarah"),
@@ -807,7 +807,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     permission view_by_all = team.all(member) + viewer
     permission view_by_any = team.any(member) + viewer
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("team:first#direct_member@user:tom"),
 				tuple.MustParse("team:first#direct_member@user:fred"),
 				tuple.MustParse("team:first#direct_member@user:sarah"),
@@ -843,7 +843,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     permission view_by_all = team.all(member) + viewer
     permission view_by_any = team.any(member) + viewer
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("team:first#direct_member@user:tom"),
 				tuple.MustParse("team:first#direct_member@user:fred"),
 				tuple.MustParse("team:first#direct_member@user:sarah"),
@@ -881,7 +881,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team with somecaveat
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("team:first#direct_member@user:tom"),
 				tuple.MustParse("resource:oneteam#team@team:first[somecaveat]"),
 			},
@@ -908,7 +908,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("team:first#direct_member@user:tom[somecaveat]"),
 				tuple.MustParse("resource:oneteam#team@team:first"),
 			},
@@ -935,7 +935,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team with somecaveat
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("team:first#direct_member@user:tom[somecaveat]"),
 				tuple.MustParse("resource:oneteam#team@team:first[somecaveat]"),
 			},
@@ -966,7 +966,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team with somecaveat
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`team:first#direct_member@user:tom[anothercaveat:{"someparam": 43}]`),
 				tuple.MustParse(`resource:oneteam#team@team:first[somecaveat:{"someparam": 42}]`),
 			},
@@ -996,7 +996,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team with somecaveat
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`resource:someresource#team@team:first[somecaveat:{"someparam": 41}]`),
 				tuple.MustParse(`resource:someresource#team@team:second[somecaveat:{"someparam": 42}]`),
 				tuple.MustParse(`team:first#direct_member@user:tom`),
@@ -1028,7 +1028,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`resource:someresource#team@team:first`),
 				tuple.MustParse(`resource:someresource#team@team:second`),
 				tuple.MustParse(`team:first#direct_member@user:tom[somecaveat:{"someparam": 41}]`),
@@ -1060,7 +1060,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team with somecaveat | team
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`resource:someresource#team@team:first`),
 				tuple.MustParse(`resource:someresource#team@team:second[somecaveat:{"someparam": 42}]`),
 				tuple.MustParse(`team:first#direct_member@user:tom`),
@@ -1089,7 +1089,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team
     permission view_by_all = team.all(member)
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`resource:someresource#team@team:first`),
 				tuple.MustParse(`resource:someresource#team@team:second`),
 				tuple.MustParse(`team:first#direct_member@user:tom`),
@@ -1118,7 +1118,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
     relation team: team with somecaveat | team#direct_member with somecaveat
     permission view_by_all = team.all(member) // Note: this points to the same team twice
   }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`resource:someresource#team@team:first`),
 				tuple.MustParse(`resource:someresource#team@team:first#direct_member[somecaveat]`),
 				tuple.MustParse(`team:first#direct_member@user:tom`),
@@ -1144,7 +1144,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view)
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:root1#owner@user:tom"),
 				tuple.MustParse("folder:root1#owner@user:fred"),
 				tuple.MustParse("folder:root1#owner@user:sarah"),
@@ -1181,7 +1181,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view)
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:root1#owner@user:tom"),
 				tuple.MustParse("folder:root1#owner@user:fred"),
 				tuple.MustParse("folder:root1#owner@user:sarah"),
@@ -1218,7 +1218,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view)
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:root1#owner@user:tom"),
 				tuple.MustParse("folder:root1#owner@user:fred"),
 				tuple.MustParse("folder:root1#owner@user:sarah"),
@@ -1259,7 +1259,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
       permission view = viewer
   }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`role:firstrole#member@user:tom[somecaveat:{"somevalue":40}]`),
 				tuple.MustParse(`role:secondrole#member@user:tom[somecaveat:{"somevalue":42}]`),
 				tuple.MustParse(`resource:doc1#viewer@role:firstrole#member`),
@@ -1295,7 +1295,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
       permission view = viewer
   }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`role:secondrole#member@user:tom[somecaveat:{"somevalue":42}]`),
 				tuple.MustParse(`role:firstrole#member@user:tom[somecaveat:{"somevalue":40}]`),
 				tuple.MustParse(`resource:doc1#viewer@role:secondrole#member`),
@@ -1331,9 +1331,9 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-				ResourceRelation: RR(tc.resource.Namespace, tc.resource.Relation),
-				ResourceIds:      []string{tc.resource.ObjectId},
-				Subject:          tc.subject,
+				ResourceRelation: RR(tc.resource.ObjectType, tc.resource.Relation).ToCoreRR(),
+				ResourceIds:      []string{tc.resource.ObjectID},
+				Subject:          tc.subject.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -1343,22 +1343,22 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 			require.NoError(err)
 
 			membership := v1.ResourceCheckResult_NOT_MEMBER
-			if r, ok := resp.ResultsByResourceId[tc.resource.ObjectId]; ok {
+			if r, ok := resp.ResultsByResourceId[tc.resource.ObjectID]; ok {
 				membership = r.Membership
 			}
 
 			require.Equal(tc.expectedPermissionship, membership)
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat == nil {
-				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectId].Expression)
-				testutil.RequireProtoEqual(t, tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat")
+				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)
+				testutil.RequireProtoEqual(t, tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectID].Expression, "mismatch in caveat")
 			}
 
 			if tc.expectedCaveat != nil && tc.alternativeExpectedCaveat != nil {
-				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectId].Expression)
+				require.NotEmpty(resp.ResultsByResourceId[tc.resource.ObjectID].Expression)
 
-				if testutil.AreProtoEqual(tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat") != nil {
-					testutil.RequireProtoEqual(t, tc.alternativeExpectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectId].Expression, "mismatch in caveat")
+				if testutil.AreProtoEqual(tc.expectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectID].Expression, "mismatch in caveat") != nil {
+					testutil.RequireProtoEqual(t, tc.alternativeExpectedCaveat, resp.ResultsByResourceId[tc.resource.ObjectID].Expression, "mismatch in caveat")
 				}
 			}
 		})
@@ -1375,7 +1375,7 @@ func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
 func TestCheckDebugging(t *testing.T) {
 	t.Parallel()
 	type expectedFrame struct {
-		resourceType *core.RelationReference
+		resourceType tuple.RelationReference
 		resourceIDs  []string
 	}
 
@@ -1383,7 +1383,7 @@ func TestCheckDebugging(t *testing.T) {
 		namespace      string
 		objectID       string
 		permission     string
-		subject        *core.ObjectAndRelation
+		subject        tuple.ObjectAndRelation
 		expectedFrames []expectedFrame
 	}{
 		{
@@ -1444,8 +1444,8 @@ func TestCheckDebugging(t *testing.T) {
 			tc.namespace,
 			tc.objectID,
 			tc.permission,
-			tc.subject.Namespace,
-			tc.subject.ObjectId,
+			tc.subject.ObjectType,
+			tc.subject.ObjectID,
 			tc.subject.Relation,
 		)
 
@@ -1456,10 +1456,10 @@ func TestCheckDebugging(t *testing.T) {
 			ctx, dispatch, revision := newLocalDispatcher(t)
 
 			checkResult, err := dispatch.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-				ResourceRelation: RR(tc.namespace, tc.permission),
+				ResourceRelation: RR(tc.namespace, tc.permission).ToCoreRR(),
 				ResourceIds:      []string{tc.objectID},
 				ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-				Subject:          tc.subject,
+				Subject:          tc.subject.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -1474,7 +1474,7 @@ func TestCheckDebugging(t *testing.T) {
 
 			expectedFrames := mapz.NewSet[string]()
 			for _, expectedFrame := range tc.expectedFrames {
-				expectedFrames.Add(fmt.Sprintf("%s:%s#%s", expectedFrame.resourceType.Namespace, strings.Join(expectedFrame.resourceIDs, ","), expectedFrame.resourceType.Relation))
+				expectedFrames.Add(fmt.Sprintf("%s:%s#%s", expectedFrame.resourceType.ObjectType, strings.Join(expectedFrame.resourceIDs, ","), expectedFrame.resourceType.Relation))
 			}
 
 			foundFrames := mapz.NewSet[string]()
@@ -1490,9 +1490,9 @@ func TestCheckWithHints(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		schema                 string
-		relationships          []*core.RelationTuple
-		resource               *core.ObjectAndRelation
-		subject                *core.ObjectAndRelation
+		relationships          []tuple.Relationship
+		resource               tuple.ObjectAndRelation
+		subject                tuple.ObjectAndRelation
 		hints                  []*v1.CheckHint
 		expectedPermissionship bool
 	}{
@@ -1505,7 +1505,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			nil,
@@ -1520,7 +1520,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1537,7 +1537,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "anotherdoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1554,7 +1554,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer + editor
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "anotheruser", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1574,7 +1574,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation org: organization
 				permission view = org->member
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "org", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1594,7 +1594,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation org: organization
 				permission view = org->member
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "anotherrel", "member", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1614,7 +1614,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation org: organization
 				permission view = org->member
   			 }`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForArrow("document", "somedoc", "org", "membersssss", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1631,7 +1631,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1648,7 +1648,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#editor@user:tom"),
 			},
 			ONR("document", "somedoc", "view"),
@@ -1667,7 +1667,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#editor@user:tom"),
 			},
 			ONR("document", "somedoc", "view"),
@@ -1686,7 +1686,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1702,7 +1702,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user:*
 				permission view = viewer
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1718,7 +1718,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation viewer: user:*
 				permission view = viewer
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{hints.CheckHintForComputedUserset("document", "somedoc", "viewer", ONR("user", "tom", graph.Ellipsis), &v1.ResourceCheckResult{
@@ -1735,7 +1735,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation editor: user
 				permission view = viewer & editor
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{
@@ -1757,7 +1757,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation banned: user
 				permission view = viewer - banned
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{
@@ -1779,7 +1779,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation banned: user
 				permission view = viewer - banned
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{
@@ -1801,7 +1801,7 @@ func TestCheckWithHints(t *testing.T) {
 				relation banned: user
 				permission view = viewer - banned
 			}`,
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			ONR("document", "somedoc", "view"),
 			ONR("user", "tom", graph.Ellipsis),
 			[]*v1.CheckHint{
@@ -1832,9 +1832,9 @@ func TestCheckWithHints(t *testing.T) {
 			require.NoError(datastoremw.SetInContext(ctx, ds))
 
 			resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-				ResourceRelation: RR(tc.resource.Namespace, tc.resource.Relation),
-				ResourceIds:      []string{tc.resource.ObjectId},
-				Subject:          tc.subject,
+				ResourceRelation: RR(tc.resource.ObjectType, tc.resource.Relation).ToCoreRR(),
+				ResourceIds:      []string{tc.resource.ObjectID},
+				Subject:          tc.subject.ToCoreONR(),
 				ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
@@ -1844,13 +1844,13 @@ func TestCheckWithHints(t *testing.T) {
 			})
 			require.NoError(err)
 
-			_, ok := resp.ResultsByResourceId[tc.resource.ObjectId]
+			_, ok := resp.ResultsByResourceId[tc.resource.ObjectID]
 			if tc.expectedPermissionship {
 				require.True(ok)
-				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectId].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectID].Membership)
 			} else {
 				if ok {
-					require.Equal(v1.ResourceCheckResult_NOT_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectId].Membership)
+					require.Equal(v1.ResourceCheckResult_NOT_MEMBER, resp.ResultsByResourceId[tc.resource.ObjectID].Membership)
 				}
 			}
 		})
@@ -1874,7 +1874,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 			permission view = viewer
 		}
 
-	`, []*core.RelationTuple{
+	`, []tuple.Relationship{
 		tuple.MustParse("document:somedoc#viewer@user:tom"),
 	}, require)
 
@@ -1882,9 +1882,9 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceRelation: RR("document", "view"),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"somedoc", "anotherdoc", "thirddoc"},
-		Subject:          ONR("user", "tom", graph.Ellipsis),
+		Subject:          tuple.CoreONR("user", "tom", graph.Ellipsis),
 		ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -1924,7 +1924,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 			permission view = org->member
 		}
 
-	`, []*core.RelationTuple{
+	`, []tuple.Relationship{
 		tuple.MustParse("document:somedoc#org@organization:someorg"),
 		tuple.MustParse("organization:someorg#member@user:tom"),
 	}, require)
@@ -1933,9 +1933,9 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	resp, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-		ResourceRelation: RR("document", "view"),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
 		ResourceIds:      []string{"somedoc", "anotherdoc", "thirddoc"},
-		Subject:          ONR("user", "tom", graph.Ellipsis),
+		Subject:          tuple.CoreONR("user", "tom", graph.Ellipsis),
 		ResultsSetting:   v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS,
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
@@ -1976,7 +1976,7 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 	return newLocalDispatcherWithConcurrencyLimit(t, 10)
 }
 
-func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []*core.RelationTuple) (context.Context, dispatch.Dispatcher, datastore.Revision) {
+func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tuple.Relationship) (context.Context, dispatch.Dispatcher, datastore.Revision) {
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 

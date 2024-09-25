@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -93,7 +92,12 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 		select {
 		case update, ok := <-updates:
 			if ok {
-				filtered := filterUpdates(objectTypes, filters, update.RelationshipChanges)
+				updates, err := tuple.UpdatesToV1RelationshipUpdates(update.RelationshipChanges)
+				if err != nil {
+					return status.Errorf(codes.Internal, "failed to convert updates: %s", err)
+				}
+
+				filtered := filterUpdates(objectTypes, filters, updates)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v1.WatchResponse{
 						Updates:                     filtered,
@@ -121,9 +125,7 @@ func (ws *watchServer) rewriteError(ctx context.Context, err error) error {
 	return shared.RewriteError(ctx, err, &shared.ConfigForErrors{})
 }
 
-func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.RelationshipsFilter, candidates []*core.RelationTupleUpdate) []*v1.RelationshipUpdate {
-	updates := tuple.UpdatesToRelationshipUpdates(candidates)
-
+func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.RelationshipsFilter, updates []*v1.RelationshipUpdate) []*v1.RelationshipUpdate {
 	if objectTypes.IsEmpty() && len(filters) == 0 {
 		return updates
 	}
@@ -140,7 +142,7 @@ func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.Relationsh
 			matched := false
 			for _, filter := range filters {
 				// TODO(jschorr): Maybe we should add TestRelationship to avoid the conversion?
-				if filter.Test(tuple.MustFromRelationship(update.GetRelationship())) {
+				if filter.Test(tuple.FromV1Relationship(update.GetRelationship())) {
 					matched = true
 					break
 				}

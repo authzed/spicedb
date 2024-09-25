@@ -323,9 +323,9 @@ func TestWithDatastoreCursorInCursor(t *testing.T) {
 		5,
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
 			return []itemAndPostCursor[int]{
-				{1, tuple.MustParse("document:foo#viewer@user:tom")},
-				{2, tuple.MustParse("document:foo#viewer@user:sarah")},
-				{3, tuple.MustParse("document:foo#viewer@user:fred")},
+				{1, options.ToCursor(tuple.MustParse("document:foo#viewer@user:tom"))},
+				{2, options.ToCursor(tuple.MustParse("document:foo#viewer@user:sarah"))},
+				{3, options.ToCursor(tuple.MustParse("document:foo#viewer@user:fred"))},
 			}, nil
 		},
 		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {
@@ -358,17 +358,17 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	lock := sync.Mutex{}
 
 	parentStream := dispatch.NewCollectingDispatchStream[int](context.Background())
-	err = withDatastoreCursorInCursor[int, int](
+	err = withDatastoreCursorInCursor(
 		context.Background(),
 		ci,
 		parentStream,
 		5,
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[int], error) {
-			require.Equal(t, "", tuple.MustString(queryCursor))
+			require.Nil(t, queryCursor)
 
 			return []itemAndPostCursor[int]{
-				{2, tuple.MustParse("document:foo#viewer@user:sarah")},
-				{3, tuple.MustParse("document:foo#viewer@user:fred")},
+				{2, options.ToCursor(tuple.MustParse("document:foo#viewer@user:sarah"))},
+				{3, options.ToCursor(tuple.MustParse("document:foo#viewer@user:fred"))},
 			}, nil
 		},
 		func(ctx context.Context, cc cursorInformation, item int, stream dispatch.Stream[int]) error {

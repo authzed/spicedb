@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
@@ -223,40 +224,41 @@ func (r *observableReader) QueryRelationships(ctx context.Context, filter datast
 	if err != nil {
 		return iterator, err
 	}
-	return &observableRelationshipIterator{closer, iterator, 0}, nil
+
+	return func(yield func(tuple.Relationship, error) bool) {
+		var count uint64
+		for rel, err := range iterator {
+			count++
+			if !yield(rel, err) {
+				break
+			}
+		}
+		loadedRelationshipCount.Observe(float64(count))
+		closer()
+	}, nil
 }
 
-type observableRelationshipIterator struct {
-	closer   func()
-	delegate datastore.RelationshipIterator
-	count    uint32
-}
+func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	ctx, closer := observe(ctx, "ReverseQueryRelationships", trace.WithAttributes(
+		attribute.String("subjectType", subjectsFilter.SubjectType),
+	))
 
-func (i *observableRelationshipIterator) Next() *core.RelationTuple {
-	if next := i.delegate.Next(); next != nil {
-		i.count++
-		return next
-	}
-	return nil
-}
-
-func (i *observableRelationshipIterator) Err() error { return i.delegate.Err() }
-
-func (i *observableRelationshipIterator) Cursor() (options.Cursor, error) { return i.delegate.Cursor() }
-
-func (i *observableRelationshipIterator) Close() {
-	loadedRelationshipCount.Observe(float64(i.count))
-	i.closer()
-	i.delegate.Close()
-}
-
-func (r *observableReader) ReverseQueryRelationships(ctx context.Context, subjectFilter datastore.SubjectsFilter, options ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	ctx, closer := observe(ctx, "ReverseQueryRelationships")
-	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectFilter, options...)
+	iterator, err := r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, options...)
 	if err != nil {
 		return iterator, err
 	}
-	return &observableRelationshipIterator{closer, iterator, 0}, nil
+
+	return func(yield func(tuple.Relationship, error) bool) {
+		var count uint64
+		for rel, err := range iterator {
+			count++
+			if !yield(rel, err) {
+				break
+			}
+		}
+		loadedRelationshipCount.Observe(float64(count))
+		closer()
+	}, nil
 }
 
 type observableRWT struct {
@@ -316,7 +318,7 @@ func (rwt *observableRWT) DeleteCaveats(ctx context.Context, names []string) err
 	return rwt.delegate.DeleteCaveats(ctx, names)
 }
 
-func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *observableRWT) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	ctx, closer := observe(ctx, "WriteRelationships", trace.WithAttributes(
 		attribute.Int("mutations", len(mutations)),
 	))
@@ -384,5 +386,4 @@ var (
 	_ datastore.Datastore            = (*observableProxy)(nil)
 	_ datastore.Reader               = (*observableReader)(nil)
 	_ datastore.ReadWriteTransaction = (*observableRWT)(nil)
-	_ datastore.RelationshipIterator = (*observableRelationshipIterator)(nil)
 )

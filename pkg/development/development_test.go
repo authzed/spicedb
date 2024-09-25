@@ -25,7 +25,7 @@ definition document {
 }
 `,
 		Relationships: []*core.RelationTuple{
-			tuple.MustParse("document:somedoc#viewer@user:someuser"),
+			tuple.MustParse("document:somedoc#viewer@user:someuser").ToCoreTuple(),
 		},
 	})
 
@@ -36,7 +36,7 @@ definition document {
 		AssertTrue: []blocks.Assertion{
 			{
 				RelationshipWithContextString: "document:somedoc#viewer@user:someuser",
-				Relationship:                  tuple.MustToRelationship(tuple.MustParse("document:somedoc#viewer@user:someuser")),
+				Relationship:                  tuple.MustParse("document:somedoc#viewer@user:someuser"),
 			},
 		},
 	}
@@ -49,7 +49,7 @@ definition document {
 func TestDevelopmentInvalidRelationship(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
-	_, _, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -72,8 +72,10 @@ definition document {
 		},
 	})
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid resource id")
+	require.NoError(t, err)
+	require.NotNil(t, devErrs)
+	require.NotEmpty(t, devErrs.InputErrors)
+	require.Contains(t, devErrs.InputErrors[0].Message, "invalid resource id")
 }
 
 func TestDevelopmentCaveatedExpectedRels(t *testing.T) {
@@ -91,7 +93,7 @@ definition document {
 }
 `,
 		Relationships: []*core.RelationTuple{
-			tuple.MustParse("document:somedoc#viewer@user:someuser[somecaveat]"),
+			tuple.MustParse("document:somedoc#viewer@user:someuser[somecaveat]").ToCoreTuple(),
 		},
 	})
 
@@ -122,7 +124,7 @@ definition document {
 }
 `,
 		Relationships: []*core.RelationTuple{
-			tuple.MustParse("document:somedoc#viewer@user:someuser"),
+			tuple.MustParse("document:somedoc#viewer@user:someuser").ToCoreTuple(),
 		},
 	})
 

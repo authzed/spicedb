@@ -265,7 +265,8 @@ func (rg *ReachabilityGraph) HasOptimizedEntrypointsForSubjectToResource(
 	subjectType *core.RelationReference,
 	resourceType *core.RelationReference,
 ) (bool, error) {
-	cacheKey := tuple.StringRR(subjectType) + "=>" + tuple.StringRR(resourceType)
+	// TODO(jschorr): Change this to be indexed by a struct
+	cacheKey := tuple.StringCoreRR(subjectType) + "=>" + tuple.StringCoreRR(resourceType)
 	if result, ok := rg.hasOptimizedEntrypointCache.Load(cacheKey); ok {
 		return result.(bool), nil
 	}
@@ -334,8 +335,8 @@ func (rg *ReachabilityGraph) computeEntrypoints(
 
 func (rg *ReachabilityGraph) getOrBuildGraph(ctx context.Context, resourceType *core.RelationReference, reachabilityOption reachabilityOption) (*core.ReachabilityGraph, error) {
 	// Check the cache.
-	// TODO(jschorr): Move this to a global cache.
-	cacheKey := tuple.StringRR(resourceType) + "-" + strconv.Itoa(int(reachabilityOption))
+	// TODO(jschorr): Change to be indexed by a struct.
+	cacheKey := tuple.StringCoreRR(resourceType) + "-" + strconv.Itoa(int(reachabilityOption))
 	if cached, ok := rg.cachedGraphs.Load(cacheKey); ok {
 		return cached.(*core.ReachabilityGraph), nil
 	}

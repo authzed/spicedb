@@ -13,7 +13,6 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -181,7 +180,9 @@ func TestGroupItems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var items []*v1.CheckBulkPermissionsRequestItem
 			for _, r := range tt.requests {
-				rel := tuple.ParseRel(r)
+				rel, err := tuple.ParseV1Rel(r)
+				require.NoError(t, err)
+
 				item := &v1.CheckBulkPermissionsRequestItem{
 					Resource:   rel.Resource,
 					Permission: rel.Relation,
@@ -221,10 +222,10 @@ func TestGroupItems(t *testing.T) {
 					firstParams := ccp[first].params
 					secondParams := ccp[second].params
 
-					firstKey := firstParams.ResourceType.Namespace + firstParams.ResourceType.Relation +
-						firstParams.Subject.Namespace + firstParams.Subject.ObjectId + firstParams.Subject.Relation + strings.Join(ccp[first].resourceIDs, ",")
-					secondKey := secondParams.ResourceType.Namespace + secondParams.ResourceType.Relation +
-						secondParams.Subject.Namespace + secondParams.Subject.ObjectId + secondParams.Subject.Relation + strings.Join(ccp[second].resourceIDs, ",")
+					firstKey := firstParams.ResourceType.ObjectType + firstParams.ResourceType.Relation +
+						firstParams.Subject.ObjectType + firstParams.Subject.ObjectID + firstParams.Subject.Relation + strings.Join(ccp[first].resourceIDs, ",")
+					secondKey := secondParams.ResourceType.ObjectType + secondParams.ResourceType.Relation +
+						secondParams.Subject.ObjectType + secondParams.Subject.ObjectID + secondParams.Subject.Relation + strings.Join(ccp[second].resourceIDs, ",")
 					return firstKey < secondKey
 				})
 
@@ -238,11 +239,8 @@ func TestGroupItems(t *testing.T) {
 					require.Equal(t, cp.atRevision, ccp[i].params.AtRevision)
 					require.Equal(t, computed.NoDebugging, ccp[i].params.DebugOption)
 
-					err := testutil.AreProtoEqual(tuple.RelationReference(expected.resourceType, expected.resourceRel), ccp[i].params.ResourceType, "resource type diff")
-					require.NoError(t, err)
-
-					err = testutil.AreProtoEqual(tuple.ParseSubjectONR(expected.subject), ccp[i].params.Subject, "resource type diff")
-					require.NoError(t, err)
+					require.Equal(t, tuple.RR(expected.resourceType, expected.resourceRel), ccp[i].params.ResourceType, "resource type diff")
+					require.Equal(t, tuple.MustParseSubjectONR(expected.subject), ccp[i].params.Subject, "resource type diff")
 				}
 			}
 		})
@@ -255,7 +253,10 @@ func TestCaveatContextSizeLimitIsEnforced(t *testing.T) {
 		maxCaveatContextSize: 1,
 		maximumAPIDepth:      1,
 	}
-	rel := tuple.ParseRel(`document:1#view@user:1[somecaveat:{"hey": "bud"}]`)
+
+	rel, err := tuple.ParseV1Rel(`document:1#view@user:1[somecaveat:{"hey": "bud"}]`)
+	require.NoError(t, err)
+
 	items := []*v1.CheckBulkPermissionsRequestItem{
 		{
 			Resource:   rel.Resource,
@@ -264,6 +265,6 @@ func TestCaveatContextSizeLimitIsEnforced(t *testing.T) {
 			Context:    rel.OptionalCaveat.Context,
 		},
 	}
-	_, err := groupItems(context.Background(), cp, items)
+	_, err = groupItems(context.Background(), cp, items)
 	require.ErrorContains(t, err, "request caveat context should have less than 1 bytes but had 14")
 }

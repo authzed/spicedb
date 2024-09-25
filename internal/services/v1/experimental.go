@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"sort"
@@ -126,7 +127,7 @@ type bulkLoadAdapter struct {
 	stream                 v1.ExperimentalService_BulkImportRelationshipsServer
 	referencedNamespaceMap map[string]*typesystem.TypeSystem
 	referencedCaveatMap    map[string]*core.CaveatDefinition
-	current                core.RelationTuple
+	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
 
 	awaitingNamespaces []string
@@ -137,7 +138,7 @@ type bulkLoadAdapter struct {
 	err          error
 }
 
-func (a *bulkLoadAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
+func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	for a.err == nil && a.numSent == len(a.currentBatch) {
 		// Load a new batch
 		batch, err := a.stream.Recv()
@@ -164,14 +165,20 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
 		return nil, nil
 	}
 
-	a.current.Caveat = &a.caveat
-	a.current.Integrity = nil
-	tuple.CopyRelationshipToRelationTuple(a.currentBatch[a.numSent], &a.current)
+	a.current.OptionalCaveat = &a.caveat
+	a.current.OptionalIntegrity = nil
+
+	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
+	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
+	a.current.Subject.Relation = a.currentBatch[a.numSent].Subject.OptionalRelation
 
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
-		&a.current,
+		a.current,
 		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
 		return nil, err
@@ -218,11 +225,8 @@ func (es *experimentalServer) BulkImportRelationships(stream v1.ExperimentalServ
 			stream:                 stream,
 			referencedNamespaceMap: loadedNamespaces,
 			referencedCaveatMap:    loadedCaveats,
-			current: core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{},
-				Subject:             &core.ObjectAndRelation{},
-			},
-			caveat: core.ContextualizedCaveat{},
+			current:                tuple.Relationship{},
+			caveat:                 core.ContextualizedCaveat{},
 		}
 		resolver := typesystem.ResolverForDatastoreReader(rwt)
 
@@ -385,17 +389,32 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 			// Lop off any rels we've already sent
 			rels = rels[:0]
 
-			tplFn := func(tpl *core.RelationTuple) {
+			relFn := func(rel tuple.Relationship) {
 				offset := len(rels)
 				rels = append(rels, &relsArray[offset]) // nozero
-				tuple.CopyRelationTupleToRelationship(tpl, &relsArray[offset], &caveatArray[offset])
+
+				v1Rel := &relsArray[offset]
+				v1Rel.Resource.ObjectType = rel.RelationshipReference.Resource.ObjectType
+				v1Rel.Resource.ObjectId = rel.RelationshipReference.Resource.ObjectID
+				v1Rel.Relation = rel.RelationshipReference.Resource.Relation
+				v1Rel.Subject.Object.ObjectType = rel.RelationshipReference.Subject.ObjectType
+				v1Rel.Subject.Object.ObjectId = rel.RelationshipReference.Subject.ObjectID
+				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.RelationshipReference.Subject.Relation)
+
+				if rel.OptionalCaveat != nil {
+					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
+					caveatArray[offset].Context = rel.OptionalCaveat.Context
+				} else {
+					caveatArray[offset].CaveatName = ""
+					caveatArray[offset].Context = nil
+				}
 			}
 
 			cur, err = queryForEach(
 				ctx,
 				reader,
 				relationshipFilter,
-				tplFn,
+				relFn,
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
 				dsoptions.WithSort(dsoptions.ByResource),
@@ -414,7 +433,7 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 						Revision: atRevision.String(),
 						Sections: []string{
 							ns.Definition.Name,
-							tuple.MustString(cur),
+							tuple.MustString(*dsoptions.ToRelationship(cur)),
 						},
 					},
 				},
@@ -722,37 +741,27 @@ func queryForEach(
 	ctx context.Context,
 	reader datastore.Reader,
 	filter datastore.RelationshipsFilter,
-	fn func(tpl *core.RelationTuple),
+	fn func(rel tuple.Relationship),
 	opts ...dsoptions.QueryOptionsOption,
-) (*core.RelationTuple, error) {
+) (dsoptions.Cursor, error) {
 	iter, err := reader.QueryRelationships(ctx, filter, opts...)
 	if err != nil {
 		return nil, err
 	}
-	defer iter.Close()
 
-	var hadTuples bool
-	for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-		fn(tpl)
-		hadTuples = true
-	}
-	if iter.Err() != nil {
-		return nil, err
-	}
-
-	var cur *core.RelationTuple
-	if hadTuples {
-		cur, err = iter.Cursor()
-		iter.Close()
+	var cursor dsoptions.Cursor
+	for rel, err := range iter {
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	return cur, nil
+		fn(rel)
+		cursor = dsoptions.ToCursor(rel)
+	}
+	return cursor, nil
 }
 
-func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore.Revision, string, *core.RelationTuple, error) {
+func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore.Revision, string, dsoptions.Cursor, error) {
 	decoded, err := cursor.Decode(encoded)
 	if err != nil {
 		return datastore.NoRevision, "", nil, err
@@ -771,11 +780,11 @@ func decodeCursor(ds datastore.ReadOnlyDatastore, encoded *v1.Cursor) (datastore
 		return datastore.NoRevision, "", nil, err
 	}
 
-	cur := tuple.Parse(decoded.GetV1().GetSections()[1])
-	if cur == nil {
-		return datastore.NoRevision, "", nil, errors.New("malformed cursor: invalid encoded relation tuple")
+	cur, err := tuple.Parse(decoded.GetV1().GetSections()[1])
+	if err != nil {
+		return datastore.NoRevision, "", nil, fmt.Errorf("malformed cursor: invalid encoded relation tuple: %w", err)
 	}
 
 	// Returns the current namespace and the cursor.
-	return atRevision, decoded.GetV1().GetSections()[0], cur, nil
+	return atRevision, decoded.GetV1().GetSections()[0], dsoptions.ToCursor(cur), nil
 }

@@ -305,9 +305,9 @@ func TestCheckPermissions(t *testing.T) {
 									debugInfo := checkResp.DebugTrace
 									require.NotNil(debugInfo.Check)
 									require.NotNil(debugInfo.Check.Duration)
-									require.Equal(tuple.StringObjectRef(tc.resource), tuple.StringObjectRef(debugInfo.Check.Resource))
+									require.Equal(tuple.V1StringObjectRef(tc.resource), tuple.V1StringObjectRef(debugInfo.Check.Resource))
 									require.Equal(tc.permission, debugInfo.Check.Permission)
-									require.Equal(tuple.StringSubjectRef(tc.subject), tuple.StringSubjectRef(debugInfo.Check.Subject))
+									require.Equal(tuple.V1StringSubjectRef(tc.subject), tuple.V1StringSubjectRef(debugInfo.Check.Subject))
 								} else {
 									require.Nil(encodedDebugInfo)
 								}
@@ -403,7 +403,7 @@ func TestCheckPermissionWithDebugInfoInError(t *testing.T) {
 					permission view = viewer
 				 }
 				`,
-				[]*core.RelationTuple{
+				[]tuple.Relationship{
 					tuple.MustParse("document:doc1#viewer@user:tom"),
 					tuple.MustParse("document:doc1#viewer@document:doc2#view"),
 					tuple.MustParse("document:doc2#viewer@document:doc3#view"),
@@ -772,11 +772,9 @@ func countLeafs(node *v1.PermissionRelationshipTree) int {
 	}
 }
 
-var ONR = tuple.ObjectAndRelation
-
 func DS(objectType string, objectID string, objectRelation string) *core.DirectSubject {
 	return &core.DirectSubject{
-		Subject: ONR(objectType, objectID, objectRelation),
+		Subject: tuple.CoreONR(objectType, objectID, objectRelation),
 	}
 }
 
@@ -1088,7 +1086,7 @@ func TestCheckWithCaveatErrors(t *testing.T) {
 					permission view = viewer
 				 }
 				`,
-				[]*core.RelationTuple{tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]")},
+				[]tuple.Relationship{tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]")},
 				assertions,
 			)
 		})
@@ -1174,7 +1172,7 @@ func TestLookupResourcesWithCaveats(t *testing.T) {
 					relation viewer: user | user with testcaveat
 					permission view = viewer
 				}
-			`, []*core.RelationTuple{
+			`, []tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:second#viewer@user:tom"), "testcaveat"),
 			}, require)
@@ -1293,7 +1291,7 @@ func TestLookupSubjectsWithCaveats(t *testing.T) {
 					relation viewer: user | user with testcaveat
 					permission view = viewer
 				}
-			`, []*core.RelationTuple{
+			`, []tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "testcaveat"),
 			}, require)
@@ -1457,7 +1455,7 @@ func TestLookupSubjectsWithCaveatedWildcards(t *testing.T) {
 					relation banned: user with testcaveat
 					permission view = viewer - banned
 				}
-			`, []*core.RelationTuple{
+			`, []tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "testcaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:bannedguy"), "anothercaveat"),
 			}, require)
@@ -1714,7 +1712,7 @@ func TestLookupResourcesDeduplication(t *testing.T) {
 					relation editor: user
 					permission view = viewer + editor
 				}
-			`, []*core.RelationTuple{
+			`, []tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#editor@user:tom"),
 			}, require)
@@ -1982,12 +1980,14 @@ func TestCheckBulkPermissions(t *testing.T) {
 			}
 
 			for _, r := range tt.requests {
-				req.Items = append(req.Items, relToCheckBulkRequestItem(r))
+				req.Items = append(req.Items, mustRelToCheckBulkRequestItem(r))
 			}
 
 			expected := make([]*v1.CheckBulkPermissionsPair, 0, len(tt.response))
 			for _, r := range tt.response {
-				reqRel := tuple.ParseRel(r.req)
+				reqRel, err := tuple.ParseV1Rel(r.req)
+				require.NoError(t, err)
+
 				resp := &v1.CheckBulkPermissionsPair_Item{
 					Item: &v1.CheckBulkPermissionsResponseItem{
 						Permissionship: r.resp,
@@ -2034,8 +2034,12 @@ func TestCheckBulkPermissions(t *testing.T) {
 	}
 }
 
-func relToCheckBulkRequestItem(rel string) *v1.CheckBulkPermissionsRequestItem {
-	r := tuple.ParseRel(rel)
+func mustRelToCheckBulkRequestItem(rel string) *v1.CheckBulkPermissionsRequestItem {
+	r, err := tuple.ParseV1Rel(rel)
+	if err != nil {
+		panic(err)
+	}
+
 	item := &v1.CheckBulkPermissionsRequestItem{
 		Resource:   r.Resource,
 		Permission: r.Relation,

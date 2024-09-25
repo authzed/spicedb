@@ -94,18 +94,20 @@ func TestMaxDepthCaching(t *testing.T) {
 
 			for _, step := range tc.script {
 				if step.expectPassthrough {
-					parsed := tuple.ParseONR(step.start)
+					parsed, err := tuple.ParseONR(step.start)
+					require.NoError(err)
+
 					delegate.On("DispatchCheck", &v1.DispatchCheckRequest{
-						ResourceRelation: RR(parsed.Namespace, parsed.Relation),
-						ResourceIds:      []string{parsed.ObjectId},
-						Subject:          tuple.ParseSubjectONR(step.goal),
+						ResourceRelation: RR(parsed.ObjectType, parsed.Relation),
+						ResourceIds:      []string{parsed.ObjectID},
+						Subject:          tuple.MustParseSubjectONR(step.goal).ToCoreONR(),
 						Metadata: &v1.ResolverMeta{
 							AtRevision:     step.atRevision.String(),
 							DepthRemaining: step.depthRemaining,
 						},
 					}).Return(&v1.DispatchCheckResponse{
 						ResultsByResourceId: map[string]*v1.ResourceCheckResult{
-							parsed.ObjectId: {
+							parsed.ObjectID: {
 								Membership: v1.ResourceCheckResult_MEMBER,
 							},
 						},
@@ -123,18 +125,20 @@ func TestMaxDepthCaching(t *testing.T) {
 			defer dispatch.Close()
 
 			for _, step := range tc.script {
-				parsed := tuple.ParseONR(step.start)
+				parsed, err := tuple.ParseONR(step.start)
+				require.NoError(err)
+
 				resp, err := dispatch.DispatchCheck(context.Background(), &v1.DispatchCheckRequest{
-					ResourceRelation: RR(parsed.Namespace, parsed.Relation),
-					ResourceIds:      []string{parsed.ObjectId},
-					Subject:          tuple.ParseSubjectONR(step.goal),
+					ResourceRelation: RR(parsed.ObjectType, parsed.Relation),
+					ResourceIds:      []string{parsed.ObjectID},
+					Subject:          tuple.MustParseSubjectONR(step.goal).ToCoreONR(),
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     step.atRevision.String(),
 						DepthRemaining: step.depthRemaining,
 					},
 				})
 				require.NoError(err)
-				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[parsed.ObjectId].Membership)
+				require.Equal(v1.ResourceCheckResult_MEMBER, resp.ResultsByResourceId[parsed.ObjectID].Membership)
 
 				// We have to sleep a while to let the cache converge
 				time.Sleep(10 * time.Millisecond)

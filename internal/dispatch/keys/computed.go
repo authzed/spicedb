@@ -60,7 +60,7 @@ func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey s
 	)
 
 	if canonicalKey == "" {
-		return cacheKey, spiceerrors.MustBugf("given empty canonical key for request: %s => %s", req.ResourceRelation, tuple.StringONR(req.Subject))
+		return cacheKey, spiceerrors.MustBugf("given empty canonical key for request: %s => %s", req.ResourceRelation, tuple.StringCoreONR(req.Subject))
 	}
 
 	return cacheKey, nil

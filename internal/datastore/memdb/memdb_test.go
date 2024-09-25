@@ -113,3 +113,35 @@ func TestConcurrentWriteRelsError(t *testing.T) {
 	require.Error(werr)
 	require.ErrorContains(werr, "serialization max retries exceeded")
 }
+
+func BenchmarkQueryRelationships(b *testing.B) {
+	require := require.New(b)
+
+	ds, err := NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	require.NoError(err)
+
+	// Write a bunch of relationships.
+	ctx := context.Background()
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		updates := []tuple.RelationshipUpdate{}
+		for i := 0; i < 1000; i++ {
+			updates = append(updates, tuple.Touch(tuple.MustParse(fmt.Sprintf("document:doc-%d#viewer@user:tom", i))))
+		}
+
+		return rwt.WriteRelationships(ctx, updates)
+	})
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(rev)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		iter, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+			OptionalResourceType: "document",
+		})
+		require.NoError(err)
+		for _, err := range iter {
+			require.NoError(err)
+		}
+	}
+}
