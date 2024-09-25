@@ -159,7 +159,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         5,
 				},
-				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-5-results.yaml",
+				resultsFileName: "indirect-lookup-resources-cursored-lookup-resources-for-fred-page-size-5-results.yaml",
 			},
 			{
 				name:          "cursored indirect lookup resources for fred, page size 16",
@@ -171,7 +171,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         16,
 				},
-				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-16-results.yaml",
+				resultsFileName: "indirect-lookup-resources-cursored-lookup-resources-for-fred-page-size-16-results.yaml",
 			},
 			{
 				name:          "cursored indirect lookup resources for fred, page size 53",
@@ -183,7 +183,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         53,
 				},
-				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-53-results.yaml",
+				resultsFileName: "indirect-lookup-resources-cursored-lookup-resources-for-fred-page-size-53-results.yaml",
 			},
 			{
 				name:          "cursored indirect lookup resources for fred, page size 54",
@@ -195,7 +195,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         54,
 				},
-				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-54-results.yaml",
+				resultsFileName: "indirect-lookup-resources-cursored-lookup-resources-for-fred-page-size-54-results.yaml",
 			},
 			{
 				name:          "cursored indirect lookup resources for fred, page size 100",
@@ -207,7 +207,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         100,
 				},
-				resultsFileName: "basic-lookup-resources-cursored-lookup-resources-for-fred-page-size-100-results.yaml",
+				resultsFileName: "indirect-lookup-resources-cursored-lookup-resources-for-fred-page-size-100-results.yaml",
 			},
 			{
 				name:          "indirect without other permission, page size 5",
@@ -219,7 +219,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         5,
 				},
-				resultsFileName: "basic-lookup-resources-indirect-without-other-permission-page-size-5-results.yaml",
+				resultsFileName: "indirect-lookup-resources-indirect-without-other-permission-page-size-5-results.yaml",
 			},
 			{
 				name:          "indirect without other permission, page size 16",
@@ -231,7 +231,7 @@ var steelThreadTestCases = []steelThreadTestCase{
 					"subject_object_id": "fred",
 					"page_size":         16,
 				},
-				resultsFileName: "basic-lookup-resources-indirect-without-other-permission-page-size-16-results.yaml",
+				resultsFileName: "indirect-lookup-resources-indirect-without-other-permission-page-size-16-results.yaml",
 			},
 			{
 				name:          "vsb_plus_nil, page size 16",

@@ -33,7 +33,7 @@ var DefaultTestServerConfig = ServerConfig{
 	MaxPreconditionsCount:           1000,
 	StreamingAPITimeout:             30 * time.Second,
 	MaxRelationshipContextSize:      25000,
-	UseExperimentalLookupResources2: false,
+	UseExperimentalLookupResources2: true,
 }
 
 // NewTestServer creates a new test server, using defaults for the config.
