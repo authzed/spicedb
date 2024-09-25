@@ -278,7 +278,6 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 			if err != nil {
 				return nil, err
 			}
-			defer it.Close()
 
 			// Chunk based on the FilterMaximumIDCount, to ensure we never send more than that amount of
 			// results to a downstream dispatch.
@@ -286,12 +285,12 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap], 0)
 			currentCursor := queryCursor
 
-			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-				if it.Err() != nil {
-					return nil, it.Err()
+			for rel, err := range it {
+				if err != nil {
+					return nil, err
 				}
 
-				if err := rsm.addRelationship(tpl); err != nil {
+				if err := rsm.addRelationship(rel); err != nil {
 					return nil, err
 				}
 
@@ -301,10 +300,9 @@ func (crr *CursoredReachableResources) redispatchOrReportOverDatabaseQuery(
 						cursor: currentCursor,
 					})
 					rsm = newResourcesSubjectMapWithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
-					currentCursor = tpl
+					currentCursor = options.ToCursor(rel)
 				}
 			}
-			it.Close()
 
 			if rsm.len() > 0 {
 				toBeHandled = append(toBeHandled, itemAndPostCursor[dispatchableResourcesSubjectMap]{

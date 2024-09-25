@@ -259,7 +259,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			}
 
 			// Validate update.
-			err = ValidateRelationshipUpdates(context.Background(), reader, []*core.RelationTupleUpdate{
+			err = ValidateRelationshipUpdates(context.Background(), reader, []tuple.RelationshipUpdate{
 				op(tuple.MustParse(tc.relationship)),
 			})
 			if tc.expectedError != "" {
@@ -270,9 +270,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 
 			// Validate create/touch.
 			if tc.operation != core.RelationTupleUpdate_DELETE {
-				err = ValidateRelationshipsForCreateOrTouch(context.Background(), reader, []*core.RelationTuple{
-					tuple.MustParse(tc.relationship),
-				})
+				err = ValidateRelationshipsForCreateOrTouch(context.Background(), reader, tuple.MustParse(tc.relationship))
 				if tc.expectedError != "" {
 					req.ErrorContains(err, tc.expectedError)
 				} else {

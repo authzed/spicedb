@@ -5,8 +5,8 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 	v1 "github.com/authzed/spicedb/internal/services/v1"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const defaultWasmDispatchChunkSize = 100
@@ -23,21 +23,18 @@ type CheckResult struct {
 //
 // Note that it is up to the caller to call DistinguishGraphError on the error
 // if they want to distinguish between user errors and internal errors.
-func RunCheck(devContext *DevContext, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, caveatContext map[string]any) (CheckResult, error) {
+func RunCheck(devContext *DevContext, resource tuple.ObjectAndRelation, subject tuple.ObjectAndRelation, caveatContext map[string]any) (CheckResult, error) {
 	ctx := devContext.Ctx
 	cr, meta, err := computed.ComputeCheck(ctx, devContext.Dispatcher,
 		computed.CheckParameters{
-			ResourceType: &core.RelationReference{
-				Namespace: resource.Namespace,
-				Relation:  resource.Relation,
-			},
+			ResourceType:  resource.RelationReference(),
 			Subject:       subject,
 			CaveatContext: caveatContext,
 			AtRevision:    devContext.Revision,
 			MaximumDepth:  maxDispatchDepth,
 			DebugOption:   computed.TraceDebuggingEnabled,
 		},
-		resource.ObjectId,
+		resource.ObjectID,
 		defaultWasmDispatchChunkSize,
 	)
 	if err != nil {

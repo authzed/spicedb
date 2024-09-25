@@ -34,6 +34,13 @@ func ToCursor(r tuple.Relationship) Cursor {
 	return Cursor(&r)
 }
 
+func ToRelationship(c Cursor) *tuple.Relationship {
+	if c == nil {
+		return nil
+	}
+	return (*tuple.Relationship)(c)
+}
+
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
 	Limit *uint64   `debugmap:"visible"`

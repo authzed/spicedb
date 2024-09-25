@@ -34,7 +34,7 @@ func NewMembershipSet() *Set {
 // AddExpansion adds the expansion of an ONR to the membership set. Returns false if the ONR was already added.
 //
 // NOTE: The expansion tree *should* be the fully recursive expansion.
-func (ms *Set) AddExpansion(onr *core.ObjectAndRelation, expansion *core.RelationTupleTreeNode) (FoundSubjects, bool, error) {
+func (ms *Set) AddExpansion(onr tuple.ObjectAndRelation, expansion *core.RelationTupleTreeNode) (FoundSubjects, bool, error) {
 	onrString := tuple.StringONR(onr)
 	existing, ok := ms.objectsAndRelations[onrString]
 	if ok {
@@ -53,13 +53,13 @@ func (ms *Set) AddExpansion(onr *core.ObjectAndRelation, expansion *core.Relatio
 
 // AccessibleExpansionSubjects returns a TrackingSubjectSet representing the set of accessible subjects in the expansion.
 func AccessibleExpansionSubjects(treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
-	return populateFoundSubjects(treeNode.Expanded, treeNode)
+	return populateFoundSubjects(tuple.FromCoreObjectAndRelation(treeNode.Expanded), treeNode)
 }
 
-func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
+func populateFoundSubjects(rootONR tuple.ObjectAndRelation, treeNode *core.RelationTupleTreeNode) (*TrackingSubjectSet, error) {
 	resource := rootONR
 	if treeNode.Expanded != nil {
-		resource = treeNode.Expanded
+		resource = tuple.FromCoreObjectAndRelation(treeNode.Expanded)
 	}
 
 	switch typed := treeNode.NodeType.(type) {
@@ -155,7 +155,7 @@ func populateFoundSubjects(rootONR *core.ObjectAndRelation, treeNode *core.Relat
 				return nil, err
 			}
 
-			fs.relationships.Add(resource)
+			fs.resources.Add(resource)
 		}
 
 		toReturn.ApplyParentCaveatExpression(treeNode.CaveatExpression)

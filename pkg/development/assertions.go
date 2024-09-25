@@ -3,13 +3,11 @@ package development
 import (
 	"fmt"
 
-	v1t "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 
 	log "github.com/authzed/spicedb/internal/logging"
 	devinterface "github.com/authzed/spicedb/pkg/proto/developer/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
@@ -42,8 +40,6 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 	var failures []*devinterface.DeveloperError
 
 	for _, assertion := range assertions {
-		tpl := tuple.MustFromRelationship[*v1t.ObjectReference, *v1t.SubjectReference, *v1t.ContextualizedCaveat](assertion.Relationship)
-
 		// NOTE: zeroes are fine here to mean "unknown"
 		lineNumber, err := safecast.ToUint32(assertion.SourcePosition.LineNumber)
 		if err != nil {
@@ -54,7 +50,8 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			log.Err(err).Msg("could not cast columnPosition to uint32")
 		}
 
-		if tpl.Caveat != nil {
+		rel := assertion.Relationship
+		if rel.OptionalCaveat != nil {
 			failures = append(failures, &devinterface.DeveloperError{
 				Message: fmt.Sprintf("cannot specify a caveat on an assertion: `%s`", assertion.RelationshipWithContextString),
 				Source:  devinterface.DeveloperError_ASSERTION,
@@ -66,7 +63,7 @@ func runAssertions(devContext *DevContext, assertions []blocks.Assertion, expect
 			continue
 		}
 
-		cr, err := RunCheck(devContext, tpl.ResourceAndRelation, tpl.Subject, assertion.CaveatContext)
+		cr, err := RunCheck(devContext, rel.Resource, rel.Subject, assertion.CaveatContext)
 		if err != nil {
 			devErr, wireErr := DistinguishGraphError(
 				devContext,

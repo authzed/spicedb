@@ -93,17 +93,17 @@ func TestResourcesSubjectsMapBasic(t *testing.T) {
 func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 	tcs := []struct {
 		name     string
-		rels     []*core.RelationTuple
+		rels     []tuple.Relationship
 		expected []*v1.ReachableResource
 	}{
 		{
 			"empty",
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			[]*v1.ReachableResource{},
 		},
 		{
 			"basic",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#view@user:tom"),
 				tuple.MustParse("document:second#view@user:sarah"),
 			},
@@ -122,7 +122,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 		},
 		{
 			"caveated and non-caveated",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#view@user:tom"),
 				tuple.MustParse("document:first#view@user:sarah[somecaveat]"),
 			},
@@ -136,7 +136,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 		},
 		{
 			"all caveated",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#view@user:tom[anothercaveat]"),
 				tuple.MustParse("document:first#view@user:sarah[somecaveat]"),
 			},
@@ -150,7 +150,7 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 		},
 		{
 			"full",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#view@user:tom[anothercaveat]"),
 				tuple.MustParse("document:first#view@user:sarah[somecaveat]"),
 				tuple.MustParse("document:second#view@user:tom"),
@@ -215,19 +215,19 @@ func TestResourcesSubjectsMapAsReachableResources(t *testing.T) {
 func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 	tcs := []struct {
 		name           string
-		rels           []*core.RelationTuple
+		rels           []tuple.Relationship
 		foundResources []*v1.ReachableResource
 		expected       []*v1.ReachableResource
 	}{
 		{
 			"empty",
-			[]*core.RelationTuple{},
+			[]tuple.Relationship{},
 			[]*v1.ReachableResource{},
 			[]*v1.ReachableResource{},
 		},
 		{
 			"basic no caveats",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:foo"),
 				tuple.MustParse("group:firstgroup#member@organization:bar"),
 			},
@@ -248,7 +248,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"caveated all found",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:foo[somecaveat]"),
 				tuple.MustParse("group:firstgroup#member@organization:bar[somecvaeat]"),
 			},
@@ -269,7 +269,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"simple short circuit",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:foo[somecaveat]"),
 				tuple.MustParse("group:firstgroup#member@organization:bar"),
 			},
@@ -290,7 +290,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"check requires on incoming subject",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:foo"),
 				tuple.MustParse("group:firstgroup#member@organization:bar"),
 			},
@@ -311,7 +311,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"multi-input short circuit",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:foo"),
 				tuple.MustParse("group:firstgroup#member@organization:bar"),
 				tuple.MustParse("group:secondgroup#member@organization:foo[somecaveat]"),
@@ -333,7 +333,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"multi-input short circuit from single input",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:bar"),
 				tuple.MustParse("group:secondgroup#member@organization:foo[somecaveat]"),
 			},
@@ -354,7 +354,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"multi-input short circuit from single input with check required on parent",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:bar"),
 				tuple.MustParse("group:secondgroup#member@organization:foo[somecaveat]"),
 			},
@@ -375,7 +375,7 @@ func TestResourcesSubjectsMapMapFoundResources(t *testing.T) {
 		},
 		{
 			"multi-input all caveated",
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("group:firstgroup#member@organization:bar[anothercaveat]"),
 				tuple.MustParse("group:secondgroup#member@organization:foo[somecaveat]"),
 			},

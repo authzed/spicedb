@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/ccoveille/go-safecast"
 	yamlv3 "gopkg.in/yaml.v3"
 
@@ -21,7 +20,7 @@ type ParsedRelationships struct {
 	SourcePosition spiceerrors.SourcePosition
 
 	// Relationships are the fully parsed relationships.
-	Relationships []*v1.Relationship
+	Relationships []tuple.Relationship
 }
 
 // UnmarshalYAML is a custom unmarshaller.
@@ -38,7 +37,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 
 	seenTuples := map[string]bool{}
 	lines := strings.Split(relationshipsString, "\n")
-	relationships := make([]*v1.Relationship, 0, len(lines))
+	relationships := make([]tuple.Relationship, 0, len(lines))
 	for index, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if len(trimmed) == 0 || strings.HasPrefix(trimmed, "//") {
@@ -55,17 +54,17 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			return err
 		}
 
-		tpl := tuple.Parse(trimmed)
-		if tpl == nil {
+		rel, err := tuple.Parse(trimmed)
+		if err != nil {
 			return spiceerrors.NewErrorWithSource(
-				fmt.Errorf("error parsing relationship `%s`", trimmed),
+				fmt.Errorf("error parsing relationship `%s`: %w", trimmed, err),
 				trimmed,
 				errorLine,
 				column,
 			)
 		}
 
-		_, ok := seenTuples[tuple.StringWithoutCaveat(tpl)]
+		_, ok := seenTuples[tuple.StringWithoutCaveat(rel)]
 		if ok {
 			return spiceerrors.NewErrorWithSource(
 				fmt.Errorf("found repeated relationship `%s`", trimmed),
@@ -74,8 +73,8 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 				column,
 			)
 		}
-		seenTuples[tuple.StringWithoutCaveat(tpl)] = true
-		relationships = append(relationships, tuple.MustToRelationship(tpl))
+		seenTuples[tuple.StringWithoutCaveat(rel)] = true
+		relationships = append(relationships, rel)
 	}
 
 	pr.Relationships = relationships

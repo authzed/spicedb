@@ -23,32 +23,32 @@ import (
 // allowed on relation.
 type ErrInvalidSubjectType struct {
 	error
-	tuple             *core.RelationTuple
+	relationship      tuple.Relationship
 	relationType      *core.AllowedRelation
 	additionalDetails map[string]string
 }
 
 // NewInvalidSubjectTypeError constructs a new error for attempting to write an invalid subject type.
 func NewInvalidSubjectTypeError(
-	update *core.RelationTuple,
+	relationship tuple.Relationship,
 	relationType *core.AllowedRelation,
 	typeSystem *typesystem.TypeSystem,
 ) error {
-	allowedTypes, err := typeSystem.AllowedDirectRelationsAndWildcards(update.ResourceAndRelation.Relation)
+	allowedTypes, err := typeSystem.AllowedDirectRelationsAndWildcards(relationship.Resource.Relation)
 	if err != nil {
 		return err
 	}
 
 	// Special case: if the subject is uncaveated but only a caveated version is allowed, return
 	// a more descriptive error.
-	if update.Caveat == nil {
+	if relationship.OptionalCaveat == nil {
 		allowedCaveatsForSubject := mapz.NewSet[string]()
 
 		for _, allowedType := range allowedTypes {
 			if allowedType.RequiredCaveat != nil &&
 				allowedType.RequiredCaveat.CaveatName != "" &&
-				allowedType.Namespace == update.Subject.Namespace &&
-				allowedType.GetRelation() == update.Subject.Relation {
+				allowedType.Namespace == relationship.Subject.ObjectType &&
+				allowedType.GetRelation() == relationship.Subject.Relation {
 				allowedCaveatsForSubject.Add(allowedType.RequiredCaveat.CaveatName)
 			}
 		}
@@ -58,11 +58,11 @@ func NewInvalidSubjectTypeError(
 				error: fmt.Errorf(
 					"subjects of type `%s` are not allowed on relation `%s#%s` without one of the following caveats: %s",
 					typesystem.SourceForAllowedRelation(relationType),
-					update.ResourceAndRelation.Namespace,
-					update.ResourceAndRelation.Relation,
+					relationship.Resource.ObjectType,
+					relationship.Resource.Relation,
 					strings.Join(allowedCaveatsForSubject.AsSlice(), ","),
 				),
-				tuple:        update,
+				relationship: relationship,
 				relationType: relationType,
 				additionalDetails: map[string]string{
 					"allowed_caveats": strings.Join(allowedCaveatsForSubject.AsSlice(), ","),
@@ -83,11 +83,11 @@ func NewInvalidSubjectTypeError(
 			error: fmt.Errorf(
 				"subjects of type `%s` are not allowed on relation `%s#%s`; did you mean `%s`?",
 				typesystem.SourceForAllowedRelation(relationType),
-				update.ResourceAndRelation.Namespace,
-				update.ResourceAndRelation.Relation,
+				relationship.Resource.ObjectType,
+				relationship.Resource.Relation,
 				matches[0].Target,
 			),
-			tuple:             update,
+			relationship:      relationship,
 			relationType:      relationType,
 			additionalDetails: nil,
 		}
@@ -97,10 +97,10 @@ func NewInvalidSubjectTypeError(
 		error: fmt.Errorf(
 			"subjects of type `%s` are not allowed on relation `%s#%s`",
 			typesystem.SourceForAllowedRelation(relationType),
-			update.ResourceAndRelation.Namespace,
-			update.ResourceAndRelation.Relation,
+			relationship.Resource.ObjectType,
+			relationship.Resource.Relation,
 		),
-		tuple:             update,
+		relationship:      relationship,
 		relationType:      relationType,
 		additionalDetails: nil,
 	}
@@ -109,8 +109,8 @@ func NewInvalidSubjectTypeError(
 // GRPCStatus implements retrieving the gRPC status for the error.
 func (err ErrInvalidSubjectType) GRPCStatus() *status.Status {
 	details := map[string]string{
-		"definition_name": err.tuple.ResourceAndRelation.Namespace,
-		"relation_name":   err.tuple.ResourceAndRelation.Relation,
+		"definition_name": err.relationship.Resource.ObjectType,
+		"relation_name":   err.relationship.Resource.Relation,
 		"subject_type":    typesystem.SourceForAllowedRelation(err.relationType),
 	}
 
@@ -131,18 +131,18 @@ func (err ErrInvalidSubjectType) GRPCStatus() *status.Status {
 // ErrCannotWriteToPermission indicates that a write was attempted on a permission.
 type ErrCannotWriteToPermission struct {
 	error
-	tuple *core.RelationTuple
+	rel tuple.Relationship
 }
 
 // NewCannotWriteToPermissionError constructs a new error for attempting to write to a permission.
-func NewCannotWriteToPermissionError(update *core.RelationTuple) ErrCannotWriteToPermission {
+func NewCannotWriteToPermissionError(rel tuple.Relationship) ErrCannotWriteToPermission {
 	return ErrCannotWriteToPermission{
 		error: fmt.Errorf(
 			"cannot write a relationship to permission `%s` under definition `%s`",
-			update.ResourceAndRelation.Relation,
-			update.ResourceAndRelation.Namespace,
+			rel.Resource.Relation,
+			rel.Resource.ObjectType,
 		),
-		tuple: update,
+		rel: rel,
 	}
 }
 
@@ -154,8 +154,8 @@ func (err ErrCannotWriteToPermission) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_CANNOT_UPDATE_PERMISSION,
 			map[string]string{
-				"definition_name": err.tuple.ResourceAndRelation.Namespace,
-				"permission_name": err.tuple.ResourceAndRelation.Relation,
+				"definition_name": err.rel.Resource.ObjectType,
+				"permission_name": err.rel.Resource.Relation,
 			},
 		),
 	)
@@ -164,18 +164,18 @@ func (err ErrCannotWriteToPermission) GRPCStatus() *status.Status {
 // ErrCaveatNotFound indicates that a caveat referenced in a relationship update was not found.
 type ErrCaveatNotFound struct {
 	error
-	tuple *core.RelationTuple
+	relationship tuple.Relationship
 }
 
 // NewCaveatNotFoundError constructs a new caveat not found error.
-func NewCaveatNotFoundError(update *core.RelationTuple) ErrCaveatNotFound {
+func NewCaveatNotFoundError(relationship tuple.Relationship) ErrCaveatNotFound {
 	return ErrCaveatNotFound{
 		error: fmt.Errorf(
 			"the caveat `%s` was not found for relationship `%s`",
-			update.Caveat.CaveatName,
-			tuple.MustString(update),
+			relationship.OptionalCaveat.CaveatName,
+			tuple.MustString(relationship),
 		),
-		tuple: update,
+		relationship: relationship,
 	}
 }
 
@@ -187,7 +187,7 @@ func (err ErrCaveatNotFound) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT,
 			map[string]string{
-				"caveat_name": err.tuple.Caveat.CaveatName,
+				"caveat_name": err.relationship.OptionalCaveat.CaveatName,
 			},
 		),
 	)

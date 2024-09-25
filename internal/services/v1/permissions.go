@@ -96,15 +96,8 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
 		computed.CheckParameters{
-			ResourceType: &core.RelationReference{
-				Namespace: req.Resource.ObjectType,
-				Relation:  req.Permission,
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: req.Subject.Object.ObjectType,
-				ObjectId:  req.Subject.Object.ObjectId,
-				Relation:  normalizeSubjectRelation(req.Subject),
-			},
+			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
+			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
 			CaveatContext: caveatContext,
 			AtRevision:    atRevision,
 			MaximumDepth:  ps.config.MaximumAPIDepth,
@@ -189,14 +182,14 @@ func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult) *v1.Chec
 func requestItemFromResourceAndParameters(params *computed.CheckParameters, resourceID string) (*v1.CheckBulkPermissionsRequestItem, error) {
 	item := &v1.CheckBulkPermissionsRequestItem{
 		Resource: &v1.ObjectReference{
-			ObjectType: params.ResourceType.Namespace,
+			ObjectType: params.ResourceType.ObjectType,
 			ObjectId:   resourceID,
 		},
 		Permission: params.ResourceType.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: params.Subject.Namespace,
-				ObjectId:   params.Subject.ObjectId,
+				ObjectType: params.Subject.ObjectType,
+				ObjectId:   params.Subject.ObjectID,
 			},
 			OptionalRelation: denormalizeSubjectRelation(params.Subject.Relation),
 		},

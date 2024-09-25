@@ -19,9 +19,9 @@ func ParseV1Rel(relString string) (*v1.Relationship, error) {
 	return ToV1Relationship(parsed), nil
 }
 
-// MustRelString converts a relationship into a string.  Will panic if
+// MustV1RelString converts a relationship into a string.  Will panic if
 // the Relationship does not validate.
-func MustRelString(rel *v1.Relationship) string {
+func MustV1RelString(rel *v1.Relationship) string {
 	if err := rel.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid relationship: %#v %s", rel, err))
 	}
@@ -116,6 +116,15 @@ func UpdateToV1RelationshipUpdate(update RelationshipUpdate) (*v1.RelationshipUp
 	}, nil
 }
 
+func MustUpdateToV1RelationshipUpdate(update RelationshipUpdate) *v1.RelationshipUpdate {
+	v1rel, err := UpdateToV1RelationshipUpdate(update)
+	if err != nil {
+		panic(err)
+	}
+
+	return v1rel
+}
+
 // UpdateFromV1RelationshipUpdate converts a RelationshipUpdate into a
 // RelationTupleUpdate.
 func UpdateFromV1RelationshipUpdate(update *v1.RelationshipUpdate) (RelationshipUpdate, error) {
@@ -186,6 +195,26 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 			OptionalRelation: stringz.Default(rel.Subject.Relation, "", Ellipsis),
 		},
 		OptionalCaveat: caveat,
+	}
+}
+
+func CopyToV1Relationship(rel Relationship, v1rel *v1.Relationship) {
+	v1rel.Resource.ObjectType = rel.Resource.ObjectType
+	v1rel.Resource.ObjectId = rel.Resource.ObjectID
+	v1rel.Relation = rel.Resource.Relation
+	v1rel.Subject.Object.ObjectType = rel.Subject.ObjectType
+	v1rel.Subject.Object.ObjectId = rel.Subject.ObjectID
+	v1rel.Subject.OptionalRelation = stringz.Default(rel.Subject.Relation, "", Ellipsis)
+
+	if rel.OptionalCaveat != nil {
+		if v1rel.OptionalCaveat == nil {
+			v1rel.OptionalCaveat = &v1.ContextualizedCaveat{}
+		}
+
+		v1rel.OptionalCaveat.CaveatName = rel.OptionalCaveat.CaveatName
+		v1rel.OptionalCaveat.Context = rel.OptionalCaveat.Context
+	} else {
+		v1rel.OptionalCaveat = nil
 	}
 }
 

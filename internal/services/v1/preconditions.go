@@ -8,6 +8,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var limitOne uint64 = 1
@@ -29,13 +30,16 @@ func checkPreconditions(
 		if err != nil {
 			return fmt.Errorf("error reading relationships: %w", err)
 		}
-		defer iter.Close()
 
-		first := iter.Next()
-		if first == nil && iter.Err() != nil {
-			return fmt.Errorf("error reading relationships from iterator: %w", err)
+		var first *tuple.Relationship
+		for rel, err := range iter {
+			if err != nil {
+				return fmt.Errorf("error reading relationships from iterator: %w", err)
+			}
+
+			first = &rel
+			break
 		}
-		iter.Close()
 
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH:

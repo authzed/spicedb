@@ -460,7 +460,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 							relation.Name,
 							relationName,
 							referencedWildcard.WildcardType.GetNamespace(),
-							tuple.StringRR(referencedWildcard.ReferencingRelation),
+							tuple.StringCoreRR(referencedWildcard.ReferencingRelation),
 						),
 						childOneof, relationName,
 					), nil
@@ -506,7 +506,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 							relation.Name,
 							relationName,
 							referencedWildcard.WildcardType.GetNamespace(),
-							tuple.StringRR(referencedWildcard.ReferencingRelation),
+							tuple.StringCoreRR(referencedWildcard.ReferencingRelation),
 						),
 						childOneof, relationName,
 					), nil
@@ -617,7 +617,7 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 								allowedRelation.Namespace,
 								allowedRelation.GetRelation(),
 								referencedWildcard.WildcardType.GetNamespace(),
-								tuple.StringRR(referencedWildcard.ReferencingRelation),
+								tuple.StringCoreRR(referencedWildcard.ReferencingRelation),
 							),
 							allowedRelation,
 							tuple.JoinRelRef(allowedRelation.GetNamespace(), allowedRelation.GetRelation()),
