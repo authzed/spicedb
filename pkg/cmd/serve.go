@@ -158,7 +158,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
-	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", false, "enables the experimental version of the lookup resources API")
+	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", true, "enables the experimental version of the lookup resources API")
 	experimentalFlags.BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache which makes use of the Watch API for automatic updates")
 	// TODO: these two could reasonably be put in either the Dispatch group or the Experimental group. Is there a preference?
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
