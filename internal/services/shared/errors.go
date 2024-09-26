@@ -174,8 +174,6 @@ func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 		return ErrServiceReadOnly
 	case errors.As(err, &datastore.ErrInvalidRevision{}):
 		return status.Errorf(codes.OutOfRange, "invalid zedtoken: %s", err)
-	case errors.As(err, &datastore.ErrReadOnly{}):
-		return ErrServiceReadOnly
 	case errors.As(err, &datastore.ErrCaveatNameNotFound{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT)
 	case errors.As(err, &datastore.ErrWatchDisabled{}):
