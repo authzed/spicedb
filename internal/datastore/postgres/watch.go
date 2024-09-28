@@ -16,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -308,21 +309,23 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 	defer changes.Close()
 
 	for changes.Next() {
-		nextTuple := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
+		var resourceObjectType string
+		var resourceObjectID string
+		var relation string
+		var subjectObjectType string
+		var subjectObjectID string
+		var subjectRelation string
 
 		var createdXID, deletedXID xid8
 		var caveatName *string
 		var caveatContext map[string]any
 		if err := changes.Scan(
-			&nextTuple.ResourceAndRelation.Namespace,
-			&nextTuple.ResourceAndRelation.ObjectId,
-			&nextTuple.ResourceAndRelation.Relation,
-			&nextTuple.Subject.Namespace,
-			&nextTuple.Subject.ObjectId,
-			&nextTuple.Subject.Relation,
+			&resourceObjectType,
+			&resourceObjectID,
+			&relation,
+			&subjectObjectType,
+			&subjectObjectID,
+			&subjectRelation,
 			&caveatName,
 			&caveatContext,
 			&createdXID,
@@ -331,24 +334,39 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 			return fmt.Errorf("unable to parse changed tuple: %w", err)
 		}
 
+		relationship := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: resourceObjectType,
+					ObjectID:   resourceObjectID,
+					Relation:   relation,
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: subjectObjectType,
+					ObjectID:   subjectObjectID,
+					Relation:   subjectRelation,
+				},
+			},
+		}
+
 		if caveatName != nil && *caveatName != "" {
 			contextStruct, err := structpb.NewStruct(caveatContext)
 			if err != nil {
 				return fmt.Errorf("failed to read caveat context from update: %w", err)
 			}
-			nextTuple.Caveat = &core.ContextualizedCaveat{
+			relationship.OptionalCaveat = &core.ContextualizedCaveat{
 				CaveatName: *caveatName,
 				Context:    contextStruct,
 			}
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			if err := tracked.AddRelationshipChange(ctx, txidToRevision[createdXID.Uint64], nextTuple, core.RelationTupleUpdate_TOUCH); err != nil {
+			if err := tracked.AddRelationshipChange(ctx, txidToRevision[createdXID.Uint64], relationship, tuple.UpdateOperationTouch); err != nil {
 				return err
 			}
 		}
 		if _, found := filter[deletedXID.Uint64]; found {
-			if err := tracked.AddRelationshipChange(ctx, txidToRevision[deletedXID.Uint64], nextTuple, core.RelationTupleUpdate_DELETE); err != nil {
+			if err := tracked.AddRelationshipChange(ctx, txidToRevision[deletedXID.Uint64], relationship, tuple.UpdateOperationDelete); err != nil {
 				return err
 			}
 		}
