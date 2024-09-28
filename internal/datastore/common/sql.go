@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
@@ -571,21 +570,11 @@ func (tqs QueryExecutor) ExecuteQuery(
 		return nil, err
 	}
 
-	queryTuples, err := tqs.Executor(ctx, sql, args)
-	if err != nil {
-		return nil, err
-	}
-
-	lenQueryTuples := uint64(len(queryTuples))
-	if lenQueryTuples > limit {
-		queryTuples = queryTuples[:limit]
-	}
-
-	return NewSliceRelationshipIterator(queryTuples, queryOpts.Sort), nil
+	return tqs.Executor(ctx, sql, args)
 }
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
-type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]tuple.Relationship, error)
+type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error)
 
 // TxCleanupFunc is a function that should be executed when the caller of
 // TransactionFactory is done with the transaction.
