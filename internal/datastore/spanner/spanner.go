@@ -30,7 +30,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func init() {
@@ -381,16 +381,18 @@ func convertToWriteConstraintError(err error) error {
 		description := spanner.ErrDesc(err)
 		found := alreadyExistsRegex.FindStringSubmatch(description)
 		if found != nil {
-			return common.NewCreateRelationshipExistsError(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: found[1],
-					ObjectId:  found[2],
-					Relation:  found[3],
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: found[4],
-					ObjectId:  found[5],
-					Relation:  found[6],
+			return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: found[1],
+						ObjectID:   found[2],
+						Relation:   found[3],
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: found[4],
+						ObjectID:   found[5],
+						Relation:   found[6],
+					},
 				},
 			})
 		}

@@ -36,6 +36,7 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
+	"github.com/jzelinskie/stringz"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -165,7 +166,12 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	a.current.OptionalCaveat = &a.caveat
+	if a.caveat.CaveatName != "" {
+		a.current.OptionalCaveat = &a.caveat
+	} else {
+		a.current.OptionalCaveat = nil
+	}
+
 	a.current.OptionalIntegrity = nil
 
 	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
@@ -173,7 +179,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
 	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = a.currentBatch[a.numSent].Subject.OptionalRelation
+	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
 
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,

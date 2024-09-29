@@ -230,17 +230,21 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 	}
 
 	response := &v1.ReadRelationshipsResponse{
-		ReadAt:       revisionReadAt,
-		Relationship: &v1.Relationship{},
+		ReadAt: revisionReadAt,
+		Relationship: &v1.Relationship{
+			Resource: &v1.ObjectReference{},
+			Subject: &v1.SubjectReference{
+				Object: &v1.ObjectReference{},
+			},
+		},
 	}
-
-	returnedCount := 0
 
 	dispatchCursor := &dispatchv1.Cursor{
 		DispatchVersion: 1,
 		Sections:        []string{""},
 	}
 
+	var returnedCount uint64 = 0
 	for rel, err := range it {
 		if err != nil {
 			return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", err))
@@ -295,6 +299,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
+		// TODO(jschorr): Change to struct-based keys.
 		tupleStr := tuple.V1StringRelationshipWithoutCaveat(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {
 			return nil, ps.rewriteError(
@@ -312,7 +317,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 	// Execute the write operation(s).
 	span.AddEvent("read write transaction")
-	tupleUpdates, err := tuple.UpdatesFromV1RelationshipUpdates(req.Updates)
+	relUpdates, err := tuple.UpdatesFromV1RelationshipUpdates(req.Updates)
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -329,7 +334,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 		// Validate the updates.
 		span.AddEvent("validate updates")
-		err := relationships.ValidateRelationshipUpdates(ctx, rwt, tupleUpdates)
+		err := relationships.ValidateRelationshipUpdates(ctx, rwt, relUpdates)
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
@@ -350,7 +355,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 		}
 
 		span.AddEvent("write relationships")
-		return rwt.WriteRelationships(ctx, tupleUpdates)
+		return rwt.WriteRelationships(ctx, relUpdates)
 	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
