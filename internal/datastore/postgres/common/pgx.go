@@ -50,16 +50,17 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 		err := tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
 			span.AddEvent("Query issued to database")
 
+			var resourceObjectType string
+			var resourceObjectID string
+			var resourceRelation string
+			var subjectObjectType string
+			var subjectObjectID string
+			var subjectRelation string
+			var caveatName sql.NullString
+			var caveatCtx map[string]any
+
 			relCount := 0
 			for rows.Next() {
-				var resourceObjectType string
-				var resourceObjectID string
-				var resourceRelation string
-				var subjectObjectType string
-				var subjectObjectID string
-				var subjectRelation string
-				var caveatName sql.NullString
-				var caveatCtx map[string]any
 				var integrity *corev1.RelationshipIntegrity
 
 				if withIntegrity {
@@ -103,9 +104,13 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 					}
 				}
 
-				caveat, err := common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
-				if err != nil {
-					return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("unable to fetch caveat context: %w", err))
+				var caveat *corev1.ContextualizedCaveat
+				if caveatName.Valid {
+					var err error
+					caveat, err = common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
+					if err != nil {
+						return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("unable to fetch caveat context: %w", err))
+					}
 				}
 
 				relCount++

@@ -165,7 +165,7 @@ func FromV1Relationship(rel *v1.Relationship) Relationship {
 			Subject: ObjectAndRelation{
 				ObjectID:   rel.Subject.Object.ObjectId,
 				ObjectType: rel.Subject.Object.ObjectType,
-				Relation:   stringz.Default(rel.Subject.OptionalRelation, "", Ellipsis),
+				Relation:   stringz.Default(rel.Subject.OptionalRelation, Ellipsis, ""),
 			},
 		},
 		OptionalCaveat: caveat,

@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -198,19 +199,19 @@ func (sd *spannerDatastore) watch(
 					case "DELETE":
 						switch dcr.TableName {
 						case tableRelationship:
-							relationTuple := relationTupleFromPrimaryKey(primaryKeyColumnValues)
+							relationship := relationshipFromPrimaryKey(primaryKeyColumnValues)
 
 							oldValues, ok := mod.OldValues.Value.(map[string]any)
 							if !ok {
 								return spiceerrors.MustBugf("error converting old values map")
 							}
 
-							relationTuple.Caveat, err = contextualizedCaveatFromValues(oldValues)
+							relationship.OptionalCaveat, err = contextualizedCaveatFromValues(oldValues)
 							if err != nil {
 								return err
 							}
 
-							err := tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_DELETE)
+							err := tracked.AddRelationshipChange(ctx, changeRevision, relationship, tuple.UpdateOperationDelete)
 							if err != nil {
 								return err
 							}
@@ -262,7 +263,7 @@ func (sd *spannerDatastore) watch(
 
 						switch dcr.TableName {
 						case tableRelationship:
-							relationTuple := relationTupleFromPrimaryKey(primaryKeyColumnValues)
+							relationship := relationshipFromPrimaryKey(primaryKeyColumnValues)
 
 							oldValues, ok := mod.OldValues.Value.(map[string]any)
 							if !ok {
@@ -282,12 +283,12 @@ func (sd *spannerDatastore) watch(
 								continue
 							}
 
-							relationTuple.Caveat, err = contextualizedCaveatFromValues(newValues)
+							relationship.OptionalCaveat, err = contextualizedCaveatFromValues(newValues)
 							if err != nil {
 								return err
 							}
 
-							err := tracked.AddRelationshipChange(ctx, changeRevision, relationTuple, core.RelationTupleUpdate_TOUCH)
+							err := tracked.AddRelationshipChange(ctx, changeRevision, relationship, tuple.UpdateOperationTouch)
 							if err != nil {
 								return err
 							}
@@ -389,17 +390,19 @@ func unmarshalSchemaDefinition(def unmarshallable, configValue any) error {
 	return nil
 }
 
-func relationTupleFromPrimaryKey(primaryKeyColumnValues map[string]any) *core.RelationTuple {
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: primaryKeyColumnValues[colNamespace].(string),
-			ObjectId:  primaryKeyColumnValues[colObjectID].(string),
-			Relation:  primaryKeyColumnValues[colRelation].(string),
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: primaryKeyColumnValues[colUsersetNamespace].(string),
-			ObjectId:  primaryKeyColumnValues[colUsersetObjectID].(string),
-			Relation:  primaryKeyColumnValues[colUsersetRelation].(string),
+func relationshipFromPrimaryKey(primaryKeyColumnValues map[string]any) tuple.Relationship {
+	return tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: primaryKeyColumnValues[colNamespace].(string),
+				ObjectID:   primaryKeyColumnValues[colObjectID].(string),
+				Relation:   primaryKeyColumnValues[colRelation].(string),
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: primaryKeyColumnValues[colUsersetNamespace].(string),
+				ObjectID:   primaryKeyColumnValues[colUsersetObjectID].(string),
+				Relation:   primaryKeyColumnValues[colUsersetRelation].(string),
+			},
 		},
 	}
 }
