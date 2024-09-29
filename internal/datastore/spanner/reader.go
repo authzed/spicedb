@@ -2,6 +2,7 @@ package spanner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // The underlying Spanner shared read transaction interface is not exposed, so we re-create
@@ -167,52 +169,75 @@ func (sr spannerReader) ReverseQueryRelationships(
 	)
 }
 
+var stopIterationErr = fmt.Errorf("stop iteration")
+
 func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error) {
-		span := trace.SpanFromContext(ctx)
-		span.AddEvent("Query issued to database")
-		iter := txSource().Query(ctx, statementFromSQL(sql, args))
-		defer iter.Stop()
+	return func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error) {
+		return func(yield func(tuple.Relationship, error) bool) {
+			span := trace.SpanFromContext(ctx)
+			span.AddEvent("Query issued to database")
+			iter := txSource().Query(ctx, statementFromSQL(sql, args))
+			defer iter.Stop()
 
-		var tuples []*core.RelationTuple
+			span.AddEvent("start reading iterator")
+			defer span.AddEvent("finished reading iterator")
 
-		span.AddEvent("start reading iterator")
-		if err := iter.Do(func(row *spanner.Row) error {
-			nextTuple := &core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{},
-				Subject:             &core.ObjectAndRelation{},
+			if err := iter.Do(func(row *spanner.Row) error {
+				var resourceObjectType string
+				var resourceObjectID string
+				var relation string
+				var subjectObjectType string
+				var subjectObjectID string
+				var subjectRelation string
+				var caveatName spanner.NullString
+				var caveatCtx spanner.NullJSON
+				err := row.Columns(
+					&resourceObjectType,
+					&resourceObjectID,
+					&relation,
+					&subjectObjectType,
+					&subjectObjectID,
+					&subjectRelation,
+					&caveatName,
+					&caveatCtx,
+				)
+				if err != nil {
+					return err
+				}
+
+				caveat, err := ContextualizedCaveatFrom(caveatName, caveatCtx)
+				if err != nil {
+					return err
+				}
+
+				if !yield(tuple.Relationship{
+					RelationshipReference: tuple.RelationshipReference{
+						Resource: tuple.ObjectAndRelation{
+							ObjectType: resourceObjectType,
+							ObjectID:   resourceObjectID,
+							Relation:   relation,
+						},
+						Subject: tuple.ObjectAndRelation{
+							ObjectType: subjectObjectType,
+							ObjectID:   subjectObjectID,
+							Relation:   subjectRelation,
+						},
+					},
+					OptionalCaveat: caveat,
+				}, nil) {
+					return stopIterationErr
+				}
+
+				return nil
+			}); err != nil {
+				if errors.Is(err, stopIterationErr) {
+					return
+				}
+
+				yield(tuple.Relationship{}, err)
+				return
 			}
-			var caveatName spanner.NullString
-			var caveatCtx spanner.NullJSON
-			err := row.Columns(
-				&nextTuple.ResourceAndRelation.Namespace,
-				&nextTuple.ResourceAndRelation.ObjectId,
-				&nextTuple.ResourceAndRelation.Relation,
-				&nextTuple.Subject.Namespace,
-				&nextTuple.Subject.ObjectId,
-				&nextTuple.Subject.Relation,
-				&caveatName,
-				&caveatCtx,
-			)
-			if err != nil {
-				return err
-			}
-
-			nextTuple.Caveat, err = ContextualizedCaveatFrom(caveatName, caveatCtx)
-			if err != nil {
-				return err
-			}
-
-			tuples = append(tuples, nextTuple)
-
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-
-		span.AddEvent("finished reading iterator", trace.WithAttributes(attribute.Int("tupleCount", len(tuples))))
-		span.SetAttributes(attribute.Int("count", len(tuples)))
-		return tuples, nil
+		}, nil
 	}
 }
 

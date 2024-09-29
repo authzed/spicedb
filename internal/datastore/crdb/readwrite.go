@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -253,7 +254,7 @@ func (rwt *crdbReadWriteTXN) StoreCounterValue(ctx context.Context, name string,
 	return nil
 }
 
-func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	bulkWrite := rwt.queryWriteTuple()
 	var bulkWriteCount int64
 
@@ -266,35 +267,35 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 
 	// Process the actual updates
 	for _, mutation := range mutations {
-		rel := mutation.Tuple
+		rel := mutation.Relationship
 
 		var caveatContext map[string]any
 		var caveatName string
-		if rel.Caveat != nil {
-			caveatName = rel.Caveat.CaveatName
-			caveatContext = rel.Caveat.Context.AsMap()
+		if rel.OptionalCaveat != nil {
+			caveatName = rel.OptionalCaveat.CaveatName
+			caveatContext = rel.OptionalCaveat.Context.AsMap()
 		}
 
 		var integrityKeyID *string
 		var integrityHash []byte
 
-		if rel.Integrity != nil {
+		if rel.OptionalIntegrity != nil {
 			if !rwt.withIntegrity {
 				return spiceerrors.MustBugf("attempted to write a relationship with integrity, but the datastore does not support integrity")
 			}
 
-			integrityKeyID = &rel.Integrity.KeyId
-			integrityHash = rel.Integrity.Hash
+			integrityKeyID = &rel.OptionalIntegrity.KeyId
+			integrityHash = rel.OptionalIntegrity.Hash
 		} else if rwt.withIntegrity {
 			return spiceerrors.MustBugf("attempted to write a relationship without integrity, but the datastore requires integrity")
 		}
 
 		values := []any{
-			rel.ResourceAndRelation.Namespace,
-			rel.ResourceAndRelation.ObjectId,
-			rel.ResourceAndRelation.Relation,
-			rel.Subject.Namespace,
-			rel.Subject.ObjectId,
+			rel.Resource.ObjectType,
+			rel.Resource.ObjectID,
+			rel.Resource.Relation,
+			rel.Subject.ObjectType,
+			rel.Subject.ObjectID,
 			rel.Subject.Relation,
 			caveatName,
 			caveatContext,
@@ -304,28 +305,28 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 			values = append(values, integrityKeyID, integrityHash)
 		}
 
-		rwt.addOverlapKey(rel.ResourceAndRelation.Namespace)
-		rwt.addOverlapKey(rel.Subject.Namespace)
+		rwt.addOverlapKey(rel.Resource.ObjectType)
+		rwt.addOverlapKey(rel.Subject.ObjectType)
 
 		switch mutation.Operation {
-		case core.RelationTupleUpdate_TOUCH:
+		case tuple.UpdateOperationTouch:
 			rwt.relCountChange++
 			bulkTouch = bulkTouch.Values(values...)
 			bulkTouchCount++
 
-		case core.RelationTupleUpdate_CREATE:
+		case tuple.UpdateOperationCreate:
 			rwt.relCountChange++
 			bulkWrite = bulkWrite.Values(values...)
 			bulkWriteCount++
 
-		case core.RelationTupleUpdate_DELETE:
+		case tuple.UpdateOperationDelete:
 			rwt.relCountChange--
 			bulkDeleteOr = append(bulkDeleteOr, exactRelationshipClause(rel))
 			bulkDeleteCount++
 
 		default:
-			log.Ctx(ctx).Error().Stringer("operation", mutation.Operation).Msg("unknown operation type")
-			return fmt.Errorf("unknown mutation operation: %s", mutation.Operation)
+			log.Ctx(ctx).Error().Msg("unknown operation type")
+			return fmt.Errorf("unknown mutation operation: %v", mutation.Operation)
 		}
 	}
 
@@ -363,13 +364,13 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 	return nil
 }
 
-func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
+func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.ResourceAndRelation.Namespace,
-		colObjectID:         r.ResourceAndRelation.ObjectId,
-		colRelation:         r.ResourceAndRelation.Relation,
-		colUsersetNamespace: r.Subject.Namespace,
-		colUsersetObjectID:  r.Subject.ObjectId,
+		colNamespace:        r.Resource.ObjectType,
+		colObjectID:         r.Resource.ObjectID,
+		colRelation:         r.Resource.Relation,
+		colUsersetNamespace: r.Subject.ObjectType,
+		colUsersetObjectID:  r.Subject.ObjectID,
 		colUsersetRelation:  r.Subject.Relation,
 	}
 }

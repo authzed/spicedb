@@ -32,17 +32,21 @@ func NewPaginatedIterator(
 	return func(yield func(tuple.Relationship, error) bool) {
 		cursor := startCursor
 		for {
-			hadResults := false
+			counter := 0
 			for rel, err := range iter {
-				hadResults = true
 				if !yield(rel, err) {
 					return
 				}
 
 				cursor = options.ToCursor(rel)
+				counter++
+
+				if counter >= int(pageSize) {
+					break
+				}
 			}
 
-			if !hadResults {
+			if counter < int(pageSize) {
 				return
 			}
 

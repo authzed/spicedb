@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/jzelinskie/stringz"
 )
 
 const (
@@ -103,7 +104,7 @@ func Parse(relString string) (Relationship, error) {
 
 	subjectRelation := Ellipsis
 	if len(groups[subjectRelIndex]) > 0 {
-		subjectRelation = groups[subjectRelIndex]
+		subjectRelation = stringz.DefaultEmpty(groups[subjectRelIndex], Ellipsis)
 	}
 
 	caveatName := groups[caveatNameIndex]

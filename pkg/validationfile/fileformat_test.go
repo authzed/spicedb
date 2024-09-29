@@ -114,7 +114,7 @@ relationships: >-
 	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`")
+	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`: invalid relationship string")
 	require.Equal(t, uint64(5), errWithSource.LineNumber)
 }
 
@@ -131,7 +131,7 @@ relationships: >-
 	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
+	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string")
 	require.Equal(t, uint64(7), errWithSource.LineNumber)
 }
 
@@ -154,7 +154,7 @@ relationships: >-
 	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
 	require.True(t, ok)
 
-	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`")
+	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string")
 	require.Equal(t, uint64(13), errWithSource.LineNumber)
 }
 
