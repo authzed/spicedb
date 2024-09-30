@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 // CanonicalBytes converts a tuple to a canonical set of bytes.

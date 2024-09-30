@@ -141,7 +141,6 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 			span.AddEvent("Rels loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
 			return nil
 		}, sqlStatement, args...)
-
 		if err != nil {
 			if !yield(tuple.Relationship{}, err) {
 				return

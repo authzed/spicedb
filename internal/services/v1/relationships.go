@@ -236,13 +236,12 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 		},
 	}
 
-	returnedCount := 0
-
 	dispatchCursor := &dispatchv1.Cursor{
 		DispatchVersion: 1,
 		Sections:        []string{""},
 	}
 
+	var returnedCount uint64
 	for rel, err := range it {
 		if err != nil {
 			return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", err))

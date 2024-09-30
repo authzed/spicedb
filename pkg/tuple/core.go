@@ -30,6 +30,7 @@ func RRStringToCore(namespaceName string, relationName string) *core.RelationRef
 	}
 }
 
+// FromCoreRelationTuple creates a Relationship from a core.RelationTuple.
 func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 	spiceerrors.DebugAssert(func() bool {
 		return rt.Validate() == nil
@@ -52,6 +53,7 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 	}
 }
 
+// FromCoreObjectAndRelation creates an ObjectAndRelation from a core.ObjectAndRelation.
 func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
 	spiceerrors.DebugAssert(func() bool {
 		return oar.Validate() == nil
@@ -64,6 +66,7 @@ func FromCoreObjectAndRelation(oar *core.ObjectAndRelation) ObjectAndRelation {
 	}
 }
 
+// CoreONR creates a core ObjectAndRelation from the string pieces.
 func CoreONR(namespace, objectID, relation string) *core.ObjectAndRelation {
 	spiceerrors.DebugAssert(func() bool {
 		return namespace != "" && objectID != "" && relation != ""
@@ -76,6 +79,7 @@ func CoreONR(namespace, objectID, relation string) *core.ObjectAndRelation {
 	}
 }
 
+// CoreRR creates a core RelationReference from the string pieces.
 func CoreRR(namespace, relation string) *core.RelationReference {
 	spiceerrors.DebugAssert(func() bool {
 		return namespace != "" && relation != ""
@@ -87,6 +91,7 @@ func CoreRR(namespace, relation string) *core.RelationReference {
 	}
 }
 
+// FromCoreRelationshipReference creates a RelationshipReference from a core.RelationshipReference.
 func FromCoreRelationReference(rr *core.RelationReference) RelationReference {
 	spiceerrors.DebugAssert(func() bool {
 		return rr.Validate() == nil

@@ -9,8 +9,9 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/jzelinskie/stringz"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 const (
@@ -84,14 +85,16 @@ func MustParse(relString string) Relationship {
 	return parsed
 }
 
-var subjectRelIndex = slices.Index(parserRegex.SubexpNames(), "subjectRel")
-var caveatNameIndex = slices.Index(parserRegex.SubexpNames(), "caveatName")
-var caveatContextIndex = slices.Index(parserRegex.SubexpNames(), "caveatContext")
-var resourceIDIndex = slices.Index(parserRegex.SubexpNames(), "resourceID")
-var subjectIDIndex = slices.Index(parserRegex.SubexpNames(), "subjectID")
-var resourceTypeIndex = slices.Index(parserRegex.SubexpNames(), "resourceType")
-var resourceRelIndex = slices.Index(parserRegex.SubexpNames(), "resourceRel")
-var subjectTypeIndex = slices.Index(parserRegex.SubexpNames(), "subjectType")
+var (
+	subjectRelIndex    = slices.Index(parserRegex.SubexpNames(), "subjectRel")
+	caveatNameIndex    = slices.Index(parserRegex.SubexpNames(), "caveatName")
+	caveatContextIndex = slices.Index(parserRegex.SubexpNames(), "caveatContext")
+	resourceIDIndex    = slices.Index(parserRegex.SubexpNames(), "resourceID")
+	subjectIDIndex     = slices.Index(parserRegex.SubexpNames(), "subjectID")
+	resourceTypeIndex  = slices.Index(parserRegex.SubexpNames(), "resourceType")
+	resourceRelIndex   = slices.Index(parserRegex.SubexpNames(), "resourceRel")
+	subjectTypeIndex   = slices.Index(parserRegex.SubexpNames(), "subjectType")
+)
 
 // Parse unmarshals the string form of a Tuple and returns an error on failure,
 //

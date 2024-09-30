@@ -757,7 +757,7 @@ type Stats struct {
 type RelationshipIterator iter.Seq2[tuple.Relationship, error]
 
 func IteratorToSlice(iter RelationshipIterator) ([]tuple.Relationship, error) {
-	var results []tuple.Relationship
+	results := make([]tuple.Relationship, 0)
 	for rel, err := range iter {
 		if err != nil {
 			return nil, err

@@ -30,11 +30,13 @@ func (onr ObjectAndRelation) SizeVT() int {
 	return len(onr.ObjectID) + len(onr.ObjectType) + len(onr.Relation) + onrStructSize
 }
 
+// WithRelation returns a copy of the object and relation with the given relation.
 func (onr ObjectAndRelation) WithRelation(relation string) ObjectAndRelation {
 	onr.Relation = relation
 	return onr
 }
 
+// RelationReference returns a RelationReference for the object and relation.
 func (onr ObjectAndRelation) RelationReference() RelationReference {
 	return RelationReference{
 		ObjectType: onr.ObjectType,
@@ -42,6 +44,7 @@ func (onr ObjectAndRelation) RelationReference() RelationReference {
 	}
 }
 
+// ToCoreONR converts the ObjectAndRelation to a core.ObjectAndRelation.
 func (onr ObjectAndRelation) ToCoreONR() *core.ObjectAndRelation {
 	return &core.ObjectAndRelation{
 		Namespace: onr.ObjectType,
@@ -65,6 +68,7 @@ type Relationship struct {
 	OptionalIntegrity *core.RelationshipIntegrity
 }
 
+// ToCoreTuple converts the Relationship to a core.RelationTuple.
 func (r Relationship) ToCoreTuple() *core.RelationTuple {
 	return &core.RelationTuple{
 		ResourceAndRelation: r.Resource.ToCoreONR(),
@@ -84,10 +88,12 @@ func (r Relationship) SizeVT() int {
 	return size
 }
 
+// ValidateNotEmpty returns true if the relationship is not empty.
 func (r Relationship) ValidateNotEmpty() bool {
 	return r.Resource.ObjectType != "" && r.Resource.ObjectID != "" && r.Subject.ObjectType != "" && r.Subject.ObjectID != "" && r.Resource.Relation != "" && r.Subject.Relation != ""
 }
 
+// Validate returns an error if the relationship is invalid.
 func (r Relationship) Validate() error {
 	if !r.ValidateNotEmpty() {
 		return errors.New("object and relation must not be empty")
@@ -106,11 +112,13 @@ func (r Relationship) WithoutIntegrity() Relationship {
 	return r
 }
 
+// WithCaveat returns a copy of the relationship with the given caveat.
 func (r Relationship) WithCaveat(caveat *core.ContextualizedCaveat) Relationship {
 	r.OptionalCaveat = caveat
 	return r
 }
 
+// UpdateOperation represents the type of update to a relationship.
 type UpdateOperation int
 
 const (
@@ -142,11 +150,13 @@ func (ru RelationshipUpdate) DebugString() string {
 	return fmt.Sprintf("%s(%s)", ru.OperationString(), StringWithoutCaveat(ru.Relationship))
 }
 
+// RelationReference represents a reference to a relation.
 type RelationReference struct {
 	ObjectType string
 	Relation   string
 }
 
+// ToCoreRR converts the RelationReference to a core.RelationReference.
 func (rr RelationReference) ToCoreRR() *core.RelationReference {
 	return &core.RelationReference{
 		Namespace: rr.ObjectType,
@@ -154,6 +164,7 @@ func (rr RelationReference) ToCoreRR() *core.RelationReference {
 	}
 }
 
+// ONR creates an ObjectAndRelation.
 func ONR(namespace, objectID, relation string) ObjectAndRelation {
 	spiceerrors.DebugAssert(func() bool {
 		return namespace != "" && objectID != "" && relation != ""
@@ -166,11 +177,13 @@ func ONR(namespace, objectID, relation string) ObjectAndRelation {
 	}
 }
 
+// ONRRef creates an ObjectAndRelation reference.
 func ONRRef(namespace, objectID, relation string) *ObjectAndRelation {
 	onr := ONR(namespace, objectID, relation)
 	return &onr
 }
 
+// RR creates a RelationReference.
 func RR(namespace, relation string) RelationReference {
 	spiceerrors.DebugAssert(func() bool {
 		return namespace != "" && relation != ""

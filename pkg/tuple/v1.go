@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/jzelinskie/stringz"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"github.com/jzelinskie/stringz"
 )
 
 // ParseV1Rel parses a string representation of a relationship into a v1.Relationship object.
@@ -116,6 +117,8 @@ func UpdateToV1RelationshipUpdate(update RelationshipUpdate) (*v1.RelationshipUp
 	}, nil
 }
 
+// MustUpdateToV1RelationshipUpdate converts a RelationshipUpdate into a
+// v1.RelationshipUpdate. Panics on error.
 func MustUpdateToV1RelationshipUpdate(update RelationshipUpdate) *v1.RelationshipUpdate {
 	v1rel, err := UpdateToV1RelationshipUpdate(update)
 	if err != nil {
@@ -198,6 +201,7 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 	}
 }
 
+// CopyToV1Relationship copies a Relationship into a v1.Relationship.
 func CopyToV1Relationship(rel Relationship, v1rel *v1.Relationship) {
 	v1rel.Resource.ObjectType = rel.Resource.ObjectType
 	v1rel.Resource.ObjectId = rel.Resource.ObjectID

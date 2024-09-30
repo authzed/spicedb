@@ -5,9 +5,10 @@ import (
 	"sort"
 	"strings"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // JoinRelRef joins the namespace and relation together into the same
@@ -52,6 +53,7 @@ func StringCoreONR(onr *core.ObjectAndRelation) string {
 	return StringONRStrings(onr.Namespace, onr.ObjectId, onr.Relation)
 }
 
+// StringONRStrings converts ONR strings to a string.
 func StringONRStrings(namespace, objectID, relation string) string {
 	if relation == Ellipsis {
 		return JoinObjectRef(namespace, objectID)

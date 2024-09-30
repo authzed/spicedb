@@ -464,7 +464,6 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 	return withSubsetInCursor(ci,
 		func(currentOffset int, nextCursorWith afterResponseCursor) error {
 			if !hasResourceEntrypoints {
-
 				// If the found resource matches the target resource type and relation, potentially yield the resource.
 				if foundResourceType.Namespace == parentRequest.ResourceRelation.Namespace && foundResourceType.Relation == parentRequest.ResourceRelation.Relation {
 					resources := foundResources.asPossibleResources()

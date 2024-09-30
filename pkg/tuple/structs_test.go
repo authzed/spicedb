@@ -8,13 +8,11 @@ import (
 )
 
 func TestONRStructSize(t *testing.T) {
-	onr := ObjectAndRelation{}
-	size := int(unsafe.Sizeof(onr))
+	size := int(unsafe.Sizeof(ObjectAndRelation{}))
 	require.Equal(t, onrStructSize, size)
 }
 
 func TestRelationshipStructSize(t *testing.T) {
-	r := Relationship{}
-	size := int(unsafe.Sizeof(r))
+	size := int(unsafe.Sizeof(Relationship{}))
 	require.Equal(t, relStructSize, size)
 }

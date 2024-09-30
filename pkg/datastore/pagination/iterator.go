@@ -32,7 +32,7 @@ func NewPaginatedIterator(
 	return func(yield func(tuple.Relationship, error) bool) {
 		cursor := startCursor
 		for {
-			counter := 0
+			var counter uint64
 			for rel, err := range iter {
 				if !yield(rel, err) {
 					return
@@ -41,12 +41,12 @@ func NewPaginatedIterator(
 				cursor = options.ToCursor(rel)
 				counter++
 
-				if counter >= int(pageSize) {
+				if counter >= pageSize {
 					break
 				}
 			}
 
-			if counter < int(pageSize) {
+			if counter < pageSize {
 				return
 			}
 
@@ -57,7 +57,6 @@ func NewPaginatedIterator(
 				options.WithLimit(&pageSize),
 				options.WithAfter(cursor),
 			)
-
 			if err != nil {
 				yield(tuple.Relationship{}, err)
 				return

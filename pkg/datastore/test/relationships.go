@@ -1429,6 +1429,7 @@ func TypedTouchAlreadyExistingWithCaveatTest(t *testing.T, tester DatastoreTeste
 	ensureRelationships(ctx, require, ds, ctpl1)
 
 	ctpl1Updated, err := tuple.Parse("document:foo#caveated_viewer@user:tom[test:{\"foo\":\"baz\"}]")
+	require.NoError(err)
 
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, ctpl1Updated)
 	require.NoError(err)
