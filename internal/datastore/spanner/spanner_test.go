@@ -18,7 +18,6 @@ import (
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/test"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -106,7 +105,7 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 
 	// Add some relationships.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteRelationships(ctx, []*corev1.RelationTupleUpdate{
+		return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:tom")),
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:sarah")),
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:fred")),
@@ -134,7 +133,7 @@ func FakeStatsTest(t *testing.T, ds datastore.Datastore) {
 
 	// Add some more relationships.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
-		return tx.WriteRelationships(ctx, []*corev1.RelationTupleUpdate{
+		return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:tommy1236512365123651236512365123612365123655")),
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:sara1236512365123651236512365123651236512365")),
 			tuple.Create(tuple.MustParse("document:foo#viewer@user:freddy1236512365123651236512365123651236512365")),
