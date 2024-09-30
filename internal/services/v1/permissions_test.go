@@ -2174,7 +2174,7 @@ func TestExportBulkRelationships(t *testing.T) {
 			"",
 		)
 		batch[i] = rel
-		expectedRels.Add(tuple.MustStringRelationship(rel))
+		expectedRels.Add(tuple.MustV1RelString(rel))
 	}
 
 	ctx := context.Background()
@@ -2237,7 +2237,7 @@ func TestExportBulkRelationships(t *testing.T) {
 					totalRead += len(batch.Relationships)
 
 					for _, rel := range batch.Relationships {
-						remainingRels.Remove(tuple.MustStringRelationship(rel))
+						remainingRels.Remove(tuple.MustV1RelString(rel))
 					}
 				}
 
@@ -2334,12 +2334,12 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				if tc.filter != nil {
 					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 					require.NoError(err)
-					if !filter.Test(tuple.MustFromRelationship(rel)) {
+					if !filter.Test(tuple.FromV1Relationship(rel)) {
 						continue
 					}
 				}
 
-				expectedRels.Add(tuple.MustStringRelationship(rel))
+				expectedRels.Add(tuple.MustV1RelString(rel))
 			}
 
 			require.Equal(tc.expectedCount, expectedRels.Size())
@@ -2390,12 +2390,12 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 					if tc.filter != nil {
 						filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 						require.NoError(err)
-						require.True(filter.Test(tuple.MustFromRelationship(rel)), "relationship did not match filter: %s", rel)
+						require.True(filter.Test(tuple.FromV1Relationship(rel)), "relationship did not match filter: %s", rel)
 					}
 
-					require.True(remainingRels.Has(tuple.MustStringRelationship(rel)), "relationship was not expected or was repeated: %s", rel)
-					remainingRels.Remove(tuple.MustStringRelationship(rel))
-					foundRels.Add(tuple.MustStringRelationship(rel))
+					require.True(remainingRels.Has(tuple.MustV1RelString(rel)), "relationship was not expected or was repeated: %s", rel)
+					remainingRels.Remove(tuple.MustV1RelString(rel))
+					foundRels.Add(tuple.MustV1RelString(rel))
 				}
 
 				cancel()

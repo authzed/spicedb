@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/ccoveille/go-safecast"
+	"github.com/jzelinskie/stringz"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -36,7 +37,6 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
-	"github.com/jzelinskie/stringz"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"

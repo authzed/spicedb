@@ -3,8 +3,9 @@ package tuple
 import (
 	"testing"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/stretchr/testify/require"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 func TestONRStringToCore(t *testing.T) {
