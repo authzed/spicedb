@@ -18,6 +18,15 @@ func ONRStringToCore(ns, oid, rel string) *core.ObjectAndRelation {
 	}
 }
 
+// CoreRelationToString creates a string from a core.RelationTuple.
+func CoreRelationToString(rel *core.RelationTuple) string {
+	if rel.Subject.Relation == Ellipsis {
+		return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId
+	}
+
+	return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId + "#" + rel.ResourceAndRelation.Relation
+}
+
 // RRStringToCore creates a RelationReference from the string pieces.
 func RRStringToCore(namespaceName string, relationName string) *core.RelationReference {
 	spiceerrors.DebugAssert(func() bool {

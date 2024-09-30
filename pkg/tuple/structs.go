@@ -53,6 +53,10 @@ func (onr ObjectAndRelation) ToCoreONR() *core.ObjectAndRelation {
 	}
 }
 
+func (onr ObjectAndRelation) String() string {
+	return fmt.Sprintf("%s:%s#%s", onr.ObjectType, onr.ObjectID, onr.Relation)
+}
+
 // RelationshipReference represents a reference to a relationship, i.e. those portions
 // of a relationship that are not the integrity or caveat and thus form the unique
 // identifier of the relationship.

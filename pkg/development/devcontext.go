@@ -92,21 +92,16 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		// Load the test relationships into the datastore.
 		relationships := make([]tuple.Relationship, 0, len(requestContext.Relationships))
 		for _, rel := range requestContext.Relationships {
-			convertedRel := tuple.FromCoreRelationTuple(rel)
 			if err := rel.Validate(); err != nil {
-				tplString, serr := tuple.String(convertedRel)
-				if serr != nil {
-					return serr
-				}
-
 				inputErrors = append(inputErrors, &devinterface.DeveloperError{
 					Message: err.Error(),
 					Source:  devinterface.DeveloperError_RELATIONSHIP,
 					Kind:    devinterface.DeveloperError_PARSE_ERROR,
-					Context: tplString,
+					Context: tuple.CoreRelationToString(rel),
 				})
 			}
 
+			convertedRel := tuple.FromCoreRelationTuple(rel)
 			if err := convertedRel.Validate(); err != nil {
 				tplString, serr := tuple.String(convertedRel)
 				if serr != nil {
@@ -125,7 +120,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 		}
 
 		ie, lerr := loadsRels(ctx, relationships, rwt)
-		if ie != nil {
+		if len(ie) > 0 {
 			inputErrors = append(inputErrors, ie...)
 		}
 
@@ -225,18 +220,19 @@ func loadsRels(ctx context.Context, rels []tuple.Relationship, rwt datastore.Rea
 	updates := make([]tuple.RelationshipUpdate, 0, len(rels))
 	for _, rel := range rels {
 		if err := relationships.ValidateRelationshipsForCreateOrTouch(ctx, rwt, rel); err != nil {
-			relString, err := tuple.String(rel)
-			if err != nil {
-				return nil, err
+			relString, serr := tuple.String(rel)
+			if serr != nil {
+				return nil, serr
 			}
 
 			devErr, wireErr := distinguishGraphError(ctx, err, devinterface.DeveloperError_RELATIONSHIP, 0, 0, relString)
-			if devErr != nil {
-				devErrors = append(devErrors, devErr)
-				continue
+			if wireErr != nil {
+				return devErrors, wireErr
 			}
 
-			return devErrors, wireErr
+			if devErr != nil {
+				devErrors = append(devErrors, devErr)
+			}
 		}
 
 		updates = append(updates, tuple.Touch(rel))
