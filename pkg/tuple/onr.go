@@ -11,12 +11,14 @@ var (
 	subjectRegex = regexp.MustCompile(fmt.Sprintf("^%s$", subjectExpr))
 )
 
-var onrSubjectRelIndex = slices.Index(subjectRegex.SubexpNames(), "subjectRel")
-var onrSubjectTypeIndex = slices.Index(subjectRegex.SubexpNames(), "subjectType")
-var onrSubjectIDIndex = slices.Index(subjectRegex.SubexpNames(), "subjectID")
-var onrResourceTypeIndex = slices.Index(onrRegex.SubexpNames(), "resourceType")
-var onrResourceIDIndex = slices.Index(onrRegex.SubexpNames(), "resourceID")
-var onrResourceRelIndex = slices.Index(onrRegex.SubexpNames(), "resourceRel")
+var (
+	onrSubjectRelIndex   = slices.Index(subjectRegex.SubexpNames(), "subjectRel")
+	onrSubjectTypeIndex  = slices.Index(subjectRegex.SubexpNames(), "subjectType")
+	onrSubjectIDIndex    = slices.Index(subjectRegex.SubexpNames(), "subjectID")
+	onrResourceTypeIndex = slices.Index(onrRegex.SubexpNames(), "resourceType")
+	onrResourceIDIndex   = slices.Index(onrRegex.SubexpNames(), "resourceID")
+	onrResourceRelIndex  = slices.Index(onrRegex.SubexpNames(), "resourceRel")
+)
 
 // ParseSubjectONR converts a string representation of a Subject ONR to an ObjectAndRelation. Unlike
 // ParseONR, this method allows for objects without relations. If an object without a relation
@@ -39,6 +41,8 @@ func ParseSubjectONR(subjectOnr string) (ObjectAndRelation, error) {
 	}, nil
 }
 
+// MustParseSubjectONR converts a string representation of a Subject ONR to an ObjectAndRelation.
+// Panics on error.
 func MustParseSubjectONR(subjectOnr string) ObjectAndRelation {
 	parsed, err := ParseSubjectONR(subjectOnr)
 	if err != nil {
@@ -61,6 +65,7 @@ func ParseONR(onr string) (ObjectAndRelation, error) {
 	}, nil
 }
 
+// MustParseONR converts a string representation of an ONR to an ObjectAndRelation object. Panics on error.
 func MustParseONR(onr string) ObjectAndRelation {
 	parsed, err := ParseONR(onr)
 	if err != nil {

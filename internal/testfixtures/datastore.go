@@ -189,7 +189,10 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 		}
 		rels = append(rels, rel)
 	}
+
 	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
+	require.NoError(err)
+
 	return ds, revision
 }
 

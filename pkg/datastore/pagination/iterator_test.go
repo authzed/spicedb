@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -19,8 +20,8 @@ import (
 func TestPaginatedIterator(t *testing.T) {
 	testCases := []struct {
 		order              options.SortOrder
-		pageSize           uint64
-		totalRelationships uint64
+		pageSize           int
+		totalRelationships int
 	}{
 		{options.ByResource, 1, 0},
 		{options.ByResource, 1, 1},
@@ -38,34 +39,37 @@ func TestPaginatedIterator(t *testing.T) {
 			require := require.New(t)
 
 			rels := make([]tuple.Relationship, 0, tc.totalRelationships)
-			for i := 0; i < int(tc.totalRelationships); i++ {
+			for i := 0; i < tc.totalRelationships; i++ {
 				rels = append(rels, tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
 							ObjectType: "document",
-							ObjectID:   strconv.FormatUint(i, 10),
+							ObjectID:   strconv.Itoa(i),
 							Relation:   "owner",
 						},
 						Subject: tuple.ObjectAndRelation{
 							ObjectType: "user",
-							ObjectID:   strconv.FormatUint(i, 10),
+							ObjectID:   strconv.Itoa(i),
 							Relation:   datastore.Ellipsis,
 						},
 					},
 				})
 			}
 
-			ds := generateMock(rels, tc.pageSize, options.ByResource)
+			ds := generateMock(t, rels, tc.pageSize, options.ByResource)
+
+			pageSize, err := safecast.ToUint64(tc.pageSize)
+			require.NoError(err)
 
 			ctx := context.Background()
 			iter, err := NewPaginatedIterator(ctx, ds, datastore.RelationshipsFilter{
 				OptionalResourceType: "unused",
-			}, tc.pageSize, options.ByResource, nil)
+			}, pageSize, options.ByResource, nil)
 			require.NoError(err)
 
 			slice, err := datastore.IteratorToSlice(iter)
 			require.NoError(err)
-			require.Len(slice, int(tc.totalRelationships))
+			require.Len(slice, tc.totalRelationships)
 
 			// Make sure everything got called
 			require.True(ds.AssertExpectations(t))
@@ -73,19 +77,22 @@ func TestPaginatedIterator(t *testing.T) {
 	}
 }
 
-func generateMock(rels []tuple.Relationship, pageSize uint64, order options.SortOrder) *mockedReader {
+func generateMock(t *testing.T, rels []tuple.Relationship, pageSize int, order options.SortOrder) *mockedReader {
 	mock := &mockedReader{}
-	relsLen := uint64(len(rels))
+	relsLen := len(rels)
 
 	var last options.Cursor
-	for i := uint64(0); i <= relsLen; i += pageSize {
+	for i := 0; i <= relsLen; i += pageSize {
 		pastLastIndex := i + pageSize
 		if pastLastIndex > relsLen {
 			pastLastIndex = relsLen
 		}
 
+		pageSize64, err := safecast.ToUint64(pageSize)
+		require.NoError(t, err)
+
 		iter := common.NewSliceRelationshipIterator(rels[i:pastLastIndex], order)
-		mock.On("QueryRelationships", last, order, pageSize).Return(iter, nil)
+		mock.On("QueryRelationships", last, order, pageSize64).Return(iter, nil)
 		if relsLen > 0 {
 			l := rels[pastLastIndex-1]
 			last = options.Cursor(&l)
@@ -153,8 +160,4 @@ func (m *mockedReader) ListAllNamespaces(_ context.Context) ([]datastore.Revisio
 
 func (m *mockedReader) LookupNamespacesWithNames(_ context.Context, _ []string) ([]datastore.RevisionedNamespace, error) {
 	panic("not implemented")
-}
-
-type mockedIterator struct {
-	mock.Mock
 }

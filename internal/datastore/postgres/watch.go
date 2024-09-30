@@ -434,15 +434,15 @@ func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, x
 	return nil
 }
 
-func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, minimum uint64, maximum uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
+func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, xmin uint64, xmax uint64, txidToRevision map[uint64]postgresRevision, filter map[uint64]int, tracked *common.Changes[postgresRevision, uint64]) error {
 	sql, args, err := queryChangedCaveats.Where(sq.Or{
 		sq.And{
-			sq.LtOrEq{colCreatedXid: maximum},
-			sq.GtOrEq{colCreatedXid: minimum},
+			sq.LtOrEq{colCreatedXid: xmax},
+			sq.GtOrEq{colCreatedXid: xmin},
 		},
 		sq.And{
-			sq.LtOrEq{colDeletedXid: maximum},
-			sq.GtOrEq{colDeletedXid: minimum},
+			sq.LtOrEq{colDeletedXid: xmax},
+			sq.GtOrEq{colDeletedXid: xmin},
 		},
 	}).ToSql()
 	if err != nil {

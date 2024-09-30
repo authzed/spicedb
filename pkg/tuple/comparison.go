@@ -1,8 +1,9 @@
 package tuple
 
 import (
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"google.golang.org/protobuf/proto"
+
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
 // ONREqual checks if two ObjectAndRelation instances are equal.

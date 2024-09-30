@@ -169,7 +169,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 	)
 }
 
-var stopIterationErr = fmt.Errorf("stop iteration")
+var errStopIterator = fmt.Errorf("stop iteration")
 
 func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 	return func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error) {
@@ -225,12 +225,12 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 					},
 					OptionalCaveat: caveat,
 				}, nil) {
-					return stopIterationErr
+					return errStopIterator
 				}
 
 				return nil
 			}); err != nil {
-				if errors.Is(err, stopIterationErr) {
+				if errors.Is(err, errStopIterator) {
 					return
 				}
 
