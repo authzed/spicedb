@@ -49,7 +49,7 @@ definition document {
 func TestDevelopmentInvalidRelationship(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreTopFunction("github.com/golang/glog.(*loggingT).flushDaemon"), goleak.IgnoreCurrent())
 
-	_, devErrs, err := NewDevContext(context.Background(), &devinterface.RequestContext{
+	_, _, err := NewDevContext(context.Background(), &devinterface.RequestContext{
 		Schema: `definition user {}
 
 definition document {
@@ -72,10 +72,8 @@ definition document {
 		},
 	})
 
-	require.NoError(t, err)
-	require.NotNil(t, devErrs)
-	require.NotEmpty(t, devErrs.InputErrors)
-	require.Contains(t, devErrs.InputErrors[0].Message, "invalid resource id")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid resource id; must match")
 }
 
 func TestDevelopmentCaveatedExpectedRels(t *testing.T) {
