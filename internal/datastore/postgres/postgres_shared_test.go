@@ -1425,9 +1425,12 @@ func StrictReadModeTest(t *testing.T, ds datastore.Datastore) {
 		},
 	}
 
-	_, err = ds.SnapshotReader(badRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+	it, err = ds.SnapshotReader(badRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
+	require.NoError(err)
+
+	_, err = datastore.IteratorToSlice(it)
 	require.Error(err)
 	require.ErrorContains(err, "is not available on the replica")
 	require.ErrorAs(err, &common.RevisionUnavailableError{})
