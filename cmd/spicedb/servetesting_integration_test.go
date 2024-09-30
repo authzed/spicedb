@@ -82,7 +82,7 @@ func TestTestServer(t *testing.T) {
 	// Try writing a simple relationship against readonly and ensure it fails.
 	_, err = rov1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
-			tuple.UpdateToRelationshipUpdate(tuple.Create(relationship)),
+			tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(relationship)),
 		},
 	})
 	require.Equal("rpc error: code = Unavailable desc = service read-only", err.Error())
@@ -90,7 +90,7 @@ func TestTestServer(t *testing.T) {
 	// Write a simple relationship.
 	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
 		Updates: []*v1.RelationshipUpdate{
-			tuple.UpdateToRelationshipUpdate(tuple.Create(relationship)),
+			tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(relationship)),
 		},
 	})
 	require.NoError(err)
