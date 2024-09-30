@@ -33,7 +33,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -318,9 +317,9 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Equal(int64(2), removed.Namespaces)   // resource, user
 
 	// Write a relationship.
-	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
+	rel := tuple.MustParse("resource:someresource#reader@user:someuser#...")
 
-	wroteOneRelationship, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	wroteOneRelationship, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel)
 	require.NoError(err)
 
 	// Run GC at the transaction and ensure no relationships are removed, but 1 transaction (the previous write namespace) is.
@@ -339,11 +338,11 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
-	tRequire.RelationshipExists(ctx, tpl, wroteOneRelationship)
+	tRequire.RelationshipExists(ctx, rel, wroteOneRelationship)
 
 	// Overwrite the relationship by changing its caveat.
-	tpl = tuple.MustWithCaveat(tpl, "somecaveat")
-	relOverwrittenAt, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl)
+	rel = tuple.MustWithCaveat(rel, "somecaveat")
+	relOverwrittenAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel)
 	require.NoError(err)
 
 	// Run GC, which won't clean anything because we're dropping the write transaction only
@@ -361,16 +360,16 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
-	tRequire.RelationshipExists(ctx, tpl, relOverwrittenAt)
+	tRequire.RelationshipExists(ctx, rel, relOverwrittenAt)
 
 	// Delete the relationship.
-	relDeletedAt, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_DELETE, tpl)
+	relDeletedAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationDelete, rel)
 	require.NoError(err)
 
 	// Ensure the relationship is gone.
-	tRequire.NoRelationshipExists(ctx, tpl, relDeletedAt)
+	tRequire.NoRelationshipExists(ctx, rel, relDeletedAt)
 
-	// Run GC, which will now drop the overwrite transaction only and the first tpl revision
+	// Run GC, which will now drop the overwrite transaction only and the first rel revision
 	removed, err = pds.DeleteBeforeTx(ctx, relDeletedAt)
 	require.NoError(err)
 	require.Equal(int64(1), removed.Relationships)
@@ -387,10 +386,10 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	// Write a the relationship a few times.
 	var relLastWriteAt datastore.Revision
 	for i := 0; i < 3; i++ {
-		tpl = tuple.MustWithCaveat(tpl, fmt.Sprintf("somecaveat%d", i))
+		rel = tuple.MustWithCaveat(rel, fmt.Sprintf("somecaveat%d", i))
 
 		var err error
-		relLastWriteAt, err = common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl)
+		relLastWriteAt, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel)
 		require.NoError(err)
 	}
 
@@ -403,7 +402,7 @@ func GarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still present.
-	tRequire.RelationshipExists(ctx, tpl, relLastWriteAt)
+	tRequire.RelationshipExists(ctx, rel, relLastWriteAt)
 
 	// Inject a transaction to clean up the last write
 	lastRev, err := pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
@@ -479,8 +478,8 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Write a relationship.
-	tpl := tuple.Parse("resource:someresource#reader@user:someuser#...")
-	relLastWriteAt, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	rel := tuple.MustParse("resource:someresource#reader@user:someuser#...")
+	relLastWriteAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel)
 	require.NoError(err)
 
 	// Run GC and ensure only transactions were removed.
@@ -498,13 +497,13 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 
 	// Ensure the relationship is still present.
 	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
-	tRequire.RelationshipExists(ctx, tpl, relLastWriteAt)
+	tRequire.RelationshipExists(ctx, rel, relLastWriteAt)
 
 	// Sleep 1ms to ensure GC will delete the previous write.
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete the relationship.
-	relDeletedAt, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_DELETE, tpl)
+	relDeletedAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationDelete, rel)
 	require.NoError(err)
 
 	// Inject a revision to sweep up the last revision
@@ -527,7 +526,7 @@ func GarbageCollectionByTimeTest(t *testing.T, ds datastore.Datastore) {
 	require.Zero(removed.Namespaces)
 
 	// Ensure the relationship is still not present.
-	tRequire.NoRelationshipExists(ctx, tpl, relDeletedAt)
+	tRequire.NoRelationshipExists(ctx, rel, relDeletedAt)
 }
 
 const chunkRelationshipCount = 2000
@@ -551,20 +550,20 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	pds := ds.(*pgDatastore)
 
 	// Prepare relationships to write.
-	var tpls []*core.RelationTuple
+	var rels []tuple.Relationship
 	for i := 0; i < chunkRelationshipCount; i++ {
-		tpl := tuple.Parse(fmt.Sprintf("resource:resource-%d#reader@user:someuser#...", i))
-		tpls = append(tpls, tpl)
+		rel := tuple.MustParse(fmt.Sprintf("resource:resource-%d#reader@user:someuser#...", i))
+		rels = append(rels, rel)
 	}
 
 	// Write a large number of relationships.
-	writtenAt, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_CREATE, tpls...)
+	writtenAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
 	require.NoError(err)
 
 	// Ensure the relationships were written.
 	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
-	for _, tpl := range tpls {
-		tRequire.RelationshipExists(ctx, tpl, writtenAt)
+	for _, rel := range rels {
+		tRequire.RelationshipExists(ctx, rel, writtenAt)
 	}
 
 	// Run GC and ensure only transactions were removed.
@@ -584,7 +583,7 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	time.Sleep(1 * time.Millisecond)
 
 	// Delete all the relationships.
-	deletedAt, err := common.WriteRelationships(ctx, ds, core.RelationTupleUpdate_DELETE, tpls...)
+	deletedAt, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationDelete, rels...)
 	require.NoError(err)
 
 	// Inject a revision to sweep up the last revision
@@ -594,8 +593,8 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Ensure the relationships were deleted.
-	for _, tpl := range tpls {
-		tRequire.NoRelationshipExists(ctx, tpl, deletedAt)
+	for _, rel := range rels {
+		tRequire.NoRelationshipExists(ctx, rel, deletedAt)
 	}
 
 	// Sleep to ensure GC.
@@ -761,19 +760,8 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	g.Go(func() error {
 		var err error
 		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			rtu := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: "resource",
-					ObjectId:  "123",
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
-				},
-			})
-			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+			rtu := tuple.Touch(tuple.MustParse("resource:123#reader@user:456"))
+			err = rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
 			require.NoError(err)
 
 			close(waitToStart)
@@ -788,19 +776,8 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 	<-waitToStart
 
 	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		rtu := tuple.Touch(&core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: "resource",
-				ObjectId:  "789",
-				Relation:  "reader",
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: "user",
-				ObjectId:  "456",
-				Relation:  "...",
-			},
-		})
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+		rtu := tuple.Touch(tuple.MustParse("resource:789#reader@user:456"))
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
 	})
 	close(waitToFinish)
 
@@ -820,14 +797,9 @@ func ConcurrentRevisionHeadTest(t *testing.T, ds datastore.Datastore) {
 		OptionalResourceType: "resource",
 	})
 	require.NoError(err)
-	defer it.Close()
 
-	found := []*core.RelationTuple{}
-	for tpl := it.Next(); tpl != nil; tpl = it.Next() {
-		require.NoError(it.Err())
-		found = append(found, tpl)
-	}
-
+	found, err := datastore.IteratorToSlice(it)
+	require.NoError(err)
 	require.Equal(2, len(found), "missing relationships in %v", found)
 }
 
@@ -894,7 +866,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	g.Go(func() error {
 		var err error
 		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+			err = rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 				tuple.Touch(tuple.MustParse("something:001#viewer@user:123")),
 				tuple.Touch(tuple.MustParse("something:002#viewer@user:123")),
 				tuple.Touch(tuple.MustParse("something:003#viewer@user:123")),
@@ -913,7 +885,7 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 	<-waitToStart
 
 	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Touch(tuple.MustParse("resource:1001#reader@user:456")),
 			tuple.Touch(tuple.MustParse("resource:1002#reader@user:456")),
 			tuple.Touch(tuple.MustParse("resource:1003#reader@user:456")),
@@ -931,19 +903,8 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 
 	// Write another revision.
 	afterRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		rtu := tuple.Touch(&core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: "resource",
-				ObjectId:  "2345",
-				Relation:  "reader",
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: "user",
-				ObjectId:  "456",
-				Relation:  "...",
-			},
-		})
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+		rtu := tuple.Touch(tuple.MustParse("resource:2345#reader@user:456"))
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
 	})
 	require.NoError(err)
 	require.True(afterRev.GreaterThan(commitFirstRev))
@@ -1088,19 +1049,8 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	g.Go(func() error {
 		var err error
 		commitLastRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			rtu := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: "resource",
-					ObjectId:  "123",
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
-				},
-			})
-			err = rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+			rtu := tuple.Touch(tuple.MustParse("resource:123#reader@user:456"))
+			err = rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
 			require.NoError(err)
 
 			close(waitToStart)
@@ -1115,19 +1065,8 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	<-waitToStart
 
 	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		rtu := tuple.Touch(&core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: "resource",
-				ObjectId:  "789",
-				Relation:  "reader",
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: "user",
-				ObjectId:  "ten",
-				Relation:  "...",
-			},
-		})
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu})
+		rtu := tuple.Touch(tuple.MustParse("resource:789#reader@user:456"))
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
 	})
 	close(waitToFinish)
 
@@ -1219,13 +1158,10 @@ func BenchmarkPostgresQuery(b *testing.B) {
 				OptionalResourceType: testfixtures.DocumentNS.Name,
 			})
 			require.NoError(err)
-
-			defer iter.Close()
-
-			for tpl := iter.Next(); tpl != nil; tpl = iter.Next() {
-				require.Equal(testfixtures.DocumentNS.Name, tpl.ResourceAndRelation.Namespace)
+			for rel, err := range iter {
+				require.NoError(err)
+				require.Equal(testfixtures.DocumentNS.Name, rel.Resource.ObjectType)
 			}
-			require.NoError(iter.Err())
 		}
 	})
 }
@@ -1263,46 +1199,52 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 			}
 
 			// Write some relationships.
-			rtu := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: testfixtures.DocumentNS.Name,
-					ObjectId:  fmt.Sprintf("doc%d", i),
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
-				},
-			})
-
-			rtu2 := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: fmt.Sprintf("resource%d", i),
-					ObjectId:  "123",
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
+			rtu := tuple.Touch(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: testfixtures.DocumentNS.Name,
+						ObjectID:   fmt.Sprintf("doc%d", i),
+						Relation:   "reader",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
 				},
 			})
 
-			rtu3 := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: fmt.Sprintf("resource%d", i),
-					ObjectId:  "123",
-					Relation:  "writer",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
+			rtu2 := tuple.Touch(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: fmt.Sprintf("resource%d", i),
+						ObjectID:   "123",
+						Relation:   "reader",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
 				},
 			})
 
-			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2, rtu3})
+			rtu3 := tuple.Touch(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: fmt.Sprintf("resource%d", i),
+						ObjectID:   "123",
+						Relation:   "writer",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
+				},
+			})
+
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu, rtu2, rtu3})
 		})
 		require.NoError(err)
 	}
@@ -1310,32 +1252,36 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	// Delete some relationships.
 	for i := 990; i < 1000; i++ {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-			rtu := tuple.Delete(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: testfixtures.DocumentNS.Name,
-					ObjectId:  fmt.Sprintf("doc%d", i),
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
+			rtu := tuple.Delete(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: testfixtures.DocumentNS.Name,
+						ObjectID:   fmt.Sprintf("doc%d", i),
+						Relation:   "reader",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
 				},
 			})
 
-			rtu2 := tuple.Delete(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: fmt.Sprintf("resource%d", i),
-					ObjectId:  "123",
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
+			rtu2 := tuple.Delete(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: fmt.Sprintf("resource%d", i),
+						ObjectID:   "123",
+						Relation:   "reader",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
 				},
 			})
-			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu, rtu2})
 		})
 		require.NoError(err)
 	}
@@ -1344,32 +1290,36 @@ func datastoreWithInterceptorAndTestData(t *testing.T, interceptor pgcommon.Quer
 	for i := 1000; i < 1100; i++ {
 		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 			// Write some relationships.
-			rtu := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: testfixtures.DocumentNS.Name,
-					ObjectId:  fmt.Sprintf("doc%d", i),
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
+			rtu := tuple.Touch(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: testfixtures.DocumentNS.Name,
+						ObjectID:   fmt.Sprintf("doc%d", i),
+						Relation:   "reader",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
 				},
 			})
 
-			rtu2 := tuple.Touch(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: fmt.Sprintf("resource%d", i),
-					ObjectId:  "123",
-					Relation:  "reader",
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: "user",
-					ObjectId:  "456",
-					Relation:  "...",
+			rtu2 := tuple.Touch(tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: fmt.Sprintf("resource%d", i),
+						ObjectID:   "123",
+						Relation:   "reader",
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: "user",
+						ObjectID:   "456",
+						Relation:   "...",
+					},
 				},
 			})
-			return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{rtu, rtu2})
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu, rtu2})
 		})
 		require.NoError(err)
 	}
@@ -1461,7 +1411,9 @@ func StrictReadModeTest(t *testing.T, ds datastore.Datastore) {
 		OptionalResourceType: "resource",
 	})
 	require.NoError(err)
-	it.Close()
+
+	_, err = datastore.IteratorToSlice(it)
+	require.NoError(err)
 
 	// Perform a read at a manually constructed revision beyond head, which should fail.
 	badRev := postgresRevision{
@@ -1524,9 +1476,9 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 
 	// Verify the relationship create was tracked by the watch.
-	test.VerifyUpdates(require, [][]*core.RelationTupleUpdate{
+	test.VerifyUpdates(require, [][]tuple.RelationshipUpdate{
 		{
-			tuple.Touch(tuple.Parse("resource:someresourceid#somerelation@subject:somesubject")),
+			tuple.Touch(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
 		},
 	},
 		changes,
@@ -1535,14 +1487,14 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 	)
 
 	// Delete the relationship and ensure it does not raise an error in watch.
-	deleteUpdate := tuple.Delete(tuple.Parse("resource:someresourceid#somerelation@subject:somesubject"))
+	deleteUpdate := tuple.Delete(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject"))
 	_, err = common.UpdateRelationshipsInDatastore(ctx, ds, deleteUpdate)
 	require.NoError(err)
 
 	// Verify the delete.
-	test.VerifyUpdates(require, [][]*core.RelationTupleUpdate{
+	test.VerifyUpdates(require, [][]tuple.RelationshipUpdate{
 		{
-			tuple.Delete(tuple.Parse("resource:someresourceid#somerelation@subject:somesubject")),
+			tuple.Delete(tuple.MustParse("resource:someresourceid#somerelation@subject:somesubject")),
 		},
 	},
 		changes,
@@ -1568,7 +1520,7 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 
 	pds := ds.(*pgDatastore)
 	_, err = pds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Touch(tuple.MustParse("something:001#viewer@user:123")),
 		})
 	})
