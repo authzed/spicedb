@@ -330,9 +330,12 @@ func TestChanges(t *testing.T) {
 				}
 			}
 
+			actual, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+			require.NoError(err)
+
 			require.Equal(
 				canonicalize(tc.expected),
-				canonicalize(ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)),
+				canonicalize(actual),
 			)
 		})
 	}
@@ -345,6 +348,23 @@ func TestFilteredSchemaChanges(t *testing.T) {
 
 	require.NoError(t, ch.AddRelationshipChange(ctx, rev1, tuple.MustParse("document:firstdoc#viewer@user:tom"), core.RelationTupleUpdate_TOUCH))
 	require.True(t, ch.IsEmpty())
+}
+
+func TestSetMetadata(t *testing.T) {
+	ctx := context.Background()
+	ch := NewChanges(revisions.TransactionIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
+	require.True(t, ch.IsEmpty())
+
+	err := ch.SetRevisionMetadata(ctx, rev1, map[string]any{"foo": "bar"})
+	require.NoError(t, err)
+	require.False(t, ch.IsEmpty())
+
+	results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev2)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(results))
+	require.True(t, ch.IsEmpty())
+
+	require.Equal(t, map[string]any{"foo": "bar"}, results[0].Metadata.AsMap())
 }
 
 func TestFilteredRelationshipChanges(t *testing.T) {
@@ -374,7 +394,8 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 
 	require.False(t, ch.IsEmpty())
 
-	results := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
+	results, err := ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, rev3)
+	require.NoError(t, err)
 	require.Equal(t, 2, len(results))
 	require.False(t, ch.IsEmpty())
 
@@ -393,8 +414,9 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		},
 	}, results)
 
-	remaining := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
+	remaining, err := ch.AsRevisionChanges(revisions.TransactionIDKeyLessThanFunc)
 	require.Equal(t, 1, len(remaining))
+	require.NoError(t, err)
 
 	require.Equal(t, []datastore.RevisionChanges{
 		{
@@ -405,11 +427,13 @@ func TestFilterAndRemoveRevisionChanges(t *testing.T) {
 		},
 	}, remaining)
 
-	results = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillion)
+	results, err = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillion)
+	require.NoError(t, err)
 	require.Equal(t, 1, len(results))
 	require.True(t, ch.IsEmpty())
 
-	results = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillionOne)
+	results, err = ch.FilterAndRemoveRevisionChanges(revisions.TransactionIDKeyLessThanFunc, revOneMillionOne)
+	require.NoError(t, err)
 	require.Equal(t, 0, len(results))
 	require.True(t, ch.IsEmpty())
 }
@@ -432,7 +456,8 @@ func TestHLCOrdering(t *testing.T) {
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), core.RelationTupleUpdate_TOUCH)
 	require.NoError(t, err)
 
-	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	remaining, err := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	require.NoError(t, err)
 	require.Equal(t, 2, len(remaining))
 
 	require.Equal(t, []datastore.RevisionChanges{
@@ -475,7 +500,8 @@ func TestHLCSameRevision(t *testing.T) {
 	err = ch.AddRelationshipChange(ctx, rev0again, tuple.MustParse("document:foo#viewer@user:sarah"), core.RelationTupleUpdate_TOUCH)
 	require.NoError(t, err)
 
-	remaining := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	remaining, err := ch.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	require.NoError(t, err)
 	require.Equal(t, 1, len(remaining))
 
 	expected := []*core.RelationTupleUpdate{

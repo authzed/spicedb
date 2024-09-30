@@ -640,7 +640,7 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 	// Transaction timestamp should not be stored in system time zone
 	tx, err := db.BeginTx(ctx, nil)
 	req.NoError(err)
-	txID, err := ds.(*Datastore).createNewTransaction(ctx, tx)
+	txID, err := ds.(*Datastore).createNewTransaction(ctx, tx, nil)
 	req.NoError(err)
 	err = tx.Commit()
 	req.NoError(err)

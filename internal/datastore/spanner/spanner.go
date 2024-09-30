@@ -12,6 +12,7 @@ import (
 	"cloud.google.com/go/spanner"
 	ocprom "contrib.go.opencensus.io/exporter/prometheus"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/stats/view"
@@ -239,16 +240,48 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 	return spannerReader{executor, txSource, sd.filterMaximumIDCount}
 }
 
+func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (map[string]any, error) {
+	row, err := sd.client.Single().ReadRow(ctx, tableTransactionMetadata, spanner.Key{transactionTag}, []string{colMetadata})
+	if err != nil {
+		if spanner.ErrCode(err) == codes.NotFound {
+			return map[string]any{}, nil
+		}
+
+		return nil, err
+	}
+
+	var metadata map[string]any
+	if err := row.Columns(&metadata); err != nil {
+		return nil, err
+	}
+
+	return metadata, nil
+}
+
 func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUserFunc, opts ...options.RWTOptionsOption) (datastore.Revision, error) {
 	config := options.NewRWTOptionsWithOptions(opts...)
 
 	ctx, span := tracer.Start(ctx, "ReadWriteTx")
 	defer span.End()
 
+	transactionTag := "sdb-rwt-" + uuid.NewString()
+
 	ctx, cancel := context.WithCancel(ctx)
-	ts, err := sd.client.ReadWriteTransaction(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
+	rs, err := sd.client.ReadWriteTransactionWithOptions(ctx, func(ctx context.Context, spannerRWT *spanner.ReadWriteTransaction) error {
 		txSource := func() readTX {
 			return &traceableRTX{delegate: spannerRWT}
+		}
+
+		if config.Metadata != nil {
+			// Insert the metadata into the transaction metadata table.
+			mutation := spanner.Insert(tableTransactionMetadata,
+				[]string{colTransactionTag, colMetadata},
+				[]any{transactionTag, config.Metadata.AsMap()},
+			)
+
+			if err := spannerRWT.BufferWrite([]*spanner.Mutation{mutation}); err != nil {
+				return fmt.Errorf("unable to write metadata: %w", err)
+			}
 		}
 
 		executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
@@ -270,7 +303,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 		}
 
 		return nil
-	})
+	}, spanner.TransactionOptions{TransactionTag: transactionTag})
 	if err != nil {
 		if cerr := convertToWriteConstraintError(err); cerr != nil {
 			return datastore.NoRevision, cerr
@@ -278,7 +311,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 		return datastore.NoRevision, err
 	}
 
-	return revisions.NewForTime(ts), nil
+	return revisions.NewForTime(rs.CommitTs), nil
 }
 
 func (sd *spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {

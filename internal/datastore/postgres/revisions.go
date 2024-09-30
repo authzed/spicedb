@@ -250,11 +250,22 @@ func parseRevisionDecimal(revisionStr string) (datastore.Revision, error) {
 	}}, nil
 }
 
-func createNewTransaction(ctx context.Context, tx pgx.Tx) (newXID xid8, newSnapshot pgSnapshot, err error) {
+var emptyMetadata = map[string]any{}
+
+func createNewTransaction(ctx context.Context, tx pgx.Tx, metadata map[string]any) (newXID xid8, newSnapshot pgSnapshot, err error) {
 	ctx, span := tracer.Start(ctx, "createNewTransaction")
 	defer span.End()
 
-	cterr := tx.QueryRow(ctx, createTxn).Scan(&newXID, &newSnapshot)
+	if metadata == nil {
+		metadata = emptyMetadata
+	}
+
+	sql, args, err := createTxn.Values(metadata).Suffix("RETURNING " + colXID + ", " + colSnapshot).ToSql()
+	if err != nil {
+		return
+	}
+
+	cterr := tx.QueryRow(ctx, sql, args...).Scan(&newXID, &newSnapshot)
 	if cterr != nil {
 		err = fmt.Errorf("error when trying to create a new transaction: %w", cterr)
 	}
@@ -265,6 +276,7 @@ type postgresRevision struct {
 	snapshot               pgSnapshot
 	optionalTxID           xid8
 	optionalNanosTimestamp uint64
+	optionalMetadata       map[string]any
 }
 
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {

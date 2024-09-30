@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/pkg/tuple"
 
@@ -61,6 +62,9 @@ type RevisionChanges struct {
 	// up until and including the Revision and that no additional schema updates can
 	// have occurred before this point.
 	IsCheckpoint bool
+
+	// Metadata is the metadata associated with the revision, if any.
+	Metadata *structpb.Struct
 }
 
 func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {

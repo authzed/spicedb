@@ -30,6 +30,10 @@ const (
 	colCounterSerializedFilter   = "serialized_filter"
 	colCounterCurrentCount       = "current_count"
 	colCounterUpdatedAtTimestamp = "updated_at_timestamp"
+
+	tableTransactionMetadata = "transaction_metadata"
+	colTransactionTag        = "transaction_tag"
+	colMetadata              = "metadata"
 )
 
 var allRelationshipCols = []string{

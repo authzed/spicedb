@@ -55,6 +55,8 @@ type changeDetails struct {
 		IntegrityKeyID     *string `json:"integrity_key_id"`
 		IntegrityHashAsHex *string `json:"integrity_hash"`
 		TimestampAsString  *string `json:"timestamp"`
+
+		Metadata map[string]any `json:"metadata"`
 	}
 }
 
@@ -110,7 +112,8 @@ func (cds *crdbDatastore) watch(
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
-	tableNames := make([]string, 0, 3)
+	tableNames := make([]string, 0, 4)
+	tableNames = append(tableNames, tableTransactionMetadata)
 	if opts.Content&datastore.WatchRelationships == datastore.WatchRelationships {
 		tableNames = append(tableNames, cds.tableTupleName())
 	}
@@ -217,7 +220,13 @@ func (cds *crdbDatastore) watch(
 				return
 			}
 
-			for _, revChange := range tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev) {
+			filtered, err := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev)
+			if err != nil {
+				sendError(err)
+				return
+			}
+
+			for _, revChange := range filtered {
 				revChange := revChange
 				if !sendChange(&revChange) {
 					return
@@ -393,6 +402,24 @@ func (cds *crdbDatastore) watch(
 					return
 				}
 			}
+
+		case tableTransactionMetadata:
+			if details.After != nil {
+				rev, err := revisions.HLCRevisionFromString(details.Updated)
+				if err != nil {
+					sendError(fmt.Errorf("malformed update timestamp: %w", err))
+					return
+				}
+
+				if err := tracked.SetRevisionMetadata(ctx, rev, details.After.Metadata); err != nil {
+					sendError(err)
+					return
+				}
+			}
+
+		default:
+			sendError(spiceerrors.MustBugf("unexpected table name in changefeed: %s", tableName))
+			return
 		}
 	}
 
