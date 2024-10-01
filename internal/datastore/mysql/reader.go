@@ -24,8 +24,9 @@ type mysqlReader struct {
 
 	txSource             txFactory
 	executor             common.QueryExecutor
-	filterer             queryFilterer
+	aliveFilter          queryFilterer
 	filterMaximumIDCount uint16
+	schema               common.SchemaInformation
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
@@ -37,19 +38,6 @@ const (
 	errUnableToReadCounters      = "unable to read counters: %w"
 	errUnableToReadCounterFilter = "unable to read counter filter: %w"
 	errUnableToReadCount         = "unable to read count: %w"
-)
-
-var schema = common.NewSchemaInformation(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName,
-	colExpiration,
-	common.ExpandedLogicComparison,
-	"NOW",
 )
 
 func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -68,7 +56,7 @@ func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int
 		return 0, err
 	}
 
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.CountRelsQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	qBuilder, err := common.NewSchemaQueryFiltererWithStartingQuery(mr.schema, mr.aliveFilter(mr.CountRelsQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -116,7 +104,7 @@ func (mr *mysqlReader) LookupCounters(ctx context.Context) ([]datastore.Relation
 }
 
 func (mr *mysqlReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
-	query := mr.filterer(mr.ReadCounterQuery)
+	query := mr.aliveFilter(mr.ReadCounterQuery)
 	if optionalName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{colCounterName: optionalName})
 	}
@@ -177,7 +165,9 @@ func (mr *mysqlReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryRelsQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(mr.schema, mr.filterMaximumIDCount).
+		WithAdditionalFilter(mr.aliveFilter).
+		FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +180,8 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryRelsQuery), mr.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(mr.schema, mr.filterMaximumIDCount).
+		WithAdditionalFilter(mr.aliveFilter).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -220,7 +211,7 @@ func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (
 	}
 	defer common.LogOnError(ctx, txCleanup)
 
-	loaded, version, err := loadNamespace(ctx, nsName, tx, mr.filterer(mr.ReadNamespaceQuery))
+	loaded, version, err := loadNamespace(ctx, nsName, tx, mr.aliveFilter(mr.ReadNamespaceQuery))
 	switch {
 	case errors.As(err, &datastore.NamespaceNotFoundError{}):
 		return nil, datastore.NoRevision, err
@@ -265,7 +256,7 @@ func (mr *mysqlReader) ListAllNamespaces(ctx context.Context) ([]datastore.Revis
 	}
 	defer common.LogOnError(ctx, txCleanup)
 
-	query := mr.filterer(mr.ReadNamespaceQuery)
+	query := mr.aliveFilter(mr.ReadNamespaceQuery)
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, query)
 	if err != nil {
@@ -291,7 +282,7 @@ func (mr *mysqlReader) LookupNamespacesWithNames(ctx context.Context, nsNames []
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	query := mr.filterer(mr.ReadNamespaceQuery.Where(clause))
+	query := mr.aliveFilter(mr.ReadNamespaceQuery.Where(clause))
 
 	nsDefs, err := loadAllNamespaces(ctx, tx, query)
 	if err != nil {

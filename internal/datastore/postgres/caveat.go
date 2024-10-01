@@ -33,7 +33,7 @@ const (
 )
 
 func (r *pgReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	filteredReadCaveat := r.filterer(readCaveat)
+	filteredReadCaveat := r.aliveFilter(readCaveat)
 	sql, args, err := filteredReadCaveat.Where(sq.Eq{colCaveatName: name}).ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, err)
@@ -78,7 +78,7 @@ func (r *pgReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]d
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
 	}
 
-	filteredListCaveat := r.filterer(caveatsWithNames)
+	filteredListCaveat := r.aliveFilter(caveatsWithNames)
 	sql, args, err := filteredListCaveat.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf(errListCaveats, err)

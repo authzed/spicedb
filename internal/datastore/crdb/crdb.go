@@ -200,6 +200,34 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, fmt.Errorf("invalid head migration found for cockroach: %w", err)
 	}
 
+	var extraFields []string
+	relTableName := tableTuple
+	if config.withIntegrity {
+		relTableName = tableTupleWithIntegrity
+		extraFields = []string{
+			colIntegrityKeyID,
+			colIntegrityHash,
+			colTimestamp,
+		}
+	}
+
+	schema := common.NewSchemaInformation(
+		relTableName,
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
+		colExpiration,
+		common.ExpandedLogicComparison,
+		sq.Dollar,
+		"NOW",
+		extraFields...,
+	)
+
 	ds := &crdbDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			config.gcWindow,
@@ -221,6 +249,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
 		gcWindow:                config.gcWindow,
+		schema:                  schema,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -305,6 +334,7 @@ type crdbDatastore struct {
 	overlapKeyInit          func(ctx context.Context) keySet
 	analyzeBeforeStatistics bool
 	gcWindow                time.Duration
+	schema                  common.SchemaInformation
 
 	beginChangefeedQuery string
 	transactionNowQuery  string
@@ -323,11 +353,12 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 		Executor: pgxcommon.NewPGXExecutorWithIntegrityOption(cds.readPool, cds.supportsIntegrity),
 	}
 
-	fromBuilder := func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
-		return query.From(fromStr + " AS OF SYSTEM TIME " + rev.String())
+	withAsOfSystemTime := func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
+		return query.From(tableName + " AS OF SYSTEM TIME " + rev.String())
 	}
 
-	return &crdbReader{cds.readPool, executor, noOverlapKeyer, nil, fromBuilder, cds.filterMaximumIDCount, cds.tableTupleName(), cds.supportsIntegrity}
+	asOfSystemTimeSuffix := "AS OF SYSTEM TIME " + rev.String()
+	return &crdbReader{cds.readPool, executor, noOverlapKeyer, nil, withAsOfSystemTime, asOfSystemTimeSuffix, cds.filterMaximumIDCount, cds.schema, cds.supportsIntegrity}
 }
 
 func (cds *crdbDatastore) ReadWriteTx(
@@ -375,11 +406,12 @@ func (cds *crdbDatastore) ReadWriteTx(
 				executor,
 				cds.writeOverlapKeyer,
 				cds.overlapKeyInit(ctx),
-				func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder {
-					return query.From(fromStr)
+				func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
+					return query.From(tableName)
 				},
+				"", // No AS OF SYSTEM TIME for writes
 				cds.filterMaximumIDCount,
-				cds.tableTupleName(),
+				cds.schema,
 				cds.supportsIntegrity,
 			},
 			tx,
@@ -526,14 +558,6 @@ func (cds *crdbDatastore) Features(ctx context.Context) (*datastore.Features, er
 	return features, err
 }
 
-func (cds *crdbDatastore) tableTupleName() string {
-	if cds.supportsIntegrity {
-		return tableTupleWithIntegrity
-	}
-
-	return tableTuple
-}
-
 func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, error) {
 	features := datastore.Features{
 		ContinuousCheckpointing: datastore.Feature{
@@ -567,7 +591,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
 		}
 		return nil
-	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.tableTupleName(), head, "1s"))
+	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "1s"))
 
 	<-streamCtx.Done()
 

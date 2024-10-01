@@ -51,7 +51,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 		return datastore.Stats{}, fmt.Errorf("unable to prepare row count sql: %w", err)
 	}
 
-	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {
+	aliveFilter := func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	}
 
@@ -69,7 +69,7 @@ func (pgd *pgDatastore) Statistics(ctx context.Context) (datastore.Stats, error)
 			return fmt.Errorf("unable to query unique ID: %w", err)
 		}
 
-		nsDefsWithRevisions, err := loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), filterer)
+		nsDefsWithRevisions, err := loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), aliveFilter)
 		if err != nil {
 			return fmt.Errorf("unable to load namespaces: %w", err)
 		}

@@ -22,7 +22,7 @@ const (
 )
 
 func (mr *mysqlReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	filteredReadCaveat := mr.filterer(mr.ReadCaveatQuery)
+	filteredReadCaveat := mr.aliveFilter(mr.ReadCaveatQuery)
 	sqlStatement, args, err := filteredReadCaveat.Where(sq.Eq{colName: name}).ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, err
@@ -68,7 +68,7 @@ func (mr *mysqlReader) lookupCaveats(ctx context.Context, caveatNames []string) 
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colName: caveatNames})
 	}
 
-	filteredListCaveat := mr.filterer(caveatsWithNames)
+	filteredListCaveat := mr.aliveFilter(caveatsWithNames)
 	listSQL, listArgs, err := filteredListCaveat.ToSql()
 	if err != nil {
 		return nil, err

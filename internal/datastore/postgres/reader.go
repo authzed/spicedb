@@ -18,39 +18,15 @@ import (
 type pgReader struct {
 	query                pgxcommon.DBFuncQuerier
 	executor             common.QueryExecutor
-	filterer             queryFilterer
+	aliveFilter          queryFilterer
 	filterMaximumIDCount uint16
+	schema               common.SchemaInformation
 }
 
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
 
 var (
-	queryTuples = psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
-	).From(tableTuple)
-
 	countRels = psql.Select("COUNT(*)").From(tableTuple)
-
-	schema = common.NewSchemaInformation(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colExpiration,
-		common.TupleComparison,
-		"NOW",
-	)
 
 	readNamespace = psql.
 			Select(colConfig, colCreatedXid).
@@ -85,7 +61,7 @@ func (r *pgReader) CountRelationships(ctx context.Context, name string) (int, er
 		return 0, err
 	}
 
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(countRels), r.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	qBuilder, err := common.NewSchemaQueryFiltererWithStartingQuery(r.schema, r.aliveFilter(countRels), r.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -125,7 +101,7 @@ func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]d
 		query = query.Where(sq.Eq{colCounterName: optionalName})
 	}
 
-	sql, args, err := r.filterer(query).ToSql()
+	sql, args, err := r.aliveFilter(query).ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("unable to lookup counters: %w", err)
 	}
@@ -173,7 +149,9 @@ func (r *pgReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples), r.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
+		WithAdditionalFilter(r.aliveFilter).
+		FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +164,8 @@ func (r *pgReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, r.filterer(queryTuples), r.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
+		WithAdditionalFilter(r.aliveFilter).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -209,7 +188,7 @@ func (r *pgReader) ReverseQueryRelationships(
 }
 
 func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
-	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.filterer)
+	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.aliveFilter)
 	switch {
 	case errors.As(err, &datastore.NamespaceNotFoundError{}):
 		return nil, datastore.NoRevision, err
@@ -239,7 +218,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 }
 
 func (r *pgReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.filterer)
+	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, r.aliveFilter)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
@@ -258,7 +237,7 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 	}
 
 	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, func(original sq.SelectBuilder) sq.SelectBuilder {
-		return r.filterer(original).Where(clause)
+		return r.aliveFilter(original).Where(clause)
 	})
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)

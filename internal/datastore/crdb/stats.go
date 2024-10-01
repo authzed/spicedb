@@ -44,8 +44,8 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 		if err != nil {
 			return fmt.Errorf("unable to read namespaces: %w", err)
 		}
-		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), func(sb squirrel.SelectBuilder, fromStr string) squirrel.SelectBuilder {
-			return sb.From(fromStr)
+		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), func(sb squirrel.SelectBuilder, tableName string) squirrel.SelectBuilder {
+			return sb.From(tableName)
 		})
 		if err != nil {
 			return fmt.Errorf("unable to read namespaces: %w", err)
@@ -57,7 +57,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 
 	if cds.analyzeBeforeStatistics {
 		if err := cds.readPool.BeginTxFunc(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-			if _, err := tx.Exec(ctx, "ANALYZE "+cds.tableTupleName()); err != nil {
+			if _, err := tx.Exec(ctx, "ANALYZE "+cds.schema.RelationshipTableName); err != nil {
 				return fmt.Errorf("unable to analyze tuple table: %w", err)
 			}
 
@@ -131,7 +131,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 
 		log.Warn().Bool("has-rows", hasRows).Msg("unable to find row count in statistics query result")
 		return nil
-	}, "SHOW STATISTICS FOR TABLE "+cds.tableTupleName()); err != nil {
+	}, "SHOW STATISTICS FOR TABLE "+cds.schema.RelationshipTableName); err != nil {
 		return datastore.Stats{}, fmt.Errorf("unable to query unique estimated row count: %w", err)
 	}
 
