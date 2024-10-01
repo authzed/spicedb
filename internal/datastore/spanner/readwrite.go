@@ -17,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type spannerReadWriteTXN struct {
@@ -104,10 +105,10 @@ func (rwt spannerReadWriteTXN) StoreCounterValue(ctx context.Context, name strin
 	return nil
 }
 
-func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	var rowCountChange int64
 	for _, mutation := range mutations {
-		txnMut, countChange, err := spannerMutation(ctx, mutation.Operation, mutation.Tuple)
+		txnMut, countChange, err := spannerMutation(ctx, mutation.Operation, mutation.Relationship)
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
 		}
@@ -123,22 +124,22 @@ func (rwt spannerReadWriteTXN) WriteRelationships(ctx context.Context, mutations
 
 func spannerMutation(
 	ctx context.Context,
-	operation core.RelationTupleUpdate_Operation,
-	tpl *core.RelationTuple,
+	operation tuple.UpdateOperation,
+	rel tuple.Relationship,
 ) (txnMut *spanner.Mutation, countChange int64, err error) {
 	switch operation {
-	case core.RelationTupleUpdate_TOUCH:
+	case tuple.UpdateOperationTouch:
 		countChange = 1
-		txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(tpl))
-	case core.RelationTupleUpdate_CREATE:
+		txnMut = spanner.InsertOrUpdate(tableRelationship, allRelationshipCols, upsertVals(rel))
+	case tuple.UpdateOperationCreate:
 		countChange = 1
-		txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(tpl))
-	case core.RelationTupleUpdate_DELETE:
+		txnMut = spanner.Insert(tableRelationship, allRelationshipCols, upsertVals(rel))
+	case tuple.UpdateOperationDelete:
 		countChange = -1
-		txnMut = spanner.Delete(tableRelationship, keyFromRelationship(tpl))
+		txnMut = spanner.Delete(tableRelationship, keyFromRelationship(rel))
 	default:
-		log.Ctx(ctx).Error().Stringer("operation", operation).Msg("unknown operation type")
-		err = fmt.Errorf("unknown mutation operation: %s", operation)
+		log.Ctx(ctx).Error().Msg("unknown operation type")
+		err = fmt.Errorf("unknown mutation operation: %v", operation)
 		return
 	}
 
@@ -213,23 +214,41 @@ func deleteWithFilterAndLimit(ctx context.Context, rwt *spanner.ReadWriteTransac
 	defer iter.Stop()
 
 	if err := iter.Do(func(row *spanner.Row) error {
-		nextTuple := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
+		var resourceObjectType string
+		var resourceObjectID string
+		var relation string
+		var subjectObjectType string
+		var subjectObjectID string
+		var subjectRelation string
+
 		err := row.Columns(
-			&nextTuple.ResourceAndRelation.Namespace,
-			&nextTuple.ResourceAndRelation.ObjectId,
-			&nextTuple.ResourceAndRelation.Relation,
-			&nextTuple.Subject.Namespace,
-			&nextTuple.Subject.ObjectId,
-			&nextTuple.Subject.Relation,
+			&resourceObjectType,
+			&resourceObjectID,
+			&relation,
+			&subjectObjectType,
+			&subjectObjectID,
+			&subjectRelation,
 		)
 		if err != nil {
 			return err
 		}
 
-		mutations = append(mutations, spanner.Delete(tableRelationship, keyFromRelationship(nextTuple)))
+		nextRel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: resourceObjectType,
+					ObjectID:   resourceObjectID,
+					Relation:   relation,
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: subjectObjectType,
+					ObjectID:   subjectObjectID,
+					Relation:   subjectRelation,
+				},
+			},
+		}
+
+		mutations = append(mutations, spanner.Delete(tableRelationship, keyFromRelationship(nextRel)))
 		return nil
 	}); err != nil {
 		return -1, err
@@ -297,31 +316,31 @@ func applyFilterToQuery[T builder[T]](query T, filter *v1.RelationshipFilter) (T
 	return query, nil
 }
 
-func upsertVals(r *core.RelationTuple) []any {
+func upsertVals(r tuple.Relationship) []any {
 	key := keyFromRelationship(r)
 	key = append(key, spanner.CommitTimestamp)
 	key = append(key, caveatVals(r)...)
 	return key
 }
 
-func keyFromRelationship(r *core.RelationTuple) spanner.Key {
+func keyFromRelationship(r tuple.Relationship) spanner.Key {
 	return spanner.Key{
-		r.ResourceAndRelation.Namespace,
-		r.ResourceAndRelation.ObjectId,
-		r.ResourceAndRelation.Relation,
-		r.Subject.Namespace,
-		r.Subject.ObjectId,
+		r.Resource.ObjectType,
+		r.Resource.ObjectID,
+		r.Resource.Relation,
+		r.Subject.ObjectType,
+		r.Subject.ObjectID,
 		r.Subject.Relation,
 	}
 }
 
-func caveatVals(r *core.RelationTuple) []any {
-	if r.Caveat == nil {
+func caveatVals(r tuple.Relationship) []any {
+	if r.OptionalCaveat == nil {
 		return []any{"", nil}
 	}
-	vals := []any{r.Caveat.CaveatName}
-	if r.Caveat.Context != nil {
-		vals = append(vals, spanner.NullJSON{Value: r.Caveat.Context, Valid: true})
+	vals := []any{r.OptionalCaveat.CaveatName}
+	if r.OptionalCaveat.Context != nil {
+		vals = append(vals, spanner.NullJSON{Value: r.OptionalCaveat.Context, Valid: true})
 	} else {
 		vals = append(vals, nil)
 	}
@@ -366,10 +385,10 @@ func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...
 
 func (rwt spannerReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var numLoaded uint64
-	var tpl *core.RelationTuple
+	var rel *tuple.Relationship
 	var err error
-	for tpl, err = iter.Next(ctx); err == nil && tpl != nil; tpl, err = iter.Next(ctx) {
-		txnMut, _, err := spannerMutation(ctx, core.RelationTupleUpdate_CREATE, tpl)
+	for rel, err = iter.Next(ctx); err == nil && rel != nil; rel, err = iter.Next(ctx) {
+		txnMut, _, err := spannerMutation(ctx, tuple.UpdateOperationCreate, *rel)
 		if err != nil {
 			return 0, fmt.Errorf(errUnableToBulkLoadRelationships, err)
 		}

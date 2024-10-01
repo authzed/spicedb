@@ -14,6 +14,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // possibleResource is a resource that was returned by reachable resources and, after processing,
@@ -461,8 +462,8 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 		crs.ctx,
 		crs.checker,
 		computed.CheckParameters{
-			ResourceType:  crs.req.ObjectRelation,
-			Subject:       crs.req.Subject,
+			ResourceType:  tuple.FromCoreRelationReference(crs.req.ObjectRelation),
+			Subject:       tuple.FromCoreObjectAndRelation(crs.req.Subject),
 			CaveatContext: crs.req.Context.AsMap(),
 			AtRevision:    crs.req.Revision,
 			MaximumDepth:  crs.req.Metadata.DepthRemaining,

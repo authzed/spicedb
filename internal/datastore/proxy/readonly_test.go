@@ -45,7 +45,7 @@ func TestRWOperationErrors(t *testing.T) {
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 
-	rev, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tuple.Parse("user:test#boss@user:boss"))
+	rev, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tuple.MustParse("user:test#boss@user:boss"))
 	require.ErrorAs(err, &datastore.ErrReadOnly{})
 	require.Equal(datastore.NoRevision, rev)
 }

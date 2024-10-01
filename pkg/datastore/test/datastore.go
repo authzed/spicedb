@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -124,7 +124,6 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) 
 	t.Run("TestLimit", func(t *testing.T) { LimitTest(t, tester) })
 	t.Run("TestOrderedLimit", func(t *testing.T) { OrderedLimitTest(t, tester) })
 	t.Run("TestResume", func(t *testing.T) { ResumeTest(t, tester) })
-	t.Run("TestCursorErrors", func(t *testing.T) { CursorErrorsTest(t, tester) })
 	t.Run("TestReverseQueryCursor", func(t *testing.T) { ReverseQueryCursorTest(t, tester) })
 
 	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
@@ -196,17 +195,19 @@ var testGroupNS = namespace.Namespace(
 
 var testUserNS = namespace.Namespace(testUserNamespace)
 
-func makeTestTuple(resourceID, userID string) *core.RelationTuple {
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: testResourceNamespace,
-			ObjectId:  resourceID,
-			Relation:  testReaderRelation,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: testUserNamespace,
-			ObjectId:  userID,
-			Relation:  ellipsis,
+func makeTestRel(resourceID, userID string) tuple.Relationship {
+	return tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: testResourceNamespace,
+				ObjectID:   resourceID,
+				Relation:   testReaderRelation,
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: testUserNamespace,
+				ObjectID:   userID,
+				Relation:   ellipsis,
+			},
 		},
 	}
 }

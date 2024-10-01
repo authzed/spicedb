@@ -12,7 +12,6 @@ import (
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -51,13 +50,13 @@ const (
 // and subjects found for consistency testing.
 type AccessibilitySet struct {
 	// ResourcesByNamespace is a multimap of all defined resources, by resource namespace.
-	ResourcesByNamespace *mapz.MultiMap[string, *core.ObjectAndRelation]
+	ResourcesByNamespace *mapz.MultiMap[string, tuple.ObjectAndRelation]
 
 	// SubjectsByNamespace is a multimap of all defined subjects, by subject namespace.
-	SubjectsByNamespace *mapz.MultiMap[string, *core.ObjectAndRelation]
+	SubjectsByNamespace *mapz.MultiMap[string, tuple.ObjectAndRelation]
 
 	// RelationshipsByResourceNamespace is a multimap of all defined relationships, by resource namespace.
-	RelationshipsByResourceNamespace *mapz.MultiMap[string, *core.RelationTuple]
+	RelationshipsByResourceNamespace *mapz.MultiMap[string, tuple.Relationship]
 
 	// UncomputedPermissionshipByRelationship is a map from a relationship string of the form
 	// "resourceType:resourceObjectID#permission@subjectType:subjectObjectID" to its
@@ -80,19 +79,19 @@ type AccessibilitySet struct {
 // outside of testing.
 func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *AccessibilitySet {
 	// Compute all relationships and objects by namespace.
-	relsByResourceNamespace := mapz.NewMultiMap[string, *core.RelationTuple]()
-	resourcesByNamespace := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
-	subjectsByNamespace := mapz.NewMultiMap[string, *core.ObjectAndRelation]()
+	relsByResourceNamespace := mapz.NewMultiMap[string, tuple.Relationship]()
+	resourcesByNamespace := mapz.NewMultiMap[string, tuple.ObjectAndRelation]()
+	subjectsByNamespace := mapz.NewMultiMap[string, tuple.ObjectAndRelation]()
 	allObjectIds := mapz.NewSet[string]()
 
-	for _, tpl := range ccd.Populated.Tuples {
-		relsByResourceNamespace.Add(tpl.ResourceAndRelation.Namespace, tpl)
-		resourcesByNamespace.Add(tpl.ResourceAndRelation.Namespace, tpl.ResourceAndRelation)
-		subjectsByNamespace.Add(tpl.Subject.Namespace, tpl.Subject)
-		allObjectIds.Add(tpl.ResourceAndRelation.ObjectId)
+	for _, tpl := range ccd.Populated.Relationships {
+		relsByResourceNamespace.Add(tpl.Resource.ObjectType, tpl)
+		resourcesByNamespace.Add(tpl.Resource.ObjectType, tpl.Resource)
+		subjectsByNamespace.Add(tpl.Subject.ObjectType, tpl.Subject)
+		allObjectIds.Add(tpl.Resource.ObjectID)
 
-		if tpl.Subject.ObjectId != tuple.PublicWildcard {
-			allObjectIds.Add(tpl.Subject.ObjectId)
+		if tpl.Subject.ObjectID != tuple.PublicWildcard {
+			allObjectIds.Add(tpl.Subject.ObjectID)
 		}
 	}
 
@@ -116,19 +115,19 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 		for _, possibleResourceID := range allObjectIds.AsSlice() {
 			for _, relationOrPermission := range resourceType.Relation {
 				for _, subject := range subjectsByNamespace.Values() {
-					if subject.ObjectId == tuple.PublicWildcard {
+					if subject.ObjectID == tuple.PublicWildcard {
 						continue
 					}
 
-					resourceRelation := &core.RelationReference{
-						Namespace: resourceType.Name,
-						Relation:  relationOrPermission.Name,
+					resourceRelation := tuple.RelationReference{
+						ObjectType: resourceType.Name,
+						Relation:   relationOrPermission.Name,
 					}
 
 					results, err := dispatcher.DispatchCheck(ccd.Ctx, &dispatchv1.DispatchCheckRequest{
-						ResourceRelation: resourceRelation,
+						ResourceRelation: resourceRelation.ToCoreRR(),
 						ResourceIds:      []string{possibleResourceID},
-						Subject:          subject,
+						Subject:          subject.ToCoreONR(),
 						ResultsSetting:   dispatchv1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
 						Metadata: &dispatchv1.ResolverMeta{
 							AtRevision:     headRevision.String(),
@@ -138,14 +137,16 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 					})
 					require.NoError(t, err)
 
-					resourceAndRelation := &core.ObjectAndRelation{
-						Namespace: resourceType.Name,
-						ObjectId:  possibleResourceID,
-						Relation:  relationOrPermission.Name,
+					resourceAndRelation := tuple.ObjectAndRelation{
+						ObjectType: resourceType.Name,
+						ObjectID:   possibleResourceID,
+						Relation:   relationOrPermission.Name,
 					}
-					permString := tuple.MustString(&core.RelationTuple{
-						ResourceAndRelation: resourceAndRelation,
-						Subject:             subject,
+					permString := tuple.MustString(tuple.Relationship{
+						RelationshipReference: tuple.RelationshipReference{
+							Resource: resourceAndRelation,
+							Subject:  subject,
+						},
 					})
 
 					if result, ok := results.ResultsByResourceId[possibleResourceID]; ok {
@@ -181,7 +182,7 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 							fallthrough
 
 						case dispatchv1.ResourceCheckResult_MEMBER:
-							if resourceAndRelation.EqualVT(subject) {
+							if tuple.ONREqual(resourceAndRelation, subject) {
 								accessibilityByRelationship[permString] = AccessibleBecauseTheSame
 							} else {
 								if isAccessibleViaWildcardOnly(t, ccd, dispatcher, headRevision, resourceAndRelation, subject) {
@@ -216,10 +217,12 @@ func BuildAccessibilitySet(t *testing.T, ccd ConsistencyClusterAndData) *Accessi
 
 // UncomputedPermissionshipFor returns the uncomputed permissionship for the given
 // resource+permission and subject. If not found, returns false.
-func (as *AccessibilitySet) UncomputedPermissionshipFor(resourceAndRelation *core.ObjectAndRelation, subject *core.ObjectAndRelation) (dispatchv1.ResourceCheckResult_Membership, bool) {
-	relString := tuple.MustString(&core.RelationTuple{
-		ResourceAndRelation: resourceAndRelation,
-		Subject:             subject,
+func (as *AccessibilitySet) UncomputedPermissionshipFor(resourceAndRelation tuple.ObjectAndRelation, subject tuple.ObjectAndRelation) (dispatchv1.ResourceCheckResult_Membership, bool) {
+	relString := tuple.MustString(tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: resourceAndRelation,
+			Subject:  subject,
+		},
 	})
 	permissionship, ok := as.UncomputedPermissionshipByRelationship[relString]
 	return permissionship, ok
@@ -227,10 +230,12 @@ func (as *AccessibilitySet) UncomputedPermissionshipFor(resourceAndRelation *cor
 
 // AccessibiliyAndPermissionshipFor returns the computed accessibility and permissionship for the
 // given resource+permission and subject. If not found, returns false.
-func (as *AccessibilitySet) AccessibiliyAndPermissionshipFor(resourceAndRelation *core.ObjectAndRelation, subject *core.ObjectAndRelation) (Accessibility, dispatchv1.ResourceCheckResult_Membership, bool) {
-	relString := tuple.MustString(&core.RelationTuple{
-		ResourceAndRelation: resourceAndRelation,
-		Subject:             subject,
+func (as *AccessibilitySet) AccessibiliyAndPermissionshipFor(resourceAndRelation tuple.ObjectAndRelation, subject tuple.ObjectAndRelation) (Accessibility, dispatchv1.ResourceCheckResult_Membership, bool) {
+	relString := tuple.MustString(tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: resourceAndRelation,
+			Subject:  subject,
+		},
 	})
 	accessibility, ok := as.AccessibilityByRelationship[relString]
 	if !ok {
@@ -243,15 +248,15 @@ func (as *AccessibilitySet) AccessibiliyAndPermissionshipFor(resourceAndRelation
 
 // DirectlyAccessibleDefinedSubjects returns all subjects that have direct access/permission on the
 // resource+permission. Direct access is defined as not being granted access via a wildcard.
-func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjects(resourceAndRelation *core.ObjectAndRelation) []*core.ObjectAndRelation {
-	found := make([]*core.ObjectAndRelation, 0)
+func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjects(resourceAndRelation tuple.ObjectAndRelation) []tuple.ObjectAndRelation {
+	found := make([]tuple.ObjectAndRelation, 0)
 	for relString, accessibility := range as.AccessibilityByRelationship {
 		if accessibility != AccessibleDirectly {
 			continue
 		}
 
 		parsed := tuple.MustParse(relString)
-		if !parsed.ResourceAndRelation.EqualVT(resourceAndRelation) {
+		if !tuple.ONREqual(parsed.Resource, resourceAndRelation) {
 			continue
 		}
 
@@ -263,7 +268,7 @@ func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjects(resourceAndRelatio
 // DirectlyAccessibleDefinedSubjectsOfType returns all subjects that have direct access/permission on the
 // resource+permission and match the given subject type.
 // Direct access is defined as not being granted access via a wildcard.
-func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjectsOfType(resourceAndRelation *core.ObjectAndRelation, subjectType *core.RelationReference) map[string]ObjectAndPermission {
+func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjectsOfType(resourceAndRelation tuple.ObjectAndRelation, subjectType tuple.RelationReference) map[string]ObjectAndPermission {
 	found := map[string]ObjectAndPermission{}
 	for relString, accessibility := range as.AccessibilityByRelationship {
 		// NOTE: we also ignore subjects granted access by being themselves.
@@ -272,18 +277,18 @@ func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjectsOfType(resourceAndR
 		}
 
 		parsed := tuple.MustParse(relString)
-		if !parsed.ResourceAndRelation.EqualVT(resourceAndRelation) {
+		if !tuple.ONREqual(parsed.Resource, resourceAndRelation) {
 			continue
 		}
 
-		if parsed.Subject.Namespace != subjectType.Namespace || parsed.Subject.Relation != subjectType.Relation {
+		if parsed.Subject.ObjectType != subjectType.ObjectType || parsed.Subject.Relation != subjectType.Relation {
 			continue
 		}
 
 		permissionship := as.PermissionshipByRelationship[relString]
 
-		found[parsed.Subject.ObjectId] = ObjectAndPermission{
-			ObjectID:   parsed.Subject.ObjectId,
+		found[parsed.Subject.ObjectID] = ObjectAndPermission{
+			ObjectID:   parsed.Subject.ObjectID,
 			IsCaveated: permissionship == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER,
 		}
 	}
@@ -291,24 +296,20 @@ func (as *AccessibilitySet) DirectlyAccessibleDefinedSubjectsOfType(resourceAndR
 }
 
 // SubjectTypes returns all *defined* subject types found.
-func (as *AccessibilitySet) SubjectTypes() []*core.RelationReference {
-	subjectTypes := map[string]*core.RelationReference{}
+func (as *AccessibilitySet) SubjectTypes() []tuple.RelationReference {
+	subjectTypes := map[string]tuple.RelationReference{}
 	for _, subject := range as.SubjectsByNamespace.Values() {
-		rr := &core.RelationReference{
-			Namespace: subject.Namespace,
-			Relation:  subject.Relation,
-		}
-		subjectTypes[tuple.StringRR(rr)] = rr
+		subjectTypes[tuple.StringRR(subject.RelationReference())] = subject.RelationReference()
 	}
 	return maps.Values(subjectTypes)
 }
 
 // AllSubjectsNoWildcards returns all *defined*, non-wildcard subjects found.
-func (as *AccessibilitySet) AllSubjectsNoWildcards() []*core.ObjectAndRelation {
-	subjects := make([]*core.ObjectAndRelation, 0)
+func (as *AccessibilitySet) AllSubjectsNoWildcards() []tuple.ObjectAndRelation {
+	subjects := make([]tuple.ObjectAndRelation, 0)
 	seenSubjects := mapz.NewSet[string]()
 	for _, subject := range as.SubjectsByNamespace.Values() {
-		if subject.ObjectId == tuple.PublicWildcard {
+		if subject.ObjectID == tuple.PublicWildcard {
 			continue
 		}
 		if seenSubjects.Add(tuple.StringONR(subject)) {
@@ -320,7 +321,7 @@ func (as *AccessibilitySet) AllSubjectsNoWildcards() []*core.ObjectAndRelation {
 
 // LookupAccessibleResources returns all resources of the given type that are accessible to the
 // given subject.
-func (as *AccessibilitySet) LookupAccessibleResources(resourceType *core.RelationReference, subject *core.ObjectAndRelation) map[string]ObjectAndPermission {
+func (as *AccessibilitySet) LookupAccessibleResources(resourceType tuple.RelationReference, subject tuple.ObjectAndRelation) map[string]ObjectAndPermission {
 	foundResources := map[string]ObjectAndPermission{}
 	for permString, permissionship := range as.PermissionshipByRelationship {
 		if permissionship == dispatchv1.ResourceCheckResult_NOT_MEMBER {
@@ -328,19 +329,19 @@ func (as *AccessibilitySet) LookupAccessibleResources(resourceType *core.Relatio
 		}
 
 		parsed := tuple.MustParse(permString)
-		if parsed.ResourceAndRelation.Namespace != resourceType.Namespace ||
-			parsed.ResourceAndRelation.Relation != resourceType.Relation {
+		if parsed.Resource.ObjectType != resourceType.ObjectType ||
+			parsed.Resource.Relation != resourceType.Relation {
 			continue
 		}
 
-		if parsed.Subject.Namespace != subject.Namespace ||
-			parsed.Subject.ObjectId != subject.ObjectId ||
+		if parsed.Subject.ObjectType != subject.ObjectType ||
+			parsed.Subject.ObjectID != subject.ObjectID ||
 			parsed.Subject.Relation != subject.Relation {
 			continue
 		}
 
-		foundResources[parsed.ResourceAndRelation.ObjectId] = ObjectAndPermission{
-			ObjectID:   parsed.ResourceAndRelation.ObjectId,
+		foundResources[parsed.Resource.ObjectID] = ObjectAndPermission{
+			ObjectID:   parsed.Resource.ObjectID,
 			IsCaveated: permissionship == dispatchv1.ResourceCheckResult_CAVEATED_MEMBER,
 		}
 	}
@@ -353,11 +354,11 @@ func isAccessibleViaWildcardOnly(
 	ccd ConsistencyClusterAndData,
 	dispatcher dispatch.Dispatcher,
 	revision datastore.Revision,
-	resourceAndPermission *core.ObjectAndRelation,
-	subject *core.ObjectAndRelation,
+	resourceAndPermission tuple.ObjectAndRelation,
+	subject tuple.ObjectAndRelation,
 ) bool {
 	resp, err := dispatcher.DispatchExpand(ccd.Ctx, &dispatchv1.DispatchExpandRequest{
-		ResourceAndRelation: resourceAndPermission,
+		ResourceAndRelation: resourceAndPermission.ToCoreONR(),
 		Metadata: &dispatchv1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 100,

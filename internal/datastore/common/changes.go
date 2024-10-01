@@ -33,8 +33,8 @@ type Changes[R datastore.Revision, K comparable] struct {
 
 type changeRecord[R datastore.Revision] struct {
 	rev                R
-	tupleTouches       map[string]*core.RelationTuple
-	tupleDeletes       map[string]*core.RelationTuple
+	relTouches         map[string]tuple.Relationship
+	relDeletes         map[string]tuple.Relationship
 	definitionsChanged map[string]datastore.SchemaDefinition
 	namespacesDeleted  map[string]struct{}
 	caveatsDeleted     map[string]struct{}
@@ -61,8 +61,8 @@ func (ch *Changes[R, K]) IsEmpty() bool {
 func (ch *Changes[R, K]) AddRelationshipChange(
 	ctx context.Context,
 	rev R,
-	tpl *core.RelationTuple,
-	op core.RelationTupleUpdate_Operation,
+	rel tuple.Relationship,
+	op tuple.UpdateOperation,
 ) error {
 	if ch.content&datastore.WatchRelationships != datastore.WatchRelationships {
 		return nil
@@ -73,37 +73,37 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 		return err
 	}
 
-	tplKey := tuple.StringWithoutCaveat(tpl)
+	key := tuple.StringWithoutCaveat(rel)
 
 	switch op {
-	case core.RelationTupleUpdate_TOUCH:
+	case tuple.UpdateOperationTouch:
 		// If there was a delete for the same tuple at the same revision, drop it
-		existing, ok := record.tupleDeletes[tplKey]
+		existing, ok := record.relDeletes[key]
 		if ok {
-			delete(record.tupleDeletes, tplKey)
+			delete(record.relDeletes, key)
 			if err := ch.adjustByteSize(existing, -1); err != nil {
 				return err
 			}
 		}
 
-		record.tupleTouches[tplKey] = tpl
-		if err := ch.adjustByteSize(tpl, 1); err != nil {
+		record.relTouches[key] = rel
+		if err := ch.adjustByteSize(rel, 1); err != nil {
 			return err
 		}
 
-	case core.RelationTupleUpdate_DELETE:
-		_, alreadyTouched := record.tupleTouches[tplKey]
+	case tuple.UpdateOperationDelete:
+		_, alreadyTouched := record.relTouches[key]
 		if !alreadyTouched {
-			record.tupleDeletes[tplKey] = tpl
-			if err := ch.adjustByteSize(tpl, 1); err != nil {
+			record.relDeletes[key] = rel
+			if err := ch.adjustByteSize(rel, 1); err != nil {
 				return err
 			}
 		}
 
 	default:
-		log.Ctx(ctx).Warn().Stringer("operation", op).Msg("unknown change operation")
 		return spiceerrors.MustBugf("unknown change operation")
 	}
+
 	return nil
 }
 
@@ -159,8 +159,8 @@ func (ch *Changes[R, K]) recordForRevision(rev R) (changeRecord[R], error) {
 	if !ok {
 		revisionChanges = changeRecord[R]{
 			rev,
-			make(map[string]*core.RelationTuple),
-			make(map[string]*core.RelationTuple),
+			make(map[string]tuple.Relationship),
+			make(map[string]tuple.Relationship),
 			make(map[string]datastore.SchemaDefinition),
 			make(map[string]struct{}),
 			make(map[string]struct{}),
@@ -310,17 +310,11 @@ func (ch *Changes[R, K]) revisionChanges(lessThanFunc func(lhs, rhs K) bool, bou
 	for i, k := range revisionsWithChanges {
 		revisionChangeRecord := ch.records[k]
 		changes[i].Revision = revisionChangeRecord.rev
-		for _, tpl := range revisionChangeRecord.tupleTouches {
-			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, &core.RelationTupleUpdate{
-				Operation: core.RelationTupleUpdate_TOUCH,
-				Tuple:     tpl,
-			})
+		for _, rel := range revisionChangeRecord.relTouches {
+			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, tuple.Touch(rel))
 		}
-		for _, tpl := range revisionChangeRecord.tupleDeletes {
-			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, &core.RelationTupleUpdate{
-				Operation: core.RelationTupleUpdate_DELETE,
-				Tuple:     tpl,
-			})
+		for _, rel := range revisionChangeRecord.relDeletes {
+			changes[i].RelationshipChanges = append(changes[i].RelationshipChanges, tuple.Delete(rel))
 		}
 		changes[i].ChangedDefinitions = maps.Values(revisionChangeRecord.definitionsChanged)
 		changes[i].DeletedNamespaces = maps.Keys(revisionChangeRecord.namespacesDeleted)

@@ -145,7 +145,7 @@ func TestMembershipSetAddMemberViaRelationship(t *testing.T) {
 		existingMembers          map[string]*core.CaveatExpression
 		resourceID               string
 		resourceCaveatExpression *core.CaveatExpression
-		parentRelationship       *core.RelationTuple
+		parentRelationship       tuple.Relationship
 		expectedMembers          map[string]*core.CaveatExpression
 		hasDeterminedMember      bool
 	}{
@@ -816,7 +816,7 @@ func unwrapCaveat(ce *core.CaveatExpression) *core.ContextualizedCaveat {
 	return ce.GetCaveat()
 }
 
-func withCaveat(tple *core.RelationTuple, ce *core.CaveatExpression) *core.RelationTuple {
-	tple.Caveat = unwrapCaveat(ce)
+func withCaveat(tple tuple.Relationship, ce *core.CaveatExpression) tuple.Relationship {
+	tple.OptionalCaveat = unwrapCaveat(ce)
 	return tple
 }

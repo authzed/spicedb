@@ -209,7 +209,7 @@ func (vrwt validatingReadWriteTransaction) DeleteNamespaces(ctx context.Context,
 	return vrwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
-func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	if err := validateUpdatesToWrite(mutations...); err != nil {
 		return err
 	}
@@ -217,12 +217,8 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	// Ensure there are no duplicate mutations.
 	tupleSet := mapz.NewSet[string]()
 	for _, mutation := range mutations {
-		if err := mutation.Validate(); err != nil {
-			return err
-		}
-
-		if !tupleSet.Add(tuple.StringWithoutCaveat(mutation.Tuple)) {
-			return fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveat(mutation.Tuple))
+		if !tupleSet.Add(tuple.StringWithoutCaveat(mutation.Relationship)) {
+			return fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveat(mutation.Relationship))
 		}
 	}
 
@@ -250,20 +246,24 @@ func (vrwt validatingReadWriteTransaction) BulkLoad(ctx context.Context, source 
 }
 
 // validateUpdatesToWrite performs basic validation on relationship updates going into datastores.
-func validateUpdatesToWrite(updates ...*core.RelationTupleUpdate) error {
+func validateUpdatesToWrite(updates ...tuple.RelationshipUpdate) error {
 	for _, update := range updates {
-		err := tuple.UpdateToRelationshipUpdate(update).HandwrittenValidate()
+		up, err := tuple.UpdateToV1RelationshipUpdate(update)
 		if err != nil {
 			return err
 		}
-		if update.Tuple.Subject.Relation == "" {
-			return fmt.Errorf("expected ... instead of an empty relation string relation in %v", update.Tuple)
+
+		if err := up.HandwrittenValidate(); err != nil {
+			return err
 		}
-		if update.Tuple.Subject.ObjectId == tuple.PublicWildcard && update.Tuple.Subject.Relation != tuple.Ellipsis {
+		if update.Relationship.Subject.Relation == "" {
+			return fmt.Errorf("expected ... instead of an empty relation string relation in %v", update.Relationship)
+		}
+		if update.Relationship.Subject.ObjectID == tuple.PublicWildcard && update.Relationship.Subject.Relation != tuple.Ellipsis {
 			return fmt.Errorf(
 				"attempt to write a wildcard relationship (`%s`) with a non-empty relation `%v`. Please report this bug",
-				tuple.MustString(update.Tuple),
-				update.Tuple.Subject.Relation,
+				tuple.MustString(update.Relationship),
+				update.Relationship.Subject.Relation,
 			)
 		}
 	}

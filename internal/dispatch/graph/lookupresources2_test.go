@@ -19,7 +19,6 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -29,8 +28,8 @@ func TestSimpleLookupResources2(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	testCases := []struct {
-		start                 *core.RelationReference
-		target                *core.ObjectAndRelation
+		start                 tuple.RelationReference
+		target                tuple.ObjectAndRelation
 		expectedResources     []*v1.PossibleResource
 		expectedDispatchCount uint32
 		expectedDepthRequired uint32
@@ -94,7 +93,7 @@ func TestSimpleLookupResources2(t *testing.T) {
 	for _, tc := range testCases {
 		name := fmt.Sprintf(
 			"%s#%s->%s",
-			tc.start.Namespace,
+			tc.start.ObjectType,
 			tc.start.Relation,
 			tuple.StringONR(tc.target),
 		)
@@ -109,10 +108,10 @@ func TestSimpleLookupResources2(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 			err := dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-				ResourceRelation: tc.start,
-				SubjectRelation:  RR(tc.target.Namespace, tc.target.Relation),
-				SubjectIds:       []string{tc.target.ObjectId},
-				TerminalSubject:  tc.target,
+				ResourceRelation: tc.start.ToCoreRR(),
+				SubjectRelation:  RR(tc.target.ObjectType, tc.target.Relation).ToCoreRR(),
+				SubjectIds:       []string{tc.target.ObjectID},
+				TerminalSubject:  tc.target.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -135,10 +134,10 @@ func TestSimpleLookupResources2(t *testing.T) {
 			// Run again with the cache available.
 			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 			err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-				ResourceRelation: tc.start,
-				SubjectRelation:  RR(tc.target.Namespace, tc.target.Relation),
-				SubjectIds:       []string{tc.target.ObjectId},
-				TerminalSubject:  tc.target,
+				ResourceRelation: tc.start.ToCoreRR(),
+				SubjectRelation:  RR(tc.target.ObjectType, tc.target.Relation).ToCoreRR(),
+				SubjectIds:       []string{tc.target.ObjectID},
+				TerminalSubject:  tc.target.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -192,10 +191,10 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 			err := dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-				ResourceRelation: RR("document", "view"),
-				SubjectRelation:  RR("user", "..."),
+				ResourceRelation: RR("document", "view").ToCoreRR(),
+				SubjectRelation:  RR("user", "...").ToCoreRR(),
 				SubjectIds:       []string{tc.subject},
-				TerminalSubject:  ONR("user", tc.subject, "..."),
+				TerminalSubject:  ONR("user", tc.subject, "...").ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -215,10 +214,10 @@ func TestSimpleLookupResourcesWithCursor2(t *testing.T) {
 
 			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 			err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-				ResourceRelation: RR("document", "view"),
-				SubjectRelation:  RR("user", "..."),
+				ResourceRelation: RR("document", "view").ToCoreRR(),
+				SubjectRelation:  RR("user", "...").ToCoreRR(),
 				SubjectIds:       []string{tc.subject},
-				TerminalSubject:  ONR("user", tc.subject, "..."),
+				TerminalSubject:  ONR("user", tc.subject, "...").ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -252,10 +251,10 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 
 	// Make the first first request.
 	err := dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-		ResourceRelation: RR("document", "view"),
-		SubjectRelation:  RR("user", "..."),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		SubjectIds:       []string{"owner"},
-		TerminalSubject:  ONR("user", "owner", "..."),
+		TerminalSubject:  ONR("user", "owner", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -272,10 +271,10 @@ func TestLookupResourcesCursorStability2(t *testing.T) {
 	// Make the same request and ensure the cursor has not changed.
 	stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-		ResourceRelation: RR("document", "view"),
-		SubjectRelation:  RR("user", "..."),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		SubjectIds:       []string{"owner"},
-		TerminalSubject:  ONR("user", "owner", "..."),
+		TerminalSubject:  ONR("user", "owner", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -324,10 +323,10 @@ func TestMaxDepthLookup2(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-		ResourceRelation: RR("document", "view"),
-		SubjectRelation:  RR("user", "..."),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		SubjectIds:       []string{"legal"},
-		TerminalSubject:  ONR("user", "legal", "..."),
+		TerminalSubject:  ONR("user", "legal", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
@@ -341,9 +340,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 	testCases := []struct {
 		name                string
 		schema              string
-		relationships       []*core.RelationTuple
-		permission          *core.RelationReference
-		subject             *core.ObjectAndRelation
+		relationships       []tuple.Relationship
+		permission          tuple.RelationReference
+		subject             tuple.ObjectAndRelation
 		expectedResourceIDs []string
 	}{
 		{
@@ -356,8 +355,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
+				genRels("document", "viewer", "user", "tom", 1510),
+				genRels("document", "editor", "user", "tom", 1510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -372,7 +371,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			genTuples("document", "viewer", "user", "tom", 1010),
+			genRels("document", "viewer", "user", "tom", 1010),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 1010),
@@ -387,8 +386,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = viewer & editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 510),
-				genTuples("document", "editor", "user", "tom", 510),
+				genRels("document", "viewer", "user", "tom", 510),
+				genRels("document", "editor", "user", "tom", 510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -406,8 +405,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = can_view + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+				genRels("document", "viewer", "user", "tom", 1310),
+				genRelsWithOffset("document", "editor", "user", "tom", 1250, 1200),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -425,7 +424,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			genRelsWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
@@ -440,8 +439,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = viewer - banned
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+				genRels("document", "viewer", "user", "tom", 1310),
+				genRelsWithOffset("document", "banned", "user", "tom", 1210, 100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -459,7 +458,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			genRelsWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
@@ -477,8 +476,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = folder->viewer
   			 }`,
 			joinTuples(
-				genTuples("folder", "viewer", "user", "tom", 150),
-				genSubjectTuples("document", "folder", "folder", "...", 150),
+				genRels("folder", "viewer", "user", "tom", 150),
+				genSubjectRels("document", "folder", "folder", "...", 150),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -494,8 +493,8 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 15100),
-				genTuples("document", "editor", "user", "tom", 15100),
+				genRels("document", "viewer", "user", "tom", 15100),
+				genRels("document", "editor", "user", "tom", 15100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -515,9 +514,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = org->member & viewer
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 510),
-				genTuples("document", "org", "organization", "someorg", 510),
-				[]*core.RelationTuple{
+				genRels("document", "viewer", "user", "tom", 510),
+				genRels("document", "org", "organization", "someorg", 510),
+				[]tuple.Relationship{
 					tuple.MustParse("organization:someorg#member@user:tom"),
 				},
 			),
@@ -538,7 +537,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = parent.all(viewer) + viewer
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:doc0#parent@folder:folder0"),
 				tuple.MustParse("folder:folder0#viewer@user:tom"),
 
@@ -577,9 +576,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = indirect - banned
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
-				genTuplesWithOffset("document", "banned", "user", "tom", 1410, 100),
+				genRels("document", "viewer", "user", "tom", 1510),
+				genRels("document", "editor", "user", "tom", 1510),
+				genRelsWithOffset("document", "banned", "user", "tom", 1410, 100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -602,12 +601,12 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = indirect & admin
   			 }`,
 			joinTuples(
-				[]*core.RelationTuple{
+				[]tuple.Relationship{
 					tuple.MustParse("folder:folder0#viewer@user:tom"),
 				},
-				genTuples("document", "folder", "folder", "folder0", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
-				genTuples("document", "admin", "user", "tom", 1410),
+				genRels("document", "folder", "folder", "folder0", 1510),
+				genRels("document", "editor", "user", "tom", 1510),
+				genRels("document", "admin", "user", "tom", 1410),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -630,12 +629,12 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 				permission view = indirect & admin
   			 }`,
 			joinTuples(
-				[]*core.RelationTuple{
+				[]tuple.Relationship{
 					tuple.MustParse("folder:folder0#viewer@user:tom"),
 				},
-				genTuples("document", "folder", "folder", "folder0", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
-				genTuples("document", "admin", "user", "tom", 1410),
+				genRels("document", "folder", "folder", "folder0", 1510),
+				genRels("document", "editor", "user", "tom", 1510),
+				genRels("document", "admin", "user", "tom", 1410),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -665,13 +664,13 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			  }
 			 `,
 			joinTuples(
-				[]*core.RelationTuple{
+				[]tuple.Relationship{
 					tuple.MustParse("folder:folder0#viewer@user:tom"),
 					tuple.MustParse("folder:folder1#viewer@user:tom"),
 				},
-				genTuples("middle", "folder", "folder", "folder0", 1510),
-				genTuples("middle", "editor", "user", "tom", 1),
-				genTuplesWithCaveatAndSubjectRelation("document", "viewer", "middle", "middle-0", "view", "", nil, 0, 2000),
+				genRels("middle", "folder", "folder", "folder0", 1510),
+				genRels("middle", "editor", "user", "tom", 1),
+				genRelsWithCaveatAndSubjectRelation("document", "viewer", "middle", "middle-0", "view", "", nil, 0, 2000),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -707,10 +706,10 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 						require.NoError(err)
 
 						err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-							ResourceRelation: tc.permission,
-							SubjectRelation:  RR(tc.subject.Namespace, "..."),
-							SubjectIds:       []string{tc.subject.ObjectId},
-							TerminalSubject:  tc.subject,
+							ResourceRelation: tc.permission.ToCoreRR(),
+							SubjectRelation:  RR(tc.subject.ObjectType, "...").ToCoreRR(),
+							SubjectIds:       []string{tc.subject.ObjectID},
+							TerminalSubject:  tc.subject.ToCoreONR(),
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
@@ -772,10 +771,10 @@ func TestLookupResources2ImmediateTimeout(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-		ResourceRelation: RR("document", "view"),
-		SubjectRelation:  RR("user", "..."),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		SubjectIds:       []string{"legal"},
-		TerminalSubject:  ONR("user", "legal", "..."),
+		TerminalSubject:  ONR("user", "legal", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
@@ -807,10 +806,10 @@ func TestLookupResources2WithError(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 	err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-		ResourceRelation: RR("document", "view"),
-		SubjectRelation:  RR("user", "..."),
+		ResourceRelation: RR("document", "view").ToCoreRR(),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		SubjectIds:       []string{"legal"},
-		TerminalSubject:  ONR("user", "legal", "..."),
+		TerminalSubject:  ONR("user", "legal", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
@@ -827,12 +826,12 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 	tcs := []struct {
 		name          string
 		schema        string
-		relationships []*core.RelationTuple
+		relationships []tuple.Relationship
 
-		resourceRelation *core.RelationReference
-		subject          *core.ObjectAndRelation
+		resourceRelation tuple.RelationReference
+		subject          tuple.ObjectAndRelation
 
-		disallowedQueries []*core.RelationReference
+		disallowedQueries []tuple.RelationReference
 		expectedResources []string
 		expectedError     string
 	}{
@@ -845,7 +844,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 				tuple.MustParse("document:anotherplan#viewer@user:tom"),
@@ -853,7 +852,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan", "anotherplan"},
@@ -871,14 +870,14 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			 	relation editor: user
 				permission view = org->member & editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#org@organization:someorg"),
 				tuple.MustParse("organization:someorg#member@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("organization", "member"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -892,13 +891,13 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: user
 				permission view = viewer & editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "editor"),
 			},
 			expectedError: "disallowed query: document#editor",
@@ -914,13 +913,13 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission indirect_editor = editor
 				permission view = indirect_viewer & indirect_editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -935,13 +934,13 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission indirect_view = viewer & editor
 				permission view = indirect_view
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -957,13 +956,13 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission indirect_editor = editor
 				permission view = indirect_viewer & indirect_editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -977,13 +976,13 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: user | user:*
 				permission view = viewer & editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:*"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -1001,7 +1000,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission view = viewer_of_some_kind & editor
 				permission view_and_admin = view & admin
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#viewer2@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
@@ -1009,7 +1008,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view_and_admin"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 				RR("document", "viewer2"),
 			},
@@ -1027,7 +1026,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission viewer_of_some_kind = viewer + viewer2
 				permission view_and_admin = viewer_of_some_kind & editor & admin
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@user:tom"),
 				tuple.MustParse("document:masterplan#viewer2@user:tom"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
@@ -1035,7 +1034,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view_and_admin"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 				RR("document", "viewer2"),
 			},
@@ -1054,7 +1053,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: group#member
 				permission view = viewer & editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@group:first#member"),
 				tuple.MustParse("document:masterplan#viewer@group:second#member"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
@@ -1063,7 +1062,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -1081,7 +1080,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: group#member
 				permission view = editor & viewer
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@group:first#member"),
 				tuple.MustParse("document:masterplan#viewer@group:second#member"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
@@ -1090,7 +1089,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "editor"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -1108,7 +1107,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: group
 				permission view = viewer->member & editor
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@group:first"),
 				tuple.MustParse("document:masterplan#viewer@group:second"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
@@ -1117,7 +1116,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "viewer"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -1135,7 +1134,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				relation viewer: group
 				permission view = editor & viewer->member
 			}`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("document:masterplan#viewer@group:first"),
 				tuple.MustParse("document:masterplan#viewer@group:second"),
 				tuple.MustParse("document:masterplan#editor@user:tom"),
@@ -1144,7 +1143,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("document", "editor"),
 			},
 			expectedResources: []string{"masterplan"},
@@ -1168,7 +1167,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission view = folder->view
  			 }
 			`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("group:first#member@user:tom"),
 				tuple.MustParse("group:second#member@user:tom"),
 				tuple.MustParse("folder:folder1#group@group:first"),
@@ -1178,7 +1177,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("group", "member"),
 				RR("folder", "group"),
 			},
@@ -1207,7 +1206,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission view = folder->view
  			 }
 			`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("group:first#member@user:tom"),
 				tuple.MustParse("group:second#member@user:tom"),
 				tuple.MustParse("folder:folder1#group@group:first"),
@@ -1217,7 +1216,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("group", "member"),
 				RR("folder", "group"),
 			},
@@ -1246,7 +1245,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 				permission view = folder->view
  			 }
 			`,
-			relationships: []*core.RelationTuple{
+			relationships: []tuple.Relationship{
 				tuple.MustParse("group:first#member@user:tom[somecaveat]"),
 				tuple.MustParse("folder:folder1#group@group:first"),
 				tuple.MustParse("folder:folder1#editor@user:tom"),
@@ -1254,7 +1253,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			},
 			resourceRelation: RR("document", "view"),
 			subject:          ONR("user", "tom", "..."),
-			disallowedQueries: []*core.RelationReference{
+			disallowedQueries: []tuple.RelationReference{
 				RR("group", "member"),
 				RR("folder", "group"),
 			},
@@ -1285,10 +1284,10 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](cctx)
 
 			err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
-				ResourceRelation: tc.resourceRelation,
-				SubjectRelation:  RR(tc.subject.Namespace, tc.subject.Relation),
-				SubjectIds:       []string{tc.subject.ObjectId},
-				TerminalSubject:  tc.subject,
+				ResourceRelation: tc.resourceRelation.ToCoreRR(),
+				SubjectRelation:  RR(tc.subject.ObjectType, tc.subject.Relation).ToCoreRR(),
+				SubjectIds:       []string{tc.subject.ObjectID},
+				TerminalSubject:  tc.subject.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -1322,7 +1321,7 @@ func TestLookupResources2EnsureCheckHints(t *testing.T) {
 
 type disallowedWrapper struct {
 	datastore.Datastore
-	disallowedQueries []*core.RelationReference
+	disallowedQueries []tuple.RelationReference
 }
 
 func (dw disallowedWrapper) SnapshotReader(rev datastore.Revision) datastore.Reader {
@@ -1331,7 +1330,7 @@ func (dw disallowedWrapper) SnapshotReader(rev datastore.Revision) datastore.Rea
 
 type disallowedReader struct {
 	datastore.Reader
-	disallowedQueries []*core.RelationReference
+	disallowedQueries []tuple.RelationReference
 }
 
 func (dr disallowedReader) QueryRelationships(
@@ -1340,7 +1339,7 @@ func (dr disallowedReader) QueryRelationships(
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
 	for _, disallowedQuery := range dr.disallowedQueries {
-		if disallowedQuery.Namespace == filter.OptionalResourceType && disallowedQuery.Relation == filter.OptionalResourceRelation {
+		if disallowedQuery.ObjectType == filter.OptionalResourceType && disallowedQuery.Relation == filter.OptionalResourceRelation {
 			return nil, fmt.Errorf("disallowed query: %s", tuple.StringRR(disallowedQuery))
 		}
 	}

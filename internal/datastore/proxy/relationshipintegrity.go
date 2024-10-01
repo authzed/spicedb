@@ -140,8 +140,8 @@ func (r *relationshipIntegrityProxy) lookupKey(keyID string) (*hmacConfig, error
 }
 
 // computeRelationshipHash computes the HMAC hash of a relationship tuple.
-func computeRelationshipHash(tpl *corev1.RelationTuple, key *hmacConfig) ([]byte, error) {
-	bytes, err := tuple.CanonicalBytes(tpl)
+func computeRelationshipHash(rel tuple.Relationship, key *hmacConfig) ([]byte, error) {
+	bytes, err := tuple.CanonicalBytes(rel)
 	if err != nil {
 		return nil, err
 	}
@@ -209,10 +209,10 @@ func (r *relationshipIntegrityProxy) Statistics(ctx context.Context) (datastore.
 	return r.ds.Statistics(ctx)
 }
 
-func (r *relationshipIntegrityProxy) validateRelationTuple(tpl *corev1.RelationTuple) error {
+func (r *relationshipIntegrityProxy) validateRelationTuple(rel tuple.Relationship) error {
 	// Ensure the relationship has integrity data.
-	if tpl.Integrity == nil || len(tpl.Integrity.Hash) == 0 || tpl.Integrity.KeyId == "" {
-		str, err := tuple.String(tpl)
+	if rel.OptionalIntegrity == nil || len(rel.OptionalIntegrity.Hash) == 0 || rel.OptionalIntegrity.KeyId == "" {
+		str, err := tuple.String(rel)
 		if err != nil {
 			return err
 		}
@@ -220,28 +220,28 @@ func (r *relationshipIntegrityProxy) validateRelationTuple(tpl *corev1.RelationT
 		return fmt.Errorf("relationship %s is missing required integrity data", str)
 	}
 
-	hashWithoutByte := tpl.Integrity.Hash[1:]
-	if tpl.Integrity.Hash[0] != versionByte || len(hashWithoutByte) != hashLength {
-		return fmt.Errorf("relationship %s has invalid integrity data", tpl)
+	hashWithoutByte := rel.OptionalIntegrity.Hash[1:]
+	if rel.OptionalIntegrity.Hash[0] != versionByte || len(hashWithoutByte) != hashLength {
+		return fmt.Errorf("relationship %v has invalid integrity data", rel)
 	}
 
 	// Validate the integrity of the relationship.
-	key, err := r.lookupKey(tpl.Integrity.KeyId)
+	key, err := r.lookupKey(rel.OptionalIntegrity.KeyId)
 	if err != nil {
 		return err
 	}
 
-	if key.expiredAt != nil && key.expiredAt.Before(tpl.Integrity.HashedAt.AsTime()) {
-		return fmt.Errorf("relationship %s is signed by an expired key", tpl)
+	if key.expiredAt != nil && key.expiredAt.Before(rel.OptionalIntegrity.HashedAt.AsTime()) {
+		return fmt.Errorf("relationship %s is signed by an expired key", rel)
 	}
 
-	computedHash, err := computeRelationshipHash(tpl, key)
+	computedHash, err := computeRelationshipHash(rel, key)
 	if err != nil {
 		return err
 	}
 
 	if !hmac.Equal(computedHash, hashWithoutByte) {
-		str, err := tuple.String(tpl)
+		str, err := tuple.String(rel)
 		if err != nil {
 			return err
 		}
@@ -249,8 +249,6 @@ func (r *relationshipIntegrityProxy) validateRelationTuple(tpl *corev1.RelationT
 		return fmt.Errorf("relationship %s has invalid integrity hash", str)
 	}
 
-	// NOTE: The caller expects the integrity to be nil, so the proxy sets it to nil here.
-	tpl.Integrity = nil
 	return nil
 }
 
@@ -267,8 +265,8 @@ func (r *relationshipIntegrityProxy) Watch(ctx context.Context, afterRevision da
 			select {
 			case result := <-resultsChan:
 				for _, rel := range result.RelationshipChanges {
-					if rel.Operation != corev1.RelationTupleUpdate_DELETE {
-						err := r.validateRelationTuple(rel.Tuple)
+					if rel.Operation != tuple.UpdateOperationDelete {
+						err := r.validateRelationTuple(rel.Relationship)
 						if err != nil {
 							checkedErrChan <- err
 							return
@@ -302,9 +300,22 @@ func (r relationshipIntegrityReader) QueryRelationships(ctx context.Context, fil
 		return nil, err
 	}
 
-	return &relationshipIntegrityIterator{
-		parent:  r,
-		wrapped: it,
+	return func(yield func(tuple.Relationship, error) bool) {
+		for rel, err := range it {
+			if err != nil {
+				yield(rel, err)
+				return
+			}
+
+			if err := r.parent.validateRelationTuple(rel); err != nil {
+				yield(rel, err)
+				return
+			}
+
+			if !yield(rel.WithoutIntegrity(), nil) {
+				return
+			}
+		}
 	}, nil
 }
 
@@ -314,9 +325,22 @@ func (r relationshipIntegrityReader) ReverseQueryRelationships(ctx context.Conte
 		return nil, err
 	}
 
-	return &relationshipIntegrityIterator{
-		parent:  r,
-		wrapped: it,
+	return func(yield func(tuple.Relationship, error) bool) {
+		for rel, err := range it {
+			if err != nil {
+				yield(rel, err)
+				return
+			}
+
+			if err := r.parent.validateRelationTuple(rel); err != nil {
+				yield(rel, err)
+				return
+			}
+
+			if !yield(rel.WithoutIntegrity(), nil) {
+				return
+			}
+		}
 	}, nil
 }
 
@@ -352,43 +376,6 @@ func (r relationshipIntegrityReader) ReadNamespaceByName(ctx context.Context, ns
 	return r.wrapped.ReadNamespaceByName(ctx, nsName)
 }
 
-type relationshipIntegrityIterator struct {
-	parent  relationshipIntegrityReader
-	wrapped datastore.RelationshipIterator
-	err     error
-}
-
-func (r *relationshipIntegrityIterator) Close() {
-	r.wrapped.Close()
-}
-
-func (r *relationshipIntegrityIterator) Cursor() (options.Cursor, error) {
-	return r.wrapped.Cursor()
-}
-
-func (r *relationshipIntegrityIterator) Err() error {
-	if r.err != nil {
-		return r.err
-	}
-
-	return r.wrapped.Err()
-}
-
-func (r *relationshipIntegrityIterator) Next() *corev1.RelationTuple {
-	tpl := r.wrapped.Next()
-	if tpl == nil {
-		return nil
-	}
-
-	err := r.parent.parent.validateRelationTuple(tpl)
-	if err != nil {
-		r.err = err
-		return nil
-	}
-
-	return tpl
-}
-
 type relationshipIntegrityTx struct {
 	datastore.ReadWriteTransaction
 
@@ -397,31 +384,30 @@ type relationshipIntegrityTx struct {
 
 func (r *relationshipIntegrityTx) WriteRelationships(
 	ctx context.Context,
-	mutations []*corev1.RelationTupleUpdate,
+	mutations []tuple.RelationshipUpdate,
 ) error {
 	// Add integrity data to the relationships.
 	key := r.parent.primaryKey
 	hashedAt := timestamppb.Now()
 
-	updated := make([]*corev1.RelationTupleUpdate, 0, len(mutations))
+	updated := make([]tuple.RelationshipUpdate, 0, len(mutations))
 	for _, mutation := range mutations {
-		if mutation.Tuple.Integrity != nil {
-			return spiceerrors.MustBugf("relationship %s already has integrity data", mutation.Tuple)
+		if mutation.Relationship.OptionalIntegrity != nil {
+			return spiceerrors.MustBugf("relationship %v already has integrity data", mutation.Relationship)
 		}
 
-		hash, err := computeRelationshipHash(mutation.Tuple, key)
+		hash, err := computeRelationshipHash(mutation.Relationship, key)
 		if err != nil {
 			return err
 		}
 
 		// NOTE: Callers expect to be able to reuse the tuple, so we need to clone it.
-		cloned := mutation.CloneVT()
-		cloned.Tuple.Integrity = &corev1.RelationshipIntegrity{
+		mutation.Relationship.OptionalIntegrity = &corev1.RelationshipIntegrity{
 			HashedAt: hashedAt,
 			Hash:     append([]byte{versionByte}, hash...),
 			KeyId:    key.keyID,
 		}
-		updated = append(updated, cloned)
+		updated = append(updated, mutation)
 	}
 
 	return r.ReadWriteTransaction.WriteRelationships(ctx, updated)
@@ -440,33 +426,33 @@ type integrityAddingBulkLoadInterator struct {
 	parent  *relationshipIntegrityProxy
 }
 
-func (w integrityAddingBulkLoadInterator) Next(ctx context.Context) (*corev1.RelationTuple, error) {
-	tpl, err := w.wrapped.Next(ctx)
+func (w integrityAddingBulkLoadInterator) Next(ctx context.Context) (*tuple.Relationship, error) {
+	rel, err := w.wrapped.Next(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if tpl == nil {
+	if rel == nil {
 		return nil, nil
 	}
 
 	key := w.parent.primaryKey
 	hashedAt := timestamppb.Now()
 
-	hash, err := computeRelationshipHash(tpl, key)
+	hash, err := computeRelationshipHash(*rel, key)
 	if err != nil {
 		return nil, err
 	}
 
-	if tpl.Integrity != nil {
-		return nil, spiceerrors.MustBugf("relationship %s already has integrity data", tpl)
+	if rel.OptionalIntegrity != nil {
+		return nil, spiceerrors.MustBugf("relationship %v already has integrity data", rel)
 	}
 
-	tpl.Integrity = &corev1.RelationshipIntegrity{
+	rel.OptionalIntegrity = &corev1.RelationshipIntegrity{
 		HashedAt: hashedAt,
 		Hash:     append([]byte{versionByte}, hash...),
 		KeyId:    key.keyID,
 	}
 
-	return tpl, nil
+	return rel, nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/slicez"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // checkDispatchSet is the set of subjects over which check will need to dispatch
@@ -15,17 +16,17 @@ type checkDispatchSet struct {
 	// bySubjectType is a map from the type of subject to the set of subjects of that type
 	// over which to dispatch, along with information indicating whether caveats are present
 	// for that chunk.
-	bySubjectType map[relationRef]map[string]bool
+	bySubjectType map[tuple.RelationReference]map[string]bool
 
 	// bySubject is a map from the subject to the set of resources for which the subject
 	// has a relationship, along with the caveats that apply to that relationship.
-	bySubject *mapz.MultiMap[subjectRef, resourceIDAndCaveat]
+	bySubject *mapz.MultiMap[tuple.ObjectAndRelation, resourceIDAndCaveat]
 }
 
 // checkDispatchChunk is a chunk of subjects over which to dispatch a check operation.
 type checkDispatchChunk struct {
 	// resourceType is the type of the subjects in this chunk.
-	resourceType relationRef
+	resourceType tuple.RelationReference
 
 	// resourceIds is the set of subjects in this chunk.
 	resourceIds []string
@@ -55,56 +56,37 @@ type resourceIDAndCaveat struct {
 	caveat *core.ContextualizedCaveat
 }
 
-// relationRef is a tuple of a namespace and a relation.
-type relationRef struct {
-	namespace string
-	relation  string
-}
-
-// subjectRef is a tuple of a namespace, an object ID, and a relation.
-type subjectRef struct {
-	namespace string
-	objectID  string
-	relation  string
-}
-
 // newCheckDispatchSet creates and returns a new checkDispatchSet.
 func newCheckDispatchSet() *checkDispatchSet {
 	return &checkDispatchSet{
-		bySubjectType: map[relationRef]map[string]bool{},
-		bySubject:     mapz.NewMultiMap[subjectRef, resourceIDAndCaveat](),
+		bySubjectType: map[tuple.RelationReference]map[string]bool{},
+		bySubject:     mapz.NewMultiMap[tuple.ObjectAndRelation, resourceIDAndCaveat](),
 	}
 }
 
 // Add adds the specified ObjectAndRelation to the set.
-func (s *checkDispatchSet) addForRelationship(tpl *core.RelationTuple) {
+func (s *checkDispatchSet) addForRelationship(rel tuple.Relationship) {
 	// Add an entry for the subject pointing to the resource ID and caveat for the subject.
 	riac := resourceIDAndCaveat{
-		resourceID: tpl.ResourceAndRelation.ObjectId,
-		caveat:     tpl.Caveat,
+		resourceID: rel.Resource.ObjectID,
+		caveat:     rel.OptionalCaveat,
 	}
-	subjectRef := subjectRef{
-		namespace: tpl.Subject.Namespace,
-		objectID:  tpl.Subject.ObjectId,
-		relation:  tpl.Subject.Relation,
-	}
-	s.bySubject.Add(subjectRef, riac)
+	s.bySubject.Add(rel.Subject, riac)
 
 	// Add the subject ID to the map of subjects for the type of subject.
 	siac := subjectIDAndHasCaveat{
-		objectID:           tpl.Subject.ObjectId,
-		hasIncomingCaveats: tpl.Caveat != nil && tpl.Caveat.CaveatName != "",
+		objectID:           rel.Subject.ObjectID,
+		hasIncomingCaveats: rel.OptionalCaveat != nil && rel.OptionalCaveat.CaveatName != "",
 	}
-	subjectTypeRef := relationRef{namespace: tpl.Subject.Namespace, relation: tpl.Subject.Relation}
 
-	subjectIDsForType, ok := s.bySubjectType[subjectTypeRef]
+	subjectIDsForType, ok := s.bySubjectType[rel.Subject.RelationReference()]
 	if !ok {
 		subjectIDsForType = make(map[string]bool)
-		s.bySubjectType[subjectTypeRef] = subjectIDsForType
+		s.bySubjectType[rel.Subject.RelationReference()] = subjectIDsForType
 	}
 
 	// If a caveat exists for the subject ID in any branch, the whole branch is considered caveated.
-	subjectIDsForType[tpl.Subject.ObjectId] = siac.hasIncomingCaveats || subjectIDsForType[tpl.Subject.ObjectId]
+	subjectIDsForType[rel.Subject.ObjectID] = siac.hasIncomingCaveats || subjectIDsForType[rel.Subject.ObjectID]
 }
 
 func (s *checkDispatchSet) dispatchChunks(dispatchChunkSize uint16) []checkDispatchChunk {
@@ -156,11 +138,7 @@ func (s *checkDispatchSet) dispatchChunks(dispatchChunkSize uint16) []checkDispa
 // subject and any of its resources. The returned caveats include the resource ID of the resource
 // that the subject has a relationship with.
 func (s *checkDispatchSet) mappingsForSubject(subjectType string, subjectObjectID string, subjectRelation string) []resourceIDAndCaveat {
-	results, ok := s.bySubject.Get(subjectRef{
-		namespace: subjectType,
-		objectID:  subjectObjectID,
-		relation:  subjectRelation,
-	})
+	results, ok := s.bySubject.Get(tuple.ONR(subjectType, subjectObjectID, subjectRelation))
 	spiceerrors.DebugAssert(func() bool { return ok }, "no caveats found for subject %s:%s:%s", subjectType, subjectObjectID, subjectRelation)
 	return results
 }

@@ -236,7 +236,7 @@ func NewDuplicateRelationshipErr(update *v1.RelationshipUpdate) ErrDuplicateRela
 	return ErrDuplicateRelationshipError{
 		error: fmt.Errorf(
 			"found more than one update with relationship `%s` in this request; a relationship can only be specified in an update once per overall WriteRelationships request",
-			tuple.StringRelationshipWithoutCaveat(update.Relationship),
+			tuple.V1StringRelationshipWithoutCaveat(update.Relationship),
 		),
 		update: update,
 	}
@@ -251,7 +251,7 @@ func (err ErrDuplicateRelationshipError) GRPCStatus() *status.Status {
 			v1.ErrorReason_ERROR_REASON_UPDATES_ON_SAME_RELATIONSHIP,
 			map[string]string{
 				"definition_name": err.update.Relationship.Resource.ObjectType,
-				"relationship":    tuple.MustRelString(err.update.Relationship),
+				"relationship":    tuple.MustV1StringRelationship(err.update.Relationship),
 			},
 		),
 	)
@@ -270,7 +270,7 @@ func NewMaxRelationshipContextError(update *v1.RelationshipUpdate, maxAllowedSiz
 	return ErrMaxRelationshipContextError{
 		error: fmt.Errorf(
 			"provided relationship `%s` exceeded maximum allowed caveat size of %d",
-			tuple.StringRelationshipWithoutCaveat(update.Relationship),
+			tuple.V1StringRelationshipWithoutCaveat(update.Relationship),
 			maxAllowedSize,
 		),
 		update:         update,
@@ -286,7 +286,7 @@ func (err ErrMaxRelationshipContextError) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_MAX_RELATIONSHIP_CONTEXT_SIZE,
 			map[string]string{
-				"relationship":     tuple.StringRelationshipWithoutCaveat(err.update.Relationship),
+				"relationship":     tuple.V1StringRelationshipWithoutCaveat(err.update.Relationship),
 				"max_allowed_size": strconv.Itoa(err.maxAllowedSize),
 				"context_size":     strconv.Itoa(proto.Size(err.update.Relationship)),
 			},

@@ -14,6 +14,7 @@ import (
 	ns "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // RevisionQuantizationTest tests whether or not the requirements for revisions hold
@@ -44,9 +45,9 @@ func RevisionQuantizationTest(t *testing.T, tester DatastoreTester) {
 
 			// Create some revisions
 			var writtenAt datastore.Revision
-			tpl := makeTestTuple("first", "owner")
+			tpl := makeTestRel("first", "owner")
 			for i := 0; i < 10; i++ {
-				writtenAt, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tpl)
+				writtenAt, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl)
 				require.NoError(err)
 			}
 			require.True(writtenAt.GreaterThan(postSetupRevision))

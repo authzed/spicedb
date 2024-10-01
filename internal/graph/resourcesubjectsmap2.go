@@ -7,6 +7,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // resourcesSubjectMap2 is a multimap which tracks mappings from found resource IDs
@@ -47,17 +48,16 @@ func subjectIDsToResourcesMap2(resourceType *core.RelationReference, subjectIDs 
 
 // addRelationship adds the relationship to the resource subject map, recording a mapping from
 // the resource of the relationship to the subject, as well as whether the relationship was caveated.
-func (rsm resourcesSubjectMap2) addRelationship(rel *core.RelationTuple, missingContextParameters []string) error {
-	if rel.ResourceAndRelation.Namespace != rsm.resourceType.Namespace ||
-		rel.ResourceAndRelation.Relation != rsm.resourceType.Relation {
-		return spiceerrors.MustBugf("invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.ResourceAndRelation)
-	}
+func (rsm resourcesSubjectMap2) addRelationship(rel tuple.Relationship, missingContextParameters []string) error {
+	spiceerrors.DebugAssert(func() bool {
+		return rel.Resource.ObjectType == rsm.resourceType.Namespace && rel.Resource.Relation == rsm.resourceType.Relation
+	}, "invalid relationship for addRelationship. expected: %v, found: %v", rsm.resourceType, rel.Resource)
 
-	if len(missingContextParameters) > 0 && rel.Caveat == nil {
-		return spiceerrors.MustBugf("missing caveat for caveated relationship")
-	}
+	spiceerrors.DebugAssert(func() bool {
+		return len(missingContextParameters) == 0 || rel.OptionalCaveat != nil
+	}, "missing context parameters must be empty if there is no caveat")
 
-	rsm.resourcesAndSubjects.Add(rel.ResourceAndRelation.ObjectId, subjectInfo2{rel.Subject.ObjectId, missingContextParameters})
+	rsm.resourcesAndSubjects.Add(rel.Resource.ObjectID, subjectInfo2{rel.Subject.ObjectID, missingContextParameters})
 	return nil
 }
 

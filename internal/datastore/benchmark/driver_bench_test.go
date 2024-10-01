@@ -24,7 +24,6 @@ import (
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -80,12 +79,9 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 			// Write a fair amount of data, much more than a functional test
 			for docNum := 0; docNum < numDocuments; docNum++ {
 				_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-					var updates []*core.RelationTupleUpdate
+					var updates []tuple.RelationshipUpdate
 					for userNum := 0; userNum < usersPerDoc; userNum++ {
-						updates = append(updates, &core.RelationTupleUpdate{
-							Operation: core.RelationTupleUpdate_CREATE,
-							Tuple:     docViewer(strconv.Itoa(docNum), strconv.Itoa(userNum)),
-						})
+						updates = append(updates, tuple.Create(docViewer(strconv.Itoa(docNum), strconv.Itoa(userNum))))
 					}
 
 					return rwt.WriteRelationships(ctx, updates)
@@ -110,12 +106,24 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						})
 						require.NoError(b, err)
 						var count int
-						for rel := iter.Next(); rel != nil; rel = iter.Next() {
+						for _, err := range iter {
+							require.NoError(b, err)
 							count++
 						}
-						require.NoError(b, iter.Err())
-						iter.Close()
 						require.Equal(b, usersPerDoc, count)
+					}
+				})
+				b.Run("SnapshotReadOnlyNamespace", func(b *testing.B) {
+					for n := 0; n < b.N; n++ {
+						iter, err := ds.SnapshotReader(headRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+							OptionalResourceType: testfixtures.DocumentNS.Name,
+						})
+						require.NoError(b, err)
+						var count int
+						for _, err := range iter {
+							require.NoError(b, err)
+							count++
+						}
 					}
 				})
 				b.Run("SortedSnapshotReadOnlyNamespace", func(b *testing.B) {
@@ -128,11 +136,10 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 								}, options.WithSort(order))
 								require.NoError(b, err)
 								var count int
-								for rel := iter.Next(); rel != nil; rel = iter.Next() {
+								for _, err := range iter {
+									require.NoError(b, err)
 									count++
 								}
-								require.NoError(b, iter.Err())
-								iter.Close()
 							}
 						})
 					}
@@ -148,11 +155,10 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 								}, options.WithSort(order))
 								require.NoError(b, err)
 								var count int
-								for rel := iter.Next(); rel != nil; rel = iter.Next() {
+								for _, err := range iter {
+									require.NoError(b, err)
 									count++
 								}
-								require.NoError(b, iter.Err())
-								iter.Close()
 							}
 						})
 					}
@@ -170,11 +176,10 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 								}, options.WithSort(order))
 								require.NoError(b, err)
 								var count int
-								for rel := iter.Next(); rel != nil; rel = iter.Next() {
+								for _, err := range iter {
+									require.NoError(b, err)
 									count++
 								}
-								require.NoError(b, iter.Err())
-								iter.Close()
 							}
 						})
 					}
@@ -186,15 +191,14 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						}, options.WithSortForReverse(options.ByResource))
 						require.NoError(b, err)
 						var count int
-						for rel := iter.Next(); rel != nil; rel = iter.Next() {
+						for _, err := range iter {
+							require.NoError(b, err)
 							count++
 						}
-						require.NoError(b, iter.Err())
-						iter.Close()
 					}
 				})
-				b.Run("Touch", buildTupleTest(ctx, ds, core.RelationTupleUpdate_TOUCH))
-				b.Run("Create", buildTupleTest(ctx, ds, core.RelationTupleUpdate_CREATE))
+				b.Run("Touch", buildRelTest(ctx, ds, tuple.UpdateOperationTouch))
+				b.Run("Create", buildRelTest(ctx, ds, tuple.UpdateOperationCreate))
 				b.Run("CreateAndTouch", func(b *testing.B) {
 					const totalRelationships = 1000
 					for _, portionCreate := range []float64{0, 0.10, 0.25, 0.50, 1} {
@@ -202,16 +206,16 @@ func BenchmarkDatastoreDriver(b *testing.B) {
 						b.Run(fmt.Sprintf("%v_", portionCreate), func(b *testing.B) {
 							for n := 0; n < b.N; n++ {
 								portionCreateIndex := int(math.Floor(portionCreate * totalRelationships))
-								mutations := make([]*core.RelationTupleUpdate, 0, totalRelationships)
+								mutations := make([]tuple.RelationshipUpdate, 0, totalRelationships)
 								for index := 0; index < totalRelationships; index++ {
 									if index >= portionCreateIndex {
 										stableID := fmt.Sprintf("id-%d", index)
-										tpl := docViewer(stableID, stableID)
-										mutations = append(mutations, tuple.Touch(tpl))
+										rel := docViewer(stableID, stableID)
+										mutations = append(mutations, tuple.Touch(rel))
 									} else {
 										randomID := testfixtures.RandomObjectID(32)
-										tpl := docViewer(randomID, randomID)
-										mutations = append(mutations, tuple.Create(tpl))
+										rel := docViewer(randomID, randomID)
+										mutations = append(mutations, tuple.Create(rel))
 									}
 								}
 
@@ -244,15 +248,15 @@ func TestAllDriversBenchmarkedOrSkipped(t *testing.T) {
 	require.Empty(t, notBenchmarked)
 }
 
-func buildTupleTest(ctx context.Context, ds datastore.Datastore, op core.RelationTupleUpdate_Operation) func(b *testing.B) {
+func buildRelTest(ctx context.Context, ds datastore.Datastore, op tuple.UpdateOperation) func(b *testing.B) {
 	return func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				randomID := testfixtures.RandomObjectID(32)
-				return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+				return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 					{
-						Operation: op,
-						Tuple:     docViewer(randomID, randomID),
+						Operation:    op,
+						Relationship: docViewer(randomID, randomID),
 					},
 				})
 			})
@@ -261,17 +265,19 @@ func buildTupleTest(ctx context.Context, ds datastore.Datastore, op core.Relatio
 	}
 }
 
-func docViewer(documentID, userID string) *core.RelationTuple {
-	return &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{
-			Namespace: testfixtures.DocumentNS.Name,
-			ObjectId:  documentID,
-			Relation:  "viewer",
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: testfixtures.UserNS.Name,
-			ObjectId:  userID,
-			Relation:  datastore.Ellipsis,
+func docViewer(documentID, userID string) tuple.Relationship {
+	return tuple.Relationship{
+		RelationshipReference: tuple.RelationshipReference{
+			Resource: tuple.ObjectAndRelation{
+				ObjectType: testfixtures.DocumentNS.Name,
+				ObjectID:   documentID,
+				Relation:   "viewer",
+			},
+			Subject: tuple.ObjectAndRelation{
+				ObjectType: testfixtures.UserNS.Name,
+				ObjectID:   userID,
+				Relation:   datastore.Ellipsis,
+			},
 		},
 	}
 }

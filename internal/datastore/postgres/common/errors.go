@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	dscommon "github.com/authzed/spicedb/internal/datastore/common"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -46,32 +46,36 @@ func ConvertToWriteConstraintError(livingTupleConstraints []string, err error) e
 	if errors.As(err, &pgerr) && pgerr.Code == pgUniqueConstraintViolation && slices.Contains(livingTupleConstraints, pgerr.ConstraintName) {
 		found := createConflictDetailsRegex.FindStringSubmatch(pgerr.Detail)
 		if found != nil {
-			return dscommon.NewCreateRelationshipExistsError(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: strings.TrimSpace(found[2]),
-					ObjectId:  strings.TrimSpace(found[3]),
-					Relation:  strings.TrimSpace(found[4]),
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: strings.TrimSpace(found[5]),
-					ObjectId:  strings.TrimSpace(found[6]),
-					Relation:  strings.TrimSpace(found[7]),
+			return dscommon.NewCreateRelationshipExistsError(&tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: strings.TrimSpace(found[2]),
+						ObjectID:   strings.TrimSpace(found[3]),
+						Relation:   strings.TrimSpace(found[4]),
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: strings.TrimSpace(found[5]),
+						ObjectID:   strings.TrimSpace(found[6]),
+						Relation:   strings.TrimSpace(found[7]),
+					},
 				},
 			})
 		}
 
 		found = createConflictDetailsRegexWithoutCaveat.FindStringSubmatch(pgerr.Detail)
 		if found != nil {
-			return dscommon.NewCreateRelationshipExistsError(&core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: strings.TrimSpace(found[2]),
-					ObjectId:  strings.TrimSpace(found[3]),
-					Relation:  strings.TrimSpace(found[4]),
-				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: strings.TrimSpace(found[5]),
-					ObjectId:  strings.TrimSpace(found[6]),
-					Relation:  strings.TrimSpace(found[7]),
+			return dscommon.NewCreateRelationshipExistsError(&tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: strings.TrimSpace(found[2]),
+						ObjectID:   strings.TrimSpace(found[3]),
+						Relation:   strings.TrimSpace(found[4]),
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: strings.TrimSpace(found[5]),
+						ObjectID:   strings.TrimSpace(found[6]),
+						Relation:   strings.TrimSpace(found[7]),
+					},
 				},
 			})
 		}

@@ -292,7 +292,6 @@ func ensureNoRelationshipsExist(ctx context.Context, rwt datastore.ReadWriteTran
 		"cannot delete object definition `%s`, as a relationship references it",
 		namespaceName,
 	)
-	qy.Close()
 	if err != nil {
 		return err
 	}
@@ -345,7 +344,6 @@ func sanityCheckNamespaceChanges(
 				qy,
 				qyErr,
 				"cannot delete relation `%s` in object definition `%s`, as a relationship references it", delta.RelationName, nsdef.Name)
-			qy.Close()
 			if err != nil {
 				return diff, err
 			}
@@ -389,7 +387,6 @@ func sanityCheckNamespaceChanges(
 				qyrErr,
 				"cannot remove allowed type `%s` from relation `%s` in object definition `%s`, as a relationship exists with it",
 				typesystem.SourceForAllowedRelation(delta.AllowedType), delta.RelationName, nsdef.Name)
-			qyr.Close()
 			if err != nil {
 				return diff, err
 			}
@@ -404,14 +401,13 @@ func errorIfTupleIteratorReturnsTuples(_ context.Context, qy datastore.Relations
 	if qyErr != nil {
 		return qyErr
 	}
-	defer qy.Close()
 
-	if rt := qy.Next(); rt != nil {
-		if qy.Err() != nil {
-			return qy.Err()
+	for _, err := range qy {
+		if err != nil {
+			return err
 		}
-
 		return NewSchemaWriteDataValidationError(message, args...)
 	}
+
 	return nil
 }

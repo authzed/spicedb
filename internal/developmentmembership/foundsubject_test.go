@@ -7,19 +7,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/validationfile/blocks"
 )
 
 func cfs(subjectType string, subjectID string, subjectRel string, excludedSubjectIDs []string, caveatName string) FoundSubject {
 	excludedSubjects := make([]FoundSubject, 0, len(excludedSubjectIDs))
 	for _, excludedSubjectID := range excludedSubjectIDs {
-		excludedSubjects = append(excludedSubjects, FoundSubject{subject: ONR(subjectType, excludedSubjectID, subjectRel)})
+		excludedSubjects = append(excludedSubjects, FoundSubject{subject: tuple.ONR(subjectType, excludedSubjectID, subjectRel)})
 	}
 
 	return FoundSubject{
-		subject:          ONR(subjectType, subjectID, subjectRel),
+		subject:          tuple.ONR(subjectType, subjectID, subjectRel),
 		excludedSubjects: excludedSubjects,
-		relationships:    NewONRSet(),
+		resources:        NewONRSet(),
 		caveatExpression: caveats.CaveatExprForTesting(caveatName),
 	}
 }

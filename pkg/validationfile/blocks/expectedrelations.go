@@ -10,8 +10,6 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -48,7 +46,7 @@ type ObjectRelation struct {
 	ObjectRelationString string
 
 	// ObjectAndRelation is the parsed object and relation.
-	ObjectAndRelation *core.ObjectAndRelation
+	ObjectAndRelation tuple.ObjectAndRelation
 
 	// SourcePosition is the position of the expected relations in the file.
 	SourcePosition spiceerrors.SourcePosition
@@ -70,10 +68,10 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 		return err
 	}
 
-	parsed := tuple.ParseONR(ors.ObjectRelationString)
-	if parsed == nil {
+	parsed, err := tuple.ParseONR(ors.ObjectRelationString)
+	if err != nil {
 		return spiceerrors.NewErrorWithSource(
-			fmt.Errorf("could not parse %s", ors.ObjectRelationString),
+			fmt.Errorf("could not parse %s: %w", ors.ObjectRelationString, err),
 			ors.ObjectRelationString,
 			line,
 			column,
@@ -102,7 +100,7 @@ type ExpectedSubject struct {
 	SubjectWithExceptions *SubjectWithExceptions
 
 	// Resources are the resources under which the subject is found.
-	Resources []*core.ObjectAndRelation
+	Resources []tuple.ObjectAndRelation
 
 	// SourcePosition is the position of the expected subject in the file.
 	SourcePosition spiceerrors.SourcePosition
@@ -111,7 +109,7 @@ type ExpectedSubject struct {
 // SubjectAndCaveat returns a subject and whether it is caveated.
 type SubjectAndCaveat struct {
 	// Subject is the subject found.
-	Subject *core.ObjectAndRelation
+	Subject tuple.ObjectAndRelation
 
 	// IsCaveated indicates whether the subject is caveated.
 	IsCaveated bool
@@ -199,9 +197,9 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 	}
 
 	subjectONRString := groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
-	subjectONR := tuple.ParseSubjectONR(subjectONRString)
-	if subjectONR == nil {
-		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectONRString), subjectONRString, 0, 0)
+	subjectONR, err := tuple.ParseSubjectONR(subjectONRString)
+	if err != nil {
+		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`: %w", subjectONRString, err), subjectONRString, 0, 0)
 	}
 
 	exceptionsString := strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
@@ -217,9 +215,9 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 				isCaveated = true
 			}
 
-			exceptionONR := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
-			if exceptionONR == nil {
-				return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", exceptionString), exceptionString, 0, 0)
+			exceptionONR, err := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
+			if err != nil {
+				return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`: %w", exceptionString, err), exceptionString, 0, 0)
 			}
 
 			exceptions = append(exceptions, SubjectAndCaveat{exceptionONR, isCaveated})
@@ -241,13 +239,13 @@ func (vs ValidationString) ONRStrings() []string {
 }
 
 // ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]*core.ObjectAndRelation, *spiceerrors.ErrorWithSource) {
+func (vs ValidationString) ONRS() ([]tuple.ObjectAndRelation, *spiceerrors.ErrorWithSource) {
 	onrStrings := vs.ONRStrings()
-	onrs := []*core.ObjectAndRelation{}
+	onrs := []tuple.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
-		found := tuple.ParseONR(onrString)
-		if found == nil {
-			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid resource and relation: `%s`", onrString), onrString, 0, 0)
+		found, err := tuple.ParseONR(onrString)
+		if err != nil {
+			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid resource and relation: `%s`: %w", onrString, err), onrString, 0, 0)
 		}
 
 		onrs = append(onrs, found)

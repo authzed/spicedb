@@ -7,15 +7,15 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type tupleSourceAdapter struct {
 	source datastore.BulkWriteRelationshipSource
 	ctx    context.Context
 
-	current      *core.RelationTuple
+	current      *tuple.Relationship
 	err          error
 	valuesBuffer []any
 	colNames     []string
@@ -33,24 +33,24 @@ func (tg *tupleSourceAdapter) Next() bool {
 func (tg *tupleSourceAdapter) Values() ([]any, error) {
 	var caveatName string
 	var caveatContext map[string]any
-	if tg.current.Caveat != nil {
-		caveatName = tg.current.Caveat.CaveatName
-		caveatContext = tg.current.Caveat.Context.AsMap()
+	if tg.current.OptionalCaveat != nil {
+		caveatName = tg.current.OptionalCaveat.CaveatName
+		caveatContext = tg.current.OptionalCaveat.Context.AsMap()
 	}
 
-	tg.valuesBuffer[0] = tg.current.ResourceAndRelation.Namespace
-	tg.valuesBuffer[1] = tg.current.ResourceAndRelation.ObjectId
-	tg.valuesBuffer[2] = tg.current.ResourceAndRelation.Relation
-	tg.valuesBuffer[3] = tg.current.Subject.Namespace
-	tg.valuesBuffer[4] = tg.current.Subject.ObjectId
+	tg.valuesBuffer[0] = tg.current.Resource.ObjectType
+	tg.valuesBuffer[1] = tg.current.Resource.ObjectID
+	tg.valuesBuffer[2] = tg.current.Resource.Relation
+	tg.valuesBuffer[3] = tg.current.Subject.ObjectType
+	tg.valuesBuffer[4] = tg.current.Subject.ObjectID
 	tg.valuesBuffer[5] = tg.current.Subject.Relation
 	tg.valuesBuffer[6] = caveatName
 	tg.valuesBuffer[7] = caveatContext
 
-	if len(tg.colNames) > 8 && tg.current.Integrity != nil {
-		tg.valuesBuffer[8] = tg.current.Integrity.KeyId
-		tg.valuesBuffer[9] = tg.current.Integrity.Hash
-		tg.valuesBuffer[10] = tg.current.Integrity.HashedAt.AsTime()
+	if len(tg.colNames) > 8 && tg.current.OptionalIntegrity != nil {
+		tg.valuesBuffer[8] = tg.current.OptionalIntegrity.KeyId
+		tg.valuesBuffer[9] = tg.current.OptionalIntegrity.Hash
+		tg.valuesBuffer[10] = tg.current.OptionalIntegrity.HashedAt.AsTime()
 	}
 
 	return tg.valuesBuffer, nil
