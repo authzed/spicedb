@@ -726,7 +726,7 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
-		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships,
+		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships | datastore.WatchSchema,
 		CheckpointInterval: 100 * time.Millisecond,
 	})
 	require.Zero(len(errchan))
@@ -735,6 +735,14 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 		tuple.Parse("document:firstdoc#viewer@user:tom"),
 	)
 	require.NoError(err)
+
+	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+
+	afterTouchRevision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "doesnotexist"})
+	})
+	require.NoError(err)
+
 	verifyCheckpointUpdate(require, afterTouchRevision, changes)
 }
 
@@ -743,14 +751,25 @@ func verifyCheckpointUpdate(
 	expectedRevision datastore.Revision,
 	changes <-chan *datastore.RevisionChanges,
 ) {
+	var relChangeEmitted, schemaChangeEmitted bool
 	changeWait := time.NewTimer(waitForChangesTimeout)
 	for {
 		select {
 		case change, ok := <-changes:
 			require.True(ok)
+			if len(change.ChangedDefinitions) > 0 {
+				schemaChangeEmitted = true
+			}
+			if len(change.RelationshipChanges) > 0 {
+				relChangeEmitted = true
+			}
 			if change.IsCheckpoint {
-				require.True(change.Revision.Equal(change.Revision) || change.Revision.GreaterThan(expectedRevision))
-				return
+				if change.Revision.Equal(expectedRevision) || change.Revision.GreaterThan(expectedRevision) {
+					require.True(relChangeEmitted || schemaChangeEmitted, "expected relationship/schema changes before checkpoint")
+					return
+				}
+
+				// we received a past revision checkpoint, ignore
 			}
 		case <-changeWait.C:
 			require.Fail("Timed out", "waited for checkpoint")

@@ -114,16 +114,16 @@ func (mdb *memdbDatastore) loadChanges(_ context.Context, currentTxn int64, opti
 			changes = append(changes, &change.changes)
 		}
 
+		if options.Content&datastore.WatchSchema == datastore.WatchSchema &&
+			len(change.changes.ChangedDefinitions) > 0 || len(change.changes.DeletedCaveats) > 0 || len(change.changes.DeletedNamespaces) > 0 {
+			changes = append(changes, &change.changes)
+		}
+
 		if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints && change.revisionNanos > lastRevision {
 			changes = append(changes, &datastore.RevisionChanges{
 				Revision:     revisions.NewForTimestamp(change.revisionNanos),
 				IsCheckpoint: true,
 			})
-		}
-
-		if options.Content&datastore.WatchSchema == datastore.WatchSchema &&
-			len(change.changes.ChangedDefinitions) > 0 || len(change.changes.DeletedCaveats) > 0 || len(change.changes.DeletedNamespaces) > 0 {
-			changes = append(changes, &change.changes)
 		}
 
 		lastRevision = change.revisionNanos

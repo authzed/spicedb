@@ -129,12 +129,12 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 }
 
 const (
-	retryCount         = 3
-	timeBetweenRetries = 100 * time.Millisecond
+	retryCount         = 4
+	timeBetweenRetries = 1 * time.Second
 )
 
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
-	for i := 0; i < retryCount; i++ {
+	for i := 1; i <= retryCount; i++ {
 		connectStr := b.NewDatabase(t)
 
 		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr, datastore.NoCredentialsProvider)
@@ -144,11 +144,11 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 			return initFunc("postgres", connectStr)
 		}
 
-		if i == retryCount-1 {
+		if i == retryCount {
 			require.NoError(t, err, "got error when trying to create migration driver")
 		}
 
-		time.Sleep(timeBetweenRetries)
+		time.Sleep(time.Duration(i) * timeBetweenRetries)
 	}
 
 	require.Fail(t, "failed to create datastore for testing")
