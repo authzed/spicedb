@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"strings"
 	"testing"
 	"time"
 
@@ -1342,6 +1343,113 @@ func TestDeleteRelationshipsPreconditionsOverLimit(t *testing.T) {
 
 	require.Error(err)
 	require.Contains(err.Error(), "precondition count of 2 is greater than maximum allowed of 1")
+}
+
+func TestWriteRelationshipsWithMetadata(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, beforeWriteRev := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxPreconditionsCount: 10,
+			MaxUpdatesPerWrite:    10,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	t.Cleanup(cleanup)
+
+	client := v1.NewPermissionsServiceClient(conn)
+
+	metadata, err := structpb.NewStruct(map[string]any{
+		"foo": "123546",
+	})
+	require.NoError(err)
+
+	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		OptionalTransactionMetadata: metadata,
+		Updates: []*v1.RelationshipUpdate{
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
+				Relationship: rel("document", "newdoc", "parent", "folder", "afolder", ""),
+			},
+		},
+	})
+
+	require.NoError(err)
+
+	beforeWriteToken := zedtoken.MustNewFromRevision(beforeWriteRev)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	watchClient := v1.NewWatchServiceClient(conn)
+
+	stream, err := watchClient.Watch(ctx, &v1.WatchRequest{OptionalStartCursor: beforeWriteToken})
+	require.NoError(err)
+
+	resp, err := stream.Recv()
+	require.NoError(err)
+	require.Equal(metadata, resp.OptionalTransactionMetadata)
+}
+
+func TestWriteRelationshipsMetadataOverLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxPreconditionsCount: 1,
+			MaxUpdatesPerWrite:    1,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	metadata, err := structpb.NewStruct(map[string]any{
+		"foo": strings.Repeat("hithere", 65000),
+	})
+	require.NoError(err)
+
+	_, err = client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		OptionalTransactionMetadata: metadata,
+	})
+
+	require.Error(err)
+	require.Contains(err.Error(), "metadata size of 455010 is greater than maximum allowed of 65000")
+}
+
+func TestDeleteRelationshipsMetadataOverLimit(t *testing.T) {
+	require := require.New(t)
+	conn, cleanup, _, _ := testserver.NewTestServerWithConfig(
+		require,
+		testTimedeltas[0],
+		memdb.DisableGC,
+		true,
+		testserver.ServerConfig{
+			MaxPreconditionsCount: 1,
+			MaxUpdatesPerWrite:    1,
+		},
+		tf.StandardDatastoreWithData,
+	)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	metadata, err := structpb.NewStruct(map[string]any{
+		"foo": strings.Repeat("hithere", 65000),
+	})
+	require.NoError(err)
+
+	_, err = client.DeleteRelationships(context.Background(), &v1.DeleteRelationshipsRequest{
+		OptionalTransactionMetadata: metadata,
+		RelationshipFilter:          &v1.RelationshipFilter{},
+	})
+
+	require.Error(err)
+	require.Contains(err.Error(), "metadata size of 455010 is greater than maximum allowed of 65000")
 }
 
 func TestWriteRelationshipsPreconditionsOverLimit(t *testing.T) {

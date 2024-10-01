@@ -9,7 +9,7 @@ require (
 	github.com/IBM/pgxpoolprometheus v1.1.1
 	github.com/KimMachineGun/automemlimit v0.6.1
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v0.16.0
+	github.com/authzed/authzed-go v0.16.1-0.20241001202507-27cc182a7b92
 
 	// NOTE: We are using a *copy* of `cel-go` here to ensure there isn't a conflict
 	// with the version used in Kubernetes. This is a temporary measure until we can
