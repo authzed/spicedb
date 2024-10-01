@@ -2,9 +2,7 @@ package common
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ccoveille/go-safecast"
@@ -16,137 +14,26 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-const errUnableToQueryTuples = "unable to query tuples: %w"
-
 // NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(querier DBFuncQuerier) common.ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error) {
+func NewPGXExecutor(querier DBFuncQuerier) common.ExecuteReadRelsQueryFunc {
+	return func(ctx context.Context, queryInfo common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
 		span := trace.SpanFromContext(ctx)
-		return queryRels(ctx, sql, args, span, querier, false)
+		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, queryInfo, sql, args, span, querier, false)
 	}
 }
 
-func NewPGXExecutorWithIntegrityOption(querier DBFuncQuerier, withIntegrity bool) common.ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error) {
+func NewPGXExecutorWithIntegrityOption(querier DBFuncQuerier, withIntegrity bool) common.ExecuteReadRelsQueryFunc {
+	return func(ctx context.Context, queryInfo common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
 		span := trace.SpanFromContext(ctx)
-		return queryRels(ctx, sql, args, span, querier, withIntegrity)
+		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, queryInfo, sql, args, span, querier, withIntegrity)
 	}
-}
-
-// queryRels queries relationships for the given query and transaction.
-func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.Span, tx DBFuncQuerier, withIntegrity bool) (datastore.RelationshipIterator, error) {
-	return func(yield func(tuple.Relationship, error) bool) {
-		err := tx.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
-			span.AddEvent("Query issued to database")
-
-			var resourceObjectType string
-			var resourceObjectID string
-			var resourceRelation string
-			var subjectObjectType string
-			var subjectObjectID string
-			var subjectRelation string
-			var caveatName sql.NullString
-			var caveatCtx map[string]any
-
-			relCount := 0
-			for rows.Next() {
-				var integrity *corev1.RelationshipIntegrity
-
-				if withIntegrity {
-					var integrityKeyID string
-					var integrityHash []byte
-					var timestamp time.Time
-
-					if err := rows.Scan(
-						&resourceObjectType,
-						&resourceObjectID,
-						&resourceRelation,
-						&subjectObjectType,
-						&subjectObjectID,
-						&subjectRelation,
-						&caveatName,
-						&caveatCtx,
-						&integrityKeyID,
-						&integrityHash,
-						&timestamp,
-					); err != nil {
-						return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
-					}
-
-					integrity = &corev1.RelationshipIntegrity{
-						KeyId:    integrityKeyID,
-						Hash:     integrityHash,
-						HashedAt: timestamppb.New(timestamp),
-					}
-				} else {
-					if err := rows.Scan(
-						&resourceObjectType,
-						&resourceObjectID,
-						&resourceRelation,
-						&subjectObjectType,
-						&subjectObjectID,
-						&subjectRelation,
-						&caveatName,
-						&caveatCtx,
-					); err != nil {
-						return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
-					}
-				}
-
-				var caveat *corev1.ContextualizedCaveat
-				if caveatName.Valid {
-					var err error
-					caveat, err = common.ContextualizedCaveatFrom(caveatName.String, caveatCtx)
-					if err != nil {
-						return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("unable to fetch caveat context: %w", err))
-					}
-				}
-
-				relCount++
-				if !yield(tuple.Relationship{
-					RelationshipReference: tuple.RelationshipReference{
-						Resource: tuple.ObjectAndRelation{
-							ObjectType: resourceObjectType,
-							ObjectID:   resourceObjectID,
-							Relation:   resourceRelation,
-						},
-						Subject: tuple.ObjectAndRelation{
-							ObjectType: subjectObjectType,
-							ObjectID:   subjectObjectID,
-							Relation:   subjectRelation,
-						},
-					},
-					OptionalCaveat:    caveat,
-					OptionalIntegrity: integrity,
-				}, nil) {
-					return nil
-				}
-			}
-
-			if err := rows.Err(); err != nil {
-				return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("rows err: %w", err))
-			}
-
-			span.AddEvent("Rels loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
-			return nil
-		}, sqlStatement, args...)
-		if err != nil {
-			if !yield(tuple.Relationship{}, err) {
-				return
-			}
-		}
-	}, nil
 }
 
 // ParseConfigWithInstrumentation returns a pgx.ConnConfig that has been instrumented for observability

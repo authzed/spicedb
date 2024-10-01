@@ -3,8 +3,6 @@ package common
 import (
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/authzed/spicedb/pkg/datastore/options"
 
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -20,11 +18,11 @@ var toCursor = options.ToCursor
 
 func TestSchemaQueryFilterer(t *testing.T) {
 	tests := []struct {
-		name                 string
-		run                  func(filterer SchemaQueryFilterer) SchemaQueryFilterer
-		expectedSQL          string
-		expectedArgs         []any
-		expectedColumnCounts map[string]int
+		name                  string
+		run                   func(filterer SchemaQueryFilterer) SchemaQueryFilterer
+		expectedSQL           string
+		expectedArgs          []any
+		expectedStaticColumns []string
 	}{
 		{
 			"relation filter",
@@ -33,9 +31,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE relation = ?",
 			[]any{"somerelation"},
-			map[string]int{
-				"relation": 1,
-			},
+			[]string{"relation"},
 		},
 		{
 			"resource ID filter",
@@ -44,9 +40,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE object_id = ?",
 			[]any{"someresourceid"},
-			map[string]int{
-				"object_id": 1,
-			},
+			[]string{"object_id"},
 		},
 		{
 			"resource IDs filter",
@@ -55,7 +49,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE object_id LIKE ?",
 			[]any{"someprefix%"},
-			map[string]int{}, // object_id is not statically used, so not present in the map
+			[]string{},
 		},
 		{
 			"resource IDs prefix filter",
@@ -64,9 +58,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE object_id IN (?,?)",
 			[]any{"someresourceid", "anotherresourceid"},
-			map[string]int{
-				"object_id": 2,
-			},
+			[]string{},
 		},
 		{
 			"resource type filter",
@@ -75,9 +67,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ?",
 			[]any{"sometype"},
-			map[string]int{
-				"ns": 1,
-			},
+			[]string{"ns"},
 		},
 		{
 			"resource filter",
@@ -86,11 +76,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND object_id = ? AND relation = ?",
 			[]any{"sometype", "someobj", "somerel"},
-			map[string]int{
-				"ns":        1,
-				"object_id": 1,
-				"relation":  1,
-			},
+			[]string{"ns", "object_id", "relation"},
 		},
 		{
 			"relationships filter with no IDs or relations",
@@ -101,9 +87,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ?",
 			[]any{"sometype"},
-			map[string]int{
-				"ns": 1,
-			},
+			[]string{"ns"},
 		},
 		{
 			"relationships filter with single ID",
@@ -115,10 +99,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?)",
 			[]any{"sometype", "someid"},
-			map[string]int{
-				"ns":        1,
-				"object_id": 1,
-			},
+			[]string{"ns", "object_id"},
 		},
 		{
 			"relationships filter with no IDs",
@@ -130,9 +111,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ?",
 			[]any{"sometype"},
-			map[string]int{
-				"ns": 1,
-			},
+			[]string{"ns"},
 		},
 		{
 			"relationships filter with multiple IDs",
@@ -144,10 +123,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?,?)",
 			[]any{"sometype", "someid", "anotherid"},
-			map[string]int{
-				"ns":        1,
-				"object_id": 2,
-			},
+			[]string{"ns"},
 		},
 		{
 			"subjects filter with no IDs or relations",
@@ -158,9 +134,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ?))",
 			[]any{"somesubjectype"},
-			map[string]int{
-				"subject_ns": 1,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"multiple subjects filters with just types",
@@ -173,9 +147,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ?) OR (subject_ns = ?))",
 			[]any{"somesubjectype", "anothersubjectype"},
-			map[string]int{
-				"subject_ns": 2,
-			},
+			[]string{},
 		},
 		{
 			"subjects filter with single ID",
@@ -187,10 +159,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?)))",
 			[]any{"somesubjectype", "somesubjectid"},
-			map[string]int{
-				"subject_ns":        1,
-				"subject_object_id": 1,
-			},
+			[]string{"subject_ns", "subject_object_id"},
 		},
 		{
 			"subjects filter with single ID and no type",
@@ -201,9 +170,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_object_id IN (?)))",
 			[]any{"somesubjectid"},
-			map[string]int{
-				"subject_object_id": 1,
-			},
+			[]string{"subject_object_id"},
 		},
 		{
 			"empty subjects filter",
@@ -212,7 +179,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((1=1))",
 			nil,
-			map[string]int{},
+			[]string{},
 		},
 		{
 			"subjects filter with multiple IDs",
@@ -224,10 +191,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid"},
-			map[string]int{
-				"subject_ns":        1,
-				"subject_object_id": 2,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"subjects filter with single ellipsis relation",
@@ -239,10 +203,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_relation = ?))",
 			[]any{"somesubjectype", "..."},
-			map[string]int{
-				"subject_ns":       1,
-				"subject_relation": 1,
-			},
+			[]string{"subject_ns", "subject_relation"},
 		},
 		{
 			"subjects filter with single defined relation",
@@ -254,10 +215,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_relation = ?))",
 			[]any{"somesubjectype", "somesubrel"},
-			map[string]int{
-				"subject_ns":       1,
-				"subject_relation": 1,
-			},
+			[]string{"subject_ns", "subject_relation"},
 		},
 		{
 			"subjects filter with only non-ellipsis",
@@ -269,10 +227,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_relation <> ?))",
 			[]any{"somesubjectype", "..."},
-			map[string]int{
-				"subject_ns":       1,
-				"subject_relation": 1,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"subjects filter with defined relation and ellipsis",
@@ -284,10 +239,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "...", "somesubrel"},
-			map[string]int{
-				"subject_ns":       1,
-				"subject_relation": 2,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"subjects filter",
@@ -300,11 +252,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
-			map[string]int{
-				"subject_ns":        1,
-				"subject_object_id": 2,
-				"subject_relation":  2,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"multiple subjects filter",
@@ -328,11 +276,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_relation <> ?))",
 			[]any{"somesubjectype", "a", "b", "...", "somesubrel", "anothersubjecttype", "b", "c", "...", "anotherrel", "thirdsubjectype", "..."},
-			map[string]int{
-				"subject_ns":        3,
-				"subject_object_id": 4,
-				"subject_relation":  5,
-			},
+			[]string{},
 		},
 		{
 			"v1 subject filter with namespace",
@@ -343,9 +287,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE subject_ns = ?",
 			[]any{"subns"},
-			map[string]int{
-				"subject_ns": 1,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"v1 subject filter with subject id",
@@ -357,10 +299,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_object_id = ?",
 			[]any{"subns", "subid"},
-			map[string]int{
-				"subject_ns":        1,
-				"subject_object_id": 1,
-			},
+			[]string{"subject_ns", "subject_object_id"},
 		},
 		{
 			"v1 subject filter with relation",
@@ -374,10 +313,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
 			[]any{"subns", "subrel"},
-			map[string]int{
-				"subject_ns":       1,
-				"subject_relation": 1,
-			},
+			[]string{"subject_ns", "subject_relation"},
 		},
 		{
 			"v1 subject filter with empty relation",
@@ -391,10 +327,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
 			[]any{"subns", "..."},
-			map[string]int{
-				"subject_ns":       1,
-				"subject_relation": 1,
-			},
+			[]string{"subject_ns", "subject_relation"},
 		},
 		{
 			"v1 subject filter",
@@ -409,11 +342,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
 			[]any{"subns", "subid", "somerel"},
-			map[string]int{
-				"subject_ns":        1,
-				"subject_object_id": 1,
-				"subject_relation":  1,
-			},
+			[]string{"subject_ns", "subject_object_id", "subject_relation"},
 		},
 		{
 			"limit",
@@ -422,7 +351,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * LIMIT 100",
 			nil,
-			map[string]int{},
+			[]string{},
 		},
 		{
 			"full resources filter",
@@ -444,14 +373,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?,?) AND ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
-			map[string]int{
-				"ns":                1,
-				"object_id":         2,
-				"relation":          1,
-				"subject_ns":        1,
-				"subject_object_id": 2,
-				"subject_relation":  2,
-			},
+			[]string{"ns", "relation", "subject_ns"},
 		},
 		{
 			"order by",
@@ -464,9 +386,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
 			[]any{"someresourcetype"},
-			map[string]int{
-				"ns": 1,
-			},
+			[]string{"ns"},
 		},
 		{
 			"after with just namespace",
@@ -479,9 +399,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "foo", "viewer", "user", "bar", "..."},
-			map[string]int{
-				"ns": 1,
-			},
+			[]string{"ns"},
 		},
 		{
 			"after with just relation",
@@ -494,9 +412,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE relation = ? AND (ns,object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"somerelation", "someresourcetype", "foo", "user", "bar", "..."},
-			map[string]int{
-				"relation": 1,
-			},
+			[]string{"relation"},
 		},
 		{
 			"after with namespace and single resource id",
@@ -510,10 +426,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?) AND (relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
 			[]any{"someresourcetype", "one", "viewer", "user", "bar", "..."},
-			map[string]int{
-				"ns":        1,
-				"object_id": 1,
-			},
+			[]string{"ns", "object_id"},
 		},
 		{
 			"after with single resource id",
@@ -526,9 +439,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE object_id IN (?) AND (ns,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"one", "someresourcetype", "viewer", "user", "bar", "..."},
-			map[string]int{
-				"object_id": 1,
-			},
+			[]string{"object_id"},
 		},
 		{
 			"after with namespace and resource ids",
@@ -542,10 +453,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?,?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "one", "two", "foo", "viewer", "user", "bar", "..."},
-			map[string]int{
-				"ns":        1,
-				"object_id": 2,
-			},
+			[]string{"ns"},
 		},
 		{
 			"after with namespace and relation",
@@ -559,10 +467,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? AND relation = ? AND (object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
 			[]any{"someresourcetype", "somerelation", "foo", "user", "bar", "..."},
-			map[string]int{
-				"ns":       1,
-				"relation": 1,
-			},
+			[]string{"ns", "relation"},
 		},
 		{
 			"after with subject namespace",
@@ -573,9 +478,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ?)) AND (ns,object_id,relation,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "someresourcetype", "foo", "viewer", "bar", "..."},
-			map[string]int{
-				"subject_ns": 1,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"after with subject namespaces",
@@ -590,9 +493,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ?)) AND ((subject_ns = ?)) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
 			[]any{"somesubjectype", "anothersubjectype", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
-			map[string]int{
-				"subject_ns": 2,
-			},
+			[]string{},
 		},
 		{
 			"after with resource ID prefix",
@@ -601,7 +502,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE object_id LIKE ? AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
 			[]any{"someprefix%", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
-			map[string]int{},
+			[]string{},
 		},
 		{
 			"order by subject",
@@ -614,9 +515,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ns = ? ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
 			[]any{"someresourcetype"},
-			map[string]int{
-				"ns": 1,
-			},
+			[]string{"ns"},
 		},
 		{
 			"order by subject, after with subject namespace",
@@ -627,9 +526,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "bar", "someresourcetype", "foo", "viewer", "..."},
-			map[string]int{
-				"subject_ns": 1,
-			},
+			[]string{"subject_ns"},
 		},
 		{
 			"order by subject, after with subject namespace and subject object id",
@@ -641,7 +538,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (ns,object_id,relation,subject_relation) > (?,?,?,?)",
 			[]any{"somesubjectype", "foo", "someresourcetype", "someresource", "viewer", "..."},
-			map[string]int{"subject_ns": 1, "subject_object_id": 1},
+			[]string{"subject_ns", "subject_object_id"},
 		},
 		{
 			"order by subject, after with subject namespace and multiple subject object IDs",
@@ -653,15 +550,15 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},
-			map[string]int{"subject_ns": 1, "subject_object_id": 2},
+			[]string{"subject_ns"},
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			base := sq.Select("*")
 			schema := NewSchemaInformation(
+				"relationtuples",
 				"ns",
 				"object_id",
 				"relation",
@@ -669,41 +566,28 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"subject_object_id",
 				"subject_relation",
 				"caveat",
+				"caveat_context",
 				TupleComparison,
+				sq.Question,
 			)
-			filterer := NewSchemaQueryFilterer(schema, base, 100)
+			filterer := NewSchemaQueryFiltererForRelationshipsSelect(schema, 100)
 
 			ran := test.run(filterer)
-			require.Equal(t, test.expectedColumnCounts, ran.filteringColumnCounts)
+			foundStaticColumns := []string{}
+			for col, tracker := range ran.filteringColumnTracker {
+				if tracker.SingleValue != nil {
+					foundStaticColumns = append(foundStaticColumns, col)
+				}
+			}
+
+			require.ElementsMatch(t, test.expectedStaticColumns, foundStaticColumns)
+
+			ran.queryBuilder = ran.queryBuilder.Columns("*")
 
 			sql, args, err := ran.queryBuilder.ToSql()
 			require.NoError(t, err)
 			require.Equal(t, test.expectedSQL, sql)
 			require.Equal(t, test.expectedArgs, args)
 		})
-	}
-}
-
-func BenchmarkSchemaFilterer(b *testing.B) {
-	si := NewSchemaInformation(
-		"namespace",
-		"object_id",
-		"object_relation",
-		"resource_type",
-		"resource_id",
-		"resource_relation",
-		"caveat_name",
-		TupleComparison,
-	)
-	sqf := NewSchemaQueryFilterer(si, sq.Select("*"), 100)
-	var names []string
-	for i := 0; i < 500; i++ {
-		names = append(names, uuid.NewString())
-	}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = sqf.FilterToResourceIDs(names)
 	}
 }

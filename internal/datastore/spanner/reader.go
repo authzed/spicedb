@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
+	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -54,7 +55,7 @@ func (sr spannerReader) CountRelationships(ctx context.Context, name string) (in
 		return 0, err
 	}
 
-	builder, err := common.NewSchemaQueryFilterer(schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -134,7 +135,7 @@ func (sr spannerReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(schema, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples, sr.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(schema, sr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -171,8 +172,8 @@ func (sr spannerReader) ReverseQueryRelationships(
 
 var errStopIterator = fmt.Errorf("stop iteration")
 
-func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error) {
+func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
+	return func(ctx context.Context, queryInfo common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
 		return func(yield func(tuple.Relationship, error) bool) {
 			span := trace.SpanFromContext(ctx)
 			span.AddEvent("Query issued to database")
@@ -185,25 +186,28 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 			relCount := 0
 			defer span.SetAttributes(attribute.Int("count", relCount))
 
+			var resourceObjectType string
+			var resourceObjectID string
+			var relation string
+			var subjectObjectType string
+			var subjectObjectID string
+			var subjectRelation string
+			var caveatName spanner.NullString
+			var caveatCtx spanner.NullJSON
+
+			colsToSelect := make([]any, 0, 8)
+
+			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColNamespace, &resourceObjectType)
+			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColObjectID, &resourceObjectID)
+			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColRelation, &relation)
+			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetNamespace, &subjectObjectType)
+			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetObjectID, &subjectObjectID)
+			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetRelation, &subjectRelation)
+
+			colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
+
 			if err := iter.Do(func(row *spanner.Row) error {
-				var resourceObjectType string
-				var resourceObjectID string
-				var relation string
-				var subjectObjectType string
-				var subjectObjectID string
-				var subjectRelation string
-				var caveatName spanner.NullString
-				var caveatCtx spanner.NullJSON
-				err := row.Columns(
-					&resourceObjectType,
-					&resourceObjectID,
-					&relation,
-					&subjectObjectType,
-					&subjectObjectID,
-					&subjectRelation,
-					&caveatName,
-					&caveatCtx,
-				)
+				err := row.Columns(colsToSelect...)
 				if err != nil {
 					return err
 				}
@@ -346,17 +350,6 @@ func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.
 	return allNamespaces, nil
 }
 
-var queryTuples = sql.Select(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName,
-	colCaveatContext,
-).From(tableRelationship)
-
 var countRels = sql.Select("COUNT(*)").From(tableRelationship)
 
 var queryTuplesForDelete = sql.Select(
@@ -369,6 +362,7 @@ var queryTuplesForDelete = sql.Select(
 ).From(tableRelationship)
 
 var schema = common.NewSchemaInformation(
+	tableRelationship,
 	colNamespace,
 	colObjectID,
 	colRelation,
@@ -376,7 +370,9 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
+	colCaveatContext,
 	common.ExpandedLogicComparison,
+	sq.AtP,
 )
 
 var _ datastore.Reader = spannerReader{}

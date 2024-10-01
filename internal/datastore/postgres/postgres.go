@@ -314,6 +314,20 @@ func newPostgresDatastore(
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
+	schema := common.NewSchemaInformation(
+		tableTuple,
+		colNamespace,
+		colObjectID,
+		colRelation,
+		colUsersetNamespace,
+		colUsersetObjectID,
+		colUsersetRelation,
+		colCaveatContextName,
+		colCaveatContext,
+		common.TupleComparison,
+		sq.Dollar,
+	)
+
 	datastore := &pgDatastore{
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
@@ -339,6 +353,7 @@ func newPostgresDatastore(
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
+		schema:                  schema,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -391,6 +406,7 @@ type pgDatastore struct {
 	watchEnabled            bool
 	isPrimary               bool
 	inStrictReadMode        bool
+	schema                  common.SchemaInformation
 
 	credentialsProvider datastore.CredentialsProvider
 
@@ -422,6 +438,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		executor,
 		buildLivingObjectFilterForRevision(rev),
 		pgd.filterMaximumIDCount,
+		pgd.schema,
 	}
 }
 
@@ -465,6 +482,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 					executor,
 					currentlyLivingObjects,
 					pgd.filterMaximumIDCount,
+					pgd.schema,
 				},
 				tx,
 				newXID,
