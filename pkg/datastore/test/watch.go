@@ -384,7 +384,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 }
 
 type updateWithMetadata struct {
-	updates  []*core.RelationTupleUpdate
+	updates  []tuple.RelationshipUpdate
 	metadata map[string]any
 }
 
@@ -409,7 +409,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
 		})
 	}, options.WithMetadata(metadata))
@@ -417,7 +417,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 
 	VerifyUpdatesWithMetadata(require, []updateWithMetadata{
 		{
-			updates:  []*core.RelationTupleUpdate{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom"))},
+			updates:  []tuple.RelationshipUpdate{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom"))},
 			metadata: map[string]any{"somekey": "somevalue"},
 		},
 	},
