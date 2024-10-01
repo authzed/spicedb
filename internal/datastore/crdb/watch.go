@@ -128,7 +128,7 @@ func (cds *crdbDatastore) watch(
 	tableNames := make([]string, 0, 4)
 	tableNames = append(tableNames, tableTransactionMetadata)
 	if opts.Content&datastore.WatchRelationships == datastore.WatchRelationships {
-		tableNames = append(tableNames, cds.tableTupleName())
+		tableNames = append(tableNames, cds.schema.RelationshipTableName)
 	}
 	if opts.Content&datastore.WatchSchema == datastore.WatchSchema {
 		tableNames = append(tableNames, tableNamespace)
@@ -433,7 +433,7 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 		}
 
 		switch tableName {
-		case cds.tableTupleName():
+		case cds.schema.RelationshipTableName:
 			var caveatName string
 			var caveatContext map[string]any
 			if details.After != nil && details.After.RelationshipCaveatName != "" {
