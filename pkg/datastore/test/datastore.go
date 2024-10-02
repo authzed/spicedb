@@ -84,104 +84,122 @@ func WithCategories(cats ...string) Categories {
 	return c
 }
 
+func parallel(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+		tt(t, tester)
+	}
+}
+
+func serial(tester DatastoreTester, tt func(t *testing.T, tester DatastoreTester)) func(t *testing.T) {
+	return func(t *testing.T) {
+		tt(t, tester)
+	}
+}
+
 // AllWithExceptions runs all generic datastore tests on a DatastoreTester, except
 // those specified test categories
-func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories) {
-	t.Run("TestUseAfterClose", func(t *testing.T) { UseAfterCloseTest(t, tester) })
+func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, concurrent bool) {
+	runner := serial
+	if concurrent {
+		runner = parallel
+	}
 
-	t.Run("TestNamespaceNotFound", func(t *testing.T) { NamespaceNotFoundTest(t, tester) })
-	t.Run("TestNamespaceWrite", func(t *testing.T) { NamespaceWriteTest(t, tester) })
-	t.Run("TestNamespaceDelete", func(t *testing.T) { NamespaceDeleteTest(t, tester) })
-	t.Run("TestNamespaceMultiDelete", func(t *testing.T) { NamespaceMultiDeleteTest(t, tester) })
-	t.Run("TestEmptyNamespaceDelete", func(t *testing.T) { EmptyNamespaceDeleteTest(t, tester) })
-	t.Run("TestStableNamespaceReadWrite", func(t *testing.T) { StableNamespaceReadWriteTest(t, tester) })
+	t.Run("TestUseAfterClose", runner(tester, UseAfterCloseTest))
 
-	t.Run("TestSimple", func(t *testing.T) { SimpleTest(t, tester) })
-	t.Run("TestObjectIDs", func(t *testing.T) { ObjectIDsTest(t, tester) })
-	t.Run("TestDeleteRelationships", func(t *testing.T) { DeleteRelationshipsTest(t, tester) })
-	t.Run("TestDeleteNonExistant", func(t *testing.T) { DeleteNotExistantTest(t, tester) })
-	t.Run("TestDeleteAlreadyDeleted", func(t *testing.T) { DeleteAlreadyDeletedTest(t, tester) })
-	t.Run("TestRecreateRelationshipsAfterDeleteWithFilter", func(t *testing.T) { RecreateRelationshipsAfterDeleteWithFilter(t, tester) })
-	t.Run("TestWriteDeleteWrite", func(t *testing.T) { WriteDeleteWriteTest(t, tester) })
-	t.Run("TestCreateAlreadyExisting", func(t *testing.T) { CreateAlreadyExistingTest(t, tester) })
-	t.Run("TestTouchAlreadyExistingWithoutCaveat", func(t *testing.T) { TouchAlreadyExistingTest(t, tester) })
-	t.Run("TestCreateDeleteTouch", func(t *testing.T) { CreateDeleteTouchTest(t, tester) })
-	t.Run("TestDeleteOneThousandIndividualInOneCall", func(t *testing.T) { DeleteOneThousandIndividualInOneCallTest(t, tester) })
-	t.Run("TestCreateTouchDeleteTouch", func(t *testing.T) { CreateTouchDeleteTouchTest(t, tester) })
-	t.Run("TestTouchAlreadyExistingCaveated", func(t *testing.T) { TouchAlreadyExistingCaveatedTest(t, tester) })
-	t.Run("TestBulkDeleteRelationships", func(t *testing.T) { BulkDeleteRelationshipsTest(t, tester) })
-	t.Run("TestDeleteCaveatedTuple", func(t *testing.T) { DeleteCaveatedTupleTest(t, tester) })
-	t.Run("TestDeleteWithLimit", func(t *testing.T) { DeleteWithLimitTest(t, tester) })
-	t.Run("TestQueryRelationshipsWithVariousFilters", func(t *testing.T) { QueryRelationshipsWithVariousFiltersTest(t, tester) })
-	t.Run("TestDeleteRelationshipsWithVariousFilters", func(t *testing.T) { DeleteRelationshipsWithVariousFiltersTest(t, tester) })
-	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", func(t *testing.T) { TypedTouchAlreadyExistingTest(t, tester) })
-	t.Run("TestTouchTypedAlreadyExistingWithCaveat", func(t *testing.T) { TypedTouchAlreadyExistingWithCaveatTest(t, tester) })
+	t.Run("TestNamespaceNotFound", runner(tester, NamespaceNotFoundTest))
+	t.Run("TestNamespaceWrite", runner(tester, NamespaceWriteTest))
+	t.Run("TestNamespaceDelete", runner(tester, NamespaceDeleteTest))
+	t.Run("TestNamespaceMultiDelete", runner(tester, NamespaceMultiDeleteTest))
+	t.Run("TestEmptyNamespaceDelete", runner(tester, EmptyNamespaceDeleteTest))
+	t.Run("TestStableNamespaceReadWrite", runner(tester, StableNamespaceReadWriteTest))
 
-	t.Run("TestMultipleReadsInRWT", func(t *testing.T) { MultipleReadsInRWTTest(t, tester) })
-	t.Run("TestConcurrentWriteSerialization", func(t *testing.T) { ConcurrentWriteSerializationTest(t, tester) })
+	t.Run("TestSimple", runner(tester, SimpleTest))
+	t.Run("TestObjectIDs", runner(tester, ObjectIDsTest))
+	t.Run("TestDeleteRelationships", runner(tester, DeleteRelationshipsTest))
+	t.Run("TestDeleteNonExistant", runner(tester, DeleteNotExistantTest))
+	t.Run("TestDeleteAlreadyDeleted", runner(tester, DeleteAlreadyDeletedTest))
+	t.Run("TestRecreateRelationshipsAfterDeleteWithFilter", runner(tester, RecreateRelationshipsAfterDeleteWithFilter))
+	t.Run("TestWriteDeleteWrite", runner(tester, WriteDeleteWriteTest))
+	t.Run("TestCreateAlreadyExisting", runner(tester, CreateAlreadyExistingTest))
+	t.Run("TestTouchAlreadyExistingWithoutCaveat", runner(tester, TouchAlreadyExistingTest))
+	t.Run("TestCreateDeleteTouch", runner(tester, CreateDeleteTouchTest))
+	t.Run("TestDeleteOneThousandIndividualInOneCall", runner(tester, DeleteOneThousandIndividualInOneCallTest))
+	t.Run("TestCreateTouchDeleteTouch", runner(tester, CreateTouchDeleteTouchTest))
+	t.Run("TestTouchAlreadyExistingCaveated", runner(tester, TouchAlreadyExistingCaveatedTest))
+	t.Run("TestBulkDeleteRelationships", runner(tester, BulkDeleteRelationshipsTest))
+	t.Run("TestDeleteCaveatedTuple", runner(tester, DeleteCaveatedTupleTest))
+	t.Run("TestDeleteWithLimit", runner(tester, DeleteWithLimitTest))
+	t.Run("TestQueryRelationshipsWithVariousFilters", runner(tester, QueryRelationshipsWithVariousFiltersTest))
+	t.Run("TestDeleteRelationshipsWithVariousFilters", runner(tester, DeleteRelationshipsWithVariousFiltersTest))
+	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", runner(tester, TypedTouchAlreadyExistingTest))
+	t.Run("TestTouchTypedAlreadyExistingWithCaveat", runner(tester, TypedTouchAlreadyExistingWithCaveatTest))
 
-	t.Run("TestOrdering", func(t *testing.T) { OrderingTest(t, tester) })
-	t.Run("TestLimit", func(t *testing.T) { LimitTest(t, tester) })
-	t.Run("TestOrderedLimit", func(t *testing.T) { OrderedLimitTest(t, tester) })
-	t.Run("TestResume", func(t *testing.T) { ResumeTest(t, tester) })
-	t.Run("TestCursorErrors", func(t *testing.T) { CursorErrorsTest(t, tester) })
-	t.Run("TestReverseQueryCursor", func(t *testing.T) { ReverseQueryCursorTest(t, tester) })
+	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
+	t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
 
-	t.Run("TestRevisionQuantization", func(t *testing.T) { RevisionQuantizationTest(t, tester) })
-	t.Run("TestRevisionSerialization", func(t *testing.T) { RevisionSerializationTest(t, tester) })
-	t.Run("TestSequentialRevisions", func(t *testing.T) { SequentialRevisionsTest(t, tester) })
-	t.Run("TestConcurrentRevisions", func(t *testing.T) { ConcurrentRevisionsTest(t, tester) })
-	t.Run("TestCheckRevisions", func(t *testing.T) { CheckRevisionsTest(t, tester) })
+	t.Run("TestOrdering", runner(tester, OrderingTest))
+	t.Run("TestLimit", runner(tester, LimitTest))
+	t.Run("TestOrderedLimit", runner(tester, OrderedLimitTest))
+	t.Run("TestResume", runner(tester, ResumeTest))
+	t.Run("TestCursorErrors", runner(tester, CursorErrorsTest))
+	t.Run("TestReverseQueryCursor", runner(tester, ReverseQueryCursorTest))
+
+	t.Run("TestRevisionQuantization", runner(tester, RevisionQuantizationTest))
+	t.Run("TestRevisionSerialization", runner(tester, RevisionSerializationTest))
+	t.Run("TestSequentialRevisions", runner(tester, SequentialRevisionsTest))
+	t.Run("TestConcurrentRevisions", runner(tester, ConcurrentRevisionsTest))
+	t.Run("TestCheckRevisions", runner(tester, CheckRevisionsTest))
 
 	if !except.GC() {
-		t.Run("TestRevisionGC", func(t *testing.T) { RevisionGCTest(t, tester) })
-		t.Run("TestInvalidReads", func(t *testing.T) { InvalidReadsTest(t, tester) })
+		t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
+		t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
 	}
 
-	t.Run("TestBulkUpload", func(t *testing.T) { BulkUploadTest(t, tester) })
-	t.Run("TestBulkUploadErrors", func(t *testing.T) { BulkUploadErrorsTest(t, tester) })
-	t.Run("TestBulkUploadAlreadyExistsError", func(t *testing.T) { BulkUploadAlreadyExistsErrorTest(t, tester) })
-	t.Run("TestBulkUploadAlreadyExistsSameCallError", func(t *testing.T) { BulkUploadAlreadyExistsSameCallErrorTest(t, tester) })
-	t.Run("BulkUploadEditCaveat", func(t *testing.T) { BulkUploadEditCaveat(t, tester) })
+	t.Run("TestBulkUpload", runner(tester, BulkUploadTest))
+	t.Run("TestBulkUploadErrors", runner(tester, BulkUploadErrorsTest))
+	t.Run("TestBulkUploadAlreadyExistsError", runner(tester, BulkUploadAlreadyExistsErrorTest))
+	t.Run("TestBulkUploadAlreadyExistsSameCallError", runner(tester, BulkUploadAlreadyExistsSameCallErrorTest))
+	t.Run("BulkUploadEditCaveat", runner(tester, BulkUploadEditCaveat))
 
 	if !except.Stats() {
-		t.Run("TestStats", func(t *testing.T) { StatsTest(t, tester) })
+		t.Run("TestStats", runner(tester, StatsTest))
 	}
 
-	t.Run("TestRetries", func(t *testing.T) { RetryTest(t, tester) })
+	t.Run("TestRetries", runner(tester, RetryTest))
 
-	t.Run("TestCaveatNotFound", func(t *testing.T) { CaveatNotFoundTest(t, tester) })
-	t.Run("TestWriteReadDeleteCaveat", func(t *testing.T) { WriteReadDeleteCaveatTest(t, tester) })
-	t.Run("TestWriteCaveatedRelationship", func(t *testing.T) { WriteCaveatedRelationshipTest(t, tester) })
-	t.Run("TestCaveatedRelationshipFilter", func(t *testing.T) { CaveatedRelationshipFilterTest(t, tester) })
-	t.Run("TestCaveatSnapshotReads", func(t *testing.T) { CaveatSnapshotReadsTest(t, tester) })
+	t.Run("TestCaveatNotFound", runner(tester, CaveatNotFoundTest))
+	t.Run("TestWriteReadDeleteCaveat", runner(tester, WriteReadDeleteCaveatTest))
+	t.Run("TestWriteCaveatedRelationship", runner(tester, WriteCaveatedRelationshipTest))
+	t.Run("TestCaveatedRelationshipFilter", runner(tester, CaveatedRelationshipFilterTest))
+	t.Run("TestCaveatSnapshotReads", runner(tester, CaveatSnapshotReadsTest))
 
 	if !except.Watch() {
-		t.Run("TestWatchBasic", func(t *testing.T) { WatchTest(t, tester) })
-		t.Run("TestWatchCancel", func(t *testing.T) { WatchCancelTest(t, tester) })
-		t.Run("TestCaveatedRelationshipWatch", func(t *testing.T) { CaveatedRelationshipWatchTest(t, tester) })
-		t.Run("TestWatchWithTouch", func(t *testing.T) { WatchWithTouchTest(t, tester) })
-		t.Run("TestWatchWithDelete", func(t *testing.T) { WatchWithDeleteTest(t, tester) })
-		t.Run("TestWatchWithMetadata", func(t *testing.T) { WatchWithMetadataTest(t, tester) })
+		t.Run("TestWatchBasic", runner(tester, WatchTest))
+		t.Run("TestWatchCancel", runner(tester, WatchCancelTest))
+		t.Run("TestCaveatedRelationshipWatch", runner(tester, CaveatedRelationshipWatchTest))
+		t.Run("TestWatchWithTouch", runner(tester, WatchWithTouchTest))
+		t.Run("TestWatchWithDelete", runner(tester, WatchWithDeleteTest))
+		t.Run("TestWatchWithMetadata", runner(tester, WatchWithMetadataTest))
 	}
 
 	if !except.Watch() && !except.WatchSchema() {
-		t.Run("TestWatchSchema", func(t *testing.T) { WatchSchemaTest(t, tester) })
-		t.Run("TestWatchAll", func(t *testing.T) { WatchAllTest(t, tester) })
+		t.Run("TestWatchSchema", runner(tester, WatchSchemaTest))
+		t.Run("TestWatchAll", runner(tester, WatchAllTest))
 	}
 
 	if !except.Watch() && !except.WatchCheckpoints() {
-		t.Run("TestWatchCheckpoints", func(t *testing.T) { WatchCheckpointsTest(t, tester) })
+		t.Run("TestWatchCheckpoints", runner(tester, WatchCheckpointsTest))
 	}
 
-	t.Run("TestRelationshipCounters", func(t *testing.T) { RelationshipCountersTest(t, tester) })
-	t.Run("TestUpdateRelationshipCounter", func(t *testing.T) { UpdateRelationshipCounterTest(t, tester) })
-	t.Run("TestDeleteAllData", func(t *testing.T) { DeleteAllDataTest(t, tester) })
+	t.Run("TestRelationshipCounters", runner(tester, RelationshipCountersTest))
+	t.Run("TestUpdateRelationshipCounter", runner(tester, UpdateRelationshipCounterTest))
+	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
-func All(t *testing.T, tester DatastoreTester) {
-	AllWithExceptions(t, tester, noException)
+func All(t *testing.T, tester DatastoreTester, concurrent bool) {
+	AllWithExceptions(t, tester, noException, concurrent)
 }
 
 var testResourceNS = namespace.Namespace(

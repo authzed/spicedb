@@ -16,7 +16,6 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	sqlDriver "github.com/go-sql-driver/mysql"
 
-	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
 
@@ -57,10 +56,6 @@ func NewMySQLDriverFromDSN(url string, tablePrefix string, credentialsProvider d
 	}
 
 	db := sql.OpenDB(connector)
-	err = sqlDriver.SetLogger(&log.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("unable to set logging to mysql driver: %w", err)
-	}
 	return NewMySQLDriverFromDB(db, tablePrefix), nil
 }
 

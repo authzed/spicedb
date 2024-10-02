@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -137,7 +136,7 @@ var (
 )
 
 func TestExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	testCases := []struct {
 		start                 *core.ObjectAndRelation
@@ -275,7 +274,7 @@ func onrExpr(onr *core.ObjectAndRelation) ast.Expr {
 }
 
 func TestMaxDepthExpand(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	require := require.New(t)
 
@@ -306,7 +305,7 @@ func TestMaxDepthExpand(t *testing.T) {
 }
 
 func TestExpandOverSchema(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	testCases := []struct {
 		name          string

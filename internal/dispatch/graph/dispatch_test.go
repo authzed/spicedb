@@ -15,6 +15,7 @@ import (
 )
 
 func TestDispatchChunking(t *testing.T) {
+	t.Parallel()
 	schema := `
 		definition user {
 			relation self: user
@@ -35,6 +36,7 @@ func TestDispatchChunking(t *testing.T) {
 	ctx, dispatcher, revision := newLocalDispatcherWithSchemaAndRels(t, schema, append(enabled, resources...))
 
 	t.Run("check", func(t *testing.T) {
+		t.Parallel()
 		for _, tpl := range resources[:1] {
 			checkResult, err := dispatcher.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 				ResourceRelation: RR(tpl.ResourceAndRelation.Namespace, "view"),
@@ -55,6 +57,8 @@ func TestDispatchChunking(t *testing.T) {
 	})
 
 	t.Run("lookup-resources", func(t *testing.T) {
+		t.Parallel()
+
 		for _, tpl := range resources[:1] {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
@@ -75,6 +79,8 @@ func TestDispatchChunking(t *testing.T) {
 	})
 
 	t.Run("lookup-subjects", func(t *testing.T) {
+		t.Parallel()
+
 		for _, tpl := range resources[:1] {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 

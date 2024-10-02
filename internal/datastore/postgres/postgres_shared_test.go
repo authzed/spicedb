@@ -101,7 +101,7 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 					return ds
 				})
 				return ds, nil
-			}))
+			}), false)
 
 			t.Run("TransactionTimestamps", createDatastoreTest(
 				b,
@@ -236,7 +236,7 @@ func testPostgresDatastoreWithoutCommitTimestamps(t *testing.T, pc []postgresCon
 					return ds
 				})
 				return ds, nil
-			}), test.WithCategories(test.WatchCategory))
+			}), test.WithCategories(test.WatchCategory), false)
 		})
 	}
 }

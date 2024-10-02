@@ -9,6 +9,8 @@ import (
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/spf13/cobra"
 
+	sqlDriver "github.com/go-sql-driver/mysql"
+
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	mysqlmigrations "github.com/authzed/spicedb/internal/datastore/mysql/migrations"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
@@ -109,6 +111,12 @@ func migrateRun(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
+		}
+
+		// Do this outside NewMySQLDriverFromDSN to avoid races on MySQL datastore tests
+		err = sqlDriver.SetLogger(&log.Logger)
+		if err != nil {
+			return fmt.Errorf("unable to set logging to mysql driver: %w", err)
 		}
 
 		migrationDriver, err := mysqlmigrations.NewMySQLDriverFromDSN(dbURL, tablePrefix, credentialsProvider)

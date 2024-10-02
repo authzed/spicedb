@@ -55,6 +55,7 @@ func TestConsistency(t *testing.T) {
 		filePath := filePath
 
 		t.Run(path.Base(filePath), func(t *testing.T) {
+			t.Parallel()
 			for _, dispatcherKind := range []string{"local", "caching"} {
 				dispatcherKind := dispatcherKind
 

@@ -13,11 +13,14 @@ import (
 )
 
 func TestUnwrapStatusError(t *testing.T) {
+	t.Parallel()
+
 	err := rewriteError(context.Background(), graph.NewCheckFailureErr(status.Error(codes.Canceled, "canceled")))
 	grpcutil.RequireStatus(t, codes.Canceled, err)
 }
 
 func TestConcurrencyLimitsWithOverallDefaultLimit(t *testing.T) {
+	t.Parallel()
 	cl := ConcurrencyLimits{}
 	require.Equal(t, uint16(0), cl.Check)
 	require.Equal(t, uint16(0), cl.LookupResources)
@@ -38,6 +41,7 @@ func TestConcurrencyLimitsWithOverallDefaultLimit(t *testing.T) {
 }
 
 func TestSharedConcurrencyLimits(t *testing.T) {
+	t.Parallel()
 	cl := SharedConcurrencyLimits(42)
 	require.Equal(t, uint16(42), cl.Check)
 	require.Equal(t, uint16(42), cl.LookupResources)

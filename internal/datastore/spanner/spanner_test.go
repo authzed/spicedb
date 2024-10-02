@@ -28,6 +28,8 @@ func (sd *spannerDatastore) ExampleRetryableError() error {
 }
 
 func TestSpannerDatastore(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	b := testdatastore.RunSpannerForTesting(t, "", "head")
 
@@ -43,7 +45,7 @@ func TestSpannerDatastore(t *testing.T) {
 			return ds
 		})
 		return ds, nil
-	}), test.WithCategories(test.GCCategory, test.WatchCategory, test.StatsCategory))
+	}), test.WithCategories(test.GCCategory, test.WatchCategory, test.StatsCategory), true)
 
 	t.Run("TestFakeStats", createDatastoreTest(
 		b,

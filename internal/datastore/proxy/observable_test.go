@@ -20,7 +20,7 @@ func (obs observableTest) New(revisionQuantization, _, gcWindow time.Duration, w
 }
 
 func TestObservableProxy(t *testing.T) {
-	test.All(t, observableTest{})
+	test.All(t, observableTest{}, true)
 }
 
 func (p *observableProxy) ExampleRetryableError() error {

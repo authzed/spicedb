@@ -38,6 +38,11 @@ func TestConsistencyPerDatastore(t *testing.T) {
 				filePath := filePath
 
 				t.Run(path.Base(filePath), func(t *testing.T) {
+					// FIXME errors arise if spanner is run in parallel
+					if engineID != "spanner" {
+						t.Parallel()
+					}
+
 					rde := testdatastore.RunDatastoreEngine(t, engineID)
 					ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 						dsconfig.WithWatchBufferLength(0),
@@ -67,6 +72,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 						}
 
 						t.Run(tester.Name(), func(t *testing.T) {
+							t.Parallel()
 							runAssertions(t, vctx)
 						})
 					}
