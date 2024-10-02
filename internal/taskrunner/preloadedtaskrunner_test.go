@@ -14,8 +14,13 @@ import (
 	"go.uber.org/goleak"
 )
 
+// done so we can do t.Parallel() and still use goleak
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
+
 func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	t.Parallel()
 
 	tr := NewPreloadedTaskRunner(context.Background(), 2, 5)
 	wg := sync.WaitGroup{}
@@ -38,7 +43,7 @@ func TestPreloadedTaskRunnerCompletesAllTasks(t *testing.T) {
 }
 
 func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	t.Parallel()
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -76,7 +81,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToError(t *testing.T) {
 }
 
 func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	t.Parallel()
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -115,7 +120,7 @@ func TestPreloadedTaskRunnerCancelsEarlyDueToCancel(t *testing.T) {
 }
 
 func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	t.Parallel()
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -154,7 +159,7 @@ func TestPreloadedTaskRunnerReturnsError(t *testing.T) {
 }
 
 func TestPreloadedTaskRunnerEmpty(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	t.Parallel()
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)

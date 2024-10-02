@@ -22,6 +22,8 @@ var (
 )
 
 func TestCompareSubjects(t *testing.T) {
+	t.Parallel()
+
 	tcs := []struct {
 		first              *v1.FoundSubject
 		second             *v1.FoundSubject

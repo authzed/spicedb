@@ -91,6 +91,8 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 			for _, caveatDef := range fullyResolved.CaveatDefinitions {
 				caveatDef := caveatDef
 				t.Run("caveat "+caveatDef.Name, func(t *testing.T) {
+					t.Parallel()
+
 					serialized, _ := caveatDef.MarshalVT()
 					sizevt := caveatDef.SizeVT()
 					estimated := estimatedCaveatDefinitionSize(sizevt)

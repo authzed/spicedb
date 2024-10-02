@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -19,7 +18,6 @@ import (
 	itestutil "github.com/authzed/spicedb/internal/testutil"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -32,7 +30,7 @@ var (
 )
 
 func TestSimpleLookupSubjects(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	testCases := []struct {
 		resourceType     string
@@ -194,6 +192,7 @@ func TestSimpleLookupSubjects(t *testing.T) {
 }
 
 func TestLookupSubjectsMaxDepth(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -224,6 +223,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 }
 
 func TestLookupSubjectsDispatchCount(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		resourceType          string
 		resourceID            string
@@ -277,6 +277,7 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 }
 
 func TestLookupSubjectsOverSchema(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		schema        string

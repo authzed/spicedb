@@ -23,17 +23,27 @@ func (t Test) All() error {
 	return nil
 }
 
-// Runs the unit tests and generates a coverage report
-func (Test) UnitCover() error {
-	mg.Deps(Test{}.Unit)
+// UnitCover Runs the unit tests and generates a coverage report
+func (t Test) UnitCover() error {
+	if err := t.unit(true); err != nil {
+		return err
+	}
 	fmt.Println("Running coverage...")
 	return sh.RunV("go", "tool", "cover", "-html=coverage.txt")
 }
 
 // Unit Runs the unit tests
-func (Test) Unit() error {
+func (t Test) Unit() error {
+	return t.unit(false)
+}
+
+func (Test) unit(coverage bool) error {
 	fmt.Println("running unit tests")
-	return goTest("./...", "-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-covermode=atomic", "-count=1", "-coverprofile=coverage.txt")
+	args := []string{"-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-count=1"}
+	if coverage {
+		args = append(args, "-covermode=atomic", "-coverprofile=coverage.txt")
+	}
+	return goTest("./...", args...)
 }
 
 // Image Run tests that run the built image

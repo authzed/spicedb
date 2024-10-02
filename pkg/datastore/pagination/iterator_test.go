@@ -142,7 +142,9 @@ func TestPaginatedIterator(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(fmt.Sprintf("%d/%d-%d", tc.pageSize, tc.totalRelationships, tc.order), func(t *testing.T) {
+			t.Parallel()
 			require := require.New(t)
 
 			tpls := make([]*core.RelationTuple, 0, tc.totalRelationships)

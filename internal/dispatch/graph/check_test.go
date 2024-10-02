@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
@@ -30,7 +29,7 @@ import (
 var ONR = tuple.ObjectAndRelation
 
 func TestSimpleCheck(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	type expected struct {
 		relation string
@@ -119,6 +118,7 @@ func TestSimpleCheck(t *testing.T) {
 				userset := userset
 				expected := expected
 				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					ctx, dispatch, revision := newLocalDispatcher(t)
@@ -150,6 +150,7 @@ func TestSimpleCheck(t *testing.T) {
 }
 
 func TestMaxDepth(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -182,6 +183,7 @@ func TestMaxDepth(t *testing.T) {
 }
 
 func TestCheckMetadata(t *testing.T) {
+	t.Parallel()
 	type expected struct {
 		relation              string
 		isMember              bool
@@ -287,6 +289,7 @@ func TestCheckMetadata(t *testing.T) {
 }
 
 func TestCheckPermissionOverSchema(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                      string
 		schema                    string
@@ -1370,6 +1373,7 @@ func addFrame(trace *v1.CheckDebugTrace, foundFrames *mapz.Set[string]) {
 }
 
 func TestCheckDebugging(t *testing.T) {
+	t.Parallel()
 	type expectedFrame struct {
 		resourceType *core.RelationReference
 		resourceIDs  []string
@@ -1482,6 +1486,7 @@ func TestCheckDebugging(t *testing.T) {
 }
 
 func TestCheckWithHints(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                   string
 		schema                 string
@@ -1853,6 +1858,7 @@ func TestCheckWithHints(t *testing.T) {
 }
 
 func TestCheckHintsPartialApplication(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	dispatcher := NewLocalOnlyDispatcher(10, 100)
@@ -1898,6 +1904,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 }
 
 func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	dispatcher := NewLocalOnlyDispatcher(10, 100)

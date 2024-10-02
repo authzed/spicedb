@@ -9,7 +9,6 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -18,7 +17,6 @@ import (
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
-	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -39,7 +37,7 @@ func resolvedRes(resourceID string) *v1.ResolvedResource {
 }
 
 func TestSimpleLookupResources(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	testCases := []struct {
 		start                 *core.RelationReference
@@ -166,7 +164,7 @@ func TestSimpleLookupResources(t *testing.T) {
 }
 
 func TestSimpleLookupResourcesWithCursor(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	for _, tc := range []struct {
 		subject        string
@@ -245,7 +243,7 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 }
 
 func TestLookupResourcesCursorStability(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	require := require.New(t)
 	ctx, dispatcher, revision := newLocalDispatcher(t)
@@ -307,6 +305,7 @@ func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookup
 }
 
 func TestMaxDepthLookup(t *testing.T) {
+	t.Parallel()
 	require := require.New(t)
 
 	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
@@ -389,6 +388,7 @@ func genResourceIds(resourceName string, number int) []string {
 }
 
 func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                string
 		schema              string
@@ -597,9 +597,11 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			for _, pageSize := range []int{0, 104, 1023} {
 				pageSize := pageSize
 				t.Run(fmt.Sprintf("ps-%d_", pageSize), func(t *testing.T) {
+					t.Parallel()
 					require := require.New(t)
 
 					dispatcher := NewLocalOnlyDispatcher(10, 100)
@@ -646,10 +648,11 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 					}
 
 					foundResourceIDsSlice := foundResourceIDs.AsSlice()
+					expectedResourceIDs := slices.Clone(tc.expectedResourceIDs)
 					slices.Sort(foundResourceIDsSlice)
-					slices.Sort(tc.expectedResourceIDs)
+					slices.Sort(expectedResourceIDs)
 
-					require.Equal(tc.expectedResourceIDs, foundResourceIDsSlice)
+					require.Equal(expectedResourceIDs, foundResourceIDsSlice)
 				})
 			}
 		})
@@ -657,7 +660,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 }
 
 func TestLookupResourcesImmediateTimeout(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	require := require.New(t)
 
@@ -690,7 +693,7 @@ func TestLookupResourcesImmediateTimeout(t *testing.T) {
 }
 
 func TestLookupResourcesWithError(t *testing.T) {
-	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
+	t.Parallel()
 
 	require := require.New(t)
 
