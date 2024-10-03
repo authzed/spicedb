@@ -1,0 +1,25 @@
+---
+schema: |+
+  definition user {}
+
+  caveat some_caveat(somevalue int) {
+    somevalue == 42
+  }
+
+  definition team {
+    relation member: user with some_caveat
+  }
+
+  definition document {
+    relation viewer: team#member with some_caveat
+    permission view = viewer->member
+  }
+
+relationships: |-
+  team:first#member@user:tom[some_caveat]
+  document:firstdoc#viewer@team:first#member[some_caveat]
+assertions:
+  assertTrue:
+    - 'document:firstdoc#view@user:tom with {"somevalue": 42}'
+  assertFalse:
+    - 'document:firstdoc#view@user:tom with {"somevalue": 41}'
