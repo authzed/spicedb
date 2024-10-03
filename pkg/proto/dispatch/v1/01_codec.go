@@ -6,10 +6,8 @@
 package dispatchv1
 
 import (
-	"fmt"
-
 	"google.golang.org/grpc/encoding"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/grpc/mem"
 
 	// Guarantee that the built-in proto is called registered before this one
 	// so that it can be replaced.
@@ -20,38 +18,54 @@ import (
 const Name = "proto"
 
 type vtprotoMessage interface {
-	MarshalVT() ([]byte, error)
+	MarshalToSizedBufferVT(data []byte) (int, error)
 	UnmarshalVT([]byte) error
+	SizeVT() int
 }
 
-type vtprotoCodec struct{}
+type vtprotoCodec struct {
+	fallback encoding.CodecV2
+}
 
 func (vtprotoCodec) Name() string { return Name }
 
-func (vtprotoCodec) Marshal(v any) ([]byte, error) {
+func (c *vtprotoCodec) Marshal(v any) (mem.BufferSlice, error) {
 	if m, ok := v.(vtprotoMessage); ok {
-		return m.MarshalVT()
+		size := m.SizeVT()
+		if mem.IsBelowBufferPoolingThreshold(size) {
+			buf := make([]byte, size)
+			n, err := m.MarshalToSizedBufferVT(buf)
+			if err != nil {
+				return nil, err
+			}
+			return mem.BufferSlice{mem.SliceBuffer(buf[:n])}, nil
+		}
+		pool := mem.DefaultBufferPool()
+		buf := pool.Get(size)
+		n, err := m.MarshalToSizedBufferVT(*buf)
+		if err != nil {
+			pool.Put(buf)
+			return nil, err
+		}
+		*buf = (*buf)[:n]
+		return mem.BufferSlice{mem.NewBuffer(buf, pool)}, nil
 	}
 
-	if m, ok := v.(proto.Message); ok {
-		return proto.Marshal(m)
-	}
-
-	return nil, fmt.Errorf("failed to marshal, message is %T, want proto.Message", v)
+	return c.fallback.Marshal(v)
 }
 
-func (vtprotoCodec) Unmarshal(data []byte, v any) error {
+func (c *vtprotoCodec) Unmarshal(data mem.BufferSlice, v any) error {
 	if m, ok := v.(vtprotoMessage); ok {
-		return m.UnmarshalVT(data)
+		buf := data.MaterializeToBuffer(mem.DefaultBufferPool())
+		defer buf.Free()
+		return m.UnmarshalVT(buf.ReadOnlyData())
 	}
 
-	if m, ok := v.(proto.Message); ok {
-		return proto.Unmarshal(data, m)
-	}
-
-	return fmt.Errorf("failed to unmarshal, message is %T, want proto.Message", v)
+	return c.fallback.Unmarshal(data, v)
 }
 
 func init() {
-	encoding.RegisterCodec(vtprotoCodec{})
+	encoding.RegisterCodecV2(&vtprotoCodec{
+		fallback: encoding.GetCodecV2("proto"),
+	})
 }
