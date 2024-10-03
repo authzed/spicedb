@@ -227,6 +227,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 		},
 		OptionalCursor: updatedCi.currentCursor,
 		OptionalLimit:  rdc.ci.limits.currentLimit,
+		Context:        rdc.parentRequest.Context,
 	}, wrappedStream)
 }
 

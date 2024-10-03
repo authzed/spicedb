@@ -612,6 +612,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 					},
 					OptionalCursor: ci.currentCursor,
 					OptionalLimit:  parentRequest.OptionalLimit,
+					Context:        parentRequest.Context,
 				}, stream)
 			}
 

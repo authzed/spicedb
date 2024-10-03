@@ -11,6 +11,7 @@ import (
 	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -339,12 +340,14 @@ func TestMaxDepthLookup2(t *testing.T) {
 func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		name                string
-		schema              string
-		relationships       []*core.RelationTuple
-		permission          *core.RelationReference
-		subject             *core.ObjectAndRelation
-		expectedResourceIDs []string
+		name                  string
+		schema                string
+		relationships         []*core.RelationTuple
+		permission            *core.RelationReference
+		subject               *core.ObjectAndRelation
+		optionalCaveatContext map[string]any
+		expectedResourceIDs   []string
+		expectedMissingFields []string
 	}{
 		{
 			"basic union",
@@ -361,7 +364,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 1510),
+			nil,
 		},
 		{
 			"basic exclusion",
@@ -375,7 +380,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			genTuples("document", "viewer", "user", "tom", 1010),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 1010),
+			nil,
 		},
 		{
 			"basic intersection",
@@ -392,7 +399,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 510),
+			nil,
 		},
 		{
 			"union and excluded union",
@@ -411,7 +420,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 2450),
+			nil,
 		},
 		{
 			"basic caveats",
@@ -428,7 +439,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 2450),
+			nil,
 		},
 		{
 			"excluded items",
@@ -445,7 +458,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 1210),
+			nil,
 		},
 		{
 			"basic caveats with missing field",
@@ -462,7 +477,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 2450),
+			[]string{"somecondition"},
 		},
 		{
 			"larger arrow dispatch",
@@ -482,7 +499,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 150),
+			nil,
 		},
 		{
 			"big",
@@ -499,7 +518,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 15100),
+			nil,
 		},
 		{
 			"arrow under intersection",
@@ -523,7 +544,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 510),
+			nil,
 		},
 		{
 			"all arrow",
@@ -563,7 +586,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			},
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			[]string{"doc0", "doc1", "doc4"},
+			nil,
 		},
 		{
 			"indirect intersection and exclusion",
@@ -583,7 +608,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 1410),
+			nil,
 		},
 		{
 			"indirect intersections",
@@ -611,7 +638,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 1410),
+			nil,
 		},
 		{
 			"indirect over arrow",
@@ -639,7 +668,9 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 1410),
+			nil,
 		},
 		{
 			"root indirect with intermediate shearing",
@@ -675,7 +706,40 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
+			nil,
 			genResourceIds("document", 2000),
+			nil,
+		},
+		{
+			"indirect caveats",
+			`caveat somecaveat(somevalue int) {
+				somevalue == 42
+			}
+
+			definition user {}
+
+			definition container {
+				relation access: user with somecaveat 
+				permission accesses = access
+			}
+
+			definition document {
+				relation container: container
+				relation viewer: user with somecaveat
+				permission view = viewer & container->accesses
+			}`,
+			joinTuples(
+				[]*core.RelationTuple{
+					tuple.MustParse("container:somecontainer#access@user:tom[somecaveat]"),
+				},
+				genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+				genTuples("document", "container", "container", "somecontainer", 2450),
+			),
+			RR("document", "view"),
+			ONR("user", "tom", "..."),
+			map[string]any{"somevalue": 42},
+			genResourceIds("document", 2450),
+			nil,
 		},
 	}
 
@@ -708,6 +772,12 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 						uintPageSize, err := safecast.ToUint32(pageSize)
 						require.NoError(err)
 
+						var caveatContext *structpb.Struct
+						if tc.optionalCaveatContext != nil {
+							caveatContext, err = structpb.NewStruct(tc.optionalCaveatContext)
+							require.NoError(err)
+						}
+
 						err = dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
 							ResourceRelation: tc.permission,
 							SubjectRelation:  RR(tc.subject.Namespace, "..."),
@@ -719,6 +789,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 							},
 							OptionalLimit:  uintPageSize,
 							OptionalCursor: currentCursor,
+							Context:        caveatContext,
 						}, stream)
 						require.NoError(err)
 
@@ -729,6 +800,7 @@ func TestLookupResources2OverSchemaWithCursors(t *testing.T) {
 						foundChunks = append(foundChunks, stream.Results())
 
 						for _, result := range stream.Results() {
+							require.ElementsMatch(tc.expectedMissingFields, result.Resource.MissingContextParams)
 							foundResourceIDs.Insert(result.Resource.ResourceId)
 							currentCursor = result.AfterResponseCursor
 						}

@@ -28,7 +28,7 @@ type ServiceTester interface {
 	Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error)
 	Write(ctx context.Context, relationship *core.RelationTuple) error
 	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
-	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
+	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32, caveatContext map[string]any) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
 	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
 	// NOTE: ExperimentalService/BulkCheckPermission has been promoted to PermissionsService/CheckBulkPermissions
 	BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error)
@@ -153,7 +153,16 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 	return tuples, nil
 }
 
-func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32) ([]*v1.LookupResourcesResponse, *v1.Cursor, error) {
+func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32, caveatContext map[string]any) ([]*v1.LookupResourcesResponse, *v1.Cursor, error) {
+	var builtContext *structpb.Struct
+	if caveatContext != nil {
+		built, err := structpb.NewStruct(caveatContext)
+		if err != nil {
+			return nil, nil, err
+		}
+		builtContext = built
+	}
+
 	lookupResp, err := v1st.permClient.LookupResources(context.Background(), &v1.LookupResourcesRequest{
 		ResourceObjectType: resourceRelation.Namespace,
 		Permission:         resourceRelation.Relation,
@@ -171,6 +180,7 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 		},
 		OptionalLimit:  limit,
 		OptionalCursor: cursor,
+		Context:        builtContext,
 	})
 	if err != nil {
 		return nil, nil, err
