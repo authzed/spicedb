@@ -35,6 +35,7 @@ chocolateys:
     url_template: "https://github.com/authzed/spicedb/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     icon_url: "https://authzed.com/favicon.svg"
     copyright: "2024 AuthZed, Inc"
+    authors: "SpiceDB Contributors"
     license_url: "https://github.com/authzed/spicedb/blob/main/LICENSE"
     project_source_url: "https://github.com/authzed/spicedb"
     docs_url: "https://authzed.com/docs"
