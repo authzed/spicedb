@@ -96,8 +96,9 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 				filtered := filterUpdates(objectTypes, filters, update.RelationshipChanges)
 				if len(filtered) > 0 {
 					if err := stream.Send(&v1.WatchResponse{
-						Updates:        filtered,
-						ChangesThrough: zedtoken.MustNewFromRevision(update.Revision),
+						Updates:                     filtered,
+						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
+						OptionalTransactionMetadata: update.Metadata,
 					}); err != nil {
 						return status.Errorf(codes.Canceled, "watch canceled by user: %s", err)
 					}

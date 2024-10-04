@@ -475,3 +475,37 @@ func defaultIfZero[T comparable](value T, defaultValue T) T {
 	}
 	return value
 }
+
+// ErrTransactionMetadataTooLarge indicates that the metadata for a transaction is too large.
+type ErrTransactionMetadataTooLarge struct {
+	error
+	metadataSize int
+	maxSize      int
+}
+
+// NewTransactionMetadataTooLargeErr constructs a new transaction metadata too large error.
+func NewTransactionMetadataTooLargeErr(metadataSize int, maxSize int) ErrTransactionMetadataTooLarge {
+	return ErrTransactionMetadataTooLarge{
+		error:        fmt.Errorf("metadata size of %d is greater than maximum allowed of %d", metadataSize, maxSize),
+		metadataSize: metadataSize,
+		maxSize:      maxSize,
+	}
+}
+
+func (err ErrTransactionMetadataTooLarge) MarshalZerologObject(e *zerolog.Event) {
+	e.Err(err.error).Int("metadataSize", err.metadataSize).Int("maxSize", err.maxSize)
+}
+
+func (err ErrTransactionMetadataTooLarge) GRPCStatus() *status.Status {
+	return spiceerrors.WithCodeAndDetails(
+		err,
+		codes.InvalidArgument,
+		spiceerrors.ForReason(
+			v1.ErrorReason_ERROR_REASON_TRANSACTION_METADATA_TOO_LARGE,
+			map[string]string{
+				"metadata_byte_size":                 strconv.Itoa(err.metadataSize),
+				"maximum_allowed_metadata_byte_size": strconv.Itoa(err.maxSize),
+			},
+		),
+	)
+}

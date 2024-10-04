@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/middleware"
@@ -41,6 +42,8 @@ var writeUpdateCounter = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:      "The update counts for the WriteRelationships calls",
 	Buckets:   []float64{0, 1, 2, 5, 10, 15, 25, 50, 100, 250, 500, 1000},
 }, []string{"kind"})
+
+const MaximumTransactionMetadataSize = 65000 // bytes. Limited by the BLOB size used in MySQL driver
 
 // PermissionsServerConfig is configuration for the permissions server.
 type PermissionsServerConfig struct {
@@ -273,6 +276,10 @@ func (ps *permissionServer) ReadRelationships(req *v1.ReadRelationshipsRequest, 
 }
 
 func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.WriteRelationshipsRequest) (*v1.WriteRelationshipsResponse, error) {
+	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	ds := datastoremw.MustFromContext(ctx)
 
 	span := trace.SpanFromContext(ctx)
@@ -347,7 +354,7 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 
 		span.AddEvent("write relationships")
 		return rwt.WriteRelationships(ctx, tupleUpdates)
-	})
+	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}
@@ -367,7 +374,28 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	}, nil
 }
 
+func (ps *permissionServer) validateTransactionMetadata(metadata *structpb.Struct) error {
+	if metadata == nil {
+		return nil
+	}
+
+	b, err := metadata.MarshalJSON()
+	if err != nil {
+		return err
+	}
+
+	if len(b) > MaximumTransactionMetadataSize {
+		return NewTransactionMetadataTooLargeErr(len(b), MaximumTransactionMetadataSize)
+	}
+
+	return nil
+}
+
 func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.DeleteRelationshipsRequest) (*v1.DeleteRelationshipsResponse, error) {
+	if err := ps.validateTransactionMetadata(req.OptionalTransactionMetadata); err != nil {
+		return nil, ps.rewriteError(ctx, err)
+	}
+
 	if len(req.OptionalPreconditions) > int(ps.config.MaxPreconditionsCount) {
 		return nil, ps.rewriteError(
 			ctx,
@@ -456,7 +484,7 @@ func (ps *permissionServer) DeleteRelationships(ctx context.Context, req *v1.Del
 		// Otherwise, kick off an unlimited deletion.
 		_, err = rwt.DeleteRelationships(ctx, req.RelationshipFilter)
 		return err
-	})
+	}, options.WithMetadata(req.OptionalTransactionMetadata))
 	if err != nil {
 		return nil, ps.rewriteError(ctx, err)
 	}

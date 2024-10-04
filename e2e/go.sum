@@ -34,8 +34,8 @@ github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
-github.com/authzed/authzed-go v0.16.0 h1:QzIduF472qZcHeEraNPSpnLFFV25ZQv6u7oDufvBf3o=
-github.com/authzed/authzed-go v0.16.0/go.mod h1:Cx1DQKMX38u2fFVLZiGUuZnbTo2J7LCZEXmVak+TMak=
+github.com/authzed/authzed-go v0.16.1-0.20241001202507-27cc182a7b92 h1:9BQQO4ga8naS5bl2aWeRoyF54Bxp1H28WMr+/XU7rLE=
+github.com/authzed/authzed-go v0.16.1-0.20241001202507-27cc182a7b92/go.mod h1:Cx1DQKMX38u2fFVLZiGUuZnbTo2J7LCZEXmVak+TMak=
 github.com/authzed/cel-go v0.20.2 h1:GlmLecGry7Z8HU0k+hmaHHUV05ZHrsFxduXHtIePvck=
 github.com/authzed/cel-go v0.20.2/go.mod h1:pJHVFWbqUHV1J+klQoZubdKswlbxcsbojda3mye9kiU=
 github.com/authzed/grpcutil v0.0.0-20240123092924-129dc0a6a6e1 h1:zBfQzia6Hz45pJBeURTrv1b6HezmejB6UmiGuBilHZM=
