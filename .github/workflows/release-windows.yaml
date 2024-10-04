@@ -16,6 +16,8 @@ jobs:
       - uses: "actions/checkout@v4"
         with:
           fetch-depth: 0
+          # TODO: remove this
+          ref: "0d882c75108cced8ec030c54cc8cfec5320543af"
       - uses: "authzed/actions/setup-go@main"
       - uses: "nowsprinting/check-version-format-action@v4"
         id: "version"
