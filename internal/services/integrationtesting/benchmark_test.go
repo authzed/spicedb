@@ -45,7 +45,7 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "example/user",
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
-				}, revision, nil, 0)
+				}, revision, nil, 0, nil)
 				require.GreaterOrEqual(b, len(results), 0)
 				return err
 			},
@@ -61,7 +61,7 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "srrr/user",
 					ObjectId:  "someguy",
 					Relation:  tuple.Ellipsis,
-				}, revision, nil, 0)
+				}, revision, nil, 0, nil)
 				require.GreaterOrEqual(b, len(results), 0)
 				return err
 			},
@@ -77,7 +77,7 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "user",
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
-				}, revision, nil, 0)
+				}, revision, nil, 0, nil)
 				require.GreaterOrEqual(b, len(results), 0)
 				return err
 			},
@@ -93,7 +93,7 @@ func BenchmarkServices(b *testing.B) {
 					Namespace: "user",
 					ObjectId:  "tom",
 					Relation:  tuple.Ellipsis,
-				}, revision, nil, 0)
+				}, revision, nil, 0, nil)
 				require.Equal(b, len(results), 499)
 				return err
 			},
