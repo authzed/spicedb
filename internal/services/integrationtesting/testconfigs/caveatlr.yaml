@@ -1,0 +1,29 @@
+---
+schema: |+
+  caveat unexpired(expires_at timestamp, now timestamp) {
+    now < expires_at
+  }
+
+  definition user {}
+
+  definition container {
+    relation access: user with unexpired 
+    permission accesses = access
+  }
+
+  definition resource {
+    relation container: container
+    relation viewer: user with unexpired
+    permission viewers = viewer & container->accesses
+  }
+relationships: |-
+  resource:someresource#container@container:somecontainer
+  resource:someresource#viewer@user:tom[unexpired:{"expires_at":"2024-10-03T14:16:30.776734Z"}]
+  container:somecontainer#access@user:fred[unexpired:{"expires_at":"2024-01-01T00:00:00Z"}]
+  container:somecontainer#access@user:tom[unexpired:{"expires_at":"2024-10-03T07:16:28.068632-07:00"}]
+  container:somecontainer#access@user:sarah[unexpired:{"expires_at":"2024-10-03T07:16:28.068632-07:00"}]
+assertions:
+  assertTrue:
+    - 'resource:someresource#viewers@user:tom with {"now": "2023-01-01T00:00:00Z"}'
+  assertFalse:
+    - 'resource:someresource#viewers@user:tom with {"now": "2025-01-01T00:00:00Z"}'

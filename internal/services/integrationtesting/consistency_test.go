@@ -361,6 +361,8 @@ func requireSubsetOf(t *testing.T, found []string, expected []string) {
 // validateLookupResources ensures that a lookup resources call returns the expected objects and
 // only those expected.
 func validateLookupResources(t *testing.T, vctx validationContext) {
+	// Run a lookup resources for each resource type and ensure that the returned objects are those
+	// that are accessible to the subject.
 	testForEachResourceType(t, vctx, "validate_lookup_resources",
 		func(t *testing.T, resourceRelation *core.RelationReference) {
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
@@ -376,7 +378,7 @@ func validateLookupResources(t *testing.T, vctx validationContext) {
 							var currentCursor *v1.Cursor
 							resolvedResources := map[string]*v1.LookupResourcesResponse{}
 							for i := 0; i < 100; i++ {
-								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(context.Background(), resourceRelation, subject, vctx.revision, currentCursor, pageSize)
+								foundResources, lastCursor, err := vctx.serviceTester.LookupResources(context.Background(), resourceRelation, subject, vctx.revision, currentCursor, pageSize, nil)
 								require.NoError(t, err)
 
 								if pageSize > 0 {
@@ -677,19 +679,47 @@ func runAssertions(t *testing.T, vctx validationContext) {
 							require.NoError(t, err)
 							require.Equal(t, entry.expectedPermissionship, permissionship, "Assertion `%s` returned %s; expected %s", tuple.MustString(rel), permissionship, entry.expectedPermissionship)
 
-							// Ensure the assertion passes LookupResources.
-							resolvedResources, _, err := vctx.serviceTester.LookupResources(context.Background(), &core.RelationReference{
+							// Ensure the assertion passes LookupResources with context, directly.
+							resolvedDirectResources, _, err := vctx.serviceTester.LookupResources(context.Background(), &core.RelationReference{
 								Namespace: rel.ResourceAndRelation.Namespace,
 								Relation:  rel.ResourceAndRelation.Relation,
-							}, rel.Subject, vctx.revision, nil, 0)
+							}, rel.Subject, vctx.revision, nil, 0, assertion.CaveatContext)
 							require.NoError(t, err)
 
-							resolvedResourcesMap := map[string]*v1.LookupResourcesResponse{}
-							for _, resource := range resolvedResources {
-								resolvedResourcesMap[resource.ResourceObjectId] = resource
+							resolvedDirectResourcesMap := map[string]*v1.LookupResourcesResponse{}
+							for _, resource := range resolvedDirectResources {
+								resolvedDirectResourcesMap[resource.ResourceObjectId] = resource
 							}
 
-							resolvedResourceIds := maps.Keys(resolvedResourcesMap)
+							// Ensure the assertion passes LookupResources without context, indirectly.
+							resolvedIndirectResources, _, err := vctx.serviceTester.LookupResources(context.Background(), &core.RelationReference{
+								Namespace: rel.ResourceAndRelation.Namespace,
+								Relation:  rel.ResourceAndRelation.Relation,
+							}, rel.Subject, vctx.revision, nil, 0, nil)
+							require.NoError(t, err)
+
+							resolvedIndirectResourcesMap := map[string]*v1.LookupResourcesResponse{}
+							for _, resource := range resolvedIndirectResources {
+								resolvedIndirectResourcesMap[resource.ResourceObjectId] = resource
+							}
+
+							// Check the assertion was returned for a direct (with context) lookup.
+							resolvedDirectResourceIds := maps.Keys(resolvedDirectResourcesMap)
+							switch permissionship {
+							case v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION:
+								require.NotContains(t, resolvedDirectResourceIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in direct lookup for assertion %s", rel.ResourceAndRelation, rel)
+
+							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
+								require.Contains(t, resolvedDirectResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedDirectResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+
+							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
+								require.Contains(t, resolvedDirectResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedDirectResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+							}
+
+							// Check the assertion was returned for an indirect (without context) lookup.
+							resolvedIndirectResourceIds := maps.Keys(resolvedIndirectResourcesMap)
 							accessibility, _, _ := vctx.accessibilitySet.AccessibiliyAndPermissionshipFor(rel.ResourceAndRelation, rel.Subject)
 
 							switch permissionship {
@@ -697,25 +727,25 @@ func runAssertions(t *testing.T, vctx validationContext) {
 								// If the caveat context given is empty, then the lookup result must not exist at all.
 								// Otherwise, it *could* be caveated or not exist, depending on the context given.
 								if len(assertion.CaveatContext) == 0 {
-									require.NotContains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+									require.NotContains(t, resolvedIndirectResourceIds, rel.ResourceAndRelation.ObjectId, "Found unexpected object %s in indirect lookup for assertion %s", rel.ResourceAndRelation, rel)
 								} else if accessibility == consistencytestutil.NotAccessible {
-									found, ok := resolvedResourcesMap[rel.ResourceAndRelation.ObjectId]
+									found, ok := resolvedIndirectResourcesMap[rel.ResourceAndRelation.ObjectId]
 									require.True(t, !ok || found.Permissionship != v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION) // LookupResources can be caveated, since we didn't rerun LookupResources with the context
 								} else if accessibility != consistencytestutil.NotAccessibleDueToPrespecifiedCaveat {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedIndirectResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION:
-								require.Contains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+								require.Contains(t, resolvedIndirectResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
 								// If the caveat context given is empty, then the lookup result must be fully permissioned.
 								// Otherwise, it *could* be caveated or fully permissioned, depending on the context given.
 								if len(assertion.CaveatContext) == 0 {
-									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+									require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_HAS_PERMISSION, resolvedIndirectResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
 								}
 
 							case v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION:
-								require.Contains(t, resolvedResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
-								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
+								require.Contains(t, resolvedIndirectResourceIds, rel.ResourceAndRelation.ObjectId, "Missing object %s in lookup for assertion %s", rel.ResourceAndRelation, rel)
+								require.Equal(t, v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION, resolvedIndirectResourcesMap[rel.ResourceAndRelation.ObjectId].Permissionship)
 
 							default:
 								panic("unknown permissionship")
