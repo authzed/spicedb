@@ -7,8 +7,8 @@ import (
 // ToCoreRelationTuple converts the input to a core RelationTuple.
 func ToCoreRelationTuple(tuple *v0.RelationTuple) *RelationTuple {
 	return &RelationTuple{
-		ResourceAndRelation: ToCoreONRStringToCore(tuple.ObjectAndRelation),
-		Subject:             ToCoreONRStringToCore(tuple.User.GetUserset()),
+		ResourceAndRelation: ToCoreObjectAndRelation(tuple.ObjectAndRelation),
+		Subject:             ToCoreObjectAndRelation(tuple.User.GetUserset()),
 	}
 }
 
@@ -22,7 +22,7 @@ func ToCoreRelationTuples(tuples []*v0.RelationTuple) []*RelationTuple {
 }
 
 // ToCoreObjectAndRelation converts the input to a core ToCoreObjectAndRelation.
-func ToCoreONRStringToCore(onr *v0.ObjectAndRelation) *ObjectAndRelation {
+func ToCoreObjectAndRelation(onr *v0.ObjectAndRelation) *ObjectAndRelation {
 	return &ObjectAndRelation{
 		Namespace: onr.Namespace,
 		ObjectId:  onr.ObjectId,

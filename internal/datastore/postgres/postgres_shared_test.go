@@ -1065,7 +1065,7 @@ func RevisionInversionTest(t *testing.T, ds datastore.Datastore) {
 	<-waitToStart
 
 	commitFirstRev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		rtu := tuple.Touch(tuple.MustParse("resource:789#reader@user:456"))
+		rtu := tuple.Touch(tuple.MustParse("resource:789#reader@user:ten"))
 		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
 	})
 	close(waitToFinish)

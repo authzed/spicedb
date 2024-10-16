@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -438,6 +439,12 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 
 			span.AddEvent("Query issued to database")
 
+			relCount := 0
+
+			defer func() {
+				span.AddEvent("Relationships loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
+			}()
+
 			for rows.Next() {
 				var resourceObjectType string
 				var resourceObjectID string
@@ -468,6 +475,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 					return
 				}
 
+				relCount++
 				if !yield(tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{

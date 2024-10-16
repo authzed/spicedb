@@ -496,7 +496,7 @@ func newSubjectSortedIterator(it memdb.ResultIterator, limit *uint64) (datastore
 		results = results[0:*limit]
 	}
 
-	return common.NewSliceRelationshipIterator(results, options.BySubject), nil
+	return common.NewSliceRelationshipIterator(results), nil
 }
 
 func noopCursorFilter(_ *relationship) bool {

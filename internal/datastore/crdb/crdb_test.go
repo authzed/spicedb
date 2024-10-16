@@ -468,6 +468,8 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 	require.NoError(err)
 
 	slice, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
+
 	rel := slice[0]
 
 	require.NotNil(rel.OptionalIntegrity)
@@ -529,6 +531,8 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 	require.NoError(err)
 
 	slice, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
+
 	rel := slice[0]
 
 	require.NotNil(rel.OptionalIntegrity)

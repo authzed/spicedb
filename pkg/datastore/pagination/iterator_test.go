@@ -91,7 +91,7 @@ func generateMock(t *testing.T, rels []tuple.Relationship, pageSize int, order o
 		pageSize64, err := safecast.ToUint64(pageSize)
 		require.NoError(t, err)
 
-		iter := common.NewSliceRelationshipIterator(rels[i:pastLastIndex], order)
+		iter := common.NewSliceRelationshipIterator(rels[i:pastLastIndex])
 		mock.On("QueryRelationships", last, order, pageSize64).Return(iter, nil)
 		if relsLen > 0 {
 			l := rels[pastLastIndex-1]

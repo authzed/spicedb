@@ -767,6 +767,19 @@ func IteratorToSlice(iter RelationshipIterator) ([]tuple.Relationship, error) {
 	return results, nil
 }
 
+// FirstRelationshipIn returns the first relationship found via the iterator, if any.
+func FirstRelationshipIn(iter RelationshipIterator) (tuple.Relationship, bool, error) {
+	for rel, err := range iter {
+		if err != nil {
+			return tuple.Relationship{}, false, err
+		}
+
+		return rel, true, nil
+	}
+
+	return tuple.Relationship{}, false, nil
+}
+
 // Revision is an interface for a comparable revision type that can be different for
 // each datastore implementation.
 type Revision interface {

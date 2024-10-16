@@ -333,11 +333,13 @@ func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWr
 	var numCopied uint64
 	var next *tuple.Relationship
 	var err error
+
+	updates := []tuple.RelationshipUpdate{{
+		Operation: tuple.UpdateOperationCreate,
+	}}
+
 	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
-		updates := []tuple.RelationshipUpdate{{
-			Operation:    tuple.UpdateOperationCreate,
-			Relationship: *next,
-		}}
+		updates[0].Relationship = *next
 		if err := rwt.WriteRelationships(ctx, updates); err != nil {
 			return 0, err
 		}
