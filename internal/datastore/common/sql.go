@@ -156,9 +156,7 @@ type nameAndValue struct {
 }
 
 func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
-	spiceerrors.DebugAssert(func() bool {
-		return cursor != nil
-	}, "cursor cannot be nil")
+	spiceerrors.DebugAssertNotNil(cursor, "cursor cannot be nil")
 
 	// NOTE: The ordering of these columns can affect query performance, be aware when changing.
 	columnsAndValues := map[options.SortOrder][]nameAndValue{
