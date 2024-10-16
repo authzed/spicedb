@@ -17,16 +17,10 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/internal/middleware/usagemetrics"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/promutil"
 )
 
-// RegisterTelemetryCollector registers a collector for the various pieces of
-// data required by SpiceDB telemetry.
-func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) (*prometheus.Registry, error) {
-	registry := prometheus.NewRegistry()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func SpiceDBClusterInfoCollector(ctx context.Context, subsystem, dsEngine string, ds datastore.Datastore) (promutil.CollectorFunc, error) {
 	nodeID, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get hostname: %w", err)
@@ -43,10 +37,9 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 		return nil, fmt.Errorf("failed to read BuildInfo")
 	}
 
-	if err := registry.Register(&collector{
-		ds: ds,
-		infoDesc: prometheus.NewDesc(
-			prometheus.BuildFQName("spicedb", "telemetry", "info"),
+	return func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(prometheus.NewDesc(
+			prometheus.BuildFQName("spicedb", subsystem, "info"),
 			"Information about the SpiceDB environment.",
 			nil,
 			prometheus.Labels{
@@ -57,9 +50,42 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 				"arch":       runtime.GOARCH,
 				"go":         buildInfo.GoVersion,
 				"vcpu":       strconv.Itoa(runtime.NumCPU()),
-				"ds_engine":  datastoreEngine,
+				"ds_engine":  dsEngine,
 			},
-		),
+		), prometheus.GaugeValue, 1)
+	}, nil
+}
+
+// RegisterTelemetryCollector registers a collector for the various pieces of
+// data required by SpiceDB telemetry.
+func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) (*prometheus.Registry, error) {
+	registry := prometheus.NewRegistry()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	infoCollector, err := SpiceDBClusterInfoCollector(ctx, "telemetry", datastoreEngine, ds)
+	if err != nil {
+		return nil, fmt.Errorf("unable create info collector: %w", err)
+	}
+
+	if err := registry.Register(infoCollector); err != nil {
+		return nil, fmt.Errorf("unable to register telemetry collector: %w", err)
+	}
+
+	nodeID, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get hostname: %w", err)
+	}
+
+	dbStats, err := ds.Statistics(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to query DB stats: %w", err)
+	}
+	clusterID := dbStats.UniqueID
+
+	if err := registry.Register(&collector{
+		ds: ds,
 		objectDefsDesc: prometheus.NewDesc(
 			prometheus.BuildFQName("spicedb", "telemetry", "object_definitions_total"),
 			"Count of the number of objects defined by the schema.",
@@ -96,7 +122,6 @@ func RegisterTelemetryCollector(datastoreEngine string, ds datastore.Datastore) 
 
 type collector struct {
 	ds                datastore.Datastore
-	infoDesc          *prometheus.Desc
 	objectDefsDesc    *prometheus.Desc
 	relationshipsDesc *prometheus.Desc
 	dispatchedDesc    *prometheus.Desc
@@ -105,7 +130,6 @@ type collector struct {
 var _ prometheus.Collector = &collector{}
 
 func (c *collector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.infoDesc
 	ch <- c.objectDefsDesc
 	ch <- c.relationshipsDesc
 	ch <- c.dispatchedDesc
@@ -120,7 +144,6 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		log.Warn().Err(err).Msg("unable to collect datastore statistics")
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.infoDesc, prometheus.GaugeValue, 1)
 	ch <- prometheus.MustNewConstMetric(c.objectDefsDesc, prometheus.GaugeValue, float64(len(dsStats.ObjectTypeStatistics)))
 	ch <- prometheus.MustNewConstMetric(c.relationshipsDesc, prometheus.GaugeValue, float64(dsStats.EstimatedRelationshipCount))
 
