@@ -459,7 +459,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	closeables.AddCloser(gatewayCloser)
 	closeables.AddWithoutError(gatewayServer.Close)
 
-	infoCollector, err := telemetry.SpiceDBClusterInfoCollector(context.TODO(), "environment", c.DatastoreConfig.Engine, ds)
+	infoCollector, err := telemetry.SpiceDBClusterInfoCollector(ctx, "environment", c.DatastoreConfig.Engine, ds)
 	if err != nil {
 		log.Warn().Err(err).Msg("unable to initialize info collector")
 	} else {
