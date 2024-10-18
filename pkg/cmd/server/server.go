@@ -459,6 +459,15 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	closeables.AddCloser(gatewayCloser)
 	closeables.AddWithoutError(gatewayServer.Close)
 
+	infoCollector, err := telemetry.SpiceDBClusterInfoCollector(ctx, "environment", c.DatastoreConfig.Engine, ds)
+	if err != nil {
+		log.Warn().Err(err).Msg("unable to initialize info collector")
+	} else {
+		if err := prometheus.Register(infoCollector); err != nil {
+			log.Warn().Err(err).Msg("unable to initialize info collector")
+		}
+	}
+
 	var telemetryRegistry *prometheus.Registry
 
 	reporter := telemetry.DisabledReporter
