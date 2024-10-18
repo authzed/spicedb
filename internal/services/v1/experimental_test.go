@@ -14,6 +14,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/ccoveille/go-safecast"
+	"github.com/jzelinskie/stringz"
 	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -644,11 +645,7 @@ func TestBulkCheckPermission(t *testing.T) {
 					},
 				}
 
-				rel := reqRel.Subject.Relation
-				if rel == tuple.Ellipsis {
-					rel = ""
-				}
-
+				rel := stringz.Default(reqRel.Subject.Relation, "", tuple.Ellipsis)
 				pair := &v1.BulkCheckPermissionPair{
 					Request: &v1.BulkCheckPermissionRequestItem{
 						Resource: &v1.ObjectReference{
@@ -701,10 +698,7 @@ func TestBulkCheckPermission(t *testing.T) {
 
 func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
 	r := tuple.MustParse(rel)
-	subjectRel := r.Subject.Relation
-	if subjectRel == tuple.Ellipsis {
-		subjectRel = ""
-	}
+	subjectRel := stringz.Default(r.Subject.Relation, "", tuple.Ellipsis)
 
 	item := &v1.BulkCheckPermissionRequestItem{
 		Resource: &v1.ObjectReference{

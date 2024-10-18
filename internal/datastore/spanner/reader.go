@@ -182,6 +182,9 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 			span.AddEvent("start reading iterator")
 			defer span.AddEvent("finished reading iterator")
 
+			relCount := 0
+			defer span.SetAttributes(attribute.Int("count", relCount))
+
 			if err := iter.Do(func(row *spanner.Row) error {
 				var resourceObjectType string
 				var resourceObjectID string
@@ -210,6 +213,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 					return err
 				}
 
+				relCount++
 				if !yield(tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
