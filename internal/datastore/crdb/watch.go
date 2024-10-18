@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -291,19 +292,21 @@ func (cds *crdbDatastore) watch(
 				}
 			}
 
-			tuple := &core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{
-					Namespace: pkValues[0],
-					ObjectId:  pkValues[1],
-					Relation:  pkValues[2],
+			relationship := tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: pkValues[0],
+						ObjectID:   pkValues[1],
+						Relation:   pkValues[2],
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: pkValues[3],
+						ObjectID:   pkValues[4],
+						Relation:   pkValues[5],
+					},
 				},
-				Subject: &core.ObjectAndRelation{
-					Namespace: pkValues[3],
-					ObjectId:  pkValues[4],
-					Relation:  pkValues[5],
-				},
-				Caveat:    ctxCaveat,
-				Integrity: integrity,
+				OptionalCaveat:    ctxCaveat,
+				OptionalIntegrity: integrity,
 			}
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
@@ -313,12 +316,12 @@ func (cds *crdbDatastore) watch(
 			}
 
 			if details.After == nil {
-				if err := tracked.AddRelationshipChange(ctx, rev, tuple, core.RelationTupleUpdate_DELETE); err != nil {
+				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationDelete); err != nil {
 					sendError(err)
 					return
 				}
 			} else {
-				if err := tracked.AddRelationshipChange(ctx, rev, tuple, core.RelationTupleUpdate_TOUCH); err != nil {
+				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationTouch); err != nil {
 					sendError(err)
 					return
 				}

@@ -207,7 +207,7 @@ func TestCertRotation(t *testing.T) {
 	}()
 	// requests work with the old key
 	client := v1.NewPermissionsServiceClient(conn)
-	rel := tuple.MustToRelationship(tuple.Parse(tf.StandardTuples[0]))
+	rel := tuple.ToV1Relationship(tuple.MustParse(tf.StandardRelationships[0]))
 	_, err = client.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{

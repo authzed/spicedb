@@ -247,7 +247,7 @@ func TestRelationsEncounteredForSubject(t *testing.T) {
 
 			relationStrs := make([]string, 0, len(relations))
 			for _, relation := range relations {
-				relationStrs = append(relationStrs, tuple.StringRR(relation))
+				relationStrs = append(relationStrs, tuple.StringCoreRR(relation))
 			}
 
 			sort.Strings(relationStrs)
@@ -616,7 +616,7 @@ func TestRelationsEncounteredForResource(t *testing.T) {
 
 			relationStrs := make([]string, 0, len(relations))
 			for _, relation := range relations {
-				relationStrs = append(relationStrs, tuple.StringRR(relation))
+				relationStrs = append(relationStrs, tuple.StringCoreRR(relation))
 			}
 
 			sort.Strings(relationStrs)
@@ -1234,14 +1234,14 @@ func verifyEntrypoints(require *require.Assertions, foundEntrypoints []Reachabil
 	expectedEntrypointRelations := make([]string, 0, len(expectedEntrypoints))
 	isDirectMap := map[string]bool{}
 	for _, expected := range expectedEntrypoints {
-		expectedEntrypointRelations = append(expectedEntrypointRelations, tuple.StringRR(expected.relationRef))
-		isDirectMap[tuple.StringRR(expected.relationRef)] = expected.isDirect
+		expectedEntrypointRelations = append(expectedEntrypointRelations, tuple.StringCoreRR(expected.relationRef))
+		isDirectMap[tuple.StringCoreRR(expected.relationRef)] = expected.isDirect
 	}
 
 	foundRelations := make([]string, 0, len(foundEntrypoints))
 	for _, entrypoint := range foundEntrypoints {
-		foundRelations = append(foundRelations, tuple.StringRR(entrypoint.ContainingRelationOrPermission()))
-		if isDirect, ok := isDirectMap[tuple.StringRR(entrypoint.ContainingRelationOrPermission())]; ok {
+		foundRelations = append(foundRelations, tuple.StringCoreRR(entrypoint.ContainingRelationOrPermission()))
+		if isDirect, ok := isDirectMap[tuple.StringCoreRR(entrypoint.ContainingRelationOrPermission())]; ok {
 			require.Equal(isDirect, entrypoint.IsDirectResult(), "found mismatch for whether a direct result for entrypoint for %s", entrypoint.parentRelation.Relation)
 		}
 	}

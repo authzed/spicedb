@@ -24,12 +24,12 @@ func ServiceTesters(conn *grpc.ClientConn) []ServiceTester {
 
 type ServiceTester interface {
 	Name() string
-	Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision datastore.Revision, caveatContext map[string]any) (v1.CheckPermissionResponse_Permissionship, error)
-	Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error)
-	Write(ctx context.Context, relationship *core.RelationTuple) error
-	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error)
-	LookupResources(ctx context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32, caveatContext map[string]any) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
-	LookupSubjects(ctx context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
+	Check(ctx context.Context, resource tuple.ObjectAndRelation, subject tuple.ObjectAndRelation, atRevision datastore.Revision, caveatContext map[string]any) (v1.CheckPermissionResponse_Permissionship, error)
+	Expand(ctx context.Context, resource tuple.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error)
+	Write(ctx context.Context, relationship tuple.Relationship) error
+	Read(ctx context.Context, namespaceName string, atRevision datastore.Revision) ([]tuple.Relationship, error)
+	LookupResources(ctx context.Context, resourceRelation tuple.RelationReference, subject tuple.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32, caveatContext map[string]any) ([]*v1.LookupResourcesResponse, *v1.Cursor, error)
+	LookupSubjects(ctx context.Context, resource tuple.ObjectAndRelation, subjectRelation tuple.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error)
 	// NOTE: ExperimentalService/BulkCheckPermission has been promoted to PermissionsService/CheckBulkPermissions
 	BulkCheck(ctx context.Context, items []*v1.BulkCheckPermissionRequestItem, atRevision datastore.Revision) ([]*v1.BulkCheckPermissionPair, error)
 	CheckBulk(ctx context.Context, items []*v1.CheckBulkPermissionsRequestItem, atRevision datastore.Revision) ([]*v1.CheckBulkPermissionsPair, error)
@@ -53,7 +53,7 @@ func (v1st v1ServiceTester) Name() string {
 	return "v1"
 }
 
-func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndRelation, subject *core.ObjectAndRelation, atRevision datastore.Revision, caveatContext map[string]any) (v1.CheckPermissionResponse_Permissionship, error) {
+func (v1st v1ServiceTester) Check(ctx context.Context, resource tuple.ObjectAndRelation, subject tuple.ObjectAndRelation, atRevision datastore.Revision, caveatContext map[string]any) (v1.CheckPermissionResponse_Permissionship, error) {
 	var context *structpb.Struct
 	if caveatContext != nil {
 		built, err := structpb.NewStruct(caveatContext)
@@ -65,14 +65,14 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndR
 
 	checkResp, err := v1st.permClient.CheckPermission(ctx, &v1.CheckPermissionRequest{
 		Resource: &v1.ObjectReference{
-			ObjectType: resource.Namespace,
-			ObjectId:   resource.ObjectId,
+			ObjectType: resource.ObjectType,
+			ObjectId:   resource.ObjectID,
 		},
 		Permission: resource.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: subject.Namespace,
-				ObjectId:   subject.ObjectId,
+				ObjectType: subject.ObjectType,
+				ObjectId:   subject.ObjectID,
 			},
 			OptionalRelation: optionalizeRelation(subject.Relation),
 		},
@@ -89,11 +89,11 @@ func (v1st v1ServiceTester) Check(ctx context.Context, resource *core.ObjectAndR
 	return checkResp.Permissionship, nil
 }
 
-func (v1st v1ServiceTester) Expand(ctx context.Context, resource *core.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error) {
+func (v1st v1ServiceTester) Expand(ctx context.Context, resource tuple.ObjectAndRelation, atRevision datastore.Revision) (*core.RelationTupleTreeNode, error) {
 	expandResp, err := v1st.permClient.ExpandPermissionTree(ctx, &v1.ExpandPermissionTreeRequest{
 		Resource: &v1.ObjectReference{
-			ObjectType: resource.Namespace,
-			ObjectId:   resource.ObjectId,
+			ObjectType: resource.ObjectType,
+			ObjectId:   resource.ObjectID,
 		},
 		Permission: resource.Relation,
 		Consistency: &v1.Consistency{
@@ -108,20 +108,20 @@ func (v1st v1ServiceTester) Expand(ctx context.Context, resource *core.ObjectAnd
 	return v1svc.TranslateRelationshipTree(expandResp.TreeRoot), nil
 }
 
-func (v1st v1ServiceTester) Write(ctx context.Context, relationship *core.RelationTuple) error {
+func (v1st v1ServiceTester) Write(ctx context.Context, relationship tuple.Relationship) error {
 	_, err := v1st.permClient.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
 		OptionalPreconditions: []*v1.Precondition{
 			{
 				Operation: v1.Precondition_OPERATION_MUST_MATCH,
-				Filter:    tuple.MustToFilter(relationship),
+				Filter:    tuple.ToV1Filter(relationship),
 			},
 		},
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Touch(relationship))},
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Touch(relationship))},
 	})
 	return err
 }
 
-func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevision datastore.Revision) ([]*core.RelationTuple, error) {
+func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevision datastore.Revision) ([]tuple.Relationship, error) {
 	readResp, err := v1st.permClient.ReadRelationships(context.Background(), &v1.ReadRelationshipsRequest{
 		RelationshipFilter: &v1.RelationshipFilter{
 			ResourceType: namespaceName,
@@ -136,7 +136,7 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 		return nil, err
 	}
 
-	var tuples []*core.RelationTuple
+	var rels []tuple.Relationship
 	for {
 		resp, err := readResp.Recv()
 		if errors.Is(err, io.EOF) {
@@ -147,13 +147,13 @@ func (v1st v1ServiceTester) Read(_ context.Context, namespaceName string, atRevi
 			return nil, err
 		}
 
-		tuples = append(tuples, tuple.MustFromRelationship[*v1.ObjectReference, *v1.SubjectReference, *v1.ContextualizedCaveat](resp.Relationship))
+		rels = append(rels, tuple.FromV1Relationship(resp.Relationship))
 	}
 
-	return tuples, nil
+	return rels, nil
 }
 
-func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation *core.RelationReference, subject *core.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32, caveatContext map[string]any) ([]*v1.LookupResourcesResponse, *v1.Cursor, error) {
+func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation tuple.RelationReference, subject tuple.ObjectAndRelation, atRevision datastore.Revision, cursor *v1.Cursor, limit uint32, caveatContext map[string]any) ([]*v1.LookupResourcesResponse, *v1.Cursor, error) {
 	var builtContext *structpb.Struct
 	if caveatContext != nil {
 		built, err := structpb.NewStruct(caveatContext)
@@ -164,12 +164,12 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 	}
 
 	lookupResp, err := v1st.permClient.LookupResources(context.Background(), &v1.LookupResourcesRequest{
-		ResourceObjectType: resourceRelation.Namespace,
+		ResourceObjectType: resourceRelation.ObjectType,
 		Permission:         resourceRelation.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: subject.Namespace,
-				ObjectId:   subject.ObjectId,
+				ObjectType: subject.ObjectType,
+				ObjectId:   subject.ObjectID,
 			},
 			OptionalRelation: optionalizeRelation(subject.Relation),
 		},
@@ -204,7 +204,7 @@ func (v1st v1ServiceTester) LookupResources(_ context.Context, resourceRelation 
 	return found, lastCursor, nil
 }
 
-func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.ObjectAndRelation, subjectRelation *core.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
+func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource tuple.ObjectAndRelation, subjectRelation tuple.RelationReference, atRevision datastore.Revision, caveatContext map[string]any) (map[string]*v1.LookupSubjectsResponse, error) {
 	var builtContext *structpb.Struct
 	if caveatContext != nil {
 		built, err := structpb.NewStruct(caveatContext)
@@ -216,11 +216,11 @@ func (v1st v1ServiceTester) LookupSubjects(_ context.Context, resource *core.Obj
 
 	lookupResp, err := v1st.permClient.LookupSubjects(context.Background(), &v1.LookupSubjectsRequest{
 		Resource: &v1.ObjectReference{
-			ObjectType: resource.Namespace,
-			ObjectId:   resource.ObjectId,
+			ObjectType: resource.ObjectType,
+			ObjectId:   resource.ObjectID,
 		},
 		Permission:              resource.Relation,
-		SubjectObjectType:       subjectRelation.Namespace,
+		SubjectObjectType:       subjectRelation.ObjectType,
 		OptionalSubjectRelation: optionalizeRelation(subjectRelation.Relation),
 		Consistency: &v1.Consistency{
 			Requirement: &v1.Consistency_AtLeastAsFresh{

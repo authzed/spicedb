@@ -13,6 +13,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -21,7 +22,7 @@ type memdbReadWriteTx struct {
 	newRevision datastore.Revision
 }
 
-func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []tuple.RelationshipUpdate) error {
 	rwt.mustLock()
 	defer rwt.Unlock()
 
@@ -33,29 +34,29 @@ func (rwt *memdbReadWriteTx) WriteRelationships(_ context.Context, mutations []*
 	return rwt.write(tx, mutations...)
 }
 
-func (rwt *memdbReadWriteTx) toIntegrity(mutation *core.RelationTupleUpdate) *relationshipIntegrity {
+func (rwt *memdbReadWriteTx) toIntegrity(mutation tuple.RelationshipUpdate) *relationshipIntegrity {
 	var ri *relationshipIntegrity
-	if mutation.Tuple.Integrity != nil {
+	if mutation.Relationship.OptionalIntegrity != nil {
 		ri = &relationshipIntegrity{
-			keyID:     mutation.Tuple.Integrity.KeyId,
-			hash:      mutation.Tuple.Integrity.Hash,
-			timestamp: mutation.Tuple.Integrity.HashedAt.AsTime(),
+			keyID:     mutation.Relationship.OptionalIntegrity.KeyId,
+			hash:      mutation.Relationship.OptionalIntegrity.Hash,
+			timestamp: mutation.Relationship.OptionalIntegrity.HashedAt.AsTime(),
 		}
 	}
 	return ri
 }
 
 // Caller must already hold the concurrent access lock!
-func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTupleUpdate) error {
+func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...tuple.RelationshipUpdate) error {
 	// Apply the mutations
 	for _, mutation := range mutations {
 		rel := &relationship{
-			mutation.Tuple.ResourceAndRelation.Namespace,
-			mutation.Tuple.ResourceAndRelation.ObjectId,
-			mutation.Tuple.ResourceAndRelation.Relation,
-			mutation.Tuple.Subject.Namespace,
-			mutation.Tuple.Subject.ObjectId,
-			mutation.Tuple.Subject.Relation,
+			mutation.Relationship.Resource.ObjectType,
+			mutation.Relationship.Resource.ObjectID,
+			mutation.Relationship.Resource.Relation,
+			mutation.Relationship.Subject.ObjectType,
+			mutation.Relationship.Subject.ObjectID,
+			mutation.Relationship.Subject.Relation,
 			rwt.toCaveatReference(mutation),
 			rwt.toIntegrity(mutation),
 		}
@@ -80,25 +81,25 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 		}
 
 		switch mutation.Operation {
-		case core.RelationTupleUpdate_CREATE:
+		case tuple.UpdateOperationCreate:
 			if existing != nil {
-				rt, err := existing.RelationTuple()
+				rt, err := existing.Relationship()
 				if err != nil {
 					return err
 				}
-				return common.NewCreateRelationshipExistsError(rt)
+				return common.NewCreateRelationshipExistsError(&rt)
 			}
 			if err := tx.Insert(tableRelationship, rel); err != nil {
 				return fmt.Errorf("error inserting relationship: %w", err)
 			}
 
-		case core.RelationTupleUpdate_TOUCH:
+		case tuple.UpdateOperationTouch:
 			if existing != nil {
-				rt, err := existing.RelationTuple()
+				rt, err := existing.Relationship()
 				if err != nil {
 					return err
 				}
-				if tuple.MustString(rt) == tuple.MustString(mutation.Tuple) {
+				if tuple.MustString(rt) == tuple.MustString(mutation.Relationship) {
 					continue
 				}
 			}
@@ -106,26 +107,27 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...*core.RelationTup
 			if err := tx.Insert(tableRelationship, rel); err != nil {
 				return fmt.Errorf("error inserting relationship: %w", err)
 			}
-		case core.RelationTupleUpdate_DELETE:
+
+		case tuple.UpdateOperationDelete:
 			if existing != nil {
 				if err := tx.Delete(tableRelationship, existing); err != nil {
 					return fmt.Errorf("error deleting relationship: %w", err)
 				}
 			}
 		default:
-			return fmt.Errorf("unknown tuple mutation operation type: %s", mutation.Operation)
+			return spiceerrors.MustBugf("unknown tuple mutation operation type: %v", mutation.Operation)
 		}
 	}
 
 	return nil
 }
 
-func (rwt *memdbReadWriteTx) toCaveatReference(mutation *core.RelationTupleUpdate) *contextualizedCaveat {
+func (rwt *memdbReadWriteTx) toCaveatReference(mutation tuple.RelationshipUpdate) *contextualizedCaveat {
 	var cr *contextualizedCaveat
-	if mutation.Tuple.Caveat != nil {
+	if mutation.Relationship.OptionalCaveat != nil {
 		cr = &contextualizedCaveat{
-			caveatName: mutation.Tuple.Caveat.CaveatName,
-			context:    mutation.Tuple.Caveat.Context.AsMap(),
+			caveatName: mutation.Relationship.OptionalCaveat.CaveatName,
+			context:    mutation.Relationship.OptionalCaveat.Context.AsMap(),
 		}
 	}
 	return cr
@@ -164,12 +166,12 @@ func (rwt *memdbReadWriteTx) deleteWithLock(tx *memdb.Txn, filter *v1.Relationsh
 	filteredIter := memdb.NewFilterIterator(bestIter, relationshipFilterFilterFunc(filter))
 
 	// Collect the tuples into a slice of mutations for the changelog
-	var mutations []*core.RelationTupleUpdate
+	var mutations []tuple.RelationshipUpdate
 	var counter uint64
 
 	metLimit := false
 	for row := filteredIter.Next(); row != nil; row = filteredIter.Next() {
-		rt, err := row.(*relationship).RelationTuple()
+		rt, err := row.(*relationship).Relationship()
 		if err != nil {
 			return false, err
 		}
@@ -328,15 +330,16 @@ func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames ...stri
 }
 
 func (rwt *memdbReadWriteTx) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
-	updates := []*core.RelationTupleUpdate{{
-		Operation: core.RelationTupleUpdate_CREATE,
+	var numCopied uint64
+	var next *tuple.Relationship
+	var err error
+
+	updates := []tuple.RelationshipUpdate{{
+		Operation: tuple.UpdateOperationCreate,
 	}}
 
-	var numCopied uint64
-	var next *core.RelationTuple
-	var err error
 	for next, err = iter.Next(ctx); next != nil && err == nil; next, err = iter.Next(ctx) {
-		updates[0].Tuple = next
+		updates[0].Relationship = *next
 		if err := rwt.WriteRelationships(ctx, updates); err != nil {
 			return 0, err
 		}

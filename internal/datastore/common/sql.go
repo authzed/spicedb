@@ -14,7 +14,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -156,24 +155,26 @@ type nameAndValue struct {
 	value string
 }
 
-func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.SortOrder) SchemaQueryFilterer {
+func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOrder) SchemaQueryFilterer {
+	spiceerrors.DebugAssertNotNil(cursor, "cursor cannot be nil")
+
 	// NOTE: The ordering of these columns can affect query performance, be aware when changing.
 	columnsAndValues := map[options.SortOrder][]nameAndValue{
 		options.ByResource: {
 			{
-				sqf.schema.colNamespace, cursor.ResourceAndRelation.Namespace,
+				sqf.schema.colNamespace, cursor.Resource.ObjectType,
 			},
 			{
-				sqf.schema.colObjectID, cursor.ResourceAndRelation.ObjectId,
+				sqf.schema.colObjectID, cursor.Resource.ObjectID,
 			},
 			{
-				sqf.schema.colRelation, cursor.ResourceAndRelation.Relation,
+				sqf.schema.colRelation, cursor.Resource.Relation,
 			},
 			{
-				sqf.schema.colUsersetNamespace, cursor.Subject.Namespace,
+				sqf.schema.colUsersetNamespace, cursor.Subject.ObjectType,
 			},
 			{
-				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectId,
+				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectID,
 			},
 			{
 				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
@@ -181,19 +182,19 @@ func (sqf SchemaQueryFilterer) After(cursor *core.RelationTuple, order options.S
 		},
 		options.BySubject: {
 			{
-				sqf.schema.colUsersetNamespace, cursor.Subject.Namespace,
+				sqf.schema.colUsersetNamespace, cursor.Subject.ObjectType,
 			},
 			{
-				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectId,
+				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectID,
 			},
 			{
-				sqf.schema.colNamespace, cursor.ResourceAndRelation.Namespace,
+				sqf.schema.colNamespace, cursor.Resource.ObjectType,
 			},
 			{
-				sqf.schema.colObjectID, cursor.ResourceAndRelation.ObjectId,
+				sqf.schema.colObjectID, cursor.Resource.ObjectID,
 			},
 			{
-				sqf.schema.colRelation, cursor.ResourceAndRelation.Relation,
+				sqf.schema.colRelation, cursor.Resource.Relation,
 			},
 			{
 				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
@@ -567,21 +568,11 @@ func (tqs QueryExecutor) ExecuteQuery(
 		return nil, err
 	}
 
-	queryTuples, err := tqs.Executor(ctx, sql, args)
-	if err != nil {
-		return nil, err
-	}
-
-	lenQueryTuples := uint64(len(queryTuples))
-	if lenQueryTuples > limit {
-		queryTuples = queryTuples[:limit]
-	}
-
-	return NewSliceRelationshipIterator(queryTuples, queryOpts.Sort), nil
+	return tqs.Executor(ctx, sql, args)
 }
 
 // ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
-type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) ([]*core.RelationTuple, error)
+type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error)
 
 // TxCleanupFunc is a function that should be executed when the caller of
 // TransactionFactory is done with the transaction.

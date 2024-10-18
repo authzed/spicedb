@@ -8,7 +8,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 
 	sq "github.com/Masterminds/squirrel"
 )
@@ -194,22 +194,23 @@ func (mds *Datastore) loadChanges(
 	defer common.LogOnError(ctx, rows.Close)
 
 	for rows.Next() {
-		nextTuple := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
-
+		var resourceObjectType string
+		var resourceObjectID string
+		var relation string
+		var subjectObjectType string
+		var subjectObjectID string
+		var subjectRelation string
 		var createdTxn uint64
 		var deletedTxn uint64
 		var caveatName string
 		var caveatContext structpbWrapper
 		err = rows.Scan(
-			&nextTuple.ResourceAndRelation.Namespace,
-			&nextTuple.ResourceAndRelation.ObjectId,
-			&nextTuple.ResourceAndRelation.Relation,
-			&nextTuple.Subject.Namespace,
-			&nextTuple.Subject.ObjectId,
-			&nextTuple.Subject.Relation,
+			&resourceObjectType,
+			&resourceObjectID,
+			&relation,
+			&subjectObjectType,
+			&subjectObjectID,
+			&subjectRelation,
 			&caveatName,
 			&caveatContext,
 			&createdTxn,
@@ -218,19 +219,35 @@ func (mds *Datastore) loadChanges(
 		if err != nil {
 			return
 		}
-		nextTuple.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
+
+		relationship := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: resourceObjectType,
+					ObjectID:   resourceObjectID,
+					Relation:   relation,
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: subjectObjectType,
+					ObjectID:   subjectObjectID,
+					Relation:   subjectRelation,
+				},
+			},
+		}
+
+		relationship.OptionalCaveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 		if err != nil {
 			return
 		}
 
 		if createdTxn > afterRevision && createdTxn <= newRevision {
-			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(createdTxn), nextTuple, core.RelationTupleUpdate_TOUCH); err != nil {
+			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(createdTxn), relationship, tuple.UpdateOperationTouch); err != nil {
 				return
 			}
 		}
 
 		if deletedTxn > afterRevision && deletedTxn <= newRevision {
-			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(deletedTxn), nextTuple, core.RelationTupleUpdate_DELETE); err != nil {
+			if err = stagedChanges.AddRelationshipChange(ctx, revisions.NewForTransactionID(deletedTxn), relationship, tuple.UpdateOperationDelete); err != nil {
 				return
 			}
 		}

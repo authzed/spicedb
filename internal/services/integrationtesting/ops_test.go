@@ -66,7 +66,7 @@ func (wr createCaveatedRelationship) Execute(tester opsTester) error {
 	}
 
 	rel := tuple.MustParse(wr.relString)
-	rel.Caveat = &core.ContextualizedCaveat{
+	rel.OptionalCaveat = &core.ContextualizedCaveat{
 		CaveatName: wr.caveatName,
 		Context:    ctx,
 	}
@@ -86,7 +86,7 @@ func (wr touchCaveatedRelationship) Execute(tester opsTester) error {
 	}
 
 	rel := tuple.MustParse(wr.relString)
-	rel.Caveat = &core.ContextualizedCaveat{
+	rel.OptionalCaveat = &core.ContextualizedCaveat{
 		CaveatName: wr.caveatName,
 		Context:    ctx,
 	}
@@ -112,7 +112,7 @@ type deleteCaveatedRelationship struct {
 
 func (dr deleteCaveatedRelationship) Execute(tester opsTester) error {
 	rel := tuple.MustParse(dr.relString)
-	rel.Caveat = &core.ContextualizedCaveat{
+	rel.OptionalCaveat = &core.ContextualizedCaveat{
 		CaveatName: dr.caveatName,
 	}
 
@@ -781,32 +781,32 @@ type opsTester interface {
 	Name() string
 	ReadSchema(ctx context.Context) (string, error)
 	WriteSchema(ctx context.Context, schemaString string) error
-	CreateRelationship(ctx context.Context, relationship *core.RelationTuple) error
-	TouchRelationship(ctx context.Context, relationship *core.RelationTuple) error
-	DeleteRelationship(ctx context.Context, relationship *core.RelationTuple) error
+	CreateRelationship(ctx context.Context, relationship tuple.Relationship) error
+	TouchRelationship(ctx context.Context, relationship tuple.Relationship) error
+	DeleteRelationship(ctx context.Context, relationship tuple.Relationship) error
 }
 
 type baseOpsTester struct {
 	permClient v1.PermissionsServiceClient
 }
 
-func (st baseOpsTester) CreateRelationship(ctx context.Context, relationship *core.RelationTuple) error {
+func (st baseOpsTester) CreateRelationship(ctx context.Context, relationship tuple.Relationship) error {
 	_, err := st.permClient.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Create(relationship))},
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(relationship))},
 	})
 	return err
 }
 
-func (st baseOpsTester) TouchRelationship(ctx context.Context, relationship *core.RelationTuple) error {
+func (st baseOpsTester) TouchRelationship(ctx context.Context, relationship tuple.Relationship) error {
 	_, err := st.permClient.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Touch(relationship))},
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Touch(relationship))},
 	})
 	return err
 }
 
-func (st baseOpsTester) DeleteRelationship(ctx context.Context, relationship *core.RelationTuple) error {
+func (st baseOpsTester) DeleteRelationship(ctx context.Context, relationship tuple.Relationship) error {
 	_, err := st.permClient.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-		Updates: []*v1.RelationshipUpdate{tuple.UpdateToRelationshipUpdate(tuple.Delete(relationship))},
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(relationship))},
 	})
 	return err
 }

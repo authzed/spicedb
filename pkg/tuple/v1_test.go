@@ -26,8 +26,8 @@ func TestStringObjectRef(t *testing.T) {
 		{objRef(":", ":"), ":::"},
 	}
 	for _, tt := range table {
-		require.Equal(t, tt.expected, StringObjectRef(tt.ref))
-		require.Equal(t, tt.expected, StringSubjectRef(subRef(tt.ref.ObjectType, tt.ref.ObjectId, "")))
+		require.Equal(t, tt.expected, V1StringObjectRef(tt.ref))
+		require.Equal(t, tt.expected, V1StringSubjectRef(subRef(tt.ref.ObjectType, tt.ref.ObjectId, "")))
 	}
 }
 
@@ -41,6 +41,6 @@ func TestJoinSubjectRef(t *testing.T) {
 		{subRef("document", "1", "reader"), "document:1#reader"},
 	}
 	for _, tt := range table {
-		require.Equal(t, tt.expected, StringSubjectRef(tt.ref))
+		require.Equal(t, tt.expected, V1StringSubjectRef(tt.ref))
 	}
 }

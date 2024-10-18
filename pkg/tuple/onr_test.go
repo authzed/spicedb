@@ -3,49 +3,43 @@ package tuple
 import (
 	"testing"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-
 	"github.com/stretchr/testify/require"
 )
 
 var onrTestCases = []struct {
 	serialized   string
-	objectFormat *core.ObjectAndRelation
+	objectFormat ObjectAndRelation
 }{
 	{
 		serialized:   "tenant/testns:testobj#testrel",
-		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "testrel"),
+		objectFormat: StringToONR("tenant/testns", "testobj", "testrel"),
 	},
 	{
 		serialized:   "tenant/testns:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#testrel",
-		objectFormat: ObjectAndRelation("tenant/testns", "veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong", "testrel"),
+		objectFormat: StringToONR("tenant/testns", "veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong", "testrel"),
 	},
 	{
 		serialized:   "tenant/testns:-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#testrel",
-		objectFormat: ObjectAndRelation("tenant/testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel"),
+		objectFormat: StringToONR("tenant/testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "testrel"),
 	},
 	{
-		serialized:   "tenant/testns:*#testrel",
-		objectFormat: nil,
+		serialized: "tenant/testns:*#testrel",
 	},
 	{
-		serialized:   "tenant/testns:testobj#...",
-		objectFormat: nil,
+		serialized: "tenant/testns:testobj#...",
 	},
 	{
-		serialized:   "tenant/testns:testobj",
-		objectFormat: nil,
+		serialized: "tenant/testns:testobj",
 	},
 	{
-		serialized:   "",
-		objectFormat: nil,
+		serialized: "",
 	},
 }
 
 func TestSerializeONR(t *testing.T) {
 	for _, tc := range onrTestCases {
 		tc := tc
-		if tc.objectFormat == nil {
+		if tc.objectFormat.ObjectType == "" && tc.objectFormat.ObjectID == "" && tc.objectFormat.Relation == "" {
 			continue
 		}
 
@@ -63,7 +57,13 @@ func TestParseONR(t *testing.T) {
 		t.Run(tc.serialized, func(t *testing.T) {
 			require := require.New(t)
 
-			parsed := ParseONR(tc.serialized)
+			parsed, err := ParseONR(tc.serialized)
+			if tc.objectFormat.ObjectType == "" && tc.objectFormat.ObjectID == "" && tc.objectFormat.Relation == "" {
+				require.Error(err)
+				return
+			}
+
+			require.NoError(err)
 			require.Equal(tc.objectFormat, parsed)
 		})
 	}
@@ -71,43 +71,40 @@ func TestParseONR(t *testing.T) {
 
 var subjectOnrTestCases = []struct {
 	serialized   string
-	objectFormat *core.ObjectAndRelation
+	objectFormat ObjectAndRelation
 }{
 	{
 		serialized:   "tenant/testns:testobj#testrel",
-		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "testrel"),
+		objectFormat: StringToONR("tenant/testns", "testobj", "testrel"),
 	},
 	{
 		serialized:   "tenant/testns:testobj#...",
-		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "..."),
+		objectFormat: StringToONR("tenant/testns", "testobj", "..."),
 	},
 	{
 		serialized:   "tenant/testns:*#...",
-		objectFormat: ObjectAndRelation("tenant/testns", "*", "..."),
+		objectFormat: StringToONR("tenant/testns", "*", "..."),
 	},
 	{
 		serialized:   "tenant/testns:testobj",
-		objectFormat: ObjectAndRelation("tenant/testns", "testobj", "..."),
+		objectFormat: StringToONR("tenant/testns", "testobj", "..."),
 	},
 	{
 		serialized:   "tenant/testns:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong",
-		objectFormat: ObjectAndRelation("tenant/testns", "veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong", "..."),
+		objectFormat: StringToONR("tenant/testns", "veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong", "..."),
 	},
 	{
 		serialized:   "tenant/testns:-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==",
-		objectFormat: ObjectAndRelation("tenant/testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "..."),
+		objectFormat: StringToONR("tenant/testns", "-base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==", "..."),
 	},
 	{
-		serialized:   "tenant/testns:testobj#",
-		objectFormat: nil,
+		serialized: "tenant/testns:testobj#",
 	},
 	{
-		serialized:   "tenant/testns:testobj:",
-		objectFormat: nil,
+		serialized: "tenant/testns:testobj:",
 	},
 	{
-		serialized:   "",
-		objectFormat: nil,
+		serialized: "",
 	},
 }
 
@@ -117,7 +114,12 @@ func TestParseSubjectONR(t *testing.T) {
 		t.Run(tc.serialized, func(t *testing.T) {
 			require := require.New(t)
 
-			parsed := ParseSubjectONR(tc.serialized)
+			parsed, err := ParseSubjectONR(tc.serialized)
+			if tc.objectFormat.ObjectType == "" && tc.objectFormat.ObjectID == "" && tc.objectFormat.Relation == "" {
+				require.Error(err)
+				return
+			}
+
 			require.Equal(tc.objectFormat, parsed)
 		})
 	}

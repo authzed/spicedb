@@ -63,7 +63,7 @@ func TestResourcesSubjectsMap2Basic(t *testing.T) {
 }
 
 type relAndMissingContext struct {
-	rel            *core.RelationTuple
+	rel            tuple.Relationship
 	missingContext []string
 }
 

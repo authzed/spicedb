@@ -149,14 +149,16 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
 	ctx := context.Background()
 
-	tRequire := testfixtures.TupleChecker{Require: require, DS: ds}
-	docTpl := tuple.Parse(testfixtures.StandardTuples[0])
+	tRequire := testfixtures.RelationshipChecker{Require: require, DS: ds}
+	docTpl, err := tuple.Parse(testfixtures.StandardRelationships[0])
+	require.NoError(err)
 	require.NotNil(docTpl)
-	tRequire.TupleExists(ctx, docTpl, revision)
+	tRequire.RelationshipExists(ctx, docTpl, revision)
 
-	folderTpl := tuple.Parse(testfixtures.StandardTuples[2])
+	folderTpl, err := tuple.Parse(testfixtures.StandardRelationships[2])
+	require.NoError(err)
 	require.NotNil(folderTpl)
-	tRequire.TupleExists(ctx, folderTpl, revision)
+	tRequire.RelationshipExists(ctx, folderTpl, revision)
 
 	deletedRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, testfixtures.DocumentNS.Name)
@@ -187,7 +189,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	tRequire.VerifyIteratorResults(iter)
 
-	tRequire.TupleExists(ctx, folderTpl, deletedRevision)
+	tRequire.RelationshipExists(ctx, folderTpl, deletedRevision)
 }
 
 func NamespaceMultiDeleteTest(t *testing.T, tester DatastoreTester) {

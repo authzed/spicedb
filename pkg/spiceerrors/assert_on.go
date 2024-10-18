@@ -15,6 +15,13 @@ func DebugAssert(condition func() bool, format string, args ...any) {
 	}
 }
 
+// DebugAssertNotNil panics if the object is nil in CI builds.
+func DebugAssertNotNil(obj any, format string, args ...any) {
+	if obj == nil {
+		panic(fmt.Sprintf(format, args...))
+	}
+}
+
 // SetFinalizerForDebugging sets a finalizer on the object for debugging purposes
 // in CI builds.
 func SetFinalizerForDebugging[T any](obj interface{}, finalizer func(obj T)) {

@@ -13,6 +13,7 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
@@ -107,7 +108,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 		checkHint, err := hints.HintForEntrypoint(
 			rdc.entrypoint,
 			resourceID,
-			rdc.parentRequest.TerminalSubject,
+			tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 			&v1.ResourceCheckResult{
 				Membership: v1.ResourceCheckResult_MEMBER,
 			})
@@ -120,8 +121,8 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
 	resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
-		ResourceType:  rdc.newSubjectType,
-		Subject:       rdc.parentRequest.TerminalSubject,
+		ResourceType:  tuple.FromCoreRelationReference(rdc.newSubjectType),
+		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),
 		AtRevision:    rdc.parentRequest.Revision,
 		MaximumDepth:  rdc.parentRequest.Metadata.DepthRemaining - 1,

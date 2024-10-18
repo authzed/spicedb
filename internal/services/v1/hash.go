@@ -60,7 +60,7 @@ func computeLRRequestHash(req *v1.LookupResourcesRequest) (string, error) {
 	return computeCallHash("v1.lookupresources", req.Consistency, map[string]any{
 		"resource-type": req.ResourceObjectType,
 		"permission":    req.Permission,
-		"subject":       tuple.StringSubjectRef(req.Subject),
+		"subject":       tuple.V1StringSubjectRef(req.Subject),
 		"limit":         req.OptionalLimit,
 		"context":       req.Context,
 	})

@@ -175,12 +175,12 @@ func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceD
 
 // DispatchCheck implements dispatch.Check interface
 func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
-	resourceType := tuple.StringRR(req.ResourceRelation)
+	resourceType := tuple.StringCoreRR(req.ResourceRelation)
 	spanName := "DispatchCheck → " + resourceType + "@" + req.Subject.Namespace + "#" + req.Subject.Relation
 	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
 		attribute.String("resource-type", resourceType),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
-		attribute.String("subject", tuple.StringONR(req.Subject)),
+		attribute.String("subject", tuple.StringCoreONR(req.Subject)),
 	))
 	defer span.End()
 
@@ -262,7 +262,7 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 // DispatchExpand implements dispatch.Expand interface
 func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
-		attribute.String("start", tuple.StringONR(req.ResourceAndRelation)),
+		attribute.String("start", tuple.StringCoreONR(req.ResourceAndRelation)),
 	))
 	defer span.End()
 
@@ -296,8 +296,8 @@ func (ld *localDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
-	resourceType := tuple.StringRR(req.ResourceRelation)
-	subjectRelation := tuple.StringRR(req.SubjectRelation)
+	resourceType := tuple.StringCoreRR(req.ResourceRelation)
+	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
 	spanName := "DispatchReachableResources → " + resourceType + "@" + subjectRelation
 	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
 		attribute.String("resource-type", resourceType),
@@ -330,8 +330,8 @@ func (ld *localDispatcher) DispatchLookupResources(
 	stream dispatch.LookupResourcesStream,
 ) error {
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringRR(req.ObjectRelation)),
-		attribute.String("subject", tuple.StringONR(req.Subject)),
+		attribute.String("resource-type", tuple.StringCoreRR(req.ObjectRelation)),
+		attribute.String("subject", tuple.StringCoreONR(req.Subject)),
 	))
 	defer span.End()
 
@@ -358,8 +358,8 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	stream dispatch.LookupResources2Stream,
 ) error {
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringRR(req.ResourceRelation)),
-		attribute.String("subject", tuple.StringONR(req.TerminalSubject)),
+		attribute.String("resource-type", tuple.StringCoreRR(req.ResourceRelation)),
+		attribute.String("subject", tuple.StringCoreONR(req.TerminalSubject)),
 	))
 	defer span.End()
 
@@ -386,8 +386,8 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	req *v1.DispatchLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
 ) error {
-	resourceType := tuple.StringRR(req.ResourceRelation)
-	subjectRelation := tuple.StringRR(req.SubjectRelation)
+	resourceType := tuple.StringCoreRR(req.ResourceRelation)
+	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
 	spanName := "DispatchLookupSubjects → " + resourceType + "@" + subjectRelation
 
 	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(

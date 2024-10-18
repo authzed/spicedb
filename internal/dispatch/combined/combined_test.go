@@ -32,7 +32,7 @@ func TestCombinedRecursiveCall(t *testing.T) {
 			relation viewer: resource#viewer | user
 			permission view = viewer
 		}
-	`, []*core.RelationTuple{
+	`, []tuple.Relationship{
 		tuple.MustParse("resource:someresource#viewer@resource:someresource#viewer"),
 	}, require.New(t))
 

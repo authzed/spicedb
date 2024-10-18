@@ -16,6 +16,8 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+var toCursor = options.ToCursor
+
 func TestSchemaQueryFilterer(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -473,7 +475,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceType: "someresourcetype",
 					},
-				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "foo", "viewer", "user", "bar", "..."},
@@ -488,7 +490,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceRelation: "somerelation",
 					},
-				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE relation = ? AND (ns,object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"somerelation", "someresourcetype", "foo", "user", "bar", "..."},
@@ -504,7 +506,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						OptionalResourceType: "someresourcetype",
 						OptionalResourceIds:  []string{"one"},
 					},
-				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?) AND (relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
 			[]any{"someresourcetype", "one", "viewer", "user", "bar", "..."},
@@ -520,7 +522,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					datastore.RelationshipsFilter{
 						OptionalResourceIds: []string{"one"},
 					},
-				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE object_id IN (?) AND (ns,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"one", "someresourcetype", "viewer", "user", "bar", "..."},
@@ -536,7 +538,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						OptionalResourceType: "someresourcetype",
 						OptionalResourceIds:  []string{"one", "two"},
 					},
-				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE ns = ? AND object_id IN (?,?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "one", "two", "foo", "viewer", "user", "bar", "..."},
@@ -553,7 +555,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 						OptionalResourceType:     "someresourcetype",
 						OptionalResourceRelation: "somerelation",
 					},
-				).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE ns = ? AND relation = ? AND (object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
 			[]any{"someresourcetype", "somerelation", "foo", "user", "bar", "..."},
@@ -567,7 +569,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
-				}).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE ((subject_ns = ?)) AND (ns,object_id,relation,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "someresourcetype", "foo", "viewer", "bar", "..."},
@@ -584,7 +586,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "somesubjectype",
 				}).MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "anothersubjectype",
-				}).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE ((subject_ns = ?)) AND ((subject_ns = ?)) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
 			[]any{"somesubjectype", "anothersubjectype", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
@@ -595,7 +597,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 		{
 			"after with resource ID prefix",
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
-				return filterer.MustFilterWithResourceIDPrefix("someprefix").After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.ByResource)
+				return filterer.MustFilterWithResourceIDPrefix("someprefix").After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
 			"SELECT * WHERE object_id LIKE ? AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
 			[]any{"someprefix%", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
@@ -621,7 +623,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
-				}).After(tuple.MustParse("someresourcetype:foo#viewer@user:bar"), options.BySubject)
+				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.BySubject)
 			},
 			"SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "bar", "someresourcetype", "foo", "viewer", "..."},
@@ -635,7 +637,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
 					OptionalSubjectIds:  []string{"foo"},
-				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:bar"), options.BySubject)
+				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:bar")), options.BySubject)
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (ns,object_id,relation,subject_relation) > (?,?,?,?)",
 			[]any{"somesubjectype", "foo", "someresourcetype", "someresource", "viewer", "..."},
@@ -647,7 +649,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
 					OptionalSubjectType: "somesubjectype",
 					OptionalSubjectIds:  []string{"foo", "bar"},
-				}).After(tuple.MustParse("someresourcetype:someresource#viewer@user:next"), options.BySubject)
+				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:next")), options.BySubject)
 			},
 			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},

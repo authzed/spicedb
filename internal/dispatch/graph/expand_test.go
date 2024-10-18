@@ -28,106 +28,108 @@ import (
 
 func DS(objectType string, objectID string, objectRelation string) *core.DirectSubject {
 	return &core.DirectSubject{
-		Subject: ONR(objectType, objectID, objectRelation),
+		Subject: tuple.CoreONR(objectType, objectID, objectRelation),
 	}
 }
 
+var ONRRef = tuple.ONRRef
+
 var (
-	companyOwner = graph.Leaf(ONR("folder", "company", "owner"),
+	companyOwner = graph.Leaf(ONRRef("folder", "company", "owner"),
 		(DS("user", "owner", expand.Ellipsis)),
 	)
-	companyEditor = graph.Leaf(ONR("folder", "company", "editor"))
+	companyEditor = graph.Leaf(ONRRef("folder", "company", "editor"))
 
-	companyEdit = graph.Union(ONR("folder", "company", "edit"),
+	companyEdit = graph.Union(ONRRef("folder", "company", "edit"),
 		companyEditor,
 		companyOwner,
 	)
 
-	companyViewer = graph.Leaf(ONR("folder", "company", "viewer"),
+	companyViewer = graph.Leaf(ONRRef("folder", "company", "viewer"),
 		(DS("user", "legal", "...")),
 		(DS("folder", "auditors", "viewer")),
 	)
 
-	companyView = graph.Union(ONR("folder", "company", "view"),
+	companyView = graph.Union(ONRRef("folder", "company", "view"),
 		companyViewer,
 		companyEdit,
-		graph.Union(ONR("folder", "company", "view")),
+		graph.Union(ONRRef("folder", "company", "view")),
 	)
 
-	auditorsOwner = graph.Leaf(ONR("folder", "auditors", "owner"))
+	auditorsOwner = graph.Leaf(ONRRef("folder", "auditors", "owner"))
 
-	auditorsEditor = graph.Leaf(ONR("folder", "auditors", "editor"))
+	auditorsEditor = graph.Leaf(ONRRef("folder", "auditors", "editor"))
 
-	auditorsEdit = graph.Union(ONR("folder", "auditors", "edit"),
+	auditorsEdit = graph.Union(ONRRef("folder", "auditors", "edit"),
 		auditorsEditor,
 		auditorsOwner,
 	)
 
-	auditorsViewer = graph.Leaf(ONR("folder", "auditors", "viewer"),
+	auditorsViewer = graph.Leaf(ONRRef("folder", "auditors", "viewer"),
 		(DS("user", "auditor", "...")),
 	)
 
-	auditorsViewRecursive = graph.Union(ONR("folder", "auditors", "view"),
+	auditorsViewRecursive = graph.Union(ONRRef("folder", "auditors", "view"),
 		auditorsViewer,
 		auditorsEdit,
-		graph.Union(ONR("folder", "auditors", "view")),
+		graph.Union(ONRRef("folder", "auditors", "view")),
 	)
 
-	companyViewRecursive = graph.Union(ONR("folder", "company", "view"),
-		graph.Union(ONR("folder", "company", "viewer"),
-			graph.Leaf(ONR("folder", "auditors", "viewer"),
+	companyViewRecursive = graph.Union(ONRRef("folder", "company", "view"),
+		graph.Union(ONRRef("folder", "company", "viewer"),
+			graph.Leaf(ONRRef("folder", "auditors", "viewer"),
 				(DS("user", "auditor", "..."))),
-			graph.Leaf(ONR("folder", "company", "viewer"),
+			graph.Leaf(ONRRef("folder", "company", "viewer"),
 				(DS("user", "legal", "...")),
 				(DS("folder", "auditors", "viewer")))),
-		graph.Union(ONR("folder", "company", "edit"),
-			graph.Leaf(ONR("folder", "company", "editor")),
-			graph.Leaf(ONR("folder", "company", "owner"),
+		graph.Union(ONRRef("folder", "company", "edit"),
+			graph.Leaf(ONRRef("folder", "company", "editor")),
+			graph.Leaf(ONRRef("folder", "company", "owner"),
 				(DS("user", "owner", "...")))),
-		graph.Union(ONR("folder", "company", "view")))
+		graph.Union(ONRRef("folder", "company", "view")))
 
-	docOwner = graph.Leaf(ONR("document", "masterplan", "owner"),
+	docOwner = graph.Leaf(ONRRef("document", "masterplan", "owner"),
 		(DS("user", "product_manager", "...")),
 	)
-	docEditor = graph.Leaf(ONR("document", "masterplan", "editor"))
+	docEditor = graph.Leaf(ONRRef("document", "masterplan", "editor"))
 
-	docEdit = graph.Union(ONR("document", "masterplan", "edit"),
+	docEdit = graph.Union(ONRRef("document", "masterplan", "edit"),
 		docOwner,
 		docEditor,
 	)
 
-	docViewer = graph.Leaf(ONR("document", "masterplan", "viewer"),
+	docViewer = graph.Leaf(ONRRef("document", "masterplan", "viewer"),
 		(DS("user", "eng_lead", "...")),
 	)
 
-	docView = graph.Union(ONR("document", "masterplan", "view"),
+	docView = graph.Union(ONRRef("document", "masterplan", "view"),
 		docViewer,
 		docEdit,
-		graph.Union(ONR("document", "masterplan", "view"),
-			graph.Union(ONR("folder", "plans", "view"),
-				graph.Leaf(ONR("folder", "plans", "viewer"),
+		graph.Union(ONRRef("document", "masterplan", "view"),
+			graph.Union(ONRRef("folder", "plans", "view"),
+				graph.Leaf(ONRRef("folder", "plans", "viewer"),
 					(DS("user", "chief_financial_officer", "...")),
 				),
-				graph.Union(ONR("folder", "plans", "edit"),
-					graph.Leaf(ONR("folder", "plans", "editor")),
-					graph.Leaf(ONR("folder", "plans", "owner"))),
-				graph.Union(ONR("folder", "plans", "view"))),
-			graph.Union(ONR("folder", "strategy", "view"),
-				graph.Leaf(ONR("folder", "strategy", "viewer")),
-				graph.Union(ONR("folder", "strategy", "edit"),
-					graph.Leaf(ONR("folder", "strategy", "editor")),
-					graph.Leaf(ONR("folder", "strategy", "owner"),
+				graph.Union(ONRRef("folder", "plans", "edit"),
+					graph.Leaf(ONRRef("folder", "plans", "editor")),
+					graph.Leaf(ONRRef("folder", "plans", "owner"))),
+				graph.Union(ONRRef("folder", "plans", "view"))),
+			graph.Union(ONRRef("folder", "strategy", "view"),
+				graph.Leaf(ONRRef("folder", "strategy", "viewer")),
+				graph.Union(ONRRef("folder", "strategy", "edit"),
+					graph.Leaf(ONRRef("folder", "strategy", "editor")),
+					graph.Leaf(ONRRef("folder", "strategy", "owner"),
 						(DS("user", "vp_product", "...")))),
-				graph.Union(ONR("folder", "strategy", "view"),
-					graph.Union(ONR("folder", "company", "view"),
-						graph.Leaf(ONR("folder", "company", "viewer"),
+				graph.Union(ONRRef("folder", "strategy", "view"),
+					graph.Union(ONRRef("folder", "company", "view"),
+						graph.Leaf(ONRRef("folder", "company", "viewer"),
 							(DS("user", "legal", "...")),
 							(DS("folder", "auditors", "viewer"))),
-						graph.Union(ONR("folder", "company", "edit"),
-							graph.Leaf(ONR("folder", "company", "editor")),
-							graph.Leaf(ONR("folder", "company", "owner"),
+						graph.Union(ONRRef("folder", "company", "edit"),
+							graph.Leaf(ONRRef("folder", "company", "editor")),
+							graph.Leaf(ONRRef("folder", "company", "owner"),
 								(DS("user", "owner", "...")))),
-						graph.Union(ONR("folder", "company", "view")),
+						graph.Union(ONRRef("folder", "company", "view")),
 					),
 				),
 			),
@@ -139,7 +141,7 @@ func TestExpand(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		start                 *core.ObjectAndRelation
+		start                 tuple.ObjectAndRelation
 		expansionMode         v1.DispatchExpandRequest_ExpansionMode
 		expected              *core.RelationTupleTreeNode
 		expectedDispatchCount int
@@ -169,7 +171,7 @@ func TestExpand(t *testing.T) {
 			ctx, dispatch, revision := newLocalDispatcher(t)
 
 			expandResult, err := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-				ResourceAndRelation: tc.start,
+				ResourceAndRelation: tc.start.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -283,17 +285,17 @@ func TestMaxDepthExpand(t *testing.T) {
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
 
-	tpl := tuple.Parse("folder:oops#parent@folder:oops")
+	tpl := tuple.MustParse("folder:oops#parent@folder:oops")
 	ctx := datastoremw.ContextWithHandle(context.Background())
 
-	revision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, tpl)
+	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
 	dispatch := NewLocalOnlyDispatcher(10, 100)
 
 	_, err = dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-		ResourceAndRelation: ONR("folder", "oops", "view"),
+		ResourceAndRelation: tuple.CoreONR("folder", "oops", "view"),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -310,9 +312,9 @@ func TestExpandOverSchema(t *testing.T) {
 	testCases := []struct {
 		name          string
 		schema        string
-		relationships []*core.RelationTuple
+		relationships []tuple.Relationship
 
-		start *core.ObjectAndRelation
+		start tuple.ObjectAndRelation
 
 		expansionMode    v1.DispatchExpandRequest_ExpansionMode
 		expectedTreeText string
@@ -330,7 +332,7 @@ func TestExpandOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder->viewer
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:testdoc#folder@folder:testfolder1"),
 				tuple.MustParse("document:testdoc#folder@folder:testfolder2"),
 				tuple.MustParse("folder:testfolder1#viewer@user:tom"),
@@ -338,7 +340,7 @@ func TestExpandOverSchema(t *testing.T) {
 				tuple.MustParse("folder:testfolder2#viewer@user:sarah"),
 			},
 
-			tuple.ParseONR("document:testdoc#view"),
+			tuple.MustParseONR("document:testdoc#view"),
 
 			v1.DispatchExpandRequest_SHALLOW,
 			`intermediate_node:  {
@@ -412,7 +414,7 @@ func TestExpandOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(viewer)
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:testdoc#folder@folder:testfolder1"),
 				tuple.MustParse("document:testdoc#folder@folder:testfolder2"),
 				tuple.MustParse("folder:testfolder1#viewer@user:tom"),
@@ -421,7 +423,7 @@ func TestExpandOverSchema(t *testing.T) {
 				tuple.MustParse("folder:testfolder2#viewer@user:sarah"),
 			},
 
-			tuple.ParseONR("document:testdoc#view"),
+			tuple.MustParseONR("document:testdoc#view"),
 
 			v1.DispatchExpandRequest_SHALLOW,
 			`
@@ -504,11 +506,11 @@ func TestExpandOverSchema(t *testing.T) {
 				relation viewer: user with somecaveat | user
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:testdoc#viewer@user:sarah[somecaveat]"),
 				tuple.MustParse("document:testdoc#viewer@user:mary"),
 			},
-			tuple.ParseONR("document:testdoc#viewer"),
+			tuple.MustParseONR("document:testdoc#viewer"),
 			v1.DispatchExpandRequest_SHALLOW,
 			`
 			leaf_node: {
@@ -557,11 +559,11 @@ func TestExpandOverSchema(t *testing.T) {
 				relation viewer: group#member with somecaveat
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:testdoc#viewer@group:test#member[somecaveat]"),
 				tuple.MustParse("group:test#member@user:mary"),
 			},
-			tuple.ParseONR("document:testdoc#viewer"),
+			tuple.MustParseONR("document:testdoc#viewer"),
 			v1.DispatchExpandRequest_SHALLOW,
 			`
 			leaf_node: {
@@ -607,12 +609,12 @@ func TestExpandOverSchema(t *testing.T) {
 				relation viewer: group#member with somecaveat
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:testdoc#viewer@group:test#member[somecaveat]"),
 				tuple.MustParse("group:test#member@user:mary"),
 				tuple.MustParse("group:test#member@user:sarah[anothercaveat]"),
 			},
-			tuple.ParseONR("document:testdoc#viewer"),
+			tuple.MustParseONR("document:testdoc#viewer"),
 			v1.DispatchExpandRequest_RECURSIVE,
 			`
 			intermediate_node: {
@@ -709,14 +711,14 @@ func TestExpandOverSchema(t *testing.T) {
 				permission view = viewer + org->admin
 			}
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:testdoc#viewer@user:tom"),
 				tuple.MustParse("document:testdoc#viewer@user:fred[anothercaveat]"),
 				tuple.MustParse("document:testdoc#org@organization:someorg[somecaveat]"),
 				tuple.MustParse("organization:someorg#admin@user:sarah"),
 				tuple.MustParse("organization:someorg#admin@user:mary[orgcaveat]"),
 			},
-			tuple.ParseONR("document:testdoc#view"),
+			tuple.MustParseONR("document:testdoc#view"),
 			v1.DispatchExpandRequest_SHALLOW,
 			`
 			intermediate_node:  {
@@ -821,13 +823,13 @@ func TestExpandOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder->view
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("resource:someresource#folder@folder:first"),
 				tuple.MustParse("folder:first#container@folder:second[somecaveat]"),
 				tuple.MustParse("folder:first#member@user:notreachable"),
 				tuple.MustParse("folder:second#member@user:tom"),
 			},
-			tuple.ParseONR("resource:someresource#view"),
+			tuple.MustParseONR("resource:someresource#view"),
 			v1.DispatchExpandRequest_RECURSIVE,
 			`
 			intermediate_node: {
@@ -902,7 +904,7 @@ func TestExpandOverSchema(t *testing.T) {
 			ctx, dispatch, revision := newLocalDispatcherWithSchemaAndRels(t, tc.schema, tc.relationships)
 
 			expandResult, err := dispatch.DispatchExpand(ctx, &v1.DispatchExpandRequest{
-				ResourceAndRelation: tc.start,
+				ResourceAndRelation: tc.start.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,

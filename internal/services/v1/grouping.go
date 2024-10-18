@@ -7,7 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/pkg/datastore"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 type groupedCheckParameters struct {
@@ -56,15 +56,8 @@ func checkParametersFromCheckBulkPermissionsRequestItem(
 	caveatContext map[string]any,
 ) *computed.CheckParameters {
 	return &computed.CheckParameters{
-		ResourceType: &core.RelationReference{
-			Namespace: bc.Resource.ObjectType,
-			Relation:  bc.Permission,
-		},
-		Subject: &core.ObjectAndRelation{
-			Namespace: bc.Subject.Object.ObjectType,
-			ObjectId:  bc.Subject.Object.ObjectId,
-			Relation:  normalizeSubjectRelation(bc.Subject),
-		},
+		ResourceType:  tuple.RR(bc.Resource.ObjectType, bc.Permission),
+		Subject:       tuple.ONR(bc.Subject.Object.ObjectType, bc.Subject.Object.ObjectId, normalizeSubjectRelation(bc.Subject)),
 		CaveatContext: caveatContext,
 		AtRevision:    params.atRevision,
 		MaximumDepth:  params.maximumAPIDepth,

@@ -16,7 +16,6 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	itestutil "github.com/authzed/spicedb/internal/testutil"
-	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -141,9 +140,9 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 			err := dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-				ResourceRelation: RR(tc.resourceType, tc.permission),
+				ResourceRelation: RR(tc.resourceType, tc.permission).ToCoreRR(),
 				ResourceIds:      []string{tc.resourceID},
-				SubjectRelation:  RR(tc.subjectType, tc.subjectRelation),
+				SubjectRelation:  RR(tc.subjectType, tc.subjectRelation).ToCoreRR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -173,10 +172,10 @@ func TestSimpleLookupSubjects(t *testing.T) {
 			// Ensure every subject found has access.
 			for _, subjectID := range foundSubjectIds {
 				checkResult, err := dis.DispatchCheck(ctx, &v1.DispatchCheckRequest{
-					ResourceRelation: RR(tc.resourceType, tc.permission),
+					ResourceRelation: RR(tc.resourceType, tc.permission).ToCoreRR(),
 					ResourceIds:      []string{tc.resourceID},
 					ResultsSetting:   v1.DispatchCheckRequest_ALLOW_SINGLE_RESULT,
-					Subject:          ONR(tc.subjectType, subjectID, tc.subjectRelation),
+					Subject:          ONR(tc.subjectType, subjectID, tc.subjectRelation).ToCoreONR(),
 					Metadata: &v1.ResolverMeta{
 						AtRevision:     revision.String(),
 						DepthRemaining: 50,
@@ -203,17 +202,17 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	ctx := log.Logger.WithContext(datastoremw.ContextWithHandle(context.Background()))
 	require.NoError(datastoremw.SetInContext(ctx, ds))
 
-	tpl := tuple.Parse("folder:oops#owner@folder:oops#owner")
-	revision, err := common.WriteTuples(ctx, ds, corev1.RelationTupleUpdate_CREATE, tpl)
+	tpl := tuple.MustParse("folder:oops#owner@folder:oops#owner")
+	revision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tpl)
 	require.NoError(err)
 
 	dis := NewLocalOnlyDispatcher(10, 100)
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 	err = dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-		ResourceRelation: RR("folder", "owner"),
+		ResourceRelation: RR("folder", "owner").ToCoreRR(),
 		ResourceIds:      []string{"oops"},
-		SubjectRelation:  RR("user", "..."),
+		SubjectRelation:  RR("user", "...").ToCoreRR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -259,9 +258,9 @@ func TestLookupSubjectsDispatchCount(t *testing.T) {
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 
 			err := dis.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-				ResourceRelation: RR(tc.resourceType, tc.permission),
+				ResourceRelation: RR(tc.resourceType, tc.permission).ToCoreRR(),
 				ResourceIds:      []string{tc.resourceID},
-				SubjectRelation:  RR(tc.subjectType, tc.subjectRelation),
+				SubjectRelation:  RR(tc.subjectType, tc.subjectRelation).ToCoreRR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -281,9 +280,9 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 	testCases := []struct {
 		name          string
 		schema        string
-		relationships []*corev1.RelationTuple
-		start         *corev1.ObjectAndRelation
-		target        *corev1.RelationReference
+		relationships []tuple.Relationship
+		start         tuple.ObjectAndRelation
+		target        tuple.RelationReference
 		expected      []*v1.FoundSubject
 	}{
 		{
@@ -298,7 +297,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation viewer: user | user with somecaveat
 				permission view = viewer
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
 				tuple.MustParse("document:first#viewer@user:sarah"),
 			},
@@ -327,7 +326,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation editor: user | user with somecaveat
 				permission view = viewer + editor
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
 			},
@@ -353,7 +352,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation editor: user | user with somecaveat
 				permission view = viewer + editor
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "somecaveat"),
 			},
@@ -382,7 +381,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation editor: user | user with anothercaveat
 				permission view = viewer & editor
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#editor@user:tom"), "anothercaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
@@ -416,7 +415,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation banned: user | user with anothercaveat
 				permission view = viewer - banned
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:tom"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:sarah"), "somecaveat"),
@@ -453,7 +452,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation org: org with somecaveat
 				permission view = org->viewer
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
 				tuple.MustParse("org:someorg#viewer@user:tom"),
 			},
@@ -486,7 +485,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation org: org with somecaveat
 				permission view = org->viewer
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
 			},
@@ -519,7 +518,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation banned: user with anothercaveat
 				permission view = viewer - banned
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
 			},
@@ -560,7 +559,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation explicitly_allowed: user with thirdcaveat
 				permission view = (viewer - banned) + explicitly_allowed
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#viewer@user:*"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#banned@user:tom"), "anothercaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("document:first#explicitly_allowed@user:tom"), "thirdcaveat"),
@@ -611,7 +610,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation org: org with somecaveat | org with thirdcaveat
 				permission view = org->viewer
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustWithCaveat(tuple.MustParse("document:first#org@org:someorg"), "somecaveat"),
 				tuple.MustWithCaveat(tuple.MustParse("org:someorg#viewer@user:tom"), "anothercaveat"),
 				tuple.MustParse("org:someorg#viewer@user:sarah"),
@@ -656,7 +655,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder | folder#parent
 				permission view = folder->view
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder2#viewer@user:fred"),
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
@@ -691,7 +690,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder | folder#parent with somecaveat
 				permission view = folder->view
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder2#viewer@user:fred"),
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
@@ -722,7 +721,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder->view
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder1#viewer@user:fred"),
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
@@ -751,7 +750,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.any(view)
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder1#viewer@user:fred"),
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
@@ -780,7 +779,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view)
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder1#viewer@user:fred"),
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
@@ -809,7 +808,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view)
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder1#viewer@user:fred"),
 				tuple.MustParse("folder:folder2#viewer@user:fred"),
@@ -841,7 +840,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder->view
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
 				tuple.MustParse("document:somedoc#folder@folder:folder2"),
 				tuple.MustParse("folder:folder1#parent@organization:org1"),
@@ -887,7 +886,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation team: team with caveat1 | team with caveat2
 				permission view = team.all(member)
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`document:somedoc#team@team:team1[caveat1:{":someparam1":42}]`),
 				tuple.MustParse(`document:somedoc#team@team:team2[caveat2:{":someparam2":43}]`),
 				tuple.MustParse(`team:team1#member@user:tom`),
@@ -932,7 +931,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view) - banned
   		 }`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:folder1#viewer@user:tom"),
 				tuple.MustParse("folder:folder1#viewer@user:fred"),
 				tuple.MustParse("document:somedoc#folder@folder:folder1"),
@@ -962,7 +961,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 				relation folder: folder
 				permission view = folder.all(view)
 			}`,
-			[]*corev1.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("folder:root1#owner@user:tom"),
 				tuple.MustParse("folder:root1#owner@user:fred"),
 				tuple.MustParse("folder:root1#owner@user:sarah"),
@@ -1008,12 +1007,9 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
 			err = dispatcher.DispatchLookupSubjects(&v1.DispatchLookupSubjectsRequest{
-				ResourceRelation: &corev1.RelationReference{
-					Namespace: tc.start.Namespace,
-					Relation:  tc.start.Relation,
-				},
-				ResourceIds:     []string{tc.start.ObjectId},
-				SubjectRelation: tc.target,
+				ResourceRelation: tc.start.RelationReference().ToCoreRR(),
+				ResourceIds:      []string{tc.start.ObjectID},
+				SubjectRelation:  tc.target.ToCoreRR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,

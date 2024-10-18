@@ -14,6 +14,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/ccoveille/go-safecast"
+	"github.com/jzelinskie/stringz"
 	"github.com/scylladb/go-set"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -29,7 +30,6 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/testutil"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -177,7 +177,7 @@ func TestBulkExportRelationships(t *testing.T) {
 			"",
 		)
 		batch[i] = rel
-		expectedRels.Add(tuple.MustStringRelationship(rel))
+		expectedRels.Add(tuple.MustV1RelString(rel))
 	}
 
 	ctx := context.Background()
@@ -240,7 +240,7 @@ func TestBulkExportRelationships(t *testing.T) {
 					totalRead += len(batch.Relationships)
 
 					for _, rel := range batch.Relationships {
-						remainingRels.Remove(tuple.MustStringRelationship(rel))
+						remainingRels.Remove(tuple.MustV1RelString(rel))
 					}
 				}
 
@@ -338,12 +338,12 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 				if tc.filter != nil {
 					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 					require.NoError(err)
-					if !filter.Test(tuple.MustFromRelationship(rel)) {
+					if !filter.Test(tuple.FromV1Relationship(rel)) {
 						continue
 					}
 				}
 
-				expectedRels.Add(tuple.MustStringRelationship(rel))
+				expectedRels.Add(tuple.MustV1RelString(rel))
 			}
 
 			require.Equal(tc.expectedCount, expectedRels.Size())
@@ -394,12 +394,12 @@ func TestBulkExportRelationshipsWithFilter(t *testing.T) {
 					if tc.filter != nil {
 						filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 						require.NoError(err)
-						require.True(filter.Test(tuple.MustFromRelationship(rel)), "relationship did not match filter: %s", rel)
+						require.True(filter.Test(tuple.FromV1Relationship(rel)), "relationship did not match filter: %s", rel)
 					}
 
-					require.True(remainingRels.Has(tuple.MustStringRelationship(rel)), "relationship was not expected or was repeated: %s", rel)
-					remainingRels.Remove(tuple.MustStringRelationship(rel))
-					foundRels.Add(tuple.MustStringRelationship(rel))
+					require.True(remainingRels.Has(tuple.MustV1RelString(rel)), "relationship was not expected or was repeated: %s", rel)
+					remainingRels.Remove(tuple.MustV1RelString(rel))
+					foundRels.Add(tuple.MustV1RelString(rel))
 				}
 
 				cancel()
@@ -638,17 +638,28 @@ func TestBulkCheckPermission(t *testing.T) {
 
 			expected := make([]*v1.BulkCheckPermissionPair, 0, len(tt.response))
 			for _, r := range tt.response {
-				reqRel := tuple.ParseRel(r.req)
+				reqRel := tuple.MustParse(r.req)
 				resp := &v1.BulkCheckPermissionPair_Item{
 					Item: &v1.BulkCheckPermissionResponseItem{
 						Permissionship: r.resp,
 					},
 				}
+
+				rel := stringz.Default(reqRel.Subject.Relation, "", tuple.Ellipsis)
 				pair := &v1.BulkCheckPermissionPair{
 					Request: &v1.BulkCheckPermissionRequestItem{
-						Resource:   reqRel.Resource,
-						Permission: reqRel.Relation,
-						Subject:    reqRel.Subject,
+						Resource: &v1.ObjectReference{
+							ObjectType: reqRel.Resource.ObjectType,
+							ObjectId:   reqRel.Resource.ObjectID,
+						},
+						Permission: reqRel.Resource.Relation,
+						Subject: &v1.SubjectReference{
+							Object: &v1.ObjectReference{
+								ObjectType: reqRel.Subject.ObjectType,
+								ObjectId:   reqRel.Subject.ObjectID,
+							},
+							OptionalRelation: rel,
+						},
 					},
 					Response: resp,
 				}
@@ -686,11 +697,22 @@ func TestBulkCheckPermission(t *testing.T) {
 }
 
 func relToBulkRequestItem(rel string) *v1.BulkCheckPermissionRequestItem {
-	r := tuple.ParseRel(rel)
+	r := tuple.MustParse(rel)
+	subjectRel := stringz.Default(r.Subject.Relation, "", tuple.Ellipsis)
+
 	item := &v1.BulkCheckPermissionRequestItem{
-		Resource:   r.Resource,
-		Permission: r.Relation,
-		Subject:    r.Subject,
+		Resource: &v1.ObjectReference{
+			ObjectType: r.Resource.ObjectType,
+			ObjectId:   r.Resource.ObjectID,
+		},
+		Permission: r.Resource.Relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: r.Subject.ObjectType,
+				ObjectId:   r.Subject.ObjectID,
+			},
+			OptionalRelation: subjectRel,
+		},
 	}
 	if r.OptionalCaveat != nil {
 		item.Context = r.OptionalCaveat.Context
@@ -1663,20 +1685,23 @@ func TestExperimentalCountRelationships(t *testing.T) {
 	require.NoError(t, err)
 
 	// Write some relationships.
+	updates, err := tuple.UpdatesToV1RelationshipUpdates([]tuple.RelationshipUpdate{
+		tuple.Create(tuple.MustParse("document:doc1#viewer@user:alice")),
+		tuple.Create(tuple.MustParse("document:doc1#viewer@user:bob")),
+		tuple.Create(tuple.MustParse("document:doc1#viewer@user:charlie")),
+		tuple.Create(tuple.MustParse("document:doc1#editor@user:alice")),
+		tuple.Create(tuple.MustParse("document:doc1#editor@user:bob")),
+
+		tuple.Create(tuple.MustParse("document:doc2#viewer@user:alice")),
+		tuple.Create(tuple.MustParse("document:doc2#viewer@user:adam")),
+
+		tuple.Create(tuple.MustParse("document:adoc#viewer@user:alice")),
+		tuple.Create(tuple.MustParse("document:anotherdoc#viewer@user:alice")),
+	})
+	require.NoError(t, err)
+
 	_, err = permsClient.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
-		Updates: tuple.UpdatesToRelationshipUpdates([]*core.RelationTupleUpdate{
-			tuple.Create(tuple.MustParse("document:doc1#viewer@user:alice")),
-			tuple.Create(tuple.MustParse("document:doc1#viewer@user:bob")),
-			tuple.Create(tuple.MustParse("document:doc1#viewer@user:charlie")),
-			tuple.Create(tuple.MustParse("document:doc1#editor@user:alice")),
-			tuple.Create(tuple.MustParse("document:doc1#editor@user:bob")),
-
-			tuple.Create(tuple.MustParse("document:doc2#viewer@user:alice")),
-			tuple.Create(tuple.MustParse("document:doc2#viewer@user:adam")),
-
-			tuple.Create(tuple.MustParse("document:adoc#viewer@user:alice")),
-			tuple.Create(tuple.MustParse("document:anotherdoc#viewer@user:alice")),
-		}),
+		Updates: updates,
 	})
 	require.NoError(t, err)
 
