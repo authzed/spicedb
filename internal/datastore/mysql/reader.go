@@ -66,7 +66,7 @@ func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int
 		return 0, err
 	}
 
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.CountTupleQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.CountRelsQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -175,7 +175,7 @@ func (mr *mysqlReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryRelsQuery), mr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (mr *mysqlReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryTuplesQuery), mr.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFilterer(schema, mr.filterer(mr.QueryRelsQuery), mr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err

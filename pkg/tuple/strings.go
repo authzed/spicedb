@@ -1,7 +1,6 @@
 package tuple
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -123,7 +122,7 @@ func StringCaveat(caveat *core.ContextualizedCaveat) (string, error) {
 		contextString = ":" + contextString
 	}
 
-	return fmt.Sprintf("[%s%s]", caveat.CaveatName, contextString), nil
+	return "[" + caveat.CaveatName + contextString + "]", nil
 }
 
 // StringCaveatContext converts the context of a caveat to a string. If the context is nil or empty, returns an empty string.

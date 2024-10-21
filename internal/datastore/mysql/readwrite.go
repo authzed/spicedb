@@ -171,10 +171,10 @@ func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, name string
 func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	// TODO(jschorr): Determine if we can do this in a more efficient manner using ON CONFLICT UPDATE
 	// rather than SELECT FOR UPDATE as we've been doing.
-	bulkWrite := rwt.WriteTupleQuery
+	bulkWrite := rwt.WriteRelsQuery
 	bulkWriteHasValues := false
 
-	selectForUpdateQuery := rwt.QueryTuplesWithIdsQuery
+	selectForUpdateQuery := rwt.QueryRelsWithIdsQuery
 
 	clauses := sq.Or{}
 	createAndTouchMutationsByRel := make(map[string]tuple.RelationshipUpdate, len(mutations))
@@ -281,7 +281,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 		if len(relIdsToDelete) > 0 {
 			query, args, err := rwt.
-				DeleteTupleQuery.
+				DeleteRelsQuery.
 				Where(sq.Eq{colID: relIdsToDelete}).
 				Set(colDeletedTxn, rwt.newTxnID).
 				ToSql()
@@ -334,7 +334,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := rwt.DeleteTupleQuery
+	query := rwt.DeleteRelsQuery
 	if filter.ResourceType != "" {
 		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
 	}
@@ -477,7 +477,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceTuplesQuery.
+	deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceRelationshipsQuery.
 		Set(colDeletedTxn, rwt.newTxnID).
 		Where(sq.Or(tplClauses)).
 		ToSql()
@@ -496,7 +496,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var sqlStmt bytes.Buffer
 
-	sql, _, err := rwt.WriteTupleQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9).ToSql()
+	sql, _, err := rwt.WriteRelsQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9).ToSql()
 	if err != nil {
 		return 0, err
 	}

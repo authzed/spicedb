@@ -12,23 +12,23 @@ type QueryBuilder struct {
 	GetLastRevision   sq.SelectBuilder
 	LoadRevisionRange sq.SelectBuilder
 
-	WriteNamespaceQuery        sq.InsertBuilder
-	ReadNamespaceQuery         sq.SelectBuilder
-	DeleteNamespaceQuery       sq.UpdateBuilder
-	DeleteNamespaceTuplesQuery sq.UpdateBuilder
+	WriteNamespaceQuery               sq.InsertBuilder
+	ReadNamespaceQuery                sq.SelectBuilder
+	DeleteNamespaceQuery              sq.UpdateBuilder
+	DeleteNamespaceRelationshipsQuery sq.UpdateBuilder
 
 	ReadCounterQuery   sq.SelectBuilder
 	InsertCounterQuery sq.InsertBuilder
 	DeleteCounterQuery sq.UpdateBuilder
 	UpdateCounterQuery sq.UpdateBuilder
 
-	QueryTuplesWithIdsQuery      sq.SelectBuilder
-	QueryTuplesQuery             sq.SelectBuilder
-	DeleteTupleQuery             sq.UpdateBuilder
+	QueryRelsWithIdsQuery        sq.SelectBuilder
+	QueryRelsQuery               sq.SelectBuilder
+	DeleteRelsQuery              sq.UpdateBuilder
 	QueryRelationshipExistsQuery sq.SelectBuilder
-	WriteTupleQuery              sq.InsertBuilder
+	WriteRelsQuery               sq.InsertBuilder
 	QueryChangedQuery            sq.SelectBuilder
-	CountTupleQuery              sq.SelectBuilder
+	CountRelsQuery               sq.SelectBuilder
 
 	WriteCaveatQuery  sq.InsertBuilder
 	ReadCaveatQuery   sq.SelectBuilder
@@ -57,14 +57,14 @@ func NewQueryBuilder(driver *migrations.MySQLDriver) *QueryBuilder {
 	builder.UpdateCounterQuery = updateCounter(driver.RelationshipCounters())
 
 	// tuple builders
-	builder.QueryTuplesWithIdsQuery = queryTuplesWithIds(driver.RelationTuple())
-	builder.DeleteNamespaceTuplesQuery = deleteNamespaceTuples(driver.RelationTuple())
-	builder.QueryTuplesQuery = queryTuples(driver.RelationTuple())
-	builder.DeleteTupleQuery = deleteTuple(driver.RelationTuple())
+	builder.QueryRelsWithIdsQuery = queryRelationshipsWithIds(driver.RelationTuple())
+	builder.DeleteNamespaceRelationshipsQuery = deleteNamespaceRelationships(driver.RelationTuple())
+	builder.QueryRelsQuery = queryRelationships(driver.RelationTuple())
+	builder.DeleteRelsQuery = deleteRelationship(driver.RelationTuple())
 	builder.QueryRelationshipExistsQuery = queryRelationshipExists(driver.RelationTuple())
-	builder.WriteTupleQuery = writeTuple(driver.RelationTuple())
+	builder.WriteRelsQuery = writeRelationship(driver.RelationTuple())
 	builder.QueryChangedQuery = queryChanged(driver.RelationTuple())
-	builder.CountTupleQuery = countRels(driver.RelationTuple())
+	builder.CountRelsQuery = countRels(driver.RelationTuple())
 
 	// caveat builders
 	builder.ReadCaveatQuery = readCaveat(driver.Caveat())
@@ -146,11 +146,11 @@ func deleteNamespace(tableNamespace string) sq.UpdateBuilder {
 	return sb.Update(tableNamespace).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }
 
-func deleteNamespaceTuples(tableTuple string) sq.UpdateBuilder {
+func deleteNamespaceRelationships(tableTuple string) sq.UpdateBuilder {
 	return sb.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }
 
-func queryTuplesWithIds(tableTuple string) sq.SelectBuilder {
+func queryRelationshipsWithIds(tableTuple string) sq.SelectBuilder {
 	return sb.Select(
 		colID,
 		colNamespace,
@@ -164,7 +164,7 @@ func queryTuplesWithIds(tableTuple string) sq.SelectBuilder {
 	).From(tableTuple)
 }
 
-func queryTuples(tableTuple string) sq.SelectBuilder {
+func queryRelationships(tableTuple string) sq.SelectBuilder {
 	return sb.Select(
 		colNamespace,
 		colObjectID,
@@ -183,7 +183,7 @@ func countRels(tableTuple string) sq.SelectBuilder {
 	).From(tableTuple)
 }
 
-func deleteTuple(tableTuple string) sq.UpdateBuilder {
+func deleteRelationship(tableTuple string) sq.UpdateBuilder {
 	return sb.Update(tableTuple).Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 }
 
@@ -191,7 +191,7 @@ func queryRelationshipExists(tableTuple string) sq.SelectBuilder {
 	return sb.Select(colID).From(tableTuple)
 }
 
-func writeTuple(tableTuple string) sq.InsertBuilder {
+func writeRelationship(tableTuple string) sq.InsertBuilder {
 	return sb.Insert(tableTuple).Columns(
 		colNamespace,
 		colObjectID,
