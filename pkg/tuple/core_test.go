@@ -10,11 +10,11 @@ import (
 
 func TestONRStringToCore(t *testing.T) {
 	tests := []struct {
+		expected *core.ObjectAndRelation
 		name     string
 		ns       string
 		oid      string
 		rel      string
-		expected *core.ObjectAndRelation
 	}{
 		{
 			name: "basic",
@@ -39,10 +39,10 @@ func TestONRStringToCore(t *testing.T) {
 
 func TestRelationReference(t *testing.T) {
 	tests := []struct {
+		expected *core.RelationReference
 		name     string
 		ns       string
 		rel      string
-		expected *core.RelationReference
 	}{
 		{
 			name: "basic",

@@ -67,9 +67,9 @@ type RelationshipReference struct {
 
 // Relationship represents a relationship between two objects.
 type Relationship struct {
-	RelationshipReference
 	OptionalCaveat    *core.ContextualizedCaveat
 	OptionalIntegrity *core.RelationshipIntegrity
+	RelationshipReference
 }
 
 // ToCoreTuple converts the Relationship to a core.RelationTuple.
@@ -133,8 +133,8 @@ const (
 
 // RelationshipUpdate represents an update to a relationship.
 type RelationshipUpdate struct {
-	Operation    UpdateOperation
 	Relationship Relationship
+	Operation    UpdateOperation
 }
 
 func (ru RelationshipUpdate) OperationString() string {

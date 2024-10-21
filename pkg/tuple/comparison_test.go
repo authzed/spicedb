@@ -81,9 +81,9 @@ func TestEqual(t *testing.T) {
 	}
 
 	notEqualTestCases := []struct {
-		name string
 		lhs  Relationship
 		rhs  Relationship
+		name string
 	}{
 		{
 			name: "Mismatch Resource Type",
