@@ -444,12 +444,12 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		tpl := tuple.MustParse("document:foo#viewer@user:tom")
-		tpl.Integrity = &core.RelationshipIntegrity{
+		tpl.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "key1",
 			Hash:     []byte("hash1"),
 			HashedAt: timestamppb.New(timestamp),
 		}
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tpl),
 		})
 	})
@@ -466,31 +466,30 @@ func RelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester) {
 		OptionalResourceRelation: "viewer",
 	})
 	require.NoError(err)
-	t.Cleanup(iter.Close)
 
-	tpl := iter.Next()
-	require.NotNil(tpl)
+	slice, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
 
-	require.NotNil(tpl.Integrity)
-	require.Equal("key1", tpl.Integrity.KeyId)
-	require.Equal([]byte("hash1"), tpl.Integrity.Hash)
+	rel := slice[0]
 
-	require.LessOrEqual(math.Abs(float64(timestamp.Sub(tpl.Integrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
+	require.NotNil(rel.OptionalIntegrity)
+	require.Equal("key1", rel.OptionalIntegrity.KeyId)
+	require.Equal([]byte("hash1"), rel.OptionalIntegrity.Hash)
 
-	iter.Close()
+	require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
 }
 
 type fakeSource struct {
-	tpl *core.RelationTuple
+	rel *tuple.Relationship
 }
 
-func (f *fakeSource) Next(ctx context.Context) (*core.RelationTuple, error) {
-	if f.tpl == nil {
+func (f *fakeSource) Next(ctx context.Context) (*tuple.Relationship, error) {
+	if f.rel == nil {
 		return nil, nil
 	}
 
-	tpl := f.tpl
-	f.tpl = nil
+	tpl := f.rel
+	f.rel = nil
 	return tpl, nil
 }
 
@@ -507,14 +506,14 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 	timestamp := time.Now().UTC()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		tpl := tuple.MustParse("document:foo#viewer@user:tom")
-		tpl.Integrity = &core.RelationshipIntegrity{
+		rel := tuple.MustParse("document:foo#viewer@user:tom")
+		rel.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "key1",
 			Hash:     []byte("hash1"),
 			HashedAt: timestamppb.New(timestamp),
 		}
 
-		_, err := rwt.BulkLoad(ctx, &fakeSource{tpl})
+		_, err := rwt.BulkLoad(ctx, &fakeSource{&rel})
 		return err
 	})
 	require.NoError(err)
@@ -530,18 +529,17 @@ func BulkRelationshipIntegrityInfoTest(t *testing.T, tester test.DatastoreTester
 		OptionalResourceRelation: "viewer",
 	})
 	require.NoError(err)
-	t.Cleanup(iter.Close)
 
-	tpl := iter.Next()
-	require.NotNil(tpl)
+	slice, err := datastore.IteratorToSlice(iter)
+	require.NoError(err)
 
-	require.NotNil(tpl.Integrity)
-	require.Equal("key1", tpl.Integrity.KeyId)
-	require.Equal([]byte("hash1"), tpl.Integrity.Hash)
+	rel := slice[0]
 
-	require.LessOrEqual(math.Abs(float64(timestamp.Sub(tpl.Integrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
+	require.NotNil(rel.OptionalIntegrity)
+	require.Equal("key1", rel.OptionalIntegrity.KeyId)
+	require.Equal([]byte("hash1"), rel.OptionalIntegrity.Hash)
 
-	iter.Close()
+	require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
 }
 
 func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
@@ -557,14 +555,14 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	timestamp := time.Now().UTC()
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		tpl := tuple.MustParse("document:foo#viewer@user:tom")
-		tpl.Integrity = &core.RelationshipIntegrity{
+		rel := tuple.MustParse("document:foo#viewer@user:tom")
+		rel.OptionalIntegrity = &core.RelationshipIntegrity{
 			KeyId:    "key1",
 			Hash:     []byte("hash1"),
 			HashedAt: timestamppb.New(timestamp),
 		}
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
-			tuple.Create(tpl),
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(rel),
 		})
 	})
 	require.NoError(err)
@@ -583,12 +581,12 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 			require.Fail("Timed out waiting for ErrWatchDisconnected")
 		}
 
-		tpl := change.RelationshipChanges[0].Tuple
-		require.NotNil(tpl.Integrity)
-		require.Equal("key1", tpl.Integrity.KeyId)
-		require.Equal([]byte("hash1"), tpl.Integrity.Hash)
+		rel := change.RelationshipChanges[0].Relationship
+		require.NotNil(rel.OptionalIntegrity)
+		require.Equal("key1", rel.OptionalIntegrity.KeyId)
+		require.Equal([]byte("hash1"), rel.OptionalIntegrity.Hash)
 
-		require.LessOrEqual(math.Abs(float64(timestamp.Sub(tpl.Integrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
+		require.LessOrEqual(math.Abs(float64(timestamp.Sub(rel.OptionalIntegrity.HashedAt.AsTime()).Milliseconds())), 1000.0)
 	case err := <-errchan:
 		require.Failf("Failed waiting for changes with error", "error: %v", err)
 	case <-time.NewTimer(10 * time.Second).C:

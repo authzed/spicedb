@@ -15,7 +15,6 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
@@ -95,8 +94,13 @@ func (ws *watchServer) Watch(req *v1.WatchRequest, stream v1.WatchService_WatchS
 			if ok {
 				filtered := filterUpdates(objectTypes, filters, update.RelationshipChanges)
 				if len(filtered) > 0 {
+					converted, err := tuple.UpdatesToV1RelationshipUpdates(filtered)
+					if err != nil {
+						return status.Errorf(codes.Internal, "failed to convert updates: %s", err)
+					}
+
 					if err := stream.Send(&v1.WatchResponse{
-						Updates:                     filtered,
+						Updates:                     converted,
 						ChangesThrough:              zedtoken.MustNewFromRevision(update.Revision),
 						OptionalTransactionMetadata: update.Metadata,
 					}); err != nil {
@@ -121,16 +125,14 @@ func (ws *watchServer) rewriteError(ctx context.Context, err error) error {
 	return shared.RewriteError(ctx, err, &shared.ConfigForErrors{})
 }
 
-func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.RelationshipsFilter, candidates []*core.RelationTupleUpdate) []*v1.RelationshipUpdate {
-	updates := tuple.UpdatesToRelationshipUpdates(candidates)
-
+func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.RelationshipsFilter, updates []tuple.RelationshipUpdate) []tuple.RelationshipUpdate {
 	if objectTypes.IsEmpty() && len(filters) == 0 {
 		return updates
 	}
 
-	filtered := make([]*v1.RelationshipUpdate, 0, len(updates))
+	filtered := make([]tuple.RelationshipUpdate, 0, len(updates))
 	for _, update := range updates {
-		objectType := update.GetRelationship().GetResource().GetObjectType()
+		objectType := update.Relationship.Resource.ObjectType
 		if !objectTypes.IsEmpty() && !objectTypes.Has(objectType) {
 			continue
 		}
@@ -139,8 +141,7 @@ func filterUpdates(objectTypes *mapz.Set[string], filters []datastore.Relationsh
 			// If there are filters, we need to check if the update matches any of them.
 			matched := false
 			for _, filter := range filters {
-				// TODO(jschorr): Maybe we should add TestRelationship to avoid the conversion?
-				if filter.Test(tuple.MustFromRelationship(update.GetRelationship())) {
+				if filter.Test(update.Relationship) {
 					matched = true
 					break
 				}

@@ -15,19 +15,13 @@ import (
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const veryLargeLimit = 1000000000
 
-func RR(namespaceName string, relationName string) *core.RelationReference {
-	return &core.RelationReference{
-		Namespace: namespaceName,
-		Relation:  relationName,
-	}
-}
+var RR = tuple.RR
 
 func resolvedRes(resourceID string) *v1.ResolvedResource {
 	return &v1.ResolvedResource{
@@ -40,8 +34,8 @@ func TestSimpleLookupResources(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		start                 *core.RelationReference
-		target                *core.ObjectAndRelation
+		start                 tuple.RelationReference
+		target                tuple.ObjectAndRelation
 		expectedResources     []*v1.ResolvedResource
 		expectedDispatchCount uint32
 		expectedDepthRequired uint32
@@ -105,7 +99,7 @@ func TestSimpleLookupResources(t *testing.T) {
 	for _, tc := range testCases {
 		name := fmt.Sprintf(
 			"%s#%s->%s",
-			tc.start.Namespace,
+			tc.start.ObjectType,
 			tc.start.Relation,
 			tuple.StringONR(tc.target),
 		)
@@ -118,8 +112,8 @@ func TestSimpleLookupResources(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-				ObjectRelation: tc.start,
-				Subject:        tc.target,
+				ObjectRelation: tc.start.ToCoreRR(),
+				Subject:        tc.target.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -142,8 +136,8 @@ func TestSimpleLookupResources(t *testing.T) {
 			// Run again with the cache available.
 			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 			err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-				ObjectRelation: tc.start,
-				Subject:        tc.target,
+				ObjectRelation: tc.start.ToCoreRR(),
+				Subject:        tc.target.ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -197,8 +191,8 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 
 			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-				ObjectRelation: RR("document", "view"),
-				Subject:        ONR("user", tc.subject, "..."),
+				ObjectRelation: RR("document", "view").ToCoreRR(),
+				Subject:        ONR("user", tc.subject, "...").ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -218,8 +212,8 @@ func TestSimpleLookupResourcesWithCursor(t *testing.T) {
 
 			stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 			err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-				ObjectRelation: RR("document", "view"),
-				Subject:        ONR("user", tc.subject, "..."),
+				ObjectRelation: RR("document", "view").ToCoreRR(),
+				Subject:        ONR("user", tc.subject, "...").ToCoreONR(),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,
@@ -253,8 +247,8 @@ func TestLookupResourcesCursorStability(t *testing.T) {
 
 	// Make the first first request.
 	err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "owner", "..."),
+		ObjectRelation: RR("document", "view").ToCoreRR(),
+		Subject:        ONR("user", "owner", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -271,8 +265,8 @@ func TestLookupResourcesCursorStability(t *testing.T) {
 	// Make the same request and ensure the cursor has not changed.
 	stream = dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "owner", "..."),
+		ObjectRelation: RR("document", "view").ToCoreRR(),
+		Subject:        ONR("user", "owner", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 50,
@@ -321,8 +315,8 @@ func TestMaxDepthLookup(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
 
 	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "legal", "..."),
+		ObjectRelation: RR("document", "view").ToCoreRR(),
+		Subject:        ONR("user", "legal", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 0,
@@ -332,7 +326,7 @@ func TestMaxDepthLookup(t *testing.T) {
 	require.Error(err)
 }
 
-func joinTuples(first []*core.RelationTuple, others ...[]*core.RelationTuple) []*core.RelationTuple {
+func joinTuples(first []tuple.Relationship, others ...[]tuple.Relationship) []tuple.Relationship {
 	current := first
 	for _, second := range others {
 		current = append(current, second...)
@@ -340,43 +334,49 @@ func joinTuples(first []*core.RelationTuple, others ...[]*core.RelationTuple) []
 	return current
 }
 
-func genTuplesWithOffset(resourceName string, relation string, subjectName string, subjectID string, offset int, number int) []*core.RelationTuple {
-	return genTuplesWithCaveat(resourceName, relation, subjectName, subjectID, "", nil, offset, number)
+func genRelsWithOffset(resourceName string, relation string, subjectName string, subjectID string, offset int, number int) []tuple.Relationship {
+	return genRelsWithCaveat(resourceName, relation, subjectName, subjectID, "", nil, offset, number)
 }
 
-func genTuples(resourceName string, relation string, subjectName string, subjectID string, number int) []*core.RelationTuple {
-	return genTuplesWithOffset(resourceName, relation, subjectName, subjectID, 0, number)
+func genRels(resourceName string, relation string, subjectName string, subjectID string, number int) []tuple.Relationship {
+	return genRelsWithOffset(resourceName, relation, subjectName, subjectID, 0, number)
 }
 
-func genSubjectTuples(resourceName string, relation string, subjectName string, subjectRelation string, number int) []*core.RelationTuple {
-	tuples := make([]*core.RelationTuple, 0, number)
+func genSubjectRels(resourceName string, relation string, subjectName string, subjectRelation string, number int) []tuple.Relationship {
+	rels := make([]tuple.Relationship, 0, number)
 	for i := 0; i < number; i++ {
-		tpl := &core.RelationTuple{
-			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
-			Subject:             ONR(subjectName, fmt.Sprintf("%s-%d", subjectName, i), subjectRelation),
+		rel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
+				Subject:  ONR(subjectName, fmt.Sprintf("%s-%d", subjectName, i), subjectRelation),
+			},
 		}
-		tuples = append(tuples, tpl)
+		rels = append(rels, rel)
 	}
-	return tuples
+
+	return rels
 }
 
-func genTuplesWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
-	return genTuplesWithCaveatAndSubjectRelation(resourceName, relation, subjectName, subjectID, "...", caveatName, context, offset, number)
+func genRelsWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []tuple.Relationship {
+	return genRelsWithCaveatAndSubjectRelation(resourceName, relation, subjectName, subjectID, "...", caveatName, context, offset, number)
 }
 
-func genTuplesWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []*core.RelationTuple {
-	tuples := make([]*core.RelationTuple, 0, number)
+func genRelsWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []tuple.Relationship {
+	rels := make([]tuple.Relationship, 0, number)
 	for i := 0; i < number; i++ {
-		tpl := &core.RelationTuple{
-			ResourceAndRelation: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
-			Subject:             ONR(subjectName, subjectID, subjectRelation),
+		rel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
+				Subject:  ONR(subjectName, subjectID, subjectRelation),
+			},
 		}
+
 		if caveatName != "" {
-			tpl = tuple.MustWithCaveat(tpl, caveatName, context)
+			rel = tuple.MustWithCaveat(rel, caveatName, context)
 		}
-		tuples = append(tuples, tpl)
+		rels = append(rels, rel)
 	}
-	return tuples
+	return rels
 }
 
 func genResourceIds(resourceName string, number int) []string {
@@ -392,9 +392,9 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 	testCases := []struct {
 		name                string
 		schema              string
-		relationships       []*core.RelationTuple
-		permission          *core.RelationReference
-		subject             *core.ObjectAndRelation
+		relationships       []tuple.Relationship
+		permission          tuple.RelationReference
+		subject             tuple.ObjectAndRelation
 		expectedResourceIDs []string
 	}{
 		{
@@ -407,8 +407,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1510),
-				genTuples("document", "editor", "user", "tom", 1510),
+				genRels("document", "viewer", "user", "tom", 1510),
+				genRels("document", "editor", "user", "tom", 1510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -423,7 +423,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = viewer - banned
   			 }`,
-			genTuples("document", "viewer", "user", "tom", 1010),
+			genRels("document", "viewer", "user", "tom", 1010),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 1010),
@@ -438,8 +438,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission view = viewer & editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 510),
-				genTuples("document", "editor", "user", "tom", 510),
+				genRels("document", "viewer", "user", "tom", 510),
+				genRels("document", "editor", "user", "tom", 510),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -457,8 +457,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission view = can_view + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "editor", "user", "tom", 1250, 1200),
+				genRels("document", "viewer", "user", "tom", 1310),
+				genRelsWithOffset("document", "editor", "user", "tom", 1250, 1200),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -476,7 +476,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
+			genRelsWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{"somecondition": 42}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
@@ -491,8 +491,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission view = viewer - banned
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 1310),
-				genTuplesWithOffset("document", "banned", "user", "tom", 1210, 100),
+				genRels("document", "viewer", "user", "tom", 1310),
+				genRelsWithOffset("document", "banned", "user", "tom", 1210, 100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -510,7 +510,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user with somecaveat
 				permission view = viewer
   			 }`,
-			genTuplesWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
+			genRelsWithCaveat("document", "viewer", "user", "tom", "somecaveat", map[string]any{}, 0, 2450),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
 			genResourceIds("document", 2450),
@@ -528,8 +528,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission view = folder->viewer
   			 }`,
 			joinTuples(
-				genTuples("folder", "viewer", "user", "tom", 150),
-				genSubjectTuples("document", "folder", "folder", "...", 150),
+				genRels("folder", "viewer", "user", "tom", 150),
+				genSubjectRels("document", "folder", "folder", "...", 150),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -545,8 +545,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				permission view = viewer + editor
   			 }`,
 			joinTuples(
-				genTuples("document", "viewer", "user", "tom", 15100),
-				genTuples("document", "editor", "user", "tom", 15100),
+				genRels("document", "viewer", "user", "tom", 15100),
+				genRels("document", "editor", "user", "tom", 15100),
 			),
 			RR("document", "view"),
 			ONR("user", "tom", "..."),
@@ -565,7 +565,7 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 				relation viewer: user
 				permission view = parent.all(viewer) + viewer
   			 }`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:doc0#parent@folder:folder0"),
 				tuple.MustParse("folder:folder0#viewer@user:tom"),
 
@@ -622,8 +622,8 @@ func TestLookupResourcesOverSchemaWithCursors(t *testing.T) {
 						require.NoError(err)
 
 						err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-							ObjectRelation: tc.permission,
-							Subject:        tc.subject,
+							ObjectRelation: tc.permission.ToCoreRR(),
+							Subject:        tc.subject.ToCoreONR(),
 							Metadata: &v1.ResolverMeta{
 								AtRevision:     revision.String(),
 								DepthRemaining: 50,
@@ -680,8 +680,8 @@ func TestLookupResourcesImmediateTimeout(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](cctx)
 
 	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "legal", "..."),
+		ObjectRelation: RR("document", "view").ToCoreRR(),
+		Subject:        ONR("user", "legal", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 10,
@@ -713,8 +713,8 @@ func TestLookupResourcesWithError(t *testing.T) {
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](cctx)
 
 	err = dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-		ObjectRelation: RR("document", "view"),
-		Subject:        ONR("user", "legal", "..."),
+		ObjectRelation: RR("document", "view").ToCoreRR(),
+		Subject:        ONR("user", "legal", "...").ToCoreONR(),
 		Metadata: &v1.ResolverMeta{
 			AtRevision:     revision.String(),
 			DepthRemaining: 1, // Set depth 1 to cause an error within reachable resources

@@ -47,15 +47,15 @@ func TestDispatchIntegration(t *testing.T) {
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:foo#viewer@user:tom")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
 						},
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:foo#parent@resource:bar")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
 						},
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:bar#viewer@user:jill")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
 						},
 					},
 				})
@@ -120,7 +120,7 @@ func TestDispatchIntegration(t *testing.T) {
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:foo#parent@someothertype:bar")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@someothertype:bar")),
 						},
 					},
 				})
@@ -161,7 +161,7 @@ func TestDispatchIntegration(t *testing.T) {
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:foo#viewer@user:someuser")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:someuser")),
 						},
 					},
 				})
@@ -225,7 +225,7 @@ func TestDispatchIntegration(t *testing.T) {
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:someresource#viewer@user:someuser")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:someresource#viewer@user:someuser")),
 						},
 					},
 				})
@@ -259,7 +259,7 @@ func TestDispatchIntegration(t *testing.T) {
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("resource:someresource#viewer@user:sarah")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:someresource#viewer@user:sarah")),
 						},
 					},
 				})

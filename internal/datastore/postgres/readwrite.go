@@ -83,20 +83,20 @@ type pgReadWriteTXN struct {
 	newXID xid8
 }
 
-func appendForInsertion(builder sq.InsertBuilder, tpl *core.RelationTuple) sq.InsertBuilder {
+func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.InsertBuilder {
 	var caveatName string
 	var caveatContext map[string]any
-	if tpl.Caveat != nil {
-		caveatName = tpl.Caveat.CaveatName
-		caveatContext = tpl.Caveat.Context.AsMap()
+	if tpl.OptionalCaveat != nil {
+		caveatName = tpl.OptionalCaveat.CaveatName
+		caveatContext = tpl.OptionalCaveat.Context.AsMap()
 	}
 
 	valuesToWrite := []interface{}{
-		tpl.ResourceAndRelation.Namespace,
-		tpl.ResourceAndRelation.ObjectId,
-		tpl.ResourceAndRelation.Relation,
-		tpl.Subject.Namespace,
-		tpl.Subject.ObjectId,
+		tpl.Resource.ObjectType,
+		tpl.Resource.ObjectID,
+		tpl.Resource.Relation,
+		tpl.Subject.ObjectType,
+		tpl.Subject.ObjectID,
 		tpl.Subject.Relation,
 		caveatName,
 		caveatContext, // PGX driver serializes map[string]any to JSONB type columns
@@ -105,12 +105,12 @@ func appendForInsertion(builder sq.InsertBuilder, tpl *core.RelationTuple) sq.In
 	return builder.Values(valuesToWrite...)
 }
 
-func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, mutations []*core.RelationTupleUpdate) (*mapz.Set[string], error) {
+func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, mutations []tuple.RelationshipUpdate) (*mapz.Set[string], error) {
 	// Collect the list of namespaces used for resources for relationships being TOUCHed.
 	touchedResourceNamespaces := mapz.NewSet[string]()
 	for _, mut := range mutations {
-		if mut.Operation == core.RelationTupleUpdate_TOUCH {
-			touchedResourceNamespaces.Add(mut.Tuple.ResourceAndRelation.Namespace)
+		if mut.Operation == tuple.UpdateOperationTouch {
+			touchedResourceNamespaces.Add(mut.Relationship.Resource.ObjectType)
 		}
 	}
 
@@ -136,13 +136,12 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 	}
 
 	for _, mut := range mutations {
-		tpl := mut.Tuple
-
-		if mut.Operation != core.RelationTupleUpdate_TOUCH {
+		rel := mut.Relationship
+		if mut.Operation != tuple.UpdateOperationTouch {
 			continue
 		}
 
-		nsDef, ok := nsDefByName[tpl.ResourceAndRelation.Namespace]
+		nsDef, ok := nsDefByName[rel.Resource.ObjectType]
 		if !ok {
 			continue
 		}
@@ -152,14 +151,14 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 			return nil, fmt.Errorf(errUnableToWriteRelationships, err)
 		}
 
-		notAllowed, err := vts.RelationDoesNotAllowCaveatsForSubject(tpl.ResourceAndRelation.Relation, tpl.Subject.Namespace)
+		notAllowed, err := vts.RelationDoesNotAllowCaveatsForSubject(rel.Resource.Relation, rel.Subject.ObjectType)
 		if err != nil {
 			// Ignore errors and just fallback to the less efficient path.
 			continue
 		}
 
 		if notAllowed {
-			relationSupportSimplifiedTouch.Add(nsDef.Name + "#" + tpl.ResourceAndRelation.Relation + "@" + tpl.Subject.Namespace)
+			relationSupportSimplifiedTouch.Add(nsDef.Name + "#" + rel.Resource.Relation + "@" + rel.Subject.ObjectType)
 			continue
 		}
 	}
@@ -167,8 +166,8 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 	return relationSupportSimplifiedTouch, nil
 }
 
-func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
-	touchMutationsByNonCaveat := make(map[string]*core.RelationTupleUpdate, len(mutations))
+func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
+	touchMutationsByNonCaveat := make(map[string]tuple.RelationshipUpdate, len(mutations))
 	hasCreateInserts := false
 
 	createInserts := writeTuple
@@ -189,19 +188,19 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 
 	// Parse the updates, building inserts for CREATE/TOUCH and deletes for DELETE.
 	for _, mut := range mutations {
-		tpl := mut.Tuple
+		rel := mut.Relationship
 
 		switch mut.Operation {
-		case core.RelationTupleUpdate_CREATE:
-			createInserts = appendForInsertion(createInserts, tpl)
+		case tuple.UpdateOperationCreate:
+			createInserts = appendForInsertion(createInserts, rel)
 			hasCreateInserts = true
 
-		case core.RelationTupleUpdate_TOUCH:
-			touchInserts = appendForInsertion(touchInserts, tpl)
-			touchMutationsByNonCaveat[tuple.StringWithoutCaveat(tpl)] = mut
+		case tuple.UpdateOperationTouch:
+			touchInserts = appendForInsertion(touchInserts, rel)
+			touchMutationsByNonCaveat[tuple.StringWithoutCaveat(rel)] = mut
 
-		case core.RelationTupleUpdate_DELETE:
-			deleteClauses = append(deleteClauses, exactRelationshipClause(tpl))
+		case tuple.UpdateOperationDelete:
+			deleteClauses = append(deleteClauses, exactRelationshipClause(rel))
 
 		default:
 			return spiceerrors.MustBugf("unknown tuple mutation: %v", mut)
@@ -247,25 +246,42 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 		// Remove from the TOUCH map of operations each row that was successfully inserted.
 		// This will cover any TOUCH that created an entirely new relationship, acting like
 		// a CREATE.
-		tpl := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
-
 		for rows.Next() {
+			var resourceObjectType string
+			var resourceObjectID string
+			var relation string
+			var subjectObjectType string
+			var subjectObjectID string
+			var subjectRelation string
+
 			err := rows.Scan(
-				&tpl.ResourceAndRelation.Namespace,
-				&tpl.ResourceAndRelation.ObjectId,
-				&tpl.ResourceAndRelation.Relation,
-				&tpl.Subject.Namespace,
-				&tpl.Subject.ObjectId,
-				&tpl.Subject.Relation,
+				&resourceObjectType,
+				&resourceObjectID,
+				&relation,
+				&subjectObjectType,
+				&subjectObjectID,
+				&subjectRelation,
 			)
 			if err != nil {
 				return fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 
-			tplString := tuple.StringWithoutCaveat(tpl)
+			rel := tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: resourceObjectType,
+						ObjectID:   resourceObjectID,
+						Relation:   relation,
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: subjectObjectType,
+						ObjectID:   subjectObjectID,
+						Relation:   subjectRelation,
+					},
+				},
+			}
+
+			tplString := tuple.StringWithoutCaveat(rel)
 			_, ok := touchMutationsByNonCaveat[tplString]
 			if !ok {
 				return spiceerrors.MustBugf("missing expected completed TOUCH mutation")
@@ -281,11 +297,11 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 		for _, mut := range touchMutationsByNonCaveat {
 			// If the relation support a simplified TOUCH operation, then skip the DELETE operation, as it is unnecessary
 			// because the relation does not support a caveat for a subject of this type.
-			if relationSupportSimplifiedTouch.Has(mut.Tuple.ResourceAndRelation.Namespace + "#" + mut.Tuple.ResourceAndRelation.Relation + "@" + mut.Tuple.Subject.Namespace) {
+			if relationSupportSimplifiedTouch.Has(mut.Relationship.Resource.ObjectType + "#" + mut.Relationship.Resource.Relation + "@" + mut.Relationship.Subject.ObjectType) {
 				continue
 			}
 
-			deleteClauses = append(deleteClauses, exactRelationshipDifferentCaveatClause(mut.Tuple))
+			deleteClauses = append(deleteClauses, exactRelationshipDifferentCaveatClause(mut.Relationship))
 		}
 	}
 
@@ -326,22 +342,39 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 	touchWrite := writeTuple
 	touchWriteHasValues := false
 
-	deletedTpl := &core.RelationTuple{
-		ResourceAndRelation: &core.ObjectAndRelation{},
-		Subject:             &core.ObjectAndRelation{},
-	}
-
 	for rows.Next() {
+		var resourceObjectType string
+		var resourceObjectID string
+		var relation string
+		var subjectObjectType string
+		var subjectObjectID string
+		var subjectRelation string
+
 		err := rows.Scan(
-			&deletedTpl.ResourceAndRelation.Namespace,
-			&deletedTpl.ResourceAndRelation.ObjectId,
-			&deletedTpl.ResourceAndRelation.Relation,
-			&deletedTpl.Subject.Namespace,
-			&deletedTpl.Subject.ObjectId,
-			&deletedTpl.Subject.Relation,
+			&resourceObjectType,
+			&resourceObjectID,
+			&relation,
+			&subjectObjectType,
+			&subjectObjectID,
+			&subjectRelation,
 		)
 		if err != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, err)
+		}
+
+		deletedTpl := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ObjectAndRelation{
+					ObjectType: resourceObjectType,
+					ObjectID:   resourceObjectID,
+					Relation:   relation,
+				},
+				Subject: tuple.ObjectAndRelation{
+					ObjectType: subjectObjectType,
+					ObjectID:   subjectObjectID,
+					Relation:   subjectRelation,
+				},
+			},
 		}
 
 		tplString := tuple.StringWithoutCaveat(deletedTpl)
@@ -351,7 +384,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*
 			continue
 		}
 
-		touchWrite = appendForInsertion(touchWrite, mutation.Tuple)
+		touchWrite = appendForInsertion(touchWrite, mutation.Relationship)
 		touchWriteHasValues = true
 	}
 	rows.Close()
@@ -703,32 +736,32 @@ func (rwt *pgReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWrit
 	return pgxcommon.BulkLoad(ctx, rwt.tx, tableTuple, copyCols, iter)
 }
 
-func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
+func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.ResourceAndRelation.Namespace,
-		colObjectID:         r.ResourceAndRelation.ObjectId,
-		colRelation:         r.ResourceAndRelation.Relation,
-		colUsersetNamespace: r.Subject.Namespace,
-		colUsersetObjectID:  r.Subject.ObjectId,
+		colNamespace:        r.Resource.ObjectType,
+		colObjectID:         r.Resource.ObjectID,
+		colRelation:         r.Resource.Relation,
+		colUsersetNamespace: r.Subject.ObjectType,
+		colUsersetObjectID:  r.Subject.ObjectID,
 		colUsersetRelation:  r.Subject.Relation,
 	}
 }
 
-func exactRelationshipDifferentCaveatClause(r *core.RelationTuple) sq.And {
+func exactRelationshipDifferentCaveatClause(r tuple.Relationship) sq.And {
 	var caveatName string
 	var caveatContext map[string]any
-	if r.Caveat != nil {
-		caveatName = r.Caveat.CaveatName
-		caveatContext = r.Caveat.Context.AsMap()
+	if r.OptionalCaveat != nil {
+		caveatName = r.OptionalCaveat.CaveatName
+		caveatContext = r.OptionalCaveat.Context.AsMap()
 	}
 
 	return sq.And{
 		sq.Eq{
-			colNamespace:        r.ResourceAndRelation.Namespace,
-			colObjectID:         r.ResourceAndRelation.ObjectId,
-			colRelation:         r.ResourceAndRelation.Relation,
-			colUsersetNamespace: r.Subject.Namespace,
-			colUsersetObjectID:  r.Subject.ObjectId,
+			colNamespace:        r.Resource.ObjectType,
+			colObjectID:         r.Resource.ObjectID,
+			colRelation:         r.Resource.Relation,
+			colUsersetNamespace: r.Subject.ObjectType,
+			colUsersetObjectID:  r.Subject.ObjectID,
 			colUsersetRelation:  r.Subject.Relation,
 		},
 		sq.Or{

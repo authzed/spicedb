@@ -4,6 +4,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
@@ -56,9 +57,9 @@ func (ms *MembershipSet) AddDirectMember(resourceID string, caveat *core.Context
 func (ms *MembershipSet) AddMemberViaRelationship(
 	resourceID string,
 	resourceCaveatExpression *core.CaveatExpression,
-	parentRelationship *core.RelationTuple,
+	parentRelationship tuple.Relationship,
 ) {
-	ms.AddMemberWithParentCaveat(resourceID, resourceCaveatExpression, parentRelationship.Caveat)
+	ms.AddMemberWithParentCaveat(resourceID, resourceCaveatExpression, parentRelationship.OptionalCaveat)
 }
 
 // AddMemberWithParentCaveat adds the given resource ID as a member with the parent caveat

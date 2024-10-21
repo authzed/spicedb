@@ -53,7 +53,7 @@ func (mds *Datastore) Statistics(ctx context.Context) (datastore.Stats, error) {
 	if !count.Valid || count.Int64 == 0 {
 		// If we get a count of zero, its possible the information schema table has not yet
 		// been updated, so we use a slower count(*) call.
-		query, args, err := mds.QueryBuilder.CountTupleQuery.ToSql()
+		query, args, err := mds.QueryBuilder.CountRelsQuery.ToSql()
 		if err != nil {
 			return datastore.Stats{}, err
 		}

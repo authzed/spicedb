@@ -41,19 +41,19 @@ func TestSubjectByTypeSet(t *testing.T) {
 	require.True(t, set.IsEmpty())
 
 	// Add some concrete subjects.
-	err := set.AddConcreteSubject(tuple.ParseONR("document:foo#viewer"))
+	err := set.AddConcreteSubject(tuple.MustParseONR("document:foo#viewer"))
 	require.NoError(t, err)
 
-	err = set.AddConcreteSubject(tuple.ParseONR("document:bar#viewer"))
+	err = set.AddConcreteSubject(tuple.MustParseONR("document:bar#viewer"))
 	require.NoError(t, err)
 
-	err = set.AddConcreteSubject(tuple.ParseONR("team:something#member"))
+	err = set.AddConcreteSubject(tuple.MustParseONR("team:something#member"))
 	require.NoError(t, err)
 
-	err = set.AddConcreteSubject(tuple.ParseONR("team:other#member"))
+	err = set.AddConcreteSubject(tuple.MustParseONR("team:other#member"))
 	require.NoError(t, err)
 
-	err = set.AddConcreteSubject(tuple.ParseONR("team:other#manager"))
+	err = set.AddConcreteSubject(tuple.MustParseONR("team:other#manager"))
 	require.NoError(t, err)
 
 	// Add a caveated subject.

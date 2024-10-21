@@ -275,7 +275,9 @@ func (hp hedgingReader) executeQuery(
 		// only the first call to once.Do will run the function, so whichever
 		// hedged request is slower will have resultsUsed = false
 		if !resultsUsed && tempErr == nil {
-			tempIterator.Close()
+			for range tempIterator {
+				break
+			}
 		}
 		responseReady <- struct{}{}
 	}

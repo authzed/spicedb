@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -14,61 +13,61 @@ func TestONRSet(t *testing.T) {
 	require.True(t, set.IsEmpty())
 	require.Equal(t, uint64(0), set.Length())
 
-	require.True(t, set.Add(tuple.ParseONR("resource:1#viewer")))
+	require.True(t, set.Add(tuple.MustParseONR("resource:1#viewer")))
 	require.False(t, set.IsEmpty())
 	require.Equal(t, uint64(1), set.Length())
 
-	require.True(t, set.Add(tuple.ParseONR("resource:2#viewer")))
-	require.True(t, set.Add(tuple.ParseONR("resource:3#viewer")))
+	require.True(t, set.Add(tuple.MustParseONR("resource:2#viewer")))
+	require.True(t, set.Add(tuple.MustParseONR("resource:3#viewer")))
 	require.Equal(t, uint64(3), set.Length())
 
-	require.False(t, set.Add(tuple.ParseONR("resource:1#viewer")))
-	require.True(t, set.Add(tuple.ParseONR("resource:1#editor")))
+	require.False(t, set.Add(tuple.MustParseONR("resource:1#viewer")))
+	require.True(t, set.Add(tuple.MustParseONR("resource:1#editor")))
 
-	require.True(t, set.Has(tuple.ParseONR("resource:1#viewer")))
-	require.True(t, set.Has(tuple.ParseONR("resource:1#editor")))
-	require.False(t, set.Has(tuple.ParseONR("resource:1#owner")))
-	require.False(t, set.Has(tuple.ParseONR("resource:1#admin")))
-	require.False(t, set.Has(tuple.ParseONR("resource:1#reader")))
+	require.True(t, set.Has(tuple.MustParseONR("resource:1#viewer")))
+	require.True(t, set.Has(tuple.MustParseONR("resource:1#editor")))
+	require.False(t, set.Has(tuple.MustParseONR("resource:1#owner")))
+	require.False(t, set.Has(tuple.MustParseONR("resource:1#admin")))
+	require.False(t, set.Has(tuple.MustParseONR("resource:1#reader")))
 
-	require.True(t, set.Has(tuple.ParseONR("resource:2#viewer")))
+	require.True(t, set.Has(tuple.MustParseONR("resource:2#viewer")))
 }
 
 func TestONRSetUpdate(t *testing.T) {
 	set := NewONRSet()
-	set.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:3#viewer"),
+	set.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:3#viewer"),
 	})
 	require.Equal(t, uint64(3), set.Length())
 
-	set.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:1#editor"),
-		tuple.ParseONR("resource:1#owner"),
-		tuple.ParseONR("resource:1#admin"),
-		tuple.ParseONR("resource:1#reader"),
+	set.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:1#editor"),
+		tuple.MustParseONR("resource:1#owner"),
+		tuple.MustParseONR("resource:1#admin"),
+		tuple.MustParseONR("resource:1#reader"),
 	})
 	require.Equal(t, uint64(7), set.Length())
 }
 
 func TestONRSetIntersect(t *testing.T) {
 	set1 := NewONRSet()
-	set1.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:3#viewer"),
+	set1.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:3#viewer"),
 	})
 
 	set2 := NewONRSet()
-	set2.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:1#editor"),
-		tuple.ParseONR("resource:1#owner"),
-		tuple.ParseONR("resource:1#admin"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:1#reader"),
+	set2.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:1#editor"),
+		tuple.MustParseONR("resource:1#owner"),
+		tuple.MustParseONR("resource:1#admin"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:1#reader"),
 	})
 
 	require.Equal(t, uint64(2), set1.Intersect(set2).Length())
@@ -77,20 +76,20 @@ func TestONRSetIntersect(t *testing.T) {
 
 func TestONRSetSubtract(t *testing.T) {
 	set1 := NewONRSet()
-	set1.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:3#viewer"),
+	set1.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:3#viewer"),
 	})
 
 	set2 := NewONRSet()
-	set2.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:1#editor"),
-		tuple.ParseONR("resource:1#owner"),
-		tuple.ParseONR("resource:1#admin"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:1#reader"),
+	set2.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:1#editor"),
+		tuple.MustParseONR("resource:1#owner"),
+		tuple.MustParseONR("resource:1#admin"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:1#reader"),
 	})
 
 	require.Equal(t, uint64(1), set1.Subtract(set2).Length())
@@ -99,20 +98,20 @@ func TestONRSetSubtract(t *testing.T) {
 
 func TestONRSetUnion(t *testing.T) {
 	set1 := NewONRSet()
-	set1.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:3#viewer"),
+	set1.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:3#viewer"),
 	})
 
 	set2 := NewONRSet()
-	set2.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:1#editor"),
-		tuple.ParseONR("resource:1#owner"),
-		tuple.ParseONR("resource:1#admin"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:1#reader"),
+	set2.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:1#editor"),
+		tuple.MustParseONR("resource:1#owner"),
+		tuple.MustParseONR("resource:1#admin"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:1#reader"),
 	})
 
 	require.Equal(t, uint64(7), set1.Union(set2).Length())
@@ -121,23 +120,23 @@ func TestONRSetUnion(t *testing.T) {
 
 func TestONRSetWith(t *testing.T) {
 	set1 := NewONRSet()
-	set1.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:3#viewer"),
+	set1.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:3#viewer"),
 	})
 
-	added := set1.Union(NewONRSet(tuple.ParseONR("resource:1#editor")))
+	added := set1.Union(NewONRSet(tuple.MustParseONR("resource:1#editor")))
 	require.Equal(t, uint64(3), set1.Length())
 	require.Equal(t, uint64(4), added.Length())
 }
 
 func TestONRSetAsSlice(t *testing.T) {
 	set := NewONRSet()
-	set.Update([]*core.ObjectAndRelation{
-		tuple.ParseONR("resource:1#viewer"),
-		tuple.ParseONR("resource:2#viewer"),
-		tuple.ParseONR("resource:3#viewer"),
+	set.Update([]tuple.ObjectAndRelation{
+		tuple.MustParseONR("resource:1#viewer"),
+		tuple.MustParseONR("resource:2#viewer"),
+		tuple.MustParseONR("resource:3#viewer"),
 	})
 
 	require.Equal(t, 3, len(set.AsSlice()))

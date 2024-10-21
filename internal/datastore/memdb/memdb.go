@@ -11,6 +11,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
+	"github.com/authzed/spicedb/pkg/tuple"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
@@ -214,21 +215,21 @@ func (mdb *memdbDatastore) ReadWriteTx(
 				switch change.Table {
 				case tableRelationship:
 					if change.After != nil {
-						rt, err := change.After.(*relationship).RelationTuple()
+						rt, err := change.After.(*relationship).Relationship()
 						if err != nil {
 							return datastore.NoRevision, err
 						}
 
-						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, corev1.RelationTupleUpdate_TOUCH); err != nil {
+						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationTouch); err != nil {
 							return datastore.NoRevision, err
 						}
 					} else if change.After == nil && change.Before != nil {
-						rt, err := change.Before.(*relationship).RelationTuple()
+						rt, err := change.Before.(*relationship).Relationship()
 						if err != nil {
 							return datastore.NoRevision, err
 						}
 
-						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, corev1.RelationTupleUpdate_DELETE); err != nil {
+						if err := tracked.AddRelationshipChange(ctx, newRevision, rt, tuple.UpdateOperationDelete); err != nil {
 							return datastore.NoRevision, err
 						}
 					} else {

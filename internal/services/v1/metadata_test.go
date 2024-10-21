@@ -84,7 +84,7 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_TOUCH,
-							Relationship: tuple.MustToRelationship(tuple.MustParse("document:anotherdoc#viewer@user:tom")),
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("document:anotherdoc#viewer@user:tom")),
 						},
 					},
 				}, grpc.Trailer(&trailer))

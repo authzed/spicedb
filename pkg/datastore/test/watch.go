@@ -79,16 +79,16 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 			changes, errchan := ds.Watch(ctx, lowestRevision, opts)
 			require.Zero(len(errchan))
 
-			var testUpdates [][]*core.RelationTupleUpdate
-			var bulkDeletes []*core.RelationTupleUpdate
+			var testUpdates [][]tuple.RelationshipUpdate
+			var bulkDeletes []tuple.RelationshipUpdate
 			for i := 0; i < tc.numTuples; i++ {
-				newRelationship := makeTestTuple(fmt.Sprintf("relation%d", i), "test_user")
+				newRelationship := makeTestRel(fmt.Sprintf("relation%d", i), "test_user")
 
 				newUpdate := tuple.Touch(newRelationship)
-				batch := []*core.RelationTupleUpdate{newUpdate}
+				batch := []tuple.RelationshipUpdate{newUpdate}
 				testUpdates = append(testUpdates, batch)
 
-				_, err := common.UpdateTuplesInDatastore(ctx, ds, newUpdate)
+				_, err := common.UpdateRelationshipsInDatastore(ctx, ds, newUpdate)
 				require.NoError(err)
 
 				if i != 0 {
@@ -96,18 +96,18 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 				}
 			}
 
-			updateUpdate := tuple.Touch(tuple.MustWithCaveat(makeTestTuple("relation0", "test_user"), "somecaveat"))
-			createUpdate := tuple.Touch(makeTestTuple("another_relation", "somestuff"))
+			updateUpdate := tuple.Touch(tuple.MustWithCaveat(makeTestRel("relation0", "test_user"), "somecaveat"))
+			createUpdate := tuple.Touch(makeTestRel("another_relation", "somestuff"))
 
-			batch := []*core.RelationTupleUpdate{updateUpdate, createUpdate}
-			_, err = common.UpdateTuplesInDatastore(ctx, ds, batch...)
+			batch := []tuple.RelationshipUpdate{updateUpdate, createUpdate}
+			_, err = common.UpdateRelationshipsInDatastore(ctx, ds, batch...)
 			require.NoError(err)
 
-			deleteUpdate := tuple.Delete(makeTestTuple("relation0", "test_user"))
-			_, err = common.UpdateTuplesInDatastore(ctx, ds, deleteUpdate)
+			deleteUpdate := tuple.Delete(makeTestRel("relation0", "test_user"))
+			_, err = common.UpdateRelationshipsInDatastore(ctx, ds, deleteUpdate)
 			require.NoError(err)
 
-			testUpdates = append(testUpdates, batch, []*core.RelationTupleUpdate{deleteUpdate})
+			testUpdates = append(testUpdates, batch, []tuple.RelationshipUpdate{deleteUpdate})
 
 			_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 				_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
@@ -138,7 +138,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 func VerifyUpdates(
 	require *require.Assertions,
-	testUpdates [][]*core.RelationTupleUpdate,
+	testUpdates [][]tuple.RelationshipUpdate,
 	changes <-chan *datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
@@ -222,10 +222,10 @@ func VerifyUpdatesWithMetadata(
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
-func setOfChanges(changes []*core.RelationTupleUpdate) *strset.Set {
+func setOfChanges(changes []tuple.RelationshipUpdate) *strset.Set {
 	changeSet := strset.NewWithSize(len(changes))
 	for _, change := range changes {
-		changeSet.Add(fmt.Sprintf("OPERATION_%s(%s)", change.Operation, tuple.StringWithoutCaveat(change.Tuple)))
+		changeSet.Add(change.DebugString())
 	}
 	return changeSet
 }
@@ -244,7 +244,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, startWatchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_CREATE, makeTestTuple("test", "test"))
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, makeTestRel("test", "test"))
 	require.NoError(err)
 
 	cancel()
@@ -255,7 +255,7 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 		case created, ok := <-changes:
 			if ok {
 				foundDiff := cmp.Diff(
-					[]*core.RelationTupleUpdate{tuple.Touch(makeTestTuple("test", "test"))},
+					[]tuple.RelationshipUpdate{tuple.Touch(makeTestRel("test", "test"))},
 					created.RelationshipChanges,
 					protocmp.Transform(),
 				)
@@ -296,24 +296,24 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 	require.NoError(err)
 
-	ensureTuples(ctx, require, ds,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	ensureRelationships(ctx, require, ds,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
 		{
-			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom")),
-			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:sarah")),
-			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]")),
+			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom")),
+			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:sarah")),
+			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]")),
 		},
 	},
 		changes,
@@ -325,13 +325,13 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom"))
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom"))
 	require.NoError(err)
 
-	ensureTuples(ctx, require, ds,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	ensureRelationships(ctx, require, ds,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
 	verifyNoUpdates(require,
@@ -344,17 +344,17 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	afterNameChange, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))
+	afterNameChange, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]"))
 	require.NoError(err)
 
-	ensureTuples(ctx, require, ds,
-		tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	ensureRelationships(ctx, require, ds,
+		tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
-		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat]"))},
+	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat]"))},
 	},
 		changes,
 		errchan,
@@ -365,17 +365,17 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan = ds.Watch(ctx, afterNameChange, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH, tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))
 	require.NoError(err)
 
-	ensureTuples(ctx, require, ds,
-		tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	ensureRelationships(ctx, require, ds,
+		tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
-		{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
+	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
 	},
 		changes,
 		errchan,
@@ -384,7 +384,7 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 }
 
 type updateWithMetadata struct {
-	updates  []*core.RelationTupleUpdate
+	updates  []tuple.RelationshipUpdate
 	metadata map[string]any
 }
 
@@ -409,7 +409,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
-		return rwt.WriteRelationships(ctx, []*core.RelationTupleUpdate{
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
 			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
 		})
 	}, options.WithMetadata(metadata))
@@ -417,7 +417,7 @@ func WatchWithMetadataTest(t *testing.T, tester DatastoreTester) {
 
 	VerifyUpdatesWithMetadata(require, []updateWithMetadata{
 		{
-			updates:  []*core.RelationTupleUpdate{tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom"))},
+			updates:  []tuple.RelationshipUpdate{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom"))},
 			metadata: map[string]any{"somekey": "somevalue"},
 		},
 	},
@@ -445,24 +445,24 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 	require.NoError(err)
 
-	ensureTuples(ctx, require, ds,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	ensureRelationships(ctx, require, ds,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
+	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
 		{
-			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:tom")),
-			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:sarah")),
-			tuple.Touch(tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]")),
+			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom")),
+			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:sarah")),
+			tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]")),
 		},
 	},
 		changes,
@@ -474,16 +474,16 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan = ds.Watch(ctx, afterTouchRevision, datastore.WatchJustRelationships())
 	require.Zero(len(errchan))
 
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_DELETE, tuple.Parse("document:firstdoc#viewer@user:tom"))
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationDelete, tuple.MustParse("document:firstdoc#viewer@user:tom"))
 	require.NoError(err)
 
-	ensureTuples(ctx, require, ds,
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	ensureRelationships(ctx, require, ds,
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 
-	VerifyUpdates(require, [][]*core.RelationTupleUpdate{
-		{tuple.Delete(tuple.Parse("document:firstdoc#viewer@user:tom"))},
+	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+		{tuple.Delete(tuple.MustParse("document:firstdoc#viewer@user:tom"))},
 	},
 		changes,
 		errchan,
@@ -623,18 +623,18 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 	}, changes, errchan, false)
 
 	// Write some relationships.
-	_, err = common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
-		tuple.Parse("document:firstdoc#viewer@user:sarah"),
-		tuple.Parse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
+		tuple.MustParse("document:firstdoc#viewer@user:sarah"),
+		tuple.MustParse("document:firstdoc#viewer@user:fred[thirdcaveat]"),
 	)
 	require.NoError(err)
 
 	verifyMixedUpdates(require, [][]string{
 		{
-			"rel:OPERATION_TOUCH(document:firstdoc#viewer@user:fred)",
-			"rel:OPERATION_TOUCH(document:firstdoc#viewer@user:sarah)",
-			"rel:OPERATION_TOUCH(document:firstdoc#viewer@user:tom)",
+			"rel:TOUCH(document:firstdoc#viewer@user:fred)",
+			"rel:TOUCH(document:firstdoc#viewer@user:sarah)",
+			"rel:TOUCH(document:firstdoc#viewer@user:tom)",
 		},
 	}, changes, errchan, false)
 
@@ -693,7 +693,7 @@ func verifyMixedUpdates(
 			}
 
 			for _, update := range change.RelationshipChanges {
-				foundChanges.Insert("rel:" + fmt.Sprintf("OPERATION_%s(%s)", update.Operation, tuple.StringWithoutCaveat(update.Tuple)))
+				foundChanges.Insert("rel:" + update.DebugString())
 			}
 
 			found := foundChanges.AsSlice()
@@ -731,8 +731,8 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	})
 	require.Zero(len(errchan))
 
-	afterTouchRevision, err := common.WriteTuples(ctx, ds, core.RelationTupleUpdate_TOUCH,
-		tuple.Parse("document:firstdoc#viewer@user:tom"),
+	afterTouchRevision, err := common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch,
+		tuple.MustParse("document:firstdoc#viewer@user:tom"),
 	)
 	require.NoError(err)
 

@@ -21,7 +21,6 @@ import (
 	"github.com/authzed/spicedb/internal/testserver"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
@@ -98,7 +97,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 	tcs := []struct {
 		name          string
 		schema        string
-		relationships []*core.RelationTuple
+		relationships []tuple.Relationship
 		toTest        []debugCheckInfo
 	}{
 		{
@@ -112,7 +111,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				permission view = viewer + edit
 			 }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#editor@user:sarah"),
 			},
@@ -169,7 +168,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				permission view = viewer + another
 			 }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#viewer@user:sarah[somecaveat]"),
 			},
@@ -236,7 +235,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				permission view = viewer + folder->fview
 			 }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#viewer@user:tom"),
 				tuple.MustParse("document:first#folder@folder:f1"),
 				tuple.MustParse("document:first#folder@folder:f2"),
@@ -314,7 +313,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 			definition resource {
 				relation viewer: user | user with has_valid_ip
 			}`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`resource:first#viewer@user:sarah[has_valid_ip:{"allowed_range":"192.168.0.0/16"}]`),
 			},
 			[]debugCheckInfo{
@@ -355,7 +354,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				permission view = parent->member
 			 }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse("document:first#parent@org:someorg[anothercaveat]"),
 				tuple.MustParse("org:someorg#member@user:sarah[somecaveat]"),
 			},
@@ -460,7 +459,7 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 				permission view = parent->member
 			 }
 			`,
-			[]*core.RelationTuple{
+			[]tuple.Relationship{
 				tuple.MustParse(`document:first#parent@org:someorg[anothercaveat:{"somecondition":41}]`),
 				tuple.MustParse(`org:someorg#member@user:sarah[somecaveat:{"somecondition":42}]`),
 			},

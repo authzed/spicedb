@@ -16,8 +16,8 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/pkg/datastore"
-	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 var (
@@ -31,7 +31,7 @@ var (
 	revisionKnown        = revisions.NewForTransactionID(1)
 	anotherRevisionKnown = revisions.NewForTransactionID(2)
 
-	emptyIterator = common.NewSliceRelationshipIterator(nil, options.Unsorted)
+	emptyIterator = common.NewSliceRelationshipIterator(nil)
 )
 
 type testFunc func(t *testing.T, proxy datastore.Datastore, expectFirst bool)
@@ -289,48 +289,35 @@ func TestDatastoreE2E(t *testing.T) {
 	)
 	require.NoError(err)
 
-	expectedTuples := []*core.RelationTuple{
-		{
-			ResourceAndRelation: &core.ObjectAndRelation{
-				Namespace: "test",
-				ObjectId:  "test",
-				Relation:  "test",
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: "test",
-				ObjectId:  "test",
-				Relation:  "test",
-			},
-		},
+	expectedRels := []tuple.Relationship{
+		tuple.MustParse("document:first#viewer@user:bob"),
+		tuple.MustParse("document:second#viewer@user:alice"),
 	}
 
 	delegateDatastore.On("SnapshotReader", mock.Anything).Return(delegateReader)
 
 	delegateReader.
 		On("QueryRelationships", mock.Anything, mock.Anything).
-		Return(common.NewSliceRelationshipIterator(expectedTuples, options.Unsorted), nil).
+		Return(common.NewSliceRelationshipIterator(expectedRels), nil).
 		WaitUntil(mockTime.After(2 * slowQueryTime)).
 		Once()
 	delegateReader.
 		On("QueryRelationships", mock.Anything, mock.Anything).
-		Return(common.NewSliceRelationshipIterator(expectedTuples, options.Unsorted), nil).
+		Return(common.NewSliceRelationshipIterator(expectedRels), nil).
 		Once()
 
 	autoAdvance(mockTime, slowQueryTime/2, 2*slowQueryTime)
 
 	it, err := proxy.SnapshotReader(revisionKnown).QueryRelationships(
 		context.Background(), datastore.RelationshipsFilter{
-			OptionalResourceType: "test",
+			OptionalResourceType: "document",
 		},
 	)
 	require.NoError(err)
-	defer it.Close()
 
-	only := it.Next()
-	require.Equal(expectedTuples[0], only)
-
-	require.Nil(it.Next())
-	require.NoError(it.Err())
+	slice, err := datastore.IteratorToSlice(it)
+	require.NoError(err)
+	require.Equal(expectedRels, slice)
 
 	delegateDatastore.AssertExpectations(t)
 	delegateReader.AssertExpectations(t)

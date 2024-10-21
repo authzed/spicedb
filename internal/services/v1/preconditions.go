@@ -29,21 +29,19 @@ func checkPreconditions(
 		if err != nil {
 			return fmt.Errorf("error reading relationships: %w", err)
 		}
-		defer iter.Close()
 
-		first := iter.Next()
-		if first == nil && iter.Err() != nil {
+		_, ok, err := datastore.FirstRelationshipIn(iter)
+		if err != nil {
 			return fmt.Errorf("error reading relationships from iterator: %w", err)
 		}
-		iter.Close()
 
 		switch precond.Operation {
 		case v1.Precondition_OPERATION_MUST_NOT_MATCH:
-			if first != nil {
+			if ok {
 				return NewPreconditionFailedErr(precond)
 			}
 		case v1.Precondition_OPERATION_MUST_MATCH:
-			if first == nil {
+			if !ok {
 				return NewPreconditionFailedErr(precond)
 			}
 		default:

@@ -7,6 +7,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func set(subjects ...*core.DirectSubject) *TrackingSubjectSet {
@@ -45,13 +46,13 @@ func subtract(firstSet *TrackingSubjectSet, sets ...*TrackingSubjectSet) *Tracki
 func fs(subjectType string, subjectID string, subjectRel string, excludedSubjectIDs ...string) FoundSubject {
 	excludedSubjects := make([]FoundSubject, 0, len(excludedSubjectIDs))
 	for _, excludedSubjectID := range excludedSubjectIDs {
-		excludedSubjects = append(excludedSubjects, FoundSubject{subject: ONR(subjectType, excludedSubjectID, subjectRel)})
+		excludedSubjects = append(excludedSubjects, FoundSubject{subject: tuple.ONR(subjectType, excludedSubjectID, subjectRel)})
 	}
 
 	return FoundSubject{
-		subject:          ONR(subjectType, subjectID, subjectRel),
+		subject:          tuple.ONR(subjectType, subjectID, subjectRel),
 		excludedSubjects: excludedSubjects,
-		relationships:    NewONRSet(),
+		resources:        NewONRSet(),
 	}
 }
 
@@ -351,35 +352,35 @@ func TestTrackingSubjectSet(t *testing.T) {
 
 func TestTrackingSubjectSetResourceTracking(t *testing.T) {
 	tss := NewTrackingSubjectSet()
-	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
-	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "bar", "viewer")))
+	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), tuple.ONR("resource", "foo", "viewer")))
+	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), tuple.ONR("resource", "bar", "viewer")))
 
-	found, ok := tss.Get(ONR("user", "tom", "..."))
+	found, ok := tss.Get(tuple.ONR("user", "tom", "..."))
 	require.True(t, ok)
-	require.Equal(t, 2, len(found.Relationships()))
+	require.Equal(t, 2, len(found.ParentResources()))
 
 	sss := NewTrackingSubjectSet()
-	sss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "baz", "viewer")))
+	sss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), tuple.ONR("resource", "baz", "viewer")))
 
 	intersection, err := tss.Intersect(sss)
 	require.NoError(t, err)
 
-	found, ok = intersection.Get(ONR("user", "tom", "..."))
+	found, ok = intersection.Get(tuple.ONR("user", "tom", "..."))
 	require.True(t, ok)
-	require.Equal(t, 3, len(found.Relationships()))
+	require.Equal(t, 3, len(found.ParentResources()))
 }
 
 func TestTrackingSubjectSetResourceTrackingWithWildcard(t *testing.T) {
 	tss := NewTrackingSubjectSet()
-	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), ONR("resource", "foo", "viewer")))
+	tss.MustAdd(NewFoundSubject(DS("user", "tom", "..."), tuple.ONR("resource", "foo", "viewer")))
 
 	sss := NewTrackingSubjectSet()
-	sss.MustAdd(NewFoundSubject(DS("user", "*", "..."), ONR("resource", "baz", "viewer")))
+	sss.MustAdd(NewFoundSubject(DS("user", "*", "..."), tuple.ONR("resource", "baz", "viewer")))
 
 	intersection, err := tss.Intersect(sss)
 	require.NoError(t, err)
 
-	found, ok := intersection.Get(ONR("user", "tom", "..."))
+	found, ok := intersection.Get(tuple.ONR("user", "tom", "..."))
 	require.True(t, ok)
-	require.Equal(t, 1, len(found.Relationships()))
+	require.Equal(t, 1, len(found.ParentResources()))
 }

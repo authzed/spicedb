@@ -284,7 +284,7 @@ func sortUpdates(in []*v1.RelationshipUpdate) []*v1.RelationshipUpdate {
 	out = append(out, in...)
 	sort.Slice(out, func(i, j int) bool {
 		left, right := out[i], out[j]
-		compareResult := strings.Compare(tuple.MustRelString(left.Relationship), tuple.MustRelString(right.Relationship))
+		compareResult := strings.Compare(tuple.MustV1RelString(left.Relationship), tuple.MustV1RelString(right.Relationship))
 		if compareResult < 0 {
 			return true
 		}

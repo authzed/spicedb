@@ -4,25 +4,20 @@ import (
 	"github.com/ccoveille/go-safecast"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
-	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-// onrStruct is a struct holding a namespace and relation.
-type onrStruct struct {
-	Namespace string
-	ObjectID  string
-	Relation  string
-}
+// TODO(jschorr): Replace with the generic set over tuple.ObjectAndRelation
 
 // ONRSet is a set of ObjectAndRelation's.
 type ONRSet struct {
-	onrs *mapz.Set[onrStruct]
+	onrs *mapz.Set[tuple.ObjectAndRelation]
 }
 
 // NewONRSet creates a new set.
-func NewONRSet(onrs ...*core.ObjectAndRelation) ONRSet {
+func NewONRSet(onrs ...tuple.ObjectAndRelation) ONRSet {
 	created := ONRSet{
-		onrs: mapz.NewSet[onrStruct](),
+		onrs: mapz.NewSet[tuple.ObjectAndRelation](),
 	}
 	created.Update(onrs)
 	return created
@@ -41,20 +36,18 @@ func (ons ONRSet) IsEmpty() bool {
 }
 
 // Has returns true if the set contains the given ONR.
-func (ons ONRSet) Has(onr *core.ObjectAndRelation) bool {
-	key := onrStruct{onr.Namespace, onr.ObjectId, onr.Relation}
-	return ons.onrs.Has(key)
+func (ons ONRSet) Has(onr tuple.ObjectAndRelation) bool {
+	return ons.onrs.Has(onr)
 }
 
 // Add adds the given ONR to the set. Returns true if the object was not in the set before this
 // call and false otherwise.
-func (ons ONRSet) Add(onr *core.ObjectAndRelation) bool {
-	key := onrStruct{onr.Namespace, onr.ObjectId, onr.Relation}
-	return ons.onrs.Add(key)
+func (ons ONRSet) Add(onr tuple.ObjectAndRelation) bool {
+	return ons.onrs.Add(onr)
 }
 
 // Update updates the set by adding the given ONRs to it.
-func (ons ONRSet) Update(onrs []*core.ObjectAndRelation) {
+func (ons ONRSet) Update(onrs []tuple.ObjectAndRelation) {
 	for _, onr := range onrs {
 		ons.Add(onr)
 	}
@@ -84,14 +77,10 @@ func (ons ONRSet) Union(otherSet ONRSet) ONRSet {
 }
 
 // AsSlice returns the ONRs found in the set as a slice.
-func (ons ONRSet) AsSlice() []*core.ObjectAndRelation {
-	slice := make([]*core.ObjectAndRelation, 0, ons.Length())
-	_ = ons.onrs.ForEach(func(rr onrStruct) error {
-		slice = append(slice, &core.ObjectAndRelation{
-			Namespace: rr.Namespace,
-			ObjectId:  rr.ObjectID,
-			Relation:  rr.Relation,
-		})
+func (ons ONRSet) AsSlice() []tuple.ObjectAndRelation {
+	slice := make([]tuple.ObjectAndRelation, 0, ons.Length())
+	_ = ons.onrs.ForEach(func(onr tuple.ObjectAndRelation) error {
+		slice = append(slice, onr)
 		return nil
 	})
 	return slice

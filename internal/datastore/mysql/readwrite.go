@@ -168,32 +168,32 @@ func (rwt *mysqlReadWriteTXN) StoreCounterValue(ctx context.Context, name string
 
 // WriteRelationships takes a list of existing relationships that must exist, and a list of
 // tuple mutations and applies it to the datastore for the specified namespace.
-func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []*core.RelationTupleUpdate) error {
+func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations []tuple.RelationshipUpdate) error {
 	// TODO(jschorr): Determine if we can do this in a more efficient manner using ON CONFLICT UPDATE
 	// rather than SELECT FOR UPDATE as we've been doing.
-	bulkWrite := rwt.WriteTupleQuery
+	bulkWrite := rwt.WriteRelsQuery
 	bulkWriteHasValues := false
 
-	selectForUpdateQuery := rwt.QueryTuplesWithIdsQuery
+	selectForUpdateQuery := rwt.QueryRelsWithIdsQuery
 
 	clauses := sq.Or{}
-	createAndTouchMutationsByTuple := make(map[string]*core.RelationTupleUpdate, len(mutations))
+	createAndTouchMutationsByRel := make(map[string]tuple.RelationshipUpdate, len(mutations))
 
 	// Collect all TOUCH and DELETE operations. CREATE is handled below.
 	for _, mut := range mutations {
-		tpl := mut.Tuple
-		tplString := tuple.StringWithoutCaveat(tpl)
+		rel := mut.Relationship
+		relString := tuple.StringWithoutCaveat(rel)
 
 		switch mut.Operation {
-		case core.RelationTupleUpdate_CREATE:
-			createAndTouchMutationsByTuple[tplString] = mut
+		case tuple.UpdateOperationCreate:
+			createAndTouchMutationsByRel[relString] = mut
 
-		case core.RelationTupleUpdate_TOUCH:
-			createAndTouchMutationsByTuple[tplString] = mut
-			clauses = append(clauses, exactRelationshipClause(tpl))
+		case tuple.UpdateOperationTouch:
+			createAndTouchMutationsByRel[relString] = mut
+			clauses = append(clauses, exactRelationshipClause(rel))
 
-		case core.RelationTupleUpdate_DELETE:
-			clauses = append(clauses, exactRelationshipClause(tpl))
+		case tuple.UpdateOperationDelete:
+			clauses = append(clauses, exactRelationshipClause(rel))
 
 		default:
 			return spiceerrors.MustBugf("unknown mutation operation")
@@ -215,58 +215,74 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		}
 		defer common.LogOnError(ctx, rows.Close)
 
-		foundTpl := &core.RelationTuple{
-			ResourceAndRelation: &core.ObjectAndRelation{},
-			Subject:             &core.ObjectAndRelation{},
-		}
-
+		var resourceObjectType string
+		var resourceObjectID string
+		var relation string
+		var subjectObjectType string
+		var subjectObjectID string
+		var subjectRelation string
 		var caveatName string
 		var caveatContext structpbWrapper
 
-		tupleIdsToDelete := make([]int64, 0, len(clauses))
+		relIdsToDelete := make([]int64, 0, len(clauses))
 		for rows.Next() {
-			var tupleID int64
+			var relationshipID int64
 			if err := rows.Scan(
-				&tupleID,
-				&foundTpl.ResourceAndRelation.Namespace,
-				&foundTpl.ResourceAndRelation.ObjectId,
-				&foundTpl.ResourceAndRelation.Relation,
-				&foundTpl.Subject.Namespace,
-				&foundTpl.Subject.ObjectId,
-				&foundTpl.Subject.Relation,
+				&relationshipID,
+				&resourceObjectType,
+				&resourceObjectID,
+				&relation,
+				&subjectObjectType,
+				&subjectObjectID,
+				&subjectRelation,
 				&caveatName,
 				&caveatContext,
 			); err != nil {
 				return fmt.Errorf(errUnableToWriteRelationships, err)
 			}
 
+			foundRel := tuple.Relationship{
+				RelationshipReference: tuple.RelationshipReference{
+					Resource: tuple.ObjectAndRelation{
+						ObjectType: resourceObjectType,
+						ObjectID:   resourceObjectID,
+						Relation:   relation,
+					},
+					Subject: tuple.ObjectAndRelation{
+						ObjectType: subjectObjectType,
+						ObjectID:   subjectObjectID,
+						Relation:   subjectRelation,
+					},
+				},
+			}
+
 			// if the relationship to be deleted is for a TOUCH operation and the caveat
 			// name or context has not changed, then remove it from delete and create.
-			tplString := tuple.StringWithoutCaveat(foundTpl)
-			if mut, ok := createAndTouchMutationsByTuple[tplString]; ok {
-				foundTpl.Caveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
+			tplString := tuple.StringWithoutCaveat(foundRel)
+			if mut, ok := createAndTouchMutationsByRel[tplString]; ok {
+				foundRel.OptionalCaveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 				if err != nil {
 					return fmt.Errorf(errUnableToQueryTuples, err)
 				}
 
 				// Ensure the tuples are the same.
-				if tuple.Equal(mut.Tuple, foundTpl) {
-					delete(createAndTouchMutationsByTuple, tplString)
+				if tuple.Equal(mut.Relationship, foundRel) {
+					delete(createAndTouchMutationsByRel, tplString)
 					continue
 				}
 			}
 
-			tupleIdsToDelete = append(tupleIdsToDelete, tupleID)
+			relIdsToDelete = append(relIdsToDelete, relationshipID)
 		}
 
 		if rows.Err() != nil {
 			return fmt.Errorf(errUnableToWriteRelationships, rows.Err())
 		}
 
-		if len(tupleIdsToDelete) > 0 {
+		if len(relIdsToDelete) > 0 {
 			query, args, err := rwt.
-				DeleteTupleQuery.
-				Where(sq.Eq{colID: tupleIdsToDelete}).
+				DeleteRelsQuery.
+				Where(sq.Eq{colID: relIdsToDelete}).
 				Set(colDeletedTxn, rwt.newTxnID).
 				ToSql()
 			if err != nil {
@@ -278,22 +294,22 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		}
 	}
 
-	for _, mut := range createAndTouchMutationsByTuple {
-		tpl := mut.Tuple
+	for _, mut := range createAndTouchMutationsByRel {
+		rel := mut.Relationship
 
 		var caveatName string
 		var caveatContext structpbWrapper
-		if tpl.Caveat != nil {
-			caveatName = tpl.Caveat.CaveatName
-			caveatContext = tpl.Caveat.Context.AsMap()
+		if rel.OptionalCaveat != nil {
+			caveatName = rel.OptionalCaveat.CaveatName
+			caveatContext = rel.OptionalCaveat.Context.AsMap()
 		}
 		bulkWrite = bulkWrite.Values(
-			tpl.ResourceAndRelation.Namespace,
-			tpl.ResourceAndRelation.ObjectId,
-			tpl.ResourceAndRelation.Relation,
-			tpl.Subject.Namespace,
-			tpl.Subject.ObjectId,
-			tpl.Subject.Relation,
+			rel.Resource.ObjectType,
+			rel.Resource.ObjectID,
+			rel.Resource.Relation,
+			rel.Subject.ObjectType,
+			rel.Subject.ObjectID,
+			rel.Subject.Relation,
 			caveatName,
 			&caveatContext,
 			rwt.newTxnID,
@@ -318,7 +334,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 func (rwt *mysqlReadWriteTXN) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, opts ...options.DeleteOptionsOption) (bool, error) {
 	// Add clauses for the ResourceFilter
-	query := rwt.DeleteTupleQuery
+	query := rwt.DeleteRelsQuery
 	if filter.ResourceType != "" {
 		query = query.Where(sq.Eq{colNamespace: filter.ResourceType})
 	}
@@ -461,7 +477,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 		return fmt.Errorf(errUnableToDeleteConfig, err)
 	}
 
-	deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceTuplesQuery.
+	deleteTupleSQL, deleteTupleArgs, err := rwt.DeleteNamespaceRelationshipsQuery.
 		Set(colDeletedTxn, rwt.newTxnID).
 		Where(sq.Or(tplClauses)).
 		ToSql()
@@ -480,41 +496,41 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var sqlStmt bytes.Buffer
 
-	sql, _, err := rwt.WriteTupleQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9).ToSql()
+	sql, _, err := rwt.WriteRelsQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9).ToSql()
 	if err != nil {
 		return 0, err
 	}
 
 	var numWritten uint64
-	var tpl *core.RelationTuple
+	var rel *tuple.Relationship
 
 	// Bootstrap the loop
-	tpl, err = iter.Next(ctx)
+	rel, err = iter.Next(ctx)
 
-	for tpl != nil && err == nil {
+	for rel != nil && err == nil {
 		sqlStmt.Reset()
 		sqlStmt.WriteString(sql)
 		var args []interface{}
 		var batchLen uint64
 
-		for ; tpl != nil && err == nil && batchLen < bulkInsertRowsLimit; tpl, err = iter.Next(ctx) {
+		for ; rel != nil && err == nil && batchLen < bulkInsertRowsLimit; rel, err = iter.Next(ctx) {
 			if batchLen != 0 {
 				sqlStmt.WriteString(",(?,?,?,?,?,?,?,?,?)")
 			}
 
 			var caveatName string
 			var caveatContext structpbWrapper
-			if tpl.Caveat != nil {
-				caveatName = tpl.Caveat.CaveatName
-				caveatContext = tpl.Caveat.Context.AsMap()
+			if rel.OptionalCaveat != nil {
+				caveatName = rel.OptionalCaveat.CaveatName
+				caveatContext = rel.OptionalCaveat.Context.AsMap()
 			}
 			args = append(args,
-				tpl.ResourceAndRelation.Namespace,
-				tpl.ResourceAndRelation.ObjectId,
-				tpl.ResourceAndRelation.Relation,
-				tpl.Subject.Namespace,
-				tpl.Subject.ObjectId,
-				tpl.Subject.Relation,
+				rel.Resource.ObjectType,
+				rel.Resource.ObjectID,
+				rel.Resource.Relation,
+				rel.Subject.ObjectType,
+				rel.Subject.ObjectID,
+				rel.Subject.Relation,
 				caveatName,
 				&caveatContext,
 				rwt.newTxnID,
@@ -548,16 +564,18 @@ func convertToWriteConstraintError(err error) error {
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {
-				return common.NewCreateRelationshipExistsError(&core.RelationTuple{
-					ResourceAndRelation: &core.ObjectAndRelation{
-						Namespace: parts[0],
-						ObjectId:  parts[1],
-						Relation:  parts[2],
-					},
-					Subject: &core.ObjectAndRelation{
-						Namespace: parts[3],
-						ObjectId:  parts[4],
-						Relation:  parts[5],
+				return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+					RelationshipReference: tuple.RelationshipReference{
+						Resource: tuple.ObjectAndRelation{
+							ObjectType: parts[0],
+							ObjectID:   parts[1],
+							Relation:   parts[2],
+						},
+						Subject: tuple.ObjectAndRelation{
+							ObjectType: parts[3],
+							ObjectID:   parts[4],
+							Relation:   parts[5],
+						},
 					},
 				})
 			}
@@ -567,16 +585,18 @@ func convertToWriteConstraintError(err error) error {
 		if found != nil {
 			parts := strings.Split(found[1], "-")
 			if len(parts) == 7 {
-				return common.NewCreateRelationshipExistsError(&core.RelationTuple{
-					ResourceAndRelation: &core.ObjectAndRelation{
-						Namespace: parts[0],
-						ObjectId:  parts[1],
-						Relation:  parts[2],
-					},
-					Subject: &core.ObjectAndRelation{
-						Namespace: parts[3],
-						ObjectId:  parts[4],
-						Relation:  parts[5],
+				return common.NewCreateRelationshipExistsError(&tuple.Relationship{
+					RelationshipReference: tuple.RelationshipReference{
+						Resource: tuple.ObjectAndRelation{
+							ObjectType: parts[0],
+							ObjectID:   parts[1],
+							Relation:   parts[2],
+						},
+						Subject: tuple.ObjectAndRelation{
+							ObjectType: parts[3],
+							ObjectID:   parts[4],
+							Relation:   parts[5],
+						},
 					},
 				})
 			}
@@ -587,13 +607,13 @@ func convertToWriteConstraintError(err error) error {
 	return nil
 }
 
-func exactRelationshipClause(r *core.RelationTuple) sq.Eq {
+func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	return sq.Eq{
-		colNamespace:        r.ResourceAndRelation.Namespace,
-		colObjectID:         r.ResourceAndRelation.ObjectId,
-		colRelation:         r.ResourceAndRelation.Relation,
-		colUsersetNamespace: r.Subject.Namespace,
-		colUsersetObjectID:  r.Subject.ObjectId,
+		colNamespace:        r.Resource.ObjectType,
+		colObjectID:         r.Resource.ObjectID,
+		colRelation:         r.Resource.Relation,
+		colUsersetNamespace: r.Subject.ObjectType,
+		colUsersetObjectID:  r.Subject.ObjectID,
 		colUsersetRelation:  r.Subject.Relation,
 	}
 }

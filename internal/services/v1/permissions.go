@@ -96,15 +96,8 @@ func (ps *permissionServer) CheckPermission(ctx context.Context, req *v1.CheckPe
 
 	cr, metadata, err := computed.ComputeCheck(ctx, ps.dispatch,
 		computed.CheckParameters{
-			ResourceType: &core.RelationReference{
-				Namespace: req.Resource.ObjectType,
-				Relation:  req.Permission,
-			},
-			Subject: &core.ObjectAndRelation{
-				Namespace: req.Subject.Object.ObjectType,
-				ObjectId:  req.Subject.Object.ObjectId,
-				Relation:  normalizeSubjectRelation(req.Subject),
-			},
+			ResourceType:  tuple.RR(req.Resource.ObjectType, req.Permission),
+			Subject:       tuple.ONR(req.Subject.Object.ObjectType, req.Subject.Object.ObjectId, normalizeSubjectRelation(req.Subject)),
 			CaveatContext: caveatContext,
 			AtRevision:    atRevision,
 			MaximumDepth:  ps.config.MaximumAPIDepth,
@@ -189,14 +182,14 @@ func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult) *v1.Chec
 func requestItemFromResourceAndParameters(params *computed.CheckParameters, resourceID string) (*v1.CheckBulkPermissionsRequestItem, error) {
 	item := &v1.CheckBulkPermissionsRequestItem{
 		Resource: &v1.ObjectReference{
-			ObjectType: params.ResourceType.Namespace,
+			ObjectType: params.ResourceType.ObjectType,
 			ObjectId:   resourceID,
 		},
 		Permission: params.ResourceType.Relation,
 		Subject: &v1.SubjectReference{
 			Object: &v1.ObjectReference{
-				ObjectType: params.Subject.Namespace,
-				ObjectId:   params.Subject.ObjectId,
+				ObjectType: params.Subject.ObjectType,
+				ObjectId:   params.Subject.ObjectID,
 			},
 			OptionalRelation: denormalizeSubjectRelation(params.Subject.Relation),
 		},
@@ -877,7 +870,7 @@ type loadBulkAdapter struct {
 	stream                 grpc.ClientStreamingServer[v1.ImportBulkRelationshipsRequest, v1.ImportBulkRelationshipsResponse]
 	referencedNamespaceMap map[string]*typesystem.TypeSystem
 	referencedCaveatMap    map[string]*core.CaveatDefinition
-	current                core.RelationTuple
+	current                tuple.Relationship
 	caveat                 core.ContextualizedCaveat
 
 	awaitingNamespaces []string
@@ -888,7 +881,7 @@ type loadBulkAdapter struct {
 	err          error
 }
 
-func (a *loadBulkAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
+func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	for a.err == nil && a.numSent == len(a.currentBatch) {
 		// Load a new batch
 		batch, err := a.stream.Recv()
@@ -915,14 +908,25 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*core.RelationTuple, error) {
 		return nil, nil
 	}
 
-	a.current.Caveat = &a.caveat
-	a.current.Integrity = nil
-	tuple.CopyRelationshipToRelationTuple(a.currentBatch[a.numSent], &a.current)
+	if a.caveat.CaveatName != "" {
+		a.current.OptionalCaveat = &a.caveat
+	} else {
+		a.current.OptionalCaveat = nil
+	}
+
+	a.current.OptionalIntegrity = nil
+
+	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
+	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
+	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
 
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,
-		&a.current,
+		a.current,
 		relationships.ValidateRelationshipForCreateOrTouch,
 	); err != nil {
 		return nil, err
@@ -944,11 +948,7 @@ func (ps *permissionServer) ImportBulkRelationships(stream grpc.ClientStreamingS
 			stream:                 stream,
 			referencedNamespaceMap: loadedNamespaces,
 			referencedCaveatMap:    loadedCaveats,
-			current: core.RelationTuple{
-				ResourceAndRelation: &core.ObjectAndRelation{},
-				Subject:             &core.ObjectAndRelation{},
-			},
-			caveat: core.ContextualizedCaveat{},
+			caveat:                 core.ContextualizedCaveat{},
 		}
 		resolver := typesystem.ResolverForDatastoreReader(rwt)
 
@@ -1112,17 +1112,32 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 			// Lop off any rels we've already sent
 			rels = rels[:0]
 
-			tplFn := func(tpl *core.RelationTuple) {
+			relFn := func(rel tuple.Relationship) {
 				offset := len(rels)
 				rels = append(rels, &relsArray[offset]) // nozero
-				tuple.CopyRelationTupleToRelationship(tpl, &relsArray[offset], &caveatArray[offset])
+
+				v1Rel := &relsArray[offset]
+				v1Rel.Resource.ObjectType = rel.RelationshipReference.Resource.ObjectType
+				v1Rel.Resource.ObjectId = rel.RelationshipReference.Resource.ObjectID
+				v1Rel.Relation = rel.RelationshipReference.Resource.Relation
+				v1Rel.Subject.Object.ObjectType = rel.RelationshipReference.Subject.ObjectType
+				v1Rel.Subject.Object.ObjectId = rel.RelationshipReference.Subject.ObjectID
+				v1Rel.Subject.OptionalRelation = denormalizeSubjectRelation(rel.RelationshipReference.Subject.Relation)
+
+				if rel.OptionalCaveat != nil {
+					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
+					caveatArray[offset].Context = rel.OptionalCaveat.Context
+				} else {
+					caveatArray[offset].CaveatName = ""
+					caveatArray[offset].Context = nil
+				}
 			}
 
 			cur, err = queryForEach(
 				ctx,
 				reader,
 				relationshipFilter,
-				tplFn,
+				relFn,
 				dsoptions.WithLimit(&limit),
 				dsoptions.WithAfter(cur),
 				dsoptions.WithSort(dsoptions.ByResource),
@@ -1141,7 +1156,7 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 						Revision: atRevision.String(),
 						Sections: []string{
 							ns.Definition.Name,
-							tuple.MustString(cur),
+							tuple.MustString(*dsoptions.ToRelationship(cur)),
 						},
 					},
 				},
