@@ -61,7 +61,7 @@ func TestConsistency(t *testing.T) {
 
 				t.Run(dispatcherKind, func(t *testing.T) {
 					for _, chunkSize := range []uint16{5, 10} {
-						t.Run(fmt.Sprintf("chunk-size-%t", chunkSize), func(t *testing.T) {
+						t.Run(fmt.Sprintf("chunk-size-%d", chunkSize), func(t *testing.T) {
 							t.Parallel()
 							runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching", chunkSize)
 						})
