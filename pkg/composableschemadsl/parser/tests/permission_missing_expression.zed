@@ -1,0 +1,3 @@
+definition foo {
+    permission bar = 
+}

@@ -1,0 +1,41 @@
+NodeTypeFile
+  end-rune = 46
+  input-source = arrow illegal operations test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 46
+      input-source = arrow illegal operations test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 46
+          input-source = arrow illegal operations test
+          relation-name = view
+          start-rune = 26
+          child-node =>
+            NodeTypeError
+              end-rune = 46
+              error-message = Expected right hand expression, found: TokenTypeLeftParen
+              error-source = (
+              input-source = arrow illegal operations test
+              start-rune = 47
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 44
+              identifier-value = a
+              input-source = arrow illegal operations test
+              start-rune = 44
+        NodeTypeError
+          end-rune = 46
+          error-message = Expected end of statement or definition, found: TokenTypeLeftParen
+          error-source = (
+          input-source = arrow illegal operations test
+          start-rune = 47
+    NodeTypeError
+      end-rune = 46
+      error-message = Unexpected token at root level: TokenTypeLeftParen
+      error-source = (
+      input-source = arrow illegal operations test
+      start-rune = 47

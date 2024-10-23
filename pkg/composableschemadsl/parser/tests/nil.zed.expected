@@ -1,0 +1,106 @@
+NodeTypeFile
+  end-rune = 141
+  input-source = nil test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 141
+      input-source = nil test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 51
+          input-source = nil test
+          relation-name = empty
+          start-rune = 30
+          compute-expression =>
+            NodeTypeNilExpression
+              end-rune = 51
+              input-source = nil test
+              start-rune = 49
+        NodeTypePermission
+          end-rune = 92
+          input-source = nil test
+          relation-name = another
+          start-rune = 57
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 92
+              input-source = nil test
+              start-rune = 78
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 86
+                  input-source = nil test
+                  start-rune = 78
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 80
+                      identifier-value = foo
+                      input-source = nil test
+                      start-rune = 78
+                  right-expr =>
+                    NodeTypeNilExpression
+                      end-rune = 86
+                      input-source = nil test
+                      start-rune = 84
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 92
+                  identifier-value = bar
+                  input-source = nil test
+                  start-rune = 90
+        NodeTypePermission
+          end-rune = 139
+          input-source = nil test
+          relation-name = third
+          start-rune = 98
+          compute-expression =>
+            NodeTypeExclusionExpression
+              end-rune = 139
+              input-source = nil test
+              start-rune = 117
+              left-expr =>
+                NodeTypeExclusionExpression
+                  end-rune = 133
+                  input-source = nil test
+                  start-rune = 117
+                  left-expr =>
+                    NodeTypeUnionExpression
+                      end-rune = 128
+                      input-source = nil test
+                      start-rune = 118
+                      left-expr =>
+                        NodeTypeUnionExpression
+                          end-rune = 122
+                          input-source = nil test
+                          start-rune = 118
+                          left-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 118
+                              identifier-value = a
+                              input-source = nil test
+                              start-rune = 118
+                          right-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 122
+                              identifier-value = b
+                              input-source = nil test
+                              start-rune = 122
+                      right-expr =>
+                        NodeTypeNilExpression
+                          end-rune = 128
+                          input-source = nil test
+                          start-rune = 126
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 133
+                      identifier-value = c
+                      input-source = nil test
+                      start-rune = 133
+              right-expr =>
+                NodeTypeNilExpression
+                  end-rune = 139
+                  input-source = nil test
+                  start-rune = 137

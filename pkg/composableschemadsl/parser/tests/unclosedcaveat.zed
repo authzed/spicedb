@@ -1,0 +1,9 @@
+definition another {}
+
+caveat somecaveat(somecondition uint, somebool bool) {
+  somemap{
+
+  
+}
+
+definition user {}

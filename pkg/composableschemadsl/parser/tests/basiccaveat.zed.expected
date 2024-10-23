@@ -1,0 +1,60 @@
+NodeTypeFile
+  end-rune = 176
+  input-source = basic caveat test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = another
+      end-rune = 20
+      input-source = basic caveat test
+      start-rune = 0
+    NodeTypeCaveatDefinition
+      caveat-definition-name = somecaveat
+      end-rune = 156
+      input-source = basic caveat test
+      start-rune = 23
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = somecondition == 42 && somebool && somestring == 'hello'
+          end-rune = 154
+          input-source = basic caveat test
+          start-rune = 99
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somecondition
+          end-rune = 58
+          input-source = basic caveat test
+          start-rune = 41
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 58
+              input-source = basic caveat test
+              start-rune = 55
+              type-name = uint
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somebool
+          end-rune = 73
+          input-source = basic caveat test
+          start-rune = 61
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 73
+              input-source = basic caveat test
+              start-rune = 70
+              type-name = bool
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somestring
+          end-rune = 92
+          input-source = basic caveat test
+          start-rune = 76
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 92
+              input-source = basic caveat test
+              start-rune = 87
+              type-name = string
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 176
+      input-source = basic caveat test
+      start-rune = 159

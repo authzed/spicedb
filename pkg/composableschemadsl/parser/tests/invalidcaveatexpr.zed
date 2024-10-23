@@ -1,0 +1,5 @@
+definition user {}
+
+caveat somecaveat(somecondition int) {
+  somecondition == 42 `
+}

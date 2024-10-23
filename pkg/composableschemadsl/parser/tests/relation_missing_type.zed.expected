@@ -1,0 +1,45 @@
+NodeTypeFile
+  end-rune = 33
+  input-source = relation missing type test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = foo
+      end-rune = 33
+      input-source = relation missing type test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 33
+          input-source = relation missing type test
+          relation-name = bar
+          start-rune = 21
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 33
+              input-source = relation missing type test
+              start-rune = 35
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 33
+                  input-source = relation missing type test
+                  start-rune = 35
+                  child-node =>
+                    NodeTypeError
+                      end-rune = 33
+                      error-message = Expected identifier, found token TokenTypeRightBrace
+                      error-source = }
+                      input-source = relation missing type test
+                      start-rune = 35
+        NodeTypeError
+          end-rune = 33
+          error-message = Expected end of statement or definition, found: TokenTypeRightBrace
+          error-source = }
+          input-source = relation missing type test
+          start-rune = 35
+    NodeTypeError
+      end-rune = 33
+      error-message = Unexpected token at root level: TokenTypeRightBrace
+      error-source = }
+      input-source = relation missing type test
+      start-rune = 35
