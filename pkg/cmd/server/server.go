@@ -107,17 +107,17 @@ type Config struct {
 	ClusterDispatchCacheConfig CacheConfig `debugmap:"visible"`
 
 	// API Behavior
-	DisableV1SchemaAPI                bool          `debugmap:"visible"`
-	V1SchemaAdditiveOnly              bool          `debugmap:"visible"`
-	MaximumUpdatesPerWrite            uint16        `debugmap:"visible"`
-	MaximumPreconditionCount          uint16        `debugmap:"visible"`
-	MaxDatastoreReadPageSize          uint64        `debugmap:"visible"`
-	StreamingAPITimeout               time.Duration `debugmap:"visible"`
-	WatchHeartbeat                    time.Duration `debugmap:"visible"`
-	MaxReadRelationshipsLimit         uint32        `debugmap:"visible"`
-	MaxDeleteRelationshipsLimit       uint32        `debugmap:"visible"`
-	MaxLookupResourcesLimit           uint32        `debugmap:"visible"`
-	MaxBulkExportRelationshipsLimit   uint32        `debugmap:"visible"`
+	DisableV1SchemaAPI              bool          `debugmap:"visible"`
+	V1SchemaAdditiveOnly            bool          `debugmap:"visible"`
+	MaximumUpdatesPerWrite          uint16        `debugmap:"visible"`
+	MaximumPreconditionCount        uint16        `debugmap:"visible"`
+	MaxDatastoreReadPageSize        uint64        `debugmap:"visible"`
+	StreamingAPITimeout             time.Duration `debugmap:"visible"`
+	WatchHeartbeat                  time.Duration `debugmap:"visible"`
+	MaxReadRelationshipsLimit       uint32        `debugmap:"visible"`
+	MaxDeleteRelationshipsLimit     uint32        `debugmap:"visible"`
+	MaxLookupResourcesLimit         uint32        `debugmap:"visible"`
+	MaxBulkExportRelationshipsLimit uint32        `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
