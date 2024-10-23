@@ -118,7 +118,6 @@ type Config struct {
 	MaxDeleteRelationshipsLimit       uint32        `debugmap:"visible"`
 	MaxLookupResourcesLimit           uint32        `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit   uint32        `debugmap:"visible"`
-	EnableExperimentalLookupResources bool          `debugmap:"visible"`
 
 	// Additional Services
 	MetricsAPI util.HTTPServerConfig `debugmap:"visible"`
@@ -429,7 +428,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
 		MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
 		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
-		UseExperimentalLookupResources2: c.EnableExperimentalLookupResources,
 		DispatchChunkSize:               c.DispatchChunkSize,
 	}
 

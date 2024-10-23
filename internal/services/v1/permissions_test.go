@@ -641,7 +641,6 @@ func TestLookupResources(t *testing.T) {
 									MaxPreconditionsCount:           1000,
 									StreamingAPITimeout:             30 * time.Second,
 									MaxRelationshipContextSize:      25000,
-									UseExperimentalLookupResources2: useV2,
 								},
 								tf.StandardDatastoreWithData,
 							)

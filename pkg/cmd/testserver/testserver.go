@@ -44,7 +44,6 @@ type Config struct {
 	MaxDeleteRelationshipsLimit       uint32                `debugmap:"visible"`
 	MaxLookupResourcesLimit           uint32                `debugmap:"visible"`
 	MaxBulkExportRelationshipsLimit   uint32                `debugmap:"visible"`
-	EnableExperimentalLookupResources bool                  `debugmap:"visible"`
 }
 
 type RunnableTestServer interface {
