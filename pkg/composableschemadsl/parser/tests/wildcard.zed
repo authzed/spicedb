@@ -1,0 +1,7 @@
+definition user {}
+
+definition resource {
+    relation viewer: user | user:* | anothertype
+    relation another: user | user:*
+    permission view = viewer
+}

@@ -1,0 +1,99 @@
+NodeTypeFile
+  end-rune = 78
+  input-source = multiple parens test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = foo
+      end-rune = 78
+      input-source = multiple parens test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 76
+          input-source = multiple parens test
+          relation-name = bar
+          start-rune = 21
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 76
+              input-source = multiple parens test
+              start-rune = 38
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 62
+                  input-source = multiple parens test
+                  start-rune = 38
+                  left-expr =>
+                    NodeTypeUnionExpression
+                      end-rune = 46
+                      input-source = multiple parens test
+                      start-rune = 38
+                      left-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 40
+                          identifier-value = baz
+                          input-source = multiple parens test
+                          start-rune = 38
+                      right-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 46
+                          identifier-value = meh
+                          input-source = multiple parens test
+                          start-rune = 44
+                  right-expr =>
+                    NodeTypeExclusionExpression
+                      end-rune = 61
+                      input-source = multiple parens test
+                      start-rune = 51
+                      left-expr =>
+                        NodeTypeArrowExpression
+                          end-rune = 54
+                          input-source = multiple parens test
+                          start-rune = 51
+                          left-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 51
+                              identifier-value = a
+                              input-source = multiple parens test
+                              start-rune = 51
+                          right-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 54
+                              identifier-value = b
+                              input-source = multiple parens test
+                              start-rune = 54
+                      right-expr =>
+                        NodeTypeArrowExpression
+                          end-rune = 61
+                          input-source = multiple parens test
+                          start-rune = 58
+                          left-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 58
+                              identifier-value = c
+                              input-source = multiple parens test
+                              start-rune = 58
+                          right-expr =>
+                            NodeTypeIdentifier
+                              end-rune = 61
+                              identifier-value = d
+                              input-source = multiple parens test
+                              start-rune = 61
+              right-expr =>
+                NodeTypeIntersectExpression
+                  end-rune = 75
+                  input-source = multiple parens test
+                  start-rune = 67
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 69
+                      identifier-value = maz
+                      input-source = multiple parens test
+                      start-rune = 67
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 75
+                      identifier-value = beh
+                      input-source = multiple parens test
+                      start-rune = 73

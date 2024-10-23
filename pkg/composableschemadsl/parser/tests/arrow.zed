@@ -1,0 +1,3 @@
+definition witharrow {
+    permission arrowed = foo + bar->baz->meh
+}

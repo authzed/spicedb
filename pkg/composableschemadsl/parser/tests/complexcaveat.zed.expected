@@ -1,0 +1,100 @@
+NodeTypeFile
+  end-rune = 321
+  input-source = complex caveat test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = another
+      end-rune = 20
+      input-source = complex caveat test
+      start-rune = 0
+    NodeTypeCaveatDefinition
+      caveat-definition-name = somecaveat
+      end-rune = 190
+      input-source = complex caveat test
+      start-rune = 23
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = somecondition == 42 && somebool || something == "hi there" &&
+  ({
+    "themap": 42
+  }).contains("whatever")
+
+          end-rune = 189
+          input-source = complex caveat test
+          start-rune = 80
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somecondition
+          end-rune = 58
+          input-source = complex caveat test
+          start-rune = 41
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 58
+              input-source = complex caveat test
+              start-rune = 55
+              type-name = uint
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somebool
+          end-rune = 73
+          input-source = complex caveat test
+          start-rune = 61
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 73
+              input-source = complex caveat test
+              start-rune = 70
+              type-name = bool
+    NodeTypeCaveatDefinition
+      caveat-definition-name = anothercaveat
+      end-rune = 301
+      input-source = complex caveat test
+      start-rune = 193
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = somelist.contains("hiya") && somemap?.foo
+
+          end-rune = 300
+          input-source = complex caveat test
+          start-rune = 259
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somemap
+          end-rune = 232
+          input-source = complex caveat test
+          start-rune = 214
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 232
+              input-source = complex caveat test
+              start-rune = 222
+              type-name = map
+              child-types =>
+                NodeTypeCaveatTypeReference
+                  end-rune = 231
+                  input-source = complex caveat test
+                  start-rune = 226
+                  type-name = string
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somelist
+          end-rune = 252
+          input-source = complex caveat test
+          start-rune = 235
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 252
+              input-source = complex caveat test
+              start-rune = 244
+              type-name = list
+              child-types =>
+                NodeTypeCaveatTypeReference
+                  end-rune = 251
+                  input-source = complex caveat test
+                  start-rune = 249
+                  type-name = int
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 321
+      input-source = complex caveat test
+      start-rune = 304

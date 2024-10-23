@@ -1,0 +1,14 @@
+definition another {}
+
+caveat somecaveat(somecondition uint, somebool bool) {
+  somecondition == 42 && somebool || something == "hi there" &&
+  ({
+    "themap": 42
+  }).contains("whatever")
+}
+
+caveat anothercaveat(somemap map<string>, somelist list<int>) {
+  somelist.contains("hiya") && somemap?.foo
+}
+
+definition user {}

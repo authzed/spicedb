@@ -1,0 +1,5 @@
+definition resource {    
+    permission empty = nil
+    permission another = foo + nil + bar
+    permission third = (a + b + nil) - c - nil
+}
