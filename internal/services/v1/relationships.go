@@ -95,9 +95,6 @@ type PermissionsServerConfig struct {
 	// MaxBulkExportRelationshipsLimit defines the maximum number of relationships that can be
 	// exported in a single BulkExportRelationships call.
 	MaxBulkExportRelationshipsLimit uint32
-
-	// UseExperimentalLookupResources2 enables the experimental LookupResources2 API.
-	UseExperimentalLookupResources2 bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -117,7 +114,6 @@ func NewPermissionsServer(
 		MaxDeleteRelationshipsLimit:     defaultIfZero(config.MaxDeleteRelationshipsLimit, 1_000),
 		MaxLookupResourcesLimit:         defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
-		UseExperimentalLookupResources2: config.UseExperimentalLookupResources2,
 		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
 	}
 
