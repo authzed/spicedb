@@ -5,7 +5,7 @@ package lexer
 import (
 	"unicode"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 )
 
 // Lex creates a new scanner for the input string.

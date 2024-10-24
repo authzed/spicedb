@@ -4,9 +4,9 @@ package parser
 import (
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
-	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/lexer"
 )
 
 // Parse parses the given Schema DSL source into a parse tree.

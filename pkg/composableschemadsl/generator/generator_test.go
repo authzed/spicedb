@@ -11,8 +11,8 @@ import (
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/namespace"
-	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/compiler"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 )
 
 func TestGenerateCaveat(t *testing.T) {

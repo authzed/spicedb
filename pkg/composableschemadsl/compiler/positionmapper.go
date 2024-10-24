@@ -3,7 +3,7 @@ package compiler
 import (
 	"strings"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 )
 
 type positionMapper struct {

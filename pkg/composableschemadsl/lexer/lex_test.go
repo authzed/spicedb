@@ -3,7 +3,7 @@ package lexer
 import (
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 )
 
 type lexerTest struct {

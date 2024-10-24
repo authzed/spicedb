@@ -7,9 +7,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
-	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
-	"github.com/authzed/spicedb/pkg/schemadsl/parser"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
 )
 
 // InputSchema defines the input for a Compile.
