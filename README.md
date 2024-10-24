@@ -30,6 +30,9 @@
     <a href="https://twitter.com/authzed"><img alt="twitter badge" src="https://img.shields.io/badge/twitter-@authzed-1d9bf0.svg?style=flat-square"></a>
     &nbsp;
     <a href="https://www.linkedin.com/company/authzed/"><img alt="linkedin badge" src="https://img.shields.io/badge/linkedin-+authzed-2D65BC.svg?style=flat-square"></a>
+    &nbsp;
+    <a href="https://gurubase.io/g/spicedb"><img alt="gurubase badge" src="https://img.shields.io/badge/gurubase-Ask%20SpiceDB%20Guru-006BFF"></a>
+    
 </p>
 
 ## What is SpiceDB?
