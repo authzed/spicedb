@@ -122,6 +122,13 @@ func TestParser(t *testing.T) {
 		{"arrow illegal operations test", "arrowillegalops"},
 		{"arrow illegal function test", "arrowillegalfunc"},
 		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
+		{"local imports test", "localimport"},
+		{"local imports with keyword in import path test", "localimport_import_path_with_keyword"},
+		{"local imports with keyword in identifiers test", "localimport_keyword_in_identifiers"},
+		{"local imports with malformed identifiers set test", "localimport_malformed_identifier_set"},
+		{"local imports with malformed import path test", "localimport_malformed_import_path"},
+		{"local imports with path missing leading period test", "localimport_path_missing_leading_period"},
+		{"local imports with typo in import separator test", "localimport_typo_in_import_separator"},
 	}
 
 	for _, test := range parserTests {

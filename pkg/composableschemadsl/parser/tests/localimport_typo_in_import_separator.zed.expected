@@ -1,0 +1,38 @@
+NodeTypeFile
+  end-rune = 17
+  input-source = local imports with typo in import separator test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 17
+      input-source = local imports with typo in import separator test
+      start-rune = 0
+      child-node =>
+        NodeTypeError
+          end-rune = 17
+          error-message = Expected keyword import, found token TokenTypeIdentifier
+          error-source = impoort
+          input-source = local imports with typo in import separator test
+          start-rune = 19
+      path-segment =>
+        NodeTypeIdentifier
+          end-rune = 9
+          identifier-value = path
+          input-source = local imports with typo in import separator test
+          start-rune = 6
+        NodeTypeIdentifier
+          end-rune = 12
+          identifier-value = to
+          input-source = local imports with typo in import separator test
+          start-rune = 11
+        NodeTypeIdentifier
+          end-rune = 17
+          identifier-value = user
+          input-source = local imports with typo in import separator test
+          start-rune = 14
+    NodeTypeError
+      end-rune = 17
+      error-message = Unexpected token at root level: TokenTypeIdentifier
+      error-source = impoort
+      input-source = local imports with typo in import separator test
+      start-rune = 19

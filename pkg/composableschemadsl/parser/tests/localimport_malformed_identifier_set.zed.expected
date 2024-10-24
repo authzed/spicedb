@@ -1,0 +1,102 @@
+NodeTypeFile
+  end-rune = 147
+  input-source = local imports with malformed identifiers set test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 30
+      input-source = local imports with malformed identifiers set test
+      start-rune = 0
+      imported-definition =>
+        NodeTypeIdentifier
+          end-rune = 29
+          identifier-value = user
+          input-source = local imports with malformed identifiers set test
+          start-rune = 26
+        NodeTypeIdentifier
+          end-rune = 30
+          input-source = local imports with malformed identifiers set test
+          start-rune = 33
+          child-node =>
+            NodeTypeError
+              end-rune = 30
+              error-message = Expected identifier, found token TokenTypeKeyword
+              error-source = definition
+              input-source = local imports with malformed identifiers set test
+              start-rune = 33
+      path-segment =>
+        NodeTypeIdentifier
+          end-rune = 9
+          identifier-value = path
+          input-source = local imports with malformed identifiers set test
+          start-rune = 6
+        NodeTypeIdentifier
+          end-rune = 12
+          identifier-value = to
+          input-source = local imports with malformed identifiers set test
+          start-rune = 11
+        NodeTypeIdentifier
+          end-rune = 17
+          identifier-value = user
+          input-source = local imports with malformed identifiers set test
+          start-rune = 14
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 146
+      input-source = local imports with malformed identifiers set test
+      start-rune = 33
+      child-node =>
+        NodeTypeRelation
+          end-rune = 77
+          input-source = local imports with malformed identifiers set test
+          relation-name = user
+          start-rune = 59
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 77
+              input-source = local imports with malformed identifiers set test
+              start-rune = 74
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 77
+                  input-source = local imports with malformed identifiers set test
+                  start-rune = 74
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 107
+          input-source = local imports with malformed identifiers set test
+          relation-name = persona
+          start-rune = 83
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 107
+              input-source = local imports with malformed identifiers set test
+              start-rune = 101
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 107
+                  input-source = local imports with malformed identifiers set test
+                  start-rune = 101
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 144
+          input-source = local imports with malformed identifiers set test
+          relation-name = view
+          start-rune = 113
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 144
+              input-source = local imports with malformed identifiers set test
+              start-rune = 131
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 134
+                  identifier-value = user
+                  input-source = local imports with malformed identifiers set test
+                  start-rune = 131
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 144
+                  identifier-value = persona
+                  input-source = local imports with malformed identifiers set test
+                  start-rune = 138

@@ -72,7 +72,7 @@ jobs:
         with:
           distribution: "goreleaser-pro"
           version: "2.3.2"
-          args: "release --clean --split --snapshot --single-target --skip=chocolatey"
+          args: "release --clean --split --snapshot --single-target"
         env:
           GORELEASER_KEY: "${{ secrets.GORELEASER_KEY }}"
       - name: "Obtain container image to scan"

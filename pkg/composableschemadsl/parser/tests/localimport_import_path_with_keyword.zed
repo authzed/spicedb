@@ -1,0 +1,7 @@
+from .path.definition.user import user, persona
+
+definition resource {
+    relation user: user
+    relation persona: persona
+    permission view = user + persona
+}
