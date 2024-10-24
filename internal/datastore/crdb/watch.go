@@ -81,7 +81,34 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	go cds.watch(ctx, afterRevision, options, updates, errs)
+	// CRDB does not emit checkpoints for historical, non-real time data. If "afterRevision" is way in the past,
+	// that would lead to accumulating ALL the changes until the current time before starting to emit them.
+	// To address that, we compute the current checkpoint, and emit all revisions between "afterRevision" and the
+	// current checkpoint without waiting for checkpointing from CRDB's side.
+	var mostRecentCheckpoint datastore.Revision
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// FIXME we should probably not pass the provided afterRevision and instead get "HeadRevision".
+	go cds.watch(cancelCtx, afterRevision, datastore.WatchOptions{Content: datastore.WatchCheckpoints}, updates, errs, nil)
+	select {
+	case updt := <-updates:
+		if updt.IsCheckpoint {
+			mostRecentCheckpoint = updt.Revision
+		}
+	case err := <-errs:
+		fmt.Printf("error: %v", err)
+		return nil, nil // FIXME
+	case <-cancelCtx.Done():
+		return nil, nil // FIXME
+	}
+
+	cancel()
+
+	updates = make(chan *datastore.RevisionChanges, watchBufferLength)
+	errs = make(chan error, 1)
+
+	go cds.watch(ctx, afterRevision, options, updates, errs, mostRecentCheckpoint)
 
 	return updates, errs
 }
@@ -92,6 +119,7 @@ func (cds *crdbDatastore) watch(
 	opts datastore.WatchOptions,
 	updates chan *datastore.RevisionChanges,
 	errs chan error,
+	mostRecentCheckpoint datastore.Revision,
 ) {
 	defer close(updates)
 	defer close(errs)
@@ -195,6 +223,7 @@ func (cds *crdbDatastore) watch(
 
 	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
 
+	var updated revisions.HLCRevision
 	for changes.Next() {
 		var tableNameBytes []byte
 		var changeJSON []byte
@@ -243,6 +272,30 @@ func (cds *crdbDatastore) watch(
 				}
 			}
 			continue
+		}
+
+		if mostRecentCheckpoint != nil && updated != (revisions.HLCRevision{}) && updated.LessThan(mostRecentCheckpoint) {
+			rev := mostRecentCheckpoint.(revisions.HLCRevision)
+
+			filtered, err := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev)
+			if err != nil {
+				sendError(err)
+				return
+			}
+
+			for _, revChange := range filtered {
+				revChange := revChange
+				if !sendChange(&revChange) {
+					return
+				}
+			}
+
+			updated = revisions.HLCRevision{}
+			// we can't send checkpoints because updates from backlog may come out of order. We can only emit
+			// the checkpoint when we reach "mostRecentCheckpoint". At that point, we just leave the normal loop
+			// take over and emit a checkpoint.
+
+			// continue processing the update
 		}
 
 		// Otherwise, this a notification of a row change.
@@ -309,19 +362,19 @@ func (cds *crdbDatastore) watch(
 				OptionalIntegrity: integrity,
 			}
 
-			rev, err := revisions.HLCRevisionFromString(details.Updated)
+			updated, err = revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
 			}
 
 			if details.After == nil {
-				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationDelete); err != nil {
+				if err := tracked.AddRelationshipChange(ctx, updated, relationship, tuple.UpdateOperationDelete); err != nil {
 					sendError(err)
 					return
 				}
 			} else {
-				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationTouch); err != nil {
+				if err := tracked.AddRelationshipChange(ctx, updated, relationship, tuple.UpdateOperationTouch); err != nil {
 					sendError(err)
 					return
 				}
