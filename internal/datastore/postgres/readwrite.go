@@ -574,7 +574,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 }
 
 func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
-	filterer := func(original sq.SelectBuilder) sq.SelectBuilder {
+	aliveFilter := func(original sq.SelectBuilder) sq.SelectBuilder {
 		return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
 	}
 
@@ -582,7 +582,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	tplClauses := make([]sq.Sqlizer, 0, len(nsNames))
 	querier := pgxcommon.QuerierFuncsFor(rwt.tx)
 	for _, nsName := range nsNames {
-		_, _, err := rwt.loadNamespace(ctx, nsName, querier, filterer)
+		_, _, err := rwt.loadNamespace(ctx, nsName, querier, aliveFilter)
 		switch {
 		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
 			return err

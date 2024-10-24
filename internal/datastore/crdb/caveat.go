@@ -23,7 +23,7 @@ var (
 	)
 	writeCaveat  = psql.Insert(tableCaveat).Columns(colCaveatName, colCaveatDefinition).Suffix(upsertCaveatSuffix)
 	readCaveat   = psql.Select(colCaveatDefinition, colTimestamp)
-	listCaveat   = psql.Select(colCaveatName, colCaveatDefinition, colTimestamp).From(tableCaveat).OrderBy(colCaveatName)
+	listCaveat   = psql.Select(colCaveatName, colCaveatDefinition, colTimestamp).OrderBy(colCaveatName)
 	deleteCaveat = psql.Delete(tableCaveat)
 )
 
@@ -35,7 +35,7 @@ const (
 )
 
 func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	query := cr.fromBuilder(readCaveat, tableCaveat).Where(sq.Eq{colCaveatName: name})
+	query := cr.fromWithAsOfSystemTime(readCaveat.Where(sq.Eq{colCaveatName: name}), tableCaveat)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, name, err)
@@ -79,7 +79,7 @@ type bytesAndTimestamp struct {
 }
 
 func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	caveatsWithNames := cr.fromBuilder(listCaveat, tableCaveat)
+	caveatsWithNames := cr.fromWithAsOfSystemTime(listCaveat, tableCaveat)
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
 	}

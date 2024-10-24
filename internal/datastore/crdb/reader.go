@@ -29,17 +29,6 @@ var (
 
 	countRels = psql.Select("count(*)")
 
-	schema = common.NewSchemaInformation(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		common.ExpandedLogicComparison,
-	)
-
 	queryCounters = psql.Select(
 		colCounterName,
 		colCounterSerializedFilter,
@@ -49,14 +38,15 @@ var (
 )
 
 type crdbReader struct {
-	query                pgxcommon.DBFuncQuerier
-	executor             common.QueryExecutor
-	keyer                overlapKeyer
-	overlapKeySet        keySet
-	fromBuilder          func(query sq.SelectBuilder, fromStr string) sq.SelectBuilder
-	filterMaximumIDCount uint16
-	tupleTableName       string
-	withIntegrity        bool
+	query                  pgxcommon.DBFuncQuerier
+	executor               common.QueryExecutor
+	keyer                  overlapKeyer
+	overlapKeySet          keySet
+	fromWithAsOfSystemTime func(query sq.SelectBuilder, tableName string) sq.SelectBuilder
+	asOfSystemTimeSuffix   string
+	filterMaximumIDCount   uint16
+	schema                 common.SchemaInformation
+	withIntegrity          bool
 }
 
 func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -74,8 +64,8 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	query := cr.fromBuilder(countRels, cr.tupleTableName)
-	builder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	query := cr.fromWithAsOfSystemTime(countRels, cr.schema.RelationshipTableName)
+	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(cr.schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -103,8 +93,7 @@ func (cr *crdbReader) LookupCounters(ctx context.Context) ([]datastore.Relations
 }
 
 func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
-	query := cr.fromBuilder(queryCounters, tableRelationshipCounter)
-
+	query := cr.fromWithAsOfSystemTime(queryCounters, tableRelationshipCounter)
 	if optionalFilterName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{colCounterName: optionalFilterName})
 	}
@@ -176,40 +165,11 @@ func (cr *crdbReader) ReadNamespaceByName(
 }
 
 func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	nsDefs, err := loadAllNamespaces(ctx, cr.query, cr.fromBuilder)
+	nsDefs, err := loadAllNamespaces(ctx, cr.query, cr.fromWithAsOfSystemTime)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
 	return nsDefs, nil
-}
-
-func (cr *crdbReader) queryTuples() sq.SelectBuilder {
-	if cr.withIntegrity {
-		return psql.Select(
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
-			colCaveatContextName,
-			colCaveatContext,
-			colIntegrityKeyID,
-			colIntegrityHash,
-			colTimestamp,
-		)
-	}
-
-	return psql.Select(
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-	)
 }
 
 func (cr *crdbReader) LookupNamespacesWithNames(ctx context.Context, nsNames []string) ([]datastore.RevisionedNamespace, error) {
@@ -228,8 +188,7 @@ func (cr *crdbReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	query := cr.fromBuilder(cr.queryTuples(), cr.tupleTableName)
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(cr.schema, cr.filterMaximumIDCount).WithFromSuffix(cr.asOfSystemTimeSuffix).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -242,8 +201,8 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	query := cr.fromBuilder(cr.queryTuples(), cr.tupleTableName)
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, query, cr.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(cr.schema, cr.filterMaximumIDCount).
+		WithFromSuffix(cr.asOfSystemTimeSuffix).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -266,8 +225,7 @@ func (cr *crdbReader) ReverseQueryRelationships(
 }
 
 func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsName string) (*core.NamespaceDefinition, time.Time, error) {
-	query := cr.fromBuilder(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
-
+	query := cr.fromWithAsOfSystemTime(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, time.Time{}, err
@@ -300,8 +258,7 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	query := cr.fromBuilder(queryReadNamespace, tableNamespace).Where(clause)
-
+	query := cr.fromWithAsOfSystemTime(queryReadNamespace, tableNamespace).Where(clause)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, err
@@ -342,7 +299,6 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 
 func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
 	query := fromBuilder(queryReadNamespace, tableNamespace)
-
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, err
