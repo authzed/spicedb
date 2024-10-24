@@ -35,6 +35,10 @@ const (
 	NodeTypeNilExpression // A nil keyword
 
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
+
+	NodeTypeImport
+	NodeTypeImportPathSegment
+	NodeTypeImportDefinition
 )
 
 const (
@@ -188,4 +192,10 @@ const (
 	//
 	NodeExpressionPredicateLeftExpr  = "left-expr"
 	NodeExpressionPredicateRightExpr = "right-expr"
+
+	//
+	// NodeTypeImport
+	//
+	// TODO: still need to figure out what form this should take - full path? relative path?
+	NodeImportPredicateSource = "import-source"
 )
