@@ -589,7 +589,7 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 	return node, true
 }
 
-func (p *sourceParser) consumeImport() (AstNode) {
+func (p *sourceParser) consumeImport() AstNode {
 	importNode := p.startNode(dslshape.NodeTypeImport)
 	defer p.mustFinishNode()
 
