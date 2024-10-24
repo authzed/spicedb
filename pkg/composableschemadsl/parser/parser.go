@@ -62,6 +62,9 @@ Loop:
 		case p.isKeyword("caveat"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
+		case p.isKeyword("from"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -485,6 +488,7 @@ func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 				return nil, false
 			}
 
+			// TODO: is this the time to do this?
 			// TODO(jschorr): Change to keywords in schema v2.
 			if functionName != "any" && functionName != "all" {
 				p.emitErrorf("Expected 'any' or 'all' for arrow function, found: %s", functionName)
@@ -583,4 +587,51 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 	p.consumeKeyword("nil")
 	defer p.mustFinishNode()
 	return node, true
+}
+
+func (p *sourceParser) consumeImport() (AstNode) {
+	importNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// from ...
+	p.consumeKeyword("from")
+
+	// Consume alternating periods and identifiers
+	for {
+		if _, ok := p.consume(lexer.TokenTypePeriod); !ok {
+			return importNode
+		}
+
+		segmentNode, ok := p.tryConsumeIdentifierLiteral()
+		if !ok {
+			return importNode
+		}
+		importNode.Connect(dslshape.NodeTypeImportPathSegment, segmentNode)
+
+		if !p.isToken(lexer.TokenTypePeriod) {
+			// If we don't have a period as our next token, we move
+			// to the next step of parsing.
+			break
+		}
+	}
+
+	p.consumeKeyword("import")
+
+	// Consume alternating identifiers and commas until we reach the end of the import statement
+	for {
+		definitionNode, ok := p.tryConsumeIdentifierLiteral()
+		if !ok {
+			return importNode
+		}
+		importNode.Connect(dslshape.NodeTypeImportDefinition, definitionNode)
+
+		if _, ok := p.tryConsumeStatementTerminator(); ok {
+			break
+		}
+		if _, ok := p.consume(lexer.TokenTypeComma); !ok {
+			return importNode
+		}
+	}
+
+	return importNode
 }
