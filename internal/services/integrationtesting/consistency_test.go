@@ -60,15 +60,10 @@ func TestConsistency(t *testing.T) {
 				dispatcherKind := dispatcherKind
 
 				t.Run(dispatcherKind, func(t *testing.T) {
-					for _, useLRV2 := range []bool{false, true} {
-						useLRV2 := useLRV2
-						t.Run(fmt.Sprintf("lrv2-%t", useLRV2), func(t *testing.T) {
-							for _, chunkSize := range []uint16{5, 10} {
-								t.Run(fmt.Sprintf("lrv2-%t", useLRV2), func(t *testing.T) {
-									t.Parallel()
-									runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching", chunkSize, useLRV2)
-								})
-							}
+					for _, chunkSize := range []uint16{5, 10} {
+						t.Run(fmt.Sprintf("chunk-size-%d", chunkSize), func(t *testing.T) {
+							t.Parallel()
+							runConsistencyTestSuiteForFile(t, filePath, dispatcherKind == "caching", chunkSize)
 						})
 					}
 				})
@@ -77,11 +72,8 @@ func TestConsistency(t *testing.T) {
 	}
 }
 
-func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16, useLRV2 bool) {
+func runConsistencyTestSuiteForFile(t *testing.T, filePath string, useCachingDispatcher bool, chunkSize uint16) {
 	options := []server.ConfigOption{server.WithDispatchChunkSize(chunkSize)}
-	if useLRV2 {
-		options = append(options, server.WithEnableExperimentalLookupResources(true))
-	}
 
 	cad := consistencytestutil.LoadDataAndCreateClusterForTesting(t, filePath, testTimedelta, options...)
 

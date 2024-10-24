@@ -21,19 +21,17 @@ import (
 
 // ServerConfig is configuration for the test server.
 type ServerConfig struct {
-	MaxUpdatesPerWrite              uint16
-	MaxPreconditionsCount           uint16
-	MaxRelationshipContextSize      int
-	StreamingAPITimeout             time.Duration
-	UseExperimentalLookupResources2 bool
+	MaxUpdatesPerWrite         uint16
+	MaxPreconditionsCount      uint16
+	MaxRelationshipContextSize int
+	StreamingAPITimeout        time.Duration
 }
 
 var DefaultTestServerConfig = ServerConfig{
-	MaxUpdatesPerWrite:              1000,
-	MaxPreconditionsCount:           1000,
-	StreamingAPITimeout:             30 * time.Second,
-	MaxRelationshipContextSize:      25000,
-	UseExperimentalLookupResources2: true,
+	MaxUpdatesPerWrite:         1000,
+	MaxPreconditionsCount:      1000,
+	StreamingAPITimeout:        30 * time.Second,
+	MaxRelationshipContextSize: 25000,
 }
 
 // NewTestServer creates a new test server, using defaults for the config.
@@ -92,7 +90,6 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 		server.WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
 		server.WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
-		server.WithEnableExperimentalLookupResources(config.UseExperimentalLookupResources2),
 		server.SetUnaryMiddlewareModification([]server.MiddlewareModification[grpc.UnaryServerInterceptor]{
 			{
 				Operation: server.OperationReplaceAllUnsafe,

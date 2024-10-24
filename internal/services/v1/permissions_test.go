@@ -637,11 +637,10 @@ func TestLookupResources(t *testing.T) {
 								memdb.DisableGC,
 								true,
 								testserver.ServerConfig{
-									MaxUpdatesPerWrite:              1000,
-									MaxPreconditionsCount:           1000,
-									StreamingAPITimeout:             30 * time.Second,
-									MaxRelationshipContextSize:      25000,
-									UseExperimentalLookupResources2: useV2,
+									MaxUpdatesPerWrite:         1000,
+									MaxPreconditionsCount:      1000,
+									StreamingAPITimeout:        30 * time.Second,
+									MaxRelationshipContextSize: 25000,
 								},
 								tf.StandardDatastoreWithData,
 							)

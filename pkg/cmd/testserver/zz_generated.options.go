@@ -44,7 +44,6 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxDeleteRelationshipsLimit = c.MaxDeleteRelationshipsLimit
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
-		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
 	}
 }
 
@@ -64,7 +63,6 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxDeleteRelationshipsLimit"] = helpers.DebugValue(c.MaxDeleteRelationshipsLimit, false)
 	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
-	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
 	return debugMap
 }
 
@@ -179,12 +177,5 @@ func WithMaxLookupResourcesLimit(maxLookupResourcesLimit uint32) ConfigOption {
 func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32) ConfigOption {
 	return func(c *Config) {
 		c.MaxBulkExportRelationshipsLimit = maxBulkExportRelationshipsLimit
-	}
-}
-
-// WithEnableExperimentalLookupResources returns an option that can set EnableExperimentalLookupResources on a Config
-func WithEnableExperimentalLookupResources(enableExperimentalLookupResources bool) ConfigOption {
-	return func(c *Config) {
-		c.EnableExperimentalLookupResources = enableExperimentalLookupResources
 	}
 }
