@@ -1,0 +1,108 @@
+NodeTypeFile
+  end-rune = 226
+  input-source = basic definition test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = mydefinition
+      end-rune = 226
+      input-source = basic definition test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 117
+          input-source = basic definition test
+          relation-name = foo
+          start-rune = 70
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 117
+              input-source = basic definition test
+              start-rune = 84
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 95
+                  input-source = basic definition test
+                  relation-name = ...
+                  start-rune = 84
+                  type-name = sometype
+                NodeTypeSpecificTypeReference
+                  end-rune = 117
+                  input-source = basic definition test
+                  relation-name = somerel
+                  start-rune = 99
+                  type-name = anothertype
+          child-node =>
+            NodeTypeComment
+              comment-value = /**
+     * some doc comment
+     */
+        NodeTypePermission
+          end-rune = 181
+          input-source = basic definition test
+          relation-name = bar
+          start-rune = 150
+          child-node =>
+            NodeTypeComment
+              comment-value = // My cool permission
+          compute-expression =>
+            NodeTypeExclusionExpression
+              end-rune = 181
+              input-source = basic definition test
+              start-rune = 167
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 175
+                  input-source = basic definition test
+                  start-rune = 167
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 169
+                      identifier-value = foo
+                      input-source = basic definition test
+                      start-rune = 167
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 175
+                      identifier-value = baz
+                      input-source = basic definition test
+                      start-rune = 173
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 181
+                  identifier-value = meh
+                  input-source = basic definition test
+                  start-rune = 179
+        NodeTypePermission
+          end-rune = 224
+          input-source = basic definition test
+          relation-name = another
+          start-rune = 187
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 224
+              input-source = basic definition test
+              start-rune = 208
+              left-expr =>
+                NodeTypeExclusionExpression
+                  end-rune = 217
+                  input-source = basic definition test
+                  start-rune = 209
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 211
+                      identifier-value = foo
+                      input-source = basic definition test
+                      start-rune = 209
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 217
+                      identifier-value = meh
+                      input-source = basic definition test
+                      start-rune = 215
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 224
+                  identifier-value = bar
+                  input-source = basic definition test
+                  start-rune = 222

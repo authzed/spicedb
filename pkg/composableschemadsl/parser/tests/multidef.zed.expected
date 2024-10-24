@@ -1,0 +1,153 @@
+NodeTypeFile
+  end-rune = 313
+  input-source = multiple definition test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 17
+      input-source = multiple definition test
+      start-rune = 0
+    NodeTypeDefinition
+      definition-name = namespace
+      end-rune = 101
+      input-source = multiple definition test
+      start-rune = 20
+      child-node =>
+        NodeTypeRelation
+          end-rune = 68
+          input-source = multiple definition test
+          relation-name = adminer
+          start-rune = 47
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 68
+              input-source = multiple definition test
+              start-rune = 65
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 68
+                  input-source = multiple definition test
+                  start-rune = 65
+                  type-name = user
+        NodeTypePermission
+          end-rune = 99
+          input-source = multiple definition test
+          relation-name = admin
+          start-rune = 74
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 99
+              identifier-value = adminer
+              input-source = multiple definition test
+              start-rune = 93
+    NodeTypeDefinition
+      definition-name = repository
+      end-rune = 313
+      input-source = multiple definition test
+      start-rune = 104
+      child-node =>
+        NodeTypeRelation
+          end-rune = 160
+          input-source = multiple definition test
+          relation-name = namespace
+          start-rune = 132
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 160
+              input-source = multiple definition test
+              start-rune = 152
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 160
+                  input-source = multiple definition test
+                  start-rune = 152
+                  type-name = namespace
+        NodeTypeRelation
+          end-rune = 186
+          input-source = multiple definition test
+          relation-name = reader
+          start-rune = 166
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 186
+              input-source = multiple definition test
+              start-rune = 183
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 186
+                  input-source = multiple definition test
+                  start-rune = 183
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 223
+          input-source = multiple definition test
+          relation-name = writer
+          start-rune = 192
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 223
+              input-source = multiple definition test
+              start-rune = 209
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 223
+                  input-source = multiple definition test
+                  relation-name = anotherrel
+                  start-rune = 209
+                  type-name = user
+        NodeTypePermission
+          end-rune = 281
+          input-source = multiple definition test
+          relation-name = read
+          start-rune = 230
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 281
+              input-source = multiple definition test
+              start-rune = 248
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 262
+                  input-source = multiple definition test
+                  start-rune = 248
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 253
+                      identifier-value = reader
+                      input-source = multiple definition test
+                      start-rune = 248
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 262
+                      identifier-value = writer
+                      input-source = multiple definition test
+                      start-rune = 257
+              right-expr =>
+                NodeTypeArrowExpression
+                  end-rune = 281
+                  input-source = multiple definition test
+                  start-rune = 266
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 274
+                      identifier-value = namespace
+                      input-source = multiple definition test
+                      start-rune = 266
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 281
+                      identifier-value = admin
+                      input-source = multiple definition test
+                      start-rune = 277
+        NodeTypePermission
+          end-rune = 311
+          input-source = multiple definition test
+          relation-name = write
+          start-rune = 287
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 311
+              identifier-value = writer
+              input-source = multiple definition test
+              start-rune = 306

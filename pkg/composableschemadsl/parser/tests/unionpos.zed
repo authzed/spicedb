@@ -1,0 +1,5 @@
+definition user {}
+
+definition document {
+	permission view = third + editor + another
+}

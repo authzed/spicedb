@@ -1,0 +1,3 @@
+caveat something(someMap map<any>, anotherMap map<any>) {
+    someMap.isSubtreeOf(anotherMap)
+}

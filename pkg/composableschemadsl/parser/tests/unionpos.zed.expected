@@ -1,0 +1,49 @@
+NodeTypeFile
+  end-rune = 86
+  input-source = union positions test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 17
+      input-source = union positions test
+      start-rune = 0
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 86
+      input-source = union positions test
+      start-rune = 20
+      child-node =>
+        NodeTypePermission
+          end-rune = 84
+          input-source = union positions test
+          relation-name = view
+          start-rune = 43
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 84
+              input-source = union positions test
+              start-rune = 61
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 74
+                  input-source = union positions test
+                  start-rune = 61
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 65
+                      identifier-value = third
+                      input-source = union positions test
+                      start-rune = 61
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 74
+                      identifier-value = editor
+                      input-source = union positions test
+                      start-rune = 69
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 84
+                  identifier-value = another
+                  input-source = union positions test
+                  start-rune = 78

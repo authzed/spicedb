@@ -1,0 +1,121 @@
+NodeTypeFile
+  end-rune = 209
+  input-source = invalid permission name test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = org
+      end-rune = 209
+      input-source = invalid permission name test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 40
+          input-source = invalid permission name test
+          relation-name = admin
+          start-rune = 21
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 40
+              input-source = invalid permission name test
+              start-rune = 37
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 40
+                  input-source = invalid permission name test
+                  start-rune = 37
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 66
+          input-source = invalid permission name test
+          relation-name = member
+          start-rune = 46
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 66
+              input-source = invalid permission name test
+              start-rune = 63
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 66
+                  input-source = invalid permission name test
+                  start-rune = 63
+                  type-name = user
+        NodeTypePermission
+          end-rune = 104
+          input-source = invalid permission name test
+          relation-name = read
+          start-rune = 73
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 104
+              input-source = invalid permission name test
+              start-rune = 91
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 95
+                  identifier-value = admin
+                  input-source = invalid permission name test
+                  start-rune = 91
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 104
+                  identifier-value = member
+                  input-source = invalid permission name test
+                  start-rune = 99
+        NodeTypePermission
+          end-rune = 134
+          input-source = invalid permission name test
+          relation-name = create
+          start-rune = 110
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 134
+              identifier-value = admin
+              input-source = invalid permission name test
+              start-rune = 130
+        NodeTypePermission
+          end-rune = 164
+          input-source = invalid permission name test
+          relation-name = update
+          start-rune = 140
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 164
+              identifier-value = admin
+              input-source = invalid permission name test
+              start-rune = 160
+        NodeTypePermission
+          end-rune = 194
+          input-source = invalid permission name test
+          relation-name = delete
+          start-rune = 170
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 194
+              identifier-value = admin
+              input-source = invalid permission name test
+              start-rune = 190
+        NodeTypePermission
+          end-rune = 209
+          input-source = invalid permission name test
+          start-rune = 200
+          child-node =>
+            NodeTypeError
+              end-rune = 209
+              error-message = Expected identifier, found token TokenTypeStar
+              error-source = *
+              input-source = invalid permission name test
+              start-rune = 211
+        NodeTypeError
+          end-rune = 209
+          error-message = Expected end of statement or definition, found: TokenTypeStar
+          error-source = *
+          input-source = invalid permission name test
+          start-rune = 211
+    NodeTypeError
+      end-rune = 209
+      error-message = Unexpected token at root level: TokenTypeStar
+      error-source = *
+      input-source = invalid permission name test
+      start-rune = 211

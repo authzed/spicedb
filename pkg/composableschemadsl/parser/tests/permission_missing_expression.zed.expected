@@ -1,0 +1,34 @@
+NodeTypeFile
+  end-rune = 36
+  input-source = permission missing expression test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = foo
+      end-rune = 36
+      input-source = permission missing expression test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 36
+          input-source = permission missing expression test
+          relation-name = bar
+          start-rune = 21
+          compute-expression =>
+            NodeTypeError
+              end-rune = 36
+              error-message = Expected compute expression for permission
+              input-source = permission missing expression test
+              start-rune = 39
+        NodeTypeError
+          end-rune = 36
+          error-message = Expected end of statement or definition, found: TokenTypeRightBrace
+          error-source = }
+          input-source = permission missing expression test
+          start-rune = 39
+    NodeTypeError
+      end-rune = 36
+      error-message = Unexpected token at root level: TokenTypeRightBrace
+      error-source = }
+      input-source = permission missing expression test
+      start-rune = 39

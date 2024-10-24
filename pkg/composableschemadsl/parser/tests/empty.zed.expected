@@ -1,0 +1,4 @@
+NodeTypeFile
+  end-rune = -1
+  input-source = empty file test
+  start-rune = 0

@@ -1,0 +1,111 @@
+NodeTypeFile
+  end-rune = 691
+  input-source = doc comments test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 79
+      input-source = doc comments test
+      start-rune = 62
+      child-node =>
+        NodeTypeComment
+          comment-value = /**
+ * user represents a user that can be granted role(s)
+ */
+    NodeTypeDefinition
+      definition-name = document
+      end-rune = 691
+      input-source = doc comments test
+      start-rune = 146
+      child-node =>
+        NodeTypeComment
+          comment-value = /**
+ * document represents a document protected by Authzed.
+ */
+        NodeTypeRelation
+          end-rune = 275
+          input-source = doc comments test
+          relation-name = writer
+          start-rune = 255
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 275
+              input-source = doc comments test
+              start-rune = 272
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 275
+                  input-source = doc comments test
+                  start-rune = 272
+                  type-name = user
+          child-node =>
+            NodeTypeComment
+              comment-value = /**
+     * writer indicates that the user is a writer on the document.
+     */
+        NodeTypeRelation
+          end-rune = 385
+          input-source = doc comments test
+          relation-name = reader
+          start-rune = 365
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 385
+              input-source = doc comments test
+              start-rune = 382
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 385
+                  input-source = doc comments test
+                  start-rune = 382
+                  type-name = user
+          child-node =>
+            NodeTypeComment
+              comment-value = /**
+     * reader indicates that the user is a reader on the document.
+     */
+        NodeTypePermission
+          end-rune = 504
+          input-source = doc comments test
+          relation-name = edit
+          start-rune = 481
+          child-node =>
+            NodeTypeComment
+              comment-value = /**
+     * edit indicates that the user has permission to edit the document.
+     */
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 504
+              identifier-value = writer
+              input-source = doc comments test
+              start-rune = 499
+        NodeTypePermission
+          end-rune = 689
+          input-source = doc comments test
+          relation-name = view
+          start-rune = 659
+          child-node =>
+            NodeTypeComment
+              comment-value = /**
+     * view indicates that the user has permission to view the document, if they
+     * are a `reader` *or* have `edit` permission.
+     */
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 689
+              input-source = doc comments test
+              start-rune = 677
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 682
+                  identifier-value = reader
+                  input-source = doc comments test
+                  start-rune = 677
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 689
+                  identifier-value = edit
+                  input-source = doc comments test
+                  start-rune = 686

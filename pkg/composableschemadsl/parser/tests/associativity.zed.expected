@@ -1,0 +1,176 @@
+NodeTypeFile
+  end-rune = 207
+  input-source = associativity test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 207
+      input-source = associativity test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 53
+          input-source = associativity test
+          relation-name = union
+          start-rune = 26
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 53
+              input-source = associativity test
+              start-rune = 45
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 49
+                  input-source = associativity test
+                  start-rune = 45
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 45
+                      identifier-value = a
+                      input-source = associativity test
+                      start-rune = 45
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 49
+                      identifier-value = b
+                      input-source = associativity test
+                      start-rune = 49
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 53
+                  identifier-value = c
+                  input-source = associativity test
+                  start-rune = 53
+        NodeTypePermission
+          end-rune = 90
+          input-source = associativity test
+          relation-name = exclusion
+          start-rune = 59
+          compute-expression =>
+            NodeTypeExclusionExpression
+              end-rune = 90
+              input-source = associativity test
+              start-rune = 82
+              left-expr =>
+                NodeTypeExclusionExpression
+                  end-rune = 86
+                  input-source = associativity test
+                  start-rune = 82
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 82
+                      identifier-value = a
+                      input-source = associativity test
+                      start-rune = 82
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 86
+                      identifier-value = b
+                      input-source = associativity test
+                      start-rune = 86
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 90
+                  identifier-value = c
+                  input-source = associativity test
+                  start-rune = 90
+        NodeTypePermission
+          end-rune = 130
+          input-source = associativity test
+          relation-name = intersection
+          start-rune = 96
+          compute-expression =>
+            NodeTypeIntersectExpression
+              end-rune = 130
+              input-source = associativity test
+              start-rune = 122
+              left-expr =>
+                NodeTypeIntersectExpression
+                  end-rune = 126
+                  input-source = associativity test
+                  start-rune = 122
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 122
+                      identifier-value = a
+                      input-source = associativity test
+                      start-rune = 122
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 126
+                      identifier-value = b
+                      input-source = associativity test
+                      start-rune = 126
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 130
+                  identifier-value = c
+                  input-source = associativity test
+                  start-rune = 130
+        NodeTypePermission
+          end-rune = 168
+          input-source = associativity test
+          relation-name = combined1
+          start-rune = 137
+          compute-expression =>
+            NodeTypeExclusionExpression
+              end-rune = 168
+              input-source = associativity test
+              start-rune = 160
+              left-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 164
+                  input-source = associativity test
+                  start-rune = 160
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 160
+                      identifier-value = a
+                      input-source = associativity test
+                      start-rune = 160
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 164
+                      identifier-value = b
+                      input-source = associativity test
+                      start-rune = 164
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 168
+                  identifier-value = c
+                  input-source = associativity test
+                  start-rune = 168
+        NodeTypePermission
+          end-rune = 205
+          input-source = associativity test
+          relation-name = combined2
+          start-rune = 174
+          compute-expression =>
+            NodeTypeExclusionExpression
+              end-rune = 205
+              input-source = associativity test
+              start-rune = 197
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 197
+                  identifier-value = a
+                  input-source = associativity test
+                  start-rune = 197
+              right-expr =>
+                NodeTypeUnionExpression
+                  end-rune = 205
+                  input-source = associativity test
+                  start-rune = 201
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 201
+                      identifier-value = b
+                      input-source = associativity test
+                      start-rune = 201
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 205
+                      identifier-value = c
+                      input-source = associativity test
+                      start-rune = 205

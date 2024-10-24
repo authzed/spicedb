@@ -1,0 +1,27 @@
+NodeTypeFile
+  end-rune = 79
+  input-source = cross tenant test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = sometenant/somedef
+      end-rune = 79
+      input-source = cross tenant test
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 77
+          input-source = cross tenant test
+          relation-name = somerel
+          start-rune = 36
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 77
+              input-source = cross tenant test
+              start-rune = 54
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 77
+                  input-source = cross tenant test
+                  start-rune = 54
+                  type-name = anothertenant/someobject

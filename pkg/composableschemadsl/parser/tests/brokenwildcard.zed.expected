@@ -1,0 +1,60 @@
+NodeTypeFile
+  end-rune = 119
+  input-source = broken wildcard test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 17
+      input-source = broken wildcard test
+      start-rune = 0
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 119
+      input-source = broken wildcard test
+      start-rune = 20
+      child-node =>
+        NodeTypeRelation
+          end-rune = 88
+          input-source = broken wildcard test
+          relation-name = viewer
+          start-rune = 46
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 88
+              input-source = broken wildcard test
+              start-rune = 63
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 66
+                  input-source = broken wildcard test
+                  start-rune = 63
+                  type-name = user
+                NodeTypeSpecificTypeReference
+                  end-rune = 74
+                  input-source = broken wildcard test
+                  start-rune = 70
+                  type-name = user
+                  child-node =>
+                    NodeTypeError
+                      end-rune = 74
+                      error-message = Expected one of: [TokenTypeStar], found: TokenTypePipe
+                      error-source = |
+                      input-source = broken wildcard test
+                      start-rune = 76
+                NodeTypeSpecificTypeReference
+                  end-rune = 88
+                  input-source = broken wildcard test
+                  start-rune = 78
+                  type-name = anothertype
+        NodeTypePermission
+          end-rune = 117
+          input-source = broken wildcard test
+          relation-name = view
+          start-rune = 94
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 117
+              identifier-value = viewer
+              input-source = broken wildcard test
+              start-rune = 112

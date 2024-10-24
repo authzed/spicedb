@@ -1,0 +1,55 @@
+NodeTypeFile
+  end-rune = 113
+  input-source = unclosed caveat test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = another
+      end-rune = 20
+      input-source = unclosed caveat test
+      start-rune = 0
+    NodeTypeCaveatDefinition
+      caveat-definition-name = somecaveat
+      end-rune = 113
+      input-source = unclosed caveat test
+      start-rune = 23
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = somemap{
+
+  
+}
+
+definition user {}
+          end-rune = 113
+          input-source = unclosed caveat test
+          start-rune = 80
+      child-node =>
+        NodeTypeError
+          end-rune = 113
+          error-message = Expected one of: [TokenTypeRightBrace], found: TokenTypeEOF
+          input-source = unclosed caveat test
+          start-rune = 114
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somecondition
+          end-rune = 58
+          input-source = unclosed caveat test
+          start-rune = 41
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 58
+              input-source = unclosed caveat test
+              start-rune = 55
+              type-name = uint
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somebool
+          end-rune = 73
+          input-source = unclosed caveat test
+          start-rune = 61
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 73
+              input-source = unclosed caveat test
+              start-rune = 70
+              type-name = bool
