@@ -1,0 +1,52 @@
+NodeTypeFile
+  end-rune = 192
+  input-source = indented comments test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 52
+      input-source = indented comments test
+      start-rune = 35
+      child-node =>
+        NodeTypeComment
+          comment-value = /**
+			 * user is a user
+			 */
+    NodeTypeDefinition
+      definition-name = single
+      end-rune = 191
+      input-source = indented comments test
+      start-rune = 96
+      child-node =>
+        NodeTypeComment
+          comment-value = /**
+			 * single is a thing
+			 */
+        NodeTypePermission
+          end-rune = 186
+          input-source = indented comments test
+          relation-name = first
+          start-rune = 159
+          child-node =>
+            NodeTypeComment
+              comment-value = /**
+				 * some permission
+				 */
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 186
+              input-source = indented comments test
+              start-rune = 178
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 180
+                  identifier-value = bar
+                  input-source = indented comments test
+                  start-rune = 178
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 186
+                  identifier-value = baz
+                  input-source = indented comments test
+                  start-rune = 184

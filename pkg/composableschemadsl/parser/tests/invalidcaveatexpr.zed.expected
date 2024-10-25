@@ -1,0 +1,46 @@
+NodeTypeFile
+  end-rune = 79
+  input-source = invalid caveat expr test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 17
+      input-source = invalid caveat expr test
+      start-rune = 0
+    NodeTypeCaveatDefinition
+      caveat-definition-name = somecaveat
+      end-rune = 79
+      input-source = invalid caveat expr test
+      start-rune = 20
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = somecondition == 42
+          end-rune = 79
+          input-source = invalid caveat expr test
+          start-rune = 61
+      child-node =>
+        NodeTypeError
+          end-rune = 79
+          error-message = Expected one of: [TokenTypeRightBrace], found: TokenTypeError
+          error-source = `
+          input-source = invalid caveat expr test
+          start-rune = 81
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = somecondition
+          end-rune = 54
+          input-source = invalid caveat expr test
+          start-rune = 38
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 54
+              input-source = invalid caveat expr test
+              start-rune = 52
+              type-name = int
+    NodeTypeError
+      end-rune = 79
+      error-message = Unexpected token at root level: TokenTypeError
+      error-source = `
+      input-source = invalid caveat expr test
+      start-rune = 81

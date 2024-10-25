@@ -1,0 +1,7 @@
+definition another {}
+
+caveat somecaveat(somecondition uint, somebool bool, somestring string) {
+  somecondition == 42 && somebool && somestring == 'hello'
+}
+
+definition user {}

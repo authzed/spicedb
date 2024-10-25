@@ -1,0 +1,52 @@
+NodeTypeFile
+  end-rune = 94
+  input-source = caveat with keyword parameter test
+  start-rune = 0
+  child-node =>
+    NodeTypeCaveatDefinition
+      caveat-definition-name = something
+      end-rune = 94
+      input-source = caveat with keyword parameter test
+      start-rune = 0
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = someMap.isSubtreeOf(anotherMap)
+
+          end-rune = 93
+          input-source = caveat with keyword parameter test
+          start-rune = 62
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = someMap
+          end-rune = 32
+          input-source = caveat with keyword parameter test
+          start-rune = 17
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 32
+              input-source = caveat with keyword parameter test
+              start-rune = 25
+              type-name = map
+              child-types =>
+                NodeTypeCaveatTypeReference
+                  end-rune = 31
+                  input-source = caveat with keyword parameter test
+                  start-rune = 29
+                  type-name = any
+        NodeTypeCaveatParameter
+          caveat-parameter-name = anotherMap
+          end-rune = 53
+          input-source = caveat with keyword parameter test
+          start-rune = 35
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 53
+              input-source = caveat with keyword parameter test
+              start-rune = 46
+              type-name = map
+              child-types =>
+                NodeTypeCaveatTypeReference
+                  end-rune = 52
+                  input-source = caveat with keyword parameter test
+                  start-rune = 50
+                  type-name = any

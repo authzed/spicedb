@@ -1,0 +1,15 @@
+definition user {}
+
+definition namespace {
+    relation adminer: user
+    permission admin = adminer
+}
+
+definition repository {
+    relation namespace: namespace
+    relation reader: user
+    relation writer: user#anotherrel
+
+    permission read = reader + writer + namespace->admin
+    permission write = writer
+}

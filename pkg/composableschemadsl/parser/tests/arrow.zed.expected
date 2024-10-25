@@ -1,0 +1,55 @@
+NodeTypeFile
+  end-rune = 68
+  input-source = arrow test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = witharrow
+      end-rune = 68
+      input-source = arrow test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 66
+          input-source = arrow test
+          relation-name = arrowed
+          start-rune = 27
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 66
+              input-source = arrow test
+              start-rune = 48
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 50
+                  identifier-value = foo
+                  input-source = arrow test
+                  start-rune = 48
+              right-expr =>
+                NodeTypeArrowExpression
+                  end-rune = 66
+                  input-source = arrow test
+                  start-rune = 54
+                  left-expr =>
+                    NodeTypeArrowExpression
+                      end-rune = 61
+                      input-source = arrow test
+                      start-rune = 54
+                      left-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 56
+                          identifier-value = bar
+                          input-source = arrow test
+                          start-rune = 54
+                      right-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 61
+                          identifier-value = baz
+                          input-source = arrow test
+                          start-rune = 59
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 66
+                      identifier-value = meh
+                      input-source = arrow test
+                      start-rune = 64

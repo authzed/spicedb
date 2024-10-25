@@ -1,0 +1,103 @@
+NodeTypeFile
+  end-rune = 156
+  input-source = arrow operations test
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 156
+      input-source = arrow operations test
+      start-rune = 0
+      child-node =>
+        NodeTypePermission
+          end-rune = 86
+          input-source = arrow operations test
+          relation-name = view
+          start-rune = 26
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 86
+              input-source = arrow operations test
+              start-rune = 44
+              left-expr =>
+                NodeTypeArrowExpression
+                  end-rune = 63
+                  function-name = any
+                  input-source = arrow operations test
+                  start-rune = 44
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 50
+                      identifier-value = parent1
+                      input-source = arrow operations test
+                      start-rune = 44
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 62
+                      identifier-value = member1
+                      input-source = arrow operations test
+                      start-rune = 56
+              right-expr =>
+                NodeTypeArrowExpression
+                  end-rune = 86
+                  function-name = all
+                  input-source = arrow operations test
+                  start-rune = 67
+                  left-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 73
+                      identifier-value = parent2
+                      input-source = arrow operations test
+                      start-rune = 67
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 85
+                      identifier-value = member2
+                      input-source = arrow operations test
+                      start-rune = 79
+        NodeTypePermission
+          end-rune = 154
+          input-source = arrow operations test
+          relation-name = chained
+          start-rune = 92
+          compute-expression =>
+            NodeTypeArrowExpression
+              end-rune = 154
+              input-source = arrow operations test
+              start-rune = 113
+              left-expr =>
+                NodeTypeArrowExpression
+                  end-rune = 145
+                  function-name = all
+                  input-source = arrow operations test
+                  start-rune = 113
+                  left-expr =>
+                    NodeTypeArrowExpression
+                      end-rune = 132
+                      function-name = any
+                      input-source = arrow operations test
+                      start-rune = 113
+                      left-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 119
+                          identifier-value = parent1
+                          input-source = arrow operations test
+                          start-rune = 113
+                      right-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 131
+                          identifier-value = member1
+                          input-source = arrow operations test
+                          start-rune = 125
+                  right-expr =>
+                    NodeTypeIdentifier
+                      end-rune = 144
+                      identifier-value = member2
+                      input-source = arrow operations test
+                      start-rune = 138
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 154
+                  identifier-value = member3
+                  input-source = arrow operations test
+                  start-rune = 148
