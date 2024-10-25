@@ -93,6 +93,12 @@ func NewHLCForTime(time time.Time) HLCRevision {
 	return HLCRevision{time.UnixNano(), 0}
 }
 
+// IsValid returns true if the revision is valid. A valid revision has a timestamp greater than 0,
+// versus an empty revision.
+func (hlc HLCRevision) IsValid() bool {
+	return hlc.time > 0
+}
+
 func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
 		rhs = zeroHLC
