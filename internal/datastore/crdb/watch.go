@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -81,61 +80,76 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	var mostRecentCheckpoint revisions.HLCRevision
-
-	headRev, err := cds.HeadRevision(ctx)
-	if err != nil {
-		errs <- fmt.Errorf("could not get head revision in watch: %w", err)
-		return updates, errs
+	// Default: 1s
+	windowInterval := 1 * time.Second
+	if options.CheckpointInterval > 0 {
+		windowInterval = options.CheckpointInterval
 	}
+
+	watchBufferWriteTimeout := options.WatchBufferWriteTimeout
+	if watchBufferWriteTimeout <= 0 {
+		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
+	}
+	sendChange := sendChangeWithTimeoutFunc(updates, errs, watchBufferWriteTimeout)
 
 	// CRDB does not emit checkpoints for historical, non-real time data. If "afterRevision" is way in the past,
 	// that would lead to accumulating ALL the changes until the current time before starting to emit them.
 	// To address that, we compute the current checkpoint, and emit all revisions between "afterRevision" and the
 	// current checkpoint without waiting for checkpointing from CRDB's side.
-	cancelCheckpointCtx, cancelCheckpoint := context.WithCancel(ctx)
-	defer cancelCheckpoint()
-
-	checkpointErr := make(chan error, 1)
-	checkpointUpdate := make(chan *datastore.RevisionChanges, 1)
-	go cds.watch(cancelCheckpointCtx, headRev, datastore.WatchOptions{Content: datastore.WatchCheckpoints}, checkpointUpdate, checkpointErr, revisions.HLCRevision{})
-
-	select {
-	case updt := <-checkpointUpdate:
-		spiceerrors.DebugAssert(func() bool {
-			return updt.IsCheckpoint
-		}, "expected checkpoint update")
-		mostRecentCheckpoint = updt.Revision.(revisions.HLCRevision)
-	case err := <-checkpointErr:
-		errs <- fmt.Errorf("could not get checkpoint for watch: %w", err)
-		return updates, errs
-	case <-cancelCheckpointCtx.Done():
-		errs <- datastore.NewWatchCanceledErr()
-		return updates, errs
-	}
-
-	cancelCheckpoint()
-
 	// Run the watch, with the most recent checkpoint known.
-	updates = make(chan *datastore.RevisionChanges, watchBufferLength)
-	errs = make(chan error, 1)
 
-	go cds.watch(ctx, afterRevision, options, updates, errs, mostRecentCheckpoint)
+	windowCompleted := make(chan error)
+	endRevision := increaseWithDuration(afterRevision, windowInterval)
+	go func() {
+		for {
+			go func() {
+				fmt.Printf("processing window: [%v -> %v]\n", afterRevision, endRevision)
+				windowCompleted <- cds.watch(ctx, afterRevision, endRevision, options, updates, errs)
+			}()
+
+			err := <-windowCompleted
+			if err != nil {
+				// no need to bubble up the error, it would have been already sent over the channel
+				break
+			}
+
+			if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
+				if !sendChange(&datastore.RevisionChanges{
+					Revision:     endRevision,
+					IsCheckpoint: true,
+				}) {
+					return
+				}
+			}
+
+			// move to the next window
+
+			afterRevision = endRevision
+			endRevision = increaseWithDuration(afterRevision, windowInterval)
+		}
+
+		close(updates)
+		close(errs)
+	}()
 
 	return updates, errs
+}
+
+func increaseWithDuration(revision datastore.Revision, windowInterval time.Duration) revisions.HLCRevision {
+	hclRev := revision.(revisions.HLCRevision)
+	afterTime := time.Unix(0, hclRev.TimestampNanoSec())
+	newRev := revisions.NewHLCForTime(afterTime.Add(windowInterval))
+	return newRev
 }
 
 func (cds *crdbDatastore) watch(
 	ctx context.Context,
 	afterRevision datastore.Revision,
+	endRevision datastore.Revision,
 	opts datastore.WatchOptions,
 	updates chan *datastore.RevisionChanges,
 	errs chan error,
-	mostRecentCheckpoint revisions.HLCRevision,
-) {
-	defer close(updates)
-	defer close(errs)
-
+) error {
 	watchConnectTimeout := opts.WatchConnectTimeout
 	if watchConnectTimeout <= 0 {
 		watchConnectTimeout = cds.watchConnectTimeout
@@ -149,7 +163,7 @@ func (cds *crdbDatastore) watch(
 	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, watchConnectTimeout)
 	if err != nil {
 		errs <- err
-		return
+		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
@@ -164,18 +178,13 @@ func (cds *crdbDatastore) watch(
 	}
 
 	if opts.CheckpointInterval < 0 {
-		errs <- fmt.Errorf("invalid checkpoint interval given")
-		return
+		err := fmt.Errorf("invalid checkpoint interval given")
+		errs <- err
+		return err
 	}
 
-	// Default: 1s
-	resolvedDuration := 1 * time.Second
-	if opts.CheckpointInterval > 0 {
-		resolvedDuration = opts.CheckpointInterval
-	}
-
-	resolvedDurationString := strconv.FormatInt(resolvedDuration.Milliseconds(), 10) + "ms"
-	interpolated := fmt.Sprintf(cds.beginChangefeedQuery, strings.Join(tableNames, ","), afterRevision, resolvedDurationString)
+	interpolated := fmt.Sprintf("EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', end_time = '%s';",
+		strings.Join(tableNames, ","), afterRevision, endRevision)
 
 	sendError := func(err error) {
 		if errors.Is(ctx.Err(), context.Canceled) {
@@ -196,34 +205,17 @@ func (cds *crdbDatastore) watch(
 		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) bool {
-		select {
-		case updates <- change:
-			return true
-
-		default:
-			// If we cannot immediately write, setup the timer and try again.
-		}
-
-		timer := time.NewTimer(watchBufferWriteTimeout)
-		defer timer.Stop()
-
-		select {
-		case updates <- change:
-			return true
-
-		case <-timer.C:
-			errs <- datastore.NewWatchDisconnectedErr()
-			return false
-		}
-	}
-
+	sendChange := sendChangeWithTimeoutFunc(updates, errs, watchBufferWriteTimeout)
 	changes, err := conn.Query(ctx, interpolated)
 	if err != nil {
 		sendError(err)
-		return
+		return err
 	}
 
+	if err := changes.Err(); err != nil {
+		sendError(err)
+		return err
+	}
 	// We call Close async here because it can be slow and blocks closing the channels. There is
 	// no return value so we're not really losing anything.
 	defer func() { go changes.Close() }()
@@ -237,56 +229,27 @@ func (cds *crdbDatastore) watch(
 		// Pull in the table name, the primary key(s) and change information.
 		if err := changes.Scan(&tableNameBytes, &primaryKeyValuesJSON, &changeJSON); err != nil {
 			sendError(err)
-			return
+			return err
 		}
 
 		var details changeDetails
 		if err := json.Unmarshal(changeJSON, &details); err != nil {
 			sendError(err)
-			return
+			return err
 		}
 
-		// Resolved indicates that the specified revision is "complete"; no additional updates can come in before or at it.
-		// Therefore, at this point, we issue tracked updates from before that time, and the checkpoint update.
 		if details.Resolved != "" {
-			rev, err := revisions.HLCRevisionFromString(details.Resolved)
-			if err != nil {
-				sendError(fmt.Errorf("malformed resolved timestamp: %w", err))
-				return
-			}
-
-			filtered, err := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, rev)
-			if err != nil {
-				sendError(err)
-				return
-			}
-
-			for _, revChange := range filtered {
-				revChange := revChange
-				if !sendChange(&revChange) {
-					return
-				}
-			}
-
-			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-				if !sendChange(&datastore.RevisionChanges{
-					Revision:     rev,
-					IsCheckpoint: true,
-				}) {
-					return
-				}
-			}
+			// let the pgx.Rows exit by retuning Next() == false, when we would have reached "end_time"
 			continue
 		}
 
 		// Otherwise, this a notification of a row change in one of the watched table(s).
-		var changeRevision revisions.HLCRevision
 		tableName := string(tableNameBytes)
 
 		var pkValues []string
 		if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
 			sendError(err)
-			return
+			return err
 		}
 
 		switch tableName {
@@ -300,7 +263,7 @@ func (cds *crdbDatastore) watch(
 			ctxCaveat, err := common.ContextualizedCaveatFrom(caveatName, caveatContext)
 			if err != nil {
 				sendError(err)
-				return
+				return err
 			}
 
 			var integrity *core.RelationshipIntegrity
@@ -309,15 +272,17 @@ func (cds *crdbDatastore) watch(
 				hexString := *details.After.IntegrityHashAsHex
 				hashBytes, err := hex.DecodeString(hexString[2:]) // drop the \x
 				if err != nil {
-					sendError(fmt.Errorf("could not decode hash bytes: %w", err))
-					return
+					newErr := fmt.Errorf("could not decode hash bytes: %w", err)
+					sendError(newErr)
+					return newErr
 				}
 
 				timestampString := *details.After.TimestampAsString
 				parsedTime, err := time.Parse("2006-01-02T15:04:05.999999999", timestampString)
 				if err != nil {
-					sendError(fmt.Errorf("could not parse timestamp: %w", err))
-					return
+					newErr := fmt.Errorf("could not parse timestamp: %w", err)
+					sendError(newErr)
+					return newErr
 				}
 
 				integrity = &core.RelationshipIntegrity{
@@ -346,101 +311,107 @@ func (cds *crdbDatastore) watch(
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
-				sendError(fmt.Errorf("malformed update timestamp: %w", err))
-				return
+				newErr := fmt.Errorf("malformed update timestamp: %w", err)
+				sendError(newErr)
+				return newErr
 			}
-			changeRevision = rev
 
 			if details.After == nil {
 				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationDelete); err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			} else {
 				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationTouch); err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			}
 
 		case tableNamespace:
 			if len(pkValues) != 1 {
-				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
-				return
+				newErr := spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON))
+				sendError(newErr)
+				return newErr
 			}
 
 			definitionName := pkValues[0]
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
-				sendError(fmt.Errorf("malformed update timestamp: %w", err))
-				return
+				newErr := fmt.Errorf("malformed update timestamp: %w", err)
+				sendError(newErr)
+				return newErr
 			}
-			changeRevision = rev
 
 			if details.After != nil && details.After.SerializedNamespaceConfig != "" {
 				namespaceDef := &core.NamespaceDefinition{}
 				defBytes, err := hex.DecodeString(details.After.SerializedNamespaceConfig[2:]) // drop the \x
 				if err != nil {
-					sendError(fmt.Errorf("could not decode namespace definition: %w", err))
-					return
+					newErr := fmt.Errorf("could not decode namespace definition: %w", err)
+					sendError(newErr)
+					return newErr
 				}
 
 				if err := namespaceDef.UnmarshalVT(defBytes); err != nil {
-					sendError(fmt.Errorf("could not unmarshal namespace definition: %w", err))
-					return
+					newErr := fmt.Errorf("could not unmarshal namespace definition: %w", err)
+					sendError(newErr)
+					return newErr
 				}
 				err = tracked.AddChangedDefinition(ctx, rev, namespaceDef)
 				if err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			} else {
 				err = tracked.AddDeletedNamespace(ctx, rev, definitionName)
 				if err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			}
 
 		case tableCaveat:
 			if len(pkValues) != 1 {
-				sendError(spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON)))
-				return
+				newErr := spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON))
+				sendError(newErr)
+				return newErr
 			}
 
 			definitionName := pkValues[0]
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
-				sendError(fmt.Errorf("malformed update timestamp: %w", err))
-				return
+				newErr := fmt.Errorf("malformed update timestamp: %w", err)
+				sendError(newErr)
+				return newErr
 			}
-			changeRevision = rev
 
 			if details.After != nil && details.After.SerializedCaveatDefinition != "" {
 				caveatDef := &core.CaveatDefinition{}
 				defBytes, err := hex.DecodeString(details.After.SerializedCaveatDefinition[2:]) // drop the \x
 				if err != nil {
-					sendError(fmt.Errorf("could not decode caveat definition: %w", err))
-					return
+					newErr := fmt.Errorf("could not decode caveat definition: %w", err)
+					sendError(newErr)
+					return newErr
 				}
 
 				if err := caveatDef.UnmarshalVT(defBytes); err != nil {
-					sendError(fmt.Errorf("could not unmarshal caveat definition: %w", err))
-					return
+					newErr := fmt.Errorf("could not unmarshal caveat definition: %w", err)
+					sendError(newErr)
+					return newErr
 				}
 
 				err = tracked.AddChangedDefinition(ctx, rev, caveatDef)
 				if err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			} else {
 				err = tracked.AddDeletedCaveat(ctx, rev, definitionName)
 				if err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			}
 
@@ -448,56 +419,84 @@ func (cds *crdbDatastore) watch(
 			if details.After != nil {
 				rev, err := revisions.HLCRevisionFromString(details.Updated)
 				if err != nil {
-					sendError(fmt.Errorf("malformed update timestamp: %w", err))
-					return
+					newErr := fmt.Errorf("malformed update timestamp: %w", err)
+					sendError(newErr)
+					return newErr
 				}
-				changeRevision = rev
 
 				if err := tracked.SetRevisionMetadata(ctx, rev, details.After.Metadata); err != nil {
 					sendError(err)
-					return
+					return err
 				}
 			}
 
 		default:
-			sendError(spiceerrors.MustBugf("unexpected table name in changefeed: %s", tableName))
-			return
+			newErr := spiceerrors.MustBugf("unexpected table name in changefeed: %s", tableName)
+			sendError(newErr)
+			return newErr
 		}
 
 		// If we have a most recent checkpoint, we check if the updated revision is less than it. If it is,
 		// we can emit all changes that are less than the most recent checkpoint, as CRDB has guarenteed that
 		// no other updates will come in before that revision.
-		if mostRecentCheckpoint.IsValid() && changeRevision.IsValid() && changeRevision.LessThan(mostRecentCheckpoint) {
-			filtered, err := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, mostRecentCheckpoint)
-			if err != nil {
-				sendError(err)
-				return
-			}
 
-			for _, revChange := range filtered {
-				spiceerrors.DebugAssert(func() bool {
-					return !revChange.IsCheckpoint
-				}, "expected non-checkpoint update")
+		filtered, err := tracked.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+		if err != nil {
+			sendError(err)
+			return err
+		}
 
-				if !sendChange(&revChange) {
-					return
-				}
+		for _, revChange := range filtered {
+			spiceerrors.DebugAssert(func() bool {
+				return !revChange.IsCheckpoint
+			}, "expected non-checkpoint update")
+
+			if !sendChange(&revChange) {
+				return nil
 			}
 		}
 	}
 
-	if changes.Err() != nil {
+	if err := changes.Err(); err != nil { // FIXME calling changes.Err() 2 times does not return the error on the 2nd call?
 		if errors.Is(ctx.Err(), context.Canceled) {
 			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer closeCancel()
 			if err := conn.Close(closeCtx); err != nil {
 				errs <- err
-				return
+				return err
 			}
-			errs <- datastore.NewWatchCanceledErr()
+			canceled := datastore.NewWatchCanceledErr()
+			errs <- canceled
+			return canceled
 		} else {
-			errs <- changes.Err()
+			errs <- err
+			return err
 		}
-		return
+	}
+
+	return nil
+}
+
+func sendChangeWithTimeoutFunc(updates chan *datastore.RevisionChanges, errs chan error, watchBufferWriteTimeout time.Duration) func(change *datastore.RevisionChanges) bool {
+	return func(change *datastore.RevisionChanges) bool {
+		select {
+		case updates <- change:
+			return true
+
+		default:
+			// If we cannot immediately write, setup the timer and try again.
+		}
+
+		timer := time.NewTimer(watchBufferWriteTimeout)
+		defer timer.Stop()
+
+		select {
+		case updates <- change:
+			return true
+
+		case <-timer.C:
+			errs <- datastore.NewWatchDisconnectedErr()
+			return false
+		}
 	}
 }
