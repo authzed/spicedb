@@ -81,7 +81,46 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 		return updates, errs
 	}
 
-	go cds.watch(ctx, afterRevision, options, updates, errs)
+	var mostRecentCheckpoint revisions.HLCRevision
+
+	headRev, err := cds.HeadRevision(ctx)
+	if err != nil {
+		errs <- fmt.Errorf("could not get head revision in watch: %w", err)
+		return updates, errs
+	}
+
+	// CRDB does not emit checkpoints for historical, non-real time data. If "afterRevision" is way in the past,
+	// that would lead to accumulating ALL the changes until the current time before starting to emit them.
+	// To address that, we compute the current checkpoint, and emit all revisions between "afterRevision" and the
+	// current checkpoint without waiting for checkpointing from CRDB's side.
+	cancelCheckpointCtx, cancelCheckpoint := context.WithCancel(ctx)
+	defer cancelCheckpoint()
+
+	checkpointErr := make(chan error, 1)
+	checkpointUpdate := make(chan *datastore.RevisionChanges, 1)
+	go cds.watch(cancelCheckpointCtx, headRev, datastore.WatchOptions{Content: datastore.WatchCheckpoints}, checkpointUpdate, checkpointErr, revisions.HLCRevision{})
+
+	select {
+	case updt := <-checkpointUpdate:
+		spiceerrors.DebugAssert(func() bool {
+			return updt.IsCheckpoint
+		}, "expected checkpoint update")
+		mostRecentCheckpoint = updt.Revision.(revisions.HLCRevision)
+	case err := <-checkpointErr:
+		errs <- fmt.Errorf("could not get checkpoint for watch: %w", err)
+		return updates, errs
+	case <-cancelCheckpointCtx.Done():
+		errs <- datastore.NewWatchCanceledErr()
+		return updates, errs
+	}
+
+	cancelCheckpoint()
+
+	// Run the watch, with the most recent checkpoint known.
+	updates = make(chan *datastore.RevisionChanges, watchBufferLength)
+	errs = make(chan error, 1)
+
+	go cds.watch(ctx, afterRevision, options, updates, errs, mostRecentCheckpoint)
 
 	return updates, errs
 }
@@ -92,6 +131,7 @@ func (cds *crdbDatastore) watch(
 	opts datastore.WatchOptions,
 	updates chan *datastore.RevisionChanges,
 	errs chan error,
+	mostRecentCheckpoint revisions.HLCRevision,
 ) {
 	defer close(updates)
 	defer close(errs)
@@ -121,11 +161,6 @@ func (cds *crdbDatastore) watch(
 	if opts.Content&datastore.WatchSchema == datastore.WatchSchema {
 		tableNames = append(tableNames, tableNamespace)
 		tableNames = append(tableNames, tableCaveat)
-	}
-
-	if len(tableNames) == 0 {
-		errs <- fmt.Errorf("at least relationships or schema must be specified")
-		return
 	}
 
 	if opts.CheckpointInterval < 0 {
@@ -194,7 +229,6 @@ func (cds *crdbDatastore) watch(
 	defer func() { go changes.Close() }()
 
 	tracked := common.NewChanges(revisions.HLCKeyFunc, opts.Content, opts.MaximumBufferedChangesByteSize)
-
 	for changes.Next() {
 		var tableNameBytes []byte
 		var changeJSON []byte
@@ -245,7 +279,8 @@ func (cds *crdbDatastore) watch(
 			continue
 		}
 
-		// Otherwise, this a notification of a row change.
+		// Otherwise, this a notification of a row change in one of the watched table(s).
+		var changeRevision revisions.HLCRevision
 		tableName := string(tableNameBytes)
 
 		var pkValues []string
@@ -314,6 +349,7 @@ func (cds *crdbDatastore) watch(
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
 			}
+			changeRevision = rev
 
 			if details.After == nil {
 				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationDelete); err != nil {
@@ -340,6 +376,7 @@ func (cds *crdbDatastore) watch(
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
 			}
+			changeRevision = rev
 
 			if details.After != nil && details.After.SerializedNamespaceConfig != "" {
 				namespaceDef := &core.NamespaceDefinition{}
@@ -379,6 +416,7 @@ func (cds *crdbDatastore) watch(
 				sendError(fmt.Errorf("malformed update timestamp: %w", err))
 				return
 			}
+			changeRevision = rev
 
 			if details.After != nil && details.After.SerializedCaveatDefinition != "" {
 				caveatDef := &core.CaveatDefinition{}
@@ -413,6 +451,7 @@ func (cds *crdbDatastore) watch(
 					sendError(fmt.Errorf("malformed update timestamp: %w", err))
 					return
 				}
+				changeRevision = rev
 
 				if err := tracked.SetRevisionMetadata(ctx, rev, details.After.Metadata); err != nil {
 					sendError(err)
@@ -423,6 +462,27 @@ func (cds *crdbDatastore) watch(
 		default:
 			sendError(spiceerrors.MustBugf("unexpected table name in changefeed: %s", tableName))
 			return
+		}
+
+		// If we have a most recent checkpoint, we check if the updated revision is less than it. If it is,
+		// we can emit all changes that are less than the most recent checkpoint, as CRDB has guarenteed that
+		// no other updates will come in before that revision.
+		if mostRecentCheckpoint.IsValid() && changeRevision.IsValid() && changeRevision.LessThan(mostRecentCheckpoint) {
+			filtered, err := tracked.FilterAndRemoveRevisionChanges(revisions.HLCKeyLessThanFunc, mostRecentCheckpoint)
+			if err != nil {
+				sendError(err)
+				return
+			}
+
+			for _, revChange := range filtered {
+				spiceerrors.DebugAssert(func() bool {
+					return !revChange.IsCheckpoint
+				}, "expected non-checkpoint update")
+
+				if !sendChange(&revChange) {
+					return
+				}
+			}
 		}
 	}
 

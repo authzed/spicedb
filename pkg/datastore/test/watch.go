@@ -10,7 +10,6 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
-	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -131,8 +130,64 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			// Test the catch-up case
 			changes, errchan = ds.Watch(ctx, lowestRevision, opts)
-			VerifyUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
+			VerifySingleUpdates(require, testUpdates, changes, errchan, tc.expectFallBehind)
 		})
+	}
+}
+
+func VerifySingleUpdates(
+	require *require.Assertions,
+	testUpdates [][]tuple.RelationshipUpdate,
+	changes <-chan *datastore.RevisionChanges,
+	errchan <-chan error,
+	expectDisconnect bool,
+) {
+	expectedRelChanges := map[string]int{}
+	for _, expected := range testUpdates {
+		for _, relChange := range expected {
+			rcs := relChange.DebugString()
+			expectedRelChanges[rcs]++
+		}
+	}
+
+	for {
+		changeWait := time.NewTimer(waitForChangesTimeout)
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				require.True(expectDisconnect, "unexpected disconnect")
+				errWait := time.NewTimer(waitForChangesTimeout)
+				select {
+				case err := <-errchan:
+					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					return
+				case <-errWait.C:
+					require.Fail("Timed out waiting for ErrWatchDisconnected")
+				}
+				return
+			}
+
+			for _, relChange := range change.RelationshipChanges {
+				relString := relChange.DebugString()
+				require.Greater(expectedRelChanges[relString], 0, "unexpected change: %s", relString)
+				expectedRelChanges[relString]--
+			}
+
+			hasRemainders := false
+			for _, count := range expectedRelChanges {
+				if count > 0 {
+					hasRemainders = true
+					break
+				}
+			}
+			if !hasRemainders {
+				return
+			}
+
+			time.Sleep(1 * time.Millisecond)
+		case <-changeWait.C:
+			require.Fail("Timed out", "waited for changes: %s", expectedRelChanges)
+		}
 	}
 }
 
@@ -163,8 +218,8 @@ func VerifyUpdates(
 			expectedChangeSet := setOfChanges(expected)
 			actualChangeSet := setOfChanges(change.RelationshipChanges)
 
-			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
-			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+			missingExpected := expectedChangeSet.Subtract(actualChangeSet)
+			unexpected := actualChangeSet.Subtract(expectedChangeSet)
 
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
@@ -205,8 +260,8 @@ func VerifyUpdatesWithMetadata(
 			expectedChangeSet := setOfChanges(expected.updates)
 			actualChangeSet := setOfChanges(change.RelationshipChanges)
 
-			missingExpected := strset.Difference(expectedChangeSet, actualChangeSet)
-			unexpected := strset.Difference(actualChangeSet, expectedChangeSet)
+			missingExpected := expectedChangeSet.Subtract(actualChangeSet)
+			unexpected := actualChangeSet.Subtract(expectedChangeSet)
 
 			require.True(missingExpected.IsEmpty(), "expected changes missing: %s", missingExpected)
 			require.True(unexpected.IsEmpty(), "unexpected changes: %s", unexpected)
@@ -222,8 +277,8 @@ func VerifyUpdatesWithMetadata(
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
-func setOfChanges(changes []tuple.RelationshipUpdate) *strset.Set {
-	changeSet := strset.NewWithSize(len(changes))
+func setOfChanges(changes []tuple.RelationshipUpdate) *mapz.Set[string] {
+	changeSet := mapz.NewSet[string]()
 	for _, change := range changes {
 		changeSet.Add(change.DebugString())
 	}
