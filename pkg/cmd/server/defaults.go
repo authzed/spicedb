@@ -489,7 +489,13 @@ func createServerMetrics(disableHistogram bool) (grpc.UnaryServerInterceptor, gr
 	var opts []grpcprom.ServerMetricsOption
 	if !disableHistogram {
 		opts = append(opts, grpcprom.WithServerHandlingTimeHistogram(
-			grpcprom.WithHistogramBuckets([]float64{.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5}),
+			grpcprom.WithHistogramOpts(&prometheus.HistogramOpts{
+				NativeHistogramBucketFactor:    1.1, // At most 10% increase from bucket to bucket.
+				NativeHistogramMaxBucketNumber: 100,
+				Buckets: []float64{
+					.001, .003, .006, .010, .018, .024, .032, .042, .056, .075, .100, .178, .316, .562, 1, 5,
+				},
+			}),
 		))
 	}
 	srvMetrics := grpcprom.NewServerMetrics(opts...)
