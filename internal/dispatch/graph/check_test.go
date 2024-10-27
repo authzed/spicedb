@@ -1251,7 +1251,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
   definition user {}
 
   definition role {
-    relation member: user
+    relation member: user with somecaveat
   }
 
   definition resource {
@@ -1287,7 +1287,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
   definition user {}
   
   definition role {
-    relation member: user
+    relation member: user with somecaveat
   }
 
   definition resource {

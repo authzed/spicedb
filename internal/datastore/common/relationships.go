@@ -78,9 +78,17 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, queryInf
 	colsToSelect = StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetObjectID, &subjectObjectID)
 	colsToSelect = StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetRelation, &subjectRelation)
 
-	colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
+	if !queryInfo.SkipCaveats {
+		colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
+	}
+
 	if withIntegrity {
 		colsToSelect = append(colsToSelect, &integrityKeyID, &integrityHash, &timestamp)
+	}
+
+	if len(colsToSelect) == 0 {
+		var unused int
+		colsToSelect = append(colsToSelect, &unused)
 	}
 
 	return func(yield func(tuple.Relationship, error) bool) {
@@ -100,11 +108,13 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, queryInf
 				}
 
 				var caveat *corev1.ContextualizedCaveat
-				if caveatName.Valid {
-					var err error
-					caveat, err = ContextualizedCaveatFrom(caveatName.String, caveatCtx)
-					if err != nil {
-						return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("unable to fetch caveat context: %w", err))
+				if !queryInfo.SkipCaveats {
+					if caveatName.Valid {
+						var err error
+						caveat, err = ContextualizedCaveatFrom(caveatName.String, caveatCtx)
+						if err != nil {
+							return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("unable to fetch caveat context: %w", err))
+						}
 					}
 				}
 

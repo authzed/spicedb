@@ -204,7 +204,14 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetObjectID, &subjectObjectID)
 			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetRelation, &subjectRelation)
 
-			colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
+			if !queryInfo.SkipCaveats {
+				colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
+			}
+
+			if len(colsToSelect) == 0 {
+				var unused int64
+				colsToSelect = append(colsToSelect, &unused)
+			}
 
 			if err := iter.Do(func(row *spanner.Row) error {
 				err := row.Columns(colsToSelect...)
