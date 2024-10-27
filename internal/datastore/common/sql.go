@@ -702,8 +702,18 @@ func (tqs QueryExecutor) ExecuteQuery(
 	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColUsersetObjectID)
 	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColUsersetRelation)
 
-	columnNamesToSelect = append(columnNamesToSelect, query.schema.ColCaveatName, query.schema.ColCaveatContext, query.schema.ColExpiration)
+	columnNamesToSelect = append(columnNamesToSelect, query.schema.ColExpiration)
+
+	if !queryOpts.SkipCaveats {
+		columnNamesToSelect = append(columnNamesToSelect, query.schema.ColCaveatName, query.schema.ColCaveatContext)
+	}
+
+	selectingNoColumns := false
 	columnNamesToSelect = append(columnNamesToSelect, query.schema.ExtraFields...)
+	if len(columnNamesToSelect) == 0 {
+		columnNamesToSelect = append(columnNamesToSelect, "1")
+		selectingNoColumns = true
+	}
 
 	toExecute.queryBuilder = toExecute.queryBuilder.Columns(columnNamesToSelect...)
 
@@ -719,7 +729,7 @@ func (tqs QueryExecutor) ExecuteQuery(
 		return nil, err
 	}
 
-	return tqs.Executor(ctx, QueryInfo{query.schema, query.filteringColumnTracker}, sql, args)
+	return tqs.Executor(ctx, QueryInfo{query.schema, query.filteringColumnTracker, queryOpts.SkipCaveats, selectingNoColumns}, sql, args)
 }
 
 func checkColumn(columns []string, tracker map[string]ColumnTracker, colName string) []string {
@@ -731,8 +741,10 @@ func checkColumn(columns []string, tracker map[string]ColumnTracker, colName str
 
 // QueryInfo holds the schema information and filtering values for a query.
 type QueryInfo struct {
-	Schema          SchemaInformation
-	FilteringValues map[string]ColumnTracker
+	Schema             SchemaInformation
+	FilteringValues    map[string]ColumnTracker
+	SkipCaveats        bool
+	SelectingNoColumns bool
 }
 
 // ExecuteReadRelsQueryFunc is a function that can be used to execute a single rendered SQL query.
