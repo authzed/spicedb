@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
@@ -324,6 +325,8 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	hasNonTerminals := false
 	hasDirectSubject := false
 	hasWildcardSubject := false
+	directSubjectOrWildcardCanHaveCaveats := false
+	nonTerminalsCanHaveCaveats := false
 
 	defer func() {
 		if hasNonTerminals {
@@ -348,6 +351,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
 				hasDirectSubject = true
 			}
+
+			if allowedDirectRelation.RequiredCaveat != nil {
+				directSubjectOrWildcardCanHaveCaveats = true
+			}
 		}
 
 		// If the relation found is not an ellipsis, then this is a nested relation that
@@ -357,6 +364,9 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// relations can reach the target subject type.
 		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
 			hasNonTerminals = true
+			if allowedDirectRelation.RequiredCaveat != nil {
+				nonTerminalsCanHaveCaveats = true
+			}
 		}
 	}
 
@@ -395,7 +405,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := ds.QueryRelationships(ctx, filter)
+		it, err := ds.QueryRelationships(ctx, filter, options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats))
 		if err != nil {
 			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 		}
@@ -444,7 +454,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := ds.QueryRelationships(ctx, filter)
+	it, err := ds.QueryRelationships(ctx, filter, options.WithSkipCaveats(!nonTerminalsCanHaveCaveats))
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}

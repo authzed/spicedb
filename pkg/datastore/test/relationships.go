@@ -1113,10 +1113,11 @@ func RecreateRelationshipsAfterDeleteWithFilter(t *testing.T, tester DatastoreTe
 // QueryRelationshipsWithVariousFiltersTest tests various relationship filters for query relationships.
 func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTester) {
 	tcs := []struct {
-		name          string
-		filter        datastore.RelationshipsFilter
-		relationships []string
-		expected      []string
+		name           string
+		filter         datastore.RelationshipsFilter
+		withoutCaveats bool
+		relationships  []string
+		expected       []string
 	}{
 		{
 			name: "resource type",
@@ -1476,6 +1477,38 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			},
 		},
 		{
+			name: "resource type with caveats",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom[firstcaveat]",
+				"document:second#viewer@user:tom[secondcaveat]",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{"document:first#viewer@user:tom[firstcaveat]", "document:second#viewer@user:tom[secondcaveat]"},
+		},
+		{
+			name: "resource type with caveats and context",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom[firstcaveat:{\"foo\":\"bar\"}]",
+				"document:second#viewer@user:tom[secondcaveat]",
+				"document:third#viewer@user:tom[secondcaveat:{\"bar\":\"baz\"}]",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom[firstcaveat:{\"foo\":\"bar\"}]",
+				"document:second#viewer@user:tom[secondcaveat]",
+				"document:third#viewer@user:tom[secondcaveat:{\"bar\":\"baz\"}]",
+			},
+		},
+
+		{
 			name: "relationship expiration",
 			filter: datastore.RelationshipsFilter{
 				OptionalResourceType: "document",
@@ -1610,7 +1643,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			require.NoError(err)
 
 			reader := ds.SnapshotReader(headRev)
-			iter, err := reader.QueryRelationships(ctx, tc.filter)
+			iter, err := reader.QueryRelationships(ctx, tc.filter, options.WithSkipCaveats(tc.withoutCaveats))
 			require.NoError(err)
 
 			var results []string
