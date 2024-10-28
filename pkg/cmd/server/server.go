@@ -429,7 +429,6 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		MaxDeleteRelationshipsLimit:     c.MaxDeleteRelationshipsLimit,
 		MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
 		MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
-		UseExperimentalLookupResources2: c.EnableExperimentalLookupResources,
 		DispatchChunkSize:               c.DispatchChunkSize,
 	}
 
