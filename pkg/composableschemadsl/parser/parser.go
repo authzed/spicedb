@@ -62,6 +62,9 @@ Loop:
 		case p.isKeyword("caveat"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
+		case p.isKeyword("from"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -574,6 +577,20 @@ func (p *sourceParser) tryConsumeIdentifierLiteral() (AstNode, bool) {
 	return identNode, true
 }
 
+// consumeIdentifierLiteral is similar to the above, but attempts and errors
+// rather than checking the token type beforehand
+func (p *sourceParser) consumeIdentifierLiteral() (AstNode, bool) {
+	identNode := p.startNode(dslshape.NodeTypeIdentifier)
+	defer p.mustFinishNode()
+
+	identifier, ok := p.consumeIdentifier()
+	if !ok {
+		return identNode, false
+	}
+	identNode.MustDecorate(dslshape.NodeIdentiferPredicateValue, identifier)
+	return identNode, true
+}
+
 func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 	if !p.isKeyword("nil") {
 		return nil, false
@@ -583,4 +600,59 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 	p.consumeKeyword("nil")
 	defer p.mustFinishNode()
 	return node, true
+}
+
+func (p *sourceParser) consumeImport() AstNode {
+	importNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// from ...
+	// NOTE: error handling isn't necessary here because this function is only
+	// invoked if the `from` keyword is found in the function above.
+	p.consumeKeyword("from")
+
+	// Consume alternating periods and identifiers
+	for {
+		if _, ok := p.consume(lexer.TokenTypePeriod); !ok {
+			return importNode
+		}
+
+		segmentNode, ok := p.consumeIdentifierLiteral()
+		// We connect the node so that the error information is retained, then break the loop
+		// so that we aren't continuing to attempt to consume.
+		importNode.Connect(dslshape.NodeImportPredicatePathSegment, segmentNode)
+		if !ok {
+			break
+		}
+
+		if !p.isToken(lexer.TokenTypePeriod) {
+			// If we don't have a period as our next token, we move
+			// to the next step of parsing.
+			break
+		}
+	}
+
+	if ok := p.consumeKeyword("import"); !ok {
+		return importNode
+	}
+
+	// Consume alternating identifiers and commas until we reach the end of the import statement
+	for {
+		definitionNode, ok := p.consumeIdentifierLiteral()
+		// We connect the node so that the error information is retained, then break the loop
+		// so that we aren't continuing to attempt to consume.
+		importNode.Connect(dslshape.NodeImportPredicateDefinitionName, definitionNode)
+		if !ok {
+			break
+		}
+
+		if _, ok := p.tryConsumeStatementTerminator(); ok {
+			break
+		}
+		if _, ok := p.consume(lexer.TokenTypeComma); !ok {
+			return importNode
+		}
+	}
+
+	return importNode
 }

@@ -1,0 +1,22 @@
+NodeTypeFile
+  end-rune = 3
+  input-source = local imports with path missing leading period test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 3
+      input-source = local imports with path missing leading period test
+      start-rune = 0
+      child-node =>
+        NodeTypeError
+          end-rune = 3
+          error-message = Expected one of: [TokenTypePeriod], found: TokenTypeIdentifier
+          error-source = path
+          input-source = local imports with path missing leading period test
+          start-rune = 5
+    NodeTypeError
+      end-rune = 3
+      error-message = Unexpected token at root level: TokenTypeIdentifier
+      error-source = path
+      input-source = local imports with path missing leading period test
+      start-rune = 5

@@ -1,0 +1,102 @@
+NodeTypeFile
+  end-rune = 151
+  input-source = local imports with malformed import path test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 35
+      input-source = local imports with malformed import path test
+      start-rune = 0
+      imported-definition =>
+        NodeTypeIdentifier
+          end-rune = 25
+          identifier-value = user
+          input-source = local imports with malformed import path test
+          start-rune = 22
+        NodeTypeIdentifier
+          end-rune = 34
+          identifier-value = persona
+          input-source = local imports with malformed import path test
+          start-rune = 28
+      path-segment =>
+        NodeTypeIdentifier
+          end-rune = 9
+          identifier-value = path
+          input-source = local imports with malformed import path test
+          start-rune = 6
+        NodeTypeIdentifier
+          end-rune = 12
+          identifier-value = to
+          input-source = local imports with malformed import path test
+          start-rune = 11
+        NodeTypeIdentifier
+          end-rune = 13
+          input-source = local imports with malformed import path test
+          start-rune = 15
+          child-node =>
+            NodeTypeError
+              end-rune = 13
+              error-message = Expected identifier, found token TokenTypeKeyword
+              error-source = import
+              input-source = local imports with malformed import path test
+              start-rune = 15
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 150
+      input-source = local imports with malformed import path test
+      start-rune = 37
+      child-node =>
+        NodeTypeRelation
+          end-rune = 81
+          input-source = local imports with malformed import path test
+          relation-name = user
+          start-rune = 63
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 81
+              input-source = local imports with malformed import path test
+              start-rune = 78
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 81
+                  input-source = local imports with malformed import path test
+                  start-rune = 78
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 111
+          input-source = local imports with malformed import path test
+          relation-name = persona
+          start-rune = 87
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 111
+              input-source = local imports with malformed import path test
+              start-rune = 105
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 111
+                  input-source = local imports with malformed import path test
+                  start-rune = 105
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 148
+          input-source = local imports with malformed import path test
+          relation-name = view
+          start-rune = 117
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 148
+              input-source = local imports with malformed import path test
+              start-rune = 135
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 138
+                  identifier-value = user
+                  input-source = local imports with malformed import path test
+                  start-rune = 135
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 148
+                  identifier-value = persona
+                  input-source = local imports with malformed import path test
+                  start-rune = 142

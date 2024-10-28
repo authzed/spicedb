@@ -1,0 +1,96 @@
+NodeTypeFile
+  end-rune = 155
+  input-source = local imports test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 39
+      input-source = local imports test
+      start-rune = 0
+      imported-definition =>
+        NodeTypeIdentifier
+          end-rune = 29
+          identifier-value = user
+          input-source = local imports test
+          start-rune = 26
+        NodeTypeIdentifier
+          end-rune = 38
+          identifier-value = persona
+          input-source = local imports test
+          start-rune = 32
+      path-segment =>
+        NodeTypeIdentifier
+          end-rune = 9
+          identifier-value = path
+          input-source = local imports test
+          start-rune = 6
+        NodeTypeIdentifier
+          end-rune = 12
+          identifier-value = to
+          input-source = local imports test
+          start-rune = 11
+        NodeTypeIdentifier
+          end-rune = 17
+          identifier-value = user
+          input-source = local imports test
+          start-rune = 14
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 154
+      input-source = local imports test
+      start-rune = 41
+      child-node =>
+        NodeTypeRelation
+          end-rune = 85
+          input-source = local imports test
+          relation-name = user
+          start-rune = 67
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 85
+              input-source = local imports test
+              start-rune = 82
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 85
+                  input-source = local imports test
+                  start-rune = 82
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 115
+          input-source = local imports test
+          relation-name = persona
+          start-rune = 91
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 115
+              input-source = local imports test
+              start-rune = 109
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 115
+                  input-source = local imports test
+                  start-rune = 109
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 152
+          input-source = local imports test
+          relation-name = view
+          start-rune = 121
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 152
+              input-source = local imports test
+              start-rune = 139
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 142
+                  identifier-value = user
+                  input-source = local imports test
+                  start-rune = 139
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 152
+                  identifier-value = persona
+                  input-source = local imports test
+                  start-rune = 146
