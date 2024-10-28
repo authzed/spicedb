@@ -393,7 +393,18 @@ func TranslateExpansionTree(node *core.RelationTupleTreeNode) *v1.PermissionRela
 	}
 }
 
+const lrv2CursorFlag = "lrv2"
+
 func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp v1.PermissionsService_LookupResourcesServer) error {
+	// NOTE: LRv2 is the only valid option, and we'll expect that all cursors include that flag.
+	// This is to preserve backward-compatibility in the meantime.
+	if req.OptionalCursor != nil {
+		_, _, err := cursor.GetCursorFlag(req.OptionalCursor, lrv2CursorFlag)
+		if err != nil {
+			return ps.rewriteError(resp.Context(), err)
+		}
+	}
+
 	if req.OptionalLimit > 0 && req.OptionalLimit > ps.config.MaxLookupResourcesLimit {
 		return ps.rewriteError(resp.Context(), NewExceedsMaximumLimitErr(uint64(req.OptionalLimit), uint64(ps.config.MaxLookupResourcesLimit)))
 	}
@@ -471,7 +482,9 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 			alreadyPublishedPermissionedResourceIds[found.ResourceId] = struct{}{}
 		}
 
-		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, nil)
+		encodedCursor, err := cursor.EncodeFromDispatchCursor(result.AfterResponseCursor, lrRequestHash, atRevision, map[string]string{
+			lrv2CursorFlag: "1",
+		})
 		if err != nil {
 			return ps.rewriteError(ctx, err)
 		}
