@@ -8,6 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/jzelinskie/cobrautil/v2"
 	"github.com/jzelinskie/cobrautil/v2/cobraotel"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
 	"github.com/authzed/spicedb/internal/telemetry"
@@ -158,6 +159,16 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	experimentalFlags := nfs.FlagSet(BoldBlue("Experimental"))
 	// Flags for experimental features
+	experimentalFlags.BoolVar(&config.EnableExperimentalLookupResources, "enable-experimental-lookup-resources", true, "enables the experimental version of the lookup resources API")
+	if err := experimentalFlags.MarkDeprecated("enable-experimental-lookup-resources", "The old implementation of LookupResources has been removed and this flag is a no-op. This flag will be removed in the future."); err != nil {
+		return fmt.Errorf("failed to mark flag as deprecated: %w", err)
+	}
+	if !config.EnableExperimentalLookupResources {
+		log.Warn().
+			Bool("value", false).
+			Msg("The old implementation of LookupResources is no longer available, and a `false` value is no longer valid. Please remove this flag.")
+	}
+
 	experimentalFlags.BoolVar(&config.EnableExperimentalWatchableSchemaCache, "enable-experimental-watchable-schema-cache", false, "enables the experimental schema cache which makes use of the Watch API for automatic updates")
 	// TODO: these two could reasonably be put in either the Dispatch group or the Experimental group. Is there a preference?
 	experimentalFlags.StringToStringVar(&config.DispatchSecondaryUpstreamAddrs, "experimental-dispatch-secondary-upstream-addrs", nil, "secondary upstream addresses for dispatches, each with a name")
