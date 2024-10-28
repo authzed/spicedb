@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
@@ -195,6 +196,27 @@ func (p *sourceParser) tryConsumeKeyword(keyword string) bool {
 
 	p.consumeToken()
 	return true
+}
+
+// consumeKeywords consumes any of a set of keywords or adds an error node
+func (p *sourceParser) consumeKeywords(keywords ...string) (string, bool) {
+	keyword, ok := p.tryConsumeKeywords(keywords...)
+	if !ok {
+		p.emitErrorf("Expected one of keywords %s; found token %v", strings.Join(keywords, ", "), p.currentToken.Kind)
+		return "", false
+	}
+	return keyword, true
+}
+
+// tryConsumeKeyword attempts to consume one of a set of expected keyword tokens.
+func (p *sourceParser) tryConsumeKeywords(keywords ...string) (string, bool) {
+	for _, keyword := range keywords {
+		if p.isKeyword(keyword) {
+			p.consumeToken()
+			return keyword, true
+		}
+	}
+	return "", false
 }
 
 // cosumeIdentifier consumes an expected identifier token or adds an error node.
