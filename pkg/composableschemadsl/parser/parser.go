@@ -208,7 +208,7 @@ func (p *sourceParser) consumeCaveatTypeReference() AstNode {
 	typeRefNode := p.startNode(dslshape.NodeTypeCaveatTypeReference)
 	defer p.mustFinishNode()
 
-	name, ok := p.consumeIdentifier()
+	name, ok := p.consumeCaveatTypeIdentifier()
 	if !ok {
 		return typeRefNode
 	}
@@ -232,6 +232,21 @@ func (p *sourceParser) consumeCaveatTypeReference() AstNode {
 	// >
 	p.consume(lexer.TokenTypeGreaterThan)
 	return typeRefNode
+}
+
+// "any" is both a keyword and a valid caveat type, so a caveat type identifier
+// can either be a keyword or an identifier. This wraps around that.
+func (p *sourceParser) consumeCaveatTypeIdentifier() (string, bool) {
+	if ok := p.tryConsumeKeyword("any"); ok {
+		return "any", true
+	}
+
+	identifier, ok := p.tryConsume(lexer.TokenTypeIdentifier)
+	if !ok {
+		p.emitErrorf("Expected keyword \"any\" or a valid identifier, found token %v", p.currentToken.Kind)
+		return "", false
+	}
+	return identifier.Value, true
 }
 
 // consumeDefinition attempts to consume a single schema definition.
@@ -483,14 +498,8 @@ func (p *sourceParser) tryConsumeArrowExpression() (AstNode, bool) {
 	rightNodeBuilder := func(leftNode AstNode, operatorToken lexer.Lexeme) (AstNode, bool) {
 		// Check for an arrow function.
 		if operatorToken.Kind == lexer.TokenTypePeriod {
-			functionName, ok := p.consumeIdentifier()
+			functionName, ok := p.consumeKeywords("any", "all")
 			if !ok {
-				return nil, false
-			}
-
-			// TODO(jschorr): Change to keywords in schema v2.
-			if functionName != "any" && functionName != "all" {
-				p.emitErrorf("Expected 'any' or 'all' for arrow function, found: %s", functionName)
 				return nil, false
 			}
 

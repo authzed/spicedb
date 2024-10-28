@@ -57,6 +57,14 @@ var lexerTests = []lexerTest{
 	{"minus", "-", []Lexeme{{TokenTypeMinus, 0, "-", ""}, tEOF}},
 
 	{"keyword", "definition", []Lexeme{{TokenTypeKeyword, 0, "definition", ""}, tEOF}},
+	{"keyword", "caveat", []Lexeme{{TokenTypeKeyword, 0, "caveat", ""}, tEOF}},
+	{"keyword", "relation", []Lexeme{{TokenTypeKeyword, 0, "relation", ""}, tEOF}},
+	{"keyword", "permission", []Lexeme{{TokenTypeKeyword, 0, "permission", ""}, tEOF}},
+	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
+	{"keyword", "with", []Lexeme{{TokenTypeKeyword, 0, "with", ""}, tEOF}},
+	{"keyword", "from", []Lexeme{{TokenTypeKeyword, 0, "from", ""}, tEOF}},
+	{"keyword", "import", []Lexeme{{TokenTypeKeyword, 0, "import", ""}, tEOF}},
+	{"keyword", "all", []Lexeme{{TokenTypeKeyword, 0, "all", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
 	{"identifier", "define", []Lexeme{{TokenTypeIdentifier, 0, "define", ""}, tEOF}},
 	{"typepath", "foo/bar", []Lexeme{
@@ -251,7 +259,7 @@ var lexerTests = []lexerTest{
 	{"dot access", "foo.all(something)", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
 		{TokenTypePeriod, 0, ".", ""},
-		{TokenTypeIdentifier, 0, "all", ""},
+		{TokenTypeKeyword, 0, "all", ""},
 		{TokenTypeLeftParen, 0, "(", ""},
 		{TokenTypeIdentifier, 0, "something", ""},
 		{TokenTypeRightParen, 0, ")", ""},
