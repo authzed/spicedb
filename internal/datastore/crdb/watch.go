@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/dustin/go-humanize"
 	"strings"
 	"time"
 
@@ -98,19 +100,52 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	// current checkpoint without waiting for checkpointing from CRDB's side.
 	// Run the watch, with the most recent checkpoint known.
 
-	windowCompleted := make(chan error)
-	endRevision := increaseWithDuration(afterRevision, windowInterval)
+	cHandler := newCongestionHandler(windowInterval)
+	startRevision := afterRevision.(revisions.HLCRevision)
+	endRevision := cHandler.windowFor(startRevision)
 	go func() {
 		for {
-			go func() {
-				fmt.Printf("processing window: [%v -> %v]\n", afterRevision, endRevision)
-				windowCompleted <- cds.watch(ctx, afterRevision, endRevision, options, updates, errs)
-			}()
+			windowStart := time.Unix(0, startRevision.TimestampNanoSec())
+			windowEnd := time.Unix(0, endRevision.TimestampNanoSec())
+			log.Info().
+				Stringer("windowStart", windowStart).
+				Stringer("windowEnd", windowEnd).
+				Stringer("windowSize", windowEnd.Sub(windowStart)).
+				Stringer("backlogApproximate", time.Now().Sub(windowStart)).
+				Msg("processing watch window")
+			windowUpdates, err := cds.watch(ctx, afterRevision, endRevision, options)
 
-			err := <-windowCompleted
-			if err != nil {
-				// no need to bubble up the error, it would have been already sent over the channel
+			var sizeExceededError datastore.MaximumChangesSizeExceededError
+			if errors.Is(ctx.Err(), context.Canceled) {
+				errs <- datastore.NewWatchCanceledErr()
 				break
+			} else if err != nil && (pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err)) {
+				errs <- datastore.NewWatchTemporaryErr(err)
+				break
+			} else if errors.As(err, &sizeExceededError) {
+				cHandler.congestion(true)
+				endRevision = cHandler.windowFor(startRevision)
+				log.Warn().Str("maxSize", humanize.Bytes(sizeExceededError.MaxSize())).
+					Msg("watch window size exceeded, retrying with smaller window")
+				// let's retry the current window with a smaller end revision
+				continue
+			} else if err != nil {
+				errs <- err
+				break
+			}
+
+			cHandler.congestion(false)
+			log.Info().
+				Stringer("windowStart", time.Unix(0, startRevision.TimestampNanoSec())).
+				Stringer("windowEnd", time.Unix(0, endRevision.TimestampNanoSec())).
+				Int("updateCount", len(windowUpdates)).
+				Msg("sending watch updates to client")
+			for _, change := range windowUpdates {
+				change := change
+				// this handles sending over the error channel in case of error
+				if !sendChange(&change) {
+					return
+				}
 			}
 
 			if options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
@@ -122,10 +157,10 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 				}
 			}
 
-			// move to the next window
-
-			afterRevision = endRevision
-			endRevision = increaseWithDuration(afterRevision, windowInterval)
+			// move to the next window, increase window size inverse proportionally to the number of changes retrieved
+			// from the previous window.
+			startRevision = endRevision
+			endRevision = cHandler.windowFor(startRevision)
 		}
 
 		close(updates)
@@ -135,11 +170,64 @@ func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Rev
 	return updates, errs
 }
 
-func increaseWithDuration(revision datastore.Revision, windowInterval time.Duration) revisions.HLCRevision {
-	hclRev := revision.(revisions.HLCRevision)
-	afterTime := time.Unix(0, hclRev.TimestampNanoSec())
-	newRev := revisions.NewHLCForTime(afterTime.Add(windowInterval))
-	return newRev
+func newCongestionHandler(interval time.Duration) congestionHandler {
+	// to account for a scenario where folks are starting in the past, we set
+	// an initial interval of 30 seconds to quickly speed things up if working
+	// through a large backlog of changes
+	return congestionHandler{
+		minInterval:      interval,
+		currentInterval:  30 * time.Second,
+		congestionFactor: 0.5,
+		successFactor:    2,
+	}
+}
+
+type congestionHandler struct {
+	congestionFactor float64
+	successFactor    float64
+	congested        bool
+	minInterval      time.Duration
+	currentInterval  time.Duration
+}
+
+func (ch *congestionHandler) congestion(isCongested bool) {
+	if isCongested {
+		ch.congested = true
+
+		congestedIntervalNanos := int64(float64(ch.currentInterval.Nanoseconds()) * ch.congestionFactor)
+		congestedInterval := time.Nanosecond * time.Duration(congestedIntervalNanos)
+		ch.currentInterval = max(congestedInterval, ch.minInterval)
+
+		return
+	}
+
+	ch.congested = false
+
+	successIntervalNanos := int64(float64(ch.currentInterval.Nanoseconds()) * ch.successFactor)
+	successInterval := time.Nanosecond * time.Duration(successIntervalNanos)
+	ch.currentInterval = successInterval
+}
+
+func (ch *congestionHandler) windowFor(initial revisions.HLCRevision) revisions.HLCRevision {
+	afterTime := time.Unix(0, initial.TimestampNanoSec())
+	if ch.congested {
+		return revisions.NewHLCForTime(afterTime.Add(ch.currentInterval))
+	}
+
+	now := time.Now()
+	newAfterTime := afterTime.Add(ch.currentInterval)
+	if newAfterTime.After(now) {
+		// we are close to now(), either make the window as large as the difference, or take the minimum allowed
+		// interval if bigger than the difference
+		ch.currentInterval = max(now.Sub(afterTime), ch.minInterval)
+		// cap the window once we approach now() to avoid having to wait very long
+		// until the updates are streamed
+		return revisions.NewHLCForTime(afterTime.Add(ch.currentInterval))
+	}
+
+	// if not beyond now, we may be streaming from the past, so we want to quickly
+	// increase the window until we hit congestion
+	return revisions.NewHLCForTime(afterTime.Add(ch.currentInterval))
 }
 
 func (cds *crdbDatastore) watch(
@@ -147,9 +235,7 @@ func (cds *crdbDatastore) watch(
 	afterRevision datastore.Revision,
 	endRevision datastore.Revision,
 	opts datastore.WatchOptions,
-	updates chan *datastore.RevisionChanges,
-	errs chan error,
-) error {
+) ([]datastore.RevisionChanges, error) {
 	watchConnectTimeout := opts.WatchConnectTimeout
 	if watchConnectTimeout <= 0 {
 		watchConnectTimeout = cds.watchConnectTimeout
@@ -162,8 +248,7 @@ func (cds *crdbDatastore) watch(
 	// see: https://www.cockroachlabs.com/docs/v22.2/changefeed-for#considerations
 	conn, err := pgxcommon.ConnectWithInstrumentationAndTimeout(ctx, cds.dburl, watchConnectTimeout)
 	if err != nil {
-		errs <- err
-		return err
+		return nil, err
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
@@ -178,43 +263,24 @@ func (cds *crdbDatastore) watch(
 	}
 
 	if opts.CheckpointInterval < 0 {
-		err := fmt.Errorf("invalid checkpoint interval given")
-		errs <- err
-		return err
+		return nil, fmt.Errorf("invalid checkpoint interval given")
 	}
 
-	interpolated := fmt.Sprintf("EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', end_time = '%s';",
+	interpolated := fmt.Sprintf("EXPERIMENTAL CHANGEFEED FOR %s WITH updated, cursor = '%s', end_time = '%s', initial_scan = 'no';",
 		strings.Join(tableNames, ","), afterRevision, endRevision)
-
-	sendError := func(err error) {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			errs <- datastore.NewWatchCanceledErr()
-			return
-		}
-
-		if pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err) {
-			errs <- datastore.NewWatchTemporaryErr(err)
-			return
-		}
-
-		errs <- err
-	}
 
 	watchBufferWriteTimeout := opts.WatchBufferWriteTimeout
 	if watchBufferWriteTimeout <= 0 {
 		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
 	}
 
-	sendChange := sendChangeWithTimeoutFunc(updates, errs, watchBufferWriteTimeout)
 	changes, err := conn.Query(ctx, interpolated)
 	if err != nil {
-		sendError(err)
-		return err
+		return nil, err
 	}
 
 	if err := changes.Err(); err != nil {
-		sendError(err)
-		return err
+		return nil, err
 	}
 	// We call Close async here because it can be slow and blocks closing the channels. There is
 	// no return value so we're not really losing anything.
@@ -228,14 +294,12 @@ func (cds *crdbDatastore) watch(
 
 		// Pull in the table name, the primary key(s) and change information.
 		if err := changes.Scan(&tableNameBytes, &primaryKeyValuesJSON, &changeJSON); err != nil {
-			sendError(err)
-			return err
+			return nil, err
 		}
 
 		var details changeDetails
 		if err := json.Unmarshal(changeJSON, &details); err != nil {
-			sendError(err)
-			return err
+			return nil, err
 		}
 
 		if details.Resolved != "" {
@@ -248,8 +312,7 @@ func (cds *crdbDatastore) watch(
 
 		var pkValues []string
 		if err := json.Unmarshal(primaryKeyValuesJSON, &pkValues); err != nil {
-			sendError(err)
-			return err
+			return nil, err
 		}
 
 		switch tableName {
@@ -262,8 +325,7 @@ func (cds *crdbDatastore) watch(
 			}
 			ctxCaveat, err := common.ContextualizedCaveatFrom(caveatName, caveatContext)
 			if err != nil {
-				sendError(err)
-				return err
+				return nil, err
 			}
 
 			var integrity *core.RelationshipIntegrity
@@ -272,17 +334,13 @@ func (cds *crdbDatastore) watch(
 				hexString := *details.After.IntegrityHashAsHex
 				hashBytes, err := hex.DecodeString(hexString[2:]) // drop the \x
 				if err != nil {
-					newErr := fmt.Errorf("could not decode hash bytes: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("could not decode hash bytes: %w", err)
 				}
 
 				timestampString := *details.After.TimestampAsString
 				parsedTime, err := time.Parse("2006-01-02T15:04:05.999999999", timestampString)
 				if err != nil {
-					newErr := fmt.Errorf("could not parse timestamp: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("could not parse timestamp: %w", err)
 				}
 
 				integrity = &core.RelationshipIntegrity{
@@ -311,107 +369,83 @@ func (cds *crdbDatastore) watch(
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
-				newErr := fmt.Errorf("malformed update timestamp: %w", err)
-				sendError(newErr)
-				return newErr
+				return nil, fmt.Errorf("malformed update timestamp: %w", err)
 			}
 
 			if details.After == nil {
 				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationDelete); err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			} else {
 				if err := tracked.AddRelationshipChange(ctx, rev, relationship, tuple.UpdateOperationTouch); err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			}
 
 		case tableNamespace:
 			if len(pkValues) != 1 {
-				newErr := spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON))
-				sendError(newErr)
-				return newErr
+				return nil, spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON))
 			}
 
 			definitionName := pkValues[0]
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
-				newErr := fmt.Errorf("malformed update timestamp: %w", err)
-				sendError(newErr)
-				return newErr
+				return nil, fmt.Errorf("malformed update timestamp: %w", err)
 			}
 
 			if details.After != nil && details.After.SerializedNamespaceConfig != "" {
 				namespaceDef := &core.NamespaceDefinition{}
 				defBytes, err := hex.DecodeString(details.After.SerializedNamespaceConfig[2:]) // drop the \x
 				if err != nil {
-					newErr := fmt.Errorf("could not decode namespace definition: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("could not decode namespace definition: %w", err)
 				}
 
 				if err := namespaceDef.UnmarshalVT(defBytes); err != nil {
-					newErr := fmt.Errorf("could not unmarshal namespace definition: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("could not unmarshal namespace definition: %w", err)
 				}
 				err = tracked.AddChangedDefinition(ctx, rev, namespaceDef)
 				if err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			} else {
 				err = tracked.AddDeletedNamespace(ctx, rev, definitionName)
 				if err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			}
 
 		case tableCaveat:
 			if len(pkValues) != 1 {
-				newErr := spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON))
-				sendError(newErr)
-				return newErr
+				return nil, spiceerrors.MustBugf("expected a single definition name for the primary key in change feed. found: %s", string(primaryKeyValuesJSON))
 			}
 
 			definitionName := pkValues[0]
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
 			if err != nil {
-				newErr := fmt.Errorf("malformed update timestamp: %w", err)
-				sendError(newErr)
-				return newErr
+				return nil, fmt.Errorf("malformed update timestamp: %w", err)
 			}
 
 			if details.After != nil && details.After.SerializedCaveatDefinition != "" {
 				caveatDef := &core.CaveatDefinition{}
 				defBytes, err := hex.DecodeString(details.After.SerializedCaveatDefinition[2:]) // drop the \x
 				if err != nil {
-					newErr := fmt.Errorf("could not decode caveat definition: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("could not decode caveat definition: %w", err)
 				}
 
 				if err := caveatDef.UnmarshalVT(defBytes); err != nil {
-					newErr := fmt.Errorf("could not unmarshal caveat definition: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("could not unmarshal caveat definition: %w", err)
 				}
 
 				err = tracked.AddChangedDefinition(ctx, rev, caveatDef)
 				if err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			} else {
 				err = tracked.AddDeletedCaveat(ctx, rev, definitionName)
 				if err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			}
 
@@ -419,41 +453,16 @@ func (cds *crdbDatastore) watch(
 			if details.After != nil {
 				rev, err := revisions.HLCRevisionFromString(details.Updated)
 				if err != nil {
-					newErr := fmt.Errorf("malformed update timestamp: %w", err)
-					sendError(newErr)
-					return newErr
+					return nil, fmt.Errorf("malformed update timestamp: %w", err)
 				}
 
 				if err := tracked.SetRevisionMetadata(ctx, rev, details.After.Metadata); err != nil {
-					sendError(err)
-					return err
+					return nil, err
 				}
 			}
 
 		default:
-			newErr := spiceerrors.MustBugf("unexpected table name in changefeed: %s", tableName)
-			sendError(newErr)
-			return newErr
-		}
-
-		// If we have a most recent checkpoint, we check if the updated revision is less than it. If it is,
-		// we can emit all changes that are less than the most recent checkpoint, as CRDB has guarenteed that
-		// no other updates will come in before that revision.
-
-		filtered, err := tracked.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
-		if err != nil {
-			sendError(err)
-			return err
-		}
-
-		for _, revChange := range filtered {
-			spiceerrors.DebugAssert(func() bool {
-				return !revChange.IsCheckpoint
-			}, "expected non-checkpoint update")
-
-			if !sendChange(&revChange) {
-				return nil
-			}
+			return nil, spiceerrors.MustBugf("unexpected table name in changefeed: %s", tableName)
 		}
 	}
 
@@ -462,19 +471,22 @@ func (cds *crdbDatastore) watch(
 			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer closeCancel()
 			if err := conn.Close(closeCtx); err != nil {
-				errs <- err
-				return err
+				return nil, err
 			}
-			canceled := datastore.NewWatchCanceledErr()
-			errs <- canceled
-			return canceled
+
+			return nil, datastore.NewWatchCanceledErr()
 		} else {
-			errs <- err
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	// if CRDB stops streaming changes over the changefeed, we've reached "end_time"
+	filtered, err := tracked.AsRevisionChanges(revisions.HLCKeyLessThanFunc)
+	if err != nil {
+		return nil, err
+	}
+
+	return filtered, nil
 }
 
 func sendChangeWithTimeoutFunc(updates chan *datastore.RevisionChanges, errs chan error, watchBufferWriteTimeout time.Duration) func(change *datastore.RevisionChanges) bool {

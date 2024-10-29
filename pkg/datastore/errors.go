@@ -269,6 +269,10 @@ type MaximumChangesSizeExceededError struct {
 	maxSize uint64
 }
 
+func (err MaximumChangesSizeExceededError) MaxSize() uint64 {
+	return err.maxSize
+}
+
 // NewMaximumChangesSizeExceededError creates a new MaximumChangesSizeExceededError.
 func NewMaximumChangesSizeExceededError(maxSize uint64) error {
 	return MaximumChangesSizeExceededError{fmt.Errorf("maximum changes byte size of %d exceeded", maxSize), maxSize}
