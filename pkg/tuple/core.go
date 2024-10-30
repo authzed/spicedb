@@ -27,6 +27,16 @@ func CoreRelationToStringWithoutCaveat(rel *core.RelationTuple) string {
 	return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId + "#" + rel.ResourceAndRelation.Relation
 }
 
+// Like the above, but preserves caveat information
+func CoreRelationToString(rel *core.RelationTuple) (string, error) {
+	return String(FromCoreRelationTuple(rel))
+}
+
+// Like the above, but simpler signature at the cost of panicking
+func MustCoreRelationToString(rel *core.RelationTuple) string {
+	return MustString(FromCoreRelationTuple(rel))
+}
+
 // RRStringToCore creates a RelationReference from the string pieces.
 func RRStringToCore(namespaceName string, relationName string) *core.RelationReference {
 	spiceerrors.DebugAssert(func() bool {
