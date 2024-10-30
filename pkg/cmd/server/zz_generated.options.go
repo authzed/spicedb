@@ -43,6 +43,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.PresharedSecureKey = c.PresharedSecureKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
 		to.DisableVersionResponse = c.DisableVersionResponse
+		to.ServerName = c.ServerName
 		to.HTTPGateway = c.HTTPGateway
 		to.HTTPGatewayUpstreamAddr = c.HTTPGatewayUpstreamAddr
 		to.HTTPGatewayUpstreamTLSCertPath = c.HTTPGatewayUpstreamTLSCertPath
@@ -110,6 +111,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["PresharedSecureKey"] = helpers.SensitiveDebugValue(c.PresharedSecureKey)
 	debugMap["ShutdownGracePeriod"] = helpers.DebugValue(c.ShutdownGracePeriod, false)
 	debugMap["DisableVersionResponse"] = helpers.DebugValue(c.DisableVersionResponse, false)
+	debugMap["ServerName"] = helpers.DebugValue(c.ServerName, false)
 	debugMap["HTTPGateway"] = helpers.DebugValue(c.HTTPGateway, false)
 	debugMap["HTTPGatewayUpstreamAddr"] = helpers.DebugValue(c.HTTPGatewayUpstreamAddr, false)
 	debugMap["HTTPGatewayUpstreamTLSCertPath"] = helpers.DebugValue(c.HTTPGatewayUpstreamTLSCertPath, false)
@@ -220,6 +222,13 @@ func WithShutdownGracePeriod(shutdownGracePeriod time.Duration) ConfigOption {
 func WithDisableVersionResponse(disableVersionResponse bool) ConfigOption {
 	return func(c *Config) {
 		c.DisableVersionResponse = disableVersionResponse
+	}
+}
+
+// WithServerName returns an option that can set ServerName on a Config
+func WithServerName(serverName string) ConfigOption {
+	return func(c *Config) {
+		c.ServerName = serverName
 	}
 }
 

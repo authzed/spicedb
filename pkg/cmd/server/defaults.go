@@ -186,6 +186,7 @@ type MiddlewareOption struct {
 	EnableRequestLog        bool                `debugmap:"visible"`
 	EnableResponseLog       bool                `debugmap:"visible"`
 	DisableGRPCHistogram    bool                `debugmap:"visible"`
+	MiddlewareServiceLabel  string              `debugmap:"visible"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -341,7 +342,7 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInternal(true).
-			WithInterceptor(consistencymw.UnaryServerInterceptor()).
+			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MiddlewareServiceLabel)).
 			Done(),
 
 		NewUnaryMiddleware().
@@ -415,7 +416,7 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
 			WithInternal(true).
-			WithInterceptor(consistencymw.StreamServerInterceptor()).
+			WithInterceptor(consistencymw.StreamServerInterceptor(opts.MiddlewareServiceLabel)).
 			Done(),
 
 		NewStreamMiddleware().

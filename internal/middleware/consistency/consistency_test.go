@@ -29,7 +29,7 @@ func TestAddRevisionToContextNoneSupplied(t *testing.T) {
 	ds.On("OptimizedRevision").Return(optimized, nil).Once()
 
 	updated := ContextWithHandle(context.Background())
-	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds)
+	err := AddRevisionToContext(updated, &v1.ReadRelationshipsRequest{}, ds, "somelabel")
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -52,7 +52,7 @@ func TestAddRevisionToContextMinimizeLatency(t *testing.T) {
 				MinimizeLatency: true,
 			},
 		},
-	}, ds)
+	}, ds, "somelabel")
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -75,7 +75,7 @@ func TestAddRevisionToContextFullyConsistent(t *testing.T) {
 				FullyConsistent: true,
 			},
 		},
-	}, ds)
+	}, ds, "somelabel")
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -99,7 +99,7 @@ func TestAddRevisionToContextAtLeastAsFresh(t *testing.T) {
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(exact),
 			},
 		},
-	}, ds)
+	}, ds, "somelabel")
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -123,7 +123,7 @@ func TestAddRevisionToContextAtValidExactSnapshot(t *testing.T) {
 				AtExactSnapshot: zedtoken.MustNewFromRevision(exact),
 			},
 		},
-	}, ds)
+	}, ds, "somelabel")
 	require.NoError(err)
 
 	rev, _, err := RevisionFromContext(updated)
@@ -147,7 +147,7 @@ func TestAddRevisionToContextAtInvalidExactSnapshot(t *testing.T) {
 				AtExactSnapshot: zedtoken.MustNewFromRevision(zero),
 			},
 		},
-	}, ds)
+	}, ds, "somelabel")
 	require.Error(err)
 	ds.AssertExpectations(t)
 }
@@ -181,7 +181,7 @@ func TestAddRevisionToContextWithCursor(t *testing.T) {
 			},
 		},
 		OptionalCursor: cursor,
-	}, ds)
+	}, ds, "somelabel")
 	require.NoError(err)
 
 	// ensure we get back `optimized` from the cursor
