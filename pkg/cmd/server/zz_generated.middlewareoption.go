@@ -40,6 +40,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.EnableRequestLog = m.EnableRequestLog
 		to.EnableResponseLog = m.EnableResponseLog
 		to.DisableGRPCHistogram = m.DisableGRPCHistogram
+		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.unaryDatastoreMiddleware = m.unaryDatastoreMiddleware
 		to.streamDatastoreMiddleware = m.streamDatastoreMiddleware
 	}
@@ -52,6 +53,7 @@ func (m MiddlewareOption) DebugMap() map[string]any {
 	debugMap["EnableRequestLog"] = helpers.DebugValue(m.EnableRequestLog, false)
 	debugMap["EnableResponseLog"] = helpers.DebugValue(m.EnableResponseLog, false)
 	debugMap["DisableGRPCHistogram"] = helpers.DebugValue(m.DisableGRPCHistogram, false)
+	debugMap["MiddlewareServiceLabel"] = helpers.DebugValue(m.MiddlewareServiceLabel, false)
 	return debugMap
 }
 
@@ -117,5 +119,12 @@ func WithEnableResponseLog(enableResponseLog bool) MiddlewareOptionOption {
 func WithDisableGRPCHistogram(disableGRPCHistogram bool) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.DisableGRPCHistogram = disableGRPCHistogram
+	}
+}
+
+// WithMiddlewareServiceLabel returns an option that can set MiddlewareServiceLabel on a MiddlewareOption
+func WithMiddlewareServiceLabel(middlewareServiceLabel string) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.MiddlewareServiceLabel = middlewareServiceLabel
 	}
 }

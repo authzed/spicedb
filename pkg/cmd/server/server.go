@@ -59,6 +59,7 @@ type Config struct {
 	PresharedSecureKey     []string              `debugmap:"sensitive"`
 	ShutdownGracePeriod    time.Duration         `debugmap:"visible"`
 	DisableVersionResponse bool                  `debugmap:"visible"`
+	ServerName             string                `debugmap:"visible"`
 
 	// GRPC Gateway config
 	HTTPGateway                    util.HTTPServerConfig `debugmap:"visible"`
@@ -376,6 +377,11 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		watchServiceOption = services.WatchServiceDisabled
 	}
 
+	serverName := c.ServerName
+	if serverName == "" {
+		serverName = "spicedb"
+	}
+
 	opts := MiddlewareOption{
 		log.Logger,
 		c.GRPCAuthFunc,
@@ -384,6 +390,7 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		c.EnableRequestLogs,
 		c.EnableResponseLogs,
 		c.DisableGRPCLatencyHistogram,
+		serverName,
 		nil,
 		nil,
 	}

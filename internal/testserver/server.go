@@ -104,7 +104,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 					},
 					{
 						Name:       "consistency",
-						Middleware: consistency.UnaryServerInterceptor(),
+						Middleware: consistency.UnaryServerInterceptor("testserver"),
 					},
 					{
 						Name:       "servicespecific",
@@ -127,7 +127,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 					},
 					{
 						Name:       "consistency",
-						Middleware: consistency.StreamServerInterceptor(),
+						Middleware: consistency.StreamServerInterceptor("testserver"),
 					},
 					{
 						Name:       "servicespecific",

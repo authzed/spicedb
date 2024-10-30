@@ -148,7 +148,7 @@ func TestCertRotation(t *testing.T) {
 					},
 					{
 						Name:       "consistency",
-						Middleware: consistency.UnaryServerInterceptor(),
+						Middleware: consistency.UnaryServerInterceptor("testing"),
 					},
 					{
 						Name:       "servicespecific",
@@ -167,7 +167,7 @@ func TestCertRotation(t *testing.T) {
 					},
 					{
 						Name:       "consistency",
-						Middleware: consistency.StreamServerInterceptor(),
+						Middleware: consistency.StreamServerInterceptor("testing"),
 					},
 					{
 						Name:       "servicespecific",
