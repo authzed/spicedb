@@ -21,7 +21,7 @@ func ParseV1Rel(relString string) (*v1.Relationship, error) {
 }
 
 // Same as above, but panics if it cannot be parsed. Should only be used in tests.
-func MustParseV1Rel(relString string) (*v1.Relationship) {
+func MustParseV1Rel(relString string) *v1.Relationship {
 	parsed, err := Parse(relString)
 	if err != nil {
 		panic(fmt.Sprintf("could not parse relationship string: %s %s", relString, err))
