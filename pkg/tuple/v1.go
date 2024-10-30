@@ -21,13 +21,13 @@ func ParseV1Rel(relString string) (*v1.Relationship, error) {
 }
 
 // Same as above, but panics if it cannot be parsed. Should only be used in tests.
-func MustParseV1Rel(relString string) (*v1.Relationship, error) {
+func MustParseV1Rel(relString string) (*v1.Relationship) {
 	parsed, err := Parse(relString)
 	if err != nil {
 		panic(fmt.Sprintf("could not parse relationship string: %s %s", relString, err))
 	}
 
-	return ToV1Relationship(parsed), nil
+	return ToV1Relationship(parsed)
 }
 
 // MustV1RelString converts a relationship into a string.  Will panic if
