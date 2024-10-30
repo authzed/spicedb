@@ -18,7 +18,7 @@ func ONRStringToCore(ns, oid, rel string) *core.ObjectAndRelation {
 	}
 }
 
-// CoreRelationToString creates a string from a core.RelationTuple.
+// CoreRelationToStringWithoutCaveat creates a string from a core.RelationTuple without stringifying the caveat.
 func CoreRelationToStringWithoutCaveat(rel *core.RelationTuple) string {
 	if rel.Subject.Relation == Ellipsis {
 		return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId
@@ -27,12 +27,12 @@ func CoreRelationToStringWithoutCaveat(rel *core.RelationTuple) string {
 	return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId + "#" + rel.ResourceAndRelation.Relation
 }
 
-// Like the above, but preserves caveat information
+// CoreRelationToString creates a string from a core.RelationTuple.
 func CoreRelationToString(rel *core.RelationTuple) (string, error) {
 	return String(FromCoreRelationTuple(rel))
 }
 
-// Like the above, but simpler signature at the cost of panicking
+// MustCoreRelationToString creates a string from a core.RelationTuple and panics if it can't.
 func MustCoreRelationToString(rel *core.RelationTuple) string {
 	return MustString(FromCoreRelationTuple(rel))
 }
