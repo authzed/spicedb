@@ -52,7 +52,7 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req interface{}, d
 	switch req.(type) {
 	case hasConsistency:
 		if serviceLabel != "" {
-			ConsistentyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
+			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
 
 		databaseRev, err := ds.HeadRevision(ctx)

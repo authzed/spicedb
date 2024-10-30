@@ -21,7 +21,7 @@ import (
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
-var ConsistentyCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+var ConsistencyCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "middleware",
 	Name:      "consistency_assigned_total",
@@ -90,7 +90,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	case hasOptionalCursor && withOptionalCursor.GetOptionalCursor() != nil:
 		// Always use the revision encoded in the cursor.
 		if serviceLabel != "" {
-			ConsistentyCounter.WithLabelValues("snapshot", "cursor", serviceLabel).Inc()
+			ConsistencyCounter.WithLabelValues("snapshot", "cursor", serviceLabel).Inc()
 		}
 
 		requestedRev, err := cursor.DecodeToDispatchRevision(withOptionalCursor.GetOptionalCursor(), ds)
@@ -113,7 +113,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		}
 
 		if serviceLabel != "" {
-			ConsistentyCounter.WithLabelValues("minlatency", source, serviceLabel).Inc()
+			ConsistencyCounter.WithLabelValues("minlatency", source, serviceLabel).Inc()
 		}
 
 		databaseRev, err := ds.OptimizedRevision(ctx)
@@ -125,7 +125,7 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 	case consistency.GetFullyConsistent():
 		// Fully Consistent: Use the datastore's synchronized revision.
 		if serviceLabel != "" {
-			ConsistentyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
+			ConsistencyCounter.WithLabelValues("full", "request", serviceLabel).Inc()
 		}
 
 		databaseRev, err := ds.HeadRevision(ctx)
@@ -146,14 +146,14 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		if pickedRequest {
 			source = "request"
 		}
-		ConsistentyCounter.WithLabelValues("atleast", source, serviceLabel).Inc()
+		ConsistencyCounter.WithLabelValues("atleast", source, serviceLabel).Inc()
 
 		revision = picked
 
 	case consistency.GetAtExactSnapshot() != nil:
 		// Exact snapshot: Use the revision as encoded in the zed token.
 		if serviceLabel != "" {
-			ConsistentyCounter.WithLabelValues("snapshot", "request", serviceLabel).Inc()
+			ConsistencyCounter.WithLabelValues("snapshot", "request", serviceLabel).Inc()
 		}
 
 		requestedRev, err := zedtoken.DecodeRevision(consistency.GetAtExactSnapshot(), ds)
