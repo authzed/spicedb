@@ -341,7 +341,6 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 
 		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
-			WithInternal(true).
 			WithInterceptor(consistencymw.UnaryServerInterceptor(opts.MiddlewareServiceLabel)).
 			Done(),
 
@@ -415,7 +414,6 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 
 		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareConsistency).
-			WithInternal(true).
 			WithInterceptor(consistencymw.StreamServerInterceptor(opts.MiddlewareServiceLabel)).
 			Done(),
 
