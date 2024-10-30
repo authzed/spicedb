@@ -19,7 +19,7 @@ func ONRStringToCore(ns, oid, rel string) *core.ObjectAndRelation {
 }
 
 // CoreRelationToString creates a string from a core.RelationTuple.
-func CoreRelationToString(rel *core.RelationTuple) string {
+func CoreRelationToStringWithoutCaveat(rel *core.RelationTuple) string {
 	if rel.Subject.Relation == Ellipsis {
 		return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId
 	}
