@@ -2,6 +2,8 @@ module github.com/authzed/spicedb/e2e
 
 go 1.23.1
 
+replace github.com/authzed/spicedb => ../
+
 require (
 	github.com/authzed/authzed-go v0.16.1-0.20241001202507-27cc182a7b92
 	github.com/authzed/grpcutil v0.0.0-20240123092924-129dc0a6a6e1
@@ -52,7 +54,7 @@ require (
 	github.com/jzelinskie/stringz v0.0.3 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/planetscale/vtprotobuf v0.6.1-0.20240409071808-615f978279ca // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240917153116-6f2963f01587 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
@@ -72,5 +74,3 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/authzed/spicedb => ../
