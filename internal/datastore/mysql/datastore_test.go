@@ -105,6 +105,11 @@ func TestMySQL8Datastore(t *testing.T) {
 	additionalMySQLTests(t, b)
 }
 
+func TestMySQLRevisionTimestamps(t *testing.T) {
+	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
+	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
+}
+
 func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	reg := prometheus.NewRegistry()
 	prometheus.DefaultGatherer = reg
@@ -121,7 +126,6 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	t.Run("ChunkedGarbageCollection", createDatastoreTest(b, ChunkedGarbageCollectionTest, defaultOptions...))
 	t.Run("EmptyGarbageCollection", createDatastoreTest(b, EmptyGarbageCollectionTest, defaultOptions...))
 	t.Run("NoRelationshipsGarbageCollection", createDatastoreTest(b, NoRelationshipsGarbageCollectionTest, defaultOptions...))
-	t.Run("TransactionTimestamps", createDatastoreTest(b, TransactionTimestampsTest, defaultOptions...))
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
