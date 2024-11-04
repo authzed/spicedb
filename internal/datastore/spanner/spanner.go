@@ -272,7 +272,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 			return &traceableRTX{delegate: spannerRWT}
 		}
 
-		if config.Metadata != nil {
+		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 			// Insert the metadata into the transaction metadata table.
 			mutation := spanner.Insert(tableTransactionMetadata,
 				[]string{colTransactionTag, colMetadata},
