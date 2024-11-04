@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/composableschemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 	"github.com/authzed/spicedb/pkg/composableschemadsl/parser"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -52,20 +53,33 @@ func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, posit
 type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
+	// In an import context, this is the folder containing
+	// the importing schema (as opposed to imported schemas)
+	sourceFolder string
 }
 
 func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
 
+// Config for the prefix attached to all definitions, such as in Serverless
+// where it's `someorganization/` in front of each definition.
 func ObjectTypePrefix(prefix string) ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = &prefix }
 }
 
+// Config that does not supply the prefix but requires the prefix on all objects.
 func RequirePrefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = nil }
 }
 
+// Config that allows for no prefix. This is the "normal" default.
 func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
+}
+
+// Config that supplies the root source folder for compilation. Required
+// for relative import syntax to work properly.
+func SourceFolder(sourceFolder string) Option {
+	return func(cfg *config) { cfg.sourceFolder = sourceFolder }
 }
 
 type Option func(*config)
@@ -74,6 +88,11 @@ type ObjectPrefixOption func(*config)
 
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
+	names := mapz.NewSet[string]()
+	return compileImpl(schema, names, prefix, opts...)
+}
+
+func compileImpl(schema InputSchema, existingNames *mapz.Set[string], prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{}
 	prefix(cfg) // required option
 
@@ -94,6 +113,8 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		mapper:           mapper,
 		schemaString:     schema.SchemaString,
 		skipValidate:     cfg.skipValidation,
+		sourceFolder:     cfg.sourceFolder,
+		existingNames:    existingNames,
 	}, root)
 	if err != nil {
 		var errorWithNode errorWithNode

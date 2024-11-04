@@ -1,0 +1,6 @@
+from .user.user import user
+
+definition resource {
+  relation viewer: user
+  permission view = viewer
+}
