@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -257,7 +258,7 @@ func BenchmarkReachableResources(b *testing.B) {
 		)
 
 		require := require.New(b)
-		rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+		rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 		require.NoError(err)
 
 		ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require)
@@ -567,7 +568,7 @@ func TestCaveatedReachableResources(t *testing.T) {
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
@@ -636,7 +637,7 @@ func TestReachableResourcesWithConsistencyLimitOf1(t *testing.T) {
 
 func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)
@@ -712,7 +713,7 @@ func TestReachableResourcesMultipleEntrypointEarlyCancel(t *testing.T) {
 
 func TestReachableResourcesCursors(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)
@@ -828,7 +829,7 @@ func TestReachableResourcesCursors(t *testing.T) {
 
 func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)
@@ -909,7 +910,7 @@ func TestReachableResourcesPaginationWithLimit(t *testing.T) {
 
 func TestReachableResourcesWithQueryError(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)
@@ -1209,7 +1210,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 
 					dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-					ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+					ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 					require.NoError(err)
 
 					ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
@@ -1269,7 +1270,7 @@ func TestReachableResourcesOverSchema(t *testing.T) {
 
 func TestReachableResourcesWithPreCancelation(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)
@@ -1323,7 +1324,7 @@ func TestReachableResourcesWithPreCancelation(t *testing.T) {
 
 func TestReachableResourcesWithUnexpectedContextCancelation(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)
@@ -1407,7 +1408,7 @@ func (cr *cancelingReader) ReverseQueryRelationships(
 
 func TestReachableResourcesWithCachingInParallelTest(t *testing.T) {
 	t.Parallel()
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	testRels := make([]tuple.Relationship, 0)

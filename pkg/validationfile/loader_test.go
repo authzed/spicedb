@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/proxy/proxy_test"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -127,7 +127,7 @@ func TestPopulateFromFiles(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			ds, err := memdb.NewMemdbDatastore(0, 0, 0)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, 0)
 			require.NoError(err)
 
 			parsed, _, err := PopulateFromFiles(context.Background(), ds, tt.filePaths)
@@ -153,7 +153,7 @@ func TestPopulateFromFiles(t *testing.T) {
 func TestPopulationChunking(t *testing.T) {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, 0)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, 0)
 	require.NoError(err)
 
 	cs := txCountingDatastore{delegate: ds}
