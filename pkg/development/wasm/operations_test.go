@@ -700,7 +700,7 @@ assertFalse: garbage
 			`assertTrue:
 - document:somedoc#view@user:jimmy`,
 			&devinterface.DeveloperError{
-				Message: "For object and permission/relation `document:somedoc#view`, subject `user:jimmy` found but missing from specified",
+				Message: "For object and permission/relation `document:somedoc#view`, subject `user:jimmy` found but not listed in expected subjects",
 				Kind:    devinterface.DeveloperError_EXTRA_RELATIONSHIP_FOUND,
 				Source:  devinterface.DeveloperError_VALIDATION_YAML,
 				Context: "document:somedoc#view",
