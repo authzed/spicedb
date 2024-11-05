@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -162,7 +163,7 @@ func TestCheckNamespaceAndRelations(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			req.NoError(err)
 
 			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, tc.schema, nil, req)
