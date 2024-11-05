@@ -212,7 +212,7 @@ func validateSubjects(onrKey blocks.ObjectRelation, fs developmentmembership.Fou
 				log.Err(err).Msg("could not cast columnPosition to uint32")
 			}
 			failures = append(failures, &devinterface.DeveloperError{
-				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but missing from specified",
+				Message: fmt.Sprintf("For object and permission/relation `%s`, subject `%s` found but not listed in expected subjects",
 					tuple.StringONR(onr),
 					tuple.StringONR(foundSubject.Subject()),
 				),
