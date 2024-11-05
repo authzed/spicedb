@@ -1,0 +1,9 @@
+definition user {}
+
+// This shouldn't be present in the output
+definition persona {}
+
+// Nor should this
+caveat only_on_tuesday(day_of_week string) {
+  day_of_week == 'tuesday'
+}
