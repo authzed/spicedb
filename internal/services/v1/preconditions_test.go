@@ -7,6 +7,7 @@ import (
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -32,7 +33,7 @@ var prefixNoMatch = &v1.RelationshipFilter{
 
 func TestPreconditions(t *testing.T) {
 	require := require.New(t)
-	uninitialized, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	uninitialized, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithData(uninitialized, require)

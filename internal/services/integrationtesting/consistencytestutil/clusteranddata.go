@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
@@ -38,7 +39,7 @@ type ConsistencyClusterAndData struct {
 func LoadDataAndCreateClusterForTesting(t *testing.T, consistencyTestFilePath string, revisionDelta time.Duration, additionalServerOptions ...server.ConfigOption) ConsistencyClusterAndData {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, revisionDelta, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, revisionDelta, memdb.DisableGC)
 	require.NoError(err)
 
 	return BuildDataAndCreateClusterForTesting(t, consistencyTestFilePath, ds, additionalServerOptions...)

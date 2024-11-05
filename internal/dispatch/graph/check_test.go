@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/caching"
@@ -153,7 +154,7 @@ func TestMaxDepth(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -1322,7 +1323,7 @@ func TestCheckPermissionOverSchema(t *testing.T) {
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
@@ -1823,7 +1824,7 @@ func TestCheckWithHints(t *testing.T) {
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)
@@ -1863,7 +1864,7 @@ func TestCheckHintsPartialApplication(t *testing.T) {
 
 	dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, `
@@ -1909,7 +1910,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 
 	dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, `
@@ -1955,7 +1956,7 @@ func TestCheckHintsPartialApplicationOverArrow(t *testing.T) {
 }
 
 func newLocalDispatcherWithConcurrencyLimit(t testing.TB, concurrencyLimit uint16) (context.Context, dispatch.Dispatcher, datastore.Revision) {
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
@@ -1977,7 +1978,7 @@ func newLocalDispatcher(t testing.TB) (context.Context, dispatch.Dispatcher, dat
 }
 
 func newLocalDispatcherWithSchemaAndRels(t testing.TB, schema string, rels []tuple.Relationship) (context.Context, dispatch.Dispatcher, datastore.Revision) {
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, schema, rels, require.New(t))
