@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"testing"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
@@ -590,6 +591,264 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedSQL, sql)
 			require.Equal(t, test.expectedArgs, args)
+		})
+	}
+}
+
+func TestExecuteQuery(t *testing.T) {
+	tcs := []struct {
+		name                       string
+		run                        func(filterer SchemaQueryFilterer) SchemaQueryFilterer
+		options                    []options.QueryOptionsOption
+		expectedSQL                string
+		expectedArgs               []any
+		expectedSelectingNoColumns bool
+		expectedSkipCaveats        bool
+	}{
+		{
+			name: "filter by static resource type",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype")
+			},
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ?",
+			expectedArgs: []any{"sometype"},
+		},
+		{
+			name: "filter by static resource type and resource ID",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj")
+			},
+			expectedSQL:  "SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ?",
+			expectedArgs: []any{"sometype", "someobj"},
+		},
+		{
+			name: "filter by static resource type and resource ID prefix",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").MustFilterWithResourceIDPrefix("someprefix")
+			},
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id LIKE ?",
+			expectedArgs: []any{"sometype", "someprefix%"},
+		},
+		{
+			name: "filter by static resource type and resource IDs",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").MustFilterToResourceIDs([]string{"someobj", "anotherobj"})
+			},
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id IN (?,?)",
+			expectedArgs: []any{"sometype", "someobj", "anotherobj"},
+		},
+		{
+			name: "filter by static resource type, resource ID and relation",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel")
+			},
+			expectedSQL:  "SELECT subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ?",
+			expectedArgs: []any{"sometype", "someobj", "somerel"},
+		},
+		{
+			name: "filter by static resource type, resource ID, relation and subject type",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel").FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType: "subns",
+				})
+			},
+			expectedSQL:  "SELECT subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ?",
+			expectedArgs: []any{"sometype", "someobj", "somerel", "subns"},
+		},
+		{
+			name: "filter by static resource type, resource ID, relation, subject type and subject ID",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel").FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+				})
+			},
+			expectedSQL:  "SELECT subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ?",
+			expectedArgs: []any{"sometype", "someobj", "somerel", "subns", "subid"},
+		},
+		{
+			name: "filter by static resource type, resource ID, relation, subject type, subject ID and subject relation",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel").FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: "subrel",
+					},
+				})
+			},
+			expectedSQL:  "SELECT caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs: []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+		},
+		{
+			name: "filter by static everything without caveats",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel").FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: "subrel",
+					},
+				})
+			},
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+			},
+			expectedSkipCaveats:        true,
+			expectedSelectingNoColumns: true,
+			expectedSQL:                "SELECT 1 FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs:               []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+		},
+		{
+			name: "filter by static everything (except one field) without caveats",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").MustFilterToResourceIDs([]string{"someobj", "anotherobj"}).FilterToRelation("somerel").FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: "subrel",
+					},
+				})
+			},
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+			},
+			expectedSkipCaveats: true,
+			expectedSQL:         "SELECT object_id FROM relationtuples WHERE ns = ? AND object_id IN (?,?) AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs:        []any{"sometype", "someobj", "anotherobj", "somerel", "subns", "subid", "subrel"},
+		},
+		{
+			name: "filter by static resource type with no caveats",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype")
+			},
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+			},
+			expectedSkipCaveats: true,
+			expectedSQL:         "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation FROM relationtuples WHERE ns = ?",
+			expectedArgs:        []any{"sometype"},
+		},
+		{
+			name: "filter by just subject type",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType: "subns",
+				})
+			},
+			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ?",
+			expectedArgs: []any{"subns"},
+		},
+		{
+			name: "filter by just subject type and subject ID",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+				})
+			},
+			expectedSQL:  "SELECT ns, object_id, relation, subject_relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ?",
+			expectedArgs: []any{"subns", "subid"},
+		},
+		{
+			name: "filter by just subject type and subject relation",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType: "subns",
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: "subrel",
+					},
+				})
+			},
+			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_relation = ?",
+			expectedArgs: []any{"subns", "subrel"},
+		},
+		{
+			name: "filter by just subject type and subject ID and relation",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+					OptionalRelation: &v1.SubjectFilter_RelationFilter{
+						Relation: "subrel",
+					},
+				})
+			},
+			expectedSQL:  "SELECT ns, object_id, relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs: []any{"subns", "subid", "subrel"},
+		},
+		{
+			name: "filter by multiple subject types, but static subject ID",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "subns",
+					OptionalSubjectId: "subid",
+				}).FilterToSubjectFilter(&v1.SubjectFilter{
+					SubjectType:       "anothersubns",
+					OptionalSubjectId: "subid",
+				})
+			},
+			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_ns = ? AND subject_object_id = ?",
+			expectedArgs: []any{"subns", "subid", "anothersubns", "subid"},
+		},
+		{
+			name: "multiple subjects filters with just types",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+				}, datastore.SubjectsSelector{
+					OptionalSubjectType: "anothersubjectype",
+				})
+			},
+			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?))",
+			expectedArgs: []any{"somesubjectype", "anothersubjectype"},
+		},
+		{
+			name: "multiple subjects filters with just types and static resource type",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{
+					OptionalSubjectType: "somesubjectype",
+				}, datastore.SubjectsSelector{
+					OptionalSubjectType: "anothersubjectype",
+				}).FilterToResourceType("sometype")
+			},
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?)) AND ns = ?",
+			expectedArgs: []any{"somesubjectype", "anothersubjectype", "sometype"},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := NewSchemaInformation(
+				"relationtuples",
+				"ns",
+				"object_id",
+				"relation",
+				"subject_ns",
+				"subject_object_id",
+				"subject_relation",
+				"caveat",
+				"caveat_context",
+				TupleComparison,
+				sq.Question,
+			)
+			filterer := NewSchemaQueryFiltererForRelationshipsSelect(schema, 100)
+			ran := tc.run(filterer)
+
+			var wasRun bool
+			fake := QueryExecutor{
+				Executor: func(ctx context.Context, queryInfo QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
+					wasRun = true
+					require.Equal(t, tc.expectedSQL, sql)
+					require.Equal(t, tc.expectedArgs, args)
+					require.Equal(t, tc.expectedSelectingNoColumns, queryInfo.SelectingNoColumns)
+					require.Equal(t, tc.expectedSkipCaveats, queryInfo.SkipCaveats)
+					return nil, nil
+				},
+			}
+			_, err := fake.ExecuteQuery(context.Background(), ran, tc.options...)
+			require.NoError(t, err)
+			require.True(t, wasRun)
 		})
 	}
 }
