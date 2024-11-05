@@ -694,13 +694,10 @@ func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.All
 }
 
 func translateImport(tctx translationContext, importNode *dslNode, names *mapz.Set[string]) (*CompiledSchema, error) {
-	// NOTE: this function currently just grabs everything that's in the target file.
-	// TODO: only grab the requested definitions
-	// TODO: import cycle tracking
+	// Get the filepath segments out of the AST nodes
 	pathNodes := importNode.List(dslshape.NodeImportPredicatePathSegment)
 	pathSegments := make([]string, 0, len(pathNodes))
 
-	// Get the filepath segments out of the AST nodes
 	for _, pathSegmentNode := range pathNodes {
 		segment, err := pathSegmentNode.GetString(dslshape.NodeIdentiferPredicateValue)
 		if err != nil {
@@ -709,9 +706,23 @@ func translateImport(tctx translationContext, importNode *dslNode, names *mapz.S
 		pathSegments = append(pathSegments, segment)
 	}
 
+	// Get requested definitions out of the AST nodes
+	requestedDefinitionNodes := importNode.List(dslshape.NodeImportPredicateDefinitionName)
+	requestedDefinitions := make([]string, 0, len(requestedDefinitionNodes))
+
+	for _, requestedDefinitionNode := range requestedDefinitionNodes {
+		requested, err := requestedDefinitionNode.GetString(dslshape.NodeIdentiferPredicateValue)
+		if err != nil {
+			return nil, err
+		}
+		requestedDefinitions = append(requestedDefinitions, requested)
+	}
+
+
 	return importFile(importContext{
 		names:        names,
 		pathSegments: pathSegments,
+		requestedDefinitions: requestedDefinitions,
 		sourceFolder: tctx.sourceFolder,
 	})
 }
