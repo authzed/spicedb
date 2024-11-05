@@ -528,7 +528,26 @@ type WatchOptions struct {
 	// If unspecified, no maximum will be enforced. If the maximum is reached before
 	// the changes can be sent, the watch will be closed with an error.
 	MaximumBufferedChangesByteSize uint64
+
+	// EmissionStrategy defines when are changes streamed to the client. If unspecified, changes will be buffered until
+	// they can be checkpointed, which is the default behavior.
+	EmissionStrategy EmissionStrategy
 }
+
+// EmissionStrategy describes when changes are emitted to the client.
+type EmissionStrategy int
+
+const (
+	// EmitWhenCheckpointedStrategy will buffer changes until a checkpoint is reached. This also means that
+	// changes will be deduplicated and revisions will be sorted before emission as soon as they can be checkpointed.
+	EmitWhenCheckpointedStrategy = iota
+
+	// EmitImmediatelyStrategy emits changes as soon as they are available. This means changes will not be buffered,
+	// and thus will be emitted as soon as they are available, but clients are responsible for buffering, deduplication,
+	// and sorting revisions. In practical terms that can only happens if Checkpoints have been requested, so enabling
+	// EmitImmediatelyStrategy without Checkpoints will return an error.
+	EmitImmediatelyStrategy
+)
 
 // WatchJustRelationships returns watch options for just relationships.
 func WatchJustRelationships() WatchOptions {
@@ -722,6 +741,11 @@ type Features struct {
 	// via the Watch API. If not supported, clients of the Watch API may expect checkpoints only when
 	// new transactions are committed.
 	ContinuousCheckpointing Feature
+
+	// WatchEmitsImmediately indicates if the datastore supports the EmitImmediatelyStrategy EmissionStrategy.
+	// If not supported, clients of the Watch API will receive an error when calling Watch API with
+	// EmitImmediatelyStrategy option.
+	WatchEmitsImmediately Feature
 
 	// IntegrityData is enabled if the underlying datastore supports retrieving and storing
 	// integrity information.

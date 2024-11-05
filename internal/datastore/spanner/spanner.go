@@ -356,6 +356,9 @@ func (sd *spannerDatastore) OfflineFeatures() (*datastore.Features, error) {
 		ContinuousCheckpointing: datastore.Feature{
 			Status: datastore.FeatureSupported,
 		},
+		WatchEmitsImmediately: datastore.Feature{
+			Status: datastore.FeatureUnsupported,
+		},
 	}, nil
 }
 

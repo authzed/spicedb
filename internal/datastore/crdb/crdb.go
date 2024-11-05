@@ -499,6 +499,9 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 			ContinuousCheckpointing: datastore.Feature{
 				Status: datastore.FeatureSupported,
 			},
+			WatchEmitsImmediately: datastore.Feature{
+				Status: datastore.FeatureSupported,
+			},
 		}, nil
 	}
 
@@ -507,6 +510,9 @@ func (cds *crdbDatastore) OfflineFeatures() (*datastore.Features, error) {
 			Status: datastore.FeatureUnsupported,
 		},
 		ContinuousCheckpointing: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		WatchEmitsImmediately: datastore.Feature{
 			Status: datastore.FeatureSupported,
 		},
 	}, nil
@@ -530,6 +536,9 @@ func (cds *crdbDatastore) tableTupleName() string {
 func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, error) {
 	features := datastore.Features{
 		ContinuousCheckpointing: datastore.Feature{
+			Status: datastore.FeatureSupported,
+		},
+		WatchEmitsImmediately: datastore.Feature{
 			Status: datastore.FeatureSupported,
 		},
 	}
