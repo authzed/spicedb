@@ -438,7 +438,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 		err = wrapError(pgx.BeginTxFunc(ctx, pgd.writePool, pgx.TxOptions{IsoLevel: pgx.Serializable}, func(tx pgx.Tx) error {
 			var err error
 			var metadata map[string]any
-			if config.Metadata != nil {
+			if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 				metadata = config.Metadata.AsMap()
 			}
 

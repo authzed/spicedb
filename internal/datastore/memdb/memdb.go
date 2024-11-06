@@ -205,7 +205,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 
 		tracked := common.NewChanges(revisions.TimestampIDKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 0)
 		if tx != nil {
-			if config.Metadata != nil {
+			if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 				if err := tracked.SetRevisionMetadata(ctx, newRevision, config.Metadata.AsMap()); err != nil {
 					return datastore.NoRevision, err
 				}

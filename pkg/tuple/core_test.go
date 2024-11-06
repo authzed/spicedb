@@ -1,6 +1,7 @@
 package tuple
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -118,9 +119,13 @@ func TestCoreRelationToString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := CoreRelationToString(tt.input)
 			require.NoError(t, err)
+
+			// Golang randomly injects spaces.
+			got = strings.ReplaceAll(got, " ", "")
 			require.Equal(t, tt.expected, got)
 
 			got = MustCoreRelationToString(tt.input)
+			got = strings.ReplaceAll(got, " ", "")
 			require.Equal(t, tt.expected, got)
 		})
 	}

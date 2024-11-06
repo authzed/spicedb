@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -131,7 +132,10 @@ func StringCaveatContext(context *structpb.Struct) (string, error) {
 		return "", nil
 	}
 
-	contextBytes, err := context.MarshalJSON()
+	contextBytes, err := protojson.MarshalOptions{
+		Multiline: false,
+		Indent:    "",
+	}.Marshal(context)
 	if err != nil {
 		return "", err
 	}

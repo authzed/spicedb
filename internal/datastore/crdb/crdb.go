@@ -338,7 +338,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 		}
 
 		// If metadata is to be attached, write that row now.
-		if config.Metadata != nil {
+		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
 			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
 			insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
 				Columns(colExpiresAt, colMetadata).
