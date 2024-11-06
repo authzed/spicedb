@@ -289,6 +289,13 @@ func TestHLCToFromDecimal(t *testing.T) {
 	}
 }
 
+func TestFailsIfLogicalClockExceedsMaxUin32(t *testing.T) {
+	expectedError := "received logical lock that exceeds MaxUint32 (9999999999 > 4294967295): revision \"0.9999999999\""
+	require.PanicsWithValue(t, expectedError, func() {
+		_, _ = HLCRevisionFromString("0.9999999999")
+	})
+}
+
 func BenchmarkHLCParsing(b *testing.B) {
 	tcs := []string{
 		"1",

@@ -56,9 +56,13 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 	}
 
 	paddedLogicalClockStr := pieces[1] + strings.Repeat("0", logicalClockLength-len(pieces[1]))
-	logicalclock, err := strconv.ParseUint(paddedLogicalClockStr, 10, 32)
+	logicalclock, err := strconv.ParseUint(paddedLogicalClockStr, 10, 64)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
+	}
+
+	if logicalclock > math.MaxUint32 {
+		return datastore.NoRevision, spiceerrors.MustBugf("received logical lock that exceeds MaxUint32 (%d > %d): revision %q", logicalclock, math.MaxUint32, revisionStr)
 	}
 
 	uintLogicalClock, err := safecast.ToUint32(logicalclock)
