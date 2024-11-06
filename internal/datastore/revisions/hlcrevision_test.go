@@ -1,34 +1,43 @@
 package revisions
 
 import (
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/authzed/spicedb/pkg/datastore"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewForHLC(t *testing.T) {
-	tcs := []string{
-		"1",
-		"2",
-		"42",
-		"1257894000000000000",
-		"-1",
-		"1.0000000023",
-		"1703283409994227985.0000000004",
-		"1703283409994227985.0000000040",
-		"1703283409994227985.0010000000",
+	tcs := map[string]string{
+		"1":                              "1.0000000000",
+		"2":                              "2.0000000000",
+		"42":                             "42.0000000000",
+		"1257894000000000000":            "1257894000000000000.0000000000",
+		"-1":                             "-1.0000000000",
+		"1.0000000023":                   "1.0000000023",
+		"1703283409994227985.0000000004": "1703283409994227985.0000000004",
+		"1703283409994227985.0000000040": "1703283409994227985.0000000040",
+		"1703283409994227985.0010000000": "1703283409994227985.0010000000",
+		"1730898575294981085.0000000000": "1730898575294981085.0000000000",
 	}
 
-	for _, tc := range tcs {
-		t.Run(tc, func(t *testing.T) {
-			d, err := decimal.NewFromString(tc)
+	for inputTimestamp, expectedTimestamp := range tcs {
+		t.Run(inputTimestamp, func(t *testing.T) {
+			d, err := decimal.NewFromString(inputTimestamp)
 			require.NoError(t, err)
 
 			rev, err := NewForHLC(d)
 			require.NoError(t, err)
-			require.Equal(t, tc, rev.String())
+			revFromString, err := HLCRevisionFromString(inputTimestamp)
+			require.NoError(t, err)
+			require.True(t, rev.Equal(revFromString), "expected equal, got %v and %v", rev, revFromString)
+
+			require.Equal(t, expectedTimestamp, rev.String())
+			require.Equal(t, expectedTimestamp, revFromString.String())
 		})
 	}
 }
@@ -52,6 +61,28 @@ func TestTimestampNanoSec(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, nano, rev.TimestampNanoSec())
+		})
+	}
+}
+
+func TestConstructForTimestamp(t *testing.T) {
+	tcs := map[int64]string{
+		1:                   "1.0000000000",
+		2:                   "2.0000000000",
+		42:                  "42.0000000000",
+		1257894000000000000: "1257894000000000000.0000000000",
+		-1:                  "-1.0000000000",
+		9223372036854775807: "9223372036854775807.0000000000",
+		1703283409994227985: "1703283409994227985.0000000000",
+	}
+
+	for input, output := range tcs {
+		t.Run(strconv.Itoa(int(input)), func(t *testing.T) {
+			rev := zeroHLC
+			withTimestamp := rev.ConstructForTimestamp(input)
+			withTimestamp.String()
+			require.Equal(t, output, withTimestamp.String())
+			require.Equal(t, input, withTimestamp.TimestampNanoSec())
 		})
 	}
 }
@@ -85,8 +116,16 @@ func TestInexactFloat64(t *testing.T) {
 
 func TestNewHLCForTime(t *testing.T) {
 	time := time.Now()
-	rev := NewForTime(time)
+	rev := NewHLCForTime(time)
 	require.Equal(t, time.UnixNano(), rev.TimestampNanoSec())
+}
+
+func TestNoRevision(t *testing.T) {
+	rev, err := HLCRevisionFromString("0")
+	require.NoError(t, err)
+	require.False(t, rev.Equal(datastore.NoRevision))
+	require.True(t, rev.GreaterThan(datastore.NoRevision))
+	require.False(t, rev.LessThan(datastore.NoRevision))
 }
 
 func TestHLCKeyEquals(t *testing.T) {
@@ -202,6 +241,22 @@ func TestHLCKeyLessThanFunc(t *testing.T) {
 			rk := HLCKeyFunc(right)
 
 			require.Equal(t, tc.isLessThan, HLCKeyLessThanFunc(lk, rk))
+		})
+	}
+}
+
+func TestHLCFromStringError(t *testing.T) {
+	tcs := map[string]string{
+		"1a":    "invalid revision string",
+		"1.0.0": "invalid revision string",
+		"1a.0":  "invalid revision string",
+		"1.0a":  "invalid revision string",
+	}
+
+	for tc, expectedErr := range tcs {
+		t.Run(tc, func(t *testing.T) {
+			_, err := HLCRevisionFromString(tc)
+			require.ErrorContains(t, err, expectedErr)
 		})
 	}
 }
