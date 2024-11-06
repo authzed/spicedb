@@ -450,6 +450,7 @@ cloud.google.com/go/compute v1.27.2/go.mod h1:YQuHkNEwP3bIz4LBYQqf4DIMfFtTDtnEgn
 cloud.google.com/go/compute v1.27.4 h1:XM8ulx6crjdl09XBfji7viFgZOEQuIxBwKmjRH9Rtmc=
 cloud.google.com/go/compute v1.28.0 h1:OPtBxMcheSS+DWfci803qvPly3d4w7Eu5ztKBcFfzwk=
 cloud.google.com/go/compute v1.28.0/go.mod h1:DEqZBtYrDnD5PvjsKwb3onnhX+qjdCVM7eshj1XdjV4=
+cloud.google.com/go/compute v1.28.1 h1:XwPcZjgMCnU2tkwY10VleUjSAfpTj9RDn+kGrbYsi8o=
 cloud.google.com/go/contactcenterinsights v1.9.1 h1:hy4L0bc3fQNZZrhPjuoH62RiisD5B71/S1OZNunsTRk=
 cloud.google.com/go/contactcenterinsights v1.9.1/go.mod h1:bsg/R7zGLYMVxFFzfh9ooLTruLRCG9fnzhH9KznHhbM=
 cloud.google.com/go/contactcenterinsights v1.10.0 h1:YR2aPedGVQPpFBZXJnPkqRj8M//8veIZZH5ZvICoXnI=
@@ -2364,7 +2365,6 @@ golang.org/x/mobile v0.0.0-20190719004257-d2bd2a29d028 h1:4+4C/Iv2U4fMZBiMCc98MG
 golang.org/x/mod v0.11.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
 golang.org/x/mod v0.13.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/mod v0.15.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
-golang.org/x/mod v0.17.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/mod v0.20.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
 golang.org/x/net v0.10.0/go.mod h1:0qNGK6F8kojg2nk9dLZ2mShWaEBan6FAoqfSigmmuDg=
 golang.org/x/net v0.12.0/go.mod h1:zEVYFnQC7m/vmpQFELhcD1EWkZlX69l4oqgmer6hfKA=
@@ -2376,7 +2376,6 @@ golang.org/x/net v0.22.0/go.mod h1:JKghWKKOSdJwpW2GEx0Ja7fmaKnMsbu+MWVZTokSYmg=
 golang.org/x/net v0.28.0/go.mod h1:yqtgsTWOOnlGLG9GFRrK3++bGOUEkNBoHZc8MEDWPNg=
 golang.org/x/sync v0.4.0/go.mod h1:FU7BRWz2tNW+3quACPkgCx/L+uEAv1htQ0V83Z9Rj+Y=
 golang.org/x/sync v0.6.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
-golang.org/x/sync v0.7.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
 golang.org/x/sys v0.13.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.18.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/sys v0.20.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
