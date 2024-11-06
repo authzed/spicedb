@@ -7,6 +7,7 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
+	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
@@ -22,6 +23,8 @@ type translationContext struct {
 	mapper           input.PositionMapper
 	schemaString     string
 	skipValidate     bool
+	existingNames    *mapz.Set[string]
+	sourceFolder     string
 }
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
@@ -48,36 +51,56 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
 
-	names := mapz.NewSet[string]()
+	// Copy the name set so that we're not mutating the parent's context
+	// as we do our walk
+	names := tctx.existingNames.Copy()
 
-	for _, definitionNode := range root.GetChildren() {
-		var definition SchemaDefinition
-
-		switch definitionNode.GetType() {
+	for _, topLevelNode := range root.GetChildren() {
+		switch topLevelNode.GetType() {
 		case dslshape.NodeTypeCaveatDefinition:
-			def, err := translateCaveatDefinition(tctx, definitionNode)
+			log.Trace().Msg("adding caveat definition")
+			// TODO: Maybe refactor these in terms of a generic function?
+			def, err := translateCaveatDefinition(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
 			}
 
-			definition = def
 			caveatDefinitions = append(caveatDefinitions, def)
 
+			name := def.GetName()
+			if !names.Add(name) {
+				return nil, topLevelNode.ErrorWithSourcef(name, "found name reused between multiple definitions and/or caveats: %s", name)
+			}
+
+			orderedDefinitions = append(orderedDefinitions, def)
+
 		case dslshape.NodeTypeDefinition:
-			def, err := translateObjectDefinition(tctx, definitionNode)
+			log.Trace().Msg("adding object definition")
+			def, err := translateObjectDefinition(tctx, topLevelNode)
 			if err != nil {
 				return nil, err
 			}
 
-			definition = def
 			objectDefinitions = append(objectDefinitions, def)
-		}
 
-		if !names.Add(definition.GetName()) {
-			return nil, definitionNode.ErrorWithSourcef(definition.GetName(), "found name reused between multiple definitions and/or caveats: %s", definition.GetName())
-		}
+			name := def.GetName()
+			if !names.Add(name) {
+				return nil, topLevelNode.ErrorWithSourcef(name, "found name reused between multiple definitions and/or caveats: %s", name)
+			}
 
-		orderedDefinitions = append(orderedDefinitions, definition)
+			orderedDefinitions = append(orderedDefinitions, def)
+
+		case dslshape.NodeTypeImport:
+			compiled, err := translateImport(tctx, topLevelNode, names)
+			if err != nil {
+				return nil, err
+			}
+			// NOTE: name collision validation happens in the recursive compilation process,
+			// so we don't need an explicit check here and we can just add our definitions.
+			caveatDefinitions = append(caveatDefinitions, compiled.CaveatDefinitions...)
+			objectDefinitions = append(objectDefinitions, compiled.ObjectDefinitions...)
+			orderedDefinitions = append(orderedDefinitions, compiled.OrderedDefinitions...)
+		}
 	}
 
 	return &CompiledSchema{
@@ -668,4 +691,27 @@ func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.All
 		CaveatName: nspath,
 	}
 	return nil
+}
+
+func translateImport(tctx translationContext, importNode *dslNode, names *mapz.Set[string]) (*CompiledSchema, error) {
+	// NOTE: this function currently just grabs everything that's in the target file.
+	// TODO: only grab the requested definitions
+	// TODO: import cycle tracking
+	pathNodes := importNode.List(dslshape.NodeImportPredicatePathSegment)
+	pathSegments := make([]string, 0, len(pathNodes))
+
+	// Get the filepath segments out of the AST nodes
+	for _, pathSegmentNode := range pathNodes {
+		segment, err := pathSegmentNode.GetString(dslshape.NodeIdentiferPredicateValue)
+		if err != nil {
+			return nil, err
+		}
+		pathSegments = append(pathSegments, segment)
+	}
+
+	return importFile(importContext{
+		names:        names,
+		pathSegments: pathSegments,
+		sourceFolder: tctx.sourceFolder,
+	})
 }

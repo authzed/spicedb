@@ -1,0 +1,6 @@
+from .transitive.transitive import user
+
+definition resource {
+  relation viewer: user
+  permission view = viewer
+}
