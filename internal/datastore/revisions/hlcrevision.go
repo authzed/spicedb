@@ -39,7 +39,7 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 		if err != nil {
 			return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
 		}
-		return HLCRevision{timestamp, 0}, nil
+		return HLCRevision{timestamp, logicalClockOffset}, nil
 	}
 
 	if len(pieces) != 2 {
@@ -56,15 +56,20 @@ func parseHLCRevisionString(revisionStr string) (datastore.Revision, error) {
 	}
 
 	paddedLogicalClockStr := pieces[1] + strings.Repeat("0", logicalClockLength-len(pieces[1]))
-	logicalclock, err := strconv.ParseUint(paddedLogicalClockStr, 10, 32)
+	logicalclock, err := strconv.ParseUint(paddedLogicalClockStr, 10, 64)
 	if err != nil {
 		return datastore.NoRevision, fmt.Errorf("invalid revision string: %q", revisionStr)
+	}
+
+	if logicalclock > math.MaxUint32 {
+		return datastore.NoRevision, spiceerrors.MustBugf("received logical lock that exceeds MaxUint32 (%d > %d): revision %q", logicalclock, math.MaxUint32, revisionStr)
 	}
 
 	uintLogicalClock, err := safecast.ToUint32(logicalclock)
 	if err != nil {
 		return datastore.NoRevision, spiceerrors.MustBugf("could not cast logicalclock to uint32: %v", err)
 	}
+
 	return HLCRevision{timestamp, uintLogicalClock + logicalClockOffset}, nil
 }
 
@@ -90,7 +95,7 @@ func NewForHLC(decimal decimal.Decimal) (HLCRevision, error) {
 
 // NewHLCForTime creates a new revision for the given time.
 func NewHLCForTime(time time.Time) HLCRevision {
-	return HLCRevision{time.UnixNano(), 0}
+	return HLCRevision{time.UnixNano(), logicalClockOffset}
 }
 
 func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
@@ -121,10 +126,6 @@ func (hlc HLCRevision) LessThan(rhs datastore.Revision) bool {
 }
 
 func (hlc HLCRevision) String() string {
-	if hlc.logicalclock == 0 {
-		return strconv.FormatInt(hlc.time, 10)
-	}
-
 	logicalClockString := strconv.FormatInt(int64(hlc.logicalclock)-int64(logicalClockOffset), 10)
 	return strconv.FormatInt(hlc.time, 10) + "." + strings.Repeat("0", logicalClockLength-len(logicalClockString)) + logicalClockString
 }
@@ -134,15 +135,11 @@ func (hlc HLCRevision) TimestampNanoSec() int64 {
 }
 
 func (hlc HLCRevision) InexactFloat64() float64 {
-	if hlc.logicalclock == 0 {
-		return float64(hlc.time)
-	}
-
 	return float64(hlc.time) + float64(hlc.logicalclock-logicalClockOffset)/math.Pow10(logicalClockLength)
 }
 
 func (hlc HLCRevision) ConstructForTimestamp(timestamp int64) WithTimestampRevision {
-	return HLCRevision{timestamp, 0}
+	return HLCRevision{timestamp, logicalClockOffset}
 }
 
 func (hlc HLCRevision) AsDecimal() (decimal.Decimal, error) {
