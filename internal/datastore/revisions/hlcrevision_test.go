@@ -80,7 +80,6 @@ func TestConstructForTimestamp(t *testing.T) {
 		t.Run(strconv.Itoa(int(input)), func(t *testing.T) {
 			rev := zeroHLC
 			withTimestamp := rev.ConstructForTimestamp(input)
-			withTimestamp.String()
 			require.Equal(t, output, withTimestamp.String())
 			require.Equal(t, input, withTimestamp.TimestampNanoSec())
 		})

@@ -251,11 +251,13 @@ func TestWatchingCacheFallbackToStandardCache(t *testing.T) {
 	require.NoError(t, wcache.startSync(context.Background()))
 
 	// Ensure the namespace is not found, but is cached in the fallback caching layer.
-	_, _, err = wcache.SnapshotReader(rev("1")).ReadNamespaceByName(context.Background(), "somenamespace")
+	r := rev("1")
+	_, _, err = wcache.SnapshotReader(r).ReadNamespaceByName(context.Background(), "somenamespace")
 	require.ErrorAs(t, err, &datastore.ErrNamespaceNotFound{})
 	require.False(t, wcache.namespaceCache.inFallbackMode)
 
-	entry, ok := c.Get("n:somenamespace@1")
+	expectedKey := cache.StringKey("n:somenamespace@" + r.String())
+	entry, ok := c.Get(expectedKey)
 	require.True(t, ok)
 	require.NotNil(t, entry.notFound)
 

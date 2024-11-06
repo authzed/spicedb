@@ -151,7 +151,7 @@ func TestRevisionComparison(t *testing.T) {
 
 func TestRevisionBidirectionalParsing(t *testing.T) {
 	tcs := []string{
-		"1", "2", "42", "192747564535", "1.0000000004", "1.0000000002", "1.0000000042", "-1235",
+		"1.0000000000", "2.0000000000", "42.0000000000", "192747564535.0000000000", "1.0000000004", "1.0000000002", "1.0000000042", "-1235.0000000000",
 	}
 
 	for _, tc := range tcs {
@@ -223,11 +223,11 @@ func TestTransactionIDRevisionParsing(t *testing.T) {
 
 func TestHLCRevisionParsing(t *testing.T) {
 	tcs := map[string]bool{
-		"1":                              false,
-		"2":                              false,
-		"42":                             false,
-		"1257894000000000000":            false,
-		"-1":                             false,
+		"1.0000000000":                   false,
+		"2.0000000000":                   false,
+		"42.0000000000":                  false,
+		"1257894000000000000.0000000000": false,
+		"-1.0000000000":                  false,
 		"1.0000000004":                   false,
 		"9223372036854775807.0000000004": false,
 	}
