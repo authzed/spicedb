@@ -55,6 +55,7 @@ func TestImporter(t *testing.T) {
 	importerTests := []importerTest{
 		{"simple local import", "simple-local"},
 		{"simple local import with transitive hop", "simple-local-with-hop"},
+		{"simple local import with extra def", "simple-local-with-extra-def"},
 		{"nested local import", "nested-local"},
 		{"nested local import with transitive hop", "nested-local-with-hop"},
 		{"nested local two layers deep import", "nested-two-layer-local"},
