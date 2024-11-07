@@ -58,6 +58,7 @@ func TestImporter(t *testing.T) {
 		{"nested local import", "nested-local"},
 		{"nested local import with transitive hop", "nested-local-with-hop"},
 		{"nested local two layers deep import", "nested-two-layer-local"},
+		{"diamond-shaped imports are fine", "diamond-shaped"},
 	}
 
 	for _, test := range importerTests {
@@ -88,4 +89,24 @@ func TestImporter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestImportCycleCausesError(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+	test := importerTest{"", "circular-import"}
+
+	sourceFolder := path.Join(workingDir, test.relativePath())
+
+	inputSchema := test.input()
+
+	_, err = compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: inputSchema,
+	}, compiler.AllowUnprefixedObjectType(),
+		compiler.SourceFolder(sourceFolder))
+
+	require.ErrorContains(t, err, "circular import")
 }

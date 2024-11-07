@@ -86,13 +86,31 @@ type Option func(*config)
 
 type ObjectPrefixOption func(*config)
 
-// Compile compilers the input schema into a set of namespace definition protos.
-func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
-	names := mapz.NewSet[string]()
-	return compileImpl(schema, names, prefix, opts...)
+type compilationContext struct {
+	// The set of definition names that we've seen as we compile.
+	// If these collide we throw an error.
+	existingNames *mapz.Set[string]
+	// The global set of files we've visited in the import process.
+	// If these collide we short circuit, preventing duplicate imports.
+	globallyVisitedFiles *mapz.Set[string]
+	// The set of files that we've visited on a particular leg of the recursion.
+	// This allows for detection of circular imports.
+	// NOTE: This depends on an assumption that a depth-first search will always
+	// find a cycle, even if we're otherwise marking globally visited nodes.
+	locallyVisitedFiles *mapz.Set[string]
 }
 
-func compileImpl(schema InputSchema, existingNames *mapz.Set[string], prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
+// Compile compilers the input schema into a set of namespace definition protos.
+func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
+	cctx := compilationContext{
+		existingNames:        mapz.NewSet[string](),
+		globallyVisitedFiles: mapz.NewSet[string](),
+		locallyVisitedFiles:  mapz.NewSet[string](),
+	}
+	return compileImpl(schema, cctx, prefix, opts...)
+}
+
+func compileImpl(schema InputSchema, cctx compilationContext, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
 	cfg := &config{}
 	prefix(cfg) // required option
 
@@ -109,12 +127,14 @@ func compileImpl(schema InputSchema, existingNames *mapz.Set[string], prefix Obj
 	}
 
 	compiled, err := translate(translationContext{
-		objectTypePrefix: cfg.objectTypePrefix,
-		mapper:           mapper,
-		schemaString:     schema.SchemaString,
-		skipValidate:     cfg.skipValidation,
-		sourceFolder:     cfg.sourceFolder,
-		existingNames:    existingNames,
+		objectTypePrefix:     cfg.objectTypePrefix,
+		mapper:               mapper,
+		schemaString:         schema.SchemaString,
+		skipValidate:         cfg.skipValidation,
+		sourceFolder:         cfg.sourceFolder,
+		existingNames:        cctx.existingNames,
+		locallyVisitedFiles:  cctx.locallyVisitedFiles,
+		globallyVisitedFiles: cctx.globallyVisitedFiles,
 	}, root)
 	if err != nil {
 		var errorWithNode errorWithNode

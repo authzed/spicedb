@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,12 +20,14 @@ import (
 )
 
 type translationContext struct {
-	objectTypePrefix *string
-	mapper           input.PositionMapper
-	schemaString     string
-	skipValidate     bool
-	existingNames    *mapz.Set[string]
-	sourceFolder     string
+	objectTypePrefix     *string
+	mapper               input.PositionMapper
+	schemaString         string
+	skipValidate         bool
+	existingNames        *mapz.Set[string]
+	locallyVisitedFiles  *mapz.Set[string]
+	globallyVisitedFiles *mapz.Set[string]
+	sourceFolder         string
 }
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
@@ -696,7 +699,6 @@ func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.All
 func translateImport(tctx translationContext, importNode *dslNode, names *mapz.Set[string]) (*CompiledSchema, error) {
 	// NOTE: this function currently just grabs everything that's in the target file.
 	// TODO: only grab the requested definitions
-	// TODO: import cycle tracking
 	pathNodes := importNode.List(dslshape.NodeImportPredicatePathSegment)
 	pathSegments := make([]string, 0, len(pathNodes))
 
@@ -709,9 +711,21 @@ func translateImport(tctx translationContext, importNode *dslNode, names *mapz.S
 		pathSegments = append(pathSegments, segment)
 	}
 
-	return importFile(importContext{
-		names:        names,
-		pathSegments: pathSegments,
-		sourceFolder: tctx.sourceFolder,
+	compiledSchema, err := importFile(importContext{
+		names:                names,
+		pathSegments:         pathSegments,
+		sourceFolder:         tctx.sourceFolder,
+		globallyVisitedFiles: tctx.globallyVisitedFiles,
+		locallyVisitedFiles:  tctx.locallyVisitedFiles,
 	})
+	if err != nil {
+		var circularImportError *ErrCircularImport
+		if errors.As(err, &circularImportError) {
+			// NOTE: The "%s" is an empty format string to keep with the form of ErrorWithSourcef
+			return nil, importNode.ErrorWithSourcef(circularImportError.filePath, "%s", circularImportError.error.Error())
+		}
+		return nil, err
+	}
+
+	return compiledSchema, nil
 }
