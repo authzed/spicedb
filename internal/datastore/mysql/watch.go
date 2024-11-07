@@ -30,7 +30,14 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 	errs := make(chan error, 1)
 
 	if options.Content&datastore.WatchSchema == datastore.WatchSchema {
+		close(updates)
 		errs <- errors.New("schema watch unsupported in MySQL")
+		return updates, errs
+	}
+
+	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
+		close(updates)
+		errs <- errors.New("emit immediately strategy is unsupported in MySQL")
 		return updates, errs
 	}
 

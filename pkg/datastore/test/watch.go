@@ -10,6 +10,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/scylladb/go-set/strset"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -744,6 +745,99 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+}
+
+func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	features, err := ds.Features(ctx)
+	require.NoError(err)
+
+	expectsWatchError := false
+	if !(features.WatchEmitsImmediately.Status == datastore.FeatureSupported) {
+		expectsWatchError = true
+	}
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+		Content:            datastore.WatchCheckpoints | datastore.WatchRelationships,
+		CheckpointInterval: 100 * time.Millisecond,
+		EmissionStrategy:   datastore.EmitImmediatelyStrategy,
+	})
+	if expectsWatchError {
+		require.NotZero(len(errchan))
+		err := <-errchan
+		require.ErrorContains(err, "emit immediately strategy is unsupported")
+		return
+	}
+	require.Zero(len(errchan))
+
+	// since changes are streamed immediately, we expect changes to be streamed as independent change events,
+	// whereas with the default emission strategy it would be accumulated and normalized. For examples, the default
+	// strategy would accumulate everything into a single Change sent over the channel, like an added relationship
+	// and its associated transaction metadata. The emit immediately strategy will emit both
+	// the rel touch and tx metadata as independent changes as it won't accumulate and normalize it.
+	testTuple := tuple.MustParse("document:firstdoc#viewer@user:" + uuid.NewString())
+	testMetadata, err := structpb.NewStruct(map[string]any{"foo": "bar"})
+	require.NoError(err)
+	targetRev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(testTuple),
+		})
+	}, options.WithMetadata(testMetadata))
+	require.NoError(err)
+
+	var relTouchEmitted, metadataEmitted, checkpointEmitted bool
+	changeWait := time.NewTimer(waitForChangesTimeout)
+	var changeCount int
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(ok)
+			for _, relChange := range change.RelationshipChanges {
+				if relChange.Relationship.WithoutIntegrity() == testTuple && relChange.Operation == tuple.UpdateOperationTouch {
+					relTouchEmitted = true
+					changeCount++
+					require.True(targetRev.Equal(change.Revision))
+				}
+
+				continue // we expect each change to come in individual change event
+			}
+
+			if change.Metadata != nil {
+				require.Contains(change.Metadata.AsMap(), "foo")
+				metadataEmitted = true
+				changeCount++
+				require.True(targetRev.Equal(change.Revision))
+				continue
+			}
+
+			if change.IsCheckpoint {
+				if change.Revision.Equal(targetRev) || change.Revision.GreaterThan(targetRev) {
+					require.True(metadataEmitted, "expected tx metadata before checkpoint")
+					require.True(relTouchEmitted, "expected relationship touch before checkpoint")
+					require.GreaterOrEqual(changeCount, 2, "expected at least 2 changes over the channel")
+					return
+				}
+			}
+		case <-changeWait.C:
+			require.Fail("Timed out", "waited for checkpoint")
+		}
+
+		if relTouchEmitted && metadataEmitted && checkpointEmitted {
+			return
+		}
+	}
 }
 
 func verifyCheckpointUpdate(

@@ -74,7 +74,14 @@ func (pgd *pgDatastore) Watch(
 	errs := make(chan error, 1)
 
 	if !pgd.watchEnabled {
+		close(updates)
 		errs <- datastore.NewWatchDisabledErr("postgres must be run with track_commit_timestamp=on for watch to be enabled. See https://spicedb.dev/d/enable-watch-api-postgres")
+		return updates, errs
+	}
+
+	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
+		close(updates)
+		errs <- errors.New("emit immediately strategy is unsupported in Postgres")
 		return updates, errs
 	}
 
