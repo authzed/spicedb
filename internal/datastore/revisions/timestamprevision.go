@@ -33,6 +33,10 @@ func parseTimestampRevisionString(revisionStr string) (rev datastore.Revision, e
 	return TimestampRevision(parsed), nil
 }
 
+func (ir TimestampRevision) ByteSortable() bool {
+	return true
+}
+
 func (ir TimestampRevision) Equal(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
 		rhs = zeroTimestampRevision
