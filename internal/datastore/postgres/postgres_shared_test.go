@@ -188,6 +188,15 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 					MigrationPhase(config.migrationPhase),
 				))
 
+				t.Run("TestSerializationError", createDatastoreTest(
+					b,
+					SerializationErrorTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(50),
+					MigrationPhase(config.migrationPhase),
+				))
+
 				t.Run("TestStrictReadMode", createReplicaDatastoreTest(
 					b,
 					StrictReadModeTest,
@@ -267,6 +276,36 @@ func createReplicaDatastoreTest(b testdatastore.RunningEngineForTest, tf datasto
 		defer ds.Close()
 
 		tf(t, ds)
+	}
+}
+
+func SerializationErrorTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx := context.Background()
+	r, err := ds.ReadyState(ctx)
+	require.NoError(err)
+	require.True(r.IsReady)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		updates := []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("resource:resource#reader@user:user#...")),
+		}
+		rwt.(*pgReadWriteTXN).tx = txWithSerializationError{rwt.(*pgReadWriteTXN).tx}
+		return rwt.WriteRelationships(ctx, updates)
+	})
+
+	require.Contains(err.Error(), "unable to write relationships due to a serialization error")
+}
+
+type txWithSerializationError struct {
+	pgx.Tx
+}
+
+func (txwse txWithSerializationError) Exec(ctx context.Context, sql string, arguments ...any) (commandTag pgconn.CommandTag, err error) {
+	return pgconn.CommandTag{}, &pgconn.PgError{
+		Code:    pgSerializationFailure,
+		Message: "fake serialization error",
 	}
 }
 
