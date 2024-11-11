@@ -322,7 +322,7 @@ func sanityCheckNamespaceChanges(
 			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
 				OptionalResourceType:     nsdef.Name,
 				OptionalResourceRelation: delta.RelationName,
-			})
+			}, options.WithLimit(options.LimitOne))
 
 			err = errorIfTupleIteratorReturnsTuples(
 				ctx,
