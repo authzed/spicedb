@@ -1,6 +1,8 @@
 package revisions
 
 import (
+	"bytes"
+	"sort"
 	"strings"
 	"testing"
 
@@ -243,6 +245,87 @@ func TestHLCRevisionParsing(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, tc, parsed.String())
+		})
+	}
+}
+
+func TestRevisionByteSortable(t *testing.T) {
+	tcs := []struct {
+		left      string
+		right     string
+		leftFirst bool
+	}{
+		{
+			"1",
+			"2",
+			true,
+		},
+		{
+			"2",
+			"1",
+			false,
+		},
+		{
+			"1",
+			"1",
+			true,
+		},
+		{
+			"1.0000000004",
+			"1",
+			false,
+		},
+		{
+			"1",
+			"1.0000000004",
+			true,
+		},
+		{
+			"1.0000000004",
+			"1.0000000004",
+			true,
+		},
+		{
+			"1.1000000000",
+			"1.0000000001",
+			false,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.left+"_"+tc.right, func(t *testing.T) {
+			for kind, supportsDecimals := range kinds {
+				t.Run(string(kind), func(t *testing.T) {
+					if !supportsDecimals && strings.Contains(tc.left, ".") {
+						t.Skip("does not support decimals")
+					}
+
+					if !supportsDecimals && strings.Contains(tc.right, ".") {
+						t.Skip("does not support decimals")
+					}
+					parser := RevisionParser(kind)
+
+					leftRev, err := parser(tc.left)
+					require.NoError(t, err)
+
+					rightRev, err := parser(tc.right)
+					require.NoError(t, err)
+
+					if !leftRev.ByteSortable() || !rightRev.ByteSortable() {
+						t.Skip("does not support byt sorting")
+					}
+
+					toSort := []string{leftRev.String(), rightRev.String()}
+					sort.Strings(toSort)
+					if tc.leftFirst {
+						require.Equal(t, leftRev.String(), toSort[0])
+						require.Equal(t, 0, bytes.Compare([]byte(leftRev.String()), []byte(toSort[0])))
+					} else {
+						require.Equal(t, rightRev.String(), toSort[0])
+						require.Equal(t, 0, bytes.Compare([]byte(rightRev.String()), []byte(toSort[0])))
+					}
+				})
+			}
 		})
 	}
 }

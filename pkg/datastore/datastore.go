@@ -817,9 +817,16 @@ type Revision interface {
 
 	// LessThan returns whether the receiver is probably less than the right hand side.
 	LessThan(Revision) bool
+
+	// ByteSortable returns true if the string representation of the Revision is byte sortable, false otherwise.
+	ByteSortable() bool
 }
 
 type nilRevision struct{}
+
+func (nilRevision) ByteSortable() bool {
+	return false
+}
 
 func (nilRevision) Equal(rhs Revision) bool {
 	return rhs == NoRevision

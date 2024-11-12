@@ -279,6 +279,10 @@ type postgresRevision struct {
 	optionalMetadata       map[string]any
 }
 
+func (pr postgresRevision) ByteSortable() bool {
+	return false
+}
+
 func (pr postgresRevision) Equal(rhsRaw datastore.Revision) bool {
 	rhs, ok := rhsRaw.(postgresRevision)
 	return ok && pr.snapshot.Equal(rhs.snapshot)

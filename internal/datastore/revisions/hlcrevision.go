@@ -98,6 +98,10 @@ func NewHLCForTime(time time.Time) HLCRevision {
 	return HLCRevision{time.UnixNano(), logicalClockOffset}
 }
 
+func (hlc HLCRevision) ByteSortable() bool {
+	return true
+}
+
 func (hlc HLCRevision) Equal(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
 		rhs = zeroHLC

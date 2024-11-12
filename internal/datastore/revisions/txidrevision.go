@@ -27,6 +27,10 @@ func parseTransactionIDRevisionString(revisionStr string) (rev datastore.Revisio
 	return TransactionIDRevision(parsed), nil
 }
 
+func (ir TransactionIDRevision) ByteSortable() bool {
+	return true
+}
+
 func (ir TransactionIDRevision) Equal(rhs datastore.Revision) bool {
 	if rhs == datastore.NoRevision {
 		rhs = zeroTransactionIDRevision
