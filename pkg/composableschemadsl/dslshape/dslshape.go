@@ -37,6 +37,15 @@ const (
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
 
 	NodeTypeImport
+
+	NodeTypeTest
+	NodeTypeTestRelations
+	NodeTypeTestRelation
+	NodeTypeTestObject
+	NodeTypeTestPermission
+	NodeTypeTestNegativePermission
+	NodeTypeTestAssertions
+	NodeTypeTestExpected
 )
 
 const (
@@ -198,4 +207,11 @@ const (
 	NodeImportPredicateSource         = "import-source"
 	NodeImportPredicatePathSegment    = "path-segment"
 	NodeImportPredicateDefinitionName = "imported-definition"
+
+	NodeTestPredicateName = "test-name"
+
+	NodeTestObjectPredicateObjectType = "object-type"
+	NodeTestObjectPredicateObjectID = "object-id"
+	// Used for both positive and negative permissions
+	NodeTestRelationPermissionPredicateName = "permission-name"
 )

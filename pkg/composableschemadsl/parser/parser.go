@@ -65,6 +65,9 @@ Loop:
 		case p.isKeyword("from"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
 
+		case p.isKeyword("test"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeTest())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -664,4 +667,199 @@ func (p *sourceParser) consumeImport() AstNode {
 	}
 
 	return importNode
+}
+
+func (p *sourceParser) consumeTest() AstNode {
+	testNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// These are how we enforce that there is at most one of
+	// each of these three
+	var consumedRelations, consumedAssertions, consumedExpected bool
+
+	// test ...
+	p.consumeKeyword("test")
+
+	testName, ok := p.consumeIdentifier()
+	if !ok {
+		return testNode
+	}
+	testNode.MustDecorate(dslshape.NodeTestPredicateName, testName)
+
+	// {
+	_, ok = p.consume(lexer.TokenTypeLeftBrace)
+	if !ok {
+		return testNode
+	}
+
+	// top-levels for test
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+		// relations ...
+		// assertions ...
+		// expected ...
+		switch {
+		case p.isKeyword("relations"):
+			if consumedRelations {
+				p.emitErrorf("%s", "at most one relations block is permitted")
+				return testNode
+			}
+			testNode.Connect(dslshape.NodePredicateChild, p.consumeTestRelations())
+			consumedRelations = true
+		case p.isKeyword("assertions"):
+			if consumedAssertions {
+				p.emitErrorf("%s", "at most one assertions block is permitted")
+				return testNode
+			}
+			testNode.Connect(dslshape.NodePredicateChild, p.consumeTestAssertions())
+			consumedAssertions = true
+		case p.isKeyword("expected"):
+			if consumedExpected {
+				p.emitErrorf("%s", "at most one expected block is permitted")
+				return testNode
+			}
+			testNode.Connect(dslshape.NodePredicateChild, p.consumeTestExpected())
+			consumedExpected = true
+		}
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return testNode
+}
+
+func (p *sourceParser) consumeTestRelations() AstNode {
+	relationsNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// relations ...
+	p.consumeKeyword("relations")
+
+	// {
+	if _, ok := p.consume(lexer.TokenTypeLeftBrace); !ok {
+		return relationsNode
+	}
+
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+
+		relationsNode.Connect(dslshape.NodePredicateChild, p.consumeTestRelation())
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return relationsNode
+}
+
+func (p *sourceParser) consumeTestRelation() AstNode {
+	relationNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// A relation looks like:
+	// object:foo relation subject:bar
+	// object consumption
+	objectType, ok := p.consumeIdentifier()
+	if !ok {
+		return relationNode
+	}
+	relationNode.MustDecorate(dslshape.NodeTestRelationObjectType, objectType)
+
+	_, ok = p.consume(lexer.TokenTypeColon)
+	if !ok {
+		return relationNode
+	}
+
+	objectID, ok := p.consumeIdentifier()
+	if !ok {
+		return relationNode
+	}
+	relationNode.MustDecorate(dslshape.NodeTestRelationObjectID, objectID)
+
+	// relation consumption
+	relation, ok := p.consumeIdentifier()
+	if !ok {
+		return relationNode
+	}
+	relationNode.MustDecorate(dslshape.NodeTestRelationRelation, relation)
+
+	// subject consumption
+	subjectType, ok := p.consumeIdentifier()
+	if !ok {
+		return relationNode
+	}
+	relationNode.MustDecorate(dslshape.NodeTestRelationSubjectType, subjectType)
+
+	_, ok = p.consume(lexer.TokenTypeColon)
+	if !ok {
+		return relationNode
+	}
+
+	subjectID, ok := p.consumeIdentifier()
+	if !ok {
+		return relationNode
+	}
+	relationNode.MustDecorate(dslshape.NodeTestRelationSubjectID, subjectID)
+
+	return relationNode
+}
+
+// Consumes an objectType:objectId pair and returns a
+// 
+func (p *sourceParser) consumeTestObject() AstNode {
+
+}
+
+func (p *sourceParser) consumeTestAssertions() AstNode {
+	assertionsNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	// relations ...
+	p.consumeKeyword("relations")
+
+	// {
+	if _, ok := p.consume(lexer.TokenTypeLeftBrace); !ok {
+		return assertionsNode
+	}
+
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+
+		assertionsNode.Connect(dslshape.NodePredicateChild, p.consumeTestAssertion())
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return assertionsNode
+}
+
+func (p *sourceParser) consumeTestAssertion() AstNode {
+	assertionNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+	
+	return assertionNode
+}
+
+func (p *sourceParser) consumeTestExpected() AstNode {
+	expectedNode := p.startNode(dslshape.NodeTypeImport)
+	defer p.mustFinishNode()
+
+	return expectedNode
 }
