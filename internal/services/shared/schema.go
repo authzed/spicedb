@@ -319,9 +319,45 @@ func sanityCheckNamespaceChanges(
 	for _, delta := range diff.Deltas() {
 		switch delta.Type {
 		case nsdiff.RemovedRelation:
+			// NOTE: We add the subject filters here to ensure the reverse relationship index is used
+			// by the datastores. As there is no index that has {namespace, relation} directly, but there
+			// *is* an index that has {subject_namespace, subject_relation, namespace, relation}, we can
+			// force the datastore to use the reverse index by adding the subject filters.
+			var previousRelation *core.Relation
+			for _, relation := range existing.Relation {
+				if relation.Name == delta.RelationName {
+					previousRelation = relation
+					break
+				}
+			}
+
+			if previousRelation == nil {
+				return nil, spiceerrors.MustBugf("relation `%s` not found in existing namespace definition", delta.RelationName)
+			}
+
+			subjectSelectors := make([]datastore.SubjectsSelector, 0, len(previousRelation.TypeInformation.AllowedDirectRelations))
+			for _, allowedType := range previousRelation.TypeInformation.AllowedDirectRelations {
+				if allowedType.GetRelation() == datastore.Ellipsis {
+					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+						OptionalSubjectType: allowedType.Namespace,
+						RelationFilter: datastore.SubjectRelationFilter{
+							IncludeEllipsisRelation: true,
+						},
+					})
+				} else {
+					subjectSelectors = append(subjectSelectors, datastore.SubjectsSelector{
+						OptionalSubjectType: allowedType.Namespace,
+						RelationFilter: datastore.SubjectRelationFilter{
+							NonEllipsisRelation: allowedType.GetRelation(),
+						},
+					})
+				}
+			}
+
 			qy, qyErr := rwt.QueryRelationships(ctx, datastore.RelationshipsFilter{
-				OptionalResourceType:     nsdef.Name,
-				OptionalResourceRelation: delta.RelationName,
+				OptionalResourceType:      nsdef.Name,
+				OptionalResourceRelation:  delta.RelationName,
+				OptionalSubjectsSelectors: subjectSelectors,
 			}, options.WithLimit(options.LimitOne))
 
 			err = errorIfTupleIteratorReturnsTuples(
