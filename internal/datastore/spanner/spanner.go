@@ -80,6 +80,7 @@ var (
 type spannerDatastore struct {
 	*revisions.RemoteClockRevisions
 	revisions.CommonDecoder
+	*common.MigrationValidator
 
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
@@ -170,6 +171,11 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
+	headMigration, err := migrations.SpannerMigrations.HeadRevision()
+	if err != nil {
+		return nil, fmt.Errorf("invalid head migration found for spanner: %w", err)
+	}
+
 	ds := &spannerDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			defaultChangeStreamRetention,
@@ -180,6 +186,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		CommonDecoder: revisions.CommonDecoder{
 			Kind: revisions.Timestamp,
 		},
+		MigrationValidator:                      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		client:                                  client,
 		config:                                  config,
 		database:                                database,
@@ -315,30 +322,13 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 }
 
 func (sd *spannerDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	headMigration, err := migrations.SpannerMigrations.HeadRevision()
-	if err != nil {
-		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for spanner: %w", err)
-	}
-
 	checker := migrations.NewSpannerVersionChecker(sd.client)
 	version, err := checker.Version(ctx)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}
 
-	// TODO: once phased migration is complete, remove the extra allowed version
-	if version == headMigration || version == "register-combined-change-stream" {
-		return datastore.ReadyState{IsReady: true}, nil
-	}
-
-	return datastore.ReadyState{
-		Message: fmt.Sprintf(
-			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
-			version,
-			headMigration,
-		),
-		IsReady: false,
-	}, nil
+	return sd.MigrationReadyState(version), nil
 }
 
 func (sd *spannerDatastore) Features(ctx context.Context) (*datastore.Features, error) {

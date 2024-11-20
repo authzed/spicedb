@@ -27,6 +27,7 @@ type crdbOptions struct {
 	filterMaximumIDCount        uint16
 	enablePrometheusStats       bool
 	withIntegrity               bool
+	allowedMigrations           []string
 }
 
 const (
@@ -337,4 +338,10 @@ func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 // WithIntegrity marks whether the datastore should store and return integrity information.
 func WithIntegrity(withIntegrity bool) Option {
 	return func(po *crdbOptions) { po.withIntegrity = withIntegrity }
+}
+
+// AllowedMigrations configures a set of additional migrations that will pass
+// the health check (head migration is always allowed).
+func AllowedMigrations(allowedMigrations []string) Option {
+	return func(po *crdbOptions) { po.allowedMigrations = allowedMigrations }
 }

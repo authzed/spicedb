@@ -24,6 +24,7 @@ type spannerOptions struct {
 	minSessions                 uint64
 	maxSessions                 uint64
 	migrationPhase              string
+	allowedMigrations           []string
 	filterMaximumIDCount        uint16
 }
 
@@ -211,6 +212,12 @@ func MaxSessionCount(maxSessions uint64) Option {
 // Steady-state configuration (e.g. fully migrated) by default
 func MigrationPhase(phase string) Option {
 	return func(po *spannerOptions) { po.migrationPhase = phase }
+}
+
+// AllowedMigrations configures a set of additional migrations that will pass
+// the health check (head migration is always allowed).
+func AllowedMigrations(allowedMigrations []string) Option {
+	return func(po *spannerOptions) { po.allowedMigrations = allowedMigrations }
 }
 
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries

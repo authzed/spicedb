@@ -191,6 +191,11 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
+	headMigration, err := migrations.CRDBMigrations.HeadRevision()
+	if err != nil {
+		return nil, fmt.Errorf("invalid head migration found for cockroach: %w", err)
+	}
+
 	ds := &crdbDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			config.gcWindow,
@@ -199,6 +204,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 			config.revisionQuantization,
 		),
 		CommonDecoder:           revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
+		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                   url,
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
@@ -284,6 +290,7 @@ func NewCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 type crdbDatastore struct {
 	*revisions.RemoteClockRevisions
 	revisions.CommonDecoder
+	*common.MigrationValidator
 
 	dburl                   string
 	readPool, writePool     *pool.RetryPool
@@ -407,11 +414,6 @@ func wrapError(err error) error {
 }
 
 func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	headMigration, err := migrations.CRDBMigrations.HeadRevision()
-	if err != nil {
-		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for cockroach: %w", err)
-	}
-
 	currentRevision, err := migrations.NewCRDBDriver(cds.dburl)
 	if err != nil {
 		return datastore.ReadyState{}, err
@@ -423,17 +425,8 @@ func (cds *crdbDatastore) ReadyState(ctx context.Context) (datastore.ReadyState,
 		return datastore.ReadyState{}, err
 	}
 
-	// TODO(jschorr): Remove the check for the older migration once we are confident
-	// that all users have migrated past it.
-	if version != headMigration && version != "add-caveats" {
-		return datastore.ReadyState{
-			Message: fmt.Sprintf(
-				"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`.",
-				version,
-				headMigration,
-			),
-			IsReady: false,
-		}, nil
+	if state := cds.MigrationValidator.MigrationReadyState(version); !state.IsReady {
+		return state, nil
 	}
 
 	readMin := cds.readPool.MinConns()

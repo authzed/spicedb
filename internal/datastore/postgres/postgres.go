@@ -282,6 +282,11 @@ func newPostgresDatastore(
 		}
 	}
 
+	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
+	if err != nil {
+		return nil, fmt.Errorf("invalid head migration found for postgres: %w", err)
+	}
+
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	quantizationPeriodNanos := config.revisionQuantization.Nanoseconds()
@@ -313,6 +318,7 @@ func newPostgresDatastore(
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
+		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                   pgURL,
 		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:               nil, /* disabled by default */
@@ -368,6 +374,7 @@ func newPostgresDatastore(
 
 type pgDatastore struct {
 	*revisions.CachedOptimizedRevisions
+	*common.MigrationValidator
 
 	dburl                   string
 	readPool, writePool     pgxcommon.ConnPooler
@@ -644,11 +651,6 @@ func errorRetryable(err error) bool {
 }
 
 func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	headMigration, err := migrations.DatabaseMigrations.HeadRevision()
-	if err != nil {
-		return datastore.ReadyState{}, fmt.Errorf("invalid head migration found for postgres: %w", err)
-	}
-
 	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl, pgd.credentialsProvider)
 	if err != nil {
 		return datastore.ReadyState{}, err
@@ -660,25 +662,17 @@ func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, e
 		return datastore.ReadyState{}, err
 	}
 
-	if version == headMigration {
-		// Ensure a datastore ID is present. This ensures the tables have not been truncated.
-		uniqueID, err := pgd.datastoreUniqueID(ctx)
-		if err != nil {
-			return datastore.ReadyState{}, fmt.Errorf("database validation failed: %w; if you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported", err)
-		}
-
-		log.Trace().Str("unique_id", uniqueID).Msg("postgres datastore unique ID")
-		return datastore.ReadyState{IsReady: true}, nil
+	state := pgd.MigrationReadyState(version)
+	if !state.IsReady {
+		return state, nil
 	}
-
-	return datastore.ReadyState{
-		Message: fmt.Sprintf(
-			"datastore is not migrated: currently at revision `%s`, but requires `%s`. Please run `spicedb migrate`. If you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported",
-			version,
-			headMigration,
-		),
-		IsReady: false,
-	}, nil
+	// Ensure a datastore ID is present. This ensures the tables have not been truncated.
+	uniqueID, err := pgd.datastoreUniqueID(ctx)
+	if err != nil {
+		return datastore.ReadyState{}, fmt.Errorf("database validation failed: %w; if you have previously run `TRUNCATE`, this database is no longer valid and must be remigrated. See: https://spicedb.dev/d/truncate-unsupported", err)
+	}
+	log.Trace().Str("unique_id", uniqueID).Msg("postgres datastore unique ID")
+	return state, nil
 }
 
 func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, error) {
