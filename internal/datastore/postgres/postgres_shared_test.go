@@ -188,6 +188,15 @@ func testPostgresDatastore(t *testing.T, pc []postgresConfig) {
 					MigrationPhase(config.migrationPhase),
 				))
 
+				t.Run("TestCheckpointsOnOutOfBandChanges", createDatastoreTest(
+					b,
+					CheckpointsOnOutOfBandChangesTest,
+					RevisionQuantization(0),
+					GCWindow(1*time.Millisecond),
+					WatchBufferLength(50),
+					MigrationPhase(config.migrationPhase),
+				))
+
 				t.Run("TestSerializationError", createDatastoreTest(
 					b,
 					SerializationErrorTest,
@@ -1590,23 +1599,79 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 				return
 			}
 
-			rev := change.Revision.(postgresRevision)
-			timestamp, timestampPresent := rev.OptionalNanosTimestamp()
-			require.True(timestampPresent, "expected timestamp to be present in revision")
-			isCorrectAndUsesNanos := time.Unix(0, int64(timestamp)).After(anHourAgo)
-			require.True(isCorrectAndUsesNanos, "timestamp is not correct")
+			if !change.IsCheckpoint {
+				rev := change.Revision.(postgresRevision)
+				timestamp, timestampPresent := rev.OptionalNanosTimestamp()
+				require.True(timestampPresent, "expected timestamp to be present in revision")
+				isCorrectAndUsesNanos := time.Unix(0, int64(timestamp)).After(anHourAgo)
+				require.True(isCorrectAndUsesNanos, "timestamp is not correct")
 
-			_, transactionIDPresent := rev.OptionalTransactionID()
-			require.True(transactionIDPresent, "expected transactionID to be present in revision")
+				_, transactionIDPresent := rev.OptionalTransactionID()
+				require.True(transactionIDPresent, "expected transactionID to be present in revision")
 
-			if change.IsCheckpoint {
-				checkedCheckpoint = true
-			} else {
 				checkedUpdate = true
+			} else {
+				// we wait for a checkpoint right after the update. Checkpoints could happen at any time off band.
+				if checkedUpdate {
+					checkedCheckpoint = true
+				}
 			}
+
 			time.Sleep(1 * time.Millisecond)
 		case <-changeWait.C:
 			require.Fail("Timed out")
+		}
+	}
+}
+
+func CheckpointsOnOutOfBandChangesTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Run the watch API.
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
+		Content: datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints,
+	})
+	require.Zero(len(errchan))
+
+	// Make the current snapshot move
+	pds := ds.(*pgDatastore)
+	tx, err := pds.writePool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	require.NoError(err)
+	_, err = tx.Exec(ctx, "LOCK pg_class;")
+	require.NoError(err)
+	require.NoError(tx.Commit(ctx))
+
+	newRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	require.True(newRevision.GreaterThan(lowestRevision))
+
+	var checkedCheckpoint bool
+	for {
+		if checkedCheckpoint {
+			break
+		}
+
+		changeWait := time.NewTimer(waitForChangesTimeout)
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				require.True(checkedCheckpoint, "expected checkpoint to be emitted")
+				return
+			}
+
+			if change.IsCheckpoint {
+				checkedCheckpoint = change.Revision.GreaterThan(lowestRevision)
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		case <-changeWait.C:
+			require.Fail("timed out waiting for checkpoint for out of band change")
 		}
 	}
 }

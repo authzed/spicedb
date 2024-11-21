@@ -12,6 +12,7 @@ import (
 	"github.com/ccoveille/go-safecast"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	implv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -91,15 +92,28 @@ func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, e
 	ctx, span := tracer.Start(ctx, "HeadRevision")
 	defer span.End()
 
-	var snapshot pgSnapshot
-	if err := pgd.readPool.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return datastore.NoRevision, nil
-		}
-		return datastore.NoRevision, fmt.Errorf(errRevision, err)
+	result, err := pgd.getHeadRevision(ctx, pgd.readPool)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		return datastore.NoRevision, nil
 	}
 
-	return postgresRevision{snapshot: snapshot}, nil
+	return *result, nil
+}
+
+func (pgd *pgDatastore) getHeadRevision(ctx context.Context, querier common.Querier) (*postgresRevision, error) {
+	var snapshot pgSnapshot
+	if err := querier.QueryRow(ctx, queryCurrentSnapshot).Scan(&snapshot); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf(errRevision, err)
+	}
+
+	return &postgresRevision{snapshot: snapshot}, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {
