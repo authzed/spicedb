@@ -163,7 +163,8 @@ type Config struct {
 	WatchConnectTimeout     time.Duration `debugmap:"visible"`
 
 	// Migrations
-	MigrationPhase string `debugmap:"visible"`
+	MigrationPhase    string   `debugmap:"visible"`
+	AllowedMigrations []string `debugmap:"visible"`
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
@@ -242,6 +243,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
+	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
@@ -312,6 +314,7 @@ func DefaultDatastoreConfig() *Config {
 		RelationshipIntegrityEnabled:     false,
 		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
 		RelationshipIntegrityExpiredKeys: []string{},
+		AllowedMigrations:                []string{},
 	}
 }
 
@@ -505,6 +508,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.ConnectRate(opts.ConnectRate),
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
+		crdb.AllowedMigrations(opts.AllowedMigrations),
 	)
 }
 
@@ -592,6 +596,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.WatchBufferLength(opts.WatchBufferLength),
 		postgres.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		postgres.MigrationPhase(opts.MigrationPhase),
+		postgres.AllowedMigrations(opts.AllowedMigrations),
 	}
 
 	commonOptions, err := commonPostgresDatastoreOptions(opts)
@@ -624,6 +629,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.MinSessionCount(opts.SpannerMinSessions),
 		spanner.MaxSessionCount(opts.SpannerMaxSessions),
 		spanner.MigrationPhase(opts.MigrationPhase),
+		spanner.AllowedMigrations(opts.AllowedMigrations),
 		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 	)
 }
@@ -668,6 +674,7 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		mysql.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		mysql.AllowedMigrations(opts.AllowedMigrations),
 	}, nil
 }
 

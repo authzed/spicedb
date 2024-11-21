@@ -29,7 +29,8 @@ type postgresOptions struct {
 	gcEnabled               bool
 	readStrictMode          bool
 
-	migrationPhase string
+	migrationPhase    string
+	allowedMigrations []string
 
 	logger *tracingLogger
 
@@ -356,6 +357,12 @@ func WithQueryInterceptor(interceptor pgxcommon.QueryInterceptor) Option {
 // Steady-state configuration (e.g. fully migrated) by default
 func MigrationPhase(phase string) Option {
 	return func(po *postgresOptions) { po.migrationPhase = phase }
+}
+
+// AllowedMigrations configures a set of additional migrations that will pass
+// the health check (head migration is always allowed).
+func AllowedMigrations(allowedMigrations []string) Option {
+	return func(po *postgresOptions) { po.allowedMigrations = allowedMigrations }
 }
 
 // CredentialsProviderName is the name of the CredentialsProvider implementation to use

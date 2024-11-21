@@ -46,6 +46,7 @@ type mysqlOptions struct {
 	gcEnabled                   bool
 	credentialsProviderName     string
 	filterMaximumIDCount        uint16
+	allowedMigrations           []string
 }
 
 // Option provides the facility to configure how clients within the
@@ -261,4 +262,10 @@ func CredentialsProviderName(credentialsProviderName string) Option {
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
 func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 	return func(mo *mysqlOptions) { mo.filterMaximumIDCount = filterMaximumIDCount }
+}
+
+// AllowedMigrations configures a set of additional migrations that will pass
+// the health check (head migration is always allowed).
+func AllowedMigrations(allowedMigrations []string) Option {
+	return func(mo *mysqlOptions) { mo.allowedMigrations = allowedMigrations }
 }

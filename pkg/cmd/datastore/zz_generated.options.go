@@ -76,6 +76,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.WatchBufferWriteTimeout = c.WatchBufferWriteTimeout
 		to.WatchConnectTimeout = c.WatchConnectTimeout
 		to.MigrationPhase = c.MigrationPhase
+		to.AllowedMigrations = c.AllowedMigrations
 	}
 }
 
@@ -126,6 +127,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["WatchBufferWriteTimeout"] = helpers.DebugValue(c.WatchBufferWriteTimeout, false)
 	debugMap["WatchConnectTimeout"] = helpers.DebugValue(c.WatchConnectTimeout, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
+	debugMap["AllowedMigrations"] = helpers.DebugValue(c.AllowedMigrations, false)
 	return debugMap
 }
 
@@ -492,5 +494,19 @@ func WithWatchConnectTimeout(watchConnectTimeout time.Duration) ConfigOption {
 func WithMigrationPhase(migrationPhase string) ConfigOption {
 	return func(c *Config) {
 		c.MigrationPhase = migrationPhase
+	}
+}
+
+// WithAllowedMigrations returns an option that can append AllowedMigrationss to Config.AllowedMigrations
+func WithAllowedMigrations(allowedMigrations string) ConfigOption {
+	return func(c *Config) {
+		c.AllowedMigrations = append(c.AllowedMigrations, allowedMigrations)
+	}
+}
+
+// SetAllowedMigrations returns an option that can set AllowedMigrations on a Config
+func SetAllowedMigrations(allowedMigrations []string) ConfigOption {
+	return func(c *Config) {
+		c.AllowedMigrations = allowedMigrations
 	}
 }

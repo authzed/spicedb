@@ -214,6 +214,11 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	// ID value makes this idempotent (i.e. safe to execute concurrently).
 	createBaseTxn := fmt.Sprintf("INSERT IGNORE INTO %s (id, timestamp) VALUES (1, FROM_UNIXTIME(1))", driver.RelationTupleTransaction())
 
+	headMigration, err := migrations.Manager.HeadRevision()
+	if err != nil {
+		return nil, fmt.Errorf("invalid head migration found for mysql: %w", err)
+	}
+
 	gcCtx, cancelGc := context.WithCancel(context.Background())
 
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
@@ -241,6 +246,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	)
 
 	store := &Datastore{
+		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		db:                      db,
 		driver:                  driver,
 		url:                     uri,
@@ -504,6 +510,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 
 // Datastore is a MySQL-based implementation of the datastore.Datastore interface
 type Datastore struct {
+	*common.MigrationValidator
 	db                 *sql.DB
 	driver             *migrations.MySQLDriver
 	readTxOptions      *sql.TxOptions
@@ -564,15 +571,9 @@ func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, err
 		return datastore.ReadyState{}, err
 	}
 
-	compatible, err := migrations.Manager.IsHeadCompatible(currentMigrationRevision)
-	if err != nil {
-		return datastore.ReadyState{}, err
-	}
-	if !compatible {
-		return datastore.ReadyState{
-			Message: "datastore is not at a currently compatible revision",
-			IsReady: false,
-		}, nil
+	state := mds.MigrationReadyState(currentMigrationRevision)
+	if !state.IsReady {
+		return state, nil
 	}
 
 	isSeeded, err := mds.isSeeded(ctx)
@@ -585,11 +586,7 @@ func (mds *Datastore) ReadyState(ctx context.Context) (datastore.ReadyState, err
 			IsReady: false,
 		}, nil
 	}
-
-	return datastore.ReadyState{
-		Message: "",
-		IsReady: true,
-	}, nil
+	return state, nil
 }
 
 func (mds *Datastore) Features(_ context.Context) (*datastore.Features, error) {
