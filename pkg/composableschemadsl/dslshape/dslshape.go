@@ -210,6 +210,10 @@ const (
 
 	NodeTestPredicateName = "test-name"
 
+	NodeTestRelationPredicateSubject = "subject"
+	NodeTestRelationPredicateObject = "object"
+	NodeTestRelationPredicateRelation = "relation"
+
 	NodeTestObjectPredicateObjectType = "object-type"
 	NodeTestObjectPredicateObjectID = "object-id"
 	// Used for both positive and negative permissions

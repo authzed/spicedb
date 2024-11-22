@@ -770,55 +770,53 @@ func (p *sourceParser) consumeTestRelation() AstNode {
 	// A relation looks like:
 	// object:foo relation subject:bar
 	// object consumption
-	objectType, ok := p.consumeIdentifier()
-	if !ok {
-		return relationNode
-	}
-	relationNode.MustDecorate(dslshape.NodeTestRelationObjectType, objectType)
 
-	_, ok = p.consume(lexer.TokenTypeColon)
+	objectNode, ok := p.consumeTestObject()
 	if !ok {
 		return relationNode
 	}
-
-	objectID, ok := p.consumeIdentifier()
-	if !ok {
-		return relationNode
-	}
-	relationNode.MustDecorate(dslshape.NodeTestRelationObjectID, objectID)
+	relationNode.Connect(dslshape.NodeTestRelationPredicateObject, objectNode)
 
 	// relation consumption
 	relation, ok := p.consumeIdentifier()
 	if !ok {
 		return relationNode
 	}
-	relationNode.MustDecorate(dslshape.NodeTestRelationRelation, relation)
+	relationNode.MustDecorate(dslshape.NodeTestRelationPredicateRelation, relation)
 
 	// subject consumption
-	subjectType, ok := p.consumeIdentifier()
+	subjectNode, ok := p.consumeTestObject()
 	if !ok {
 		return relationNode
 	}
-	relationNode.MustDecorate(dslshape.NodeTestRelationSubjectType, subjectType)
-
-	_, ok = p.consume(lexer.TokenTypeColon)
-	if !ok {
-		return relationNode
-	}
-
-	subjectID, ok := p.consumeIdentifier()
-	if !ok {
-		return relationNode
-	}
-	relationNode.MustDecorate(dslshape.NodeTestRelationSubjectID, subjectID)
+	relationNode.Connect(dslshape.NodeTestRelationPredicateSubject, subjectNode)
 
 	return relationNode
 }
 
-// Consumes an objectType:objectId pair and returns a
-// 
-func (p *sourceParser) consumeTestObject() AstNode {
+// Consumes an objectType:objectId pair and returns a test object node with
+// object type and ID
+func (p *sourceParser) consumeTestObject() (AstNode, bool) {
+	objectNode := p.startNode(dslshape.NodeTypeTestObject)
+	defer p.mustFinishNode()
 
+	objectType, ok := p.consumeIdentifier()
+	if !ok {
+		return objectNode, false
+	}
+	objectNode.MustDecorate(dslshape.NodeTestObjectPredicateObjectType, objectType)
+
+	_, ok = p.consume(lexer.TokenTypeColon)
+	if !ok {
+		return objectNode, false
+	}
+
+	objectID, ok := p.consumeIdentifier()
+	if !ok {
+		return objectNode, false
+	}
+	objectNode.MustDecorate(dslshape.NodeTestObjectPredicateObjectID, objectID)
+	return objectNode, true
 }
 
 func (p *sourceParser) consumeTestAssertions() AstNode {
