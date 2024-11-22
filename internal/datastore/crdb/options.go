@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -28,6 +29,7 @@ type crdbOptions struct {
 	enablePrometheusStats       bool
 	withIntegrity               bool
 	allowedMigrations           []string
+	columnOptimizationOption    common.ColumnOptimizationOption
 }
 
 const (
@@ -55,6 +57,7 @@ const (
 	defaultConnectRate               = 100 * time.Millisecond
 	defaultFilterMaximumIDCount      = 100
 	defaultWithIntegrity             = false
+	defaultColumnOptimizationOption  = common.ColumnOptimizationOptionNone
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -78,6 +81,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		connectRate:                 defaultConnectRate,
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		withIntegrity:               defaultWithIntegrity,
+		columnOptimizationOption:    defaultColumnOptimizationOption,
 	}
 
 	for _, option := range options {
@@ -344,4 +348,15 @@ func WithIntegrity(withIntegrity bool) Option {
 // the health check (head migration is always allowed).
 func AllowedMigrations(allowedMigrations []string) Option {
 	return func(po *crdbOptions) { po.allowedMigrations = allowedMigrations }
+}
+
+// WithColumnOptimization configures the column optimization option for the datastore.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(po *crdbOptions) {
+		if isEnabled {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
 }

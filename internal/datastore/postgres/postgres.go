@@ -326,6 +326,7 @@ func newPostgresDatastore(
 		colCaveatContext,
 		common.TupleComparison,
 		sq.Dollar,
+		config.columnOptimizationOption,
 	)
 
 	datastore := &pgDatastore{

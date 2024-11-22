@@ -61,6 +61,7 @@ func (vr validatingReader) QueryRelationships(
 		"caveat_context",
 		common.TupleComparison,
 		sq.Question,
+		common.ColumnOptimizationOptionStaticValues,
 	)
 
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(schema, 100).
