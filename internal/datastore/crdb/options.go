@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -28,6 +29,7 @@ type crdbOptions struct {
 	enablePrometheusStats          bool
 	withIntegrity                  bool
 	includeQueryParametersInTraces bool
+	columnOptimizationOption       common.ColumnOptimizationOption
 	allowedMigrations              []string
 }
 
@@ -56,6 +58,7 @@ const (
 	defaultConnectRate                    = 100 * time.Millisecond
 	defaultFilterMaximumIDCount           = 100
 	defaultWithIntegrity                  = false
+	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces = false
 )
 
@@ -80,6 +83,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		connectRate:                    defaultConnectRate,
 		filterMaximumIDCount:           defaultFilterMaximumIDCount,
 		withIntegrity:                  defaultWithIntegrity,
+		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 	}
 
@@ -352,4 +356,15 @@ func AllowedMigrations(allowedMigrations []string) Option {
 // IncludeQueryParametersInTraces marks whether query parameters should be included in traces.
 func IncludeQueryParametersInTraces(includeQueryParametersInTraces bool) Option {
 	return func(po *crdbOptions) { po.includeQueryParametersInTraces = includeQueryParametersInTraces }
+}
+
+// WithColumnOptimization configures the column optimization option for the datastore.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(po *crdbOptions) {
+		if isEnabled {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
 }

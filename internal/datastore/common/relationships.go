@@ -20,6 +20,12 @@ const errUnableToQueryRels = "unable to query relationships: %w"
 // StaticValueOrAddColumnForSelect adds a column to the list of columns to select if the value
 // is not static, otherwise it sets the value to the static value.
 func StaticValueOrAddColumnForSelect(colsToSelect []any, queryInfo QueryInfo, colName string, field *string) []any {
+	if queryInfo.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+		// If column optimization is disabled, always add the column to the list of columns to select.
+		colsToSelect = append(colsToSelect, field)
+		return colsToSelect
+	}
+
 	// If the value is static, set the field to it and return.
 	if found, ok := queryInfo.FilteringValues[colName]; ok && found.SingleValue != nil {
 		*field = *found.SingleValue
@@ -79,7 +85,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, queryInf
 	colsToSelect = StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetObjectID, &subjectObjectID)
 	colsToSelect = StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetRelation, &subjectRelation)
 
-	if !queryInfo.SkipCaveats {
+	if !queryInfo.SkipCaveats || queryInfo.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
 		colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
 	}
 
@@ -111,7 +117,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, queryInf
 				}
 
 				var caveat *corev1.ContextualizedCaveat
-				if !queryInfo.SkipCaveats {
+				if !queryInfo.SkipCaveats || queryInfo.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
 					if caveatName.Valid {
 						var err error
 						caveat, err = ContextualizedCaveatFrom(caveatName.String, caveatCtx)

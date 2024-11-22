@@ -330,6 +330,7 @@ func newPostgresDatastore(
 		common.TupleComparison,
 		sq.Dollar,
 		"NOW",
+		config.columnOptimizationOption,
 	)
 
 	datastore := &pgDatastore{

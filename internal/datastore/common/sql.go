@@ -47,7 +47,7 @@ var (
 	tracer = otel.Tracer("spicedb/internal/datastore/common")
 )
 
-// PaginationFilterType is an enumerator
+// PaginationFilterType is an enumerator for pagination filter types.
 type PaginationFilterType uint8
 
 const (
@@ -60,6 +60,17 @@ const (
 	// filter out already received relationships. Useful for databases that do not support
 	// tuple comparison, or do not execute it efficiently
 	ExpandedLogicComparison
+)
+
+// ColumnOptimizationOption is an enumerator for column optimization options.
+type ColumnOptimizationOption int
+
+const (
+	// ColumnOptimizationOptionNone is the default option, which does not optimize the static columns.
+	ColumnOptimizationOptionNone ColumnOptimizationOption = iota
+
+	// ColumnOptimizationOptionStaticValue is an option that optimizes the column for a static value.
+	ColumnOptimizationOptionStaticValues
 )
 
 // SchemaInformation holds the schema information from the SQL datastore implementation.
@@ -84,6 +95,9 @@ type SchemaInformation struct {
 	// NowFunction is the function to use to get the current time in the datastore.
 	NowFunction string
 
+	// ColumnOptimization is the optimization to use for columns in the schema, if any.
+	ColumnOptimization ColumnOptimizationOption
+
 	// ExtaFields are additional fields that are not part of the core schema, but are
 	// requested by the caller for this query.
 	ExtraFields []string
@@ -104,6 +118,7 @@ func NewSchemaInformation(
 	paginationFilterType PaginationFilterType,
 	placeholderFormat sq.PlaceholderFormat,
 	nowFunction string,
+	columnOptionizationOption ColumnOptimizationOption,
 	extraFields ...string,
 ) SchemaInformation {
 	return SchemaInformation{
@@ -120,6 +135,7 @@ func NewSchemaInformation(
 		paginationFilterType,
 		placeholderFormat,
 		nowFunction,
+		columnOptionizationOption,
 		extraFields,
 	}
 }
@@ -695,18 +711,18 @@ func (tqs QueryExecutor) ExecuteQuery(
 	// Set the column names to select.
 	columnNamesToSelect := make([]string, 0, 8+len(query.extraFields))
 
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColNamespace)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColObjectID)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColRelation)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColUsersetNamespace)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColUsersetObjectID)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.filteringColumnTracker, query.schema.ColUsersetRelation)
+	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColNamespace)
+	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColObjectID)
+	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColRelation)
+	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColUsersetNamespace)
+	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColUsersetObjectID)
+	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColUsersetRelation)
 
-	columnNamesToSelect = append(columnNamesToSelect, query.schema.ColExpiration)
-
-	if !queryOpts.SkipCaveats {
+	if !queryOpts.SkipCaveats || query.schema.ColumnOptimization == ColumnOptimizationOptionNone {
 		columnNamesToSelect = append(columnNamesToSelect, query.schema.ColCaveatName, query.schema.ColCaveatContext)
 	}
+
+	columnNamesToSelect = append(columnNamesToSelect, query.schema.ColExpiration)
 
 	selectingNoColumns := false
 	columnNamesToSelect = append(columnNamesToSelect, query.schema.ExtraFields...)
@@ -732,7 +748,11 @@ func (tqs QueryExecutor) ExecuteQuery(
 	return tqs.Executor(ctx, QueryInfo{query.schema, query.filteringColumnTracker, queryOpts.SkipCaveats, selectingNoColumns}, sql, args)
 }
 
-func checkColumn(columns []string, tracker map[string]ColumnTracker, colName string) []string {
+func checkColumn(columns []string, option ColumnOptimizationOption, tracker map[string]ColumnTracker, colName string) []string {
+	if option == ColumnOptimizationOptionNone {
+		return append(columns, colName)
+	}
+
 	if r, ok := tracker[colName]; !ok || r.SingleValue == nil {
 		return append(columns, colName)
 	}
