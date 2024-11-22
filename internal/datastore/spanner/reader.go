@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/spanner"
-	sq "github.com/Masterminds/squirrel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -35,6 +34,7 @@ type spannerReader struct {
 	executor             common.QueryExecutor
 	txSource             txFactory
 	filterMaximumIDCount uint16
+	schema               common.SchemaInformation
 }
 
 func (sr spannerReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -55,7 +55,7 @@ func (sr spannerReader) CountRelationships(ctx context.Context, name string) (in
 		return 0, err
 	}
 
-	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(sr.schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +135,7 @@ func (sr spannerReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(schema, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(sr.schema, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(schema, sr.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(sr.schema, sr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -205,11 +205,11 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetObjectID, &subjectObjectID)
 			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetRelation, &subjectRelation)
 
-			colsToSelect = append(colsToSelect, &expirationOrNull)
-
-			if !queryInfo.SkipCaveats {
+			if !queryInfo.SkipCaveats || queryInfo.Schema.ColumnOptimization == common.ColumnOptimizationOptionNone {
 				colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
 			}
+
+			colsToSelect = append(colsToSelect, &expirationOrNull)
 
 			if len(colsToSelect) == 0 {
 				var unused int64
@@ -377,21 +377,5 @@ var queryTuplesForDelete = sql.Select(
 	colUsersetObjectID,
 	colUsersetRelation,
 ).From(tableRelationship)
-
-var schema = common.NewSchemaInformation(
-	tableRelationship,
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName,
-	colCaveatContext,
-	colExpiration,
-	common.ExpandedLogicComparison,
-	sq.AtP,
-	"CURRENT_TIMESTAMP",
-)
 
 var _ datastore.Reader = spannerReader{}

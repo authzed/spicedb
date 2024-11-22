@@ -225,6 +225,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		common.ExpandedLogicComparison,
 		sq.Dollar,
 		"NOW",
+		config.columnOptimizationOption,
 		extraFields...,
 	)
 
