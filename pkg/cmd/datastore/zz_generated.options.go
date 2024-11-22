@@ -77,6 +77,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.WatchConnectTimeout = c.WatchConnectTimeout
 		to.MigrationPhase = c.MigrationPhase
 		to.AllowedMigrations = c.AllowedMigrations
+		to.ExperimentalColumnOptimization = c.ExperimentalColumnOptimization
 	}
 }
 
@@ -128,6 +129,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["WatchConnectTimeout"] = helpers.DebugValue(c.WatchConnectTimeout, false)
 	debugMap["MigrationPhase"] = helpers.DebugValue(c.MigrationPhase, false)
 	debugMap["AllowedMigrations"] = helpers.DebugValue(c.AllowedMigrations, false)
+	debugMap["ExperimentalColumnOptimization"] = helpers.DebugValue(c.ExperimentalColumnOptimization, false)
 	return debugMap
 }
 
@@ -508,5 +510,12 @@ func WithAllowedMigrations(allowedMigrations string) ConfigOption {
 func SetAllowedMigrations(allowedMigrations []string) ConfigOption {
 	return func(c *Config) {
 		c.AllowedMigrations = allowedMigrations
+	}
+}
+
+// WithExperimentalColumnOptimization returns an option that can set ExperimentalColumnOptimization on a Config
+func WithExperimentalColumnOptimization(experimentalColumnOptimization bool) ConfigOption {
+	return func(c *Config) {
+		c.ExperimentalColumnOptimization = experimentalColumnOptimization
 	}
 }

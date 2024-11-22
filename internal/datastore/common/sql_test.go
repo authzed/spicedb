@@ -572,6 +572,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				TupleComparison,
 				sq.Question,
 				"NOW",
+				ColumnOptimizationOptionStaticValues,
 			)
 			filterer := NewSchemaQueryFiltererForRelationshipsSelect(schema, 100)
 
@@ -829,8 +830,11 @@ func TestExecuteQuery(t *testing.T) {
 				"subject_relation",
 				"caveat",
 				"caveat_context",
+				"expiration",
 				TupleComparison,
 				sq.Question,
+				"NOW",
+				ColumnOptimizationOptionStaticValues,
 			)
 			filterer := NewSchemaQueryFiltererForRelationshipsSelect(schema, 100)
 			ran := tc.run(filterer)

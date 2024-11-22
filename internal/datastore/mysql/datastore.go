@@ -258,6 +258,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		common.ExpandedLogicComparison,
 		sq.Question,
 		"NOW",
+		config.columnOptimizationOption,
 	)
 
 	store := &Datastore{
