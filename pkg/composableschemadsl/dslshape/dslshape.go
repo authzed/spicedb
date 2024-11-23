@@ -38,6 +38,9 @@ const (
 
 	NodeTypeImport
 
+	// A balanced brace-enclosed expression. Represents both caveat CELs and caveat JSON context.
+	NodeTypeOpaqueBraceExpression
+
 	NodeTypeTest
 	NodeTypeTestRelations
 	NodeTypeTestRelation
@@ -210,12 +213,17 @@ const (
 
 	NodeTestPredicateName = "test-name"
 
-	NodeTestRelationPredicateSubject = "subject"
-	NodeTestRelationPredicateObject = "object"
+	NodeTestRelationPredicateSubject  = "subject"
+	NodeTestRelationPredicateObject   = "object"
 	NodeTestRelationPredicateRelation = "relation"
 
+	NodeTestRelationPredicateCaveatName    = "caveat-name"
+	NodeTestRelationPredicateCaveatContext = "caveat-context"
+
 	NodeTestObjectPredicateObjectType = "object-type"
-	NodeTestObjectPredicateObjectID = "object-id"
+	NodeTestObjectPredicateObjectID   = "object-id"
 	// Used for both positive and negative permissions
 	NodeTestRelationPermissionPredicateName = "permission-name"
+
+	NodeOpaqueBraceExpressionPredicateExpression = "expression"
 )
