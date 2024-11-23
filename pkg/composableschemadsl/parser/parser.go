@@ -123,7 +123,7 @@ func (p *sourceParser) consumeCaveat() AstNode {
 		return defNode
 	}
 
-	exprNode, ok := p.consumeCaveatExpression()
+	exprNode, ok := p.consumeOpaqueBraceExpression()
 	if !ok {
 		return defNode
 	}
@@ -139,13 +139,16 @@ func (p *sourceParser) consumeCaveat() AstNode {
 	return defNode
 }
 
-func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
-	exprNode := p.startNode(dslshape.NodeTypeCaveatExpression)
+// Consume from an opening brace to a closing brace, returning all tokens as a single string.
+// Used for caveat CEL expressions and test JSON expressions.
+// Keeps track of brace balance.
+// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
+// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
+// here.
+func (p *sourceParser) consumeOpaqueBraceExpression() (AstNode, bool) {
+	exprNode := p.startNode(dslshape.NodeTypeOpaqueBraceExpression)
 	defer p.mustFinishNode()
 
-	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
-	// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
-	// here.
 	braceDepth := 1 // Starting at 1 from the open brace above
 	var startToken *commentedLexeme
 	var endToken *commentedLexeme
@@ -185,7 +188,7 @@ consumer:
 	}
 
 	caveatExpression := p.input[startToken.Position : int(endToken.Position)+len(endToken.Value)]
-	exprNode.MustDecorate(dslshape.NodeCaveatExpressionPredicateExpression, caveatExpression)
+	exprNode.MustDecorate(dslshape.NodeOpaqueBraceExpressionPredicateExpression, caveatExpression)
 	return exprNode, true
 }
 
@@ -770,7 +773,6 @@ func (p *sourceParser) consumeTestRelation() AstNode {
 	// A relation looks like:
 	// object:foo relation subject:bar
 	// object consumption
-
 	objectNode, ok := p.consumeTestObject()
 	if !ok {
 		return relationNode
@@ -790,6 +792,24 @@ func (p *sourceParser) consumeTestRelation() AstNode {
 		return relationNode
 	}
 	relationNode.Connect(dslshape.NodeTestRelationPredicateSubject, subjectNode)
+
+	// optional caveat consumption
+	if p.tryConsumeKeyword("with") {
+		caveatName, ok := p.consumeIdentifier()
+		if !ok {
+			return relationNode
+		}
+		relationNode.MustDecorate(dslshape.NodeTestRelationPredicateCaveatName, caveatName)
+
+		// optional caveat context
+		if _, ok := p.tryConsume(lexer.TokenTypeLeftBrace); ok {
+			caveatContextNode, ok := p.consumeOpaqueBraceExpression()
+			if !ok {
+				return relationNode
+			}
+			relationNode.Connect(dslshape.NodeTestRelationPredicateCaveatContext, caveatContextNode)
+		}
+	}
 
 	return relationNode
 }
@@ -851,7 +871,7 @@ func (p *sourceParser) consumeTestAssertions() AstNode {
 func (p *sourceParser) consumeTestAssertion() AstNode {
 	assertionNode := p.startNode(dslshape.NodeTypeImport)
 	defer p.mustFinishNode()
-	
+
 	return assertionNode
 }
 
