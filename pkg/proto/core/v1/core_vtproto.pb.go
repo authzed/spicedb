@@ -514,6 +514,7 @@ func (m *AllowedRelation) CloneVT() *AllowedRelation {
 	r.Namespace = m.Namespace
 	r.SourcePosition = m.SourcePosition.CloneVT()
 	r.RequiredCaveat = m.RequiredCaveat.CloneVT()
+	r.RequiredExpiration = m.RequiredExpiration.CloneVT()
 	if m.RelationOrWildcard != nil {
 		r.RelationOrWildcard = m.RelationOrWildcard.(interface {
 			CloneVT() isAllowedRelation_RelationOrWildcard
@@ -546,6 +547,22 @@ func (m *AllowedRelation_PublicWildcard_) CloneVT() isAllowedRelation_RelationOr
 	r := new(AllowedRelation_PublicWildcard_)
 	r.PublicWildcard = m.PublicWildcard.CloneVT()
 	return r
+}
+
+func (m *ExpirationTrait) CloneVT() *ExpirationTrait {
+	if m == nil {
+		return (*ExpirationTrait)(nil)
+	}
+	r := new(ExpirationTrait)
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ExpirationTrait) CloneMessageVT() proto.Message {
+	return m.CloneVT()
 }
 
 func (m *AllowedCaveat) CloneVT() *AllowedCaveat {
@@ -1716,6 +1733,9 @@ func (this *AllowedRelation) EqualVT(that *AllowedRelation) bool {
 	if !this.RequiredCaveat.EqualVT(that.RequiredCaveat) {
 		return false
 	}
+	if !this.RequiredExpiration.EqualVT(that.RequiredExpiration) {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -1768,6 +1788,22 @@ func (this *AllowedRelation_PublicWildcard_) EqualVT(thatIface isAllowedRelation
 	return true
 }
 
+func (this *ExpirationTrait) EqualVT(that *ExpirationTrait) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *ExpirationTrait) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*ExpirationTrait)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *AllowedCaveat) EqualVT(that *AllowedCaveat) bool {
 	if this == that {
 		return true
@@ -3775,6 +3811,16 @@ func (m *AllowedRelation) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		}
 		i -= size
 	}
+	if m.RequiredExpiration != nil {
+		size, err := m.RequiredExpiration.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x3a
+	}
 	if m.RequiredCaveat != nil {
 		size, err := m.RequiredCaveat.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -3842,6 +3888,39 @@ func (m *AllowedRelation_PublicWildcard_) MarshalToSizedBufferVT(dAtA []byte) (i
 	}
 	return len(dAtA) - i, nil
 }
+func (m *ExpirationTrait) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ExpirationTrait) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *ExpirationTrait) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *AllowedCaveat) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -5454,6 +5533,10 @@ func (m *AllowedRelation) SizeVT() (n int) {
 		l = m.RequiredCaveat.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.RequiredExpiration != nil {
+		l = m.RequiredExpiration.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -5482,6 +5565,16 @@ func (m *AllowedRelation_PublicWildcard_) SizeVT() (n int) {
 	}
 	return n
 }
+func (m *ExpirationTrait) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	n += len(m.unknownFields)
+	return n
+}
+
 func (m *AllowedCaveat) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -9365,6 +9458,93 @@ func (m *AllowedRelation) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RequiredExpiration", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RequiredExpiration == nil {
+				m.RequiredExpiration = &ExpirationTrait{}
+			}
+			if err := m.RequiredExpiration.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ExpirationTrait) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ExpirationTrait: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ExpirationTrait: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

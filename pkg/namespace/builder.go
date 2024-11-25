@@ -94,6 +94,29 @@ func AllowedRelationWithCaveat(namespaceName string, relationName string, withCa
 	}
 }
 
+// AllowedRelationWithExpiration creates a relation reference to an allowed relation.
+func AllowedRelationWithExpiration(namespaceName string, relationName string) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+		RequiredExpiration: &core.ExpirationTrait{},
+	}
+}
+
+// AllowedRelationWithCaveatAndExpiration creates a relation reference to an allowed relation.
+func AllowedRelationWithCaveatAndExpiration(namespaceName string, relationName string, withCaveat *core.AllowedCaveat) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace: namespaceName,
+		RelationOrWildcard: &core.AllowedRelation_Relation{
+			Relation: relationName,
+		},
+		RequiredExpiration: &core.ExpirationTrait{},
+		RequiredCaveat:     withCaveat,
+	}
+}
+
 // AllowedPublicNamespace creates a relation reference to an allowed public namespace.
 func AllowedPublicNamespace(namespaceName string) *core.AllowedRelation {
 	return &core.AllowedRelation{

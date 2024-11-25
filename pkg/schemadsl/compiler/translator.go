@@ -54,6 +54,10 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 		var definition SchemaDefinition
 
 		switch definitionNode.GetType() {
+		case dslshape.NodeTypeUseFlag:
+			// Skip the flags.
+			continue
+
 		case dslshape.NodeTypeCaveatDefinition:
 			def, err := translateCaveatDefinition(tctx, definitionNode)
 			if err != nil {
@@ -629,9 +633,24 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 		},
 	}
 
+	// Add the caveat(s), if any.
 	err = addWithCaveats(tctx, typeRefNode, ref)
 	if err != nil {
 		return nil, typeRefNode.Errorf("invalid caveat: %w", err)
+	}
+
+	// Add the expiration trait, if any.
+	if traitNode, err := typeRefNode.Lookup(dslshape.NodeSpecificReferencePredicateTrait); err == nil {
+		traitName, err := traitNode.GetString(dslshape.NodeTraitPredicateTrait)
+		if err != nil {
+			return nil, typeRefNode.Errorf("invalid trait: %w", err)
+		}
+
+		if traitName != "expiration" {
+			return nil, typeRefNode.Errorf("invalid trait: %s", traitName)
+		}
+
+		ref.RequiredExpiration = &core.ExpirationTrait{}
 	}
 
 	if !tctx.skipValidate {
