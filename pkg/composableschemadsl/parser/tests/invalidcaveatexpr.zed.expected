@@ -14,9 +14,9 @@ NodeTypeFile
       input-source = invalid caveat expr test
       start-rune = 20
       caveat-definition-expression =>
-        NodeTypeCaveatExpression
-          caveat-expression-expressionstr = somecondition == 42
+        NodeType(20)
           end-rune = 79
+          expression = somecondition == 42
           input-source = invalid caveat expr test
           start-rune = 61
       child-node =>

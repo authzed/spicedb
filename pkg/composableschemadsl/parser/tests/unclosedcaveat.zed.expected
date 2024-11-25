@@ -14,14 +14,14 @@ NodeTypeFile
       input-source = unclosed caveat test
       start-rune = 23
       caveat-definition-expression =>
-        NodeTypeCaveatExpression
-          caveat-expression-expressionstr = somemap{
+        NodeType(20)
+          end-rune = 113
+          expression = somemap{
 
   
 }
 
 definition user {}
-          end-rune = 113
           input-source = unclosed caveat test
           start-rune = 80
       child-node =>
