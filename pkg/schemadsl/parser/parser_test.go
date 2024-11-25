@@ -122,6 +122,12 @@ func TestParser(t *testing.T) {
 		{"arrow illegal operations test", "arrowillegalops"},
 		{"arrow illegal function test", "arrowillegalfunc"},
 		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
+		{"use expiration test", "useexpiration"},
+		{"use expiration keyword test", "useexpirationkeyword"},
+		{"expiration non-keyword test", "expirationnonkeyword"},
+		{"invalid use", "invaliduse"},
+		{"use after definition", "useafterdef"},
+		{"invalid use expiration test", "invaliduseexpiration"},
 	}
 
 	for _, test := range parserTests {
