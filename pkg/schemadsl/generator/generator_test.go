@@ -304,7 +304,6 @@ definition foos/test {
 	relation somerel: foos/bars
 }`,
 		},
-
 		{
 			"full example",
 			`
@@ -360,6 +359,41 @@ definition foos/document {
 }`,
 			`definition document {
 	permission first = rela->relb + relc.any(reld) + rele.all(relf)
+}`,
+		},
+		{
+			"expiration caveat",
+			`definition document{
+				relation viewer: user with expiration
+		}`,
+			`definition document {
+	relation viewer: user with expiration
+}`,
+		},
+		{
+			"expiration trait",
+			`use expiration
+			
+			definition document{
+				relation viewer: user with expiration
+				relation editor: user with somecaveat and expiration
+		}`,
+			`use expiration
+
+definition document {
+	relation viewer: user with expiration
+	relation editor: user with somecaveat and expiration
+}`,
+		},
+		{
+			"unused expiration flag",
+			`use expiration
+			
+			definition document{
+				relation viewer: user
+		}`,
+			`definition document {
+	relation viewer: user
 }`,
 		},
 	}
