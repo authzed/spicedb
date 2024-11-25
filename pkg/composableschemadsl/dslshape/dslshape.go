@@ -48,7 +48,10 @@ const (
 	NodeTypeTestPermission
 	NodeTypeTestNegativePermission
 	NodeTypeTestAssertions
-	NodeTypeTestExpected
+	NodeTypeTestAssertion
+	NodeTypeTestExpectedRelations
+	NodeTypeTestExpectedRelation
+	NodeTypeTestExpectedRelationSource
 )
 
 const (
@@ -213,17 +216,20 @@ const (
 
 	NodeTestPredicateName = "test-name"
 
-	NodeTestRelationPredicateSubject  = "subject"
-	NodeTestRelationPredicateObject   = "object"
-	NodeTestRelationPredicateRelation = "relation"
-
-	NodeTestRelationPredicateCaveatName    = "caveat-name"
-	NodeTestRelationPredicateCaveatContext = "caveat-context"
+	NodeTestPredicateSubject  = "subject"
+	NodeTestPredicateObject   = "object"
+	NodeTestPredicateRelation = "relation"
+	NodeTestPredicatePermission = "permission"
+	NodeTestPredicateAssertionType = "assertion-type"
+	NodeTestPredicateCaveatName    = "caveat-name"
+	NodeTestPredicateCaveatContext = "caveat-context"
 
 	NodeTestObjectPredicateObjectType = "object-type"
 	NodeTestObjectPredicateObjectID   = "object-id"
 	// Used for both positive and negative permissions
 	NodeTestRelationPermissionPredicateName = "permission-name"
+
+	NodeTestExpectedRelationSourcePredicateCaveatAnnotation = "caveat-annotation"
 
 	NodeOpaqueBraceExpressionPredicateExpression = "expression"
 )
