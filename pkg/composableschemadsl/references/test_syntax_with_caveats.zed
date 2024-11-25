@@ -1,0 +1,45 @@
+caveat likes_harry_potter(likes bool) {
+  likes == true
+}
+
+caveat only_on_selected_day(selected_day string, current_day string) {
+  selected_day == current_day
+}
+
+definition user {}
+
+definition post {
+  relation writer: user
+  relation reader: user
+  relation caveated_reader: user with likes_harry_potter
+  relation temporary_reader: user with only_on_selected_day
+
+  permission write = writer
+  permission view = reader + writer
+  permission view_as_fan = caveated_reader + writer
+  permission view_temporarily = temporary_reader
+}
+
+test DocumentCaveatedTest {
+  relationships {
+    post:one reader user:beatrice
+    post:one caveated_reader user:beatrice with likes_harry_potter
+    post:one temporary_reader user:claire with temporary_reader {"selected_day": "tuesday"}
+  }
+  assertions {
+    post:one    view_as_fan    user:beatrice {"likes": true}  // Positive assertion
+    post:one    !view_as_fan   user:beatrice {"likes": false} // Negative assertion
+    post:one    ?view_as_fan   user:beatrice                  // Conditional assertion
+
+    post:one    view_temporarily    user:claire {"current_day": "tuesday"}
+    post:one    !view_temporarily   user:claire {"current_day": "wednesday"}
+  }
+  expected {
+    post:one view {
+      user:beatrice is reader of post:one
+    }
+    post:one view_as_fan {
+      user:beatrice[...] is caveated_reader of post:one
+    }
+  }
+}
