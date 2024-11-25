@@ -1,0 +1,16 @@
+NodeTypeFile
+  end-rune = 22
+  input-source = use after definition
+  start-rune = 0
+  child-node =>
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 21
+      input-source = use after definition
+      start-rune = 0
+    NodeTypeError
+      end-rune = 22
+      error-message = Unexpected token at root level: TokenTypeIdentifier
+      error-source = use
+      input-source = use after definition
+      start-rune = 24

@@ -4,6 +4,8 @@ package parser
 import (
 	"strings"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
 	"github.com/authzed/spicedb/pkg/schemadsl/lexer"
@@ -38,10 +40,18 @@ func (p *sourceParser) consumeTopLevel() AstNode {
 		return rootNode
 	}
 
+	hasSeenDefinition := false
+
 Loop:
 	for {
 		if p.isToken(lexer.TokenTypeEOF) {
 			break Loop
+		}
+
+		if !hasSeenDefinition {
+			if p.isIdentifier("use") {
+				rootNode.Connect(dslshape.NodePredicateChild, p.consumeUseFlag())
+			}
 		}
 
 		// Consume a statement terminator if one was found.
@@ -57,9 +67,11 @@ Loop:
 
 		switch {
 		case p.isKeyword("definition"):
+			hasSeenDefinition = true
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDefinition())
 
 		case p.isKeyword("caveat"):
+			hasSeenDefinition = true
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeCaveat())
 
 		default:
@@ -231,6 +243,35 @@ func (p *sourceParser) consumeCaveatTypeReference() AstNode {
 	return typeRefNode
 }
 
+// consumeUseFlag attempts to consume a use flag.
+// ``` use flagname ```
+func (p *sourceParser) consumeUseFlag() AstNode {
+	useNode := p.startNode(dslshape.NodeTypeUseFlag)
+	defer p.mustFinishNode()
+
+	// consume the `use`
+	p.consumeIdentifier()
+
+	var useFlag string
+	if p.isToken(lexer.TokenTypeIdentifier) {
+		useFlag, _ = p.consumeIdentifier()
+	} else {
+		useName, ok := p.consumeVariableKeyword()
+		if !ok {
+			return useNode
+		}
+		useFlag = useName
+	}
+
+	if _, ok := lexer.Flags[useFlag]; !ok {
+		p.emitErrorf("Unknown use flag: `%s`. Options are: %s", useFlag, strings.Join(maps.Keys(lexer.Flags), ", "))
+		return useNode
+	}
+
+	useNode.MustDecorate(dslshape.NodeUseFlagPredicateName, useFlag)
+	return useNode
+}
+
 // consumeDefinition attempts to consume a single schema definition.
 // ```definition somedef { ... }```
 func (p *sourceParser) consumeDefinition() AstNode {
@@ -323,16 +364,8 @@ func (p *sourceParser) consumeTypeReference() AstNode {
 
 // tryConsumeWithCaveat tries to consume a caveat `with` expression.
 func (p *sourceParser) tryConsumeWithCaveat() (AstNode, bool) {
-	if !p.isKeyword("with") {
-		return nil, false
-	}
-
 	caveatNode := p.startNode(dslshape.NodeTypeCaveatReference)
 	defer p.mustFinishNode()
-
-	if ok := p.consumeKeyword("with"); !ok {
-		return nil, ok
-	}
 
 	consumed, ok := p.consumeTypePath()
 	if !ok {
@@ -348,12 +381,44 @@ func (p *sourceParser) consumeSpecificTypeWithCaveat() AstNode {
 	specificNode := p.consumeSpecificTypeWithoutFinish()
 	defer p.mustFinishNode()
 
-	caveatNode, ok := p.tryConsumeWithCaveat()
-	if ok {
-		specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
+	// Check for a caveat and/or supported trait.
+	if !p.isKeyword("with") {
+		return specificNode
+	}
+
+	p.consumeKeyword("with")
+
+	if !p.isKeyword("expiration") {
+		caveatNode, ok := p.tryConsumeWithCaveat()
+		if ok {
+			specificNode.Connect(dslshape.NodeSpecificReferencePredicateCaveat, caveatNode)
+		}
+
+		if !p.tryConsumeKeyword("and") {
+			return specificNode
+		}
+	}
+
+	if p.isKeyword("expiration") {
+		// Check for expiration trait.
+		traitNode := p.consumeExpirationTrait()
+
+		// Decorate with the expiration trait.
+		specificNode.Connect(dslshape.NodeSpecificReferencePredicateTrait, traitNode)
 	}
 
 	return specificNode
+}
+
+// consumeExpirationTrait consumes an expiration trait.
+func (p *sourceParser) consumeExpirationTrait() AstNode {
+	expirationTraitNode := p.startNode(dslshape.NodeTypeTraitReference)
+	p.consumeKeyword("expiration")
+
+	expirationTraitNode.MustDecorate(dslshape.NodeTraitPredicateTrait, "expiration")
+	defer p.mustFinishNode()
+
+	return expirationTraitNode
 }
 
 // consumeSpecificTypeOpen consumes an identifier as a specific type reference.

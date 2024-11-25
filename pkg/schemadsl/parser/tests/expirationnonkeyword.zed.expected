@@ -1,0 +1,29 @@
+NodeTypeFile
+  end-rune = 52
+  input-source = expiration non-keyword test
+  start-rune = 0
+  child-node =>
+    NodeTypeCaveatDefinition
+      caveat-definition-name = expiration
+      end-rune = 52
+      input-source = expiration non-keyword test
+      start-rune = 0
+      caveat-definition-expression =>
+        NodeTypeCaveatExpression
+          caveat-expression-expressionstr = someparam == 42
+
+          end-rune = 51
+          input-source = expiration non-keyword test
+          start-rune = 36
+      parameters =>
+        NodeTypeCaveatParameter
+          caveat-parameter-name = someparam
+          end-rune = 30
+          input-source = expiration non-keyword test
+          start-rune = 18
+          caveat-parameter-type =>
+            NodeTypeCaveatTypeReference
+              end-rune = 30
+              input-source = expiration non-keyword test
+              start-rune = 28
+              type-name = int

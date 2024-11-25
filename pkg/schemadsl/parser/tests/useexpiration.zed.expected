@@ -1,0 +1,66 @@
+NodeTypeFile
+  end-rune = 137
+  input-source = use expiration test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 13
+      input-source = use expiration test
+      start-rune = 0
+      use-flag-name = expiration
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 137
+      input-source = use expiration test
+      start-rune = 16
+      child-node =>
+        NodeTypeRelation
+          end-rune = 78
+          input-source = use expiration test
+          relation-name = viewer
+          start-rune = 42
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 78
+              input-source = use expiration test
+              start-rune = 59
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 78
+                  input-source = use expiration test
+                  start-rune = 59
+                  type-name = user
+                  trait =>
+                    NodeTypeTraitReference
+                      end-rune = 78
+                      input-source = use expiration test
+                      start-rune = 69
+                      trait-name = expiration
+        NodeTypeRelation
+          end-rune = 135
+          input-source = use expiration test
+          relation-name = editor
+          start-rune = 84
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 135
+              input-source = use expiration test
+              start-rune = 101
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 135
+                  input-source = use expiration test
+                  start-rune = 101
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = somecaveat
+                      end-rune = 120
+                      input-source = use expiration test
+                      start-rune = 111
+                  trait =>
+                    NodeTypeTraitReference
+                      end-rune = 135
+                      input-source = use expiration test
+                      start-rune = 126
+                      trait-name = expiration
