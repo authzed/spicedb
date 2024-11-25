@@ -1636,6 +1636,8 @@ func CheckpointsOnOutOfBandChangesTest(t *testing.T, ds datastore.Datastore) {
 	// Run the watch API.
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchOptions{
 		Content: datastore.WatchRelationships | datastore.WatchSchema | datastore.WatchCheckpoints,
+		// loop quickly over the changes to make sure we don't re-issue checkpoints
+		CheckpointInterval: 10 * time.Nanosecond,
 	})
 	require.Zero(len(errchan))
 
@@ -1651,29 +1653,41 @@ func CheckpointsOnOutOfBandChangesTest(t *testing.T, ds datastore.Datastore) {
 	require.NoError(err)
 	require.True(newRevision.GreaterThan(lowestRevision))
 
-	var checkedCheckpoint bool
+	awaitManyCheckpoints := time.NewTimer(1 * time.Second)
+	checkpointCount := make(map[string]int)
 	for {
-		if checkedCheckpoint {
-			break
-		}
-
 		changeWait := time.NewTimer(waitForChangesTimeout)
 		select {
 		case change, ok := <-changes:
 			if !ok {
-				require.True(checkedCheckpoint, "expected checkpoint to be emitted")
+				for _, count := range checkpointCount {
+					require.Equal(1, count, "found duplicated checkpoint revision event")
+				}
+
 				return
 			}
 
 			if change.IsCheckpoint {
-				checkedCheckpoint = change.Revision.GreaterThan(lowestRevision)
+				if change.Revision.Equal(newRevision) || change.Revision.GreaterThan(newRevision) {
+					checkpointCount[change.Revision.String()] = checkpointCount[change.Revision.String()] + 1
+				}
 			}
 
 			time.Sleep(10 * time.Millisecond)
 		case <-changeWait.C:
 			require.Fail("timed out waiting for checkpoint for out of band change")
+		// we want to make sure checkpoints are not reissued when moving out-of-band, so with a short poll interval
+		// we wait a bit before checking if we received checkpoints,
+		case <-awaitManyCheckpoints.C:
+			if len(checkpointCount) > 0 {
+				for _, count := range checkpointCount {
+					require.Equal(1, count, "found duplicated checkpoint revision event")
+				}
+
+				return
+			}
 		}
 	}
 }
 
-const waitForChangesTimeout = 5 * time.Second
+const waitForChangesTimeout = 30 * time.Second

@@ -201,6 +201,8 @@ func (pgd *pgDatastore) Watch(
 						}) {
 							return
 						}
+
+						currentTxn = *optionalHeadRevision
 					}
 				}
 
