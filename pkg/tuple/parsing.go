@@ -6,6 +6,7 @@ import (
 	"maps"
 	"regexp"
 	"slices"
+	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -36,7 +37,10 @@ var subjectExpr = fmt.Sprintf(
 	relationExpr,
 )
 
-var caveatExpr = fmt.Sprintf(`\[(?P<caveatName>(%s))(:(?P<caveatContext>(\{(.+)\})))?\]`, caveatNameExpr)
+var (
+	caveatExpr     = fmt.Sprintf(`\[(?P<caveatName>(%s))(:(?P<caveatContext>(\{(.+)\})))?\]`, caveatNameExpr)
+	expirationExpr = `\[expiration:(?P<expirationDateTime>([\d\-\.:TZ]+))\]`
+)
 
 var (
 	resourceIDRegex = regexp.MustCompile(fmt.Sprintf("^%s$", resourceIDExpr))
@@ -45,10 +49,11 @@ var (
 
 var parserRegex = regexp.MustCompile(
 	fmt.Sprintf(
-		`^%s@%s(%s)?$`,
+		`^%s@%s(%s)?(%s)?$`,
 		onrExpr,
 		subjectExpr,
 		caveatExpr,
+		expirationExpr,
 	),
 )
 
@@ -86,14 +91,15 @@ func MustParse(relString string) Relationship {
 }
 
 var (
-	subjectRelIndex    = slices.Index(parserRegex.SubexpNames(), "subjectRel")
-	caveatNameIndex    = slices.Index(parserRegex.SubexpNames(), "caveatName")
-	caveatContextIndex = slices.Index(parserRegex.SubexpNames(), "caveatContext")
-	resourceIDIndex    = slices.Index(parserRegex.SubexpNames(), "resourceID")
-	subjectIDIndex     = slices.Index(parserRegex.SubexpNames(), "subjectID")
-	resourceTypeIndex  = slices.Index(parserRegex.SubexpNames(), "resourceType")
-	resourceRelIndex   = slices.Index(parserRegex.SubexpNames(), "resourceRel")
-	subjectTypeIndex   = slices.Index(parserRegex.SubexpNames(), "subjectType")
+	subjectRelIndex         = slices.Index(parserRegex.SubexpNames(), "subjectRel")
+	caveatNameIndex         = slices.Index(parserRegex.SubexpNames(), "caveatName")
+	caveatContextIndex      = slices.Index(parserRegex.SubexpNames(), "caveatContext")
+	resourceIDIndex         = slices.Index(parserRegex.SubexpNames(), "resourceID")
+	subjectIDIndex          = slices.Index(parserRegex.SubexpNames(), "subjectID")
+	resourceTypeIndex       = slices.Index(parserRegex.SubexpNames(), "resourceType")
+	resourceRelIndex        = slices.Index(parserRegex.SubexpNames(), "resourceRel")
+	subjectTypeIndex        = slices.Index(parserRegex.SubexpNames(), "subjectType")
+	expirationDateTimeIndex = slices.Index(parserRegex.SubexpNames(), "expirationDateTime")
 )
 
 // Parse unmarshals the string form of a Tuple and returns an error on failure,
@@ -134,6 +140,17 @@ func Parse(relString string) (Relationship, error) {
 		}
 	}
 
+	expirationTimeStr := groups[expirationDateTimeIndex]
+	var optionalExpiration *time.Time
+	if len(expirationTimeStr) > 0 {
+		expirationTime, err := time.Parse(expirationFormat, expirationTimeStr)
+		if err != nil {
+			return Relationship{}, fmt.Errorf("invalid expiration time: %w", err)
+		}
+
+		optionalExpiration = &expirationTime
+	}
+
 	resourceID := groups[resourceIDIndex]
 	if err := ValidateResourceID(resourceID); err != nil {
 		return Relationship{}, fmt.Errorf("invalid resource id: %w", err)
@@ -157,8 +174,15 @@ func Parse(relString string) (Relationship, error) {
 				Relation:   subjectRelation,
 			},
 		},
-		OptionalCaveat: optionalCaveat,
+		OptionalCaveat:     optionalCaveat,
+		OptionalExpiration: optionalExpiration,
 	}, nil
+}
+
+// MustWithExpiration adds the given expiration to the relationship. This is for testing only.
+func MustWithExpiration(rel Relationship, expiration time.Time) Relationship {
+	rel.OptionalExpiration = &expiration
+	return rel
 }
 
 // MustWithCaveat adds the given caveat name to the relationship. This is for testing only.

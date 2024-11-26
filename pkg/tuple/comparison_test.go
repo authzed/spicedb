@@ -71,6 +71,8 @@ func TestEqual(t *testing.T) {
 		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":123}}]"),
 		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":{\"hey\":true}}, \"hi2\":{\"yo2\":{\"hey2\":false}}}]"),
 		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":{\"hey\":true}}, \"hi2\":{\"yo2\":{\"hey2\":[1,2,3]}}}]"),
+		MustParse("document:foo#viewer@user:tom[expiration:2020-01-01T00:00:00Z]"),
+		MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":\"there\"}][expiration:2020-01-01T00:00:00Z]"),
 	}
 
 	for _, tc := range equalTestCases {
@@ -237,6 +239,21 @@ func TestEqual(t *testing.T) {
 			name: "mismatch caveat context, deeply nested with array",
 			lhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":[1,2,3]}}]"),
 			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat:{\"hi\":{\"yo\":[1,2,4]}}]"),
+		},
+		{
+			name: "one with expiration, the other without",
+			lhs:  MustParse("document:foo#viewer@user:tom[expiration:2020-01-01T00:00:00Z]"),
+			rhs:  MustParse("document:foo#viewer@user:tom"),
+		},
+		{
+			name: "mismatch expiration",
+			lhs:  MustParse("document:foo#viewer@user:tom[expiration:2020-01-01T00:00:00Z]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[expiration:2020-01-02T00:00:00Z]"),
+		},
+		{
+			name: "same expiration, one with caveat",
+			lhs:  MustParse("document:foo#viewer@user:tom[expiration:2020-01-01T00:00:00Z]"),
+			rhs:  MustParse("document:foo#viewer@user:tom[somecaveat][expiration:2020-01-01T00:00:00Z]"),
 		},
 	}
 

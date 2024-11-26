@@ -2,9 +2,11 @@ package tuple
 
 import (
 	"fmt"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/jzelinskie/stringz"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -76,11 +78,24 @@ func V1StringRelationship(rel *v1.Relationship) (string, error) {
 		return "", err
 	}
 
-	return V1StringRelationshipWithoutCaveat(rel) + caveatString, nil
+	expirationString, err := V1StringExpiration(rel.OptionalExpiresAt)
+	if err != nil {
+		return "", err
+	}
+
+	return V1StringRelationshipWithoutCaveatOrExpiration(rel) + caveatString + expirationString, nil
 }
 
-// V1StringRelationshipWithoutCaveat converts a v1.Relationship to a string, excluding any caveat.
-func V1StringRelationshipWithoutCaveat(rel *v1.Relationship) string {
+func V1StringExpiration(expiration *timestamppb.Timestamp) (string, error) {
+	if expiration == nil {
+		return "", nil
+	}
+
+	return "[expiration:" + expiration.AsTime().Format(expirationFormat) + "]", nil
+}
+
+// V1StringRelationshipWithoutCaveatOrExpiration converts a v1.Relationship to a string, excluding any caveat.
+func V1StringRelationshipWithoutCaveatOrExpiration(rel *v1.Relationship) string {
 	if rel == nil || rel.Resource == nil || rel.Subject == nil {
 		return ""
 	}
@@ -168,6 +183,13 @@ func FromV1Relationship(rel *v1.Relationship) Relationship {
 			Context:    rel.OptionalCaveat.Context,
 		}
 	}
+
+	var expiration *time.Time
+	if rel.OptionalExpiresAt != nil {
+		t := rel.OptionalExpiresAt.AsTime()
+		expiration = &t
+	}
+
 	return Relationship{
 		RelationshipReference: RelationshipReference{
 			Resource: ObjectAndRelation{
@@ -181,7 +203,8 @@ func FromV1Relationship(rel *v1.Relationship) Relationship {
 				Relation:   stringz.Default(rel.Subject.OptionalRelation, Ellipsis, ""),
 			},
 		},
-		OptionalCaveat: caveat,
+		OptionalCaveat:     caveat,
+		OptionalExpiration: expiration,
 	}
 }
 
@@ -194,6 +217,12 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 			Context:    rel.OptionalCaveat.Context,
 		}
 	}
+
+	var expiration *timestamppb.Timestamp
+	if rel.OptionalExpiration != nil {
+		expiration = timestamppb.New(*rel.OptionalExpiration)
+	}
+
 	return &v1.Relationship{
 		Resource: &v1.ObjectReference{
 			ObjectType: rel.Resource.ObjectType,
@@ -207,7 +236,8 @@ func ToV1Relationship(rel Relationship) *v1.Relationship {
 			},
 			OptionalRelation: stringz.Default(rel.Subject.Relation, "", Ellipsis),
 		},
-		OptionalCaveat: caveat,
+		OptionalCaveat:    caveat,
+		OptionalExpiresAt: expiration,
 	}
 }
 
@@ -229,6 +259,12 @@ func CopyToV1Relationship(rel Relationship, v1rel *v1.Relationship) {
 		v1rel.OptionalCaveat.Context = rel.OptionalCaveat.Context
 	} else {
 		v1rel.OptionalCaveat = nil
+	}
+
+	if rel.OptionalExpiration != nil {
+		v1rel.OptionalExpiresAt = timestamppb.New(*rel.OptionalExpiration)
+	} else {
+		v1rel.OptionalExpiresAt = nil
 	}
 }
 

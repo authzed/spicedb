@@ -64,7 +64,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			)
 		}
 
-		_, ok := seenTuples[tuple.StringWithoutCaveat(rel)]
+		_, ok := seenTuples[tuple.StringWithoutCaveatOrExpiration(rel)]
 		if ok {
 			return spiceerrors.NewErrorWithSource(
 				fmt.Errorf("found repeated relationship `%s`", trimmed),
@@ -73,7 +73,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 				column,
 			)
 		}
-		seenTuples[tuple.StringWithoutCaveat(rel)] = true
+		seenTuples[tuple.StringWithoutCaveatOrExpiration(rel)] = true
 		relationships = append(relationships, rel)
 	}
 

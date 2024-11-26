@@ -97,7 +97,7 @@ func (err CreateRelationshipExistsError) GRPCStatus() *status.Status {
 		spiceerrors.ForReason(
 			v1.ErrorReason_ERROR_REASON_ATTEMPT_TO_RECREATE_RELATIONSHIP,
 			map[string]string{
-				"relationship":       tuple.V1StringRelationshipWithoutCaveat(relationship),
+				"relationship":       tuple.V1StringRelationshipWithoutCaveatOrExpiration(relationship),
 				"resource_type":      relationship.Resource.ObjectType,
 				"resource_object_id": relationship.Resource.ObjectId,
 				"resource_relation":  relationship.Relation,
@@ -113,7 +113,7 @@ func (err CreateRelationshipExistsError) GRPCStatus() *status.Status {
 func NewCreateRelationshipExistsError(relationship *tuple.Relationship) error {
 	msg := "could not CREATE one or more relationships, as they already existed. If this is persistent, please switch to TOUCH operations or specify a precondition"
 	if relationship != nil {
-		msg = fmt.Sprintf("could not CREATE relationship `%s`, as it already existed. If this is persistent, please switch to TOUCH operations or specify a precondition", tuple.StringWithoutCaveat(*relationship))
+		msg = fmt.Sprintf("could not CREATE relationship `%s`, as it already existed. If this is persistent, please switch to TOUCH operations or specify a precondition", tuple.StringWithoutCaveatOrExpiration(*relationship))
 	}
 
 	return CreateRelationshipExistsError{

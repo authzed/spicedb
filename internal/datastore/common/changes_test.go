@@ -509,14 +509,14 @@ func TestHLCSameRevision(t *testing.T) {
 		tuple.Touch(tuple.MustParse("document:foo#viewer@user:sarah")),
 	}
 	slices.SortFunc(expected, func(i, j tuple.RelationshipUpdate) int {
-		iStr := tuple.StringWithoutCaveat(i.Relationship)
-		jStr := tuple.StringWithoutCaveat(j.Relationship)
+		iStr := tuple.StringWithoutCaveatOrExpiration(i.Relationship)
+		jStr := tuple.StringWithoutCaveatOrExpiration(j.Relationship)
 		return strings.Compare(iStr, jStr)
 	})
 
 	slices.SortFunc(remaining[0].RelationshipChanges, func(i, j tuple.RelationshipUpdate) int {
-		iStr := tuple.StringWithoutCaveat(i.Relationship)
-		jStr := tuple.StringWithoutCaveat(j.Relationship)
+		iStr := tuple.StringWithoutCaveatOrExpiration(i.Relationship)
+		jStr := tuple.StringWithoutCaveatOrExpiration(j.Relationship)
 		return strings.Compare(iStr, jStr)
 	})
 
@@ -566,7 +566,7 @@ func TestMaximumSize(t *testing.T) {
 func TestMaximumSizeReplacement(t *testing.T) {
 	ctx := context.Background()
 
-	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 235)
+	ch := NewChanges(revisions.HLCKeyFunc, datastore.WatchRelationships|datastore.WatchSchema, 243)
 	require.True(t, ch.IsEmpty())
 
 	rev0, err := revisions.HLCRevisionFromString("1")
@@ -574,11 +574,11 @@ func TestMaximumSizeReplacement(t *testing.T) {
 
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationTouch)
 	require.NoError(t, err)
-	require.Equal(t, int64(235), ch.currentByteSize)
+	require.Equal(t, int64(243), ch.currentByteSize)
 
 	err = ch.AddRelationshipChange(ctx, rev0, tuple.MustParse("document:foo#viewer@user:tom"), tuple.UpdateOperationDelete)
 	require.NoError(t, err)
-	require.Equal(t, int64(235), ch.currentByteSize)
+	require.Equal(t, int64(243), ch.currentByteSize)
 }
 
 func TestCanonicalize(t *testing.T) {
@@ -682,7 +682,7 @@ func canonicalize(in []datastore.RevisionChanges) []datastore.RevisionChanges {
 		sort.Slice(outChanges, func(i, j int) bool {
 			// Return if i < j
 			left, right := outChanges[i], outChanges[j]
-			tupleCompareResult := strings.Compare(tuple.StringWithoutCaveat(left.Relationship), tuple.StringWithoutCaveat(right.Relationship))
+			tupleCompareResult := strings.Compare(tuple.StringWithoutCaveatOrExpiration(left.Relationship), tuple.StringWithoutCaveatOrExpiration(right.Relationship))
 			if tupleCompareResult < 0 {
 				return true
 			}

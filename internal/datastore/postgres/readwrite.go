@@ -198,7 +198,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 
 		case tuple.UpdateOperationTouch:
 			touchInserts = appendForInsertion(touchInserts, rel)
-			touchMutationsByNonCaveat[tuple.StringWithoutCaveat(rel)] = mut
+			touchMutationsByNonCaveat[tuple.StringWithoutCaveatOrExpiration(rel)] = mut
 
 		case tuple.UpdateOperationDelete:
 			deleteClauses = append(deleteClauses, exactRelationshipClause(rel))
@@ -282,7 +282,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 				},
 			}
 
-			tplString := tuple.StringWithoutCaveat(rel)
+			tplString := tuple.StringWithoutCaveatOrExpiration(rel)
 			_, ok := touchMutationsByNonCaveat[tplString]
 			if !ok {
 				return spiceerrors.MustBugf("missing expected completed TOUCH mutation")
@@ -378,7 +378,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 			},
 		}
 
-		tplString := tuple.StringWithoutCaveat(deletedTpl)
+		tplString := tuple.StringWithoutCaveatOrExpiration(deletedTpl)
 		mutation, ok := touchMutationsByNonCaveat[tplString]
 		if !ok {
 			// This did not represent a TOUCH operation.

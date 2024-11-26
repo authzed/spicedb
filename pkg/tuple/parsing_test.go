@@ -3,10 +3,12 @@ package tuple
 import (
 	"strings"
 	"testing"
+	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/pkg/testutil"
 )
@@ -34,6 +36,24 @@ func v1rel(resType, resID, relation, subType, subID, subRel string) *v1.Relation
 			},
 			OptionalRelation: subRel,
 		},
+	}
+}
+
+func ev1rel(resType, resID, relation, subType, subID, subRel string, expiration time.Time) *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalExpiresAt: timestamppb.New(expiration),
 	}
 }
 
@@ -67,6 +87,37 @@ func cv1rel(resType, resID, relation, subType, subID, subRel, caveatName string,
 	}
 }
 
+func ecv1rel(resType, resID, relation, subType, subID, subRel string, expiration time.Time, caveatName string, caveatContext map[string]any) *v1.Relationship {
+	context, err := structpb.NewStruct(caveatContext)
+	if err != nil {
+		panic(err)
+	}
+
+	if len(context.Fields) == 0 {
+		context = nil
+	}
+
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalCaveat: &v1.ContextualizedCaveat{
+			CaveatName: caveatName,
+			Context:    context,
+		},
+		OptionalExpiresAt: timestamppb.New(expiration),
+	}
+}
+
 var superLongID = strings.Repeat("f", 1024)
 
 var testCases = []struct {
@@ -74,6 +125,7 @@ var testCases = []struct {
 	expectedOutput         string
 	relFormat              Relationship
 	v1Format               *v1.Relationship
+	expectedV1Output       string
 	stableCanonicalization string
 }{
 	{
@@ -415,6 +467,112 @@ var testCases = []struct {
 		}),
 		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0OntmaXJzdDphQGV4YW1wbGUuY29tLHNlY29uZDpiQGV4YW1wbGUuY29tfQ==",
 	},
+	{
+		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:00Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:00Z]`,
+		relFormat: MustWithExpiration(
+			makeRel(
+				StringToONR("document", "foo", "viewer"),
+				StringToONR("user", "tom", "..."),
+			),
+			time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+		),
+		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAwWg==",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[expiration:2022-01-02T01:02:03Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[expiration:2022-01-02T01:02:03Z]`,
+		relFormat: MustWithExpiration(
+			makeRel(
+				StringToONR("document", "foo", "viewer"),
+				StringToONR("user", "tom", "..."),
+			),
+			time.Date(2022, 1, 2, 1, 2, 3, 0, time.UTC),
+		),
+		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2022, 1, 2, 1, 2, 3, 0, time.UTC)),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIyLTAxLTAyVDAxOjAyOjAzWg==",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat][expiration:2020-01-01T00:00:00Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat][expiration:2020-01-01T00:00:00Z]`,
+		relFormat: MustWithExpiration(
+			MustWithCaveat(
+				makeRel(
+					StringToONR("document", "foo", "viewer"),
+					StringToONR("user", "tom", "..."),
+				),
+				"somecaveat",
+			),
+			time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+		),
+		v1Format:               ecv1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), "somecaveat", map[string]any{}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0IHdpdGggJGV4cGlyYXRpb246MjAyMC0wMS0wMVQwMDowMDowMFo=",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[somecaveat:{"foo":42}][expiration:2020-01-01T00:00:00Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[somecaveat:{"foo":42}][expiration:2020-01-01T00:00:00Z]`,
+		relFormat: MustWithExpiration(
+			MustWithCaveat(
+				makeRel(
+					StringToONR("document", "foo", "viewer"),
+					StringToONR("user", "tom", "..."),
+				),
+				"somecaveat",
+				map[string]any{
+					"foo": 42,
+				},
+			),
+			time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+		),
+		v1Format: ecv1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), "somecaveat", map[string]any{
+			"foo": 42,
+		}),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0Ontmb286NDIuMDAwMDAwfSB3aXRoICRleHBpcmF0aW9uOjIwMjAtMDEtMDFUMDA6MDA6MDBa",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01.542Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01.542Z]`,
+		relFormat: MustWithExpiration(
+			makeRel(
+				StringToONR("document", "foo", "viewer"),
+				StringToONR("user", "tom", "..."),
+			),
+			time.Date(2020, 1, 1, 0, 0, 1, 542000000, time.UTC),
+		),
+		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 1, 542000000, time.UTC)),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAxLjU0Mlo=",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01Z]`,
+		relFormat: MustWithExpiration(
+			makeRel(
+				StringToONR("document", "foo", "viewer"),
+				StringToONR("user", "tom", "..."),
+			),
+			time.Date(2020, 1, 1, 0, 0, 1, 0, time.UTC),
+		),
+		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 1, 0, time.UTC)),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAxWg==",
+	},
+	{
+		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01-04:00]`,
+		expectedOutput: `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01-04:00]`,
+
+		// NOTE: When converted to V1 (which stores as a timestamppb.Timestamp), the timezone is changed
+		// into UTC.
+		expectedV1Output: `document:foo#viewer@user:tom[expiration:2020-01-01T04:00:01Z]`,
+		relFormat: MustWithExpiration(
+			makeRel(
+				StringToONR("document", "foo", "viewer"),
+				StringToONR("user", "tom", "..."),
+			),
+			time.Date(2020, 1, 1, 0, 0, 1, 0, time.FixedZone("UTC-4", -4*60*60)),
+		),
+		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 4, 0, 1, 0, time.UTC)),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAxLTA0OjAw",
+	},
 }
 
 func TestSerialize(t *testing.T) {
@@ -428,7 +586,7 @@ func TestSerialize(t *testing.T) {
 			serialized := strings.Replace(MustString(tc.relFormat), " ", "", -1)
 			require.Equal(t, tc.expectedOutput, serialized)
 
-			withoutCaveat := StringWithoutCaveat(tc.relFormat)
+			withoutCaveat := StringWithoutCaveatOrExpiration(tc.relFormat)
 			require.Contains(t, tc.expectedOutput, withoutCaveat)
 			require.NotContains(t, withoutCaveat, "[")
 		})
@@ -441,10 +599,15 @@ func TestSerialize(t *testing.T) {
 				return
 			}
 
-			serialized := strings.Replace(MustV1RelString(tc.v1Format), " ", "", -1)
-			require.Equal(t, tc.expectedOutput, serialized)
+			expectedOutput := tc.expectedV1Output
+			if expectedOutput == "" {
+				expectedOutput = tc.expectedOutput
+			}
 
-			withoutCaveat := V1StringRelationshipWithoutCaveat(tc.v1Format)
+			serialized := strings.Replace(MustV1RelString(tc.v1Format), " ", "", -1)
+			require.Equal(t, expectedOutput, serialized)
+
+			withoutCaveat := V1StringRelationshipWithoutCaveatOrExpiration(tc.v1Format)
 			require.Contains(t, tc.expectedOutput, withoutCaveat)
 			require.NotContains(t, withoutCaveat, "[")
 		})
@@ -494,11 +657,16 @@ func TestConvert(t *testing.T) {
 			}
 
 			require.NoError(err)
-			require.True(Equal(tc.relFormat, parsed))
+			require.True(Equal(tc.relFormat, parsed), "found difference in parsed relationship: %v vs %v", tc.relFormat, parsed)
 
 			relationship := ToV1Relationship(parsed)
 			relString := strings.Replace(MustV1RelString(relationship), " ", "", -1)
-			require.Equal(tc.expectedOutput, relString)
+			expectedOutput := tc.expectedV1Output
+			if expectedOutput == "" {
+				expectedOutput = tc.expectedOutput
+			}
+
+			require.Equal(expectedOutput, relString)
 		})
 	}
 }

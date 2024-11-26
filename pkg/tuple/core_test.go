@@ -3,9 +3,11 @@ package tuple
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
@@ -72,6 +74,9 @@ func TestCoreRelationToString(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	testTime, err := time.Parse(expirationFormat, "2021-01-01T00:00:00Z")
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		input    *core.RelationTuple
@@ -112,6 +117,44 @@ func TestCoreRelationToString(t *testing.T) {
 				},
 			},
 			expected: `resource:1#view@user:1[cav:{"letters":["a","b","c"]}]`,
+		},
+		{
+			name: "relation with expiration",
+			input: &core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: "resource",
+					ObjectId:  "1",
+					Relation:  "view",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "1",
+					Relation:  "...",
+				},
+				OptionalExpirationTime: timestamppb.New(testTime),
+			},
+			expected: `resource:1#view@user:1[expiration:2021-01-01T00:00:00Z]`,
+		},
+		{
+			name: "relation with caveat and expiration",
+			input: &core.RelationTuple{
+				ResourceAndRelation: &core.ObjectAndRelation{
+					Namespace: "resource",
+					ObjectId:  "1",
+					Relation:  "view",
+				},
+				Subject: &core.ObjectAndRelation{
+					Namespace: "user",
+					ObjectId:  "1",
+					Relation:  "...",
+				},
+				Caveat: &core.ContextualizedCaveat{
+					CaveatName: "cav",
+					Context:    caveatContext,
+				},
+				OptionalExpirationTime: timestamppb.New(testTime),
+			},
+			expected: `resource:1#view@user:1[cav:{"letters":["a","b","c"]}][expiration:2021-01-01T00:00:00Z]`,
 		},
 	}
 

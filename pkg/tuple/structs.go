@@ -3,6 +3,7 @@ package tuple
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -67,8 +68,10 @@ type RelationshipReference struct {
 
 // Relationship represents a relationship between two objects.
 type Relationship struct {
-	OptionalCaveat    *core.ContextualizedCaveat
-	OptionalIntegrity *core.RelationshipIntegrity
+	OptionalCaveat     *core.ContextualizedCaveat
+	OptionalExpiration *time.Time
+	OptionalIntegrity  *core.RelationshipIntegrity
+
 	RelationshipReference
 }
 
@@ -82,7 +85,7 @@ func (r Relationship) ToCoreTuple() *core.RelationTuple {
 	}
 }
 
-const relStructSize = 112 /* size of the struct itself */
+const relStructSize = 120 /* size of the struct itself */
 
 func (r Relationship) SizeVT() int {
 	size := r.Resource.SizeVT() + r.Subject.SizeVT() + relStructSize
@@ -151,7 +154,7 @@ func (ru RelationshipUpdate) OperationString() string {
 }
 
 func (ru RelationshipUpdate) DebugString() string {
-	return fmt.Sprintf("%s(%s)", ru.OperationString(), StringWithoutCaveat(ru.Relationship))
+	return fmt.Sprintf("%s(%s)", ru.OperationString(), StringWithoutCaveatOrExpiration(ru.Relationship))
 }
 
 // RelationReference represents a reference to a relation.

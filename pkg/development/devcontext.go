@@ -97,7 +97,7 @@ func newDevContextWithDatastore(ctx context.Context, requestContext *devinterfac
 					Message: err.Error(),
 					Source:  devinterface.DeveloperError_RELATIONSHIP,
 					Kind:    devinterface.DeveloperError_PARSE_ERROR,
-					Context: tuple.CoreRelationToStringWithoutCaveat(rel),
+					Context: tuple.CoreRelationToStringWithoutCaveatOrExpiration(rel),
 				})
 			}
 
