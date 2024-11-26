@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/graph"
 	"github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,6 +27,8 @@ const MaxSingleLineCommentLength = 70 // 80 - the comment parts and some padding
 // GenerateSchema generates a DSL view of the given schema.
 func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, error) {
 	generated := make([]string, 0, len(definitions))
+	flags := mapz.NewSet[string]()
+
 	result := true
 	for _, definition := range definitions {
 		switch def := definition.(type) {
@@ -39,16 +42,26 @@ func GenerateSchema(definitions []compiler.SchemaDefinition) (string, bool, erro
 			generated = append(generated, generatedCaveat)
 
 		case *core.NamespaceDefinition:
-			generatedSchema, ok, err := GenerateSource(def)
+			generatedSchema, defFlags, ok, err := generateDefinitionSource(def)
 			if err != nil {
 				return "", false, err
 			}
 
 			result = result && ok
 			generated = append(generated, generatedSchema)
+			flags.Extend(defFlags)
 
 		default:
 			return "", false, spiceerrors.MustBugf("unknown type of definition %T in GenerateSchema", def)
+		}
+	}
+
+	if !flags.IsEmpty() {
+		flagsSlice := flags.AsSlice()
+		sort.Strings(flagsSlice)
+
+		for _, flag := range flagsSlice {
+			generated = append([]string{"use " + flag}, generated...)
 		}
 	}
 
@@ -74,19 +87,25 @@ func GenerateCaveatSource(caveat *core.CaveatDefinition) (string, bool, error) {
 
 // GenerateSource generates a DSL view of the given namespace definition.
 func GenerateSource(namespace *core.NamespaceDefinition) (string, bool, error) {
+	source, _, ok, err := generateDefinitionSource(namespace)
+	return source, ok, err
+}
+
+func generateDefinitionSource(namespace *core.NamespaceDefinition) (string, []string, bool, error) {
 	generator := &sourceGenerator{
 		indentationLevel: 0,
 		hasNewline:       true,
 		hasBlankline:     true,
 		hasNewScope:      true,
+		flags:            mapz.NewSet[string](),
 	}
 
 	err := generator.emitNamespace(namespace)
 	if err != nil {
-		return "", false, err
+		return "", nil, false, err
 	}
 
-	return generator.buf.String(), !generator.hasIssue, nil
+	return generator.buf.String(), generator.flags.AsSlice(), !generator.hasIssue, nil
 }
 
 // GenerateRelationSource generates a DSL view of the given relation definition.
@@ -237,9 +256,25 @@ func (sg *sourceGenerator) emitAllowedRelation(allowedRelation *core.AllowedRela
 	if allowedRelation.GetPublicWildcard() != nil {
 		sg.append(":*")
 	}
-	if allowedRelation.GetRequiredCaveat() != nil {
+
+	hasExpirationTrait := allowedRelation.GetRequiredExpiration() != nil
+	hasCaveat := allowedRelation.GetRequiredCaveat() != nil
+
+	if hasExpirationTrait || hasCaveat {
 		sg.append(" with ")
-		sg.append(allowedRelation.RequiredCaveat.CaveatName)
+		if hasCaveat {
+			sg.append(allowedRelation.RequiredCaveat.CaveatName)
+		}
+
+		if hasExpirationTrait {
+			sg.flags.Add("expiration")
+
+			if hasCaveat {
+				sg.append(" and ")
+			}
+
+			sg.append("expiration")
+		}
 	}
 }
 

@@ -412,7 +412,17 @@ message AllowedRelation {
    * required_caveat defines the required caveat on this relation.
    */
   AllowedCaveat required_caveat = 6;
+
+  /**
+   * required_expiration defines the required expiration on this relation.
+   */
+  ExpirationTrait required_expiration = 7;
 }
+
+/**
+ * ExpirationTrait is an expiration trait of a relation.
+ */
+message ExpirationTrait {}
 
 /**
  * AllowedCaveat is an allowed caveat of a relation.

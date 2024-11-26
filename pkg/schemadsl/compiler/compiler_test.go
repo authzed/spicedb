@@ -974,6 +974,55 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"relation with expiration caveat",
+			withTenantPrefix,
+			`definition simple {
+				relation viewer: user with expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveat("sometenant/user", "...", namespace.AllowedCaveat("sometenant/expiration")),
+					),
+				),
+			},
+		},
+		{
+			"relation with expiration trait",
+			withTenantPrefix,
+			`use expiration
+			
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithExpiration("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"relation with expiration trait and caveat",
+			withTenantPrefix,
+			`use expiration
+			
+			definition simple {
+				relation viewer: user with somecaveat and expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveatAndExpiration("sometenant/user", "...", namespace.AllowedCaveat("sometenant/somecaveat")),
+					),
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {
