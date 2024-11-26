@@ -52,6 +52,7 @@ func (cs CompiledSchema) SourcePositionToRunePosition(source input.Source, posit
 type config struct {
 	skipValidation   bool
 	objectTypePrefix *string
+	allowedFlags     []string
 }
 
 func SkipValidation() Option { return func(cfg *config) { cfg.skipValidation = true } }
@@ -66,6 +67,10 @@ func RequirePrefixedObjectType() ObjectPrefixOption {
 
 func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
+}
+
+func AllowExpirationUseFlag() Option {
+	return func(cfg *config) { cfg.allowedFlags = append(cfg.allowedFlags, "expiration") }
 }
 
 type Option func(*config)
@@ -94,6 +99,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		mapper:           mapper,
 		schemaString:     schema.SchemaString,
 		skipValidate:     cfg.skipValidation,
+		allowedFlags:     cfg.allowedFlags,
 	}, root)
 	if err != nil {
 		var errorWithNode errorWithNode

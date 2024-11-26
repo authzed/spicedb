@@ -3,6 +3,7 @@ package compiler
 import (
 	"bufio"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/ccoveille/go-safecast"
@@ -22,6 +23,7 @@ type translationContext struct {
 	mapper           input.PositionMapper
 	schemaString     string
 	skipValidate     bool
+	allowedFlags     []string
 }
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
@@ -648,6 +650,10 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 
 		if traitName != "expiration" {
 			return nil, typeRefNode.Errorf("invalid trait: %s", traitName)
+		}
+
+		if !slices.Contains(tctx.allowedFlags, "expiration") {
+			return nil, typeRefNode.Errorf("expiration trait is not allowed")
 		}
 
 		ref.RequiredExpiration = &core.ExpirationTrait{}

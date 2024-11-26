@@ -1032,7 +1032,7 @@ func TestCompile(t *testing.T) {
 			require := require.New(t)
 			compiled, err := Compile(InputSchema{
 				input.Source(test.name), test.input,
-			}, test.objectPrefix)
+			}, test.objectPrefix, AllowExpirationUseFlag())
 
 			if test.expectedError != "" {
 				require.Error(err)
