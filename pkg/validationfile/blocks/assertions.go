@@ -93,7 +93,7 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 	// Check for caveat context.
 	parts := strings.SplitN(trimmed, " with ", 2)
 	if len(parts) == 0 {
-		return spiceerrors.NewErrorWithSource(
+		return spiceerrors.NewWithSourceError(
 			fmt.Errorf("error parsing assertion `%s`", trimmed),
 			trimmed,
 			line,
@@ -103,7 +103,7 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 
 	relationship, err := tuple.Parse(strings.TrimSpace(parts[0]))
 	if err != nil {
-		return spiceerrors.NewErrorWithSource(
+		return spiceerrors.NewWithSourceError(
 			fmt.Errorf("error parsing relationship in assertion `%s`: %w", trimmed, err),
 			trimmed,
 			line,
@@ -117,7 +117,7 @@ func (a *Assertion) UnmarshalYAML(node *yamlv3.Node) error {
 		caveatContextMap := make(map[string]any, 0)
 		err := json.Unmarshal([]byte(parts[1]), &caveatContextMap)
 		if err != nil {
-			return spiceerrors.NewErrorWithSource(
+			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("error parsing caveat context in assertion `%s`: %w", trimmed, err),
 				trimmed,
 				line,

@@ -153,10 +153,10 @@ func VerifyUpdates(
 				errWait := time.NewTimer(waitForChangesTimeout)
 				select {
 				case err := <-errchan:
-					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					require.True(errors.As(err, &datastore.WatchDisconnectedError{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out waiting for ErrWatchDisconnected")
+					require.Fail("Timed out waiting for WatchDisconnectedError")
 				}
 				return
 			}
@@ -195,10 +195,10 @@ func VerifyUpdatesWithMetadata(
 				errWait := time.NewTimer(waitForChangesTimeout)
 				select {
 				case err := <-errchan:
-					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					require.True(errors.As(err, &datastore.WatchDisconnectedError{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out waiting for ErrWatchDisconnected")
+					require.Fail("Timed out waiting for WatchDisconnectedError")
 				}
 				return
 			}
@@ -266,10 +266,10 @@ func WatchCancelTest(t *testing.T, tester DatastoreTester) {
 				require.Zero(created)
 				select {
 				case err := <-errchan:
-					require.True(errors.As(err, &datastore.ErrWatchCanceled{}))
+					require.True(errors.As(err, &datastore.WatchCanceledError{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out waiting for ErrWatchCanceled")
+					require.Fail("Timed out waiting for WatchCanceledError")
 				}
 				return
 			}
@@ -506,10 +506,10 @@ func verifyNoUpdates(
 			errWait := time.NewTimer(waitForChangesTimeout)
 			select {
 			case err := <-errchan:
-				require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+				require.True(errors.As(err, &datastore.WatchDisconnectedError{}))
 				return
 			case <-errWait.C:
-				require.Fail("Timed out waiting for ErrWatchDisconnected")
+				require.Fail("Timed out waiting for WatchDisconnectedError")
 			}
 			return
 		}
@@ -674,10 +674,10 @@ func verifyMixedUpdates(
 				errWait := time.NewTimer(waitForChangesTimeout)
 				select {
 				case err := <-errchan:
-					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					require.True(errors.As(err, &datastore.WatchDisconnectedError{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out waiting for ErrWatchDisconnected")
+					require.Fail("Timed out waiting for WatchDisconnectedError")
 				}
 				return
 			}

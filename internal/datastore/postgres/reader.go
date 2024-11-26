@@ -208,7 +208,7 @@ func (r *pgReader) ReverseQueryRelationships(
 func (r *pgReader) ReadNamespaceByName(ctx context.Context, nsName string) (*core.NamespaceDefinition, datastore.Revision, error) {
 	loaded, version, err := r.loadNamespace(ctx, nsName, r.query, r.filterer)
 	switch {
-	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+	case errors.As(err, &datastore.NamespaceNotFoundError{}):
 		return nil, datastore.NoRevision, err
 	case err == nil:
 		return loaded, version, nil

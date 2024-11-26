@@ -36,7 +36,7 @@ func CaveatNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	_, _, err = ds.SnapshotReader(startRevision).ReadCaveatByName(ctx, "unknown")
-	require.True(errors.As(err, &datastore.ErrCaveatNameNotFound{}))
+	require.True(errors.As(err, &datastore.CaveatNameNotFoundError{}))
 }
 
 func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
@@ -119,11 +119,11 @@ func WriteReadDeleteCaveatTest(t *testing.T, tester DatastoreTester) {
 	req.NoError(err)
 	cr = ds.SnapshotReader(rev)
 	_, _, err = cr.ReadCaveatByName(ctx, coreCaveat.Name)
-	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
+	req.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 
 	// Returns an error if caveat name or ID does not exist
 	_, _, err = cr.ReadCaveatByName(ctx, "doesnotexist")
-	req.ErrorAs(err, &datastore.ErrCaveatNameNotFound{})
+	req.ErrorAs(err, &datastore.CaveatNameNotFoundError{})
 }
 
 func WriteCaveatedRelationshipTest(t *testing.T, tester DatastoreTester) {
@@ -377,7 +377,7 @@ func skipIfNotCaveatStorer(t *testing.T, ds datastore.Datastore) {
 	ctx := context.Background()
 	_, _ = ds.ReadWriteTx(ctx, func(ctx context.Context, transaction datastore.ReadWriteTransaction) error { // nolint: errcheck
 		_, _, err := transaction.ReadCaveatByName(ctx, uuid.NewString())
-		if !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+		if !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 			t.Skip("datastore does not implement CaveatStorer interface")
 		}
 		return fmt.Errorf("force rollback of unnecesary tx")

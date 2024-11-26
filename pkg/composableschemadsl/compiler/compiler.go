@@ -137,9 +137,9 @@ func compileImpl(schema InputSchema, cctx compilationContext, prefix ObjectPrefi
 		globallyVisitedFiles: cctx.globallyVisitedFiles,
 	}, root)
 	if err != nil {
-		var errorWithNode errorWithNode
-		if errors.As(err, &errorWithNode) {
-			err = toContextError(errorWithNode.error.Error(), errorWithNode.errorSourceCode, errorWithNode.node, mapper)
+		var withNodeError withNodeError
+		if errors.As(err, &withNodeError) {
+			err = toContextError(withNodeError.error.Error(), withNodeError.errorSourceCode, withNodeError.node, mapper)
 		}
 
 		return nil, err
@@ -187,7 +187,7 @@ func toContextError(errMessage string, errorSourceCode string, node *dslNode, ma
 		return fmt.Errorf("missing source for node: %w", err)
 	}
 
-	return ErrorWithContext{
+	return WithContextError{
 		BaseCompilerError: BaseCompilerError{
 			error:       fmt.Errorf("parse error in %s: %s", formattedRange, errMessage),
 			BaseMessage: errMessage,

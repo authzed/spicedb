@@ -174,7 +174,7 @@ func readAndCache[T schemaDefinition](
 			// sever the context so that another branch doesn't cancel the
 			// single-flighted read
 			loaded, updatedRev, err := reader(internaldatastore.SeparateContextWithTracing(ctx), name)
-			if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+			if err != nil && !errors.As(err, &datastore.NamespaceNotFoundError{}) && !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 				// Propagate this error to the caller
 				return nil, err
 			}
@@ -244,7 +244,7 @@ func readAndCacheInTransaction[T schemaDefinition](
 		entry = untypedEntry.(definitionEntry)
 	} else {
 		loaded, updatedRev, err := reader(ctx, name)
-		if err != nil && !errors.As(err, &datastore.ErrNamespaceNotFound{}) && !errors.As(err, &datastore.ErrCaveatNameNotFound{}) {
+		if err != nil && !errors.As(err, &datastore.NamespaceNotFoundError{}) && !errors.As(err, &datastore.CaveatNameNotFoundError{}) {
 			// Propagate this error to the caller
 			return *new(T), datastore.NoRevision, err
 		}

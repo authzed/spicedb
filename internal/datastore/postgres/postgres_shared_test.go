@@ -1591,10 +1591,10 @@ func RevisionTimestampAndTransactionIDTest(t *testing.T, ds datastore.Datastore)
 				errWait := time.NewTimer(waitForChangesTimeout)
 				select {
 				case err := <-errchan:
-					require.True(errors.As(err, &datastore.ErrWatchDisconnected{}))
+					require.True(errors.As(err, &datastore.WatchDisconnectedError{}))
 					return
 				case <-errWait.C:
-					require.Fail("Timed out waiting for ErrWatchDisconnected")
+					require.Fail("Timed out waiting for WatchDisconnectedError")
 				}
 				return
 			}

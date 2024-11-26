@@ -14,52 +14,52 @@ type ErrNotFound interface {
 	IsNotFoundError() bool
 }
 
-// ErrNamespaceNotFound occurs when a namespace was not found.
-type ErrNamespaceNotFound struct {
+// NamespaceNotFoundError occurs when a namespace was not found.
+type NamespaceNotFoundError struct {
 	error
 	namespaceName string
 }
 
-var _ ErrNotFound = ErrNamespaceNotFound{}
+var _ ErrNotFound = NamespaceNotFoundError{}
 
-func (err ErrNamespaceNotFound) IsNotFoundError() bool {
+func (err NamespaceNotFoundError) IsNotFoundError() bool {
 	return true
 }
 
 // NotFoundNamespaceName is the name of the namespace not found.
-func (err ErrNamespaceNotFound) NotFoundNamespaceName() string {
+func (err NamespaceNotFoundError) NotFoundNamespaceName() string {
 	return err.namespaceName
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (err ErrNamespaceNotFound) MarshalZerologObject(e *zerolog.Event) {
+func (err NamespaceNotFoundError) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error).Str("namespace", err.namespaceName)
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (err ErrNamespaceNotFound) DetailsMetadata() map[string]string {
+func (err NamespaceNotFoundError) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"definition_name": err.namespaceName,
 	}
 }
 
-// ErrWatchDisconnected occurs when a watch has fallen too far behind and was forcibly disconnected
+// WatchDisconnectedError occurs when a watch has fallen too far behind and was forcibly disconnected
 // as a result.
-type ErrWatchDisconnected struct{ error }
+type WatchDisconnectedError struct{ error }
 
-// ErrWatchCanceled occurs when a watch was canceled by the caller.
-type ErrWatchCanceled struct{ error }
+// WatchCanceledError occurs when a watch was canceled by the caller.
+type WatchCanceledError struct{ error }
 
-// ErrWatchDisabled occurs when watch is disabled by being unsupported by the datastore.
-type ErrWatchDisabled struct{ error }
+// WatchDisabledError occurs when watch is disabled by being unsupported by the datastore.
+type WatchDisabledError struct{ error }
 
-// ErrReadOnly is returned when the operation cannot be completed because the datastore is in
+// ReadOnlyError is returned when the operation cannot be completed because the datastore is in
 // read-only mode.
-type ErrReadOnly struct{ error }
+type ReadOnlyError struct{ error }
 
-// ErrWatchRetryable is returned when a transient/temporary error occurred in watch and indicates that
+// WatchRetryableError is returned when a transient/temporary error occurred in watch and indicates that
 // the caller *may* retry the watch after some backoff time.
-type ErrWatchRetryable struct{ error }
+type WatchRetryableError struct{ error }
 
 // InvalidRevisionReason is the reason the revision could not be used.
 type InvalidRevisionReason int
@@ -74,25 +74,25 @@ const (
 	CouldNotDetermineRevision
 )
 
-// ErrInvalidRevision occurs when a revision specified to a call was invalid.
-type ErrInvalidRevision struct {
+// InvalidRevisionError occurs when a revision specified to a call was invalid.
+type InvalidRevisionError struct {
 	error
 	revision Revision
 	reason   InvalidRevisionReason
 }
 
 // InvalidRevision is the revision that failed.
-func (err ErrInvalidRevision) InvalidRevision() Revision {
+func (err InvalidRevisionError) InvalidRevision() Revision {
 	return err.revision
 }
 
 // Reason is the reason the revision failed.
-func (err ErrInvalidRevision) Reason() InvalidRevisionReason {
+func (err InvalidRevisionError) Reason() InvalidRevisionReason {
 	return err.reason
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (err ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
+func (err InvalidRevisionError) MarshalZerologObject(e *zerolog.Event) {
 	switch err.reason {
 	case RevisionStale:
 		e.Err(err.error).Str("reason", "stale")
@@ -105,7 +105,7 @@ func (err ErrInvalidRevision) MarshalZerologObject(e *zerolog.Event) {
 
 // NewNamespaceNotFoundErr constructs a new namespace not found error.
 func NewNamespaceNotFoundErr(nsName string) error {
-	return ErrNamespaceNotFound{
+	return NamespaceNotFoundError{
 		error:         fmt.Errorf("object definition `%s` not found", nsName),
 		namespaceName: nsName,
 	}
@@ -113,21 +113,21 @@ func NewNamespaceNotFoundErr(nsName string) error {
 
 // NewWatchDisconnectedErr constructs a new watch was disconnected error.
 func NewWatchDisconnectedErr() error {
-	return ErrWatchDisconnected{
+	return WatchDisconnectedError{
 		error: fmt.Errorf("watch fell too far behind and was disconnected; consider increasing watch buffer size via the flag --datastore-watch-buffer-length"),
 	}
 }
 
 // NewWatchCanceledErr constructs a new watch was canceled error.
 func NewWatchCanceledErr() error {
-	return ErrWatchCanceled{
+	return WatchCanceledError{
 		error: fmt.Errorf("watch was canceled by the caller"),
 	}
 }
 
 // NewWatchDisabledErr constructs a new watch is disabled error.
 func NewWatchDisabledErr(reason string) error {
-	return ErrWatchDisabled{
+	return WatchDisabledError{
 		error: fmt.Errorf("watch is currently disabled: %s", reason),
 	}
 }
@@ -135,7 +135,7 @@ func NewWatchDisabledErr(reason string) error {
 // NewWatchTemporaryErr wraps another error in watch, indicating that the error is likely
 // a temporary condition and clients may consider retrying by calling watch again (vs a fatal error).
 func NewWatchTemporaryErr(wrapped error) error {
-	return ErrWatchRetryable{
+	return WatchRetryableError{
 		error: fmt.Errorf("watch has failed with a temporary condition: %w. please retry the watch", wrapped),
 	}
 }
@@ -143,7 +143,7 @@ func NewWatchTemporaryErr(wrapped error) error {
 // NewReadonlyErr constructs an error for when a request has failed because
 // the datastore has been configured to be read-only.
 func NewReadonlyErr() error {
-	return ErrReadOnly{
+	return ReadOnlyError{
 		error: fmt.Errorf("datastore is in read-only mode"),
 	}
 }
@@ -152,14 +152,14 @@ func NewReadonlyErr() error {
 func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) error {
 	switch reason {
 	case RevisionStale:
-		return ErrInvalidRevision{
+		return InvalidRevisionError{
 			error:    fmt.Errorf("revision has expired"),
 			revision: revision,
 			reason:   reason,
 		}
 
 	default:
-		return ErrInvalidRevision{
+		return InvalidRevisionError{
 			error:    fmt.Errorf("revision was invalid"),
 			revision: revision,
 			reason:   reason,
@@ -167,61 +167,61 @@ func NewInvalidRevisionErr(revision Revision, reason InvalidRevisionReason) erro
 	}
 }
 
-// ErrCaveatNameNotFound is the error returned when a caveat is not found by its name
-type ErrCaveatNameNotFound struct {
+// CaveatNameNotFoundError is the error returned when a caveat is not found by its name
+type CaveatNameNotFoundError struct {
 	error
 	name string
 }
 
-var _ ErrNotFound = ErrCaveatNameNotFound{}
+var _ ErrNotFound = CaveatNameNotFoundError{}
 
-func (err ErrCaveatNameNotFound) IsNotFoundError() bool {
+func (err CaveatNameNotFoundError) IsNotFoundError() bool {
 	return true
 }
 
 // CaveatName returns the name of the caveat that couldn't be found
-func (err ErrCaveatNameNotFound) CaveatName() string {
+func (err CaveatNameNotFoundError) CaveatName() string {
 	return err.name
 }
 
 // NewCaveatNameNotFoundErr constructs a new caveat name not found error.
 func NewCaveatNameNotFoundErr(name string) error {
-	return ErrCaveatNameNotFound{
+	return CaveatNameNotFoundError{
 		error: fmt.Errorf("caveat with name `%s` not found", name),
 		name:  name,
 	}
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (err ErrCaveatNameNotFound) DetailsMetadata() map[string]string {
+func (err CaveatNameNotFoundError) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"caveat_name": err.name,
 	}
 }
 
-// ErrCounterNotRegistered indicates that a counter was not registered.
-type ErrCounterNotRegistered struct {
+// CounterNotRegisteredError indicates that a counter was not registered.
+type CounterNotRegisteredError struct {
 	error
 	counterName string
 }
 
 // NewCounterNotRegisteredErr constructs a new counter not registered error.
 func NewCounterNotRegisteredErr(counterName string) error {
-	return ErrCounterNotRegistered{
+	return CounterNotRegisteredError{
 		error:       fmt.Errorf("counter with name `%s` not found", counterName),
 		counterName: counterName,
 	}
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (err ErrCounterNotRegistered) DetailsMetadata() map[string]string {
+func (err CounterNotRegisteredError) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"counter_name": err.counterName,
 	}
 }
 
-// ErrCounterAlreadyRegistered indicates that a counter  was already registered.
-type ErrCounterAlreadyRegistered struct {
+// CounterAlreadyRegisteredError indicates that a counter  was already registered.
+type CounterAlreadyRegisteredError struct {
 	error
 
 	counterName string
@@ -230,7 +230,7 @@ type ErrCounterAlreadyRegistered struct {
 
 // NewCounterAlreadyRegisteredErr constructs a new filter not registered error.
 func NewCounterAlreadyRegisteredErr(counterName string, filter *core.RelationshipFilter) error {
-	return ErrCounterAlreadyRegistered{
+	return CounterAlreadyRegisteredError{
 		error:       fmt.Errorf("counter with name `%s` already registered", counterName),
 		counterName: counterName,
 		filter:      filter,
@@ -238,7 +238,7 @@ func NewCounterAlreadyRegisteredErr(counterName string, filter *core.Relationshi
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (err ErrCounterAlreadyRegistered) DetailsMetadata() map[string]string {
+func (err CounterAlreadyRegisteredError) DetailsMetadata() map[string]string {
 	subjectType := ""
 	subjectID := ""
 	subjectRelation := ""

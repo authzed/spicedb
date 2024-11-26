@@ -12,7 +12,7 @@ type RevisionedCaveat = RevisionedDefinition[*core.CaveatDefinition]
 // CaveatReader offers read operations for caveats
 type CaveatReader interface {
 	// ReadCaveatByName returns a caveat with the provided name.
-	// It returns an instance of ErrCaveatNotFound if not found.
+	// It returns an instance of CaveatNotFoundError if not found.
 	ReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten Revision, err error)
 
 	// ListAllCaveats returns all caveats stored in the system.

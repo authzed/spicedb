@@ -36,17 +36,17 @@ func TestRWOperationErrors(t *testing.T) {
 	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.DeleteNamespaces(ctx, "fake")
 	})
-	require.ErrorAs(err, &datastore.ErrReadOnly{})
+	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
 
 	rev, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "user"})
 	})
-	require.ErrorAs(err, &datastore.ErrReadOnly{})
+	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
 
 	rev, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, tuple.MustParse("user:test#boss@user:boss"))
-	require.ErrorAs(err, &datastore.ErrReadOnly{})
+	require.ErrorAs(err, &datastore.ReadOnlyError{})
 	require.Equal(datastore.NoRevision, rev)
 }
 

@@ -262,7 +262,7 @@ func loadCompiled(
 			continue
 		}
 
-		errWithSource, ok := spiceerrors.AsErrorWithSource(cverr)
+		errWithSource, ok := spiceerrors.AsWithSourceError(cverr)
 		if ok {
 			// NOTE: zeroes are fine here to mean "unknown"
 			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
@@ -294,7 +294,7 @@ func loadCompiled(
 	for _, nsDef := range compiled.ObjectDefinitions {
 		ts, terr := typesystem.NewNamespaceTypeSystem(nsDef, resolver)
 		if terr != nil {
-			errWithSource, ok := spiceerrors.AsErrorWithSource(terr)
+			errWithSource, ok := spiceerrors.AsWithSourceError(terr)
 			// NOTE: zeroes are fine here to mean "unknown"
 			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
 			if err != nil {
@@ -333,7 +333,7 @@ func loadCompiled(
 			continue
 		}
 
-		errWithSource, ok := spiceerrors.AsErrorWithSource(tverr)
+		errWithSource, ok := spiceerrors.AsWithSourceError(tverr)
 		if ok {
 			// NOTE: zeroes are fine here to mean "unknown"
 			lineNumber, err := safecast.ToUint32(errWithSource.LineNumber)
@@ -374,7 +374,7 @@ func DistinguishGraphError(devContext *DevContext, dispatchError error, source d
 func distinguishGraphError(ctx context.Context, dispatchError error, source devinterface.DeveloperError_Source, line uint32, column uint32, context string) (*devinterface.DeveloperError, error) {
 	var nsNotFoundError sharederrors.UnknownNamespaceError
 	var relNotFoundError sharederrors.UnknownRelationError
-	var invalidRelError relationships.ErrInvalidSubjectType
+	var invalidRelError relationships.InvalidSubjectTypeError
 	var maxDepthErr dispatch.MaxDepthExceededError
 
 	if errors.As(dispatchError, &maxDepthErr) {
@@ -447,13 +447,13 @@ func rewriteACLError(ctx context.Context, err error) error {
 	case errors.As(err, &relNotFoundError):
 		fallthrough
 
-	case errors.As(err, &datastore.ErrInvalidRevision{}):
+	case errors.As(err, &datastore.InvalidRevisionError{}):
 		return status.Errorf(codes.OutOfRange, "invalid zookie: %s", err)
 
-	case errors.As(err, &maingraph.ErrRelationMissingTypeInfo{}):
+	case errors.As(err, &maingraph.RelationMissingTypeInfoError{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
 
-	case errors.As(err, &maingraph.ErrAlwaysFail{}):
+	case errors.As(err, &maingraph.AlwaysFailError{}):
 		log.Ctx(ctx).Err(err).Msg("internal graph error in devcontext")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
 

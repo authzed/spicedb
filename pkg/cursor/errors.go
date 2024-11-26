@@ -23,13 +23,13 @@ var ErrNilCursor = errors.New("cursor pointer was nil")
 // ErrHashMismatch is returned as the base error when a mismatching hash was given to the decoder.
 var ErrHashMismatch = errors.New("the cursor provided does not have the same arguments as the original API call; please ensure you are making the same API call, with the exact same parameters (besides the cursor)")
 
-// ErrInvalidCursor occurs when a cursor could not be decoded.
-type ErrInvalidCursor struct {
+// InvalidCursorError occurs when a cursor could not be decoded.
+type InvalidCursorError struct {
 	error
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrInvalidCursor) GRPCStatus() *status.Status {
+func (err InvalidCursorError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
@@ -42,5 +42,5 @@ func (err ErrInvalidCursor) GRPCStatus() *status.Status {
 
 // NewInvalidCursorErr creates and returns a new invalid cursor error.
 func NewInvalidCursorErr(err error) error {
-	return ErrInvalidCursor{err}
+	return InvalidCursorError{err}
 }

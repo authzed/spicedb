@@ -593,7 +593,7 @@ func (rwt *pgReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...stri
 	for _, nsName := range nsNames {
 		_, _, err := rwt.loadNamespace(ctx, nsName, querier, filterer)
 		switch {
-		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+		case errors.As(err, &datastore.NamespaceNotFoundError{}):
 			return err
 
 		case err == nil:

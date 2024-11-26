@@ -22,7 +22,7 @@ type importContext struct {
 
 const SchemaFileSuffix = ".zed"
 
-type ErrCircularImport struct {
+type CircularImportError struct {
 	error
 	filePath string
 }
@@ -38,7 +38,7 @@ func importFile(importContext importContext) (*CompiledSchema, error) {
 	if ok := currentLocallyVisitedFiles.Add(filePath); !ok {
 		// If we've already visited the file on this particular branch walk, it's
 		// a circular import issue.
-		return nil, &ErrCircularImport{
+		return nil, &CircularImportError{
 			error:    fmt.Errorf("circular import detected: %s has been visited on this branch", filePath),
 			filePath: filePath,
 		}

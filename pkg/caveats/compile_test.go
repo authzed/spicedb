@@ -199,7 +199,7 @@ func TestCompile(t *testing.T) {
 				require.Error(t, err)
 				require.Nil(t, compiled)
 
-				isCompilationError := errors.As(err, &CompilationErrors{})
+				isCompilationError := errors.As(err, &MultipleCompilationError{})
 				require.True(t, isCompilationError)
 
 				for _, expectedError := range tc.expectedErrors {

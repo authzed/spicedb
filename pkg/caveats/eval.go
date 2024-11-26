@@ -119,7 +119,7 @@ func EvaluateCaveatWithConfig(caveat *CompiledCaveat, contextValues map[string]a
 
 	val, details, err := prg.Eval(activation)
 	if err != nil {
-		return nil, EvaluationErr{err}
+		return nil, EvaluationError{err}
 	}
 
 	// If the value produced has Unknown type, then it means required context was missing.

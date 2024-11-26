@@ -198,9 +198,9 @@ func runExpressionWithCaveats(
 
 		result, err := caveats.EvaluateCaveat(compiled, typedParameters)
 		if err != nil {
-			var evalErr caveats.EvaluationErr
+			var evalErr caveats.EvaluationError
 			if errors.As(err, &evalErr) {
-				return nil, NewEvaluationErr(expr, evalErr)
+				return nil, NewEvaluationError(expr, evalErr)
 			}
 
 			return nil, err

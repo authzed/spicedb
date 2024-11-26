@@ -14,9 +14,9 @@ type SourcePosition struct {
 	ColumnPosition int
 }
 
-// ErrorWithSource is an error that includes the source text and position
+// WithSourceError is an error that includes the source text and position
 // information.
-type ErrorWithSource struct {
+type WithSourceError struct {
 	error
 
 	// SourceCodeString is the input source code string for the error.
@@ -37,49 +37,49 @@ type HasMetadata interface {
 }
 
 // Unwrap returns the inner, wrapped error.
-func (err *ErrorWithSource) Unwrap() error {
+func (err *WithSourceError) Unwrap() error {
 	return err.error
 }
 
-// NewErrorWithSource creates and returns a new ErrorWithSource.
-func NewErrorWithSource(err error, sourceCodeString string, oneIndexedLineNumber uint64, oneIndexedColumnPosition uint64) *ErrorWithSource {
-	return &ErrorWithSource{err, sourceCodeString, oneIndexedLineNumber, oneIndexedColumnPosition}
+// NewWithSourceError creates and returns a new WithSourceError.
+func NewWithSourceError(err error, sourceCodeString string, oneIndexedLineNumber uint64, oneIndexedColumnPosition uint64) *WithSourceError {
+	return &WithSourceError{err, sourceCodeString, oneIndexedLineNumber, oneIndexedColumnPosition}
 }
 
-// AsErrorWithSource returns the error as an ErrorWithSource, if applicable.
-func AsErrorWithSource(err error) (*ErrorWithSource, bool) {
-	var serr *ErrorWithSource
+// AsWithSourceError returns the error as an WithSourceError, if applicable.
+func AsWithSourceError(err error) (*WithSourceError, bool) {
+	var serr *WithSourceError
 	if errors.As(err, &serr) {
 		return serr, true
 	}
 	return nil, false
 }
 
-// ErrorWithAdditionalDetails is an error that includes additional details.
-type ErrorWithAdditionalDetails struct {
+// WithAdditionalDetailsError is an error that includes additional details.
+type WithAdditionalDetailsError struct {
 	error
 
 	// AdditionalDetails is a map of additional details for the error.
 	AdditionalDetails map[string]string
 }
 
-func NewErrorWithAdditionalDetails(err error) *ErrorWithAdditionalDetails {
-	return &ErrorWithAdditionalDetails{err, nil}
+func NewWithAdditionalDetailsError(err error) *WithAdditionalDetailsError {
+	return &WithAdditionalDetailsError{err, nil}
 }
 
 // Unwrap returns the inner, wrapped error.
-func (err *ErrorWithAdditionalDetails) Unwrap() error {
+func (err *WithAdditionalDetailsError) Unwrap() error {
 	return err.error
 }
 
-func (err *ErrorWithAdditionalDetails) WithAdditionalDetails(key string, value string) {
+func (err *WithAdditionalDetailsError) WithAdditionalDetails(key string, value string) {
 	if err.AdditionalDetails == nil {
 		err.AdditionalDetails = make(map[string]string)
 	}
 	err.AdditionalDetails[key] = value
 }
 
-func (err *ErrorWithAdditionalDetails) AddToDetails(details map[string]string) map[string]string {
+func (err *WithAdditionalDetailsError) AddToDetails(details map[string]string) map[string]string {
 	if err.AdditionalDetails != nil {
 		maps.Copy(details, err.AdditionalDetails)
 	}

@@ -19,9 +19,9 @@ import (
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
-// ErrInvalidSubjectType indicates that a write was attempted with a subject type which is not
+// InvalidSubjectTypeError indicates that a write was attempted with a subject type which is not
 // allowed on relation.
-type ErrInvalidSubjectType struct {
+type InvalidSubjectTypeError struct {
 	error
 	relationship      tuple.Relationship
 	relationType      *core.AllowedRelation
@@ -54,7 +54,7 @@ func NewInvalidSubjectTypeError(
 		}
 
 		if !allowedCaveatsForSubject.IsEmpty() {
-			return ErrInvalidSubjectType{
+			return InvalidSubjectTypeError{
 				error: fmt.Errorf(
 					"subjects of type `%s` are not allowed on relation `%s#%s` without one of the following caveats: %s",
 					typesystem.SourceForAllowedRelation(relationType),
@@ -79,7 +79,7 @@ func NewInvalidSubjectTypeError(
 	matches := fuzzy.RankFind(typesystem.SourceForAllowedRelation(relationType), allowedTypeStrings)
 	sort.Sort(matches)
 	if len(matches) > 0 {
-		return ErrInvalidSubjectType{
+		return InvalidSubjectTypeError{
 			error: fmt.Errorf(
 				"subjects of type `%s` are not allowed on relation `%s#%s`; did you mean `%s`?",
 				typesystem.SourceForAllowedRelation(relationType),
@@ -93,7 +93,7 @@ func NewInvalidSubjectTypeError(
 		}
 	}
 
-	return ErrInvalidSubjectType{
+	return InvalidSubjectTypeError{
 		error: fmt.Errorf(
 			"subjects of type `%s` are not allowed on relation `%s#%s`",
 			typesystem.SourceForAllowedRelation(relationType),
@@ -107,7 +107,7 @@ func NewInvalidSubjectTypeError(
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrInvalidSubjectType) GRPCStatus() *status.Status {
+func (err InvalidSubjectTypeError) GRPCStatus() *status.Status {
 	details := map[string]string{
 		"definition_name": err.relationship.Resource.ObjectType,
 		"relation_name":   err.relationship.Resource.Relation,
@@ -128,15 +128,15 @@ func (err ErrInvalidSubjectType) GRPCStatus() *status.Status {
 	)
 }
 
-// ErrCannotWriteToPermission indicates that a write was attempted on a permission.
-type ErrCannotWriteToPermission struct {
+// CannotWriteToPermissionError indicates that a write was attempted on a permission.
+type CannotWriteToPermissionError struct {
 	error
 	rel tuple.Relationship
 }
 
 // NewCannotWriteToPermissionError constructs a new error for attempting to write to a permission.
-func NewCannotWriteToPermissionError(rel tuple.Relationship) ErrCannotWriteToPermission {
-	return ErrCannotWriteToPermission{
+func NewCannotWriteToPermissionError(rel tuple.Relationship) CannotWriteToPermissionError {
+	return CannotWriteToPermissionError{
 		error: fmt.Errorf(
 			"cannot write a relationship to permission `%s` under definition `%s`",
 			rel.Resource.Relation,
@@ -147,7 +147,7 @@ func NewCannotWriteToPermissionError(rel tuple.Relationship) ErrCannotWriteToPer
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrCannotWriteToPermission) GRPCStatus() *status.Status {
+func (err CannotWriteToPermissionError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
@@ -161,15 +161,15 @@ func (err ErrCannotWriteToPermission) GRPCStatus() *status.Status {
 	)
 }
 
-// ErrCaveatNotFound indicates that a caveat referenced in a relationship update was not found.
-type ErrCaveatNotFound struct {
+// CaveatNotFoundError indicates that a caveat referenced in a relationship update was not found.
+type CaveatNotFoundError struct {
 	error
 	relationship tuple.Relationship
 }
 
 // NewCaveatNotFoundError constructs a new caveat not found error.
-func NewCaveatNotFoundError(relationship tuple.Relationship) ErrCaveatNotFound {
-	return ErrCaveatNotFound{
+func NewCaveatNotFoundError(relationship tuple.Relationship) CaveatNotFoundError {
+	return CaveatNotFoundError{
 		error: fmt.Errorf(
 			"the caveat `%s` was not found for relationship `%s`",
 			relationship.OptionalCaveat.CaveatName,
@@ -180,7 +180,7 @@ func NewCaveatNotFoundError(relationship tuple.Relationship) ErrCaveatNotFound {
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrCaveatNotFound) GRPCStatus() *status.Status {
+func (err CaveatNotFoundError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.FailedPrecondition,

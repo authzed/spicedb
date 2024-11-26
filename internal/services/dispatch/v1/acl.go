@@ -105,7 +105,7 @@ func rewriteGraphError(ctx context.Context, err error) error {
 	case err == nil:
 		return nil
 
-	case errors.As(err, &graph.ErrAlwaysFail{}):
+	case errors.As(err, &graph.AlwaysFailError{}):
 		fallthrough
 	default:
 		log.Ctx(ctx).Err(err).Msg("unexpected dispatch graph error")

@@ -241,7 +241,7 @@ func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 	rr.choose.Do(func() {
 		// If the revision is not known to the replica, use the primary instead.
 		if err := rr.replica.CheckRevision(ctx, rr.rev); err != nil {
-			var irr datastore.ErrInvalidRevision
+			var irr datastore.InvalidRevisionError
 			if errors.As(err, &irr) {
 				if irr.Reason() == datastore.CouldNotDetermineRevision {
 					log.Trace().Str("revision", rr.rev.String()).Err(err).Msg("replica does not contain the requested revision, using primary")

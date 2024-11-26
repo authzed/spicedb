@@ -130,7 +130,7 @@ func CompileCaveatWithSource(env *Environment, name string, source common.Source
 	ast, issues := celEnv.CompileSource(source)
 	if issues != nil && issues.Err() != nil {
 		if startPosition == nil {
-			return nil, CompilationErrors{issues.Err(), issues}
+			return nil, MultipleCompilationError{issues.Err(), issues}
 		}
 
 		// Construct errors with the source location adjusted based on the starting source position
@@ -164,11 +164,11 @@ func CompileCaveatWithSource(env *Environment, name string, source common.Source
 		}
 
 		adjustedIssues := cel.NewIssues(adjustedErrors)
-		return nil, CompilationErrors{adjustedIssues.Err(), adjustedIssues}
+		return nil, MultipleCompilationError{adjustedIssues.Err(), adjustedIssues}
 	}
 
 	if ast.OutputType() != cel.BoolType {
-		return nil, CompilationErrors{fmt.Errorf("caveat expression must result in a boolean value: found `%s`", ast.OutputType().String()), nil}
+		return nil, MultipleCompilationError{fmt.Errorf("caveat expression must result in a boolean value: found `%s`", ast.OutputType().String()), nil}
 	}
 
 	compiled := &CompiledCaveat{celEnv, ast, anonymousCaveat}

@@ -453,7 +453,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 		baseQuery := rwt.ReadNamespaceQuery.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 		_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
 		switch {
-		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+		case errors.As(err, &datastore.NamespaceNotFoundError{}):
 			// TODO(jzelinskie): return the name of the missing namespace
 			return err
 		case err == nil:

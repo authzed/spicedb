@@ -20,7 +20,7 @@ func CompileSchema(schema string) (*compiler.CompiledSchema, *devinterface.Devel
 		SchemaString: schema,
 	}, compiler.AllowUnprefixedObjectType())
 
-	var contextError compiler.ErrorWithContext
+	var contextError compiler.WithContextError
 	if errors.As(err, &contextError) {
 		line, col, lerr := contextError.SourceRange.Start().LineAndColumn()
 		if lerr != nil {

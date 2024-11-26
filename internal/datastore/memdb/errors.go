@@ -9,21 +9,21 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
-// ErrSerializationMaxRetriesReached occurs when a write request has reached its maximum number
+// SerializationMaxRetriesReachedError occurs when a write request has reached its maximum number
 // of retries due to serialization errors.
-type ErrSerializationMaxRetriesReached struct {
+type SerializationMaxRetriesReachedError struct {
 	error
 }
 
 // NewSerializationMaxRetriesReachedErr constructs a new max retries reached error.
 func NewSerializationMaxRetriesReachedErr(baseErr error) error {
-	return ErrSerializationMaxRetriesReached{
+	return SerializationMaxRetriesReachedError{
 		error: baseErr,
 	}
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrSerializationMaxRetriesReached) GRPCStatus() *status.Status {
+func (err SerializationMaxRetriesReachedError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.DeadlineExceeded,

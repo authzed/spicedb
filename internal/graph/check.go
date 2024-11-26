@@ -600,7 +600,7 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 		ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 		err := namespace.CheckNamespaceAndRelation(ctx, targetRR.Namespace, targetRR.Relation, true, ds)
 		if err != nil {
-			if errors.As(err, &namespace.ErrRelationNotFound{}) {
+			if errors.As(err, &namespace.RelationNotFoundError{}) {
 				return noMembers()
 			}
 
