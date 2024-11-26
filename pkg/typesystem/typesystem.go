@@ -269,8 +269,8 @@ func (nts *TypeSystem) HasAllowedRelation(sourceRelationName string, toCheck *co
 	return AllowedRelationNotValid, nil
 }
 
-// AllowedDirectRelationsAndWildcards returns the allowed subject relations for a source relation. Note that this function will return
-// wildcards.
+// AllowedDirectRelationsAndWildcards returns the allowed subject relations for a source relation.
+// Note that this function will return wildcards.
 func (nts *TypeSystem) AllowedDirectRelationsAndWildcards(sourceRelationName string) ([]*core.AllowedRelation, error) {
 	found, ok := nts.relationMap[sourceRelationName]
 	if !ok {
@@ -286,7 +286,7 @@ func (nts *TypeSystem) AllowedDirectRelationsAndWildcards(sourceRelationName str
 }
 
 // AllowedSubjectRelations returns the allowed subject relations for a source relation. Note that this function will *not*
-// return wildcards.
+// return wildcards, and returns without the marked caveats and expiration.
 func (nts *TypeSystem) AllowedSubjectRelations(sourceRelationName string) ([]*core.RelationReference, error) {
 	allowedDirect, err := nts.AllowedDirectRelationsAndWildcards(sourceRelationName)
 	if err != nil {
@@ -645,21 +645,36 @@ func (nts *TypeSystem) Validate(ctx context.Context) (*ValidatedNamespaceTypeSys
 
 // SourceForAllowedRelation returns the source code representation of an allowed relation.
 func SourceForAllowedRelation(allowedRelation *core.AllowedRelation) string {
-	caveatStr := ""
+	caveatAndTraitsStr := ""
 
-	if allowedRelation.GetRequiredCaveat() != nil {
-		caveatStr = " with " + allowedRelation.RequiredCaveat.CaveatName
+	hasCaveat := allowedRelation.GetRequiredCaveat() != nil
+	hasExpirationTrait := allowedRelation.GetRequiredExpiration() != nil
+	hasTraits := hasCaveat || hasExpirationTrait
+
+	if hasTraits {
+		caveatAndTraitsStr = " with "
+		if hasCaveat {
+			caveatAndTraitsStr += allowedRelation.RequiredCaveat.CaveatName
+		}
+
+		if hasCaveat && hasExpirationTrait {
+			caveatAndTraitsStr += " and "
+		}
+
+		if hasExpirationTrait {
+			caveatAndTraitsStr += "expiration"
+		}
 	}
 
 	if allowedRelation.GetPublicWildcard() != nil {
-		return tuple.JoinObjectRef(allowedRelation.Namespace, "*") + caveatStr
+		return tuple.JoinObjectRef(allowedRelation.Namespace, "*") + caveatAndTraitsStr
 	}
 
 	if rel := allowedRelation.GetRelation(); rel != tuple.Ellipsis {
-		return tuple.JoinRelRef(allowedRelation.Namespace, rel) + caveatStr
+		return tuple.JoinRelRef(allowedRelation.Namespace, rel) + caveatAndTraitsStr
 	}
 
-	return allowedRelation.Namespace + caveatStr
+	return allowedRelation.Namespace + caveatAndTraitsStr
 }
 
 // TypeSystemForNamespace returns a type system for the given namespace.

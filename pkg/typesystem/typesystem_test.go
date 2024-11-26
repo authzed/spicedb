@@ -349,6 +349,66 @@ func TestTypeSystem(t *testing.T) {
 			},
 			"",
 		},
+		{
+			"valid expiration",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("viewer", nil,
+					ns.AllowedRelationWithExpiration("user", "..."),
+					ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("definedcaveat")),
+				),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+				ns.Namespace("team",
+					ns.MustRelation("member", nil),
+				),
+			},
+			[]*core.CaveatDefinition{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"",
+		},
+		{
+			"duplicate expiration",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("viewer", nil,
+					ns.AllowedRelationWithExpiration("user", "..."),
+					ns.AllowedRelationWithExpiration("user", "..."),
+				),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+				ns.Namespace("team",
+					ns.MustRelation("member", nil),
+				),
+			},
+			[]*core.CaveatDefinition{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"found duplicate allowed subject type `user with expiration` on relation `viewer` under definition `document`",
+		},
+		{
+			"non-duplicate expiration",
+			ns.Namespace(
+				"document",
+				ns.MustRelation("viewer", nil,
+					ns.AllowedRelationWithExpiration("user", "..."),
+					ns.AllowedRelationWithExpiration("team", "..."),
+				),
+			),
+			[]*core.NamespaceDefinition{
+				ns.Namespace("user"),
+				ns.Namespace("team",
+					ns.MustRelation("member", nil),
+				),
+			},
+			[]*core.CaveatDefinition{
+				ns.MustCaveatDefinition(emptyEnv, "definedcaveat", "1 == 2"),
+			},
+			"",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -752,9 +812,11 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelation("user", "..."))))
 						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelation("user", "..."))))
 						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("onlycaveated", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithExpiration("user", "..."))))
 
 						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
 						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("onlycaveated", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("onlycaveated", ns.AllowedRelationWithCaveatAndExpiration("user", "...", ns.AllowedCaveat("somecaveat")))))
 					})
 
 					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
@@ -786,6 +848,88 @@ func TestTypeSystemAccessors(t *testing.T) {
 				},
 			},
 		},
+		{
+			"schema with expiration",
+			`use expiration
+			
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation editor: user with expiration
+				relation viewer: user | user with somecaveat | user with expiration | user with somecaveat and expiration
+			}`,
+			map[string]tsTester{
+				"resource": func(t *testing.T, vts *ValidatedNamespaceTypeSystem) {
+					t.Run("IsPermission", func(t *testing.T) {
+						require.False(t, vts.IsPermission("editor"))
+						require.False(t, vts.IsPermission("viewer"))
+					})
+
+					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						require.NoError(t, err)
+						require.True(t, ok)
+
+						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+						require.NoError(t, err)
+						require.False(t, ok)
+					})
+
+					t.Run("IsAllowedPublicNamespace", func(t *testing.T) {
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("editor", "user")))
+						require.Equal(t, PublicSubjectNotAllowed, noError(vts.IsAllowedPublicNamespace("viewer", "user")))
+					})
+
+					t.Run("IsAllowedDirectNamespace", func(t *testing.T) {
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("editor", "user")))
+						require.Equal(t, AllowedNamespaceValid, noError(vts.IsAllowedDirectNamespace("viewer", "user")))
+					})
+
+					t.Run("IsAllowedDirectRelation", func(t *testing.T) {
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("editor", "user", "...")))
+						require.Equal(t, DirectRelationValid, noError(vts.IsAllowedDirectRelation("viewer", "user", "...")))
+					})
+
+					t.Run("HasAllowedRelation", func(t *testing.T) {
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelationWithExpiration("user", "..."))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationNotValid, noError(vts.HasAllowedRelation("editor", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelation("user", "..."))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat")))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithExpiration("user", "..."))))
+						require.Equal(t, AllowedRelationValid, noError(vts.HasAllowedRelation("viewer", ns.AllowedRelationWithCaveatAndExpiration("user", "...", ns.AllowedCaveat("somecaveat")))))
+					})
+
+					t.Run("AllowedDirectRelationsAndWildcards", func(t *testing.T) {
+						userDirect := ns.AllowedRelation("user", "...")
+						caveatedUser := ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("somecaveat"))
+						expiringUser := ns.AllowedRelationWithExpiration("user", "...")
+						expiringCaveatedUser := ns.AllowedRelationWithCaveatAndExpiration("user", "...", ns.AllowedCaveat("somecaveat"))
+
+						allowed := noError(vts.AllowedDirectRelationsAndWildcards("editor"))
+						requireSameAllowedRelations(t, allowed, expiringUser)
+
+						allowed = noError(vts.AllowedDirectRelationsAndWildcards("viewer"))
+						requireSameAllowedRelations(t, allowed, userDirect, caveatedUser, expiringUser, expiringCaveatedUser)
+					})
+
+					t.Run("AllowedSubjectRelations", func(t *testing.T) {
+						userDirect := ns.RelationReference("user", "...")
+
+						allowed := noError(vts.AllowedSubjectRelations("editor"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+
+						allowed = noError(vts.AllowedSubjectRelations("viewer"))
+						requireSameSubjectRelations(t, allowed, userDirect)
+					})
+				},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -801,7 +945,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
 				SchemaString: tc.schema,
-			}, compiler.AllowUnprefixedObjectType())
+			}, compiler.AllowUnprefixedObjectType(), compiler.AllowExpirationUseFlag())
 			require.NoError(err)
 
 			lastRevision, err := ds.HeadRevision(context.Background())
