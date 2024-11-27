@@ -405,7 +405,7 @@ definition document {
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source(test.name),
 				SchemaString: test.input,
-			}, compiler.AllowUnprefixedObjectType(), compiler.AllowExpirationUseFlag())
+			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
 			source, _, err := GenerateSchema(compiled.OrderedDefinitions)

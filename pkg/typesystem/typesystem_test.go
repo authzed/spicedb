@@ -945,7 +945,7 @@ func TestTypeSystemAccessors(t *testing.T) {
 			compiled, err := compiler.Compile(compiler.InputSchema{
 				Source:       input.Source("schema"),
 				SchemaString: tc.schema,
-			}, compiler.AllowUnprefixedObjectType(), compiler.AllowExpirationUseFlag())
+			}, compiler.AllowUnprefixedObjectType())
 			require.NoError(err)
 
 			lastRevision, err := ds.HeadRevision(context.Background())
