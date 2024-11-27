@@ -515,3 +515,35 @@ func TestMixedCaching(t *testing.T) {
 		})
 	}
 }
+
+// NOTE: This uses a full memdb datastore because we want to exercise
+// the cache behavior without mocking it.
+func TestInvalidEntriesInCache(t *testing.T) {
+	invalidNamespace := "invalid_namespace"
+
+	require := require.New(t)
+
+	ctx := context.Background()
+
+	memoryDatastore, err := memdb.NewMemdbDatastore(0, 1*time.Hour, 1*time.Hour)
+	require.NoError(err)
+	ds := NewCachingDatastoreProxy(memoryDatastore, DatastoreProxyTestCache(t), 1*time.Hour, JustInTimeCaching, 100*time.Millisecond)
+
+	headRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+	dsReader := ds.SnapshotReader(headRevision)
+
+	namespace, _, err := dsReader.ReadNamespaceByName(ctx, invalidNamespace)
+	require.Nil(namespace)
+	// NOTE: we're expecting this to error, because the namespace doesn't exist.
+	// However, the act of calling it sets the cache value to nil, which means that
+	// subsequent calls to the cache return that nil value. That's what needed to
+	// be filtered out of the list call.
+	require.Error(err)
+
+	// Look it up again - in the bug that this captures,
+	// it was populated into the cache and came back out.
+	found, err := dsReader.LookupNamespacesWithNames(ctx, []string{invalidNamespace})
+	require.Empty(found)
+	require.NoError(err)
+}
