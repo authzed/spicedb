@@ -768,7 +768,9 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
-	if a.caveat.CaveatName != "" {
+	if a.currentBatch[a.numSent].OptionalCaveat != nil {
+		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName
+		a.caveat.Context = a.currentBatch[a.numSent].OptionalCaveat.Context
 		a.current.OptionalCaveat = &a.caveat
 	} else {
 		a.current.OptionalCaveat = nil

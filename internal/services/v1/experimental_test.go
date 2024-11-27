@@ -53,63 +53,79 @@ func TestBulkImportRelationships(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require := require.New(t)
+			for _, withCaveats := range []bool{true, false} {
+				withCaveats := withCaveats
+				t.Run(fmt.Sprintf("withCaveats=%t", withCaveats), func(t *testing.T) {
+					require := require.New(t)
 
-			conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
-			client := v1.NewExperimentalServiceClient(conn)
-			t.Cleanup(cleanup)
+					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
+					client := v1.NewExperimentalServiceClient(conn)
+					t.Cleanup(cleanup)
 
-			ctx := context.Background()
+					ctx := context.Background()
 
-			writer, err := client.BulkImportRelationships(ctx)
-			require.NoError(err)
+					writer, err := client.BulkImportRelationships(ctx)
+					require.NoError(err)
 
-			var expectedTotal uint64
-			for batchNum := 0; batchNum < tc.numBatches; batchNum++ {
-				batchSize := tc.batchSize()
-				batch := make([]*v1.Relationship, 0, batchSize)
+					var expectedTotal uint64
+					for batchNum := 0; batchNum < tc.numBatches; batchNum++ {
+						batchSize := tc.batchSize()
+						batch := make([]*v1.Relationship, 0, batchSize)
 
-				for i := uint64(0); i < batchSize; i++ {
-					batch = append(batch, rel(
-						tf.DocumentNS.Name,
-						strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
-						"viewer",
-						tf.UserNS.Name,
-						strconv.FormatUint(i, 10),
-						"",
-					))
-				}
+						for i := uint64(0); i < batchSize; i++ {
+							if withCaveats {
+								batch = append(batch, relWithCaveat(
+									tf.DocumentNS.Name,
+									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
+									"caveated_viewer",
+									tf.UserNS.Name,
+									strconv.FormatUint(i, 10),
+									"",
+									"test",
+								))
+							} else {
+								batch = append(batch, rel(
+									tf.DocumentNS.Name,
+									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
+									"viewer",
+									tf.UserNS.Name,
+									strconv.FormatUint(i, 10),
+									"",
+								))
+							}
+						}
 
-				err := writer.Send(&v1.BulkImportRelationshipsRequest{
-					Relationships: batch,
+						err := writer.Send(&v1.BulkImportRelationshipsRequest{
+							Relationships: batch,
+						})
+						require.NoError(err)
+
+						expectedTotal += batchSize
+					}
+
+					resp, err := writer.CloseAndRecv()
+					require.NoError(err)
+					require.Equal(expectedTotal, resp.NumLoaded)
+
+					readerClient := v1.NewPermissionsServiceClient(conn)
+					stream, err := readerClient.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: tf.DocumentNS.Name,
+						},
+						Consistency: &v1.Consistency{
+							Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+						},
+					})
+					require.NoError(err)
+
+					var readBack uint64
+					for _, err = stream.Recv(); err == nil; _, err = stream.Recv() {
+						readBack++
+					}
+					require.ErrorIs(err, io.EOF)
+					require.Equal(expectedTotal, readBack)
 				})
-				require.NoError(err)
-
-				expectedTotal += batchSize
 			}
-
-			resp, err := writer.CloseAndRecv()
-			require.NoError(err)
-			require.Equal(expectedTotal, resp.NumLoaded)
-
-			readerClient := v1.NewPermissionsServiceClient(conn)
-			stream, err := readerClient.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
-				RelationshipFilter: &v1.RelationshipFilter{
-					ResourceType: tf.DocumentNS.Name,
-				},
-				Consistency: &v1.Consistency{
-					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
-				},
-			})
-			require.NoError(err)
-
-			var readBack uint64
-			for _, err = stream.Recv(); err == nil; _, err = stream.Recv() {
-				readBack++
-			}
-			require.ErrorIs(err, io.EOF)
-			require.Equal(expectedTotal, readBack)
 		})
 	}
 }
