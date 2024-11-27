@@ -388,6 +388,7 @@ func sanityCheckNamespaceChanges(
 			var optionalSubjectIds []string
 			var relationFilter datastore.SubjectRelationFilter
 			optionalCaveatName := ""
+			expirationOption := datastore.ExpirationFilterOptionNoExpiration
 
 			if delta.AllowedType.GetPublicWildcard() != nil {
 				optionalSubjectIds = []string{tuple.PublicWildcard}
@@ -399,6 +400,12 @@ func sanityCheckNamespaceChanges(
 
 			if delta.AllowedType.GetRequiredCaveat() != nil {
 				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
+			}
+
+			if delta.AllowedType.RequiredExpiration != nil {
+				expirationOption = datastore.ExpirationFilterOptionHasExpiration
+			} else {
+				expirationOption = datastore.ExpirationFilterOptionNoExpiration
 			}
 
 			qyr, qyrErr := rwt.QueryRelationships(
@@ -413,7 +420,8 @@ func sanityCheckNamespaceChanges(
 							RelationFilter:      relationFilter,
 						},
 					},
-					OptionalCaveatName: optionalCaveatName,
+					OptionalCaveatName:       optionalCaveatName,
+					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
 			)

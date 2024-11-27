@@ -140,6 +140,7 @@ func (r *memdbReader) QueryRelationships(
 		filter.OptionalResourceRelation,
 		filter.OptionalSubjectsSelectors,
 		filter.OptionalCaveatName,
+		filter.OptionalExpirationOption,
 		makeCursorFilterFn(queryOpts.After, queryOpts.Sort),
 	)
 	filteredIterator := memdb.NewFilterIterator(bestIterator, matchingRelationshipsFilterFunc)
@@ -202,6 +203,7 @@ func (r *memdbReader) ReverseQueryRelationships(
 		filterRelation,
 		[]datastore.SubjectsSelector{subjectsFilter.AsSelector()},
 		"",
+		datastore.ExpirationFilterOptionNone,
 		makeCursorFilterFn(queryOpts.AfterForReverse, queryOpts.SortForReverse),
 	)
 	filteredIterator := memdb.NewFilterIterator(iterator, matchingRelationshipsFilterFunc)
@@ -386,6 +388,7 @@ func filterFuncForFilters(
 	optionalRelation string,
 	optionalSubjectsSelectors []datastore.SubjectsSelector,
 	optionalCaveatFilter string,
+	optionalExpirationFilter datastore.ExpirationFilterOption,
 	cursorFilter func(*relationship) bool,
 ) memdb.FilterFunc {
 	return func(tupleRaw interface{}) bool {
@@ -401,6 +404,10 @@ func filterFuncForFilters(
 		case optionalRelation != "" && optionalRelation != tuple.relation:
 			return true
 		case optionalCaveatFilter != "" && (tuple.caveat == nil || tuple.caveat.caveatName != optionalCaveatFilter):
+			return true
+		case optionalExpirationFilter == datastore.ExpirationFilterOptionHasExpiration && tuple.expiration == nil:
+			return true
+		case optionalExpirationFilter == datastore.ExpirationFilterOptionNoExpiration && tuple.expiration != nil:
 			return true
 		}
 

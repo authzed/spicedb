@@ -1367,6 +1367,36 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 				"document:first#expiring_viewer@user:sarah[expiration:2900-01-02T01:02:03Z]",
 			},
 		},
+		{
+			name: "relationship expiration filtered by expiration required",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalExpirationOption: datastore.ExpirationFilterOptionHasExpiration,
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first#expiring_viewer@user:fred[expiration:2021-01-01T00:00:00Z]",
+				"document:first#expiring_viewer@user:sarah[expiration:2900-01-02T01:02:03Z]",
+			},
+			expected: []string{
+				"document:first#expiring_viewer@user:sarah[expiration:2900-01-02T01:02:03Z]",
+			},
+		},
+		{
+			name: "relationship expiration filtered by expiration disallowed",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType:     "document",
+				OptionalExpirationOption: datastore.ExpirationFilterOptionNoExpiration,
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first#expiring_viewer@user:fred[expiration:2021-01-01T00:00:00Z]",
+				"document:first#expiring_viewer@user:sarah[expiration:2900-01-02T01:02:03Z]",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+			},
+		},
 	}
 
 	for _, tc := range tcs {
