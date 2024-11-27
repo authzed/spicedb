@@ -239,6 +239,34 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			core.RelationTupleUpdate_CREATE,
 			"subjects of type `user` are not allowed on relation `resource#viewer`; did you mean `user#member`?",
 		},
+		{
+			"expiration fail test",
+			`
+			use expiration
+
+			definition user {}
+
+			definition resource {
+				relation viewer: user with expiration
+			}`,
+			"resource:foo#viewer@user:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user` are not allowed on relation `resource#viewer`; did you mean `user with expiration`?",
+		},
+		{
+			"expiration success test",
+			`
+			use expiration
+
+			definition user {}
+
+			definition resource {
+				relation viewer: user with expiration
+			}`,
+			"resource:foo#viewer@user:tom[expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"",
+		},
 	}
 
 	for _, tc := range tcs {

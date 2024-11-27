@@ -198,6 +198,10 @@ func ValidateOneRelationship(
 			caveat)
 	}
 
+	if rel.OptionalExpiration != nil {
+		relationToCheck = ns.WithExpiration(relationToCheck)
+	}
+
 	switch {
 	case rule == ValidateRelationshipForCreateOrTouch || caveat != nil:
 		// For writing or when the caveat was specified, the caveat must be a direct match.
