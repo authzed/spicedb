@@ -260,7 +260,11 @@ func validateRelationshipReads(t *testing.T, vctx validationContext) {
 			foundRelationshipsSet.Insert(tuple.MustString(rel))
 		}
 
-		require.True(t, foundRelationshipsSet.Has(tuple.MustString(relationship)), "missing expected relationship %s in read results: %s", tuple.MustString(relationship), foundRelationshipsSet.AsSlice())
+		if relationship.OptionalExpiration != nil && relationship.OptionalExpiration.Before(time.Now()) {
+			require.False(t, foundRelationshipsSet.Has(tuple.MustString(relationship)), "found unexpected expired relationship %s in read results: %s", tuple.MustString(relationship), foundRelationshipsSet.AsSlice())
+		} else {
+			require.True(t, foundRelationshipsSet.Has(tuple.MustString(relationship)), "missing expected relationship %s in read results: %s", tuple.MustString(relationship), foundRelationshipsSet.AsSlice())
+		}
 	})
 }
 
@@ -767,8 +771,10 @@ func validateDevelopment(t *testing.T, vctx validationContext) {
 		Relationships: rels,
 	}
 
-	devContext, _, err := development.NewDevContext(context.Background(), reqContext)
+	devContext, devErr, err := development.NewDevContext(context.Background(), reqContext)
 	require.NoError(t, err)
+	require.Nil(t, devErr, "dev error: %v", devErr)
+	require.NotNil(t, devContext)
 
 	// Validate checks.
 	validateDevelopmentChecks(t, devContext, vctx)
@@ -788,6 +794,7 @@ func validateDevelopmentChecks(t *testing.T, devContext *development.DevContext,
 			for _, subject := range vctx.accessibilitySet.AllSubjectsNoWildcards() {
 				subject := subject
 				t.Run(tuple.StringONR(subject), func(t *testing.T) {
+					require.NotNil(t, devContext)
 					cr, err := development.RunCheck(devContext, resource, subject, nil)
 					require.NoError(t, err, "Got unexpected error from development check")
 

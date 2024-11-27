@@ -295,14 +295,6 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 	// Check for duplicate updates and create the set of caveat names to load.
 	updateRelationshipSet := mapz.NewSet[string]()
 	for _, update := range req.Updates {
-		// TODO(jschorr): Remove this once expiration is supported.
-		if update.Relationship.OptionalExpiresAt != nil {
-			return nil, ps.rewriteError(
-				ctx,
-				fmt.Errorf("expiration is not supported in this version of the API"),
-			)
-		}
-
 		// TODO(jschorr): Change to struct-based keys.
 		tupleStr := tuple.V1StringRelationshipWithoutCaveatOrExpiration(update.Relationship)
 		if !updateRelationshipSet.Add(tupleStr) {

@@ -1,0 +1,20 @@
+---
+schema: |+
+  use expiration
+
+  definition user {}
+
+  definition document {
+    relation viewer: user with expiration
+    permission view = viewer
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tracy[expiration:2023-12-01T00:00:00Z]
+
+  document:firstdoc#viewer@user:tom[expiration:2323-12-01T00:00:00Z]
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:tom"
+  assertFalse:
+    - "document:firstdoc#view@user:tracy"
