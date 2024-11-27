@@ -785,6 +785,13 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
 	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
 
+	if a.currentBatch[a.numSent].OptionalExpiresAt != nil {
+		t := a.currentBatch[a.numSent].OptionalExpiresAt.AsTime()
+		a.current.OptionalExpiration = &t
+	} else {
+		a.current.OptionalExpiration = nil
+	}
+
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
 		a.referencedCaveatMap,

@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -630,6 +631,24 @@ func rel(resType, resID, relation, subType, subID, subRel string) *v1.Relationsh
 			},
 			OptionalRelation: subRel,
 		},
+	}
+}
+
+func relWithExpiration(resType, resID, relation, subType, subID, subRel string, expiration time.Time) *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalExpiresAt: timestamppb.New(expiration),
 	}
 }
 
