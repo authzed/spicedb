@@ -1,6 +1,8 @@
 package tuple
 
 import (
+	"time"
+
 	"google.golang.org/protobuf/proto"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -18,7 +20,19 @@ func ONREqualOrWildcard(onr, target ObjectAndRelation) bool {
 
 // Equal returns true if the two relationships are exactly the same.
 func Equal(lhs, rhs Relationship) bool {
-	return ONREqual(lhs.Resource, rhs.Resource) && ONREqual(lhs.Subject, rhs.Subject) && caveatEqual(lhs.OptionalCaveat, rhs.OptionalCaveat)
+	return ONREqual(lhs.Resource, rhs.Resource) && ONREqual(lhs.Subject, rhs.Subject) && caveatEqual(lhs.OptionalCaveat, rhs.OptionalCaveat) && expirationEqual(lhs.OptionalExpiration, rhs.OptionalExpiration)
+}
+
+func expirationEqual(lhs, rhs *time.Time) bool {
+	if lhs == nil && rhs == nil {
+		return true
+	}
+
+	if lhs == nil || rhs == nil {
+		return false
+	}
+
+	return lhs.Equal(*rhs)
 }
 
 func caveatEqual(lhs, rhs *core.ContextualizedCaveat) bool {

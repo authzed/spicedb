@@ -56,7 +56,7 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 
 		rel, err := tuple.Parse(trimmed)
 		if err != nil {
-			return spiceerrors.NewErrorWithSource(
+			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("error parsing relationship `%s`: %w", trimmed, err),
 				trimmed,
 				errorLine,
@@ -64,16 +64,16 @@ func (pr *ParsedRelationships) UnmarshalYAML(node *yamlv3.Node) error {
 			)
 		}
 
-		_, ok := seenTuples[tuple.StringWithoutCaveat(rel)]
+		_, ok := seenTuples[tuple.StringWithoutCaveatOrExpiration(rel)]
 		if ok {
-			return spiceerrors.NewErrorWithSource(
+			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("found repeated relationship `%s`", trimmed),
 				trimmed,
 				errorLine,
 				column,
 			)
 		}
-		seenTuples[tuple.StringWithoutCaveat(rel)] = true
+		seenTuples[tuple.StringWithoutCaveatOrExpiration(rel)] = true
 		relationships = append(relationships, rel)
 	}
 

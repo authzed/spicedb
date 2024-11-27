@@ -154,6 +154,12 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		a.currentBatch = batch.Relationships
 		a.numSent = 0
 
+		for _, rel := range batch.Relationships {
+			if rel.OptionalExpiresAt != nil {
+				return nil, fmt.Errorf("expiration time is not currently supported")
+			}
+		}
+
 		a.awaitingNamespaces, a.awaitingCaveats = extractBatchNewReferencedNamespacesAndCaveats(
 			a.currentBatch,
 			a.referencedNamespaceMap,
@@ -173,6 +179,7 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 	}
 
 	a.current.OptionalIntegrity = nil
+	a.current.OptionalExpiration = nil
 
 	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
 	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId

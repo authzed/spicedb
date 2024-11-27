@@ -166,7 +166,7 @@ func (cr *crdbReader) ReadNamespaceByName(
 ) (*core.NamespaceDefinition, datastore.Revision, error) {
 	config, timestamp, err := cr.loadNamespace(ctx, cr.query, nsName)
 	if err != nil {
-		if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
+		if errors.As(err, &datastore.NamespaceNotFoundError{}) {
 			return nil, datastore.NoRevision, err
 		}
 		return nil, datastore.NoRevision, fmt.Errorf(errUnableToReadConfig, err)

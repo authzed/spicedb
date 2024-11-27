@@ -242,7 +242,7 @@ func (ce *ConcurrentExpander) expandComputedUserset(ctx context.Context, req Val
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(req.Revision)
 	err := namespace.CheckNamespaceAndRelation(ctx, start.ObjectType, cu.Relation, true, ds)
 	if err != nil {
-		if errors.As(err, &namespace.ErrRelationNotFound{}) {
+		if errors.As(err, &namespace.RelationNotFoundError{}) {
 			return emptyExpansion(req.ResourceAndRelation)
 		}
 

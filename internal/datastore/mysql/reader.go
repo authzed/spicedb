@@ -220,7 +220,7 @@ func (mr *mysqlReader) ReadNamespaceByName(ctx context.Context, nsName string) (
 
 	loaded, version, err := loadNamespace(ctx, nsName, tx, mr.filterer(mr.ReadNamespaceQuery))
 	switch {
-	case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+	case errors.As(err, &datastore.NamespaceNotFoundError{}):
 		return nil, datastore.NoRevision, err
 	case err == nil:
 		return loaded, version, nil

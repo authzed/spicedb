@@ -111,7 +111,7 @@ relationships: >-
   document:firstdoc#reader#user:fred
 `))
 
-	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdocwriter@user:tom`: invalid relationship string")
@@ -128,7 +128,7 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string")
@@ -151,7 +151,7 @@ relationships: >-
   document:firstdoc#readeruser:fred
 `))
 
-	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "error parsing relationship `document:firstdoc#readeruser:fred`: invalid relationship string")
@@ -175,7 +175,7 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "unexpected value `asdkjha`")
@@ -199,7 +199,7 @@ assertions:
     - document:seconddoc#view@user:fred
 `))
 
-	errWithSource, ok := spiceerrors.AsErrorWithSource(err)
+	errWithSource, ok := spiceerrors.AsWithSourceError(err)
 	require.True(t, ok)
 
 	require.Equal(t, err.Error(), "unexpected value `asdk`")

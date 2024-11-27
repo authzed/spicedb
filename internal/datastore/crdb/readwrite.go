@@ -477,7 +477,7 @@ func (rwt *crdbReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...st
 	for _, nsName := range nsNames {
 		_, timestamp, err := rwt.loadNamespace(ctx, querier, nsName)
 		if err != nil {
-			if errors.As(err, &datastore.ErrNamespaceNotFound{}) {
+			if errors.As(err, &datastore.NamespaceNotFoundError{}) {
 				return err
 			}
 			return fmt.Errorf(errUnableToDeleteConfig, err)

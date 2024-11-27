@@ -92,7 +92,7 @@ var testers = []testerDef{
 			return schemaDefs, nil
 		},
 
-		datastore.ErrNamespaceNotFound{},
+		datastore.NamespaceNotFoundError{},
 
 		"WriteNamespaces",
 		func(rwt datastore.ReadWriteTransaction, def datastore.SchemaDefinition) error {
@@ -127,7 +127,7 @@ var testers = []testerDef{
 			return schemaDefs, nil
 		},
 
-		datastore.ErrCaveatNameNotFound{},
+		datastore.CaveatNameNotFoundError{},
 
 		"WriteCaveats",
 		func(rwt datastore.ReadWriteTransaction, def datastore.SchemaDefinition) error {

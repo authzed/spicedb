@@ -188,7 +188,7 @@ func withDatastoreCursorInCursor[T any, Q any](
 		cursorRel := options.ToRelationship(itemsToBeProcessed[taskIndex].cursor)
 		cursorSection := ""
 		if cursorRel != nil {
-			cursorSection = tuple.StringWithoutCaveat(*cursorRel)
+			cursorSection = tuple.StringWithoutCaveatOrExpiration(*cursorRel)
 		}
 
 		currentCursor, err := ci.withOutgoingSection(cursorSection)

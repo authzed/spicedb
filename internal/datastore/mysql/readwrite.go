@@ -182,7 +182,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 	// Collect all TOUCH and DELETE operations. CREATE is handled below.
 	for _, mut := range mutations {
 		rel := mut.Relationship
-		relString := tuple.StringWithoutCaveat(rel)
+		relString := tuple.StringWithoutCaveatOrExpiration(rel)
 
 		switch mut.Operation {
 		case tuple.UpdateOperationCreate:
@@ -258,7 +258,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 
 			// if the relationship to be deleted is for a TOUCH operation and the caveat
 			// name or context has not changed, then remove it from delete and create.
-			tplString := tuple.StringWithoutCaveat(foundRel)
+			tplString := tuple.StringWithoutCaveatOrExpiration(foundRel)
 			if mut, ok := createAndTouchMutationsByRel[tplString]; ok {
 				foundRel.OptionalCaveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
 				if err != nil {
@@ -453,7 +453,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 		baseQuery := rwt.ReadNamespaceQuery.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
 		_, createdAt, err := loadNamespace(ctx, nsName, rwt.tx, baseQuery)
 		switch {
-		case errors.As(err, &datastore.ErrNamespaceNotFound{}):
+		case errors.As(err, &datastore.NamespaceNotFoundError{}):
 			// TODO(jzelinskie): return the name of the missing namespace
 			return err
 		case err == nil:

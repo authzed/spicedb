@@ -44,7 +44,7 @@ func NamespaceNotFoundTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 
 	_, _, err = ds.SnapshotReader(startRevision).ReadNamespaceByName(ctx, "unknown")
-	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
+	require.True(errors.As(err, &datastore.NamespaceNotFoundError{}))
 }
 
 // NamespaceWriteTest tests whether or not the requirements for writing
@@ -167,7 +167,7 @@ func NamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.True(deletedRev.GreaterThan(revision))
 
 	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.DocumentNS.Name)
-	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
+	require.True(errors.As(err, &datastore.NamespaceNotFoundError{}))
 
 	found, nsCreatedRev, err := ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.FolderNS.Name)
 	require.NotNil(found)
@@ -234,7 +234,7 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.True(deletedRev.GreaterThan(revision))
 
 	_, _, err = ds.SnapshotReader(deletedRev).ReadNamespaceByName(ctx, testfixtures.UserNS.Name)
-	require.True(errors.As(err, &datastore.ErrNamespaceNotFound{}))
+	require.True(errors.As(err, &datastore.NamespaceNotFoundError{}))
 }
 
 // StableNamespaceReadWriteTest tests writing a namespace to the datastore and reading it back,

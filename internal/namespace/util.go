@@ -11,8 +11,8 @@ import (
 // ReadNamespaceAndRelation checks that the specified namespace and relation exist in the
 // datastore.
 //
-// Returns ErrNamespaceNotFound if the namespace cannot be found.
-// Returns ErrRelationNotFound if the relation was not found in the namespace.
+// Returns NamespaceNotFoundError if the namespace cannot be found.
+// Returns RelationNotFoundError if the relation was not found in the namespace.
 // Returns the direct downstream error for all other unknown error.
 func ReadNamespaceAndRelation(
 	ctx context.Context,
@@ -48,8 +48,8 @@ type TypeAndRelationToCheck struct {
 
 // CheckNamespaceAndRelations ensures that the given namespace+relation checks all succeed. If any fail, returns an error.
 //
-// Returns ErrNamespaceNotFound if the namespace cannot be found.
-// Returns ErrRelationNotFound if the relation was not found in the namespace.
+// Returns NamespaceNotFoundError if the namespace cannot be found.
+// Returns RelationNotFoundError if the relation was not found in the namespace.
 // Returns the direct downstream error for all other unknown error.
 func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToCheck, ds datastore.Reader) error {
 	nsNames := mapz.NewSet[string]()
@@ -100,8 +100,8 @@ func CheckNamespaceAndRelations(ctx context.Context, checks []TypeAndRelationToC
 // CheckNamespaceAndRelation checks that the specified namespace and relation exist in the
 // datastore.
 //
-// Returns datastore.ErrNamespaceNotFound if the namespace cannot be found.
-// Returns ErrRelationNotFound if the relation was not found in the namespace.
+// Returns datastore.NamespaceNotFoundError if the namespace cannot be found.
+// Returns RelationNotFoundError if the relation was not found in the namespace.
 // Returns the direct downstream error for all other unknown error.
 func CheckNamespaceAndRelation(
 	ctx context.Context,

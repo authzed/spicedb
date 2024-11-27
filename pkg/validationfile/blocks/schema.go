@@ -37,7 +37,7 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 		SchemaString: ps.Schema,
 	}, compiler.AllowUnprefixedObjectType())
 	if err != nil {
-		var errWithContext compiler.ErrorWithContext
+		var errWithContext compiler.WithContextError
 		if errors.As(err, &errWithContext) {
 			line, col, lerr := errWithContext.SourceRange.Start().LineAndColumn()
 			if lerr != nil {
@@ -53,7 +53,7 @@ func (ps *ParsedSchema) UnmarshalYAML(node *yamlv3.Node) error {
 				return err
 			}
 
-			return spiceerrors.NewErrorWithSource(
+			return spiceerrors.NewWithSourceError(
 				fmt.Errorf("error when parsing schema: %s", errWithContext.BaseMessage),
 				errWithContext.ErrorSourceCode,
 				uintLine+1, // source line is 0-indexed

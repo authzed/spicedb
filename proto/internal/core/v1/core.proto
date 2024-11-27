@@ -20,6 +20,9 @@ message RelationTuple {
 
   /** integrity holds (optional) information about the integrity of the tuple */
   RelationshipIntegrity integrity = 4 [(validate.rules).message.required = false];
+
+  /** optional_expiration_time is the (optional) time at which the tuple expires */ 
+  google.protobuf.Timestamp optional_expiration_time = 5;
 }
 
 message RelationshipIntegrity {

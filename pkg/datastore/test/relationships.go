@@ -451,7 +451,7 @@ func InvalidReadsTest(t *testing.T, tester DatastoreTester) {
 		// Check that we get an error when there are no revisions
 		err = ds.CheckRevision(ctx, datastore.NoRevision)
 
-		revisionErr := datastore.ErrInvalidRevision{}
+		revisionErr := datastore.InvalidRevisionError{}
 		require.True(errors.As(err, &revisionErr))
 
 		newRel := makeTestRel("one", "one")

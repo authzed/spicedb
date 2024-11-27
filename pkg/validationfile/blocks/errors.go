@@ -35,7 +35,7 @@ func convertYamlError(err error) error {
 			message = fmt.Sprintf("unexpected value `%s`", source)
 		}
 
-		return spiceerrors.NewErrorWithSource(
+		return spiceerrors.NewWithSourceError(
 			errors.New(message),
 			source,
 			lineNumber,

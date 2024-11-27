@@ -73,7 +73,7 @@ func (ch *Changes[R, K]) AddRelationshipChange(
 		return err
 	}
 
-	key := tuple.StringWithoutCaveat(rel)
+	key := tuple.StringWithoutCaveatOrExpiration(rel)
 
 	switch op {
 	case tuple.UpdateOperationTouch:

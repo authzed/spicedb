@@ -3,6 +3,7 @@ package tuple
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -10,6 +11,8 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
+
+var expirationFormat = time.RFC3339Nano
 
 // JoinRelRef joins the namespace and relation together into the same
 // format as `StringRR()`.
@@ -90,11 +93,24 @@ func String(rel Relationship) (string, error) {
 		return "", err
 	}
 
-	return StringONR(rel.Resource) + "@" + StringONR(rel.Subject) + caveatString, nil
+	expirationString, err := StringExpiration(rel.OptionalExpiration)
+	if err != nil {
+		return "", err
+	}
+
+	return StringONR(rel.Resource) + "@" + StringONR(rel.Subject) + caveatString + expirationString, nil
 }
 
-// StringWithoutCaveat converts a relationship to a string, without its caveat included.
-func StringWithoutCaveat(rel Relationship) string {
+func StringExpiration(expiration *time.Time) (string, error) {
+	if expiration == nil {
+		return "", nil
+	}
+
+	return "[expiration:" + expiration.Format(expirationFormat) + "]", nil
+}
+
+// StringWithoutCaveatOrExpiration converts a relationship to a string, without its caveat or expiration included.
+func StringWithoutCaveatOrExpiration(rel Relationship) string {
 	spiceerrors.DebugAssert(rel.ValidateNotEmpty, "relationship must not be empty")
 
 	return StringONR(rel.Resource) + "@" + StringONR(rel.Subject)

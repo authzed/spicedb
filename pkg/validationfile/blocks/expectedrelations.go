@@ -70,7 +70,7 @@ func (ors *ObjectRelation) UnmarshalYAML(node *yamlv3.Node) error {
 
 	parsed, err := tuple.ParseONR(ors.ObjectRelationString)
 	if err != nil {
-		return spiceerrors.NewErrorWithSource(
+		return spiceerrors.NewWithSourceError(
 			fmt.Errorf("could not parse %s: %w", ors.ObjectRelationString, err),
 			ors.ObjectRelationString,
 			line,
@@ -142,7 +142,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 
 	subjectWithExceptions, subErr := es.ValidationString.Subject()
 	if subErr != nil {
-		return spiceerrors.NewErrorWithSource(
+		return spiceerrors.NewWithSourceError(
 			subErr,
 			subErr.SourceCodeString,
 			line+subErr.LineNumber,
@@ -152,7 +152,7 @@ func (es *ExpectedSubject) UnmarshalYAML(node *yamlv3.Node) error {
 
 	onrs, onrErr := es.ValidationString.ONRS()
 	if onrErr != nil {
-		return spiceerrors.NewErrorWithSource(
+		return spiceerrors.NewWithSourceError(
 			onrErr,
 			onrErr.SourceCodeString,
 			line+onrErr.LineNumber,
@@ -183,7 +183,7 @@ func (vs ValidationString) SubjectString() (string, bool) {
 
 // Subject returns the subject contained in the ValidationString, if any. If
 // none, returns nil.
-func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.ErrorWithSource) {
+func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.WithSourceError) {
 	subjectStr, ok := vs.SubjectString()
 	if !ok {
 		return nil, nil
@@ -193,13 +193,13 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 	groups := vsSubjectWithExceptionsOrCaveatRegex.FindStringSubmatch(subjectStr)
 	if len(groups) == 0 {
 		bracketedSubjectString := "[" + subjectStr + "]"
-		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
+		return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`", subjectStr), bracketedSubjectString, 0, 0)
 	}
 
 	subjectONRString := groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "subject_onr")]
 	subjectONR, err := tuple.ParseSubjectONR(subjectONRString)
 	if err != nil {
-		return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`: %w", subjectONRString, err), subjectONRString, 0, 0)
+		return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`: %w", subjectONRString, err), subjectONRString, 0, 0)
 	}
 
 	exceptionsString := strings.TrimSpace(groups[slices.Index(vsSubjectWithExceptionsOrCaveatRegex.SubexpNames(), "exceptions")])
@@ -217,7 +217,7 @@ func (vs ValidationString) Subject() (*SubjectWithExceptions, *spiceerrors.Error
 
 			exceptionONR, err := tuple.ParseSubjectONR(strings.TrimSpace(exceptionString))
 			if err != nil {
-				return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid subject: `%s`: %w", exceptionString, err), exceptionString, 0, 0)
+				return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid subject: `%s`: %w", exceptionString, err), exceptionString, 0, 0)
 			}
 
 			exceptions = append(exceptions, SubjectAndCaveat{exceptionONR, isCaveated})
@@ -239,13 +239,13 @@ func (vs ValidationString) ONRStrings() []string {
 }
 
 // ONRS returns the subject ONRs in the ValidationString, if any.
-func (vs ValidationString) ONRS() ([]tuple.ObjectAndRelation, *spiceerrors.ErrorWithSource) {
+func (vs ValidationString) ONRS() ([]tuple.ObjectAndRelation, *spiceerrors.WithSourceError) {
 	onrStrings := vs.ONRStrings()
 	onrs := []tuple.ObjectAndRelation{}
 	for _, onrString := range onrStrings {
 		found, err := tuple.ParseONR(onrString)
 		if err != nil {
-			return nil, spiceerrors.NewErrorWithSource(fmt.Errorf("invalid resource and relation: `%s`: %w", onrString, err), onrString, 0, 0)
+			return nil, spiceerrors.NewWithSourceError(fmt.Errorf("invalid resource and relation: `%s`: %w", onrString, err), onrString, 0, 0)
 		}
 
 		onrs = append(onrs, found)

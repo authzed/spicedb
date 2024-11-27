@@ -14,7 +14,7 @@ import (
 func ParseAssertionsYAML(assertionsYaml string) (*blocks.Assertions, *devinterface.DeveloperError) {
 	assertions, err := validationfile.ParseAssertionsBlock([]byte(assertionsYaml))
 	if err != nil {
-		serr, ok := spiceerrors.AsErrorWithSource(err)
+		serr, ok := spiceerrors.AsWithSourceError(err)
 		if ok {
 			return nil, convertSourceError(devinterface.DeveloperError_ASSERTION, serr)
 		}
@@ -27,7 +27,7 @@ func ParseAssertionsYAML(assertionsYaml string) (*blocks.Assertions, *devinterfa
 func ParseExpectedRelationsYAML(expectedRelationsYaml string) (*blocks.ParsedExpectedRelations, *devinterface.DeveloperError) {
 	block, err := validationfile.ParseExpectedRelationsBlock([]byte(expectedRelationsYaml))
 	if err != nil {
-		serr, ok := spiceerrors.AsErrorWithSource(err)
+		serr, ok := spiceerrors.AsWithSourceError(err)
 		if ok {
 			return nil, convertSourceError(devinterface.DeveloperError_VALIDATION_YAML, serr)
 		}
@@ -48,7 +48,7 @@ func convertError(source devinterface.DeveloperError_Source, err error) *devinte
 	}
 }
 
-func convertSourceError(source devinterface.DeveloperError_Source, err *spiceerrors.ErrorWithSource) *devinterface.DeveloperError {
+func convertSourceError(source devinterface.DeveloperError_Source, err *spiceerrors.WithSourceError) *devinterface.DeveloperError {
 	// NOTE: zeroes are fine here to mean "unknown"
 	lineNumber, castErr := safecast.ToUint32(err.LineNumber)
 	if castErr != nil {

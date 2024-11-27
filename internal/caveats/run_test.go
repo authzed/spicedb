@@ -559,5 +559,5 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 		caveats.RunCaveatExpressionNoDebugging,
 	)
 	req.Error(err)
-	req.True(errors.As(err, &caveats.EvaluationErr{}))
+	req.True(errors.As(err, &caveats.EvaluationError{}))
 }

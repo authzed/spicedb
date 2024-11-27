@@ -25,7 +25,7 @@ func ApplySchemaChanges(
 	validated *shared.ValidatedSchemaChanges,
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
-) (*shared.AppliedSchemaChanges, *shared.ErrSchemaWriteDataValidation, error) {
+) (*shared.AppliedSchemaChanges, *shared.SchemaWriteDataValidationError, error) {
 	result, err := shared.ApplySchemaChangesOverExisting(ctx, rwt, validated, existingCaveats, existingObjectDefs)
 	if err != nil {
 		return result, shared.AsValidationError(err), err

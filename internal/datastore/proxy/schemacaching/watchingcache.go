@@ -317,7 +317,7 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 					}
 
 				case err := <-serrc:
-					var retryable datastore.ErrWatchRetryable
+					var retryable datastore.WatchRetryableError
 					if errors.As(err, &retryable) && retryCount <= maximumRetryCount {
 						log.Warn().Err(err).Msg("received retryable error in schema watch; sleeping for a bit and restarting watch")
 						retryCount++

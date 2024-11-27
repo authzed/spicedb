@@ -264,10 +264,10 @@ func rewriteDatastoreError(ctx context.Context, err error) error {
 	}
 
 	switch {
-	case errors.As(err, &datastore.ErrInvalidRevision{}):
+	case errors.As(err, &datastore.InvalidRevisionError{}):
 		return status.Errorf(codes.OutOfRange, "invalid revision: %s", err)
 
-	case errors.As(err, &datastore.ErrReadOnly{}):
+	case errors.As(err, &datastore.ReadOnlyError{}):
 		return shared.ErrServiceReadOnly
 
 	default:

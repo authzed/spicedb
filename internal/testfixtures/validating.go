@@ -217,8 +217,8 @@ func (vrwt validatingReadWriteTransaction) WriteRelationships(ctx context.Contex
 	// Ensure there are no duplicate mutations.
 	tupleSet := mapz.NewSet[string]()
 	for _, mutation := range mutations {
-		if !tupleSet.Add(tuple.StringWithoutCaveat(mutation.Relationship)) {
-			return fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveat(mutation.Relationship))
+		if !tupleSet.Add(tuple.StringWithoutCaveatOrExpiration(mutation.Relationship)) {
+			return fmt.Errorf("found duplicate update for relationship %s", tuple.StringWithoutCaveatOrExpiration(mutation.Relationship))
 		}
 	}
 

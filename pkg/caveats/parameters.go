@@ -54,7 +54,7 @@ func ConvertContextToParameters(
 
 		convertedParam, err := varType.ConvertValue(value)
 		if err != nil {
-			return nil, ParameterConversionErr{fmt.Errorf("could not convert context parameter `%s`: %w", key, err), key}
+			return nil, ParameterConversionError{fmt.Errorf("could not convert context parameter `%s`: %w", key, err), key}
 		}
 
 		converted[key] = convertedParam

@@ -164,15 +164,15 @@ func (tn *dslNode) Lookup(predicateName string) (*dslNode, error) {
 }
 
 func (tn *dslNode) Errorf(message string, args ...interface{}) error {
-	return errorWithNode{
+	return withNodeError{
 		error:           fmt.Errorf(message, args...),
 		errorSourceCode: "",
 		node:            tn,
 	}
 }
 
-func (tn *dslNode) ErrorWithSourcef(sourceCode string, message string, args ...interface{}) error {
-	return errorWithNode{
+func (tn *dslNode) WithSourceErrorf(sourceCode string, message string, args ...interface{}) error {
+	return withNodeError{
 		error:           fmt.Errorf(message, args...),
 		errorSourceCode: sourceCode,
 		node:            tn,

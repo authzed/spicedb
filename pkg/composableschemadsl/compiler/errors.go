@@ -13,26 +13,26 @@ type BaseCompilerError struct {
 	BaseMessage string
 }
 
-type errorWithNode struct {
+type withNodeError struct {
 	error
 	node            *dslNode
 	errorSourceCode string
 }
 
-// ErrorWithContext defines an error which contains contextual information.
-type ErrorWithContext struct {
+// WithContextError defines an error which contains contextual information.
+type WithContextError struct {
 	BaseCompilerError
 	SourceRange     input.SourceRange
 	Source          input.Source
 	ErrorSourceCode string
 }
 
-func (ewc ErrorWithContext) Unwrap() error {
+func (ewc WithContextError) Unwrap() error {
 	return ewc.BaseCompilerError
 }
 
 // DetailsMetadata returns the metadata for details for this error.
-func (ewc ErrorWithContext) DetailsMetadata() map[string]string {
+func (ewc WithContextError) DetailsMetadata() map[string]string {
 	startLine, startCol, err := ewc.SourceRange.Start().LineAndColumn()
 	if err != nil {
 		return map[string]string{}

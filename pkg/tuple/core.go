@@ -1,6 +1,8 @@
 package tuple
 
 import (
+	"time"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -18,8 +20,8 @@ func ONRStringToCore(ns, oid, rel string) *core.ObjectAndRelation {
 	}
 }
 
-// CoreRelationToStringWithoutCaveat creates a string from a core.RelationTuple without stringifying the caveat.
-func CoreRelationToStringWithoutCaveat(rel *core.RelationTuple) string {
+// CoreRelationToStringWithoutCaveatOrExpiration creates a string from a core.RelationTuple without stringifying the caveat.
+func CoreRelationToStringWithoutCaveatOrExpiration(rel *core.RelationTuple) string {
 	if rel.Subject.Relation == Ellipsis {
 		return rel.ResourceAndRelation.Namespace + ":" + rel.ResourceAndRelation.ObjectId + "@" + rel.Subject.Namespace + ":" + rel.Subject.ObjectId
 	}
@@ -55,6 +57,12 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 		return rt.Validate() == nil
 	}, "relation tuple must be valid")
 
+	var expiration *time.Time
+	if rt.OptionalExpirationTime != nil {
+		t := rt.OptionalExpirationTime.AsTime()
+		expiration = &t
+	}
+
 	return Relationship{
 		RelationshipReference: RelationshipReference{
 			Resource: ObjectAndRelation{
@@ -68,7 +76,8 @@ func FromCoreRelationTuple(rt *core.RelationTuple) Relationship {
 				Relation:   rt.Subject.Relation,
 			},
 		},
-		OptionalCaveat: rt.Caveat,
+		OptionalCaveat:     rt.Caveat,
+		OptionalExpiration: expiration,
 	}
 }
 

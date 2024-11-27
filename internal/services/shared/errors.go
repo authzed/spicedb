@@ -41,24 +41,24 @@ func mustMakeStatusReadonly() error {
 
 // NewSchemaWriteDataValidationError creates a new error representing that a schema write cannot be
 // completed due to existing data that would be left unreferenced.
-func NewSchemaWriteDataValidationError(message string, args ...any) ErrSchemaWriteDataValidation {
-	return ErrSchemaWriteDataValidation{
+func NewSchemaWriteDataValidationError(message string, args ...any) SchemaWriteDataValidationError {
+	return SchemaWriteDataValidationError{
 		error: fmt.Errorf(message, args...),
 	}
 }
 
-// ErrSchemaWriteDataValidation occurs when a schema cannot be applied due to leaving data unreferenced.
-type ErrSchemaWriteDataValidation struct {
+// SchemaWriteDataValidationError occurs when a schema cannot be applied due to leaving data unreferenced.
+type SchemaWriteDataValidationError struct {
 	error
 }
 
 // MarshalZerologObject implements zerolog object marshalling.
-func (err ErrSchemaWriteDataValidation) MarshalZerologObject(e *zerolog.Event) {
+func (err SchemaWriteDataValidationError) MarshalZerologObject(e *zerolog.Event) {
 	e.Err(err.error)
 }
 
 // GRPCStatus implements retrieving the gRPC status for the error.
-func (err ErrSchemaWriteDataValidation) GRPCStatus() *status.Status {
+func (err SchemaWriteDataValidationError) GRPCStatus() *status.Status {
 	return spiceerrors.WithCodeAndDetails(
 		err,
 		codes.InvalidArgument,
@@ -71,7 +71,7 @@ func (err ErrSchemaWriteDataValidation) GRPCStatus() *status.Status {
 
 // MaxDepthExceededError is an error returned when the maximum depth for dispatching has been exceeded.
 type MaxDepthExceededError struct {
-	*spiceerrors.ErrorWithAdditionalDetails
+	*spiceerrors.WithAdditionalDetailsError
 
 	// AllowedMaximumDepth is the configured allowed maximum depth.
 	AllowedMaximumDepth uint32
@@ -95,19 +95,19 @@ func (err MaxDepthExceededError) GRPCStatus() *status.Status {
 func NewMaxDepthExceededError(allowedMaximumDepth uint32, isCheckRequest bool) error {
 	if isCheckRequest {
 		return MaxDepthExceededError{
-			spiceerrors.NewErrorWithAdditionalDetails(fmt.Errorf("the check request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. Try running zed with --explain to see the dependency. See: https://spicedb.dev/d/debug-max-depth-check", allowedMaximumDepth)),
+			spiceerrors.NewWithAdditionalDetailsError(fmt.Errorf("the check request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. Try running zed with --explain to see the dependency. See: https://spicedb.dev/d/debug-max-depth-check", allowedMaximumDepth)),
 			allowedMaximumDepth,
 		}
 	}
 
 	return MaxDepthExceededError{
-		spiceerrors.NewErrorWithAdditionalDetails(fmt.Errorf("the request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth", allowedMaximumDepth)),
+		spiceerrors.NewWithAdditionalDetailsError(fmt.Errorf("the request has exceeded the allowable maximum depth of %d: this usually indicates a recursive or too deep data dependency. See: https://spicedb.dev/d/debug-max-depth", allowedMaximumDepth)),
 		allowedMaximumDepth,
 	}
 }
 
-func AsValidationError(err error) *ErrSchemaWriteDataValidation {
-	var validationErr ErrSchemaWriteDataValidation
+func AsValidationError(err error) *SchemaWriteDataValidationError {
+	var validationErr SchemaWriteDataValidationError
 	if errors.As(err, &validationErr) {
 		return &validationErr
 	}
@@ -142,7 +142,7 @@ func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 	var relationNotFoundError sharederrors.UnknownRelationError
 
 	var compilerError compiler.BaseCompilerError
-	var sourceError spiceerrors.ErrorWithSource
+	var sourceError spiceerrors.WithSourceError
 	var typeError typesystem.TypeError
 	var maxDepthError dispatch.MaxDepthExceededError
 
@@ -170,25 +170,25 @@ func rewriteError(ctx context.Context, err error, config *ConfigForErrors) error
 		_, isCheckRequest := maxDepthError.Request.(*dispatchv1.DispatchCheckRequest)
 		return NewMaxDepthExceededError(config.MaximumAPIDepth, isCheckRequest)
 
-	case errors.As(err, &datastore.ErrReadOnly{}):
+	case errors.As(err, &datastore.ReadOnlyError{}):
 		return ErrServiceReadOnly
-	case errors.As(err, &datastore.ErrInvalidRevision{}):
+	case errors.As(err, &datastore.InvalidRevisionError{}):
 		return status.Errorf(codes.OutOfRange, "invalid zedtoken: %s", err)
-	case errors.As(err, &datastore.ErrCaveatNameNotFound{}):
+	case errors.As(err, &datastore.CaveatNameNotFoundError{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_UNKNOWN_CAVEAT)
-	case errors.As(err, &datastore.ErrWatchDisabled{}):
+	case errors.As(err, &datastore.WatchDisabledError{}):
 		return status.Errorf(codes.FailedPrecondition, "%s", err)
-	case errors.As(err, &datastore.ErrCounterAlreadyRegistered{}):
+	case errors.As(err, &datastore.CounterAlreadyRegisteredError{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_COUNTER_ALREADY_REGISTERED)
-	case errors.As(err, &datastore.ErrCounterNotRegistered{}):
+	case errors.As(err, &datastore.CounterNotRegisteredError{}):
 		return spiceerrors.WithCodeAndReason(err, codes.FailedPrecondition, v1.ErrorReason_ERROR_REASON_COUNTER_NOT_REGISTERED)
 
-	case errors.As(err, &graph.ErrRelationMissingTypeInfo{}):
+	case errors.As(err, &graph.RelationMissingTypeInfoError{}):
 		return status.Errorf(codes.FailedPrecondition, "failed precondition: %s", err)
-	case errors.As(err, &graph.ErrAlwaysFail{}):
+	case errors.As(err, &graph.AlwaysFailError{}):
 		log.Ctx(ctx).Err(err).Msg("received internal error")
 		return status.Errorf(codes.Internal, "internal error: %s", err)
-	case errors.As(err, &graph.ErrUnimplemented{}):
+	case errors.As(err, &graph.UnimplementedError{}):
 		return status.Errorf(codes.Unimplemented, "%s", err)
 	case errors.Is(err, context.DeadlineExceeded):
 		return status.Errorf(codes.DeadlineExceeded, "%s", err)

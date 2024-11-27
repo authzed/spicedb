@@ -578,7 +578,7 @@ func RelationshipIntegrityWatchTest(t *testing.T, tester test.DatastoreTester) {
 	select {
 	case change, ok := <-changes:
 		if !ok {
-			require.Fail("Timed out waiting for ErrWatchDisconnected")
+			require.Fail("Timed out waiting for WatchDisconnectedError")
 		}
 
 		rel := change.RelationshipChanges[0].Relationship

@@ -424,14 +424,14 @@ func (ld *localDispatcher) ReadyState() dispatch.ReadyState {
 }
 
 func rewriteNamespaceError(original error) error {
-	nsNotFound := datastore.ErrNamespaceNotFound{}
+	nsNotFound := datastore.NamespaceNotFoundError{}
 
 	switch {
 	case errors.As(original, &nsNotFound):
 		return NewNamespaceNotFoundErr(nsNotFound.NotFoundNamespaceName())
-	case errors.As(original, &ErrNamespaceNotFound{}):
+	case errors.As(original, &NamespaceNotFoundError{}):
 		fallthrough
-	case errors.As(original, &ErrRelationNotFound{}):
+	case errors.As(original, &RelationNotFoundError{}):
 		return original
 	default:
 		return fmt.Errorf(errDispatch, original)

@@ -162,7 +162,7 @@ func (cl *ConcurrentLookupSubjects) lookupViaComputed(
 ) error {
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(parentRequest.Revision)
 	if err := namespace.CheckNamespaceAndRelation(ctx, parentRequest.ResourceRelation.Namespace, cu.Relation, true, ds); err != nil {
-		if errors.As(err, &namespace.ErrRelationNotFound{}) {
+		if errors.As(err, &namespace.RelationNotFoundError{}) {
 			return nil
 		}
 
@@ -249,7 +249,7 @@ func lookupViaIntersectionTupleToUserset(
 		}
 
 		if err := namespace.CheckNamespaceAndRelation(ctx, rel.Subject.ObjectType, ttu.GetComputedUserset().Relation, false, ds); err != nil {
-			if !errors.As(err, &namespace.ErrRelationNotFound{}) {
+			if !errors.As(err, &namespace.RelationNotFoundError{}) {
 				return err
 			}
 
@@ -413,7 +413,7 @@ func lookupViaTupleToUserset[T relation](
 	// Map the found subject types by the computed userset relation, so that we dispatch to it.
 	toDispatchByComputedRelationType, err := toDispatchByTuplesetType.Map(func(resourceType *core.RelationReference) (*core.RelationReference, error) {
 		if err := namespace.CheckNamespaceAndRelation(ctx, resourceType.Namespace, ttu.GetComputedUserset().Relation, false, ds); err != nil {
-			if errors.As(err, &namespace.ErrRelationNotFound{}) {
+			if errors.As(err, &namespace.RelationNotFoundError{}) {
 				return nil, nil
 			}
 
