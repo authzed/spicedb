@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-memdb"
 
@@ -471,10 +472,15 @@ func newSubjectSortedIterator(it memdb.ResultIterator, limit *uint64) (datastore
 	results := make([]tuple.Relationship, 0)
 
 	// Coalesce all of the results into memory
+	now := time.Now()
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		rt, err := foundRaw.(*relationship).Relationship()
 		if err != nil {
 			return nil, err
+		}
+
+		if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
+			continue
 		}
 
 		results = append(results, rt)
@@ -516,6 +522,7 @@ func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs tuple.ObjectAndRelati
 func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64) datastore.RelationshipIterator {
 	var count uint64
 	return func(yield func(tuple.Relationship, error) bool) {
+		now := time.Now()
 		for {
 			foundRaw := it.Next()
 			if foundRaw == nil {
@@ -527,6 +534,17 @@ func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64) datastore.Rel
 			}
 
 			rt, err := foundRaw.(*relationship).Relationship()
+			if err != nil {
+				if !yield(tuple.Relationship{}, err) {
+					return
+				}
+				continue
+			}
+
+			if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
+				continue
+			}
+
 			if !yield(rt, err) {
 				return
 			}

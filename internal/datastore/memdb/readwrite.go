@@ -59,6 +59,7 @@ func (rwt *memdbReadWriteTx) write(tx *memdb.Txn, mutations ...tuple.Relationshi
 			mutation.Relationship.Subject.Relation,
 			rwt.toCaveatReference(mutation),
 			rwt.toIntegrity(mutation),
+			mutation.Relationship.OptionalExpiration,
 		}
 
 		found, err := tx.First(

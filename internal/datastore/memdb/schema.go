@@ -56,6 +56,7 @@ type relationship struct {
 	subjectRelation  string
 	caveat           *contextualizedCaveat
 	integrity        *relationshipIntegrity
+	expiration       *time.Time
 }
 
 type relationshipIntegrity struct {
@@ -149,8 +150,9 @@ func (r relationship) Relationship() (tuple.Relationship, error) {
 				Relation:   r.subjectRelation,
 			},
 		},
-		OptionalCaveat:    cr,
-		OptionalIntegrity: ig,
+		OptionalCaveat:     cr,
+		OptionalIntegrity:  ig,
+		OptionalExpiration: r.expiration,
 	}, nil
 }
 

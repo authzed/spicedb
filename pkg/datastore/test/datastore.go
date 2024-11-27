@@ -134,6 +134,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestDeleteRelationshipsWithVariousFilters", runner(tester, DeleteRelationshipsWithVariousFiltersTest))
 	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", runner(tester, TypedTouchAlreadyExistingTest))
 	t.Run("TestTouchTypedAlreadyExistingWithCaveat", runner(tester, TypedTouchAlreadyExistingWithCaveatTest))
+	t.Run("TestRelationshipExpiration", runner(tester, RelationshipExpirationTest))
 
 	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
 	t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))

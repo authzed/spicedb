@@ -1352,6 +1352,21 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 				"folder:someotherfolder#viewer@user:tom",
 			},
 		},
+		{
+			name: "relationship expiration",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first#expiring_viewer@user:fred[expiration:2021-01-01T00:00:00Z]",
+				"document:first#expiring_viewer@user:sarah[expiration:2900-01-02T01:02:03Z]",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:first#expiring_viewer@user:sarah[expiration:2900-01-02T01:02:03Z]",
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1409,6 +1424,61 @@ func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
 	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
 	require.NoError(err)
 	ensureRelationships(ctx, require, ds, tpl1)
+}
+
+// RelationshipExpirationTest tests expiration on relationships.
+func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	// Create a relationship that expires in the future.
+	rel1, err := tuple.Parse("document:foo#expiring_viewer@user:tom[expiration:2900-01-01T00:00:00Z]")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rel1)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, rel1)
+	ensureReverseRelationships(ctx, require, ds, rel1)
+
+	// Touch the relationship to a different expiration.
+	rel2, err := tuple.Parse("document:foo#expiring_viewer@user:tom[expiration:2800-01-01T00:00:00Z]")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel2)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, rel2)
+	ensureReverseRelationships(ctx, require, ds, rel2)
+
+	// Touch the relationship to a time in the past.
+	rel3, err := tuple.Parse("document:foo#expiring_viewer@user:tom[expiration:2000-01-01T00:00:00Z]")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel3)
+	require.NoError(err)
+	ensureNotRelationships(ctx, require, ds, rel3)
+	ensureNotReverseRelationships(ctx, require, ds, rel3)
+
+	// Try to recreate the relationship, which should fail even though the expiration has past.
+	relrecreate, err := tuple.Parse("document:foo#expiring_viewer@user:tom[expiration:3000-01-01T00:00:00Z]")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, relrecreate)
+	require.Error(err)
+	require.ErrorContains(err, "already existed")
+
+	// Touch the relationship back to the future.
+	rel4, err := tuple.Parse("document:foo#expiring_viewer@user:tom[expiration:3000-01-01T00:00:00Z]")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, rel4)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, rel4)
+	ensureReverseRelationships(ctx, require, ds, rel4)
 }
 
 // TypedTouchAlreadyExistingWithCaveatTest tests touching a relationship twice, when valid type information is provided.
@@ -1655,6 +1725,52 @@ func onrToSubjectsFilter(onr tuple.ObjectAndRelation) datastore.SubjectsFilter {
 		SubjectType:        onr.ObjectType,
 		OptionalSubjectIds: []string{onr.ObjectID},
 		RelationFilter:     datastore.SubjectRelationFilter{}.WithNonEllipsisRelation(onr.Relation),
+	}
+}
+
+func ensureReverseRelationships(ctx context.Context, require *require.Assertions, ds datastore.Datastore, rels ...tuple.Relationship) {
+	ensureReverseRelationshipsStatus(ctx, require, ds, rels, true)
+}
+
+func ensureNotReverseRelationships(ctx context.Context, require *require.Assertions, ds datastore.Datastore, rels ...tuple.Relationship) {
+	ensureReverseRelationshipsStatus(ctx, require, ds, rels, false)
+}
+
+func ensureReverseRelationshipsStatus(ctx context.Context, require *require.Assertions, ds datastore.Datastore, rels []tuple.Relationship, mustExist bool) {
+	headRev, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	reader := ds.SnapshotReader(headRev)
+
+	for _, rel := range rels {
+		filter := datastore.SubjectRelationFilter{
+			NonEllipsisRelation: rel.Subject.Relation,
+		}
+		if rel.Subject.Relation == tuple.Ellipsis {
+			filter.IncludeEllipsisRelation = true
+			filter.NonEllipsisRelation = ""
+		}
+
+		iter, err := reader.ReverseQueryRelationships(ctx, datastore.SubjectsFilter{
+			SubjectType:        rel.Subject.ObjectType,
+			OptionalSubjectIds: []string{rel.Subject.ObjectID},
+			RelationFilter:     filter,
+		})
+		require.NoError(err)
+
+		found, err := datastore.IteratorToSlice(iter)
+		require.NoError(err)
+
+		if mustExist {
+			require.NotEmpty(found, "expected relationship %s", tuple.MustString(rel))
+		} else {
+			require.Empty(found, "expected relationship %s to not exist", tuple.MustString(rel))
+		}
+
+		if mustExist {
+			require.Equal(1, len(found))
+			require.Equal(tuple.MustString(rel), tuple.MustString(found[0]))
+		}
 	}
 }
 

@@ -54,6 +54,10 @@ var DocumentNS = ns.Namespace(
 		nil,
 		ns.AllowedRelationWithCaveat("user", "...", ns.AllowedCaveat("test")),
 	),
+	ns.MustRelation("expiring_viewer",
+		nil,
+		ns.AllowedRelationWithExpiration("user", "..."),
+	),
 	ns.MustRelation("parent", nil, ns.AllowedRelation("folder", "...")),
 	ns.MustRelation("edit",
 		ns.Union(
