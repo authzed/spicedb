@@ -128,8 +128,8 @@ func listAndCache[T schemaDefinition](
 		remainingToLoad.Delete(name)
 
 		if loaded.notFound != nil {
-			// If the value was in the cache, but it was nil (implying that
-			// it was undefined on a previous lookup), we pass over it.
+			// If the value was in the cache, but its notFound is defined (implying that
+			// it was not found on a previous lookup), we pass over it.
 			// We still remove it from the `remainingToLoad` set because
 			// we don't want to go to the datastore for it.
 			continue
