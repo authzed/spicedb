@@ -455,7 +455,7 @@ func (pgd *pgDatastore) loadNamespaceChanges(ctx context.Context, xmin uint64, x
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			err := tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+			err := tracked.AddChangedDefinition(ctx, txidToRevision[createdXID.Uint64], loaded)
 			if err != nil {
 				return err
 			}
@@ -514,7 +514,7 @@ func (pgd *pgDatastore) loadCaveatChanges(ctx context.Context, xmin uint64, xmax
 		}
 
 		if _, found := filter[createdXID.Uint64]; found {
-			err := tracked.AddChangedDefinition(ctx, txidToRevision[deletedXID.Uint64], loaded)
+			err := tracked.AddChangedDefinition(ctx, txidToRevision[createdXID.Uint64], loaded)
 			if err != nil {
 				return err
 			}
