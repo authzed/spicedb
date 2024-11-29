@@ -537,6 +537,7 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustSchema())
 	require.Zero(len(errchan))
 
+	// Addition
 	// Write an updated schema and ensure the changes are returned.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
@@ -561,6 +562,37 @@ func WatchSchemaTest(t *testing.T, tester DatastoreTester) {
 		},
 	}, changes, errchan, false)
 
+	// Changed
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{
+			Name: "somenewnamespace",
+			Relation: []*core.Relation{
+				{
+					Name: "anotherrelation",
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		return rwt.WriteCaveats(ctx, []*core.CaveatDefinition{
+			{
+				Name:                 "somenewcaveat",
+				SerializedExpression: []byte("123"),
+			},
+		})
+	})
+	require.NoError(err)
+
+	verifyMixedUpdates(require, [][]string{
+		{
+			"changed:somenewnamespace",
+			"changed:somenewcaveat",
+		},
+	}, changes, errchan, false)
+
+	// Removed
 	// Delete some namespaces and caveats.
 	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		err := rwt.DeleteNamespaces(ctx, "somenewnamespace")
