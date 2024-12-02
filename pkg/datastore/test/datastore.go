@@ -181,6 +181,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 		t.Run("TestWatchWithTouch", runner(tester, WatchWithTouchTest))
 		t.Run("TestWatchWithDelete", runner(tester, WatchWithDeleteTest))
 		t.Run("TestWatchWithMetadata", runner(tester, WatchWithMetadataTest))
+		t.Run("TestWatchWithExpiration", runner(tester, WatchWithExpirationTest))
 		t.Run("TestWatchEmissionStrategy", runner(tester, WatchEmissionStrategyTest))
 	}
 
