@@ -72,6 +72,7 @@ const (
 	colCaveatDefinition  = "definition"
 	colCaveatContextName = "caveat_name"
 	colCaveatContext     = "caveat_context"
+	colExpiration        = "expires_at"
 
 	colIntegrityHash  = "integrity_hash"
 	colIntegrityKeyID = "integrity_key_id"

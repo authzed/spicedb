@@ -37,6 +37,7 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colCaveatContextName,
+		colExpiration,
 		common.ExpandedLogicComparison,
 	)
 
@@ -194,6 +195,7 @@ func (cr *crdbReader) queryTuples() sq.SelectBuilder {
 			colUsersetRelation,
 			colCaveatContextName,
 			colCaveatContext,
+			colExpiration,
 			colIntegrityKeyID,
 			colIntegrityHash,
 			colTimestamp,
@@ -209,6 +211,7 @@ func (cr *crdbReader) queryTuples() sq.SelectBuilder {
 		colUsersetRelation,
 		colCaveatContextName,
 		colCaveatContext,
+		colExpiration,
 	)
 }
 

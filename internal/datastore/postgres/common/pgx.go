@@ -116,6 +116,13 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 					}
 				}
 
+				if expiration != nil {
+					// Ensure the returned expiration is always in UTC, as some datastores (like CRDB)
+					// convert to the local timezone when reading.
+					utc := expiration.UTC()
+					expiration = &utc
+				}
+
 				relCount++
 				if !yield(tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
