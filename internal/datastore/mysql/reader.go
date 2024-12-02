@@ -47,6 +47,7 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
+	colExpiration,
 	common.ExpandedLogicComparison,
 )
 

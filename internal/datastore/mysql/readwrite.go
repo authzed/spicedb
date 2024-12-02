@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -223,6 +224,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 		var subjectRelation string
 		var caveatName string
 		var caveatContext structpbWrapper
+		var expiration *time.Time
 
 		relIdsToDelete := make([]int64, 0, len(clauses))
 		for rows.Next() {
@@ -237,6 +239,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 				&subjectRelation,
 				&caveatName,
 				&caveatContext,
+				&expiration,
 			); err != nil {
 				return fmt.Errorf(errUnableToWriteRelationships, err)
 			}
@@ -312,6 +315,7 @@ func (rwt *mysqlReadWriteTXN) WriteRelationships(ctx context.Context, mutations 
 			rel.Subject.Relation,
 			caveatName,
 			&caveatContext,
+			rel.OptionalExpiration,
 			rwt.newTxnID,
 		)
 		bulkWriteHasValues = true
@@ -496,7 +500,7 @@ func (rwt *mysqlReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...s
 func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	var sqlStmt bytes.Buffer
 
-	sql, _, err := rwt.WriteRelsQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9).ToSql()
+	sql, _, err := rwt.WriteRelsQuery.Values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).ToSql()
 	if err != nil {
 		return 0, err
 	}
@@ -515,7 +519,7 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 
 		for ; rel != nil && err == nil && batchLen < bulkInsertRowsLimit; rel, err = iter.Next(ctx) {
 			if batchLen != 0 {
-				sqlStmt.WriteString(",(?,?,?,?,?,?,?,?,?)")
+				sqlStmt.WriteString(",(?,?,?,?,?,?,?,?,?,?)")
 			}
 
 			var caveatName string
@@ -533,6 +537,7 @@ func (rwt *mysqlReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkW
 				rel.Subject.Relation,
 				caveatName,
 				&caveatContext,
+				rel.OptionalExpiration,
 				rwt.newTxnID,
 			)
 			batchLen++

@@ -211,6 +211,7 @@ func (mds *Datastore) loadChanges(
 		var deletedTxn uint64
 		var caveatName string
 		var caveatContext structpbWrapper
+		var expiration *time.Time
 		err = rows.Scan(
 			&resourceObjectType,
 			&resourceObjectID,
@@ -220,6 +221,7 @@ func (mds *Datastore) loadChanges(
 			&subjectRelation,
 			&caveatName,
 			&caveatContext,
+			&expiration,
 			&createdTxn,
 			&deletedTxn,
 		)
@@ -240,6 +242,7 @@ func (mds *Datastore) loadChanges(
 					Relation:   subjectRelation,
 				},
 			},
+			OptionalExpiration: expiration,
 		}
 
 		relationship.OptionalCaveat, err = common.ContextualizedCaveatFrom(caveatName, caveatContext)
