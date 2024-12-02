@@ -741,6 +741,7 @@ var copyCols = []string{
 	colUsersetRelation,
 	colCaveatContextName,
 	colCaveatContext,
+	colExpiration,
 }
 
 func (rwt *pgReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
