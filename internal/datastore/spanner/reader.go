@@ -194,6 +194,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 				var subjectRelation string
 				var caveatName spanner.NullString
 				var caveatCtx spanner.NullJSON
+				var expirationOrNull spanner.NullTime
 				err := row.Columns(
 					&resourceObjectType,
 					&resourceObjectID,
@@ -203,6 +204,7 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 					&subjectRelation,
 					&caveatName,
 					&caveatCtx,
+					&expirationOrNull,
 				)
 				if err != nil {
 					return err
@@ -214,6 +216,12 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 				}
 
 				relCount++
+
+				var expiration *time.Time
+				if expirationOrNull.Valid {
+					expiration = &expirationOrNull.Time
+				}
+
 				if !yield(tuple.Relationship{
 					RelationshipReference: tuple.RelationshipReference{
 						Resource: tuple.ObjectAndRelation{
@@ -227,7 +235,8 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 							Relation:   subjectRelation,
 						},
 					},
-					OptionalCaveat: caveat,
+					OptionalCaveat:     caveat,
+					OptionalExpiration: expiration,
 				}, nil) {
 					return errStopIterator
 				}
@@ -355,6 +364,7 @@ var queryTuples = sql.Select(
 	colUsersetRelation,
 	colCaveatName,
 	colCaveatContext,
+	colExpiration,
 ).From(tableRelationship)
 
 var countRels = sql.Select("COUNT(*)").From(tableRelationship)
@@ -376,7 +386,9 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
+	colExpiration,
 	common.ExpandedLogicComparison,
+	"CURRENT_TIMESTAMP",
 )
 
 var _ datastore.Reader = spannerReader{}

@@ -49,6 +49,7 @@ var (
 		colCaveatContextName,
 		colExpiration,
 		common.TupleComparison,
+		"NOW",
 	)
 
 	readNamespace = psql.

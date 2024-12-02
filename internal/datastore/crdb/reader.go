@@ -39,6 +39,7 @@ var (
 		colCaveatContextName,
 		colExpiration,
 		common.ExpandedLogicComparison,
+		"NOW",
 	)
 
 	queryCounters = psql.Select(

@@ -16,6 +16,7 @@ const (
 	colTimestamp        = "timestamp"
 	colCaveatName       = "caveat_name"
 	colCaveatContext    = "caveat_context"
+	colExpiration       = "expires_at"
 
 	tableCaveat         = "caveat"
 	colName             = "name"
@@ -46,4 +47,5 @@ var allRelationshipCols = []string{
 	colTimestamp,
 	colCaveatName,
 	colCaveatContext,
+	colExpiration,
 }

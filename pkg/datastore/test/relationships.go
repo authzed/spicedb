@@ -1673,10 +1673,7 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 			<-waitToFinish
 			return err
 		})
-		if err != nil {
-			panic(err)
-		}
-		return nil
+		return err
 	})
 
 	<-waitToStart

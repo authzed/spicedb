@@ -73,6 +73,7 @@ type SchemaInformation struct {
 	colCaveatName        string
 	colExpiration        string
 	paginationFilterType PaginationFilterType
+	nowFunction          string
 }
 
 func NewSchemaInformation(
@@ -85,6 +86,7 @@ func NewSchemaInformation(
 	colCaveatName string,
 	colExpiration string,
 	paginationFilterType PaginationFilterType,
+	nowFunction string,
 ) SchemaInformation {
 	return SchemaInformation{
 		colNamespace,
@@ -96,6 +98,7 @@ func NewSchemaInformation(
 		colCaveatName,
 		colExpiration,
 		paginationFilterType,
+		nowFunction,
 	}
 }
 
@@ -576,7 +579,7 @@ func (tqs QueryExecutor) ExecuteQuery(
 	// Filter out any expired relationships.
 	toExecute.queryBuilder = toExecute.queryBuilder.Where(sq.Or{
 		sq.Eq{query.schema.colExpiration: nil},
-		sq.Expr(query.schema.colExpiration + " > NOW()"),
+		sq.Expr(query.schema.colExpiration + " > " + query.schema.nowFunction + "()"),
 	})
 
 	// Run the query.

@@ -671,6 +671,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"caveat",
 				"expiration",
 				TupleComparison,
+				"NOW",
 			)
 			filterer := NewSchemaQueryFilterer(schema, base, 100)
 
@@ -696,6 +697,7 @@ func BenchmarkSchemaFilterer(b *testing.B) {
 		"caveat_name",
 		"expiration",
 		TupleComparison,
+		"NOW",
 	)
 	sqf := NewSchemaQueryFilterer(si, sq.Select("*"), 100)
 	var names []string
