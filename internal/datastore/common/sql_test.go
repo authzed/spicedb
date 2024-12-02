@@ -669,6 +669,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 				"subject_object_id",
 				"subject_relation",
 				"caveat",
+				"expiration",
 				TupleComparison,
 			)
 			filterer := NewSchemaQueryFilterer(schema, base, 100)
@@ -693,6 +694,7 @@ func BenchmarkSchemaFilterer(b *testing.B) {
 		"resource_id",
 		"resource_relation",
 		"caveat_name",
+		"expiration",
 		TupleComparison,
 	)
 	sqf := NewSchemaQueryFilterer(si, sq.Select("*"), 100)

@@ -58,6 +58,7 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 			var subjectRelation string
 			var caveatName sql.NullString
 			var caveatCtx map[string]any
+			var expiration *time.Time
 
 			relCount := 0
 			for rows.Next() {
@@ -77,6 +78,7 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 						&subjectRelation,
 						&caveatName,
 						&caveatCtx,
+						&expiration,
 						&integrityKeyID,
 						&integrityHash,
 						&timestamp,
@@ -99,6 +101,7 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 						&subjectRelation,
 						&caveatName,
 						&caveatCtx,
+						&expiration,
 					); err != nil {
 						return fmt.Errorf(errUnableToQueryTuples, fmt.Errorf("scan err: %w", err))
 					}
@@ -127,8 +130,9 @@ func queryRels(ctx context.Context, sqlStatement string, args []any, span trace.
 							Relation:   subjectRelation,
 						},
 					},
-					OptionalCaveat:    caveat,
-					OptionalIntegrity: integrity,
+					OptionalCaveat:     caveat,
+					OptionalIntegrity:  integrity,
+					OptionalExpiration: expiration,
 				}, nil) {
 					return nil
 				}

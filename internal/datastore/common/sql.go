@@ -71,6 +71,7 @@ type SchemaInformation struct {
 	colUsersetObjectID   string
 	colUsersetRelation   string
 	colCaveatName        string
+	colExpiration        string
 	paginationFilterType PaginationFilterType
 }
 
@@ -82,6 +83,7 @@ func NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName string,
+	colExpiration string,
 	paginationFilterType PaginationFilterType,
 ) SchemaInformation {
 	return SchemaInformation{
@@ -92,6 +94,7 @@ func NewSchemaInformation(
 		colUsersetObjectID,
 		colUsersetRelation,
 		colCaveatName,
+		colExpiration,
 		paginationFilterType,
 	}
 }
@@ -404,6 +407,12 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 		csqf = csqf.FilterWithCaveatName(filter.OptionalCaveatName)
 	}
 
+	if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionHasExpiration {
+		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.colExpiration: nil})
+	} else if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionNoExpiration {
+		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.colExpiration: nil})
+	}
+
 	return csqf, nil
 }
 
@@ -563,6 +572,14 @@ func (tqs QueryExecutor) ExecuteQuery(
 	}
 
 	toExecute := query.limit(limit)
+
+	// Filter out any expired relationships.
+	toExecute.queryBuilder = toExecute.queryBuilder.Where(sq.Or{
+		sq.Eq{query.schema.colExpiration: nil},
+		sq.Expr(query.schema.colExpiration + " > NOW()"),
+	})
+
+	// Run the query.
 	sql, args, err := toExecute.queryBuilder.ToSql()
 	if err != nil {
 		return nil, err
