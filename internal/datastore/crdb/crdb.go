@@ -357,7 +357,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 		expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
 		insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
 			Columns(colExpiresAt, colMetadata).
-			Values(expiresAt, config.Metadata.AsMap())
+			Values(expiresAt, metadata)
 
 		sql, args, err := insertTransactionMetadata.ToSql()
 		if err != nil {
