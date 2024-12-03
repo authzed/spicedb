@@ -55,6 +55,8 @@ type changeDetails struct {
 		RelationshipCaveatContext map[string]any `json:"caveat_context"`
 		RelationshipCaveatName    string         `json:"caveat_name"`
 
+		RelationshipExpiration *time.Time `json:"expires_at"`
+
 		IntegrityKeyID     *string `json:"integrity_key_id"`
 		IntegrityHashAsHex *string `json:"integrity_hash"`
 		TimestampAsString  *string `json:"timestamp"`
@@ -444,8 +446,12 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 				return
 			}
 
-			var integrity *core.RelationshipIntegrity
+			var expiration *time.Time
+			if details.After != nil {
+				expiration = details.After.RelationshipExpiration
+			}
 
+			var integrity *core.RelationshipIntegrity
 			if details.After != nil && details.After.IntegrityKeyID != nil && details.After.IntegrityHashAsHex != nil && details.After.TimestampAsString != nil {
 				hexString := *details.After.IntegrityHashAsHex
 				hashBytes, err := hex.DecodeString(hexString[2:]) // drop the \x
@@ -481,8 +487,9 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 						Relation:   pkValues[5],
 					},
 				},
-				OptionalCaveat:    ctxCaveat,
-				OptionalIntegrity: integrity,
+				OptionalCaveat:     ctxCaveat,
+				OptionalIntegrity:  integrity,
+				OptionalExpiration: expiration,
 			}
 
 			rev, err := revisions.HLCRevisionFromString(details.Updated)
