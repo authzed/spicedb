@@ -91,6 +91,8 @@ const (
 	queryTransactionNowPreV23 = querySelectNow
 	queryTransactionNow       = "SHOW COMMIT TIMESTAMP"
 	queryShowZoneConfig       = "SHOW ZONE CONFIGURATION FOR RANGE default;"
+
+	spicedbTransactionKey = "$spicedb_transaction_key"
 )
 
 var livingTupleConstraints = []string{"pk_relation_tuple"}
@@ -345,21 +347,25 @@ func (cds *crdbDatastore) ReadWriteTx(
 			Executor: pgxcommon.NewPGXExecutorWithIntegrityOption(querier, cds.supportsIntegrity),
 		}
 
-		// If metadata is to be attached, write that row now.
-		if config.Metadata != nil && len(config.Metadata.GetFields()) > 0 {
-			expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
-			insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
-				Columns(colExpiresAt, colMetadata).
-				Values(expiresAt, config.Metadata.AsMap())
+		// Write metadata onto the transaction.
+		metadata := config.Metadata.AsMap()
 
-			sql, args, err := insertTransactionMetadata.ToSql()
-			if err != nil {
-				return fmt.Errorf("error building metadata insert: %w", err)
-			}
+		// Mark the transaction as coming from SpiceDB. See the comment in watch.go
+		// for why this is necessary.
+		metadata[spicedbTransactionKey] = true
 
-			if _, err := tx.Exec(ctx, sql, args...); err != nil {
-				return fmt.Errorf("error writing metadata: %w", err)
-			}
+		expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
+		insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
+			Columns(colExpiresAt, colMetadata).
+			Values(expiresAt, config.Metadata.AsMap())
+
+		sql, args, err := insertTransactionMetadata.ToSql()
+		if err != nil {
+			return fmt.Errorf("error building metadata insert: %w", err)
+		}
+
+		if _, err := tx.Exec(ctx, sql, args...); err != nil {
+			return fmt.Errorf("error writing metadata: %w", err)
 		}
 
 		rwt := &crdbReadWriteTXN{
@@ -391,10 +397,10 @@ func (cds *crdbDatastore) ReadWriteTx(
 			}
 		}
 
-		var err error
-		commitTimestamp, err = cds.readTransactionCommitRev(ctx, querier)
-		if err != nil {
-			return fmt.Errorf("error getting commit timestamp: %w", err)
+		var cerr error
+		commitTimestamp, cerr = cds.readTransactionCommitRev(ctx, querier)
+		if cerr != nil {
+			return fmt.Errorf("error getting commit timestamp: %w", cerr)
 		}
 		return nil
 	})

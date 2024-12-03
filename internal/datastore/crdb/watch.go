@@ -361,6 +361,47 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 
 			for _, revChange := range filtered {
 				revChange := revChange
+
+				// TODO(jschorr): Change this to a new event type if/when we decide to report these
+				// row GCs.
+
+				// Filter out any DELETEs that occurred due to a relationship being expired and CRDB
+				// performing GC of the row.
+				// As CRDB does not (currently) provide a means for differentiating rows deleted by a user
+				// and rows deleted by the system, we use a set of heuristics to determine when to filter:
+				//
+				// 1) Rows deleted by the TTL cleanup in CRDB will not have any metadata associated with the
+				//    transaction.
+				// 2) No other operations besides DELETE will be performed by the TTL cleanup.
+				// 3) Only filter rows that had an expires_at that are before the current time.
+				if _, ok := revChange.Metadata.AsMap()[spicedbTransactionKey]; !ok {
+					if len(revChange.ChangedDefinitions) == 0 && len(revChange.DeletedNamespaces) == 0 &&
+						len(revChange.DeletedCaveats) == 0 {
+						hasNonTTLEvent := false
+						for _, relChange := range revChange.RelationshipChanges {
+							if relChange.Operation != tuple.UpdateOperationDelete {
+								hasNonTTLEvent = true
+								break
+							}
+
+							if relChange.Relationship.OptionalExpiration == nil {
+								hasNonTTLEvent = true
+								break
+							}
+
+							if relChange.Relationship.OptionalExpiration.After(time.Now()) {
+								hasNonTTLEvent = true
+								break
+							}
+						}
+
+						if !hasNonTTLEvent {
+							// Skip this event.
+							continue
+						}
+					}
+				}
+
 				if err := sendChange(&revChange); err != nil {
 					sendError(err)
 					return
@@ -549,7 +590,9 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 					return
 				}
 
-				if err := tracked.SetRevisionMetadata(ctx, rev, details.After.Metadata); err != nil {
+				adjustedMetadata := details.After.Metadata
+				delete(adjustedMetadata, spicedbTransactionKey)
+				if err := tracked.SetRevisionMetadata(ctx, rev, adjustedMetadata); err != nil {
 					sendError(err)
 					return
 				}
