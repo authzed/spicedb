@@ -481,7 +481,7 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 	require.NoError(err)
 }
 
-func TestWriteExpiringRelationshinps(t *testing.T) {
+func TestWriteExpiringRelationships(t *testing.T) {
 	req := require.New(t)
 
 	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
