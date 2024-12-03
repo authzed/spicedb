@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -42,7 +43,8 @@ func CanonicalBytes(rel Relationship) ([]byte, error) {
 
 	if rel.OptionalExpiration != nil {
 		sb.WriteString(" with $expiration:")
-		sb.WriteString(rel.OptionalExpiration.UTC().Format(expirationFormat))
+		truncated := rel.OptionalExpiration.UTC().Truncate(time.Second)
+		sb.WriteString(truncated.Format(expirationFormat))
 	}
 
 	return sb.Bytes(), nil

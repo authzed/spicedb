@@ -531,17 +531,17 @@ var testCases = []struct {
 		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCBzb21lY2F2ZWF0Ontmb286NDIuMDAwMDAwfSB3aXRoICRleHBpcmF0aW9uOjIwMjAtMDEtMDFUMDA6MDA6MDBa",
 	},
 	{
-		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01.542Z]`,
-		expectedOutput: `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01.542Z]`,
+		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:02.542Z]`,
+		expectedOutput: `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:02.542Z]`,
 		relFormat: MustWithExpiration(
 			makeRel(
 				StringToONR("document", "foo", "viewer"),
 				StringToONR("user", "tom", "..."),
 			),
-			time.Date(2020, 1, 1, 0, 0, 1, 542000000, time.UTC),
+			time.Date(2020, 1, 1, 0, 0, 2, 542000000, time.UTC),
 		),
-		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 1, 542000000, time.UTC)),
-		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAxLjU0Mlo=",
+		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 0, 0, 2, 542000000, time.UTC)),
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAyWg==",
 	},
 	{
 		input:          `document:foo#viewer@user:tom[expiration:2020-01-01T00:00:01Z]`,
