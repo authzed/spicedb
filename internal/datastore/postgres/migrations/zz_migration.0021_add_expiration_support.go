@@ -18,6 +18,12 @@ const addWithExpirationCoveringIndex = `CREATE INDEX CONCURRENTLY
     INCLUDE (userset_namespace, userset_object_id, userset_relation, caveat_name, caveat_context)
     WHERE deleted_xid = '9223372036854775807'::xid8;`
 
+const addExpiredRelationshipsIndex = `CREATE INDEX CONCURRENTLY
+	IF NOT EXISTS ix_relation_tuple_expired
+	ON relation_tuple (expiration)
+	WHERE expiration IS NOT NULL;
+`
+
 func init() {
 	if err := DatabaseMigrations.Register("add-expiration-support", "add-watch-api-index-to-relation-tuple-table",
 		func(ctx context.Context, conn *pgx.Conn) error {
@@ -26,6 +32,10 @@ func init() {
 			}
 
 			if _, err := conn.Exec(ctx, addWithExpirationCoveringIndex); err != nil {
+				return fmt.Errorf("failed to add expiration column to relation tuple table: %w", err)
+			}
+
+			if _, err := conn.Exec(ctx, addExpiredRelationshipsIndex); err != nil {
 				return fmt.Errorf("failed to add expiration column to relation tuple table: %w", err)
 			}
 
