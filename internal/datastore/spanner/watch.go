@@ -189,6 +189,18 @@ func (sd *spannerDatastore) watch(
 				changeRevision := revisions.NewForTime(dcr.CommitTimestamp)
 				modType := dcr.ModType // options are INSERT, UPDATE, DELETE
 
+				// See: https://cloud.google.com/spanner/docs/ttl
+				// > TTL supports auditing its deletions through change streams. Change
+				// > streams data records that track TTL changes to a database have the
+				// > transaction_tag field set to RowDeletionPolicy and the
+				// > is_system_transaction field set to true.
+				if modType == "DELETE" && dcr.TransactionTag == "RowDeletionPolicy" && dcr.IsSystemTransaction {
+					// Skip deletions that are performed by TTL policy.
+					// TODO(jschorr): once we decide to emit events for GCed expired rels, change to emit those
+					// events instead.
+					continue
+				}
+
 				if len(dcr.TransactionTag) > 0 {
 					if err := addMetadataForTransactionTag(ctx, tracked, changeRevision, dcr.TransactionTag); err != nil {
 						return err
