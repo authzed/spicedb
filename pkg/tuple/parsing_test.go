@@ -571,7 +571,7 @@ var testCases = []struct {
 			time.Date(2020, 1, 1, 0, 0, 1, 0, time.FixedZone("UTC-4", -4*60*60)),
 		),
 		v1Format:               ev1rel("document", "foo", "viewer", "user", "tom", "", time.Date(2020, 1, 1, 4, 0, 1, 0, time.UTC)),
-		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDAwOjAwOjAxLTA0OjAw",
+		stableCanonicalization: "ZG9jdW1lbnQ6Zm9vI3ZpZXdlckB1c2VyOnRvbSMuLi4gd2l0aCAkZXhwaXJhdGlvbjoyMDIwLTAxLTAxVDA0OjAwOjAxWg==",
 	},
 }
 

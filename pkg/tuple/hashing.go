@@ -42,7 +42,7 @@ func CanonicalBytes(rel Relationship) ([]byte, error) {
 
 	if rel.OptionalExpiration != nil {
 		sb.WriteString(" with $expiration:")
-		sb.WriteString(rel.OptionalExpiration.Format(expirationFormat))
+		sb.WriteString(rel.OptionalExpiration.UTC().Format(expirationFormat))
 	}
 
 	return sb.Bytes(), nil
