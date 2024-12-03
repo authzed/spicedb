@@ -71,6 +71,7 @@ func NewTestServerWithConfigAndDatastore(require *require.Assertions,
 	ds, revision := dsInitFunc(emptyDS, require)
 	ctx, cancel := context.WithCancel(context.Background())
 	srv, err := server.NewConfigWithOptionsAndDefaults(
+		server.WithEnableExperimentalRelationshipExpiration(true),
 		server.WithDatastore(ds),
 		server.WithDispatcher(graph.NewLocalOnlyDispatcher(10, 100)),
 		server.WithDispatchMaxDepth(50),

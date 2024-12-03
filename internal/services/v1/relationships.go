@@ -95,6 +95,9 @@ type PermissionsServerConfig struct {
 	// MaxBulkExportRelationshipsLimit defines the maximum number of relationships that can be
 	// exported in a single BulkExportRelationships call.
 	MaxBulkExportRelationshipsLimit uint32
+
+	// ExpiringRelationshipsEnabled defines whether or not expiring relationships are enabled.
+	ExpiringRelationshipsEnabled bool
 }
 
 // NewPermissionsServer creates a PermissionsServiceServer instance.
@@ -115,6 +118,7 @@ func NewPermissionsServer(
 		MaxLookupResourcesLimit:         defaultIfZero(config.MaxLookupResourcesLimit, 1_000),
 		MaxBulkExportRelationshipsLimit: defaultIfZero(config.MaxBulkExportRelationshipsLimit, 100_000),
 		DispatchChunkSize:               defaultIfZero(config.DispatchChunkSize, 100),
+		ExpiringRelationshipsEnabled:    true,
 	}
 
 	return &permissionServer{
@@ -307,6 +311,13 @@ func (ps *permissionServer) WriteRelationships(ctx context.Context, req *v1.Writ
 			return nil, ps.rewriteError(
 				ctx,
 				NewMaxRelationshipContextError(update, ps.config.MaxRelationshipContextSize),
+			)
+		}
+
+		if !ps.config.ExpiringRelationshipsEnabled && update.Relationship.OptionalExpiresAt != nil {
+			return nil, ps.rewriteError(
+				ctx,
+				fmt.Errorf("support for expiring relationships is not enabled"),
 			)
 		}
 	}

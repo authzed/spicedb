@@ -23,7 +23,7 @@ import (
 )
 
 // NewSchemaServer creates a SchemaServiceServer instance.
-func NewSchemaServer(additiveOnly bool) v1.SchemaServiceServer {
+func NewSchemaServer(additiveOnly bool, expiringRelsEnabled bool) v1.SchemaServiceServer {
 	return &schemaServer{
 		WithServiceSpecificInterceptors: shared.WithServiceSpecificInterceptors{
 			Unary: middleware.ChainUnaryServer(
@@ -35,7 +35,8 @@ func NewSchemaServer(additiveOnly bool) v1.SchemaServiceServer {
 				usagemetrics.StreamServerInterceptor(),
 			),
 		},
-		additiveOnly: additiveOnly,
+		additiveOnly:        additiveOnly,
+		expiringRelsEnabled: expiringRelsEnabled,
 	}
 }
 
@@ -43,7 +44,8 @@ type schemaServer struct {
 	v1.UnimplementedSchemaServiceServer
 	shared.WithServiceSpecificInterceptors
 
-	additiveOnly bool
+	additiveOnly        bool
+	expiringRelsEnabled bool
 }
 
 func (ss *schemaServer) rewriteError(ctx context.Context, err error) error {
@@ -109,10 +111,15 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	ds := datastoremw.MustFromContext(ctx)
 
 	// Compile the schema into the namespace definitions.
+	opts := []compiler.Option{}
+	if !ss.expiringRelsEnabled {
+		opts = append(opts, compiler.DisallowExpirationFlag())
+	}
+
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("schema"),
 		SchemaString: in.GetSchema(),
-	}, compiler.AllowUnprefixedObjectType())
+	}, compiler.AllowUnprefixedObjectType(), opts...)
 	if err != nil {
 		return nil, ss.rewriteError(ctx, err)
 	}

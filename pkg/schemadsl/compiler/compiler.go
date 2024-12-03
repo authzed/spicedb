@@ -70,7 +70,7 @@ func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
 }
 
-func DisallowExpirationFlag() ObjectPrefixOption {
+func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
 		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
 			return s != "expiration"

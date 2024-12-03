@@ -68,7 +68,7 @@ func RegisterGrpcServices(
 	}
 
 	if schemaServiceOption == V1SchemaServiceEnabled || schemaServiceOption == V1SchemaServiceAdditiveOnly {
-		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaServiceOption == V1SchemaServiceAdditiveOnly))
+		v1.RegisterSchemaServiceServer(srv, v1svc.NewSchemaServer(schemaServiceOption == V1SchemaServiceAdditiveOnly, permSysConfig.ExpiringRelationshipsEnabled))
 		healthManager.RegisterReportedService(v1.SchemaService_ServiceDesc.ServiceName)
 	}
 
