@@ -559,7 +559,7 @@ func (rwt *pgReadWriteTXN) WriteNamespaces(ctx context.Context, newConfigs ...*c
 
 	delSQL, delArgs, err := deleteNamespace.
 		Set(colDeletedXid, rwt.newXID).
-		Where(sq.And{sq.Eq{colDeletedXid: liveDeletedTxnID}, deletedNamespaceClause}).
+		Where(deletedNamespaceClause).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf(errUnableToWriteConfig, err)
