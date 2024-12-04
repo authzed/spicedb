@@ -70,10 +70,12 @@ func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
 }
 
+const expirationFlag = "expiration"
+
 func DisallowExpirationFlag() Option {
 	return func(cfg *config) {
 		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
-			return s != "expiration"
+			return s != expirationFlag
 		})
 	}
 }
@@ -89,7 +91,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 	}
 
 	// Enable `expiration` flag by default.
-	cfg.allowedFlags = append(cfg.allowedFlags, "expiration")
+	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
 
 	prefix(cfg) // required option
 
