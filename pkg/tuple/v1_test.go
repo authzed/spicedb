@@ -5,6 +5,8 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authzed/spicedb/pkg/testutil"
 )
 
 func objRef(typ, id string) *v1.ObjectReference {
@@ -42,5 +44,28 @@ func TestJoinSubjectRef(t *testing.T) {
 	}
 	for _, tt := range table {
 		require.Equal(t, tt.expected, V1StringSubjectRef(tt.ref))
+	}
+}
+
+func TestBackAndForth(t *testing.T) {
+	for _, tc := range testCases {
+		tc := tc
+		if tc.stableCanonicalization == "" {
+			continue
+		}
+
+		t.Run("relationship/"+tc.input, func(t *testing.T) {
+			v1rel := ToV1Relationship(tc.relFormat)
+			testutil.RequireProtoEqual(t, tc.v1Format, v1rel, "mismatch in v1 proto")
+			adjusted := tc.relFormat
+
+			// Converting to V1 removes the timezones.
+			if adjusted.OptionalExpiration != nil {
+				t := adjusted.OptionalExpiration.UTC()
+				adjusted.OptionalExpiration = &t
+			}
+
+			require.Equal(t, adjusted, FromV1Relationship(v1rel))
+		})
 	}
 }
