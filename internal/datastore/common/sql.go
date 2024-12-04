@@ -118,6 +118,12 @@ func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuil
 		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
 	}
 
+	// Filter out any expired relationships.
+	initialQuery = initialQuery.Where(sq.Or{
+		sq.Eq{schema.colExpiration: nil},
+		sq.Expr(schema.colExpiration + " > " + schema.nowFunction + "()"),
+	})
+
 	return SchemaQueryFilterer{
 		schema:                schema,
 		queryBuilder:          initialQuery,
@@ -575,12 +581,6 @@ func (tqs QueryExecutor) ExecuteQuery(
 	}
 
 	toExecute := query.limit(limit)
-
-	// Filter out any expired relationships.
-	toExecute.queryBuilder = toExecute.queryBuilder.Where(sq.Or{
-		sq.Eq{query.schema.colExpiration: nil},
-		sq.Expr(query.schema.colExpiration + " > " + query.schema.nowFunction + "()"),
-	})
 
 	// Run the query.
 	sql, args, err := toExecute.queryBuilder.ToSql()

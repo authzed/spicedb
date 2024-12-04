@@ -31,7 +31,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToRelation("somerelation")
 			},
-			"SELECT * WHERE relation = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND relation = ?",
 			[]any{"somerelation"},
 			map[string]int{
 				"relation": 1,
@@ -42,7 +42,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceID("someresourceid")
 			},
-			"SELECT * WHERE object_id = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND object_id = ?",
 			[]any{"someresourceid"},
 			map[string]int{
 				"object_id": 1,
@@ -53,7 +53,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithResourceIDPrefix("someprefix")
 			},
-			"SELECT * WHERE object_id LIKE ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND object_id LIKE ?",
 			[]any{"someprefix%"},
 			map[string]int{}, // object_id is not statically used, so not present in the map
 		},
@@ -62,7 +62,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterToResourceIDs([]string{"someresourceid", "anotherresourceid"})
 			},
-			"SELECT * WHERE object_id IN (?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND object_id IN (?,?)",
 			[]any{"someresourceid", "anotherresourceid"},
 			map[string]int{
 				"object_id": 2,
@@ -73,7 +73,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype")
 			},
-			"SELECT * WHERE ns = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ?",
 			[]any{"sometype"},
 			map[string]int{
 				"ns": 1,
@@ -84,7 +84,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel")
 			},
-			"SELECT * WHERE ns = ? AND object_id = ? AND relation = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ?",
 			[]any{"sometype", "someobj", "somerel"},
 			map[string]int{
 				"ns":        1,
@@ -99,7 +99,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalResourceType: "sometype",
 				})
 			},
-			"SELECT * WHERE ns = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ?",
 			[]any{"sometype"},
 			map[string]int{
 				"ns": 1,
@@ -113,7 +113,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalResourceIds:  []string{"someid"},
 				})
 			},
-			"SELECT * WHERE ns = ? AND object_id IN (?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id IN (?)",
 			[]any{"sometype", "someid"},
 			map[string]int{
 				"ns":        1,
@@ -128,7 +128,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalResourceIds:  []string{},
 				})
 			},
-			"SELECT * WHERE ns = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ?",
 			[]any{"sometype"},
 			map[string]int{
 				"ns": 1,
@@ -142,7 +142,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalResourceIds:  []string{"someid", "anotherid"},
 				})
 			},
-			"SELECT * WHERE ns = ? AND object_id IN (?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id IN (?,?)",
 			[]any{"sometype", "someid", "anotherid"},
 			map[string]int{
 				"ns":        1,
@@ -156,7 +156,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "somesubjectype",
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ?))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?))",
 			[]any{"somesubjectype"},
 			map[string]int{
 				"subject_ns": 1,
@@ -171,7 +171,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "anothersubjectype",
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ?) OR (subject_ns = ?))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?) OR (subject_ns = ?))",
 			[]any{"somesubjectype", "anothersubjectype"},
 			map[string]int{
 				"subject_ns": 2,
@@ -185,7 +185,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"somesubjectid"},
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?)))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_object_id IN (?)))",
 			[]any{"somesubjectype", "somesubjectid"},
 			map[string]int{
 				"subject_ns":        1,
@@ -199,7 +199,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds: []string{"somesubjectid"},
 				})
 			},
-			"SELECT * WHERE ((subject_object_id IN (?)))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_object_id IN (?)))",
 			[]any{"somesubjectid"},
 			map[string]int{
 				"subject_object_id": 1,
@@ -210,7 +210,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithSubjectsSelectors(datastore.SubjectsSelector{})
 			},
-			"SELECT * WHERE ((1=1))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((1=1))",
 			nil,
 			map[string]int{},
 		},
@@ -222,7 +222,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"somesubjectid", "anothersubjectid"},
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?)))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_object_id IN (?,?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid"},
 			map[string]int{
 				"subject_ns":        1,
@@ -237,7 +237,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					RelationFilter:      datastore.SubjectRelationFilter{}.WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_relation = ?))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_relation = ?))",
 			[]any{"somesubjectype", "..."},
 			map[string]int{
 				"subject_ns":       1,
@@ -252,7 +252,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel"),
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_relation = ?))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_relation = ?))",
 			[]any{"somesubjectype", "somesubrel"},
 			map[string]int{
 				"subject_ns":       1,
@@ -267,7 +267,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					RelationFilter:      datastore.SubjectRelationFilter{}.WithOnlyNonEllipsisRelations(),
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_relation <> ?))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_relation <> ?))",
 			[]any{"somesubjectype", "..."},
 			map[string]int{
 				"subject_ns":       1,
@@ -282,7 +282,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND (subject_relation = ? OR subject_relation = ?)))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "...", "somesubrel"},
 			map[string]int{
 				"subject_ns":       1,
@@ -298,7 +298,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					RelationFilter:      datastore.SubjectRelationFilter{}.WithNonEllipsisRelation("somesubrel").WithEllipsisRelation(),
 				})
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 			map[string]int{
 				"subject_ns":        1,
@@ -326,7 +326,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_relation <> ?))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)) OR (subject_ns = ? AND subject_relation <> ?))",
 			[]any{"somesubjectype", "a", "b", "...", "somesubrel", "anothersubjecttype", "b", "c", "...", "anotherrel", "thirdsubjectype", "..."},
 			map[string]int{
 				"subject_ns":        3,
@@ -341,7 +341,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					SubjectType: "subns",
 				})
 			},
-			"SELECT * WHERE subject_ns = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ?",
 			[]any{"subns"},
 			map[string]int{
 				"subject_ns": 1,
@@ -355,7 +355,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_object_id = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_object_id = ?",
 			[]any{"subns", "subid"},
 			map[string]int{
 				"subject_ns":        1,
@@ -372,7 +372,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_relation = ?",
 			[]any{"subns", "subrel"},
 			map[string]int{
 				"subject_ns":       1,
@@ -389,7 +389,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_relation = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_relation = ?",
 			[]any{"subns", "..."},
 			map[string]int{
 				"subject_ns":       1,
@@ -407,7 +407,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				})
 			},
-			"SELECT * WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
 			[]any{"subns", "subid", "somerel"},
 			map[string]int{
 				"subject_ns":        1,
@@ -420,7 +420,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.limit(100)
 			},
-			"SELECT * LIMIT 100",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) LIMIT 100",
 			nil,
 			map[string]int{},
 		},
@@ -442,7 +442,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				)
 			},
-			"SELECT * WHERE ns = ? AND relation = ? AND object_id IN (?,?) AND ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND relation = ? AND object_id IN (?,?) AND ((subject_ns = ? AND subject_object_id IN (?,?) AND (subject_relation = ? OR subject_relation = ?)))",
 			[]any{"someresourcetype", "somerelation", "someid", "anotherid", "somesubjectype", "somesubjectid", "anothersubjectid", "...", "somesubrel"},
 			map[string]int{
 				"ns":                1,
@@ -462,7 +462,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).TupleOrder(options.ByResource)
 			},
-			"SELECT * WHERE ns = ? ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? ORDER BY ns, object_id, relation, subject_ns, subject_object_id, subject_relation",
 			[]any{"someresourcetype"},
 			map[string]int{
 				"ns": 1,
@@ -477,7 +477,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "foo", "viewer", "user", "bar", "..."},
 			map[string]int{
 				"ns": 1,
@@ -492,7 +492,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE relation = ? AND (ns,object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND relation = ? AND (ns,object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"somerelation", "someresourcetype", "foo", "user", "bar", "..."},
 			map[string]int{
 				"relation": 1,
@@ -508,7 +508,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE ns = ? AND object_id IN (?) AND (relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id IN (?) AND (relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
 			[]any{"someresourcetype", "one", "viewer", "user", "bar", "..."},
 			map[string]int{
 				"ns":        1,
@@ -524,7 +524,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE object_id IN (?) AND (ns,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND object_id IN (?) AND (ns,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"one", "someresourcetype", "viewer", "user", "bar", "..."},
 			map[string]int{
 				"object_id": 1,
@@ -540,7 +540,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE ns = ? AND object_id IN (?,?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id IN (?,?) AND (object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"someresourcetype", "one", "two", "foo", "viewer", "user", "bar", "..."},
 			map[string]int{
 				"ns":        1,
@@ -557,7 +557,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE ns = ? AND relation = ? AND (object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND relation = ? AND (object_id,subject_ns,subject_object_id,subject_relation) > (?,?,?,?)",
 			[]any{"someresourcetype", "somerelation", "foo", "user", "bar", "..."},
 			map[string]int{
 				"ns":       1,
@@ -571,7 +571,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "somesubjectype",
 				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE ((subject_ns = ?)) AND (ns,object_id,relation,subject_object_id,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?)) AND (ns,object_id,relation,subject_object_id,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "someresourcetype", "foo", "viewer", "bar", "..."},
 			map[string]int{
 				"subject_ns": 1,
@@ -588,7 +588,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "anothersubjectype",
 				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE ((subject_ns = ?)) AND ((subject_ns = ?)) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?)) AND ((subject_ns = ?)) AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
 			[]any{"somesubjectype", "anothersubjectype", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
 			map[string]int{
 				"subject_ns": 2,
@@ -599,7 +599,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 			func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.MustFilterWithResourceIDPrefix("someprefix").After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.ByResource)
 			},
-			"SELECT * WHERE object_id LIKE ? AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND object_id LIKE ? AND (ns,object_id,relation,subject_ns,subject_object_id,subject_relation) > (?,?,?,?,?,?)",
 			[]any{"someprefix%", "someresourcetype", "foo", "viewer", "user", "bar", "..."},
 			map[string]int{},
 		},
@@ -612,7 +612,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					},
 				).TupleOrder(options.BySubject)
 			},
-			"SELECT * WHERE ns = ? ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? ORDER BY subject_ns, subject_object_id, subject_relation, ns, object_id, relation",
 			[]any{"someresourcetype"},
 			map[string]int{
 				"ns": 1,
@@ -625,7 +625,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectType: "somesubjectype",
 				}).After(toCursor(tuple.MustParse("someresourcetype:foo#viewer@user:bar")), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ?)) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?)) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "bar", "someresourcetype", "foo", "viewer", "..."},
 			map[string]int{
 				"subject_ns": 1,
@@ -639,7 +639,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"foo"},
 				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:bar")), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?))) AND (ns,object_id,relation,subject_relation) > (?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_object_id IN (?))) AND (ns,object_id,relation,subject_relation) > (?,?,?,?)",
 			[]any{"somesubjectype", "foo", "someresourcetype", "someresource", "viewer", "..."},
 			map[string]int{"subject_ns": 1, "subject_object_id": 1},
 		},
@@ -651,7 +651,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 					OptionalSubjectIds:  []string{"foo", "bar"},
 				}).After(toCursor(tuple.MustParse("someresourcetype:someresource#viewer@user:next")), options.BySubject)
 			},
-			"SELECT * WHERE ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
+			"SELECT * WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ? AND subject_object_id IN (?,?))) AND (subject_object_id,ns,object_id,relation,subject_relation) > (?,?,?,?,?)",
 			[]any{"somesubjectype", "foo", "bar", "next", "someresourcetype", "someresource", "viewer", "..."},
 			map[string]int{"subject_ns": 1, "subject_object_id": 2},
 		},
