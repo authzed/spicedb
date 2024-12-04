@@ -3,9 +3,7 @@ package memdb
 import (
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
-	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -107,23 +105,6 @@ func (r relationship) String() string {
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("rel", r.String())
-}
-
-func (r relationship) V1Relationship() *v1.Relationship {
-	return &v1.Relationship{
-		Resource: &v1.ObjectReference{
-			ObjectType: r.namespace,
-			ObjectId:   r.resourceID,
-		},
-		Relation: r.relation,
-		Subject: &v1.SubjectReference{
-			Object: &v1.ObjectReference{
-				ObjectType: r.subjectNamespace,
-				ObjectId:   r.subjectObjectID,
-			},
-			OptionalRelation: stringz.Default(r.subjectRelation, "", datastore.Ellipsis),
-		},
-	}
 }
 
 func (r relationship) Relationship() (tuple.Relationship, error) {
