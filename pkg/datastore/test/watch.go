@@ -74,7 +74,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			opts := datastore.WatchOptions{
 				Content:                 datastore.WatchRelationships,
-				WatchBufferLength:       128,
+				WatchBufferLength:       50,
 				WatchBufferWriteTimeout: tc.bufferTimeout,
 			}
 			changes, errchan := ds.Watch(ctx, lowestRevision, opts)
