@@ -19,13 +19,9 @@ var pgbouncerConfigs = lo.Map(
 )
 
 func TestPostgresWithPgBouncerDatastore(t *testing.T) {
-	t.Parallel()
-
 	testPostgresDatastore(t, pgbouncerConfigs)
 }
 
 func TestPostgresDatastoreWithPgBouncerWithoutCommitTimestamps(t *testing.T) {
-	t.Parallel()
-
 	testPostgresDatastoreWithoutCommitTimestamps(t, pgbouncerConfigs)
 }
