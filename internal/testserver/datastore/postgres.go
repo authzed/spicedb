@@ -83,9 +83,6 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		Cmd:          cmd,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, pool.Purge(postgres))
-	})
 
 	builder := &postgresTester{
 		container: container{
@@ -98,6 +95,11 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		targetMigration:      targetMigration,
 		useContainerHostname: bridgeSupplied,
 	}
+
+	t.Cleanup(func() {
+		require.NoError(t, builder.hostConn.Close(context.Background()))
+		require.NoError(t, pool.Purge(postgres))
+	})
 
 	if enablePgbouncer {
 		// if we are running with pgbouncer enabled then set it up
@@ -117,6 +119,12 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 
 	_, err = b.hostConn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
+
+	row := b.hostConn.QueryRow(context.Background(), "SELECT datname FROM pg_catalog.pg_database WHERE datname = $1", newDBName)
+	var dbName string
+	err = row.Scan(&dbName)
+	require.NoError(t, err)
+	require.Equal(t, newDBName, dbName)
 
 	hostname, port := b.getHostnameAndPort()
 	return fmt.Sprintf(
@@ -146,6 +154,8 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 
 		if i == retryCount {
 			require.NoError(t, err, "got error when trying to create migration driver")
+		} else {
+			t.Logf("failed to create migration driver: %v, retrying... %d", err, i)
 		}
 
 		time.Sleep(time.Duration(i) * timeBetweenRetries)

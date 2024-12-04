@@ -92,13 +92,11 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 }
 
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
-	t.Parallel()
 	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
 }
 
 func TestMySQL8Datastore(t *testing.T) {
-	t.Parallel()
 	b := testdatastore.RunMySQLForTestingWithOptions(t, testdatastore.MySQLTesterOptions{MigrateForNewDatastore: true}, "")
 	dst := datastoreTester{b: b, t: t}
 	test.AllWithExceptions(t, test.DatastoreTesterFunc(dst.createDatastore), test.WithCategories(test.WatchSchemaCategory, test.WatchCheckpointsCategory), true)
@@ -665,7 +663,6 @@ func TransactionTimestampsTest(t *testing.T, ds datastore.Datastore) {
 }
 
 func TestMySQLMigrations(t *testing.T) {
-	t.Parallel()
 	req := require.New(t)
 
 	db := datastoreDB(t, false)
@@ -687,7 +684,6 @@ func TestMySQLMigrations(t *testing.T) {
 }
 
 func TestMySQLMigrationsWithPrefix(t *testing.T) {
-	t.Parallel()
 	req := require.New(t)
 
 	prefix := "spicedb_"

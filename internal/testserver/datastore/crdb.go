@@ -52,6 +52,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForT
 		creds:    "root:fake",
 	}
 	t.Cleanup(func() {
+		require.NoError(t, builder.conn.Close(context.Background()))
 		require.NoError(t, pool.Purge(resource))
 	})
 
