@@ -105,11 +105,11 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 	defer mdb.RUnlock()
 
 	if len(mdb.revisions) == 0 {
-		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready")}
+		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is not ready"), time.Now()}
 	}
 
 	if err := mdb.checkRevisionLocalCallerMustLock(dr); err != nil {
-		return &memdbReader{nil, nil, err}
+		return &memdbReader{nil, nil, err, time.Now()}
 	}
 
 	revIndex := sort.Search(len(mdb.revisions), func(i int) bool {
@@ -123,7 +123,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 
 	rev := mdb.revisions[revIndex]
 	if rev.db == nil {
-		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is already closed")}
+		return &memdbReader{nil, nil, fmt.Errorf("memdb datastore is already closed"), time.Now()}
 	}
 
 	roTxn := rev.db.Txn(false)
@@ -131,7 +131,7 @@ func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reade
 		return roTxn, nil
 	}
 
-	return &memdbReader{noopTryLocker{}, txSrc, nil}
+	return &memdbReader{noopTryLocker{}, txSrc, nil, time.Now()}
 }
 
 func (mdb *memdbDatastore) SupportsIntegrity() bool {
@@ -177,7 +177,7 @@ func (mdb *memdbDatastore) ReadWriteTx(
 		}
 
 		newRevision := mdb.newRevisionID()
-		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil}, newRevision}
+		rwt := &memdbReadWriteTx{memdbReader{&sync.Mutex{}, txSrc, nil, time.Now()}, newRevision}
 		if err := f(ctx, rwt); err != nil {
 			mdb.Lock()
 			if tx != nil {

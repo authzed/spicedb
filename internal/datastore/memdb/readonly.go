@@ -24,6 +24,7 @@ type memdbReader struct {
 	TryLocker
 	txSource txFactory
 	initErr  error
+	now      time.Time
 }
 
 func (r *memdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -150,11 +151,11 @@ func (r *memdbReader) QueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(filteredIterator, queryOpts.Limit)
+		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.Limit)
 		return iter, nil
 
 	case options.BySubject:
-		return newSubjectSortedIterator(filteredIterator, queryOpts.Limit)
+		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.Limit)
 
 	default:
 		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.Sort)
@@ -213,11 +214,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(filteredIterator, queryOpts.LimitForReverse)
+		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse)
 		return iter, nil
 
 	case options.BySubject:
-		return newSubjectSortedIterator(filteredIterator, queryOpts.LimitForReverse)
+		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse)
 
 	default:
 		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.SortForReverse)
@@ -475,11 +476,10 @@ func makeCursorFilterFn(after options.Cursor, order options.SortOrder) func(tpl 
 	return noopCursorFilter
 }
 
-func newSubjectSortedIterator(it memdb.ResultIterator, limit *uint64) (datastore.RelationshipIterator, error) {
+func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uint64) (datastore.RelationshipIterator, error) {
 	results := make([]tuple.Relationship, 0)
 
 	// Coalesce all of the results into memory
-	now := time.Now()
 	for foundRaw := it.Next(); foundRaw != nil; foundRaw = it.Next() {
 		rt, err := foundRaw.(*relationship).Relationship()
 		if err != nil {
@@ -526,10 +526,9 @@ func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs tuple.ObjectAndRelati
 	return lhsNamespace == rhs.ObjectType && lhsObjectID == rhs.ObjectID && lhsRelation == rhs.Relation
 }
 
-func newMemdbTupleIterator(it memdb.ResultIterator, limit *uint64) datastore.RelationshipIterator {
+func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64) datastore.RelationshipIterator {
 	var count uint64
 	return func(yield func(tuple.Relationship, error) bool) {
-		now := time.Now()
 		for {
 			foundRaw := it.Next()
 			if foundRaw == nil {
