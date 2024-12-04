@@ -83,11 +83,20 @@ func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
 	e.Int("num-changed-relationships", len(rc.RelationshipChanges))
 }
 
+// ExpirationFilterOption is the filter option for the expiration field on relationships.
 type ExpirationFilterOption int
 
 const (
+	// ExpirationFilterOptionNone indicates that the expiration filter should not be used:
+	// relationships both with and without expiration will be returned.
 	ExpirationFilterOptionNone ExpirationFilterOption = iota
+
+	// ExpirationFilterOptionHasExpiration indicates that the expiration filter should only
+	// return relationships with an expiration.
 	ExpirationFilterOptionHasExpiration
+
+	// ExpirationFilterOptionNoExpiration indicates that the expiration filter should only
+	// return relationships without an expiration.
 	ExpirationFilterOptionNoExpiration
 )
 
