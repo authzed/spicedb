@@ -198,6 +198,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestRelationshipCounters", runner(tester, RelationshipCountersTest))
 	t.Run("TestUpdateRelationshipCounter", runner(tester, UpdateRelationshipCounterTest))
 	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
+	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
