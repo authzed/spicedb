@@ -100,7 +100,12 @@ func (r relationship) String() string {
 		caveat = "[" + r.caveat.caveatName + "]"
 	}
 
-	return r.namespace + ":" + r.resourceID + "#" + r.relation + "@" + r.subjectNamespace + ":" + r.subjectObjectID + "#" + r.subjectRelation + caveat
+	expiration := ""
+	if r.expiration != nil {
+		expiration = "[expiration:" + r.expiration.Format(time.RFC3339Nano) + "]"
+	}
+
+	return r.namespace + ":" + r.resourceID + "#" + r.relation + "@" + r.subjectNamespace + ":" + r.subjectObjectID + "#" + r.subjectRelation + caveat + expiration
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
