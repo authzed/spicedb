@@ -72,6 +72,7 @@ func RunMySQLForTestingWithOptions(t testing.TB, options MySQLTesterOptions, bri
 		options: options,
 	}
 	t.Cleanup(func() {
+		require.NoError(t, builder.db.Close())
 		require.NoError(t, pool.Purge(resource))
 	})
 
