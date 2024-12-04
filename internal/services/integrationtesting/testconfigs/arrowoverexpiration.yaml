@@ -1,0 +1,35 @@
+---
+schema: |+
+  use expiration
+
+  definition user {}
+
+  definition folder {
+    relation viewer: user with expiration
+    permission view = viewer
+  }
+
+  definition document {
+    relation parent: folder with expiration
+    permission view = parent->view
+  }
+
+relationships: >-
+  document:firstdoc#parent@folder:expired[expiration:2023-12-01T00:00:00Z]
+
+  document:firstdoc#parent@folder:notexpired[expiration:2323-12-01T00:00:00Z]
+
+  folder:expired#viewer@user:tom[expiration:2023-12-01T00:00:00Z]
+
+  folder:expired#viewer@user:fred[expiration:2223-12-01T00:00:00Z]
+
+  folder:notexpired#viewer@user:sarah[expiration:2023-12-01T00:00:00Z]
+
+  folder:notexpired#viewer@user:tracy[expiration:2223-12-01T00:00:00Z]
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:tracy"
+  assertFalse:
+    - "document:firstdoc#view@user:tom"
+    - "document:firstdoc#view@user:fred"
+    - "document:firstdoc#view@user:sarah"
