@@ -9,6 +9,7 @@ func addExpirationToRelationTupleTable(t *tables) string {
 	)
 }
 
+// Used for cleaning up expired relationships.
 func addExpiredRelationshipsIndex(t *tables) string {
 	return fmt.Sprintf(`CREATE INDEX ix_%s_expired ON %s (expiration);`,
 		t.RelationTuple(),

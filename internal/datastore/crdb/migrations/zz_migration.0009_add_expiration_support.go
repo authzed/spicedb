@@ -24,8 +24,6 @@ const (
 
 		ALTER TABLE relation_tuple_with_integrity SET (ttl_expiration_expression = 'expires_at', ttl_job_cron = '@daily');
 	`
-
-	createExpirationTupleIndex = `CREATE INDEX ix_relation_tuple_with_expiration ON relation_tuple (namespace, relation, object_id, expires_at, userset_namespace, userset_object_id, userset_relation) STORING (caveat_name, caveat_context);`
 )
 
 func init() {
@@ -38,12 +36,6 @@ func init() {
 func addExpirationSupport(ctx context.Context, conn *pgx.Conn) error {
 	// Add the expires_at column to relation_tuple.
 	_, err := conn.Exec(ctx, addExpirationColumnToRelationTuple)
-	if err != nil {
-		return err
-	}
-
-	// Add the expiration index.
-	_, err = conn.Exec(ctx, createExpirationTupleIndex)
 	if err != nil {
 		return err
 	}
