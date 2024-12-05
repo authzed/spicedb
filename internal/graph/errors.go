@@ -93,15 +93,6 @@ func (err RelationMissingTypeInfoError) DetailsMetadata() map[string]string {
 	}
 }
 
-// NewRelationMissingTypeInfoErr constructs a new relation not missing type information error.
-func NewRelationMissingTypeInfoErr(nsName string, relationName string) error {
-	return RelationMissingTypeInfoError{
-		error:         fmt.Errorf("relation/permission `%s` under definition `%s` is missing type information", relationName, nsName),
-		namespaceName: nsName,
-		relationName:  relationName,
-	}
-}
-
 // WildcardNotAllowedError occurs when a request sent has an invalid wildcard argument.
 type WildcardNotAllowedError struct {
 	error
