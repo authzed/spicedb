@@ -66,6 +66,11 @@ func (err RelationNotFoundError) NamespaceName() string {
 	return err.namespaceName
 }
 
+// NotFoundRelationName returns the name of the relation not found.
+func (err RelationNotFoundError) NotFoundRelationName() string {
+	return err.relationName
+}
+
 var _ sharederrors.UnknownRelationError = RelationNotFoundError{}
 
 // RelationMissingTypeInfoError defines an error for when type information is missing from a relation
