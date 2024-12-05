@@ -61,11 +61,6 @@ type RelationNotFoundError struct {
 	relationName  string
 }
 
-// NamespaceName returns the name of the namespace in which the relation was not found.
-func (err RelationNotFoundError) NamespaceName() string {
-	return err.namespaceName
-}
-
 // NotFoundRelationName returns the name of the relation not found.
 func (err RelationNotFoundError) NotFoundRelationName() string {
 	return err.relationName
