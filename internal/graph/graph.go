@@ -27,10 +27,6 @@ type ExpandResult struct {
 	Err  error
 }
 
-func (er ExpandResult) ResultError() error {
-	return er.Err
-}
-
 // ReduceableExpandFunc is a function that can be bound to a execution context.
 type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResult)
 
