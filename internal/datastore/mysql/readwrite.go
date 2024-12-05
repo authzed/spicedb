@@ -16,6 +16,7 @@ import (
 	"github.com/ccoveille/go-safecast"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jzelinskie/stringz"
+	"golang.org/x/exp/maps"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
@@ -58,6 +59,8 @@ func (cc *structpbWrapper) Scan(val any) error {
 	if !ok {
 		return fmt.Errorf("unsupported type: %T", v)
 	}
+
+	maps.Clear(*cc)
 	return json.Unmarshal(v, &cc)
 }
 

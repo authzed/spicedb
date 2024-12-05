@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
@@ -25,6 +26,7 @@ const (
 	defaultGCEnabled                         = true
 	defaultCredentialsProviderName           = ""
 	defaultFilterMaximumIDCount              = 100
+	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 )
 
 type mysqlOptions struct {
@@ -47,6 +49,7 @@ type mysqlOptions struct {
 	credentialsProviderName     string
 	filterMaximumIDCount        uint16
 	allowedMigrations           []string
+	columnOptimizationOption    common.ColumnOptimizationOption
 }
 
 // Option provides the facility to configure how clients within the
@@ -70,6 +73,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		gcEnabled:                   defaultGCEnabled,
 		credentialsProviderName:     defaultCredentialsProviderName,
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
+		columnOptimizationOption:    defaultColumnOptimizationOption,
 	}
 
 	for _, option := range options {
@@ -268,4 +272,15 @@ func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 // the health check (head migration is always allowed).
 func AllowedMigrations(allowedMigrations []string) Option {
 	return func(mo *mysqlOptions) { mo.allowedMigrations = allowedMigrations }
+}
+
+// WithColumnOptimization configures the column optimization strategy for the MySQL datastore.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(mo *mysqlOptions) {
+		if isEnabled {
+			mo.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			mo.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
 }

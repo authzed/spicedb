@@ -88,6 +88,7 @@ type spannerDatastore struct {
 	client   *spanner.Client
 	config   spannerOptions
 	database string
+	schema   common.SchemaInformation
 
 	cachedEstimatedBytesPerRelationshipLock sync.RWMutex
 	cachedEstimatedBytesPerRelationship     uint64
@@ -196,6 +197,20 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
 		tableSizesStatsTable:                    tableSizesStatsTable,
 		filterMaximumIDCount:                    config.filterMaximumIDCount,
+		schema: common.NewSchemaInformation(
+			tableRelationship,
+			colNamespace,
+			colObjectID,
+			colRelation,
+			colUsersetNamespace,
+			colUsersetObjectID,
+			colUsersetRelation,
+			colCaveatName,
+			colCaveatContext,
+			common.ExpandedLogicComparison,
+			sq.AtP,
+			config.columnOptimizationOption,
+		),
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
@@ -244,7 +259,7 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
 	executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
-	return spannerReader{executor, txSource, sd.filterMaximumIDCount}
+	return spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
 }
 
 func (sd *spannerDatastore) readTransactionMetadata(ctx context.Context, transactionTag string) (map[string]any, error) {
@@ -293,7 +308,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 
 		executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
 		rwt := spannerReadWriteTXN{
-			spannerReader{executor, txSource, sd.filterMaximumIDCount},
+			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
 			spannerRWT,
 		}
 		err := func() error {
