@@ -146,7 +146,10 @@ func addRevisionToContextFromConsistency(ctx context.Context, req hasConsistency
 		if pickedRequest {
 			source = "request"
 		}
-		ConsistencyCounter.WithLabelValues("atleast", source, serviceLabel).Inc()
+
+		if serviceLabel != "" {
+			ConsistencyCounter.WithLabelValues("atleast", source, serviceLabel).Inc()
+		}
 
 		revision = picked
 
