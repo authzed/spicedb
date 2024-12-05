@@ -731,43 +731,6 @@ func (nts *TypeSystem) RelationDoesNotAllowCaveatsOrTraitsForSubject(relationNam
 	return true, nil
 }
 
-// RelationDoesNotAllowCaveatsForSubject returns true if and only if it can be conclusively determined that
-// the given subject type does not accept any caveats on the given relation. If the relation does not have type information,
-// returns an error.
-func (nts *TypeSystem) RelationDoesNotAllowCaveatsForSubject(relationName string, subjectTypeName string) (bool, error) {
-	relation, ok := nts.relationMap[relationName]
-	if !ok {
-		return false, NewRelationNotFoundErr(nts.nsDef.Name, relationName)
-	}
-
-	typeInfo := relation.GetTypeInformation()
-	if typeInfo == nil {
-		return false, NewTypeWithSourceError(
-			fmt.Errorf("relation `%s` does not have type information", relationName),
-			relation, relationName,
-		)
-	}
-
-	foundSubjectType := false
-	for _, allowedRelation := range typeInfo.GetAllowedDirectRelations() {
-		if allowedRelation.GetNamespace() == subjectTypeName {
-			foundSubjectType = true
-			if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().CaveatName != "" {
-				return false, nil
-			}
-		}
-	}
-
-	if !foundSubjectType {
-		return false, NewTypeWithSourceError(
-			fmt.Errorf("relation `%s` does not allow subject type `%s`", relationName, subjectTypeName),
-			relation, relationName,
-		)
-	}
-
-	return true, nil
-}
-
 // ValidatedNamespaceTypeSystem is validated type system for a namespace.
 type ValidatedNamespaceTypeSystem struct {
 	*TypeSystem

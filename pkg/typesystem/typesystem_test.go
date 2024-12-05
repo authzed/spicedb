@@ -528,12 +528,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.True(t, vts.IsPermission("edit"))
 					})
 
-					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
-						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+					t.Run("RelationDoesNotAllowCaveatsOrTraitsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.True(t, ok)
 
-						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("editor", "user")
 						require.NoError(t, err)
 						require.True(t, ok)
 					})
@@ -620,12 +620,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.True(t, vts.IsPermission("view"))
 					})
 
-					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
-						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+					t.Run("RelationDoesNotAllowCaveatsOrTraitsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.True(t, ok)
 
-						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("editor", "user")
 						require.NoError(t, err)
 						require.True(t, ok)
 					})
@@ -697,12 +697,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.False(t, vts.IsPermission("member"))
 					})
 
-					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
-						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("member", "user")
+					t.Run("RelationDoesNotAllowCaveatsOrTraitsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("member", "user")
 						require.NoError(t, err)
 						require.True(t, ok)
 
-						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("member", "group")
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("member", "group")
 						require.NoError(t, err)
 						require.True(t, ok)
 					})
@@ -776,16 +776,16 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.False(t, vts.IsPermission("onlycaveated"))
 					})
 
-					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
-						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+					t.Run("RelationDoesNotAllowCaveatsOrTraitsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.False(t, ok)
 
-						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("editor", "user")
 						require.NoError(t, err)
 						require.True(t, ok)
 
-						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("onlycaveated", "user")
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("onlycaveated", "user")
 						require.NoError(t, err)
 						require.False(t, ok)
 					})
@@ -869,12 +869,12 @@ func TestTypeSystemAccessors(t *testing.T) {
 						require.False(t, vts.IsPermission("viewer"))
 					})
 
-					t.Run("RelationDoesNotAllowCaveatsForSubject", func(t *testing.T) {
-						ok, err := vts.RelationDoesNotAllowCaveatsForSubject("editor", "user")
+					t.Run("RelationDoesNotAllowCaveatsOrTraitsForSubject", func(t *testing.T) {
+						ok, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("editor", "user")
 						require.NoError(t, err)
-						require.True(t, ok)
+						require.False(t, ok)
 
-						ok, err = vts.RelationDoesNotAllowCaveatsForSubject("viewer", "user")
+						ok, err = vts.RelationDoesNotAllowCaveatsOrTraitsForSubject("viewer", "user")
 						require.NoError(t, err)
 						require.False(t, ok)
 					})
