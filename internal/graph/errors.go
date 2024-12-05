@@ -61,14 +61,6 @@ type RelationNotFoundError struct {
 	relationName  string
 }
 
-// DetailsMetadata returns the metadata for details for this error.
-func (err RelationNotFoundError) DetailsMetadata() map[string]string {
-	return map[string]string{
-		"definition_name":             err.namespaceName,
-		"relation_or_permission_name": err.relationName,
-	}
-}
-
 // NewRelationNotFoundErr constructs a new relation not found error.
 func NewRelationNotFoundErr(nsName string, relationName string) error {
 	return RelationNotFoundError{
