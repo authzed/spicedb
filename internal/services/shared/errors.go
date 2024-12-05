@@ -106,6 +106,14 @@ func NewMaxDepthExceededError(allowedMaximumDepth uint32, isCheckRequest bool) e
 	}
 }
 
+func AsValidationError(err error) *SchemaWriteDataValidationError {
+	var validationErr SchemaWriteDataValidationError
+	if errors.As(err, &validationErr) {
+		return &validationErr
+	}
+	return nil
+}
+
 type ConfigForErrors struct {
 	MaximumAPIDepth uint32
 	DebugTrace      *v1.DebugInformation
