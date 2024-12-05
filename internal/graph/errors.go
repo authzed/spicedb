@@ -61,15 +61,6 @@ type RelationNotFoundError struct {
 	relationName  string
 }
 
-// NewRelationNotFoundErr constructs a new relation not found error.
-func NewRelationNotFoundErr(nsName string, relationName string) error {
-	return RelationNotFoundError{
-		error:         fmt.Errorf("relation/permission `%s` not found under definition `%s`", relationName, nsName),
-		namespaceName: nsName,
-		relationName:  relationName,
-	}
-}
-
 var _ sharederrors.UnknownRelationError = RelationNotFoundError{}
 
 // RelationMissingTypeInfoError defines an error for when type information is missing from a relation
