@@ -2,7 +2,6 @@ package testfixtures
 
 import (
 	"context"
-	"math/rand"
 	"strconv"
 	"testing"
 
@@ -14,21 +13,6 @@ const (
 	FirstLetters      = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_"
 	SubsequentLetters = FirstLetters + "/_|-"
 )
-
-func RandomObjectID(length uint8) string {
-	b := make([]byte, length)
-	for i := range b {
-		sourceLetters := SubsequentLetters
-		if i == 0 {
-			sourceLetters = FirstLetters
-		}
-		// nolint:gosec
-		// G404 use of non cryptographically secure random number generator is not a security concern here,
-		// as this is only used for generating fixtures in testing.
-		b[i] = sourceLetters[rand.Intn(len(sourceLetters))]
-	}
-	return string(b)
-}
 
 func NewBulkRelationshipGenerator(objectType, relation, subjectType string, count int, t *testing.T) *BulkRelationshipGenerator {
 	return &BulkRelationshipGenerator{
