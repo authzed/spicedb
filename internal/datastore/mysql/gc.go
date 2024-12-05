@@ -102,7 +102,7 @@ func (mds *Datastore) DeleteBeforeTx(
 func (mds *Datastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
 	now, err := mds.Now(ctx)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	return mds.batchDelete(
