@@ -36,8 +36,6 @@ func Fatal() *zerolog.Event { return Logger.Fatal() }
 
 func WithLevel(level zerolog.Level) *zerolog.Event { return Logger.WithLevel(level) }
 
-func Log() *zerolog.Event { return Logger.Log() }
-
 func Ctx(ctx context.Context) *zerolog.Logger { return zerolog.Ctx(ctx) }
 
 func Print(v ...interface{}) {
