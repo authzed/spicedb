@@ -218,6 +218,7 @@ func (m MiddlewareOption) WithDatastoreMiddleware(middleware Middleware) Middlew
 		EnableRequestLog:          m.EnableRequestLog,
 		EnableResponseLog:         m.EnableResponseLog,
 		DisableGRPCHistogram:      m.DisableGRPCHistogram,
+		MiddlewareServiceLabel:    m.MiddlewareServiceLabel,
 		unaryDatastoreMiddleware:  &unary,
 		streamDatastoreMiddleware: &stream,
 	}
@@ -244,6 +245,7 @@ func (m MiddlewareOption) WithDatastore(ds datastore.Datastore) MiddlewareOption
 		EnableRequestLog:          m.EnableRequestLog,
 		EnableResponseLog:         m.EnableResponseLog,
 		DisableGRPCHistogram:      m.DisableGRPCHistogram,
+		MiddlewareServiceLabel:    m.MiddlewareServiceLabel,
 		unaryDatastoreMiddleware:  &unary,
 		streamDatastoreMiddleware: &stream,
 	}
