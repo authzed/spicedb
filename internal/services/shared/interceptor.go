@@ -12,6 +12,11 @@ type WithUnaryServiceSpecificInterceptor struct {
 	Unary grpc.UnaryServerInterceptor
 }
 
+// UnaryInterceptor implements servicespecific.ExtraUnaryInterceptor
+func (wussi WithUnaryServiceSpecificInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
+	return wussi.Unary
+}
+
 // WithStreamServiceSpecificInterceptor is a helper to add a stream interceptor or interceptor
 // chain to a service.
 type WithStreamServiceSpecificInterceptor struct {
