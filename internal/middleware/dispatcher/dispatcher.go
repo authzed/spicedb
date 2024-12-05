@@ -23,17 +23,6 @@ func ContextWithHandle(ctx context.Context) context.Context {
 	return context.WithValue(ctx, dispatcherKey, &dispatchHandle{})
 }
 
-// MustFromContext reads the selected dispatcher out of a context.Context, computes a zedtoken
-// from it, and panics if it has not been set on the context.
-func MustFromContext(ctx context.Context) dispatch.Dispatcher {
-	dispatcher := FromContext(ctx)
-	if dispatcher == nil {
-		panic("dispatcher middleware did not inject dispatcher")
-	}
-
-	return dispatcher
-}
-
 // SetInContext adds a dispatcher to the given context
 func SetInContext(ctx context.Context, dispatcher dispatch.Dispatcher) error {
 	handle := ctx.Value(dispatcherKey)
