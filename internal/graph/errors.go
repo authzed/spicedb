@@ -127,13 +127,6 @@ type UnimplementedError struct {
 	error
 }
 
-// NewUnimplementedErr constructs a new unimplemented error.
-func NewUnimplementedErr(baseErr error) error {
-	return UnimplementedError{
-		error: baseErr,
-	}
-}
-
 func (e UnimplementedError) Unwrap() error {
 	return e.error
 }
