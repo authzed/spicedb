@@ -61,6 +61,11 @@ type RelationNotFoundError struct {
 	relationName  string
 }
 
+// NamespaceName returns the name of the namespace in which the relation was not found.
+func (err RelationNotFoundError) NamespaceName() string {
+	return err.namespaceName
+}
+
 var _ sharederrors.UnknownRelationError = RelationNotFoundError{}
 
 // RelationMissingTypeInfoError defines an error for when type information is missing from a relation
