@@ -124,14 +124,6 @@ func DispatchChunkSize(dispatchChunkSize uint16) Option {
 	}
 }
 
-// RemoteDispatchTimeout sets the maximum timeout for a remote dispatch.
-// Defaults to 60s (as defined in the remote dispatcher).
-func RemoteDispatchTimeout(remoteDispatchTimeout time.Duration) Option {
-	return func(state *optionState) {
-		state.remoteDispatchTimeout = remoteDispatchTimeout
-	}
-}
-
 // NewDispatcher initializes a Dispatcher that caches and redispatches
 // optionally to the provided upstream.
 func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
