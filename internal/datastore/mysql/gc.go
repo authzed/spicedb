@@ -100,10 +100,15 @@ func (mds *Datastore) DeleteBeforeTx(
 }
 
 func (mds *Datastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	now, err := mds.Now(ctx)
+	if err != nil {
+		return -1, err
+	}
+
 	return mds.batchDelete(
 		ctx,
 		mds.driver.RelationTuple(),
-		sq.Lt{colExpiration: time.Now().Add(-1 * mds.gcWindow)},
+		sq.Lt{colExpiration: now.Add(-1 * mds.gcWindow)},
 	)
 }
 

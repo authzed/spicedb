@@ -69,11 +69,16 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 }
 
 func (pgd *pgDatastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	now, err := pgd.Now(ctx)
+	if err != nil {
+		return -1, err
+	}
+
 	return pgd.batchDelete(
 		ctx,
 		tableTuple,
 		gcPKCols,
-		sq.Lt{colExpiration: time.Now().Add(-1 * pgd.gcWindow)},
+		sq.Lt{colExpiration: now.Add(-1 * pgd.gcWindow)},
 	)
 }
 
