@@ -30,11 +30,6 @@ type ExpandResult struct {
 // ReduceableExpandFunc is a function that can be bound to a execution context.
 type ReduceableExpandFunc func(ctx context.Context, resultChan chan<- ExpandResult)
 
-// AlwaysFailExpand is a ReduceableExpandFunc which will always fail when reduced.
-func AlwaysFailExpand(_ context.Context, resultChan chan<- ExpandResult) {
-	resultChan <- expandResultError(NewAlwaysFailErr(), emptyMetadata)
-}
-
 // ExpandReducer is a type for the functions Any and All which combine check results.
 type ExpandReducer func(
 	ctx context.Context,
