@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -53,13 +52,6 @@ func NewExpansionFailureErr(baseErr error) error {
 // guaranteed to fail.
 type AlwaysFailError struct {
 	error
-}
-
-// NewAlwaysFailErr constructs a new always fail error.
-func NewAlwaysFailErr() error {
-	return AlwaysFailError{
-		error: errors.New("always fail"),
-	}
 }
 
 // RelationNotFoundError occurs when a relation was not found under a namespace.
