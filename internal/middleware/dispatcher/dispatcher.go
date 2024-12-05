@@ -23,6 +23,16 @@ func ContextWithHandle(ctx context.Context) context.Context {
 	return context.WithValue(ctx, dispatcherKey, &dispatchHandle{})
 }
 
+// FromContext reads the selected dispatcher out of a context.Context
+// and returns nil if it does not exist.
+func FromContext(ctx context.Context) dispatch.Dispatcher {
+	if c := ctx.Value(dispatcherKey); c != nil {
+		handle := c.(*dispatchHandle)
+		return handle.dispatcher
+	}
+	return nil
+}
+
 // SetInContext adds a dispatcher to the given context
 func SetInContext(ctx context.Context, dispatcher dispatch.Dispatcher) error {
 	handle := ctx.Value(dispatcherKey)
