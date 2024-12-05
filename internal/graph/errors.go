@@ -61,10 +61,6 @@ type RelationNotFoundError struct {
 	relationName  string
 }
 
-func (err RelationNotFoundError) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
-}
-
 // DetailsMetadata returns the metadata for details for this error.
 func (err RelationNotFoundError) DetailsMetadata() map[string]string {
 	return map[string]string{
