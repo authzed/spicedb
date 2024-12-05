@@ -23,16 +23,6 @@ func ContextWithHandle(ctx context.Context) context.Context {
 	return context.WithValue(ctx, dispatcherKey, &dispatchHandle{})
 }
 
-// FromContext reads the selected dispatcher out of a context.Context
-// and returns nil if it does not exist.
-func FromContext(ctx context.Context) dispatch.Dispatcher {
-	if c := ctx.Value(dispatcherKey); c != nil {
-		handle := c.(*dispatchHandle)
-		return handle.dispatcher
-	}
-	return nil
-}
-
 // MustFromContext reads the selected dispatcher out of a context.Context, computes a zedtoken
 // from it, and panics if it has not been set on the context.
 func MustFromContext(ctx context.Context) dispatch.Dispatcher {
