@@ -55,13 +55,6 @@ func (tss *TrackingSubjectSet) MustAddFrom(otherSet *TrackingSubjectSet) {
 	}
 }
 
-// RemoveFrom removes any subjects found in the other set from this set.
-func (tss *TrackingSubjectSet) RemoveFrom(otherSet *TrackingSubjectSet) {
-	for key, oss := range otherSet.setByType {
-		tss.getSetForKey(key).SubtractAll(oss)
-	}
-}
-
 // MustAdd adds the given subjects to this set.
 func (tss *TrackingSubjectSet) MustAdd(subjectsAndResources ...FoundSubject) {
 	err := tss.Add(subjectsAndResources...)
