@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -77,11 +79,17 @@ type Relationship struct {
 
 // ToCoreTuple converts the Relationship to a core.RelationTuple.
 func (r Relationship) ToCoreTuple() *core.RelationTuple {
+	var expirationTime *timestamppb.Timestamp
+	if r.OptionalExpiration != nil {
+		expirationTime = timestamppb.New(*r.OptionalExpiration)
+	}
+
 	return &core.RelationTuple{
-		ResourceAndRelation: r.Resource.ToCoreONR(),
-		Subject:             r.Subject.ToCoreONR(),
-		Caveat:              r.OptionalCaveat,
-		Integrity:           r.OptionalIntegrity,
+		ResourceAndRelation:    r.Resource.ToCoreONR(),
+		Subject:                r.Subject.ToCoreONR(),
+		Caveat:                 r.OptionalCaveat,
+		Integrity:              r.OptionalIntegrity,
+		OptionalExpirationTime: expirationTime,
 	}
 }
 

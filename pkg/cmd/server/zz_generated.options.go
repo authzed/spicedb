@@ -88,6 +88,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.MaxLookupResourcesLimit = c.MaxLookupResourcesLimit
 		to.MaxBulkExportRelationshipsLimit = c.MaxBulkExportRelationshipsLimit
 		to.EnableExperimentalLookupResources = c.EnableExperimentalLookupResources
+		to.EnableExperimentalRelationshipExpiration = c.EnableExperimentalRelationshipExpiration
 		to.MetricsAPI = c.MetricsAPI
 		to.UnaryMiddlewareModification = c.UnaryMiddlewareModification
 		to.StreamingMiddlewareModification = c.StreamingMiddlewareModification
@@ -156,6 +157,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["MaxLookupResourcesLimit"] = helpers.DebugValue(c.MaxLookupResourcesLimit, false)
 	debugMap["MaxBulkExportRelationshipsLimit"] = helpers.DebugValue(c.MaxBulkExportRelationshipsLimit, false)
 	debugMap["EnableExperimentalLookupResources"] = helpers.DebugValue(c.EnableExperimentalLookupResources, false)
+	debugMap["EnableExperimentalRelationshipExpiration"] = helpers.DebugValue(c.EnableExperimentalRelationshipExpiration, false)
 	debugMap["MetricsAPI"] = helpers.DebugValue(c.MetricsAPI, false)
 	debugMap["SilentlyDisableTelemetry"] = helpers.DebugValue(c.SilentlyDisableTelemetry, false)
 	debugMap["TelemetryCAOverridePath"] = helpers.DebugValue(c.TelemetryCAOverridePath, false)
@@ -558,6 +560,13 @@ func WithMaxBulkExportRelationshipsLimit(maxBulkExportRelationshipsLimit uint32)
 func WithEnableExperimentalLookupResources(enableExperimentalLookupResources bool) ConfigOption {
 	return func(c *Config) {
 		c.EnableExperimentalLookupResources = enableExperimentalLookupResources
+	}
+}
+
+// WithEnableExperimentalRelationshipExpiration returns an option that can set EnableExperimentalRelationshipExpiration on a Config
+func WithEnableExperimentalRelationshipExpiration(enableExperimentalRelationshipExpiration bool) ConfigOption {
+	return func(c *Config) {
+		c.EnableExperimentalRelationshipExpiration = enableExperimentalRelationshipExpiration
 	}
 }
 

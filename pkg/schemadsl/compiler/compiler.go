@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
+	"k8s.io/utils/strings/slices"
 
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/dslshape"
@@ -69,8 +70,14 @@ func AllowUnprefixedObjectType() ObjectPrefixOption {
 	return func(cfg *config) { cfg.objectTypePrefix = new(string) }
 }
 
-func AllowExpirationUseFlag() Option {
-	return func(cfg *config) { cfg.allowedFlags = append(cfg.allowedFlags, "expiration") }
+const expirationFlag = "expiration"
+
+func DisallowExpirationFlag() Option {
+	return func(cfg *config) {
+		cfg.allowedFlags = slices.Filter([]string{}, cfg.allowedFlags, func(s string) bool {
+			return s != expirationFlag
+		})
+	}
 }
 
 type Option func(*config)
@@ -79,7 +86,13 @@ type ObjectPrefixOption func(*config)
 
 // Compile compilers the input schema into a set of namespace definition protos.
 func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*CompiledSchema, error) {
-	cfg := &config{}
+	cfg := &config{
+		allowedFlags: make([]string, 0, 1),
+	}
+
+	// Enable `expiration` flag by default.
+	cfg.allowedFlags = append(cfg.allowedFlags, expirationFlag)
+
 	prefix(cfg) // required option
 
 	for _, fn := range opts {

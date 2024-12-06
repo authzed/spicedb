@@ -84,6 +84,7 @@ func (c *Config) Complete() (RunnableTestServer, error) {
 				MaxLookupResourcesLimit:         c.MaxLookupResourcesLimit,
 				MaxBulkExportRelationshipsLimit: c.MaxBulkExportRelationshipsLimit,
 				DispatchChunkSize:               defaultMaxChunkSize,
+				ExpiringRelationshipsEnabled:    true,
 			},
 			1*time.Second,
 		)

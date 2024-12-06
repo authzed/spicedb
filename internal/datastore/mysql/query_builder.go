@@ -161,6 +161,7 @@ func queryRelationshipsWithIds(tableTuple string) sq.SelectBuilder {
 		colUsersetRelation,
 		colCaveatName,
 		colCaveatContext,
+		colExpiration,
 	).From(tableTuple)
 }
 
@@ -174,6 +175,7 @@ func queryRelationships(tableTuple string) sq.SelectBuilder {
 		colUsersetRelation,
 		colCaveatName,
 		colCaveatContext,
+		colExpiration,
 	).From(tableTuple)
 }
 
@@ -201,6 +203,7 @@ func writeRelationship(tableTuple string) sq.InsertBuilder {
 		colUsersetRelation,
 		colCaveatName,
 		colCaveatContext,
+		colExpiration,
 		colCreatedTxn,
 	)
 }
@@ -215,6 +218,7 @@ func queryChanged(tableTuple string) sq.SelectBuilder {
 		colUsersetRelation,
 		colCaveatName,
 		colCaveatContext,
+		colExpiration,
 		colCreatedTxn,
 		colDeletedTxn,
 	).From(tableTuple)

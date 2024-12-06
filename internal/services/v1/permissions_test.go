@@ -2066,9 +2066,9 @@ func TestImportBulkRelationships(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, withCaveats := range []bool{true, false} {
-				withCaveats := withCaveats
-				t.Run(fmt.Sprintf("withCaveats=%t", withCaveats), func(t *testing.T) {
+			for _, withTrait := range []string{"", "caveated_viewer", "expiring_viewer"} {
+				withTrait := withTrait
+				t.Run(fmt.Sprintf("withTrait=%s", withTrait), func(t *testing.T) {
 					require := require.New(t)
 
 					conn, cleanup, _, _ := testserver.NewTestServer(require, 0, memdb.DisableGC, true, tf.StandardDatastoreWithSchema)
@@ -2086,7 +2086,7 @@ func TestImportBulkRelationships(t *testing.T) {
 						batch := make([]*v1.Relationship, 0, batchSize)
 
 						for i := uint64(0); i < batchSize; i++ {
-							if withCaveats {
+							if withTrait == "caveated_viewer" {
 								batch = append(batch, relWithCaveat(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
@@ -2095,6 +2095,16 @@ func TestImportBulkRelationships(t *testing.T) {
 									strconv.FormatUint(i, 10),
 									"",
 									"test",
+								))
+							} else if withTrait == "expiring_viewer" {
+								batch = append(batch, relWithExpiration(
+									tf.DocumentNS.Name,
+									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
+									"expiring_viewer",
+									tf.UserNS.Name,
+									strconv.FormatUint(i, 10),
+									"",
+									time.Date(2300, 1, 1, 0, 0, 0, 0, time.UTC),
 								))
 							} else {
 								batch = append(batch, rel(
@@ -2139,9 +2149,11 @@ func TestImportBulkRelationships(t *testing.T) {
 							continue
 						}
 
-						if withCaveats {
+						if withTrait == "caveated_viewer" {
 							require.NotNil(res.Relationship.OptionalCaveat)
 							require.Equal("test", res.Relationship.OptionalCaveat.CaveatName)
+						} else if withTrait == "expiring_viewer" {
+							require.NotNil(res.Relationship.OptionalExpiresAt)
 						} else {
 							require.Nil(res.Relationship.OptionalCaveat)
 						}

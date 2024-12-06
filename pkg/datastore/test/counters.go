@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -10,7 +11,59 @@ import (
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+
+	// Register the filter.
+	_, err = ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		err := tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
+			ResourceType: testfixtures.DocumentNS.Name,
+		})
+		require.NoError(t, err)
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Add some expiring and expired relationships.
+	updatedRev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+		return tx.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("document:somedoc#expiring_viewer@user:tom[expiration:2020-01-01T00:00:00Z]")),
+			tuple.Touch(tuple.MustParse("document:somedoc#expiring_viewer@user:fred[expiration:2320-01-01T00:00:00Z]")),
+		})
+	})
+	require.NoError(t, err)
+
+	// Check the count using the filter.
+	reader := ds.SnapshotReader(updatedRev)
+
+	expectedCount := 0
+	iter, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		OptionalResourceType: testfixtures.DocumentNS.Name,
+	})
+	require.NoError(t, err)
+
+	foundExpiringRel := false
+	for rel, err := range iter {
+		expectedCount++
+		require.NoError(t, err)
+		foundExpiringRel = foundExpiringRel || rel.OptionalExpiration != nil
+		if rel.OptionalExpiration != nil {
+			require.True(t, rel.OptionalExpiration.After(time.Now()))
+		}
+	}
+
+	require.True(t, foundExpiringRel)
+
+	count, err := reader.CountRelationships(context.Background(), "document")
+	require.NoError(t, err)
+	require.Equal(t, expectedCount, count)
+}
 
 func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)

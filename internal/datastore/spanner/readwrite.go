@@ -320,6 +320,12 @@ func upsertVals(r tuple.Relationship) []any {
 	key := keyFromRelationship(r)
 	key = append(key, spanner.CommitTimestamp)
 	key = append(key, caveatVals(r)...)
+
+	if r.OptionalExpiration != nil {
+		key = append(key, spanner.NullTime{Time: *r.OptionalExpiration, Valid: true})
+	} else {
+		key = append(key, nil)
+	}
 	return key
 }
 

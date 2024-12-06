@@ -47,7 +47,9 @@ var schema = common.NewSchemaInformation(
 	colUsersetObjectID,
 	colUsersetRelation,
 	colCaveatName,
+	colExpiration,
 	common.ExpandedLogicComparison,
+	"NOW",
 )
 
 func (mr *mysqlReader) CountRelationships(ctx context.Context, name string) (int, error) {

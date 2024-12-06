@@ -83,6 +83,23 @@ func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
 	e.Int("num-changed-relationships", len(rc.RelationshipChanges))
 }
 
+// ExpirationFilterOption is the filter option for the expiration field on relationships.
+type ExpirationFilterOption int
+
+const (
+	// ExpirationFilterOptionNone indicates that the expiration filter should not be used:
+	// relationships both with and without expiration will be returned.
+	ExpirationFilterOptionNone ExpirationFilterOption = iota
+
+	// ExpirationFilterOptionHasExpiration indicates that the expiration filter should only
+	// return relationships with an expiration.
+	ExpirationFilterOptionHasExpiration
+
+	// ExpirationFilterOptionNoExpiration indicates that the expiration filter should only
+	// return relationships without an expiration.
+	ExpirationFilterOptionNoExpiration
+)
+
 // RelationshipsFilter is a filter for relationships.
 type RelationshipsFilter struct {
 	// OptionalResourceType is the namespace/type for the resources to be found.
@@ -106,6 +123,9 @@ type RelationshipsFilter struct {
 	// OptionalCaveatName is the filter to use for caveated relationships, filtering by a specific caveat name.
 	// If nil, all caveated and non-caveated relationships are allowed
 	OptionalCaveatName string
+
+	// OptionalExpirationOption is the filter to use for relationships with or without an expiration.
+	OptionalExpirationOption ExpirationFilterOption
 }
 
 // Test returns true iff the given relationship is matched by this filter.
@@ -139,6 +159,14 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 		if relationship.OptionalCaveat == nil || relationship.OptionalCaveat.CaveatName != rf.OptionalCaveatName {
 			return false
 		}
+	}
+
+	if rf.OptionalExpirationOption == ExpirationFilterOptionHasExpiration && relationship.OptionalExpiration == nil {
+		return false
+	}
+
+	if rf.OptionalExpirationOption == ExpirationFilterOptionNoExpiration && relationship.OptionalExpiration != nil {
+		return false
 	}
 
 	return true

@@ -53,7 +53,7 @@ type crdbReadWriteTXN struct {
 
 var (
 	upsertTupleSuffixWithoutIntegrity = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s)",
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s OR relation_tuple.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -65,14 +65,18 @@ var (
 		colCaveatContextName,
 		colCaveatContext,
 		colCaveatContext,
+		colExpiration,
+		colExpiration,
 		colCaveatContextName,
 		colCaveatContextName,
 		colCaveatContext,
 		colCaveatContext,
+		colExpiration,
+		colExpiration,
 	)
 
 	upsertTupleSuffixWithIntegrity = fmt.Sprintf(
-		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s)",
+		"ON CONFLICT (%s,%s,%s,%s,%s,%s) DO UPDATE SET %s = now(), %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s, %s = excluded.%s WHERE (relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s OR relation_tuple_with_integrity.%s <> excluded.%s)",
 		colNamespace,
 		colObjectID,
 		colRelation,
@@ -88,10 +92,14 @@ var (
 		colIntegrityKeyID,
 		colIntegrityHash,
 		colIntegrityHash,
+		colExpiration,
+		colExpiration,
 		colCaveatContextName,
 		colCaveatContextName,
 		colCaveatContext,
 		colCaveatContext,
+		colExpiration,
+		colExpiration,
 	)
 
 	queryTouchTransaction = fmt.Sprintf(
@@ -133,6 +141,7 @@ func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
 			colUsersetRelation,
 			colCaveatContextName,
 			colCaveatContext,
+			colExpiration,
 			colIntegrityKeyID,
 			colIntegrityHash,
 		)
@@ -147,6 +156,7 @@ func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
 		colUsersetRelation,
 		colCaveatContextName,
 		colCaveatContext,
+		colExpiration,
 	)
 }
 
@@ -299,6 +309,7 @@ func (rwt *crdbReadWriteTXN) WriteRelationships(ctx context.Context, mutations [
 			rel.Subject.Relation,
 			caveatName,
 			caveatContext,
+			rel.OptionalExpiration,
 		}
 
 		if rwt.withIntegrity {
@@ -524,6 +535,7 @@ var copyCols = []string{
 	colUsersetRelation,
 	colCaveatContextName,
 	colCaveatContext,
+	colExpiration,
 }
 
 var copyColsWithIntegrity = []string{
@@ -535,6 +547,7 @@ var copyColsWithIntegrity = []string{
 	colUsersetRelation,
 	colCaveatContextName,
 	colCaveatContext,
+	colExpiration,
 	colIntegrityKeyID,
 	colIntegrityHash,
 	colTimestamp,

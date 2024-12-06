@@ -1,0 +1,34 @@
+---
+schema: |+
+  use expiration
+
+  definition user {}
+
+  definition team {
+    relation member: user with expiration
+  }
+
+  definition document {
+    relation viewer: team#member with expiration
+    permission view = viewer
+  }
+
+relationships: >-
+  team:firstteam#member@user:tracy[expiration:2023-12-01T00:00:00Z]
+
+  team:firstteam#member@user:tom[expiration:2300-12-01T00:00:00Z]
+
+  team:secondteam#member@user:fred[expiration:2023-12-01T00:00:00Z]
+
+  team:secondteam#member@user:sarah[expiration:2300-12-01T00:00:00Z]
+
+  document:firstdoc#viewer@team:firstteam#member[expiration:2023-12-01T00:00:00Z]
+
+  document:firstdoc#viewer@team:secondteam#member[expiration:2300-12-01T00:00:00Z]
+assertions:
+  assertTrue:
+    - "document:firstdoc#view@user:sarah"
+  assertFalse:
+    - "document:firstdoc#view@user:tom"
+    - "document:firstdoc#view@user:fred"
+    - "document:firstdoc#view@user:tracy"

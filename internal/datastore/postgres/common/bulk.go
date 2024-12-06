@@ -46,11 +46,12 @@ func (tg *tupleSourceAdapter) Values() ([]any, error) {
 	tg.valuesBuffer[5] = tg.current.Subject.Relation
 	tg.valuesBuffer[6] = caveatName
 	tg.valuesBuffer[7] = caveatContext
+	tg.valuesBuffer[8] = tg.current.OptionalExpiration
 
-	if len(tg.colNames) > 8 && tg.current.OptionalIntegrity != nil {
-		tg.valuesBuffer[8] = tg.current.OptionalIntegrity.KeyId
-		tg.valuesBuffer[9] = tg.current.OptionalIntegrity.Hash
-		tg.valuesBuffer[10] = tg.current.OptionalIntegrity.HashedAt.AsTime()
+	if len(tg.colNames) > 9 && tg.current.OptionalIntegrity != nil {
+		tg.valuesBuffer[9] = tg.current.OptionalIntegrity.KeyId
+		tg.valuesBuffer[10] = tg.current.OptionalIntegrity.Hash
+		tg.valuesBuffer[11] = tg.current.OptionalIntegrity.HashedAt.AsTime()
 	}
 
 	return tg.valuesBuffer, nil

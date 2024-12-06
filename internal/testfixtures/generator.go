@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -37,15 +38,17 @@ func NewBulkRelationshipGenerator(objectType, relation, subjectType string, coun
 		objectType,
 		relation,
 		subjectType,
+		false,
 	}
 }
 
 type BulkRelationshipGenerator struct {
-	remaining   int
-	t           *testing.T
-	objectType  string
-	relation    string
-	subjectType string
+	remaining      int
+	t              *testing.T
+	objectType     string
+	relation       string
+	subjectType    string
+	WithExpiration bool
 }
 
 func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationship, error) {
@@ -53,6 +56,12 @@ func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationsh
 		return nil, nil
 	}
 	btg.remaining--
+
+	var expiration *time.Time
+	if btg.WithExpiration {
+		exp := time.Now().Add(24 * time.Hour)
+		expiration = &exp
+	}
 
 	return &tuple.Relationship{
 		RelationshipReference: tuple.RelationshipReference{
@@ -67,6 +76,7 @@ func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationsh
 				Relation:   datastore.Ellipsis,
 			},
 		},
+		OptionalExpiration: expiration,
 	}, nil
 }
 

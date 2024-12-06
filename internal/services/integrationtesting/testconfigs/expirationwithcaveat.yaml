@@ -1,0 +1,33 @@
+---
+schema: |+
+  use expiration
+
+  caveat somecaveat(somecondition int) {
+    somecondition == 42
+  }
+
+  definition user {}
+
+  definition document {
+    relation viewer: user with somecaveat and expiration
+    permission view = viewer
+  }
+
+relationships: >-
+  document:firstdoc#viewer@user:tom[somecaveat][expiration:2023-12-01T00:00:00Z]
+
+  document:firstdoc#viewer@user:fred[somecaveat][expiration:2300-12-01T00:00:00Z]
+
+  document:firstdoc#viewer@user:sarah[somecaveat:{"somecondition":42}][expiration:2300-12-01T00:00:00Z]
+
+  document:firstdoc#viewer@user:tracy[somecaveat:{"somecondition":41}][expiration:2300-12-01T00:00:00Z]
+assertions:
+  assertTrue:
+    - 'document:firstdoc#view@user:fred with {"somecondition": 42}'
+    - "document:firstdoc#view@user:sarah"
+  assertCaveated:
+    - "document:firstdoc#view@user:fred"
+  assertFalse:
+    - "document:firstdoc#view@user:tom"
+    - 'document:firstdoc#view@user:fred with {"somecondition": 41}'
+    - "document:firstdoc#viewer@user:tracy"

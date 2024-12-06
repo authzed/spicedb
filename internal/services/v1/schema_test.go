@@ -585,3 +585,120 @@ func TestSchemaInvalid(t *testing.T) {
 	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
 	require.ErrorContains(t, err, "found token TokenTypeStar")
 }
+
+func TestSchemaChangeExpiration(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
+
+	// Write a basic schema with expiration.
+	originalSchema := `
+		use expiration
+		
+		definition user {}
+
+		definition document {
+			relation somerelation: user with expiration
+		}`
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: originalSchema,
+	})
+	require.NoError(t, err)
+
+	// Write the relationship referencing the expiration.
+	toWrite := tuple.MustParse("document:somedoc#somerelation@user:tom[expiration:2300-01-01T00:00:00Z]")
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
+			toWrite,
+		))},
+	})
+	require.Nil(t, err)
+
+	newSchema := "definition document {\n\trelation somerelation: user\n}\n\ndefinition user {}"
+
+	// Attempt to change the relation type, which should fail.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user with expiration` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
+
+	// Delete the relationship.
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Delete(
+			toWrite,
+		))},
+	})
+	require.Nil(t, err)
+
+	// Attempt to delete the relation type, which should work now.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	require.Nil(t, err)
+
+	// Ensure it was deleted.
+	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	require.Equal(t, newSchema, readback.SchemaText)
+
+	// Add the relationship back without expiration.
+	toWriteWithoutExp := tuple.MustParse("document:somedoc#somerelation@user:tom")
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
+			toWriteWithoutExp,
+		))},
+	})
+	require.Nil(t, err)
+
+	// Attempt to change the relation type back to including expiration, which should fail.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: originalSchema,
+	})
+	grpcutil.RequireStatus(t, codes.InvalidArgument, err)
+	require.Equal(t, "rpc error: code = InvalidArgument desc = cannot remove allowed type `user` from relation `somerelation` in object definition `document`, as a relationship exists with it", err.Error())
+}
+
+func TestSchemaChangeExpirationAllowed(t *testing.T) {
+	conn, cleanup, _, _ := testserver.NewTestServer(require.New(t), 0, memdb.DisableGC, true, tf.EmptyDatastore)
+	t.Cleanup(cleanup)
+	client := v1.NewSchemaServiceClient(conn)
+	v1client := v1.NewPermissionsServiceClient(conn)
+
+	// Write a basic schema with expiration.
+	originalSchema := `
+		use expiration
+		
+		definition user {}
+
+		definition document {
+			relation somerelation: user | user with expiration
+		}`
+	_, err := client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: originalSchema,
+	})
+	require.NoError(t, err)
+
+	// Write the relationship without referencing the expiration.
+	toWrite := tuple.MustParse("document:somedoc#somerelation@user:tom")
+	_, err = v1client.WriteRelationships(context.Background(), &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Create(
+			toWrite,
+		))},
+	})
+	require.Nil(t, err)
+
+	newSchema := "definition document {\n\trelation somerelation: user\n}\n\ndefinition user {}"
+
+	// Attempt to change the schema to remove the expiration, which should work.
+	_, err = client.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: newSchema,
+	})
+	require.Nil(t, err)
+
+	// Ensure it was deleted.
+	readback, err := client.ReadSchema(context.Background(), &v1.ReadSchemaRequest{})
+	require.NoError(t, err)
+	require.Equal(t, newSchema, readback.SchemaText)
+}

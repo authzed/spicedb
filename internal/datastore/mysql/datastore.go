@@ -51,6 +51,7 @@ const (
 	colCaveatDefinition = "definition"
 	colCaveatName       = "caveat_name"
 	colCaveatContext    = "caveat_context"
+	colExpiration       = "expiration"
 
 	colCounterName              = "name"
 	colCounterSerializedFilter  = "serialized_filter"
@@ -460,6 +461,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 				var subjectRelation string
 				var caveatName string
 				var caveatContext structpbWrapper
+				var expiration *time.Time
 				err := rows.Scan(
 					&resourceObjectType,
 					&resourceObjectID,
@@ -469,6 +471,7 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 					&subjectRelation,
 					&caveatName,
 					&caveatContext,
+					&expiration,
 				)
 				if err != nil {
 					yield(tuple.Relationship{}, fmt.Errorf(errUnableToQueryTuples, err))
@@ -495,7 +498,8 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 							Relation:   subjectRelation,
 						},
 					},
-					OptionalCaveat: caveat,
+					OptionalCaveat:     caveat,
+					OptionalExpiration: expiration,
 				}, nil) {
 					return
 				}

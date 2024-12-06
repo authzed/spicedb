@@ -53,6 +53,7 @@ var (
 		colUsersetRelation,
 		colCaveatContextName,
 		colCaveatContext,
+		colExpiration,
 	)
 
 	deleteTuple     = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -100,7 +101,8 @@ func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.Ins
 		tpl.Subject.ObjectID,
 		tpl.Subject.Relation,
 		caveatName,
-		caveatContext, // PGX driver serializes map[string]any to JSONB type columns
+		caveatContext, // PGX driver serializes map[string]any to JSONB type columns,
+		tpl.OptionalExpiration,
 	}
 
 	return builder.Values(valuesToWrite...)
@@ -152,7 +154,7 @@ func (rwt *pgReadWriteTXN) collectSimplifiedTouchTypes(ctx context.Context, muta
 			return nil, handleWriteError(err)
 		}
 
-		notAllowed, err := vts.RelationDoesNotAllowCaveatsForSubject(rel.Resource.Relation, rel.Subject.ObjectType)
+		notAllowed, err := vts.RelationDoesNotAllowCaveatsOrTraitsForSubject(rel.Resource.Relation, rel.Subject.ObjectType)
 		if err != nil {
 			// Ignore errors and just fallback to the less efficient path.
 			continue
@@ -302,7 +304,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 				continue
 			}
 
-			deleteClauses = append(deleteClauses, exactRelationshipDifferentCaveatClause(mut.Relationship))
+			deleteClauses = append(deleteClauses, exactRelationshipDifferentCaveatAndExpirationClause(mut.Relationship))
 		}
 	}
 
@@ -739,6 +741,7 @@ var copyCols = []string{
 	colUsersetRelation,
 	colCaveatContextName,
 	colCaveatContext,
+	colExpiration,
 }
 
 func (rwt *pgReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
@@ -756,7 +759,7 @@ func exactRelationshipClause(r tuple.Relationship) sq.Eq {
 	}
 }
 
-func exactRelationshipDifferentCaveatClause(r tuple.Relationship) sq.And {
+func exactRelationshipDifferentCaveatAndExpirationClause(r tuple.Relationship) sq.And {
 	var caveatName string
 	var caveatContext map[string]any
 	if r.OptionalCaveat != nil {
@@ -764,6 +767,7 @@ func exactRelationshipDifferentCaveatClause(r tuple.Relationship) sq.And {
 		caveatContext = r.OptionalCaveat.Context.AsMap()
 	}
 
+	expiration := r.OptionalExpiration
 	return sq.And{
 		sq.Eq{
 			colNamespace:        r.Resource.ObjectType,
@@ -775,6 +779,7 @@ func exactRelationshipDifferentCaveatClause(r tuple.Relationship) sq.And {
 		},
 		sq.Or{
 			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, colCaveatContextName), caveatName),
+			sq.Expr(fmt.Sprintf(`%s IS DISTINCT FROM ?`, colExpiration), expiration),
 			sq.NotEq{
 				colCaveatContext: caveatContext,
 			},

@@ -99,6 +99,19 @@ func (mds *Datastore) DeleteBeforeTx(
 	return
 }
 
+func (mds *Datastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	now, err := mds.Now(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return mds.batchDelete(
+		ctx,
+		mds.driver.RelationTuple(),
+		sq.Lt{colExpiration: now.Add(-1 * mds.gcWindow)},
+	)
+}
+
 // - query was reworked to make it compatible with Vitess
 // - API differences with PSQL driver
 func (mds *Datastore) batchDelete(ctx context.Context, tableName string, filter sqlFilter) (int64, error) {

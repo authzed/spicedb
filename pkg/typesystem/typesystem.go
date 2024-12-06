@@ -691,10 +691,10 @@ func (nts *TypeSystem) TypeSystemForNamespace(ctx context.Context, namespaceName
 	return NewNamespaceTypeSystem(nsDef, nts.resolver)
 }
 
-// RelationDoesNotAllowCaveatsForSubject returns true if and only if it can be conclusively determined that
-// the given subject type does not accept any caveats on the given relation. If the relation does not have type information,
+// RelationDoesNotAllowCaveatsOrTraitsForSubject returns true if and only if it can be conclusively determined that
+// the given subject type does not accept any caveats or traits on the given relation. If the relation does not have type information,
 // returns an error.
-func (nts *TypeSystem) RelationDoesNotAllowCaveatsForSubject(relationName string, subjectTypeName string) (bool, error) {
+func (nts *TypeSystem) RelationDoesNotAllowCaveatsOrTraitsForSubject(relationName string, subjectTypeName string) (bool, error) {
 	relation, ok := nts.relationMap[relationName]
 	if !ok {
 		return false, NewRelationNotFoundErr(nts.nsDef.Name, relationName)
@@ -713,6 +713,9 @@ func (nts *TypeSystem) RelationDoesNotAllowCaveatsForSubject(relationName string
 		if allowedRelation.GetNamespace() == subjectTypeName {
 			foundSubjectType = true
 			if allowedRelation.GetRequiredCaveat() != nil && allowedRelation.GetRequiredCaveat().CaveatName != "" {
+				return false, nil
+			}
+			if allowedRelation.GetRequiredExpiration() != nil {
 				return false, nil
 			}
 		}

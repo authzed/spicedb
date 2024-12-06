@@ -1513,6 +1513,7 @@ func NullCaveatWatchTest(t *testing.T, ds datastore.Datastore) {
 			"...",
 			nil, // set explicitly to null
 			nil, // set explicitly to null
+			nil, // no expiration
 		}
 
 		query := createInserts.Values(valuesToWrite...)

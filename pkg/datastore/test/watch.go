@@ -74,7 +74,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 
 			opts := datastore.WatchOptions{
 				Content:                 datastore.WatchRelationships,
-				WatchBufferLength:       128,
+				WatchBufferLength:       50,
 				WatchBufferWriteTimeout: tc.bufferTimeout,
 			}
 			changes, errchan := ds.Watch(ctx, lowestRevision, opts)
@@ -377,6 +377,42 @@ func WatchWithTouchTest(t *testing.T, tester DatastoreTester) {
 
 	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
 		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[somecaveat:{\"somecondition\": 42}]"))},
+	},
+		changes,
+		errchan,
+		false,
+	)
+}
+
+func WatchWithExpirationTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	lowestRevision, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, lowestRevision, datastore.WatchJustRelationships())
+	require.Zero(len(errchan))
+
+	metadata, err := structpb.NewStruct(map[string]any{"somekey": "somevalue"})
+	require.NoError(err)
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom[expiration:2321-01-01T00:00:00Z]")),
+		})
+	}, options.WithMetadata(metadata))
+	require.NoError(err)
+
+	VerifyUpdates(require, [][]tuple.RelationshipUpdate{
+		{tuple.Touch(tuple.MustParse("document:firstdoc#viewer@user:tom[expiration:2321-01-01T00:00:00Z]"))},
 	},
 		changes,
 		errchan,

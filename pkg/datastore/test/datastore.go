@@ -134,6 +134,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestDeleteRelationshipsWithVariousFilters", runner(tester, DeleteRelationshipsWithVariousFiltersTest))
 	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", runner(tester, TypedTouchAlreadyExistingTest))
 	t.Run("TestTouchTypedAlreadyExistingWithCaveat", runner(tester, TypedTouchAlreadyExistingWithCaveatTest))
+	t.Run("TestRelationshipExpiration", runner(tester, RelationshipExpirationTest))
 
 	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
 	t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
@@ -160,6 +161,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestBulkUploadAlreadyExistsError", runner(tester, BulkUploadAlreadyExistsErrorTest))
 	t.Run("TestBulkUploadAlreadyExistsSameCallError", runner(tester, BulkUploadAlreadyExistsSameCallErrorTest))
 	t.Run("BulkUploadEditCaveat", runner(tester, BulkUploadEditCaveat))
+	t.Run("BulkUploadWithExpiration", runner(tester, BulkUploadWithExpiration))
 
 	if !except.Stats() {
 		t.Run("TestStats", runner(tester, StatsTest))
@@ -180,6 +182,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 		t.Run("TestWatchWithTouch", runner(tester, WatchWithTouchTest))
 		t.Run("TestWatchWithDelete", runner(tester, WatchWithDeleteTest))
 		t.Run("TestWatchWithMetadata", runner(tester, WatchWithMetadataTest))
+		t.Run("TestWatchWithExpiration", runner(tester, WatchWithExpirationTest))
 		t.Run("TestWatchEmissionStrategy", runner(tester, WatchEmissionStrategyTest))
 	}
 
@@ -195,6 +198,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestRelationshipCounters", runner(tester, RelationshipCountersTest))
 	t.Run("TestUpdateRelationshipCounter", runner(tester, UpdateRelationshipCounterTest))
 	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
+	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
 }
 
 // All runs all generic datastore tests on a DatastoreTester.

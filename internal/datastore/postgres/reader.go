@@ -34,6 +34,7 @@ var (
 		colUsersetRelation,
 		colCaveatContextName,
 		colCaveatContext,
+		colExpiration,
 	).From(tableTuple)
 
 	countRels = psql.Select("COUNT(*)").From(tableTuple)
@@ -46,7 +47,9 @@ var (
 		colUsersetObjectID,
 		colUsersetRelation,
 		colCaveatContextName,
+		colExpiration,
 		common.TupleComparison,
+		"NOW",
 	)
 
 	readNamespace = psql.

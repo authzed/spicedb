@@ -109,14 +109,20 @@ func (v1st v1ServiceTester) Expand(ctx context.Context, resource tuple.ObjectAnd
 }
 
 func (v1st v1ServiceTester) Write(ctx context.Context, relationship tuple.Relationship) error {
-	_, err := v1st.permClient.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-		OptionalPreconditions: []*v1.Precondition{
-			{
-				Operation: v1.Precondition_OPERATION_MUST_MATCH,
-				Filter:    tuple.ToV1Filter(relationship),
-			},
+	preconditions := []*v1.Precondition{
+		{
+			Operation: v1.Precondition_OPERATION_MUST_MATCH,
+			Filter:    tuple.ToV1Filter(relationship),
 		},
-		Updates: []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Touch(relationship))},
+	}
+
+	if relationship.OptionalExpiration != nil {
+		preconditions = nil
+	}
+
+	_, err := v1st.permClient.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
+		OptionalPreconditions: preconditions,
+		Updates:               []*v1.RelationshipUpdate{tuple.MustUpdateToV1RelationshipUpdate(tuple.Touch(relationship))},
 	})
 	return err
 }

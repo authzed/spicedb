@@ -42,6 +42,7 @@ var (
 		colUsersetRelation,
 		colCaveatContextName,
 		colCaveatContext,
+		colExpiration,
 		colCreatedXid,
 		colDeletedXid,
 	).From(tableTuple)
@@ -358,6 +359,9 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 		var createdXID, deletedXID xid8
 		var caveatName *string
 		var caveatContext map[string]any
+
+		var expiration *time.Time
+
 		if err := changes.Scan(
 			&resourceObjectType,
 			&resourceObjectID,
@@ -367,6 +371,7 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 			&subjectRelation,
 			&caveatName,
 			&caveatContext,
+			&expiration,
 			&createdXID,
 			&deletedXID,
 		); err != nil {
@@ -386,6 +391,7 @@ func (pgd *pgDatastore) loadRelationshipChanges(ctx context.Context, xmin uint64
 					Relation:   subjectRelation,
 				},
 			},
+			OptionalExpiration: expiration,
 		}
 
 		if caveatName != nil && *caveatName != "" {

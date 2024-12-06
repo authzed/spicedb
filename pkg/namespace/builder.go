@@ -94,6 +94,16 @@ func AllowedRelationWithCaveat(namespaceName string, relationName string, withCa
 	}
 }
 
+// WithExpiration adds the expiration trait to the allowed relation.
+func WithExpiration(allowedRelation *core.AllowedRelation) *core.AllowedRelation {
+	return &core.AllowedRelation{
+		Namespace:          allowedRelation.Namespace,
+		RelationOrWildcard: allowedRelation.RelationOrWildcard,
+		RequiredCaveat:     allowedRelation.RequiredCaveat,
+		RequiredExpiration: &core.ExpirationTrait{},
+	}
+}
+
 // AllowedRelationWithExpiration creates a relation reference to an allowed relation.
 func AllowedRelationWithExpiration(namespaceName string, relationName string) *core.AllowedRelation {
 	return &core.AllowedRelation{

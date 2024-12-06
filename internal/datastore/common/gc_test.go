@@ -26,9 +26,10 @@ type fakeGC struct {
 }
 
 type gcMetrics struct {
-	deleteBeforeTxCount   int
-	markedCompleteCount   int
-	resetGCCompletedCount int
+	deleteBeforeTxCount    int
+	markedCompleteCount    int
+	resetGCCompletedCount  int
+	deleteExpiredRelsCount int
 }
 
 func newFakeGC(deleter gcDeleter) fakeGC {
@@ -71,6 +72,15 @@ func (gc *fakeGC) DeleteBeforeTx(_ context.Context, rev datastore.Revision) (Del
 	return gc.deleter.DeleteBeforeTx(revInt)
 }
 
+func (gc *fakeGC) DeleteExpiredRels(_ context.Context) (int64, error) {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	gc.metrics.deleteExpiredRelsCount++
+
+	return gc.deleter.DeleteExpiredRels()
+}
+
 func (gc *fakeGC) HasGCRun() bool {
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
@@ -102,6 +112,7 @@ func (gc *fakeGC) GetMetrics() gcMetrics {
 // Allows specifying different deletion behaviors for tests
 type gcDeleter interface {
 	DeleteBeforeTx(revision uint64) (DeletionCounts, error)
+	DeleteExpiredRels() (int64, error)
 }
 
 // Always error trying to perform a delete
@@ -109,6 +120,10 @@ type alwaysErrorDeleter struct{}
 
 func (alwaysErrorDeleter) DeleteBeforeTx(_ uint64) (DeletionCounts, error) {
 	return DeletionCounts{}, fmt.Errorf("delete error")
+}
+
+func (alwaysErrorDeleter) DeleteExpiredRels() (int64, error) {
+	return 0, fmt.Errorf("delete error")
 }
 
 // Only error on specific revisions
@@ -122,6 +137,10 @@ func (d revisionErrorDeleter) DeleteBeforeTx(revision uint64) (DeletionCounts, e
 	}
 
 	return DeletionCounts{}, nil
+}
+
+func (d revisionErrorDeleter) DeleteExpiredRels() (int64, error) {
+	return 0, nil
 }
 
 func TestGCFailureBackoff(t *testing.T) {

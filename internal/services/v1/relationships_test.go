@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	tf "github.com/authzed/spicedb/internal/testfixtures"
@@ -480,6 +481,30 @@ func TestDeleteRelationshipViaWriteNoop(t *testing.T) {
 	require.NoError(err)
 }
 
+func TestWriteExpiringRelationships(t *testing.T) {
+	req := require.New(t)
+
+	conn, cleanup, _, _ := testserver.NewTestServer(req, 0, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	toWrite := tuple.MustParse("document:companyplan#expiring_viewer@user:johndoe#...[expiration:2300-01-01T00:00:00Z]")
+	relWritten := tuple.ToV1Relationship(toWrite)
+	writeReq := &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{{
+			Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+			Relationship: relWritten,
+		}},
+	}
+
+	resp, err := client.WriteRelationships(context.Background(), writeReq)
+	req.NoError(err)
+
+	// read relationship back
+	relRead := readFirst(req, client, resp.WrittenAt, relWritten)
+	req.True(proto.Equal(relWritten, relRead))
+}
+
 func TestWriteCaveatedRelationships(t *testing.T) {
 	for _, deleteWithCaveat := range []bool{true, false} {
 		t.Run(fmt.Sprintf("with-caveat-%v", deleteWithCaveat), func(t *testing.T) {
@@ -606,6 +631,24 @@ func rel(resType, resID, relation, subType, subID, subRel string) *v1.Relationsh
 			},
 			OptionalRelation: subRel,
 		},
+	}
+}
+
+func relWithExpiration(resType, resID, relation, subType, subID, subRel string, expiration time.Time) *v1.Relationship {
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalExpiresAt: timestamppb.New(expiration),
 	}
 }
 

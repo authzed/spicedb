@@ -401,6 +401,11 @@ func sanityCheckNamespaceChanges(
 				optionalCaveatName = delta.AllowedType.GetRequiredCaveat().CaveatName
 			}
 
+			expirationOption := datastore.ExpirationFilterOptionNoExpiration
+			if delta.AllowedType.RequiredExpiration != nil {
+				expirationOption = datastore.ExpirationFilterOptionHasExpiration
+			}
+
 			qyr, qyrErr := rwt.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
@@ -413,7 +418,8 @@ func sanityCheckNamespaceChanges(
 							RelationFilter:      relationFilter,
 						},
 					},
-					OptionalCaveatName: optionalCaveatName,
+					OptionalCaveatName:       optionalCaveatName,
+					OptionalExpirationOption: expirationOption,
 				},
 				options.WithLimit(options.LimitOne),
 			)

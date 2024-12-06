@@ -3,9 +3,7 @@ package memdb
 import (
 	"time"
 
-	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/hashicorp/go-memdb"
-	"github.com/jzelinskie/stringz"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -56,6 +54,7 @@ type relationship struct {
 	subjectRelation  string
 	caveat           *contextualizedCaveat
 	integrity        *relationshipIntegrity
+	expiration       *time.Time
 }
 
 type relationshipIntegrity struct {
@@ -101,28 +100,16 @@ func (r relationship) String() string {
 		caveat = "[" + r.caveat.caveatName + "]"
 	}
 
-	return r.namespace + ":" + r.resourceID + "#" + r.relation + "@" + r.subjectNamespace + ":" + r.subjectObjectID + "#" + r.subjectRelation + caveat
+	expiration := ""
+	if r.expiration != nil {
+		expiration = "[expiration:" + r.expiration.Format(time.RFC3339Nano) + "]"
+	}
+
+	return r.namespace + ":" + r.resourceID + "#" + r.relation + "@" + r.subjectNamespace + ":" + r.subjectObjectID + "#" + r.subjectRelation + caveat + expiration
 }
 
 func (r relationship) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("rel", r.String())
-}
-
-func (r relationship) V1Relationship() *v1.Relationship {
-	return &v1.Relationship{
-		Resource: &v1.ObjectReference{
-			ObjectType: r.namespace,
-			ObjectId:   r.resourceID,
-		},
-		Relation: r.relation,
-		Subject: &v1.SubjectReference{
-			Object: &v1.ObjectReference{
-				ObjectType: r.subjectNamespace,
-				ObjectId:   r.subjectObjectID,
-			},
-			OptionalRelation: stringz.Default(r.subjectRelation, "", datastore.Ellipsis),
-		},
-	}
 }
 
 func (r relationship) Relationship() (tuple.Relationship, error) {
@@ -149,8 +136,9 @@ func (r relationship) Relationship() (tuple.Relationship, error) {
 				Relation:   r.subjectRelation,
 			},
 		},
-		OptionalCaveat:    cr,
-		OptionalIntegrity: ig,
+		OptionalCaveat:     cr,
+		OptionalIntegrity:  ig,
+		OptionalExpiration: r.expiration,
 	}, nil
 }
 

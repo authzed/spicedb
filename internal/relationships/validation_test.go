@@ -239,6 +239,70 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			core.RelationTupleUpdate_CREATE,
 			"subjects of type `user` are not allowed on relation `resource#viewer`; did you mean `user#member`?",
 		},
+		{
+			"expiration fail test",
+			`
+			use expiration
+
+			definition user {}
+
+			definition resource {
+				relation viewer: user with expiration
+			}`,
+			"resource:foo#viewer@user:tom",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user` are not allowed on relation `resource#viewer`; did you mean `user with expiration`?",
+		},
+		{
+			"expiration success test",
+			`
+			use expiration
+
+			definition user {}
+
+			definition resource {
+				relation viewer: user with expiration
+			}`,
+			"resource:foo#viewer@user:tom[expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"",
+		},
+		{
+			"expiration missing caveat test",
+			`
+			use expiration
+
+			definition user {}
+
+			caveat somecaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation viewer: user with somecaveat and expiration
+			}`,
+			"resource:foo#viewer@user:tom[expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user with expiration` are not allowed on relation `resource#viewer` without one of the following caveats: somecaveat",
+		},
+		{
+			"expiration invalid caveat test",
+			`
+			use expiration
+
+			definition user {}
+
+			caveat anothercaveat(somecondition int) {
+				somecondition == 42
+			}
+
+			definition resource {
+				relation viewer: user with anothercaveat and expiration
+			}`,
+			"resource:foo#viewer@user:tom[somecaveat][expiration:2021-01-01T00:00:00Z]",
+			core.RelationTupleUpdate_CREATE,
+			"subjects of type `user with somecaveat and expiration` are not allowed on relation `resource#viewer`",
+		},
 	}
 
 	for _, tc := range tcs {

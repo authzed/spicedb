@@ -68,6 +68,20 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 	return postgresRevision{snapshot: snapshot, optionalTxID: value}, nil
 }
 
+func (pgd *pgDatastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	now, err := pgd.Now(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	return pgd.batchDelete(
+		ctx,
+		tableTuple,
+		gcPKCols,
+		sq.Lt{colExpiration: now.Add(-1 * pgd.gcWindow)},
+	)
+}
+
 func (pgd *pgDatastore) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (common.DeletionCounts, error) {
 	revision := txID.(postgresRevision)
 
