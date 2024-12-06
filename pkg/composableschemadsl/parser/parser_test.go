@@ -129,6 +129,11 @@ func TestParser(t *testing.T) {
 		{"local imports with malformed import path test", "localimport_malformed_import_path"},
 		{"local imports with path missing leading period test", "localimport_path_missing_leading_period"},
 		{"local imports with typo in import separator test", "localimport_typo_in_import_separator"},
+		{"test syntax happy path test", "test_happy_path"},
+		{"test syntax relation syntax malformed object", "test_relation_malformed_object"},
+		{"test syntax relation syntax missing object", "test_relation_missing_object"},
+		{"test syntax relation syntax missing relation", "test_relation_missing_relation"},
+		{"test syntax relation syntax missing subject", "test_relation_missing_subject"},
 	}
 
 	for _, test := range parserTests {
