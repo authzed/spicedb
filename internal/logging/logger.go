@@ -2,7 +2,6 @@ package logging
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog"
 )
@@ -36,14 +35,4 @@ func Fatal() *zerolog.Event { return Logger.Fatal() }
 
 func WithLevel(level zerolog.Level) *zerolog.Event { return Logger.WithLevel(level) }
 
-func Log() *zerolog.Event { return Logger.Log() }
-
 func Ctx(ctx context.Context) *zerolog.Logger { return zerolog.Ctx(ctx) }
-
-func Print(v ...interface{}) {
-	Logger.Debug().CallerSkipFrame(1).Msg(fmt.Sprint(v...))
-}
-
-func Printf(format string, v ...interface{}) {
-	Logger.Debug().CallerSkipFrame(1).Msgf(format, v...)
-}
