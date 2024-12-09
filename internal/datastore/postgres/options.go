@@ -333,24 +333,6 @@ func GCEnabled(isGCEnabled bool) Option {
 	return func(po *postgresOptions) { po.gcEnabled = isGCEnabled }
 }
 
-// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
-// run Analyze on the database before returning statistics. This should only be
-// used for debug and testing.
-//
-// Disabled by default.
-func DebugAnalyzeBeforeStatistics() Option {
-	return func(po *postgresOptions) { po.analyzeBeforeStatistics = true }
-}
-
-// WithQueryInterceptor adds an interceptor to all underlying postgres queries
-//
-// By default, no query interceptor is used.
-func WithQueryInterceptor(interceptor pgxcommon.QueryInterceptor) Option {
-	return func(po *postgresOptions) {
-		po.queryInterceptor = interceptor
-	}
-}
-
 // MigrationPhase configures the postgres driver to the proper state of a
 // multi-phase migration.
 //

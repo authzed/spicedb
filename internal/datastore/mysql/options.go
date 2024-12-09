@@ -210,17 +210,6 @@ func MaxOpenConns(conns int) Option {
 	}
 }
 
-// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
-// run Analyze Table on the relationships table before returning statistics.
-// This should only be used for debug and testing.
-//
-// Disabled by default.
-func DebugAnalyzeBeforeStatistics() Option {
-	return func(mo *mysqlOptions) {
-		mo.analyzeBeforeStats = true
-	}
-}
-
 // OverrideLockWaitTimeout sets the lock wait timeout on each new connection established
 // with the databases. As an OLTP service, the default of 50s is unbearably long to block
 // a write for our service, so we suggest setting this value to the minimum of 1 second.

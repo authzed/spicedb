@@ -89,11 +89,6 @@ func (s *SubjectByTypeSet) IsEmpty() bool {
 	return len(s.byType) == 0
 }
 
-// Len returns the number of keys in the set.
-func (s *SubjectByTypeSet) Len() int {
-	return len(s.byType)
-}
-
 // SubjectSetForType returns the subject set associated with the given subject type, if any.
 func (s *SubjectByTypeSet) SubjectSetForType(rr *core.RelationReference) (SubjectSet, bool) {
 	found, ok := s.byType[tuple.JoinRelRef(rr.Namespace, rr.Relation)]
