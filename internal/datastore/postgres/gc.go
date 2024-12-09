@@ -9,7 +9,6 @@ import (
 
 	"cirello.io/pglock"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/rs/zerolog/log"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
@@ -26,11 +25,16 @@ var (
 )
 
 const (
-	gcLockName       = "pgdatastoregclock"
-	lockTimeoutDelay = 5 * time.Second
+	gcLockName          = "pgdatastoregclock"
+	lockTimeoutDelay    = 5 * time.Second
+	lockMinimumInterval = 30 * time.Second
 )
 
 func (pgd *pgDatastore) LockGCRun(ctx context.Context, timeout time.Duration, gcRun func(context.Context) error) (bool, error) {
+	if pgd.gcInterval < lockMinimumInterval {
+		return true, gcRun(ctx)
+	}
+
 	var wasSkipped bool
 	err := pgxcommon.RunWithLocksClientOverPool(pgd.rawWritePool, timeout+lockTimeoutDelay, func(client *pglock.Client) error {
 		// Run the GC process under the lock.
@@ -45,7 +49,6 @@ func (pgd *pgDatastore) LockGCRun(ctx context.Context, timeout time.Duration, gc
 	})
 	if err != nil {
 		if errors.Is(err, pglock.ErrNotAcquired) {
-			log.Debug().Err(err).Msg("did not acquire lock for GC run; GC is likely being run by another node")
 			return false, nil
 		}
 		return false, err
