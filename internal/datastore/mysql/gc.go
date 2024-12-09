@@ -29,6 +29,10 @@ func (mds *Datastore) ResetGCCompleted() {
 	mds.gcHasRun.Store(false)
 }
 
+func (mds *Datastore) LockGCRun(ctx context.Context, timeout time.Duration, gcRun func(context.Context) error) (bool, error) {
+	return true, gcRun(ctx)
+}
+
 func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
 	// Retrieve the `now` time from the database.
 	nowSQL, nowArgs, err := getNow.ToSql()

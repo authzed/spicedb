@@ -39,6 +39,10 @@ func newFakeGC(deleter gcDeleter) fakeGC {
 	}
 }
 
+func (*fakeGC) LockGCRun(ctx context.Context, timeout time.Duration, gcRun func(context.Context) error) (bool, error) {
+	return true, gcRun(ctx)
+}
+
 func (*fakeGC) ReadyState(_ context.Context) (datastore.ReadyState, error) {
 	return datastore.ReadyState{
 		Message: "Ready",
