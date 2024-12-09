@@ -2,13 +2,16 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"cirello.io/pglock"
 	sq "github.com/Masterminds/squirrel"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
+	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
@@ -20,6 +23,38 @@ var (
 	// See https://www.postgresql.org/docs/current/ddl-system-columns.html#DDL-SYSTEM-COLUMNS-TABLEOID
 	gcPKCols = []string{"tableoid", "ctid"}
 )
+
+const (
+	gcLockName          = "pgdatastoregclock"
+	lockTimeoutDelay    = 5 * time.Second
+	lockMinimumInterval = 30 * time.Second
+)
+
+func (pgd *pgDatastore) LockGCRun(ctx context.Context, timeout time.Duration, gcRun func(context.Context) error) (bool, error) {
+	if pgd.gcInterval < lockMinimumInterval {
+		return true, gcRun(ctx)
+	}
+
+	var wasSkipped bool
+	err := pgxcommon.RunWithLocksClientOverPool(pgd.rawWritePool, timeout+lockTimeoutDelay, func(client *pglock.Client) error {
+		// Run the GC process under the lock.
+		currentTimestampData, err := time.Now().UTC().MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("failed to marshal current timestamp: %w", err)
+		}
+
+		return client.Do(ctx, gcLockName, func(ctx context.Context, lock *pglock.Lock) error {
+			return gcRun(ctx)
+		}, pglock.WithData(currentTimestampData), pglock.FailIfLocked(), pglock.KeepOnRelease())
+	})
+	if err != nil {
+		if errors.Is(err, pglock.ErrNotAcquired) {
+			return false, nil
+		}
+		return false, err
+	}
+	return !wasSkipped, nil
+}
 
 func (pgd *pgDatastore) HasGCRun() bool {
 	return pgd.gcHasRun.Load()

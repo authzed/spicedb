@@ -122,6 +122,7 @@ require (
 	4d63.com/gochecknoglobals v0.2.1 // indirect
 	buf.build/gen/go/gogo/protobuf/protocolbuffers/go v1.35.2-20210810001428-4df00b267f94.1 // indirect
 	cel.dev/expr v0.16.1 // indirect
+	cirello.io/pglock v1.16.0 // indirect
 	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/auth v0.10.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.5 // indirect
@@ -282,6 +283,7 @@ require (
 	github.com/ldez/gomoddirectives v0.2.4 // indirect
 	github.com/ldez/tagliatelle v0.5.0 // indirect
 	github.com/leonklingele/grouper v1.1.2 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/macabu/inamedparam v0.1.3 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

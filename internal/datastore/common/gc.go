@@ -84,6 +84,12 @@ type GarbageCollector interface {
 	MarkGCCompleted()
 	ResetGCCompleted()
 
+	// LockGCRun invokes the GC function with a lock to ensure only one GC run.
+	// If the implementation does not support locking, it should just execute
+	// the function and return true.
+	// If GC was run within the last interval, the function should return false.
+	LockGCRun(ctx context.Context, timeout time.Duration, gcRun func(context.Context) error) (bool, error)
+
 	ReadyState(context.Context) (datastore.ReadyState, error)
 	Now(context.Context) (time.Time, error)
 	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
@@ -166,60 +172,71 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
-	defer span.End()
+	wasRun, err := gc.LockGCRun(ctx, timeout, func(ctx context.Context) error {
+		ctx, span := tracer.Start(ctx, "RunGarbageCollection")
+		defer span.End()
 
-	// Before attempting anything, check if the datastore is ready.
-	startTime := time.Now()
-	ready, err := gc.ReadyState(ctx)
-	if err != nil {
-		return err
-	}
-	if !ready.IsReady {
-		log.Ctx(ctx).Warn().
-			Msgf("datastore wasn't ready when attempting garbage collection: %s", ready.Message)
+		// Before attempting anything, check if the datastore is ready.
+		startTime := time.Now()
+		ready, err := gc.ReadyState(ctx)
+		if err != nil {
+			return err
+		}
+		if !ready.IsReady {
+			log.Ctx(ctx).Warn().
+				Msgf("datastore wasn't ready when attempting garbage collection: %s", ready.Message)
+			return nil
+		}
+
+		now, err := gc.Now(ctx)
+		if err != nil {
+			return fmt.Errorf("error retrieving now: %w", err)
+		}
+
+		watermark, err := gc.TxIDBefore(ctx, now.Add(-1*window))
+		if err != nil {
+			return fmt.Errorf("error retrieving watermark: %w", err)
+		}
+
+		collected, err := gc.DeleteBeforeTx(ctx, watermark)
+
+		expiredRelationshipsCount, eerr := gc.DeleteExpiredRels(ctx)
+
+		// even if an error happened, garbage would have been collected. This makes sure these are reflected even if the
+		// worker eventually fails or times out.
+		gcRelationshipsCounter.Add(float64(collected.Relationships))
+		gcTransactionsCounter.Add(float64(collected.Transactions))
+		gcNamespacesCounter.Add(float64(collected.Namespaces))
+		gcExpiredRelationshipsCounter.Add(float64(expiredRelationshipsCount))
+		collectionDuration := time.Since(startTime)
+		gcDurationHistogram.Observe(collectionDuration.Seconds())
+
+		if err != nil {
+			return fmt.Errorf("error deleting in gc: %w", err)
+		}
+
+		if eerr != nil {
+			return fmt.Errorf("error deleting expired relationships in gc: %w", eerr)
+		}
+
+		log.Ctx(ctx).Info().
+			Stringer("highestTxID", watermark).
+			Dur("duration", collectionDuration).
+			Time("nowTime", now).
+			Interface("collected", collected).
+			Int64("expiredRelationships", expiredRelationshipsCount).
+			Msg("datastore garbage collection completed successfully")
+
+		gc.MarkGCCompleted()
 		return nil
-	}
-
-	now, err := gc.Now(ctx)
+	})
 	if err != nil {
-		return fmt.Errorf("error retrieving now: %w", err)
+		return fmt.Errorf("error running garbage collection: %w", err)
 	}
 
-	watermark, err := gc.TxIDBefore(ctx, now.Add(-1*window))
-	if err != nil {
-		return fmt.Errorf("error retrieving watermark: %w", err)
+	if !wasRun {
+		log.Ctx(ctx).Info().Msg("garbage collection run skipped due to another run in progress on another node")
 	}
 
-	collected, err := gc.DeleteBeforeTx(ctx, watermark)
-
-	expiredRelationshipsCount, eerr := gc.DeleteExpiredRels(ctx)
-
-	// even if an error happened, garbage would have been collected. This makes sure these are reflected even if the
-	// worker eventually fails or times out.
-	gcRelationshipsCounter.Add(float64(collected.Relationships))
-	gcTransactionsCounter.Add(float64(collected.Transactions))
-	gcNamespacesCounter.Add(float64(collected.Namespaces))
-	gcExpiredRelationshipsCounter.Add(float64(expiredRelationshipsCount))
-	collectionDuration := time.Since(startTime)
-	gcDurationHistogram.Observe(collectionDuration.Seconds())
-
-	if err != nil {
-		return fmt.Errorf("error deleting in gc: %w", err)
-	}
-
-	if eerr != nil {
-		return fmt.Errorf("error deleting expired relationships in gc: %w", eerr)
-	}
-
-	log.Ctx(ctx).Info().
-		Stringer("highestTxID", watermark).
-		Dur("duration", collectionDuration).
-		Time("nowTime", now).
-		Interface("collected", collected).
-		Int64("expiredRelationships", expiredRelationshipsCount).
-		Msg("datastore garbage collection completed successfully")
-
-	gc.MarkGCCompleted()
 	return nil
 }

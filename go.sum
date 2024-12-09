@@ -8,6 +8,8 @@ buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.35.2-20240802094132
 buf.build/gen/go/prometheus/prometheus/protocolbuffers/go v1.35.2-20240802094132-5b212ab78fb7.1/go.mod h1:u8eJSaoWukKSr1K0wPUthshFAnUgwUjhRc+yelsMCmk=
 cel.dev/expr v0.16.1 h1:NR0+oFYzR1CqLFhTAqg3ql59G9VfN8fKq1TCHJ6gq1g=
 cel.dev/expr v0.16.1/go.mod h1:AsGA5zb3WruAEQeQng1RZdGEXmBj0jvMWh6l5SnNuC8=
+cirello.io/pglock v1.16.0 h1:/fJBBIWzKttgVHLdESxIjFXWFXnXtnWXP3KD+XdON2M=
+cirello.io/pglock v1.16.0/go.mod h1:Xb3xYP3kj2vqGq4IyLSTYVEKaPWE7TbrTK30SUNM0Uk=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=

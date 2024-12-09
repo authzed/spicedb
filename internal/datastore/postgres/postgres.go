@@ -323,6 +323,7 @@ func newPostgresDatastore(
 		dburl:                   pgURL,
 		readPool:                pgxcommon.MustNewInterceptorPooler(readPool, config.queryInterceptor),
 		writePool:               nil, /* disabled by default */
+		rawWritePool:            nil, /* disabled by default */
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		optimizedRevisionQuery:  revisionQuery,
@@ -348,6 +349,7 @@ func newPostgresDatastore(
 
 	if isPrimary {
 		datastore.writePool = pgxcommon.MustNewInterceptorPooler(writePool, config.queryInterceptor)
+		datastore.rawWritePool = writePool
 	}
 
 	datastore.SetOptimizedRevisionFunc(datastore.optimizedRevisionFunc)
@@ -379,6 +381,7 @@ type pgDatastore struct {
 
 	dburl                   string
 	readPool, writePool     pgxcommon.ConnPooler
+	rawWritePool            *pgxpool.Pool
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	optimizedRevisionQuery  string
