@@ -84,6 +84,9 @@ type GarbageCollector interface {
 	MarkGCCompleted()
 	ResetGCCompleted()
 
+	LockForGCRun(ctx context.Context) (bool, error)
+	UnlockAfterGCRun(ctx context.Context) error
+
 	ReadyState(context.Context) (datastore.ReadyState, error)
 	Now(context.Context) (time.Time, error)
 	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
@@ -165,6 +168,26 @@ func startGarbageCollectorWithMaxElapsedTime(ctx context.Context, gc GarbageColl
 func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	ok, err := gc.LockForGCRun(ctx)
+	if err != nil {
+		return fmt.Errorf("error locking for gc run: %w", err)
+	}
+
+	if !ok {
+		log.Info().
+			Msg("datastore garbage collection already in progress on another node")
+		return nil
+	}
+
+	defer func() {
+		err := gc.UnlockAfterGCRun(ctx)
+		if err != nil {
+			log.Error().
+				Err(err).
+				Msg("error unlocking after gc run")
+		}
+	}()
 
 	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
 	defer span.End()

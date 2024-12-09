@@ -91,6 +91,29 @@ func createDatastoreTest(b testdatastore.RunningEngineForTest, tf datastoreTestF
 	}
 }
 
+type multiDatastoreTestFunc func(t *testing.T, ds1 datastore.Datastore, ds2 datastore.Datastore)
+
+func createMultiDatastoreTest(b testdatastore.RunningEngineForTest, tf multiDatastoreTestFunc, options ...Option) func(*testing.T) {
+	return func(t *testing.T) {
+		ctx := context.Background()
+
+		var secondDS datastore.Datastore
+		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+			ds, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
+			require.NoError(t, err)
+
+			ds2, err := newMySQLDatastore(ctx, uri, primaryInstanceID, options...)
+			require.NoError(t, err)
+
+			secondDS = ds2
+			return ds
+		})
+		defer failOnError(t, ds.Close)
+
+		tf(t, ds, secondDS)
+	}
+}
+
 func TestMySQLDatastoreDSNWithoutParseTime(t *testing.T) {
 	_, err := NewMySQLDatastore(context.Background(), "root:password@(localhost:1234)/mysql")
 	require.ErrorContains(t, err, "https://spicedb.dev/d/parse-time-mysql")
@@ -127,6 +150,45 @@ func additionalMySQLTests(t *testing.T, b testdatastore.RunningEngineForTest) {
 	t.Run("QuantizedRevisions", func(t *testing.T) {
 		QuantizedRevisionTest(t, b)
 	})
+	t.Run("Locking", createMultiDatastoreTest(b, LockingTest, defaultOptions...))
+}
+
+func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) {
+	mds := ds.(*Datastore)
+	mds2 := ds2.(*Datastore)
+
+	// Acquire a lock.
+	ctx := context.Background()
+	acquired, err := mds.tryAcquireLock(ctx, "testing123")
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	// Try to acquire the lock again.
+	acquired, err = mds2.tryAcquireLock(ctx, "testing123")
+	require.NoError(t, err)
+	require.False(t, acquired)
+
+	// Acquire another lock.
+	acquired, err = mds.tryAcquireLock(ctx, "testing456")
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	// Release the other lock.
+	err = mds.releaseLock(ctx, "testing123")
+	require.NoError(t, err)
+
+	// Release the lock.
+	err = mds.releaseLock(ctx, "testing123")
+	require.NoError(t, err)
+
+	// Try to acquire the lock again.
+	acquired, err = mds2.tryAcquireLock(ctx, "testing123")
+	require.NoError(t, err)
+	require.True(t, acquired)
+
+	// Release the lock.
+	err = mds2.releaseLock(ctx, "testing123")
+	require.NoError(t, err)
 }
 
 func DatabaseSeedingTest(t *testing.T, ds datastore.Datastore) {
