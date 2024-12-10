@@ -97,7 +97,10 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 	}
 
 	t.Cleanup(func() {
-		require.NoError(t, builder.hostConn.Close(context.Background()))
+		if builder.hostConn != nil {
+			require.NoError(t, builder.hostConn.Close(context.Background()))
+		}
+
 		require.NoError(t, pool.Purge(postgres))
 	})
 
