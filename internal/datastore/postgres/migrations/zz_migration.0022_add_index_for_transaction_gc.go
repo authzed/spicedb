@@ -26,7 +26,7 @@ const addGCIndexForRelationTupleTransaction = `CREATE INDEX CONCURRENTLY
 	ON relation_tuple_transaction (xid DESC, timestamp);`
 
 func init() {
-	if err := DatabaseMigrations.Register("add-missing-gc-index", "add-expiration-support",
+	if err := DatabaseMigrations.Register("add-index-for-transaction-gc", "add-expiration-support",
 		func(ctx context.Context, conn *pgx.Conn) error {
 			if _, err := conn.Exec(ctx, addGCIndexForRelationTupleTransaction); err != nil {
 				return fmt.Errorf("failed to add missing GC index: %w", err)
