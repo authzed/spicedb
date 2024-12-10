@@ -169,6 +169,21 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
+	defer span.End()
+
+	// Before attempting anything, check if the datastore is ready.
+	startTime := time.Now()
+	ready, err := gc.ReadyState(ctx)
+	if err != nil {
+		return err
+	}
+	if !ready.IsReady {
+		log.Ctx(ctx).Warn().
+			Msgf("datastore wasn't ready when attempting garbage collection: %s", ready.Message)
+		return nil
+	}
+
 	ok, err := gc.LockForGCRun(ctx)
 	if err != nil {
 		return fmt.Errorf("error locking for gc run: %w", err)
@@ -188,21 +203,6 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 				Msg("error unlocking after gc run")
 		}
 	}()
-
-	ctx, span := tracer.Start(ctx, "RunGarbageCollection")
-	defer span.End()
-
-	// Before attempting anything, check if the datastore is ready.
-	startTime := time.Now()
-	ready, err := gc.ReadyState(ctx)
-	if err != nil {
-		return err
-	}
-	if !ready.IsReady {
-		log.Ctx(ctx).Warn().
-			Msgf("datastore wasn't ready when attempting garbage collection: %s", ready.Message)
-		return nil
-	}
 
 	now, err := gc.Now(ctx)
 	if err != nil {

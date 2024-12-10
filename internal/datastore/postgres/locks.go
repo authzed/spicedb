@@ -1,6 +1,8 @@
 package postgres
 
-import "context"
+import (
+	"context"
+)
 
 type lockID uint32
 
