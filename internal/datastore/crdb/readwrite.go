@@ -123,11 +123,11 @@ var (
 )
 
 func (rwt *crdbReadWriteTXN) insertQuery() sq.InsertBuilder {
-	return psql.Insert(rwt.tupleTableName)
+	return psql.Insert(rwt.schema.RelationshipTableName)
 }
 
 func (rwt *crdbReadWriteTXN) queryDeleteTuples() sq.DeleteBuilder {
-	return psql.Delete(rwt.tupleTableName)
+	return psql.Delete(rwt.schema.RelationshipTableName)
 }
 
 func (rwt *crdbReadWriteTXN) queryWriteTuple() sq.InsertBuilder {
@@ -555,10 +555,10 @@ var copyColsWithIntegrity = []string{
 
 func (rwt *crdbReadWriteTXN) BulkLoad(ctx context.Context, iter datastore.BulkWriteRelationshipSource) (uint64, error) {
 	if rwt.withIntegrity {
-		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.tupleTableName, copyColsWithIntegrity, iter)
+		return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyColsWithIntegrity, iter)
 	}
 
-	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.tupleTableName, copyCols, iter)
+	return pgxcommon.BulkLoad(ctx, rwt.tx, rwt.schema.RelationshipTableName, copyCols, iter)
 }
 
 var _ datastore.ReadWriteTransaction = &crdbReadWriteTXN{}

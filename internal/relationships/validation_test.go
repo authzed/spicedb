@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -311,7 +312,7 @@ func TestValidateRelationshipOperations(t *testing.T) {
 			t.Parallel()
 			req := require.New(t)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			req.NoError(err)
 
 			uds, rev := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, nil, req)

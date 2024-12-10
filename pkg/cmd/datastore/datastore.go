@@ -165,6 +165,9 @@ type Config struct {
 	// Migrations
 	MigrationPhase    string   `debugmap:"visible"`
 	AllowedMigrations []string `debugmap:"visible"`
+
+	// Expermimental
+	ExperimentalColumnOptimization bool `debugmap:"visible"`
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
@@ -269,6 +272,8 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
+	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), false, "enable experimental column optimization")
+
 	return nil
 }
 
@@ -315,6 +320,7 @@ func DefaultDatastoreConfig() *Config {
 		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
 		RelationshipIntegrityExpiredKeys: []string{},
 		AllowedMigrations:                []string{},
+		ExperimentalColumnOptimization:   false,
 	}
 }
 
@@ -509,6 +515,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 		crdb.AllowedMigrations(opts.AllowedMigrations),
+		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 	)
 }
 
@@ -549,6 +556,7 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		postgres.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 	}, nil
 }
 
@@ -631,6 +639,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.MigrationPhase(opts.MigrationPhase),
 		spanner.AllowedMigrations(opts.AllowedMigrations),
 		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		spanner.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 	)
 }
 
@@ -675,6 +684,7 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		mysql.AllowedMigrations(opts.AllowedMigrations),
+		mysql.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 	}, nil
 }
 
