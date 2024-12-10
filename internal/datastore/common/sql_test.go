@@ -611,7 +611,7 @@ func TestExecuteQuery(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype")
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ?",
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ?",
 			expectedArgs: []any{"sometype"},
 		},
 		{
@@ -619,7 +619,7 @@ func TestExecuteQuery(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj")
 			},
-			expectedSQL:  "SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ?",
+			expectedSQL:  "SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ?",
 			expectedArgs: []any{"sometype", "someobj"},
 		},
 		{
@@ -627,7 +627,7 @@ func TestExecuteQuery(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").MustFilterWithResourceIDPrefix("someprefix")
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id LIKE ?",
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id LIKE ?",
 			expectedArgs: []any{"sometype", "someprefix%"},
 		},
 		{
@@ -635,7 +635,7 @@ func TestExecuteQuery(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").MustFilterToResourceIDs([]string{"someobj", "anotherobj"})
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id IN (?,?)",
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id IN (?,?)",
 			expectedArgs: []any{"sometype", "someobj", "anotherobj"},
 		},
 		{
@@ -643,7 +643,7 @@ func TestExecuteQuery(t *testing.T) {
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel")
 			},
-			expectedSQL:  "SELECT subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ?",
+			expectedSQL:  "SELECT subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ?",
 			expectedArgs: []any{"sometype", "someobj", "somerel"},
 		},
 		{
@@ -653,7 +653,7 @@ func TestExecuteQuery(t *testing.T) {
 					SubjectType: "subns",
 				})
 			},
-			expectedSQL:  "SELECT subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ?",
+			expectedSQL:  "SELECT subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ? AND subject_ns = ?",
 			expectedArgs: []any{"sometype", "someobj", "somerel", "subns"},
 		},
 		{
@@ -664,7 +664,7 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			expectedSQL:  "SELECT subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ?",
+			expectedSQL:  "SELECT subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ?",
 			expectedArgs: []any{"sometype", "someobj", "somerel", "subns", "subid"},
 		},
 		{
@@ -678,7 +678,7 @@ func TestExecuteQuery(t *testing.T) {
 					},
 				})
 			},
-			expectedSQL:  "SELECT caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedSQL:  "SELECT caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
 			expectedArgs: []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
 		},
 		{
@@ -696,8 +696,8 @@ func TestExecuteQuery(t *testing.T) {
 				options.WithSkipCaveats(true),
 			},
 			expectedSkipCaveats:        true,
-			expectedSelectingNoColumns: true,
-			expectedSQL:                "SELECT 1 FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedSelectingNoColumns: false,
+			expectedSQL:                "SELECT expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
 			expectedArgs:               []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
 		},
 		{
@@ -715,7 +715,7 @@ func TestExecuteQuery(t *testing.T) {
 				options.WithSkipCaveats(true),
 			},
 			expectedSkipCaveats: true,
-			expectedSQL:         "SELECT object_id FROM relationtuples WHERE ns = ? AND object_id IN (?,?) AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedSQL:         "SELECT object_id, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id IN (?,?) AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
 			expectedArgs:        []any{"sometype", "someobj", "anotherobj", "somerel", "subns", "subid", "subrel"},
 		},
 		{
@@ -727,7 +727,7 @@ func TestExecuteQuery(t *testing.T) {
 				options.WithSkipCaveats(true),
 			},
 			expectedSkipCaveats: true,
-			expectedSQL:         "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation FROM relationtuples WHERE ns = ?",
+			expectedSQL:         "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ?",
 			expectedArgs:        []any{"sometype"},
 		},
 		{
@@ -737,7 +737,7 @@ func TestExecuteQuery(t *testing.T) {
 					SubjectType: "subns",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ?",
+			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ?",
 			expectedArgs: []any{"subns"},
 		},
 		{
@@ -748,7 +748,7 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ?",
+			expectedSQL:  "SELECT ns, object_id, relation, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_object_id = ?",
 			expectedArgs: []any{"subns", "subid"},
 		},
 		{
@@ -761,7 +761,7 @@ func TestExecuteQuery(t *testing.T) {
 					},
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_relation = ?",
+			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_relation = ?",
 			expectedArgs: []any{"subns", "subrel"},
 		},
 		{
@@ -775,7 +775,7 @@ func TestExecuteQuery(t *testing.T) {
 					},
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedSQL:  "SELECT ns, object_id, relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
 			expectedArgs: []any{"subns", "subid", "subrel"},
 		},
 		{
@@ -789,7 +789,7 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_relation, caveat, caveat_context FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_ns = ? AND subject_object_id = ?",
+			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND subject_ns = ? AND subject_object_id = ? AND subject_ns = ? AND subject_object_id = ?",
 			expectedArgs: []any{"subns", "subid", "anothersubns", "subid"},
 		},
 		{
@@ -801,7 +801,7 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectType: "anothersubjectype",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?))",
+			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?) OR (subject_ns = ?))",
 			expectedArgs: []any{"somesubjectype", "anothersubjectype"},
 		},
 		{
@@ -813,7 +813,7 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectType: "anothersubjectype",
 				}).FilterToResourceType("sometype")
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?)) AND ns = ?",
+			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ((subject_ns = ?) OR (subject_ns = ?)) AND ns = ?",
 			expectedArgs: []any{"somesubjectype", "anothersubjectype", "sometype"},
 		},
 	}

@@ -435,12 +435,12 @@ type querier interface {
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 }
 
-type wrappedTX struct {
+type asQueryableTx struct {
 	tx querier
 }
 
-func (wtx wrappedTX) QueryFunc(ctx context.Context, f func(context.Context, common.Rows) error, sql string, args ...any) error {
-	rows, err := wtx.tx.QueryContext(ctx, sql, args...)
+func (aqt asQueryableTx) QueryFunc(ctx context.Context, f func(context.Context, common.Rows) error, sql string, args ...any) error {
+	rows, err := aqt.tx.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -470,7 +470,7 @@ func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
 	return func(ctx context.Context, queryInfo common.QueryInfo, sqlQuery string, args []interface{}) (datastore.RelationshipIterator, error) {
 		span := trace.SpanFromContext(ctx)
-		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, queryInfo, sqlQuery, args, span, wrappedTX{tx}, false)
+		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, queryInfo, sqlQuery, args, span, asQueryableTx{tx}, false)
 	}
 }
 
