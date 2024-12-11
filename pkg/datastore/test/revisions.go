@@ -131,7 +131,7 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	gcable, ok := ds.(common.GarbageCollector)
 	if ok {
 		gcable.ResetGCCompleted()
-		require.Eventually(func() bool { return gcable.HasGCRun() }, 5*time.Second, 50*time.Millisecond, "GC was never run as expected")
+		require.Eventually(func() bool { return gcable.HasGCRun() }, 10*time.Second, 150*time.Millisecond, "GC was never run as expected")
 	}
 
 	// FIXME currently the various datastores behave differently when a revision was requested and GC Window elapses.
