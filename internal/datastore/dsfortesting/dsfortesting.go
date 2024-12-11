@@ -49,24 +49,24 @@ func (vr validatingReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	options ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	schema := common.NewSchemaInformation(
-		"relationtuples",
-		"ns",
-		"object_id",
-		"relation",
-		"subject_ns",
-		"subject_object_id",
-		"subject_relation",
-		"caveat",
-		"caveat_context",
-		"expiration",
-		common.TupleComparison,
-		sq.Question,
-		"NOW",
-		common.ColumnOptimizationOptionStaticValues,
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName("relationtuples"),
+		common.WithColNamespace("ns"),
+		common.WithColObjectID("object_id"),
+		common.WithColRelation("relation"),
+		common.WithColUsersetNamespace("subject_ns"),
+		common.WithColUsersetObjectID("subject_object_id"),
+		common.WithColUsersetRelation("subject_relation"),
+		common.WithColCaveatName("caveat"),
+		common.WithColCaveatContext("caveat_context"),
+		common.WithColExpiration("expiration"),
+		common.WithPlaceholderFormat(sq.Question),
+		common.WithPaginationFilterType(common.TupleComparison),
+		common.WithColumnOptimization(common.ColumnOptimizationOptionStaticValues),
+		common.WithNowFunction("NOW"),
 	)
 
-	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(schema, 100).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100).
 		FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
@@ -74,21 +74,21 @@ func (vr validatingReader) QueryRelationships(
 
 	// Run the filter through the common SQL ellison system and ensure that any
 	// relationships return have values matching the static fields, if applicable.
-	var queryInfo *common.QueryInfo
-	executor := common.QueryExecutor{
-		Executor: func(ctx context.Context, qi common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
-			queryInfo = &qi
+	var builder *common.RelationshipsQueryBuilder
+	executor := common.QueryRelationshipsExecutor{
+		Executor: func(ctx context.Context, b common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+			builder = &b
 			return nil, nil
 		},
 	}
 
 	_, _ = executor.ExecuteQuery(ctx, qBuilder, options...)
-	if queryInfo == nil {
-		return nil, fmt.Errorf("no query info returned")
+	if builder == nil {
+		return nil, fmt.Errorf("no builder returned")
 	}
 
 	checkStaticField := func(returnedValue string, fieldName string) error {
-		if found, ok := queryInfo.FilteringValues[fieldName]; ok && found.SingleValue != nil {
+		if found, ok := builder.FilteringValuesForTesting()[fieldName]; ok && found.SingleValue != nil {
 			if returnedValue != *found.SingleValue {
 				return fmt.Errorf("static field `%s` does not match expected value `%s`: `%s", fieldName, returnedValue, *found.SingleValue)
 			}
