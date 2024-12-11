@@ -316,21 +316,21 @@ func newPostgresDatastore(
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
-	schema := common.NewSchemaInformation(
-		tableTuple,
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
-		common.TupleComparison,
-		sq.Dollar,
-		"NOW",
-		config.columnOptimizationOption,
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName(tableTuple),
+		common.WithColNamespace(colNamespace),
+		common.WithColObjectID(colObjectID),
+		common.WithColRelation(colRelation),
+		common.WithColUsersetNamespace(colUsersetNamespace),
+		common.WithColUsersetObjectID(colUsersetObjectID),
+		common.WithColUsersetRelation(colUsersetRelation),
+		common.WithColCaveatName(colCaveatContextName),
+		common.WithColCaveatContext(colCaveatContext),
+		common.WithColExpiration(colExpiration),
+		common.WithPaginationFilterType(common.TupleComparison),
+		common.WithPlaceholderFormat(sq.Dollar),
+		common.WithNowFunction("NOW"),
+		common.WithColumnOptimization(config.columnOptimizationOption),
 	)
 
 	datastore := &pgDatastore{
@@ -358,7 +358,7 @@ func newPostgresDatastore(
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
-		schema:                  schema,
+		schema:                  *schema,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -435,8 +435,8 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		queryFuncs = strictReaderQueryFuncs{wrapped: queryFuncs, revision: rev}
 	}
 
-	executor := common.QueryExecutor{
-		Executor: pgxcommon.NewPGXExecutor(queryFuncs),
+	executor := common.QueryRelationshipsExecutor{
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
 	}
 
 	return &pgReader{
@@ -478,8 +478,8 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
-			executor := common.QueryExecutor{
-				Executor: pgxcommon.NewPGXExecutor(queryFuncs),
+			executor := common.QueryRelationshipsExecutor{
+				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
 			}
 
 			rwt := &pgReadWriteTXN{

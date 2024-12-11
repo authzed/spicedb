@@ -2,8 +2,10 @@ package common
 
 import (
 	"context"
+	"maps"
 	"math"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -51,10 +53,12 @@ var (
 type PaginationFilterType uint8
 
 const (
+	PaginationFilterTypeUnknown PaginationFilterType = iota
+
 	// TupleComparison uses a comparison with a compound key,
 	// e.g. (namespace, object_id, relation) > ('ns', '123', 'viewer')
 	// which is not compatible with all datastores.
-	TupleComparison PaginationFilterType = iota
+	TupleComparison
 
 	// ExpandedLogicComparison comparison uses a nested tree of ANDs and ORs to properly
 	// filter out already received relationships. Useful for databases that do not support
@@ -66,79 +70,14 @@ const (
 type ColumnOptimizationOption int
 
 const (
+	ColumnOptimizationOptionUnknown ColumnOptimizationOption = iota
+
 	// ColumnOptimizationOptionNone is the default option, which does not optimize the static columns.
-	ColumnOptimizationOptionNone ColumnOptimizationOption = iota
+	ColumnOptimizationOptionNone
 
 	// ColumnOptimizationOptionStaticValue is an option that optimizes the column for a static value.
 	ColumnOptimizationOptionStaticValues
 )
-
-// SchemaInformation holds the schema information from the SQL datastore implementation.
-type SchemaInformation struct {
-	RelationshipTableName string
-	ColNamespace          string
-	ColObjectID           string
-	ColRelation           string
-	ColUsersetNamespace   string
-	ColUsersetObjectID    string
-	ColUsersetRelation    string
-	ColCaveatName         string
-	ColCaveatContext      string
-	ColExpiration         string
-
-	// PaginationFilterType is the type of pagination filter to use for this schema.
-	PaginationFilterType PaginationFilterType
-
-	// PlaceholderFormat is the format of placeholders to use for this schema.
-	PlaceholderFormat sq.PlaceholderFormat
-
-	// NowFunction is the function to use to get the current time in the datastore.
-	NowFunction string
-
-	// ColumnOptimization is the optimization to use for columns in the schema, if any.
-	ColumnOptimization ColumnOptimizationOption
-
-	// ExtaFields are additional fields that are not part of the core schema, but are
-	// requested by the caller for this query.
-	ExtraFields []string
-}
-
-// NewSchemaInformation creates a new SchemaInformation object for a query.
-func NewSchemaInformation(
-	relationshipTableName,
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName string,
-	colCaveatContext string,
-	colExpiration string,
-	paginationFilterType PaginationFilterType,
-	placeholderFormat sq.PlaceholderFormat,
-	nowFunction string,
-	columnOptionizationOption ColumnOptimizationOption,
-	extraFields ...string,
-) SchemaInformation {
-	return SchemaInformation{
-		relationshipTableName,
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatName,
-		colCaveatContext,
-		colExpiration,
-		paginationFilterType,
-		placeholderFormat,
-		nowFunction,
-		columnOptionizationOption,
-		extraFields,
-	}
-}
 
 type ColumnTracker struct {
 	SingleValue *string
@@ -160,6 +99,8 @@ type SchemaQueryFilterer struct {
 // relationships. This method will automatically filter the columns retrieved from the database, only
 // selecting the columns that are not already specified with a single static value in the query.
 func NewSchemaQueryFiltererForRelationshipsSelect(schema SchemaInformation, filterMaximumIDCount uint16, extraFields ...string) SchemaQueryFilterer {
+	schema.debugValidate()
+
 	if filterMaximumIDCount == 0 {
 		filterMaximumIDCount = 100
 		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
@@ -186,6 +127,8 @@ func NewSchemaQueryFiltererForRelationshipsSelect(schema SchemaInformation, filt
 // relationships, with a custom starting query. Unlike NewSchemaQueryFiltererForRelationshipsSelect,
 // this method will not auto-filter the columns retrieved from the database.
 func NewSchemaQueryFiltererWithStartingQuery(schema SchemaInformation, startingQuery sq.SelectBuilder, filterMaximumIDCount uint16) SchemaQueryFilterer {
+	schema.debugValidate()
+
 	if filterMaximumIDCount == 0 {
 		filterMaximumIDCount = 100
 		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
@@ -665,13 +608,16 @@ func (sqf SchemaQueryFilterer) limit(limit uint64) SchemaQueryFilterer {
 	return sqf
 }
 
-// QueryExecutor is a tuple query runner shared by SQL implementations of the datastore.
-type QueryExecutor struct {
+// QueryRelationshipsExecutor is a relationships query runner shared by SQL implementations of the datastore.
+type QueryRelationshipsExecutor struct {
 	Executor ExecuteReadRelsQueryFunc
 }
 
+// ExecuteReadRelsQueryFunc is a function that can be used to execute a single rendered SQL query.
+type ExecuteReadRelsQueryFunc func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error)
+
 // ExecuteQuery executes the query.
-func (tqs QueryExecutor) ExecuteQuery(
+func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	ctx context.Context,
 	query SchemaQueryFilterer,
 	opts ...options.QueryOptionsOption,
@@ -682,8 +628,10 @@ func (tqs QueryExecutor) ExecuteQuery(
 
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
+	// Add sort order.
 	query = query.TupleOrder(queryOpts.Sort)
 
+	// Add cursor.
 	if queryOpts.After != nil {
 		if queryOpts.Sort == options.Unsorted {
 			return nil, datastore.ErrCursorsWithoutSorting
@@ -692,6 +640,7 @@ func (tqs QueryExecutor) ExecuteQuery(
 		query = query.After(queryOpts.After, queryOpts.Sort)
 	}
 
+	// Add limit.
 	var limit uint64
 	// NOTE: we use a uint here because it lines up with the
 	// assignments in this function, but we set it to MaxInt64
@@ -706,70 +655,149 @@ func (tqs QueryExecutor) ExecuteQuery(
 		query = query.limit(limit)
 	}
 
-	toExecute := query
-
-	// Set the column names to select.
-	columnNamesToSelect := make([]string, 0, 8+len(query.extraFields))
-
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColNamespace)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColObjectID)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColRelation)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColUsersetNamespace)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColUsersetObjectID)
-	columnNamesToSelect = checkColumn(columnNamesToSelect, query.schema.ColumnOptimization, query.filteringColumnTracker, query.schema.ColUsersetRelation)
-
-	if !queryOpts.SkipCaveats || query.schema.ColumnOptimization == ColumnOptimizationOptionNone {
-		columnNamesToSelect = append(columnNamesToSelect, query.schema.ColCaveatName, query.schema.ColCaveatContext)
-	}
-
-	columnNamesToSelect = append(columnNamesToSelect, query.schema.ColExpiration)
-
-	selectingNoColumns := false
-	columnNamesToSelect = append(columnNamesToSelect, query.schema.ExtraFields...)
-	if len(columnNamesToSelect) == 0 {
-		columnNamesToSelect = append(columnNamesToSelect, "1")
-		selectingNoColumns = true
-	}
-
-	toExecute.queryBuilder = toExecute.queryBuilder.Columns(columnNamesToSelect...)
-
+	// Add FROM clause.
 	from := query.schema.RelationshipTableName
 	if query.fromSuffix != "" {
 		from += " " + query.fromSuffix
 	}
 
-	toExecute.queryBuilder = toExecute.queryBuilder.From(from)
+	query.queryBuilder = query.queryBuilder.From(from)
 
-	sql, args, err := toExecute.queryBuilder.ToSql()
-	if err != nil {
-		return nil, err
+	builder := RelationshipsQueryBuilder{
+		Schema:           query.schema,
+		SkipCaveats:      queryOpts.SkipCaveats,
+		filteringValues:  query.filteringColumnTracker,
+		baseQueryBuilder: query,
 	}
 
-	return tqs.Executor(ctx, QueryInfo{query.schema, query.filteringColumnTracker, queryOpts.SkipCaveats, selectingNoColumns}, sql, args)
+	return exc.Executor(ctx, builder)
 }
 
-func checkColumn(columns []string, option ColumnOptimizationOption, tracker map[string]ColumnTracker, colName string) []string {
-	if option == ColumnOptimizationOptionNone {
+// RelationshipsQueryBuilder is a builder for producing the SQL and arguments necessary for reading
+// relationships.
+type RelationshipsQueryBuilder struct {
+	Schema      SchemaInformation
+	SkipCaveats bool
+
+	filteringValues  map[string]ColumnTracker
+	baseQueryBuilder SchemaQueryFilterer
+}
+
+// SelectSQL returns the SQL and arguments necessary for reading relationships.
+func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
+	// Set the column names to select.
+	columnCount := 9
+	if b.Schema.WithIntegrityColumns {
+		columnCount += 3
+	}
+	columnNamesToSelect := make([]string, 0, columnCount)
+
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColNamespace)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColObjectID)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColRelation)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetNamespace)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetObjectID)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetRelation)
+
+	if !b.SkipCaveats || b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColCaveatName, b.Schema.ColCaveatContext)
+	}
+
+	columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColExpiration)
+
+	if b.Schema.WithIntegrityColumns {
+		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColIntegrityKeyID, b.Schema.ColIntegrityHash, b.Schema.ColIntegrityTimestamp)
+	}
+
+	if len(columnNamesToSelect) == 0 {
+		columnNamesToSelect = append(columnNamesToSelect, "1")
+	}
+
+	sqlBuilder := b.baseQueryBuilder.queryBuilder
+	sqlBuilder = sqlBuilder.Columns(columnNamesToSelect...)
+
+	return sqlBuilder.ToSql()
+}
+
+// FilteringValuesForTesting returns the filtering values. For test use only.
+func (b RelationshipsQueryBuilder) FilteringValuesForTesting() map[string]ColumnTracker {
+	return maps.Clone(b.filteringValues)
+}
+
+func (b RelationshipsQueryBuilder) checkColumn(columns []string, colName string) []string {
+	if b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
 		return append(columns, colName)
 	}
 
-	if r, ok := tracker[colName]; !ok || r.SingleValue == nil {
+	if r, ok := b.filteringValues[colName]; !ok || r.SingleValue == nil {
 		return append(columns, colName)
 	}
 	return columns
 }
 
-// QueryInfo holds the schema information and filtering values for a query.
-type QueryInfo struct {
-	Schema             SchemaInformation
-	FilteringValues    map[string]ColumnTracker
-	SkipCaveats        bool
-	SelectingNoColumns bool
+func (b RelationshipsQueryBuilder) staticValueOrAddColumnForSelect(colsToSelect []any, colName string, field *string) []any {
+	if b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+		// If column optimization is disabled, always add the column to the list of columns to select.
+		colsToSelect = append(colsToSelect, field)
+		return colsToSelect
+	}
+
+	// If the value is static, set the field to it and return.
+	if found, ok := b.filteringValues[colName]; ok && found.SingleValue != nil {
+		*field = *found.SingleValue
+		return colsToSelect
+	}
+
+	// Otherwise, add the column to the list of columns to select, as the value is not static.
+	colsToSelect = append(colsToSelect, field)
+	return colsToSelect
 }
 
-// ExecuteReadRelsQueryFunc is a function that can be used to execute a single rendered SQL query.
-type ExecuteReadRelsQueryFunc func(ctx context.Context, queryInfo QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error)
+// ColumnsToSelect returns the columns to select for a given query. The columns provided are
+// the references to the slots in which the values for each relationship will be placed.
+func ColumnsToSelect[CN any, CC any, EC any](
+	b RelationshipsQueryBuilder,
+	resourceObjectType *string,
+	resourceObjectID *string,
+	resourceRelation *string,
+	subjectObjectType *string,
+	subjectObjectID *string,
+	subjectRelation *string,
+	caveatName *CN,
+	caveatCtx *CC,
+	expiration EC,
 
-// TxCleanupFunc is a function that should be executed when the caller of
-// TransactionFactory is done with the transaction.
-type TxCleanupFunc func(context.Context)
+	integrityKeyID *string,
+	integrityHash *[]byte,
+	timestamp *time.Time,
+) ([]any, error) {
+	columnCount := 9
+	if b.Schema.WithIntegrityColumns {
+		columnCount += 3
+	}
+	colsToSelect := make([]any, 0, columnCount)
+
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColNamespace, resourceObjectType)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColObjectID, resourceObjectID)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColRelation, resourceRelation)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetNamespace, subjectObjectType)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetObjectID, subjectObjectID)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetRelation, subjectRelation)
+
+	if !b.SkipCaveats || b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+		colsToSelect = append(colsToSelect, caveatName, caveatCtx)
+	}
+
+	colsToSelect = append(colsToSelect, expiration)
+
+	if b.Schema.WithIntegrityColumns {
+		colsToSelect = append(colsToSelect, integrityKeyID, integrityHash, timestamp)
+	}
+
+	if len(colsToSelect) == 0 {
+		var unused int
+		colsToSelect = append(colsToSelect, &unused)
+	}
+
+	return colsToSelect, nil
+}

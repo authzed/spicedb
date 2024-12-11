@@ -200,33 +200,30 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, fmt.Errorf("invalid head migration found for cockroach: %w", err)
 	}
 
-	var extraFields []string
 	relTableName := tableTuple
 	if config.withIntegrity {
 		relTableName = tableTupleWithIntegrity
-		extraFields = []string{
-			colIntegrityKeyID,
-			colIntegrityHash,
-			colTimestamp,
-		}
 	}
 
-	schema := common.NewSchemaInformation(
-		relTableName,
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatContextName,
-		colCaveatContext,
-		colExpiration,
-		common.ExpandedLogicComparison,
-		sq.Dollar,
-		"NOW",
-		config.columnOptimizationOption,
-		extraFields...,
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName(relTableName),
+		common.WithColNamespace(colNamespace),
+		common.WithColObjectID(colObjectID),
+		common.WithColRelation(colRelation),
+		common.WithColUsersetNamespace(colUsersetNamespace),
+		common.WithColUsersetObjectID(colUsersetObjectID),
+		common.WithColUsersetRelation(colUsersetRelation),
+		common.WithColCaveatName(colCaveatContextName),
+		common.WithColCaveatContext(colCaveatContext),
+		common.WithColExpiration(colExpiration),
+		common.WithColIntegrityKeyID(colIntegrityKeyID),
+		common.WithColIntegrityHash(colIntegrityHash),
+		common.WithColIntegrityTimestamp(colTimestamp),
+		common.WithPaginationFilterType(common.ExpandedLogicComparison),
+		common.WithPlaceholderFormat(sq.Dollar),
+		common.WithNowFunction("NOW"),
+		common.WithColumnOptimization(config.columnOptimizationOption),
+		common.WithWithIntegrityColumns(config.withIntegrity),
 	)
 
 	ds := &crdbDatastore{
@@ -250,7 +247,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
 		gcWindow:                config.gcWindow,
-		schema:                  schema,
+		schema:                  *schema,
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -350,8 +347,8 @@ type crdbDatastore struct {
 }
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
-	executor := common.QueryExecutor{
-		Executor: pgxcommon.NewPGXExecutorWithIntegrityOption(cds.readPool, cds.supportsIntegrity),
+	executor := common.QueryRelationshipsExecutor{
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool),
 	}
 
 	withAsOfSystemTime := func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
@@ -376,8 +373,8 @@ func (cds *crdbDatastore) ReadWriteTx(
 
 	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		querier := pgxcommon.QuerierFuncsFor(tx)
-		executor := common.QueryExecutor{
-			Executor: pgxcommon.NewPGXExecutorWithIntegrityOption(querier, cds.supportsIntegrity),
+		executor := common.QueryRelationshipsExecutor{
+			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier),
 		}
 
 		// Write metadata onto the transaction.
