@@ -244,21 +244,21 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		-1*config.gcWindow.Seconds(),
 	)
 
-	schema := common.NewSchemaInformation(
-		driver.RelationTuple(),
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatName,
-		colCaveatContext,
-		colExpiration,
-		common.ExpandedLogicComparison,
-		sq.Question,
-		"NOW",
-		config.columnOptimizationOption,
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName(driver.RelationTuple()),
+		common.WithColNamespace(colNamespace),
+		common.WithColObjectID(colObjectID),
+		common.WithColRelation(colRelation),
+		common.WithColUsersetNamespace(colUsersetNamespace),
+		common.WithColUsersetObjectID(colUsersetObjectID),
+		common.WithColUsersetRelation(colUsersetRelation),
+		common.WithColCaveatName(colCaveatName),
+		common.WithColCaveatContext(colCaveatContext),
+		common.WithColExpiration(colExpiration),
+		common.WithPaginationFilterType(common.ExpandedLogicComparison),
+		common.WithPlaceholderFormat(sq.Question),
+		common.WithNowFunction("NOW"),
+		common.WithColumnOptimization(config.columnOptimizationOption),
 	)
 
 	store := &Datastore{
@@ -282,7 +282,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		readTxOptions:           &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
 		maxRetries:              config.maxRetries,
 		analyzeBeforeStats:      config.analyzeBeforeStats,
-		schema:                  schema,
+		schema:                  *schema,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
@@ -332,7 +332,7 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 		return tx, tx.Rollback, nil
 	}
 
-	executor := common.QueryExecutor{
+	executor := common.QueryRelationshipsExecutor{
 		Executor: newMySQLExecutor(mds.db),
 	}
 
@@ -375,7 +375,7 @@ func (mds *Datastore) ReadWriteTx(
 				return tx, noCleanup, nil
 			}
 
-			executor := common.QueryExecutor{
+			executor := common.QueryRelationshipsExecutor{
 				Executor: newMySQLExecutor(tx),
 			}
 
@@ -468,9 +468,9 @@ func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
 	//
 	// Prepared statements are also not used given they perform poorly on environments where connections have
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
-	return func(ctx context.Context, queryInfo common.QueryInfo, sqlQuery string, args []interface{}) (datastore.RelationshipIterator, error) {
+	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
 		span := trace.SpanFromContext(ctx)
-		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, queryInfo, sqlQuery, args, span, asQueryableTx{tx}, false)
+		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, span, asQueryableTx{tx})
 	}
 }
 

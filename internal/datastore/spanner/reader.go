@@ -31,7 +31,7 @@ type readTX interface {
 type txFactory func() readTX
 
 type spannerReader struct {
-	executor             common.QueryExecutor
+	executor             common.QueryRelationshipsExecutor
 	txSource             txFactory
 	filterMaximumIDCount uint16
 	schema               common.SchemaInformation
@@ -173,10 +173,17 @@ func (sr spannerReader) ReverseQueryRelationships(
 var errStopIterator = fmt.Errorf("stop iteration")
 
 func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
-	return func(ctx context.Context, queryInfo common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
+	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
 		return func(yield func(tuple.Relationship, error) bool) {
 			span := trace.SpanFromContext(ctx)
 			span.AddEvent("Query issued to database")
+
+			sql, args, err := builder.SelectSQL()
+			if err != nil {
+				yield(tuple.Relationship{}, err)
+				return
+			}
+
 			iter := txSource().Query(ctx, statementFromSQL(sql, args))
 			defer iter.Stop()
 
@@ -196,24 +203,28 @@ func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
 			var caveatCtx spanner.NullJSON
 			var expirationOrNull spanner.NullTime
 
-			colsToSelect := make([]any, 0, 8)
+			// NOTE: these are unused in Spanner, but necessary for the ColumnsToSelect call.
+			var integrityKeyID string
+			var integrityHash []byte
+			var timestamp time.Time
 
-			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColNamespace, &resourceObjectType)
-			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColObjectID, &resourceObjectID)
-			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColRelation, &relation)
-			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetNamespace, &subjectObjectType)
-			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetObjectID, &subjectObjectID)
-			colsToSelect = common.StaticValueOrAddColumnForSelect(colsToSelect, queryInfo, queryInfo.Schema.ColUsersetRelation, &subjectRelation)
-
-			if !queryInfo.SkipCaveats || queryInfo.Schema.ColumnOptimization == common.ColumnOptimizationOptionNone {
-				colsToSelect = append(colsToSelect, &caveatName, &caveatCtx)
-			}
-
-			colsToSelect = append(colsToSelect, &expirationOrNull)
-
-			if len(colsToSelect) == 0 {
-				var unused int64
-				colsToSelect = append(colsToSelect, &unused)
+			colsToSelect, err := common.ColumnsToSelect(builder,
+				&resourceObjectType,
+				&resourceObjectID,
+				&relation,
+				&subjectObjectType,
+				&subjectObjectID,
+				&subjectRelation,
+				&caveatName,
+				&caveatCtx,
+				&expirationOrNull,
+				&integrityKeyID,
+				&integrityHash,
+				&timestamp,
+			)
+			if err != nil {
+				yield(tuple.Relationship{}, err)
+				return
 			}
 
 			if err := iter.Do(func(row *spanner.Row) error {

@@ -21,18 +21,11 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
-// NewPGXExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXExecutor(querier DBFuncQuerier) common.ExecuteReadRelsQueryFunc {
-	return func(ctx context.Context, queryInfo common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
+// NewPGXQueryRelationshipsExecutor creates an executor that uses the pgx library to make the specified queries.
+func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier) common.ExecuteReadRelsQueryFunc {
+	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
 		span := trace.SpanFromContext(ctx)
-		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, queryInfo, sql, args, span, querier, false)
-	}
-}
-
-func NewPGXExecutorWithIntegrityOption(querier DBFuncQuerier, withIntegrity bool) common.ExecuteReadRelsQueryFunc {
-	return func(ctx context.Context, queryInfo common.QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
-		span := trace.SpanFromContext(ctx)
-		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, queryInfo, sql, args, span, querier, withIntegrity)
+		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, span, querier)
 	}
 }
 

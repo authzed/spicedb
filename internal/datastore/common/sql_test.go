@@ -558,23 +558,23 @@ func TestSchemaQueryFilterer(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			schema := NewSchemaInformation(
-				"relationtuples",
-				"ns",
-				"object_id",
-				"relation",
-				"subject_ns",
-				"subject_object_id",
-				"subject_relation",
-				"caveat",
-				"caveat_context",
-				"expiration",
-				TupleComparison,
-				sq.Question,
-				"NOW",
-				ColumnOptimizationOptionStaticValues,
+			schema := NewSchemaInformationWithOptions(
+				WithRelationshipTableName("relationtuples"),
+				WithColNamespace("ns"),
+				WithColObjectID("object_id"),
+				WithColRelation("relation"),
+				WithColUsersetNamespace("subject_ns"),
+				WithColUsersetObjectID("subject_object_id"),
+				WithColUsersetRelation("subject_relation"),
+				WithColCaveatName("caveat"),
+				WithColCaveatContext("caveat_context"),
+				WithColExpiration("expiration"),
+				WithPlaceholderFormat(sq.Question),
+				WithPaginationFilterType(TupleComparison),
+				WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+				WithNowFunction("NOW"),
 			)
-			filterer := NewSchemaQueryFiltererForRelationshipsSelect(schema, 100)
+			filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
 
 			ran := test.run(filterer)
 			foundStaticColumns := []string{}
@@ -598,13 +598,12 @@ func TestSchemaQueryFilterer(t *testing.T) {
 
 func TestExecuteQuery(t *testing.T) {
 	tcs := []struct {
-		name                       string
-		run                        func(filterer SchemaQueryFilterer) SchemaQueryFilterer
-		options                    []options.QueryOptionsOption
-		expectedSQL                string
-		expectedArgs               []any
-		expectedSelectingNoColumns bool
-		expectedSkipCaveats        bool
+		name                string
+		run                 func(filterer SchemaQueryFilterer) SchemaQueryFilterer
+		options             []options.QueryOptionsOption
+		expectedSQL         string
+		expectedArgs        []any
+		expectedSkipCaveats bool
 	}{
 		{
 			name: "filter by static resource type",
@@ -695,10 +694,9 @@ func TestExecuteQuery(t *testing.T) {
 			options: []options.QueryOptionsOption{
 				options.WithSkipCaveats(true),
 			},
-			expectedSkipCaveats:        true,
-			expectedSelectingNoColumns: false,
-			expectedSQL:                "SELECT expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
-			expectedArgs:               []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedSkipCaveats: true,
+			expectedSQL:         "SELECT expiration FROM relationtuples WHERE (expiration IS NULL OR expiration > NOW()) AND ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs:        []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
 		},
 		{
 			name: "filter by static everything (except one field) without caveats",
@@ -820,33 +818,35 @@ func TestExecuteQuery(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			schema := NewSchemaInformation(
-				"relationtuples",
-				"ns",
-				"object_id",
-				"relation",
-				"subject_ns",
-				"subject_object_id",
-				"subject_relation",
-				"caveat",
-				"caveat_context",
-				"expiration",
-				TupleComparison,
-				sq.Question,
-				"NOW",
-				ColumnOptimizationOptionStaticValues,
+			schema := NewSchemaInformationWithOptions(
+				WithRelationshipTableName("relationtuples"),
+				WithColNamespace("ns"),
+				WithColObjectID("object_id"),
+				WithColRelation("relation"),
+				WithColUsersetNamespace("subject_ns"),
+				WithColUsersetObjectID("subject_object_id"),
+				WithColUsersetRelation("subject_relation"),
+				WithColCaveatName("caveat"),
+				WithColCaveatContext("caveat_context"),
+				WithColExpiration("expiration"),
+				WithPlaceholderFormat(sq.Question),
+				WithPaginationFilterType(TupleComparison),
+				WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+				WithNowFunction("NOW"),
 			)
-			filterer := NewSchemaQueryFiltererForRelationshipsSelect(schema, 100)
+			filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
 			ran := tc.run(filterer)
 
 			var wasRun bool
-			fake := QueryExecutor{
-				Executor: func(ctx context.Context, queryInfo QueryInfo, sql string, args []any) (datastore.RelationshipIterator, error) {
+			fake := QueryRelationshipsExecutor{
+				Executor: func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+					sql, args, err := builder.SelectSQL()
+					require.NoError(t, err)
+
 					wasRun = true
 					require.Equal(t, tc.expectedSQL, sql)
 					require.Equal(t, tc.expectedArgs, args)
-					require.Equal(t, tc.expectedSelectingNoColumns, queryInfo.SelectingNoColumns)
-					require.Equal(t, tc.expectedSkipCaveats, queryInfo.SkipCaveats)
+					require.Equal(t, tc.expectedSkipCaveats, builder.SkipCaveats)
 					return nil, nil
 				},
 			}

@@ -39,7 +39,7 @@ var (
 
 type crdbReader struct {
 	query                  pgxcommon.DBFuncQuerier
-	executor               common.QueryExecutor
+	executor               common.QueryRelationshipsExecutor
 	keyer                  overlapKeyer
 	overlapKeySet          keySet
 	fromWithAsOfSystemTime func(query sq.SelectBuilder, tableName string) sq.SelectBuilder

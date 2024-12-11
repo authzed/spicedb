@@ -181,6 +181,23 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		return nil, fmt.Errorf("invalid head migration found for spanner: %w", err)
 	}
 
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName(tableRelationship),
+		common.WithColNamespace(colNamespace),
+		common.WithColObjectID(colObjectID),
+		common.WithColRelation(colRelation),
+		common.WithColUsersetNamespace(colUsersetNamespace),
+		common.WithColUsersetObjectID(colUsersetObjectID),
+		common.WithColUsersetRelation(colUsersetRelation),
+		common.WithColCaveatName(colCaveatName),
+		common.WithColCaveatContext(colCaveatContext),
+		common.WithColExpiration(colExpiration),
+		common.WithPaginationFilterType(common.ExpandedLogicComparison),
+		common.WithPlaceholderFormat(sq.AtP),
+		common.WithNowFunction("CURRENT_TIMESTAMP"),
+		common.WithColumnOptimization(config.columnOptimizationOption),
+	)
+
 	ds := &spannerDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			defaultChangeStreamRetention,
@@ -201,22 +218,7 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		cachedEstimatedBytesPerRelationshipLock: sync.RWMutex{},
 		tableSizesStatsTable:                    tableSizesStatsTable,
 		filterMaximumIDCount:                    config.filterMaximumIDCount,
-		schema: common.NewSchemaInformation(
-			tableRelationship,
-			colNamespace,
-			colObjectID,
-			colRelation,
-			colUsersetNamespace,
-			colUsersetObjectID,
-			colUsersetRelation,
-			colCaveatName,
-			colCaveatContext,
-			colExpiration,
-			common.ExpandedLogicComparison,
-			sq.AtP,
-			"CURRENT_TIMESTAMP",
-			config.columnOptimizationOption,
-		),
+		schema:                                  *schema,
 	}
 	// Optimized revision and revision checking use a stale read for the
 	// current timestamp.
@@ -264,7 +266,7 @@ func (sd *spannerDatastore) SnapshotReader(revisionRaw datastore.Revision) datas
 	txSource := func() readTX {
 		return &traceableRTX{delegate: sd.client.Single().WithTimestampBound(spanner.ReadTimestamp(r.Time()))}
 	}
-	executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
+	executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 	return spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema}
 }
 
@@ -312,7 +314,7 @@ func (sd *spannerDatastore) ReadWriteTx(ctx context.Context, fn datastore.TxUser
 			}
 		}
 
-		executor := common.QueryExecutor{Executor: queryExecutor(txSource)}
+		executor := common.QueryRelationshipsExecutor{Executor: queryExecutor(txSource)}
 		rwt := spannerReadWriteTXN{
 			spannerReader{executor, txSource, sd.filterMaximumIDCount, sd.schema},
 			spannerRWT,

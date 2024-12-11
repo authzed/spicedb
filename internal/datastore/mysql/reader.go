@@ -23,7 +23,7 @@ type mysqlReader struct {
 	*QueryBuilder
 
 	txSource             txFactory
-	executor             common.QueryExecutor
+	executor             common.QueryRelationshipsExecutor
 	aliveFilter          queryFilterer
 	filterMaximumIDCount uint16
 	schema               common.SchemaInformation

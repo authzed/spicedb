@@ -17,7 +17,7 @@ import (
 
 type pgReader struct {
 	query                pgxcommon.DBFuncQuerier
-	executor             common.QueryExecutor
+	executor             common.QueryRelationshipsExecutor
 	aliveFilter          queryFilterer
 	filterMaximumIDCount uint16
 	schema               common.SchemaInformation
