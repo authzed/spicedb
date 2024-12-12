@@ -2087,7 +2087,7 @@ func TestImportBulkRelationships(t *testing.T) {
 
 						for i := uint64(0); i < batchSize; i++ {
 							if withCaveats {
-								batch = append(batch, relWithCaveat(
+								batch = append(batch, mustRelWithCaveatAndContext(
 									tf.DocumentNS.Name,
 									strconv.Itoa(batchNum)+"_"+strconv.FormatUint(i, 10),
 									"caveated_viewer",
@@ -2095,6 +2095,7 @@ func TestImportBulkRelationships(t *testing.T) {
 									strconv.FormatUint(i, 10),
 									"",
 									"test",
+									map[string]any{"secret": strconv.FormatUint(i, 10)},
 								))
 							} else {
 								batch = append(batch, rel(
@@ -2185,6 +2186,7 @@ func TestExportBulkRelationships(t *testing.T) {
 		{tf.FolderNS.Name, "owner"},
 		{tf.DocumentNS.Name, "editor"},
 		{tf.FolderNS.Name, "editor"},
+		{tf.DocumentNS.Name, "caveated_viewer"},
 	}
 
 	totalToWrite := 1_000
@@ -2192,16 +2194,9 @@ func TestExportBulkRelationships(t *testing.T) {
 	batch := make([]*v1.Relationship, totalToWrite)
 	for i := range batch {
 		nsAndRel := nsAndRels[i%len(nsAndRels)]
-		rel := rel(
-			nsAndRel.namespace,
-			strconv.Itoa(i),
-			nsAndRel.relation,
-			tf.UserNS.Name,
-			strconv.Itoa(i),
-			"",
-		)
-		batch[i] = rel
-		expectedRels.Add(tuple.MustV1RelString(rel))
+		v1rel := relationshipForBulkTesting(nsAndRel, i)
+		batch[i] = v1rel
+		expectedRels.Add(tuple.MustV1RelString(v1rel))
 	}
 
 	ctx := context.Background()
@@ -2288,7 +2283,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 			&v1.RelationshipFilter{
 				ResourceType: tf.DocumentNS.Name,
 			},
-			500,
+			571,
 		},
 		{
 			"filter by resource ID",
@@ -2310,7 +2305,7 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				ResourceType:             tf.DocumentNS.Name,
 				OptionalResourceIdPrefix: "1",
 			},
-			55,
+			62,
 		},
 		{
 			"filter by invalid resource type",
@@ -2342,31 +2337,25 @@ func TestExportBulkRelationshipsWithFilter(t *testing.T) {
 				{tf.FolderNS.Name, "owner"},
 				{tf.DocumentNS.Name, "editor"},
 				{tf.FolderNS.Name, "editor"},
+				{tf.DocumentNS.Name, "caveated_viewer"},
 			}
 
 			expectedRels := set.NewStringSetWithSize(1000)
 			batch := make([]*v1.Relationship, 1000)
 			for i := range batch {
 				nsAndRel := nsAndRels[i%len(nsAndRels)]
-				rel := rel(
-					nsAndRel.namespace,
-					strconv.Itoa(i),
-					nsAndRel.relation,
-					tf.UserNS.Name,
-					strconv.Itoa(i),
-					"",
-				)
-				batch[i] = rel
+				v1rel := relationshipForBulkTesting(nsAndRel, i)
+				batch[i] = v1rel
 
 				if tc.filter != nil {
 					filter, err := datastore.RelationshipsFilterFromPublicFilter(tc.filter)
 					require.NoError(err)
-					if !filter.Test(tuple.FromV1Relationship(rel)) {
+					if !filter.Test(tuple.FromV1Relationship(v1rel)) {
 						continue
 					}
 				}
 
-				expectedRels.Add(tuple.MustV1RelString(rel))
+				expectedRels.Add(tuple.MustV1RelString(v1rel))
 			}
 
 			require.Equal(tc.expectedCount, expectedRels.Size())
