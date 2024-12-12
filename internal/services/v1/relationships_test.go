@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -627,6 +628,60 @@ func relWithCaveat(resType, resID, relation, subType, subID, subRel, caveatName 
 			CaveatName: caveatName,
 		},
 	}
+}
+
+func mustRelWithCaveatAndContext(resType, resID, relation, subType, subID, subRel, caveatName string, context map[string]any) *v1.Relationship {
+	sctx, err := structpb.NewStruct(context)
+	if err != nil {
+		panic(err)
+	}
+
+	return &v1.Relationship{
+		Resource: &v1.ObjectReference{
+			ObjectType: resType,
+			ObjectId:   resID,
+		},
+		Relation: relation,
+		Subject: &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subType,
+				ObjectId:   subID,
+			},
+			OptionalRelation: subRel,
+		},
+		OptionalCaveat: &v1.ContextualizedCaveat{
+			CaveatName: caveatName,
+			Context:    sctx,
+		},
+	}
+}
+
+func relationshipForBulkTesting(nsAndRel struct {
+	namespace string
+	relation  string
+}, i int,
+) *v1.Relationship {
+	if nsAndRel.relation == "caveated_viewer" {
+		return mustRelWithCaveatAndContext(
+			nsAndRel.namespace,
+			strconv.Itoa(i),
+			nsAndRel.relation,
+			tf.UserNS.Name,
+			strconv.Itoa(i),
+			"",
+			"test",
+			map[string]any{"secret": strconv.Itoa(i)},
+		)
+	}
+
+	return rel(
+		nsAndRel.namespace,
+		strconv.Itoa(i),
+		nsAndRel.relation,
+		tf.UserNS.Name,
+		strconv.Itoa(i),
+		"",
+	)
 }
 
 func TestInvalidWriteRelationship(t *testing.T) {
