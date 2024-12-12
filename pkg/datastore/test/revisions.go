@@ -96,8 +96,10 @@ func RevisionSerializationTest(t *testing.T, tester DatastoreTester) {
 // are invalid, and revisions inside the GC window are valid.
 func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
+	gcWindow := 300 * time.Millisecond
 
-	ds, err := tester.New(0, 10*time.Millisecond, 300*time.Millisecond, 1)
+	// NOTE: we disable the background GC process here and instead manually run it below.
+	ds, err := tester.New(0, veryLargeGCInterval, gcWindow, 1)
 	require.NoError(err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -125,13 +127,16 @@ func RevisionGCTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	require.NoError(ds.CheckRevision(ctx, head), "expected head revision to be valid in GC Window")
 
-	// Make sure GC kicks in after the window.
-	time.Sleep(300 * time.Millisecond)
+	// Sleep to ensure we're past the GC window.
+	time.Sleep(gcWindow)
 
 	gcable, ok := ds.(common.GarbageCollector)
 	if ok {
+		// Run garbage collection.
 		gcable.ResetGCCompleted()
-		require.Eventually(func() bool { return gcable.HasGCRun() }, 10*time.Second, 150*time.Millisecond, "GC was never run as expected")
+		err := common.RunGarbageCollection(gcable, gcWindow, 10*time.Second)
+		require.NoError(err)
+		require.True(gcable.HasGCRun(), "GC was never run as expected")
 	}
 
 	// FIXME currently the various datastores behave differently when a revision was requested and GC Window elapses.

@@ -798,8 +798,9 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
 				var err error
 				conn, err = pgx.Connect(ctx, uri)
-				RegisterTypes(conn.TypeMap())
 				require.NoError(err)
+
+				RegisterTypes(conn.TypeMap())
 
 				ds, err := newPostgresDatastore(
 					ctx,
