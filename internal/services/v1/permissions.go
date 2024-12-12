@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	cexpr "github.com/authzed/spicedb/internal/caveats"
 	dispatchpkg "github.com/authzed/spicedb/internal/dispatch"
@@ -768,6 +769,13 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
+	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
+	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
+	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
+
 	if a.currentBatch[a.numSent].OptionalCaveat != nil {
 		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName
 		a.caveat.Context = a.currentBatch[a.numSent].OptionalCaveat.Context
@@ -776,21 +784,14 @@ func (a *loadBulkAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		a.current.OptionalCaveat = nil
 	}
 
-	a.current.OptionalIntegrity = nil
-
-	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
-	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
-	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
-
 	if a.currentBatch[a.numSent].OptionalExpiresAt != nil {
 		t := a.currentBatch[a.numSent].OptionalExpiresAt.AsTime()
 		a.current.OptionalExpiration = &t
 	} else {
 		a.current.OptionalExpiration = nil
 	}
+
+	a.current.OptionalIntegrity = nil
 
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
@@ -996,9 +997,17 @@ func ExportBulk(ctx context.Context, ds datastore.Datastore, batchSize uint64, r
 				if rel.OptionalCaveat != nil {
 					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
 					caveatArray[offset].Context = rel.OptionalCaveat.Context
+					v1Rel.OptionalCaveat = &caveatArray[offset]
 				} else {
 					caveatArray[offset].CaveatName = ""
 					caveatArray[offset].Context = nil
+					v1Rel.OptionalCaveat = nil
+				}
+
+				if rel.OptionalExpiration != nil {
+					v1Rel.OptionalExpiresAt = timestamppb.New(*rel.OptionalExpiration)
+				} else {
+					v1Rel.OptionalExpiresAt = nil
 				}
 			}
 

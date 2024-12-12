@@ -12,6 +12,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/ccoveille/go-safecast"
 	"github.com/jzelinskie/stringz"
@@ -154,12 +155,6 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		a.currentBatch = batch.Relationships
 		a.numSent = 0
 
-		for _, rel := range batch.Relationships {
-			if rel.OptionalExpiresAt != nil {
-				return nil, fmt.Errorf("expiration time is not currently supported")
-			}
-		}
-
 		a.awaitingNamespaces, a.awaitingCaveats = extractBatchNewReferencedNamespacesAndCaveats(
 			a.currentBatch,
 			a.referencedNamespaceMap,
@@ -172,6 +167,13 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		return nil, nil
 	}
 
+	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
+	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
+	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
+	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
+	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
+	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
+
 	if a.currentBatch[a.numSent].OptionalCaveat != nil {
 		a.caveat.CaveatName = a.currentBatch[a.numSent].OptionalCaveat.CaveatName
 		a.caveat.Context = a.currentBatch[a.numSent].OptionalCaveat.Context
@@ -180,28 +182,14 @@ func (a *bulkLoadAdapter) Next(_ context.Context) (*tuple.Relationship, error) {
 		a.current.OptionalCaveat = nil
 	}
 
-	if a.caveat.CaveatName != "" {
-		a.current.OptionalCaveat = &a.caveat
-	} else {
-		a.current.OptionalCaveat = nil
-	}
-
-	a.current.OptionalIntegrity = nil
-	a.current.OptionalExpiration = nil
-
-	a.current.RelationshipReference.Resource.ObjectType = a.currentBatch[a.numSent].Resource.ObjectType
-	a.current.RelationshipReference.Resource.ObjectID = a.currentBatch[a.numSent].Resource.ObjectId
-	a.current.RelationshipReference.Resource.Relation = a.currentBatch[a.numSent].Relation
-	a.current.Subject.ObjectType = a.currentBatch[a.numSent].Subject.Object.ObjectType
-	a.current.Subject.ObjectID = a.currentBatch[a.numSent].Subject.Object.ObjectId
-	a.current.Subject.Relation = stringz.DefaultEmpty(a.currentBatch[a.numSent].Subject.OptionalRelation, tuple.Ellipsis)
-
 	if a.currentBatch[a.numSent].OptionalExpiresAt != nil {
 		t := a.currentBatch[a.numSent].OptionalExpiresAt.AsTime()
 		a.current.OptionalExpiration = &t
 	} else {
 		a.current.OptionalExpiration = nil
 	}
+
+	a.current.OptionalIntegrity = nil
 
 	if err := relationships.ValidateOneRelationship(
 		a.referencedNamespaceMap,
@@ -432,9 +420,15 @@ func BulkExport(ctx context.Context, ds datastore.ReadOnlyDatastore, batchSize u
 				if rel.OptionalCaveat != nil {
 					caveatArray[offset].CaveatName = rel.OptionalCaveat.CaveatName
 					caveatArray[offset].Context = rel.OptionalCaveat.Context
+					v1Rel.OptionalCaveat = &caveatArray[offset]
 				} else {
-					caveatArray[offset].CaveatName = ""
-					caveatArray[offset].Context = nil
+					v1Rel.OptionalCaveat = nil
+				}
+
+				if rel.OptionalExpiration != nil {
+					v1Rel.OptionalExpiresAt = timestamppb.New(*rel.OptionalExpiration)
+				} else {
+					v1Rel.OptionalExpiresAt = nil
 				}
 			}
 
