@@ -152,8 +152,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestCheckRevisions", runner(tester, CheckRevisionsTest))
 
 	if !except.GC() {
-		t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
-		t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
+		OnlyGCTests(t, tester, concurrent)
 	}
 
 	t.Run("TestBulkUpload", runner(tester, BulkUploadTest))
@@ -199,6 +198,16 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestUpdateRelationshipCounter", runner(tester, UpdateRelationshipCounterTest))
 	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
+}
+
+func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
+	runner := serial
+	if concurrent {
+		runner = parallel
+	}
+
+	t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
+	t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
 }
 
 // All runs all generic datastore tests on a DatastoreTester.

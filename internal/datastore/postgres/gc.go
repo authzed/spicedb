@@ -21,6 +21,14 @@ var (
 	gcPKCols = []string{"tableoid", "ctid"}
 )
 
+func (pgd *pgDatastore) LockForGCRun(ctx context.Context) (bool, error) {
+	return pgd.tryAcquireLock(ctx, gcRunLock)
+}
+
+func (pgd *pgDatastore) UnlockAfterGCRun(ctx context.Context) error {
+	return pgd.releaseLock(ctx, gcRunLock)
+}
+
 func (pgd *pgDatastore) HasGCRun() bool {
 	return pgd.gcHasRun.Load()
 }
