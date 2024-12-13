@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 func lookupSubjects(parameters map[string]any, client v1.PermissionsServiceClient) (any, error) {
@@ -223,10 +225,114 @@ func cursoredLookupResources(parameters map[string]any, client v1.PermissionsSer
 	return nodeSets, nil
 }
 
+func bulkImportExportRelationships(parameters map[string]any, client v1.PermissionsServiceClient) (any, error) {
+	// Read the list of relationships to pass to the import operation.
+	importRelsFile := parameters["rels_file"].(string)
+
+	relsFile, err := os.ReadFile("testdata/" + importRelsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read relationships file: %w", err)
+	}
+
+	// Run the import relationships.
+	importRels := make([]*v1.Relationship, 0)
+	for _, line := range strings.Split(string(relsFile), "\n") {
+		if line == "" {
+			continue
+		}
+
+		parsed, err := tuple.ParseV1Rel(line)
+		if err != nil {
+			return nil, err
+		}
+
+		importRels = append(importRels, parsed)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	r, err := client.ImportBulkRelationships(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rel := range importRels {
+		err := r.Send(&v1.ImportBulkRelationshipsRequest{Relationships: []*v1.Relationship{rel}})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resp, err := r.CloseAndRecv()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(importRels) != int(resp.NumLoaded) {
+		return nil, fmt.Errorf("expected %d relationships to be loaded, got %d", len(importRels), resp.NumLoaded)
+	}
+
+	// Run bulk export and return the results.
+	var optionalLimit uint32
+	if optionalLimitValue, ok := parameters["optional_limit"]; ok {
+		optionalLimit = uint32(optionalLimitValue.(int))
+	}
+
+	var filter *v1.RelationshipFilter
+	if resourceTypeValue, ok := parameters["resource_type"]; ok {
+		filter = &v1.RelationshipFilter{
+			ResourceType: resourceTypeValue.(string),
+		}
+	}
+
+	if filterPrefixValue, ok := parameters["filter_resource_id_prefix"]; ok {
+		filter = &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: filterPrefixValue.(string),
+		}
+	}
+
+	exr, err := client.ExportBulkRelationships(ctx, &v1.ExportBulkRelationshipsRequest{
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_FullyConsistent{
+				FullyConsistent: true,
+			},
+		},
+		OptionalLimit:              optionalLimit,
+		OptionalRelationshipFilter: filter,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	exportedRels := make([]yaml.Node, 0)
+	for {
+		resp, err := exr.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return nil, err
+		}
+
+		for _, rel := range resp.Relationships {
+			exportedRels = append(exportedRels, yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: tuple.MustV1RelString(rel),
+				Style: yaml.SingleQuotedStyle,
+			})
+		}
+	}
+
+	return exportedRels, nil
+}
+
 var operations = map[string]stOperation{
-	"lookupSubjects":          lookupSubjects,
-	"lookupResources":         lookupResources,
-	"cursoredLookupResources": cursoredLookupResources,
+	"lookupSubjects":                lookupSubjects,
+	"lookupResources":               lookupResources,
+	"cursoredLookupResources":       cursoredLookupResources,
+	"bulkImportExportRelationships": bulkImportExportRelationships,
 }
 
 func formatResolvedResource(resource *v1.LookupResourcesResponse) string {

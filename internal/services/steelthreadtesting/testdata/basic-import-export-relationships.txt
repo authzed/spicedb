@@ -1,0 +1,42 @@
+document:doc-1#viewer@user:user-2
+document:doc-1#viewer@user:user-3
+document:doc-1#viewer@user:user-4
+document:doc-1#viewer@user:user-5
+document:doc-1#viewer@user:user-6
+document:doc-1#viewer@user:user-7
+document:doc-1#viewer@user:user-8
+document:doc-3#viewer@user:user-2
+document:doc-3#viewer@user:user-3
+document:doc-3#viewer@user:user-4
+document:doc-3#viewer@user:user-5
+document:doc-3#viewer@user:user-6
+document:doc-3#viewer@user:user-7
+document:doc-3#viewer@user:user-8
+document:doc-4#viewer@user:user-1[somecaveat]
+document:doc-4#viewer@user:user-2[somecaveat:{"somecondition": 41}]
+document:doc-4#viewer@user:user-3[somecaveat:{"somecondition": 42}]
+document:doc-5#viewer@user:user-1[expiration:2323-01-02T13:14:15Z]
+document:doc-5#viewer@user:user-2[expiration:2423-01-02T13:14:15Z]
+document:doc-6#viewer@user:user-1[somecaveat][expiration:2323-01-02T13:14:15Z]
+document:doc-6#viewer@user:user-2[somecaveat:{"somecondition": 41}][expiration:2123-01-02T13:14:15Z]
+document:doc-6#viewer@user:user-3[somecaveat:{"somecondition": 42}][expiration:2223-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-1[somecaveat:{"somecondition": 43}][expiration:2323-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-2[somecaveat:{"somecondition": 44}][expiration:2423-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-3[somecaveat:{"somecondition": 45}][expiration:2523-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-4[somecaveat:{"somecondition": 46}][expiration:2623-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-5[somecaveat:{"somecondition": 47}][expiration:2723-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-6[somecaveat:{"somecondition": 48}][expiration:2823-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-7[somecaveat:{"somecondition": 49}][expiration:2923-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-8[somecaveat:{"somecondition": 50}][expiration:3023-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-9[somecaveat:{"somecondition": 51}][expiration:3123-01-02T13:14:15Z]
+document:doc-7#viewer@user:user-10[somecaveat:{"somecondition": 52}][expiration:3223-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-1[somecaveat:{"somecondition": 43}][expiration:2323-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-2[somecaveat:{"somecondition": 44}][expiration:2423-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-3[somecaveat:{"somecondition": 45}][expiration:2523-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-4[somecaveat:{"somecondition": 46}][expiration:2623-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-5[somecaveat:{"somecondition": 47}][expiration:2723-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-6[somecaveat:{"somecondition": 48}][expiration:2823-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-7[somecaveat:{"somecondition": 49}][expiration:2923-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-8[somecaveat:{"somecondition": 50}][expiration:3023-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-9[somecaveat:{"somecondition": 51}][expiration:3123-01-02T13:14:15Z]
+document:doc-17#viewer@user:user-10[somecaveat:{"somecondition": 52}][expiration:3223-01-02T13:14:15Z]
