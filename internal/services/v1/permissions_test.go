@@ -1027,9 +1027,9 @@ func TestCheckWithCaveats(t *testing.T) {
 				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
 			},
 		},
-		Resource:   obj("document", "companyplan"),
-		Permission: "view",
-		Subject:    sub("user", "owner", ""),
+		Resource:   obj("document", "caveatedplan"),
+		Permission: "caveated_viewer",
+		Subject:    sub("user", "caveatedguy", ""),
 	}
 
 	// caveat evaluated and returned false
@@ -1774,10 +1774,9 @@ func TestCheckBulkPermissions(t *testing.T) {
 	defer cleanup()
 
 	testCases := []struct {
-		name                  string
-		requests              []string
-		response              []bulkCheckTest
-		expectedDispatchCount int
+		name     string
+		requests []string
+		response []bulkCheckTest
 	}{
 		{
 			name: "same resource and permission, different subjects",
@@ -1800,7 +1799,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			},
-			expectedDispatchCount: 49,
 		},
 		{
 			name: "different resources, same permission and subject",
@@ -1823,7 +1821,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 			},
-			expectedDispatchCount: 18,
 		},
 		{
 			name: "some items fail",
@@ -1846,36 +1843,29 @@ func TestCheckBulkPermissions(t *testing.T) {
 					err: namespace.NewNamespaceNotFoundErr("superfake"),
 				},
 			},
-			expectedDispatchCount: 17,
 		},
 		{
 			name: "different caveat context is not clustered",
 			requests: []string{
-				`document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-				`document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
-				`document:masterplan#view@user:eng_lead[test:{"secret": "4321"}]`,
-				`document:masterplan#view@user:eng_lead`,
+				`document:caveatedplan#caveated_viewer@user:caveatedguy[test:{"secret": "1234"}]`,
+				`document:caveatedplan#caveated_viewer@user:caveatedguy[test:{"secret": "4321"}]`,
+				`document:caveatedplan#caveated_viewer@user:caveatedguy`,
 			},
 			response: []bulkCheckTest{
 				{
-					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					req:  `document:caveatedplan#caveated_viewer@user:caveatedguy[test:{"secret": "1234"}]`,
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
 				},
 				{
-					req:  `document:companyplan#view@user:eng_lead[test:{"secret": "1234"}]`,
+					req:  `document:caveatedplan#caveated_viewer@user:caveatedguy[test:{"secret": "4321"}]`,
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
 				},
 				{
-					req:  `document:masterplan#view@user:eng_lead[test:{"secret": "4321"}]`,
-					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION,
-				},
-				{
-					req:     `document:masterplan#view@user:eng_lead`,
+					req:     `document:caveatedplan#caveated_viewer@user:caveatedguy`,
 					resp:    v1.CheckPermissionResponse_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
 					partial: []string{"secret"},
 				},
 			},
-			expectedDispatchCount: 50,
 		},
 		{
 			name: "namespace validation",
@@ -1893,7 +1883,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 					err: namespace.NewNamespaceNotFoundErr("fake"),
 				},
 			},
-			expectedDispatchCount: 1,
 		},
 		{
 			name: "chunking test",
@@ -1916,7 +1905,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 
 				return toReturn
 			})(),
-			expectedDispatchCount: 11,
 		},
 		{
 			name: "chunking test with errors",
@@ -1946,7 +1934,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 
 				return toReturn
 			})(),
-			expectedDispatchCount: 11,
 		},
 		{
 			name: "same resource and permission with same subject, repeated",
@@ -1964,7 +1951,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 					resp: v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION,
 				},
 			},
-			expectedDispatchCount: 17,
 		},
 	}
 

@@ -27,6 +27,7 @@ const (
 	defaultCredentialsProviderName           = ""
 	defaultFilterMaximumIDCount              = 100
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
+	defaultExpirationDisabled                = false
 )
 
 type mysqlOptions struct {
@@ -50,6 +51,7 @@ type mysqlOptions struct {
 	filterMaximumIDCount        uint16
 	allowedMigrations           []string
 	columnOptimizationOption    common.ColumnOptimizationOption
+	expirationDisabled          bool
 }
 
 // Option provides the facility to configure how clients within the
@@ -74,6 +76,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		credentialsProviderName:     defaultCredentialsProviderName,
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
+		expirationDisabled:          defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -282,5 +285,12 @@ func WithColumnOptimization(isEnabled bool) Option {
 		} else {
 			mo.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
+	}
+}
+
+// WithExpirationDisabled disables the expiration of relationships in the MySQL datastore.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(mo *mysqlOptions) {
+		mo.expirationDisabled = isDisabled
 	}
 }

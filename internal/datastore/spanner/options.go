@@ -28,6 +28,7 @@ type spannerOptions struct {
 	allowedMigrations           []string
 	filterMaximumIDCount        uint16
 	columnOptimizationOption    common.ColumnOptimizationOption
+	expirationDisabled          bool
 }
 
 type migrationPhase uint8
@@ -52,6 +53,7 @@ const (
 	maxRevisionQuantization            = 24 * time.Hour
 	defaultFilterMaximumIDCount        = 100
 	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionNone
+	defaultExpirationDisabled          = false
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -76,6 +78,7 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		migrationPhase:              "", // no migration
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
+		expirationDisabled:          defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -238,5 +241,12 @@ func WithColumnOptimization(isEnabled bool) Option {
 		} else {
 			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
+	}
+}
+
+// WithExpirationDisabled disables relationship expiration support in the Spanner.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *spannerOptions) {
+		po.expirationDisabled = isDisabled
 	}
 }

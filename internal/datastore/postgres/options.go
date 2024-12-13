@@ -29,6 +29,7 @@ type postgresOptions struct {
 	analyzeBeforeStatistics        bool
 	gcEnabled                      bool
 	readStrictMode                 bool
+	expirationDisabled             bool
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 
@@ -72,6 +73,7 @@ const (
 	defaultFilterMaximumIDCount              = 100
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces    = false
+	defaultExpirationDisabled                = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -94,8 +96,9 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		readStrictMode:                 defaultReadStrictMode,
 		queryInterceptor:               nil,
 		filterMaximumIDCount:           defaultFilterMaximumIDCount,
-		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		columnOptimizationOption:       defaultColumnOptimizationOption,
+		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
+		expirationDisabled:             defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -399,4 +402,9 @@ func WithColumnOptimization(isEnabled bool) Option {
 			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
 	}
+}
+
+// WithExpirationDisabled disables support for relationship expiration.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *postgresOptions) { po.expirationDisabled = isDisabled }
 }

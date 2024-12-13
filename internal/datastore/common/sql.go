@@ -106,13 +106,7 @@ func NewSchemaQueryFiltererForRelationshipsSelect(schema SchemaInformation, filt
 		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
 	}
 
-	// Filter out any expired relationships.
-	// TODO(jschorr): Make this depend on whether expiration is necessary.
-	queryBuilder := sq.StatementBuilder.PlaceholderFormat(schema.PlaceholderFormat).Select().Where(sq.Or{
-		sq.Eq{schema.ColExpiration: nil},
-		sq.Expr(schema.ColExpiration + " > " + schema.NowFunction + "()"),
-	})
-
+	queryBuilder := sq.StatementBuilder.PlaceholderFormat(schema.PlaceholderFormat).Select()
 	return SchemaQueryFilterer{
 		schema:                 schema,
 		queryBuilder:           queryBuilder,
@@ -133,13 +127,6 @@ func NewSchemaQueryFiltererWithStartingQuery(schema SchemaInformation, startingQ
 		filterMaximumIDCount = 100
 		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
 	}
-
-	// Filter out any expired relationships.
-	// TODO(jschorr): Make this depend on whether expiration is necessary.
-	startingQuery = startingQuery.Where(sq.Or{
-		sq.Eq{schema.ColExpiration: nil},
-		sq.Expr(schema.ColExpiration + " > " + schema.NowFunction + "()"),
-	})
 
 	return SchemaQueryFilterer{
 		schema:                 schema,
@@ -179,7 +166,21 @@ func (sqf SchemaQueryFilterer) UnderlyingQueryBuilder() sq.SelectBuilder {
 	spiceerrors.DebugAssert(func() bool {
 		return sqf.isCustomQuery
 	}, "UnderlyingQueryBuilder should only be called on custom queries")
-	return sqf.queryBuilder
+	return sqf.queryBuilderWithExpirationFilter(false)
+}
+
+// queryBuilderWithExpirationFilter returns the query builder with the expiration filter applied, when necessary.
+// Note that this adds the clause to the existing builder.
+func (sqf SchemaQueryFilterer) queryBuilderWithExpirationFilter(skipExpiration bool) sq.SelectBuilder {
+	if sqf.schema.ExpirationDisabled || skipExpiration {
+		return sqf.queryBuilder
+	}
+
+	// Filter out any expired relationships.
+	return sqf.queryBuilder.Where(sq.Or{
+		sq.Eq{sqf.schema.ColExpiration: nil},
+		sq.Expr(sqf.schema.ColExpiration + " > " + sqf.schema.NowFunction + "()"),
+	})
 }
 
 func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFilterer {
@@ -470,6 +471,7 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 
 	if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionHasExpiration {
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.ColExpiration: nil})
+		spiceerrors.DebugAssert(func() bool { return !sqf.schema.ExpirationDisabled }, "expiration filter requested but schema does not support expiration")
 	} else if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionNoExpiration {
 		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.ColExpiration: nil})
 	}
@@ -666,6 +668,7 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	builder := RelationshipsQueryBuilder{
 		Schema:           query.schema,
 		SkipCaveats:      queryOpts.SkipCaveats,
+		SkipExpiration:   queryOpts.SkipExpiration,
 		filteringValues:  query.filteringColumnTracker,
 		baseQueryBuilder: query,
 	}
@@ -676,8 +679,9 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 // RelationshipsQueryBuilder is a builder for producing the SQL and arguments necessary for reading
 // relationships.
 type RelationshipsQueryBuilder struct {
-	Schema      SchemaInformation
-	SkipCaveats bool
+	Schema         SchemaInformation
+	SkipCaveats    bool
+	SkipExpiration bool
 
 	filteringValues  map[string]ColumnTracker
 	baseQueryBuilder SchemaQueryFilterer
@@ -703,7 +707,9 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColCaveatName, b.Schema.ColCaveatContext)
 	}
 
-	columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColExpiration)
+	if !b.SkipExpiration && !b.Schema.ExpirationDisabled {
+		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColExpiration)
+	}
 
 	if b.Schema.WithIntegrityColumns {
 		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColIntegrityKeyID, b.Schema.ColIntegrityHash, b.Schema.ColIntegrityTimestamp)
@@ -713,7 +719,7 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 		columnNamesToSelect = append(columnNamesToSelect, "1")
 	}
 
-	sqlBuilder := b.baseQueryBuilder.queryBuilder
+	sqlBuilder := b.baseQueryBuilder.queryBuilderWithExpirationFilter(b.SkipExpiration)
 	sqlBuilder = sqlBuilder.Columns(columnNamesToSelect...)
 
 	return sqlBuilder.ToSql()
@@ -788,7 +794,9 @@ func ColumnsToSelect[CN any, CC any, EC any](
 		colsToSelect = append(colsToSelect, caveatName, caveatCtx)
 	}
 
-	colsToSelect = append(colsToSelect, expiration)
+	if !b.SkipExpiration && !b.Schema.ExpirationDisabled {
+		colsToSelect = append(colsToSelect, expiration)
+	}
 
 	if b.Schema.WithIntegrityColumns {
 		colsToSelect = append(colsToSelect, integrityKeyID, integrityHash, timestamp)

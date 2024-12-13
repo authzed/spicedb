@@ -43,10 +43,11 @@ func ToRelationship(c Cursor) *tuple.Relationship {
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
-	Limit       *uint64   `debugmap:"visible"`
-	Sort        SortOrder `debugmap:"visible"`
-	After       Cursor    `debugmap:"visible"`
-	SkipCaveats bool      `debugmap:"visible"`
+	Limit          *uint64   `debugmap:"visible"`
+	Sort           SortOrder `debugmap:"visible"`
+	After          Cursor    `debugmap:"visible"`
+	SkipCaveats    bool      `debugmap:"visible"`
+	SkipExpiration bool      `debugmap:"visible"`
 }
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.

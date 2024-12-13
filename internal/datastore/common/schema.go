@@ -40,6 +40,9 @@ type SchemaInformation struct {
 
 	// WithIntegrityColumns is a flag to indicate if the schema has integrity columns.
 	WithIntegrityColumns bool `debugmap:"visible"`
+
+	// ExpirationDisabled is a flag to indicate whether expiration support is disabled.
+	ExpirationDisabled bool `debugmap:"visible"`
 }
 
 func (si SchemaInformation) debugValidate() {

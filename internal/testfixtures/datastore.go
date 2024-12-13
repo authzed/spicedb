@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/namespace"
@@ -141,6 +140,10 @@ var StandardRelationships = []string{
 	"document:ownerplan#viewer@user:owner#...",
 }
 
+var StandardCaveatedRelationships = []string{
+	"document:caveatedplan#caveated_viewer@user:caveatedguy#...[test:{\"expectedSecret\":\"1234\"}]",
+}
+
 // EmptyDatastore returns an empty datastore for testing.
 func EmptyDatastore(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
 	rev, err := ds.HeadRevision(context.Background())
@@ -185,16 +188,17 @@ func StandardDatastoreWithCaveatedData(ds datastore.Datastore, require *require.
 	})
 	require.NoError(err)
 
-	rels := make([]tuple.Relationship, 0, len(StandardRelationships))
+	rels := make([]tuple.Relationship, 0, len(StandardRelationships)+len(StandardCaveatedRelationships))
 	for _, tupleStr := range StandardRelationships {
 		rel, err := tuple.Parse(tupleStr)
 		require.NoError(err)
 		require.NotNil(rel)
-
-		rel.OptionalCaveat = &core.ContextualizedCaveat{
-			CaveatName: "test",
-			Context:    mustProtoStruct(map[string]any{"expectedSecret": "1234"}),
-		}
+		rels = append(rels, rel)
+	}
+	for _, tupleStr := range StandardCaveatedRelationships {
+		rel, err := tuple.Parse(tupleStr)
+		require.NoError(err)
+		require.NotNil(rel)
 		rels = append(rels, rel)
 	}
 
@@ -359,12 +363,4 @@ func (tc RelationshipChecker) RelationshipExists(ctx context.Context, rel tuple.
 func (tc RelationshipChecker) NoRelationshipExists(ctx context.Context, rel tuple.Relationship, rev datastore.Revision) {
 	iter := tc.ExactRelationshipIterator(ctx, rel, rev)
 	tc.VerifyIteratorResults(iter)
-}
-
-func mustProtoStruct(in map[string]any) *structpb.Struct {
-	out, err := structpb.NewStruct(in)
-	if err != nil {
-		panic(err)
-	}
-	return out
 }
