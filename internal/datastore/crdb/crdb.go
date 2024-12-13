@@ -224,6 +224,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		common.WithNowFunction("NOW"),
 		common.WithColumnOptimization(config.columnOptimizationOption),
 		common.WithWithIntegrityColumns(config.withIntegrity),
+		common.WithExpirationDisabled(config.expirationDisabled),
 	)
 
 	ds := &crdbDatastore{

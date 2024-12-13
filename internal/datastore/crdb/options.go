@@ -28,9 +28,10 @@ type crdbOptions struct {
 	filterMaximumIDCount           uint16
 	enablePrometheusStats          bool
 	withIntegrity                  bool
-	includeQueryParametersInTraces bool
-	columnOptimizationOption       common.ColumnOptimizationOption
 	allowedMigrations              []string
+	columnOptimizationOption       common.ColumnOptimizationOption
+	includeQueryParametersInTraces bool
+	expirationDisabled             bool
 }
 
 const (
@@ -60,6 +61,7 @@ const (
 	defaultWithIntegrity                  = false
 	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces = false
+	defaultExpirationDisabled             = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -85,6 +87,7 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		withIntegrity:                  defaultWithIntegrity,
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
+		expirationDisabled:             defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -367,4 +370,9 @@ func WithColumnOptimization(isEnabled bool) Option {
 			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
 	}
+}
+
+// WithExpirationDisabled configures the datastore to disable relationship expiration.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *crdbOptions) { po.expirationDisabled = isDisabled }
 }

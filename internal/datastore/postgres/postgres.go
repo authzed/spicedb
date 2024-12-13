@@ -331,6 +331,7 @@ func newPostgresDatastore(
 		common.WithPlaceholderFormat(sq.Dollar),
 		common.WithNowFunction("NOW"),
 		common.WithColumnOptimization(config.columnOptimizationOption),
+		common.WithExpirationDisabled(config.expirationDisabled),
 	)
 
 	datastore := &pgDatastore{
