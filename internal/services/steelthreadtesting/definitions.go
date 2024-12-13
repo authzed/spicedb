@@ -327,4 +327,63 @@ var steelThreadTestCases = []steelThreadTestCase{
 			},
 		},
 	},
+	{
+		name:     "basic import export",
+		datafile: "document-with-a-few-relationships.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "import export with no limit and no filter",
+				operationName: "bulkImportExportRelationships",
+				arguments: map[string]any{
+					"rels_file": "basic-import-export-relationships.txt",
+				},
+				resultsFileName: "basic-import-export-results.yaml",
+			},
+		},
+	},
+	{
+		name:     "basic import export with optional limit",
+		datafile: "document-with-a-few-relationships.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "import export with limit and no filter",
+				operationName: "bulkImportExportRelationships",
+				arguments: map[string]any{
+					"rels_file":      "basic-import-export-relationships.txt",
+					"optional_limit": 3,
+				},
+				resultsFileName: "basic-import-export-results.yaml",
+			},
+		},
+	},
+	{
+		name:     "basic import export with filter",
+		datafile: "document-with-a-few-relationships.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "import export with filter filter",
+				operationName: "bulkImportExportRelationships",
+				arguments: map[string]any{
+					"rels_file":     "basic-import-export-relationships.txt",
+					"resource_type": "document",
+				},
+				resultsFileName: "basic-import-export-results.yaml",
+			},
+		},
+	},
+	{
+		name:     "basic import export with object ID filter",
+		datafile: "document-with-a-few-relationships.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "import export with filter filter",
+				operationName: "bulkImportExportRelationships",
+				arguments: map[string]any{
+					"rels_file":                 "basic-import-export-relationships.txt",
+					"filter_resource_id_prefix": "doc-1",
+				},
+				resultsFileName: "filtered-import-export-results.yaml",
+			},
+		},
+	},
 }

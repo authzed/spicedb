@@ -1,0 +1,19 @@
+---
+schema: |+
+  use expiration
+
+  caveat somecaveat(somecondition int) {
+    somecondition == 42
+  }
+
+  definition user {}
+
+  definition document {
+    relation viewer: user | user with expiration | user with somecaveat | user with somecaveat and expiration
+    permission view = viewer
+  }
+
+relationships: |
+  document:doc-1#viewer@user:user-0
+  document:doc-1#viewer@user:user-1
+  document:doc-2#viewer@user:user-0
