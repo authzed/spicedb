@@ -208,6 +208,7 @@ func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
 
 	t.Run("TestRevisionGC", runner(tester, RevisionGCTest))
 	t.Run("TestInvalidReads", runner(tester, InvalidReadsTest))
+	t.Run("TestGCProcessRuns", runner(tester, GCProcessRunTest))
 }
 
 // All runs all generic datastore tests on a DatastoreTester.
