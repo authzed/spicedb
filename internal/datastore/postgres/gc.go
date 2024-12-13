@@ -77,6 +77,10 @@ func (pgd *pgDatastore) TxIDBefore(ctx context.Context, before time.Time) (datas
 }
 
 func (pgd *pgDatastore) DeleteExpiredRels(ctx context.Context) (int64, error) {
+	if pgd.schema.ExpirationDisabled {
+		return 0, nil
+	}
+
 	now, err := pgd.Now(ctx)
 	if err != nil {
 		return 0, err

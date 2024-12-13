@@ -49,6 +49,7 @@ func (s *SchemaInformation) ToOption() SchemaInformationOption {
 		to.NowFunction = s.NowFunction
 		to.ColumnOptimization = s.ColumnOptimization
 		to.WithIntegrityColumns = s.WithIntegrityColumns
+		to.ExpirationDisabled = s.ExpirationDisabled
 	}
 }
 
@@ -73,6 +74,7 @@ func (s SchemaInformation) DebugMap() map[string]any {
 	debugMap["NowFunction"] = helpers.DebugValue(s.NowFunction, false)
 	debugMap["ColumnOptimization"] = helpers.DebugValue(s.ColumnOptimization, false)
 	debugMap["WithIntegrityColumns"] = helpers.DebugValue(s.WithIntegrityColumns, false)
+	debugMap["ExpirationDisabled"] = helpers.DebugValue(s.ExpirationDisabled, false)
 	return debugMap
 }
 
@@ -215,5 +217,12 @@ func WithColumnOptimization(columnOptimization ColumnOptimizationOption) SchemaI
 func WithWithIntegrityColumns(withIntegrityColumns bool) SchemaInformationOption {
 	return func(s *SchemaInformation) {
 		s.WithIntegrityColumns = withIntegrityColumns
+	}
+}
+
+// WithExpirationDisabled returns an option that can set ExpirationDisabled on a SchemaInformation
+func WithExpirationDisabled(expirationDisabled bool) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.ExpirationDisabled = expirationDisabled
 	}
 }
