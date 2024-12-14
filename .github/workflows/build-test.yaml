@@ -1,6 +1,6 @@
 ---
 name: "Build & Test"
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   push:
     branches:
       - "main"
@@ -71,6 +71,18 @@ jobs:
       - uses: "authzed/actions/setup-go@main"
       - name: "Unit tests"
         run: "go run mage.go test:unit"
+
+  steelthread:
+    name: "Steelthread"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    if: |
+      needs.paths-filter.outputs.codechange == 'true'
+    steps:
+      - uses: "actions/checkout@v4"
+      - uses: "authzed/actions/setup-go@main"
+      - name: "Steelthread tests"
+        run: "go run mage.go test:steelthread"
 
   integration:
     name: "Integration Tests"
