@@ -6,7 +6,6 @@ import (
 
 	v0 "github.com/authzed/authzed-go/proto/authzed/api/v0"
 	"github.com/authzed/grpcutil"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/prototext"
 
 	log "github.com/authzed/spicedb/internal/logging"
@@ -19,13 +18,6 @@ type devServer struct {
 	grpcutil.IgnoreAuthMixin
 
 	shareStore ShareStore
-}
-
-// RegisterDeveloperServer adds the Developer Server to a grpc service registrar
-// This is preferred over manually registering the service; it will add required middleware
-func RegisterDeveloperServer(r grpc.ServiceRegistrar, s v0.DeveloperServiceServer) *grpc.ServiceDesc {
-	r.RegisterService(grpcutil.WrapMethods(v0.DeveloperService_ServiceDesc, grpcutil.DefaultUnaryMiddleware...), s)
-	return &v0.DeveloperService_ServiceDesc
 }
 
 // NewDeveloperServer creates an instance of the developer server.

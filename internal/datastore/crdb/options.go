@@ -321,15 +321,6 @@ func WithEnableConnectionBalancing(connectionBalancing bool) Option {
 	return func(po *crdbOptions) { po.enableConnectionBalancing = connectionBalancing }
 }
 
-// DebugAnalyzeBeforeStatistics signals to the Statistics method that it should
-// run Analyze on the database before returning statistics. This should only be
-// used for debug and testing.
-//
-// Disabled by default.
-func DebugAnalyzeBeforeStatistics() Option {
-	return func(po *crdbOptions) { po.analyzeBeforeStatistics = true }
-}
-
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
 func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 	return func(po *crdbOptions) { po.filterMaximumIDCount = filterMaximumIDCount }

@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -55,13 +54,6 @@ type AlwaysFailError struct {
 	error
 }
 
-// NewAlwaysFailErr constructs a new always fail error.
-func NewAlwaysFailErr() error {
-	return AlwaysFailError{
-		error: errors.New("always fail"),
-	}
-}
-
 // RelationNotFoundError occurs when a relation was not found under a namespace.
 type RelationNotFoundError struct {
 	error
@@ -77,27 +69,6 @@ func (err RelationNotFoundError) NamespaceName() string {
 // NotFoundRelationName returns the name of the relation not found.
 func (err RelationNotFoundError) NotFoundRelationName() string {
 	return err.relationName
-}
-
-func (err RelationNotFoundError) MarshalZerologObject(e *zerolog.Event) {
-	e.Err(err.error).Str("namespace", err.namespaceName).Str("relation", err.relationName)
-}
-
-// DetailsMetadata returns the metadata for details for this error.
-func (err RelationNotFoundError) DetailsMetadata() map[string]string {
-	return map[string]string{
-		"definition_name":             err.namespaceName,
-		"relation_or_permission_name": err.relationName,
-	}
-}
-
-// NewRelationNotFoundErr constructs a new relation not found error.
-func NewRelationNotFoundErr(nsName string, relationName string) error {
-	return RelationNotFoundError{
-		error:         fmt.Errorf("relation/permission `%s` not found under definition `%s`", relationName, nsName),
-		namespaceName: nsName,
-		relationName:  relationName,
-	}
 }
 
 var _ sharederrors.UnknownRelationError = RelationNotFoundError{}
@@ -129,15 +100,6 @@ func (err RelationMissingTypeInfoError) DetailsMetadata() map[string]string {
 	return map[string]string{
 		"definition_name": err.namespaceName,
 		"relation_name":   err.relationName,
-	}
-}
-
-// NewRelationMissingTypeInfoErr constructs a new relation not missing type information error.
-func NewRelationMissingTypeInfoErr(nsName string, relationName string) error {
-	return RelationMissingTypeInfoError{
-		error:         fmt.Errorf("relation/permission `%s` under definition `%s` is missing type information", relationName, nsName),
-		namespaceName: nsName,
-		relationName:  relationName,
 	}
 }
 
@@ -173,13 +135,6 @@ func NewWildcardNotAllowedErr(message string, fieldName string) error {
 // UnimplementedError is returned when some functionality is not yet supported.
 type UnimplementedError struct {
 	error
-}
-
-// NewUnimplementedErr constructs a new unimplemented error.
-func NewUnimplementedErr(baseErr error) error {
-	return UnimplementedError{
-		error: baseErr,
-	}
 }
 
 func (e UnimplementedError) Unwrap() error {
