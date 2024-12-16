@@ -27,6 +27,12 @@ func TestConsistencyPerDatastore(t *testing.T) {
 		path.Join(path.Join(path.Dir(filename), "testconfigs"), "basicrbac.yaml"),
 		path.Join(path.Join(path.Dir(filename), "testconfigs"), "public.yaml"),
 		path.Join(path.Join(path.Dir(filename), "testconfigs"), "nil.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "basiccaveat.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "relexpiration.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "expirationwithcaveat.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "simplewildcard.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "caveatarrow.yaml"),
+		path.Join(path.Join(path.Dir(filename), "testconfigs"), "intersectionarrow.yaml"),
 	}
 
 	for _, engineID := range datastore.Engines {

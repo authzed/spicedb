@@ -125,7 +125,7 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}"
-      - name: "Integration tests"
+      - name: "Consistency tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:${{ matrix.datastore }}"
