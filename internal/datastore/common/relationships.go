@@ -69,6 +69,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 
 	return func(yield func(tuple.Relationship, error) bool) {
 		err := tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
+			span.AddEvent("Query issued to database")
 			var r Rows = rows
 			if crwe, ok := r.(closeRowsWithError); ok {
 				defer LogOnError(ctx, crwe.Close)
@@ -76,9 +77,12 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 				defer cr.Close()
 			}
 
-			span.AddEvent("Query issued to database")
 			relCount := 0
 			for rows.Next() {
+				if relCount == 0 {
+					span.AddEvent("First row returned")
+				}
+
 				if err := rows.Scan(colsToSelect...); err != nil {
 					return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("scan err: %w", err))
 				}
@@ -132,11 +136,11 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 				}
 			}
 
+			span.AddEvent("Rels loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
 			if err := rows.Err(); err != nil {
 				return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("rows err: %w", err))
 			}
 
-			span.AddEvent("Rels loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
 			return nil
 		}, sqlString, args...)
 		if err != nil {
