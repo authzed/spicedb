@@ -31,8 +31,6 @@ const defaultConnBufferSize = humanize.MiByte
 func TestMemdbSteelThreads(t *testing.T) {
 	for _, tc := range steelThreadTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			emptyDS, err := memdb.NewMemdbDatastore(0, 5*time.Second, 2*time.Hour)
 			require.NoError(t, err)
 
@@ -48,7 +46,6 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 
 	for _, engineID := range datastore.SortedEngineIDs() {
 		t.Run(engineID, func(t *testing.T) {
-			t.Parallel()
 			rde := testdatastore.RunDatastoreEngine(t, engineID)
 
 			for _, tc := range steelThreadTestCases {
