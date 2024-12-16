@@ -22,6 +22,7 @@ import (
 	"github.com/jzelinskie/cobrautil/v2/cobraproclimits"
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -30,6 +31,8 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
+	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+	"github.com/authzed/grpcutil"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/logging"
@@ -172,6 +175,7 @@ const (
 	DefaultMiddlewareGRPCAuth      = "grpcauth"
 	DefaultMiddlewareGRPCProm      = "grpcprom"
 	DefaultMiddlewareServerVersion = "serverversion"
+	DefaultMiddlewareLogicalChecks = "logicalchecks"
 
 	DefaultInternalMiddlewareDispatch       = "dispatch"
 	DefaultInternalMiddlewareDatastore      = "datastore"
@@ -341,6 +345,11 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareLogicalChecks).
+			WithInterceptor(LogicalChecksMetricUnary).
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareDispatch).
 			WithInternal(true).
 			WithInterceptor(dispatchmw.UnaryServerInterceptor(opts.DispatcherForMiddleware)).
@@ -419,6 +428,11 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 
 		NewStreamMiddleware().
+			WithName(DefaultMiddlewareLogicalChecks).
+			WithInterceptor(noopStreamInterceptor).
+			Done(),
+
+		NewStreamMiddleware().
 			WithName(DefaultInternalMiddlewareDispatch).
 			WithInternal(true).
 			WithInterceptor(dispatchmw.StreamServerInterceptor(opts.DispatcherForMiddleware)).
@@ -438,6 +452,10 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 			Done(),
 	}...)
 	return &chain, err
+}
+
+func noopStreamInterceptor(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return handler(srv, stream)
 }
 
 func determineEventsToLog(opts MiddlewareOption) grpclog.Option {
@@ -477,6 +495,29 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			datastoremw.StreamServerInterceptor(ds),
 			servicespecific.StreamServerInterceptor,
 		}
+}
+
+var LogicalChecksCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "spicedb",
+	Subsystem: "logical",
+	Name:      "permission_checks_total",
+	Help:      "Count of the checks across individual and bulk requests",
+}, []string{"grpc_method", "grpc_service", "grpc_type"})
+
+func LogicalChecksMetricUnary(ctx context.Context, request any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	response, err := handler(ctx, request)
+	if err == nil {
+		switch m := request.(type) {
+		case *v1.CheckPermissionRequest:
+			svc, method := grpcutil.SplitMethodName(info.FullMethod)
+			LogicalChecksCounter.WithLabelValues(method, svc, "unary").Add(1)
+		case *v1.CheckBulkPermissionsRequest:
+			svc, method := grpcutil.SplitMethodName(info.FullMethod)
+			LogicalChecksCounter.WithLabelValues(method, svc, "unary").Add(float64(len(m.GetItems())))
+		default:
+		}
+	}
+	return response, err
 }
 
 func InterceptorLogger(l zerolog.Logger) grpclog.Logger {
