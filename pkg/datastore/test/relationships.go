@@ -1675,19 +1675,6 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 	}
 }
 
-	ctx := context.Background()
-
-	tpl1, err := tuple.Parse("document:foo#viewer@user:tom")
-	require.NoError(err)
-
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
-	require.NoError(err)
-	ensureRelationships(ctx, require, ds, tpl1)
-
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
-	require.NoError(err)
-}
-
 // RelationshipExpirationTest tests expiration on relationships.
 func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
@@ -1741,6 +1728,28 @@ func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	ensureRelationships(ctx, require, ds, rel4)
 	ensureReverseRelationships(ctx, require, ds, rel4)
+}
+
+// TypedTouchAlreadyExistingTest tests touching a relationship twice, when valid type information is provided.
+func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1, err := tuple.Parse("document:foo#viewer@user:tom")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, tpl1)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, tpl1)
 }
 
 // TypedTouchAlreadyExistingWithCaveatTest tests touching a relationship twice, when valid type information is provided.

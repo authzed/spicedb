@@ -246,6 +246,65 @@ func ResumeTest(t *testing.T, tester DatastoreTester) {
 	}
 }
 
+func ReverseQueryFilteredOverMultipleValuesCursorTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	// Create a datastore with the standard schema but no data.
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require.New(t))
+
+	// Add test relationships.
+	rev, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:tom")),
+			tuple.Create(tuple.MustParse("document:firstdoc#viewer@user:fred")),
+			tuple.Create(tuple.MustParse("document:seconddoc#viewer@user:alice")),
+			tuple.Create(tuple.MustParse("document:seconddoc#viewer@user:*")),
+			tuple.Create(tuple.MustParse("document:thirddoc#viewer@user:*")),
+		})
+	})
+	require.NoError(t, err)
+
+	// Issue a reverse query call with a limit.
+	for _, sortBy := range []options.SortOrder{options.ByResource, options.BySubject} {
+		t.Run(fmt.Sprintf("SortBy-%d", sortBy), func(t *testing.T) {
+			reader := ds.SnapshotReader(rev)
+
+			var limit uint64 = 2
+			var cursor options.Cursor
+
+			foundTuples := mapz.NewSet[string]()
+
+			for i := 0; i < 5; i++ {
+				iter, err := reader.ReverseQueryRelationships(context.Background(), datastore.SubjectsFilter{
+					SubjectType:        testfixtures.UserNS.Name,
+					OptionalSubjectIds: []string{"alice", "tom", "fred", "*"},
+				}, options.WithResRelation(&options.ResourceRelation{
+					Namespace: "document",
+					Relation:  "viewer",
+				}), options.WithSortForReverse(sortBy), options.WithLimitForReverse(&limit), options.WithAfterForReverse(cursor))
+				require.NoError(t, err)
+
+				encounteredTuples := mapz.NewSet[string]()
+				for rel, err := range iter {
+					require.NoError(t, err)
+					require.True(t, encounteredTuples.Add(tuple.MustString(rel)))
+					cursor = options.ToCursor(rel)
+				}
+
+				require.LessOrEqual(t, encounteredTuples.Len(), 2)
+				foundTuples = foundTuples.Union(encounteredTuples)
+				if encounteredTuples.IsEmpty() {
+					break
+				}
+			}
+
+			require.Equal(t, 6, foundTuples.Len())
+		})
+	}
+}
+
 func ReverseQueryCursorTest(t *testing.T, tester DatastoreTester) {
 	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
 	require.NoError(t, err)

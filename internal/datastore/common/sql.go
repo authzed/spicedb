@@ -58,12 +58,12 @@ const (
 	// TupleComparison uses a comparison with a compound key,
 	// e.g. (namespace, object_id, relation) > ('ns', '123', 'viewer')
 	// which is not compatible with all datastores.
-	TupleComparison
+	TupleComparison = 1
 
 	// ExpandedLogicComparison comparison uses a nested tree of ANDs and ORs to properly
 	// filter out already received relationships. Useful for databases that do not support
 	// tuple comparison, or do not execute it efficiently
-	ExpandedLogicComparison
+	ExpandedLogicComparison = 2
 )
 
 // ColumnOptimizationOption is an enumerator for column optimization options.
@@ -83,12 +83,21 @@ type ColumnTracker struct {
 	SingleValue *string
 }
 
+type columnTrackerMap map[string]ColumnTracker
+
+func (ctm columnTrackerMap) hasStaticValue(columnName string) bool {
+	if r, ok := ctm[columnName]; ok && r.SingleValue != nil {
+		return true
+	}
+	return false
+}
+
 // SchemaQueryFilterer wraps a SchemaInformation and SelectBuilder to give an opinionated
 // way to build query objects.
 type SchemaQueryFilterer struct {
 	schema                 SchemaInformation
 	queryBuilder           sq.SelectBuilder
-	filteringColumnTracker map[string]ColumnTracker
+	filteringColumnTracker columnTrackerMap
 	filterMaximumIDCount   uint16
 	isCustomQuery          bool
 	extraFields            []string
@@ -269,7 +278,7 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 		comparisonSlotCount := 0
 
 		for _, cav := range columnsAndValues {
-			if r, ok := sqf.filteringColumnTracker[cav.name]; !ok || r.SingleValue == nil {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
 				columnNames = append(columnNames, cav.name)
 				valueSlots = append(valueSlots, cav.value)
 				comparisonSlotCount++
@@ -289,10 +298,10 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 		orClause := sq.Or{}
 
 		for index, cav := range columnsAndValues {
-			if r, ok := sqf.filteringColumnTracker[cav.name]; !ok || r.SingleValue != nil {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
 				andClause := sq.And{}
 				for _, previous := range columnsAndValues[0:index] {
-					if r, ok := sqf.filteringColumnTracker[previous.name]; !ok || r.SingleValue != nil {
+					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
 						andClause = append(andClause, sq.Eq{previous.name: previous.value})
 					}
 				}
@@ -683,7 +692,7 @@ type RelationshipsQueryBuilder struct {
 	SkipCaveats    bool
 	SkipExpiration bool
 
-	filteringValues  map[string]ColumnTracker
+	filteringValues  columnTrackerMap
 	baseQueryBuilder SchemaQueryFilterer
 }
 
@@ -735,9 +744,10 @@ func (b RelationshipsQueryBuilder) checkColumn(columns []string, colName string)
 		return append(columns, colName)
 	}
 
-	if r, ok := b.filteringValues[colName]; !ok || r.SingleValue == nil {
+	if !b.filteringValues.hasStaticValue(colName) {
 		return append(columns, colName)
 	}
+
 	return columns
 }
 
