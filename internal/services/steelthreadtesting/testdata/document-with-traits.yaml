@@ -1,0 +1,22 @@
+---
+schema: |+
+  use expiration
+
+  definition user {}
+
+  caveat somecaveat(somesecret int, somecondition int) {
+    somecondition == somesecret
+  }
+
+  definition document {
+    relation viewer: user with expiration | user with somecaveat | user with somecaveat and expiration
+    permission view = viewer
+  }
+
+relationships: |
+  document:firstdoc#viewer@user:tom[expiration:2022-01-02T12:23:34Z]
+  document:firstdoc#viewer@user:fred[expiration:2322-01-02T12:23:34Z]
+  document:seconddoc#viewer@user:tom[somecaveat:{"somesecret":41}]
+  document:seconddoc#viewer@user:fred[somecaveat:{"somesecret":42}]
+  document:thirddoc#viewer@user:tom[somecaveat:{"somesecret":41}][expiration:2022-01-02T12:23:34Z]
+  document:thirddoc#viewer@user:fred[somecaveat:{"somesecret":42}][expiration:2322-01-02T12:23:34Z]

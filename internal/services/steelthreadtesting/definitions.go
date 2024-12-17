@@ -386,4 +386,55 @@ var steelThreadTestCases = []steelThreadTestCase{
 			},
 		},
 	},
+	{
+		name:     "basic bulk checks",
+		datafile: "document-with-a-few-relationships.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "basic bulk checks",
+				operationName: "bulkCheckPermissions",
+				arguments: map[string]any{
+					"check_requests": []string{
+						"document:doc-1#view@user:user-0",
+						"document:doc-1#view@user:user-1",
+						"document:doc-1#view@user:user-2",
+						"document:doc-2#view@user:user-0",
+						"document:doc-2#view@user:user-1",
+						"document:doc-2#view@user:user-2",
+						"document:doc-3#view@user:user-0",
+						"document:doc-3#view@user:user-1",
+						"document:doc-3#view@user:user-2",
+					},
+				},
+			},
+		},
+	},
+	{
+		name:     "bulk checks with traits",
+		datafile: "document-with-traits.yaml",
+		operations: []steelThreadOperationCase{
+			{
+				name:          "bulk checks",
+				operationName: "bulkCheckPermissions",
+				arguments: map[string]any{
+					"check_requests": []string{
+						"document:firstdoc#view@user:tom",
+						"document:firstdoc#view@user:fred",
+						"document:seconddoc#view@user:tom",
+						"document:seconddoc#view@user:fred",
+						`document:seconddoc#view@user:tom[unused:{"somecondition": 41}]`,
+						`document:seconddoc#view@user:fred[unused:{"somecondition": 41}]`,
+						`document:seconddoc#view@user:tom[unused:{"somecondition": 42}]`,
+						`document:seconddoc#view@user:fred[unused:{"somecondition": 42}]`,
+						"document:thirddoc#view@user:tom",
+						"document:thirddoc#view@user:fred",
+						`document:thirddoc#view@user:tom[unused:{"somecondition": 41}]`,
+						`document:thirddoc#view@user:fred[unused:{"somecondition": 41}]`,
+						`document:thirddoc#view@user:tom[unused:{"somecondition": 42}]`,
+						`document:thirddoc#view@user:fred[unused:{"somecondition": 42}]`,
+					},
+				},
+			},
+		},
+	},
 }
