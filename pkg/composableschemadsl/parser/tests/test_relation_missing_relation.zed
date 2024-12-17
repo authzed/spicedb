@@ -1,0 +1,5 @@
+test DocumentTest {
+  relationships {
+    post:one user:beatrice
+  }
+}
