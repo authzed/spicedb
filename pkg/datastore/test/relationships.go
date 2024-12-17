@@ -1022,6 +1022,19 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			expected: []string{"document:first#viewer@user:tom", "document:second#viewer@user:tom"},
 		},
 		{
+			name: "nonmatching resource type",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "other",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:second#viewer@user:tom",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{},
+		},
+		{
 			name: "resource id",
 			filter: datastore.RelationshipsFilter{
 				OptionalResourceIds: []string{"first"},
@@ -1395,6 +1408,73 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			},
 			expected: []string{
 				"document:first#viewer@user:tom",
+			},
+		},
+		{
+			name: "multiple subject IDs with subject type",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"tom", "fred"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first#viewer@user:fred",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:first#viewer@user:fred",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+		},
+		{
+			name: "multiple subject filters",
+			filter: datastore.RelationshipsFilter{
+				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
+					{
+						OptionalSubjectType: "user",
+						OptionalSubjectIds:  []string{"tom", "fred"},
+					},
+					{
+						OptionalSubjectType: "anotheruser",
+						OptionalSubjectIds:  []string{"tom", "jerry"},
+					},
+				},
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first#viewer@user:fred",
+				"document:second#viewer@anotheruser:fred#something",
+				"folder:secondfolder#viewer@anotheruser:tom",
+				"folder:secondfolder#viewer@anotheruser:sarah",
+				"folder:secondfolder#viewer@anotheruser:jerry",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:first#viewer@user:fred",
+				"folder:someotherfolder#viewer@user:tom",
+				"folder:secondfolder#viewer@anotheruser:tom",
+				"folder:secondfolder#viewer@anotheruser:jerry",
+			},
+		},
+		{
+			name: "relationships with expiration",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#expiring_viewer@user:tom[expiration:2020-01-01T00:00:00Z]",
+				"document:first#expiring_viewer@user:fred[expiration:2321-01-01T00:00:00Z]",
+			},
+			expected: []string{
+				"document:first#expiring_viewer@user:fred[expiration:2321-01-01T00:00:00Z]",
 			},
 		},
 	}
