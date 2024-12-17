@@ -328,11 +328,71 @@ func bulkImportExportRelationships(parameters map[string]any, client v1.Permissi
 	return exportedRels, nil
 }
 
+func bulkCheckPermissions(parameters map[string]any, client v1.PermissionsServiceClient) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	itemStrings := parameters["check_requests"].([]string)
+	checkRequests := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(itemStrings))
+	for _, itemString := range itemStrings {
+		parsed, err := tuple.ParseV1Rel(itemString)
+		if err != nil {
+			return nil, err
+		}
+
+		var context *structpb.Struct
+		if parsed.GetOptionalCaveat() != nil {
+			context = parsed.GetOptionalCaveat().Context
+		}
+
+		checkRequests = append(checkRequests, &v1.CheckBulkPermissionsRequestItem{
+			Resource:   parsed.Resource,
+			Permission: parsed.Relation,
+			Subject:    parsed.Subject,
+			Context:    context,
+		})
+	}
+
+	resp, err := client.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
+		Items: checkRequests,
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_FullyConsistent{
+				FullyConsistent: true,
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	respItems := make([]yaml.Node, 0)
+	for index, pair := range resp.Pairs {
+		prefix := itemStrings[index] + " -> "
+		if pair.GetItem() != nil {
+			resultStr := pair.GetItem().Permissionship.String()
+			respItems = append(respItems, yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: prefix + resultStr,
+				Style: yaml.SingleQuotedStyle,
+			})
+		} else {
+			respItems = append(respItems, yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: prefix + pair.GetError().Message,
+				Style: yaml.SingleQuotedStyle,
+			})
+		}
+	}
+
+	return respItems, nil
+}
+
 var operations = map[string]stOperation{
 	"lookupSubjects":                lookupSubjects,
 	"lookupResources":               lookupResources,
 	"cursoredLookupResources":       cursoredLookupResources,
 	"bulkImportExportRelationships": bulkImportExportRelationships,
+	"bulkCheckPermissions":          bulkCheckPermissions,
 }
 
 func formatResolvedResource(resource *v1.LookupResourcesResponse) string {

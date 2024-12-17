@@ -1,0 +1,10 @@
+---
+- 'document:doc-1#view@user:user-0 -> PERMISSIONSHIP_HAS_PERMISSION'
+- 'document:doc-1#view@user:user-1 -> PERMISSIONSHIP_HAS_PERMISSION'
+- 'document:doc-1#view@user:user-2 -> PERMISSIONSHIP_NO_PERMISSION'
+- 'document:doc-2#view@user:user-0 -> PERMISSIONSHIP_HAS_PERMISSION'
+- 'document:doc-2#view@user:user-1 -> PERMISSIONSHIP_NO_PERMISSION'
+- 'document:doc-2#view@user:user-2 -> PERMISSIONSHIP_NO_PERMISSION'
+- 'document:doc-3#view@user:user-0 -> PERMISSIONSHIP_NO_PERMISSION'
+- 'document:doc-3#view@user:user-1 -> PERMISSIONSHIP_NO_PERMISSION'
+- 'document:doc-3#view@user:user-2 -> PERMISSIONSHIP_NO_PERMISSION'
