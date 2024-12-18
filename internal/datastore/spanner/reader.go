@@ -31,9 +31,10 @@ type readTX interface {
 type txFactory func() readTX
 
 type spannerReader struct {
-	executor             common.QueryExecutor
+	executor             common.QueryRelationshipsExecutor
 	txSource             txFactory
 	filterMaximumIDCount uint16
+	schema               common.SchemaInformation
 }
 
 func (sr spannerReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -54,7 +55,7 @@ func (sr spannerReader) CountRelationships(ctx context.Context, name string) (in
 		return 0, err
 	}
 
-	builder, err := common.NewSchemaQueryFilterer(schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
+	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(sr.schema, countRels, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
 	}
@@ -134,7 +135,7 @@ func (sr spannerReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(sr.schema, sr.filterMaximumIDCount).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (sr spannerReader) ReverseQueryRelationships(
 	subjectsFilter datastore.SubjectsFilter,
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFilterer(schema, queryTuples, sr.filterMaximumIDCount).
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(sr.schema, sr.filterMaximumIDCount).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
@@ -171,11 +172,18 @@ func (sr spannerReader) ReverseQueryRelationships(
 
 var errStopIterator = fmt.Errorf("stop iteration")
 
-func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
-	return func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error) {
+func queryExecutor(txSource txFactory) common.ExecuteReadRelsQueryFunc {
+	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
 		return func(yield func(tuple.Relationship, error) bool) {
 			span := trace.SpanFromContext(ctx)
 			span.AddEvent("Query issued to database")
+
+			sql, args, err := builder.SelectSQL()
+			if err != nil {
+				yield(tuple.Relationship{}, err)
+				return
+			}
+
 			iter := txSource().Query(ctx, statementFromSQL(sql, args))
 			defer iter.Stop()
 
@@ -185,27 +193,42 @@ func queryExecutor(txSource txFactory) common.ExecuteQueryFunc {
 			relCount := 0
 			defer span.SetAttributes(attribute.Int("count", relCount))
 
+			var resourceObjectType string
+			var resourceObjectID string
+			var relation string
+			var subjectObjectType string
+			var subjectObjectID string
+			var subjectRelation string
+			var caveatName spanner.NullString
+			var caveatCtx spanner.NullJSON
+			var expirationOrNull spanner.NullTime
+
+			// NOTE: these are unused in Spanner, but necessary for the ColumnsToSelect call.
+			var integrityKeyID string
+			var integrityHash []byte
+			var timestamp time.Time
+
+			colsToSelect, err := common.ColumnsToSelect(builder,
+				&resourceObjectType,
+				&resourceObjectID,
+				&relation,
+				&subjectObjectType,
+				&subjectObjectID,
+				&subjectRelation,
+				&caveatName,
+				&caveatCtx,
+				&expirationOrNull,
+				&integrityKeyID,
+				&integrityHash,
+				&timestamp,
+			)
+			if err != nil {
+				yield(tuple.Relationship{}, err)
+				return
+			}
+
 			if err := iter.Do(func(row *spanner.Row) error {
-				var resourceObjectType string
-				var resourceObjectID string
-				var relation string
-				var subjectObjectType string
-				var subjectObjectID string
-				var subjectRelation string
-				var caveatName spanner.NullString
-				var caveatCtx spanner.NullJSON
-				var expirationOrNull spanner.NullTime
-				err := row.Columns(
-					&resourceObjectType,
-					&resourceObjectID,
-					&relation,
-					&subjectObjectType,
-					&subjectObjectID,
-					&subjectRelation,
-					&caveatName,
-					&caveatCtx,
-					&expirationOrNull,
-				)
+				err := row.Columns(colsToSelect...)
 				if err != nil {
 					return err
 				}
@@ -355,18 +378,6 @@ func readAllNamespaces(iter *spanner.RowIterator, span trace.Span) ([]datastore.
 	return allNamespaces, nil
 }
 
-var queryTuples = sql.Select(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName,
-	colCaveatContext,
-	colExpiration,
-).From(tableRelationship)
-
 var countRels = sql.Select("COUNT(*)").From(tableRelationship)
 
 var queryTuplesForDelete = sql.Select(
@@ -377,18 +388,5 @@ var queryTuplesForDelete = sql.Select(
 	colUsersetObjectID,
 	colUsersetRelation,
 ).From(tableRelationship)
-
-var schema = common.NewSchemaInformation(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName,
-	colExpiration,
-	common.ExpandedLogicComparison,
-	"CURRENT_TIMESTAMP",
-)
 
 var _ datastore.Reader = spannerReader{}

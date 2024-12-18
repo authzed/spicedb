@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/graph/computed"
@@ -805,7 +806,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(t, err)
 
 			dispatch := graph.NewLocalOnlyDispatcher(10, 100)
@@ -855,7 +856,7 @@ func TestComputeCheckWithCaveats(t *testing.T) {
 }
 
 func TestComputeCheckError(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	dispatch := graph.NewLocalOnlyDispatcher(10, 100)
@@ -878,7 +879,7 @@ func TestComputeCheckError(t *testing.T) {
 }
 
 func TestComputeBulkCheck(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(t, err)
 
 	dispatch := graph.NewLocalOnlyDispatcher(10, 100)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -24,10 +25,12 @@ type postgresOptions struct {
 	maxRetries              uint8
 	filterMaximumIDCount    uint16
 
-	enablePrometheusStats   bool
-	analyzeBeforeStatistics bool
-	gcEnabled               bool
-	readStrictMode          bool
+	enablePrometheusStats    bool
+	analyzeBeforeStatistics  bool
+	gcEnabled                bool
+	readStrictMode           bool
+	expirationDisabled       bool
+	columnOptimizationOption common.ColumnOptimizationOption
 
 	migrationPhase    string
 	allowedMigrations []string
@@ -67,6 +70,8 @@ const (
 	defaultCredentialsProviderName           = ""
 	defaultReadStrictMode                    = false
 	defaultFilterMaximumIDCount              = 100
+	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
+	defaultExpirationDisabled                = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -89,6 +94,8 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		readStrictMode:              defaultReadStrictMode,
 		queryInterceptor:            nil,
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
+		columnOptimizationOption:    defaultColumnOptimizationOption,
+		expirationDisabled:          defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -376,4 +383,20 @@ func CredentialsProviderName(credentialsProviderName string) Option {
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
 func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 	return func(po *postgresOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
+}
+
+// WithColumnOptimization sets the column optimization option for the datastore.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(po *postgresOptions) {
+		if isEnabled {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
+}
+
+// WithExpirationDisabled disables support for relationship expiration.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *postgresOptions) { po.expirationDisabled = isDisabled }
 }

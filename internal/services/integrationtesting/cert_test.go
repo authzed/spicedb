@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/internal/middleware/servicespecific"
@@ -115,7 +115,7 @@ func TestCertRotation(t *testing.T) {
 	require.NoError(t, certFile.Close())
 
 	// start a server with an initial set of certs
-	emptyDS, err := memdb.NewMemdbDatastore(0, 10, time.Duration(90_000_000_000_000))
+	emptyDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 10, time.Duration(90_000_000_000_000))
 	require.NoError(t, err)
 	ds, revision := tf.StandardDatastoreWithData(emptyDS, require.New(t))
 	ctx, cancel := context.WithCancel(context.Background())

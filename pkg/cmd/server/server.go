@@ -226,7 +226,9 @@ func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 		ds, err = datastorecfg.NewDatastore(context.Background(), c.DatastoreConfig.ToOption(),
 			// Datastore's filter maximum ID count is set to the max size, since the number of elements to be dispatched
 			// are at most the number of elements returned from a datastore query
-			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize))
+			datastorecfg.WithFilterMaximumIDCount(c.DispatchChunkSize),
+			datastorecfg.WithEnableExperimentalRelationshipExpiration(c.EnableExperimentalRelationshipExpiration),
+		)
 		if err != nil {
 			return nil, spiceerrors.NewTerminationErrorBuilder(fmt.Errorf("failed to create datastore: %w", err)).
 				Component("datastore").

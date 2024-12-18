@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -97,7 +98,7 @@ func TestHintForEntrypoint(t *testing.T) {
 func buildReachabilityGraph(t *testing.T, schema string) *typesystem.ReachabilityGraph {
 	require := require.New(t)
 
-	ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ctx := datastoremw.ContextWithDatastore(context.Background(), ds)
