@@ -687,6 +687,116 @@ func DeleteOneThousandIndividualInOneCallTest(t *testing.T, tester DatastoreTest
 	ensureRelationships(ctx, require, ds, makeTestRel("foo", "extra"))
 }
 
+// DeleteWithInvalidPrefixTest tests deleting relationships with an invalid object prefix.
+func DeleteWithInvalidPrefixTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ctx := context.Background()
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		_, err := rwt.DeleteRelationships(ctx, &v1.RelationshipFilter{
+			OptionalResourceIdPrefix: "hithere%",
+		})
+		return err
+	})
+	require.Error(err)
+	require.ErrorContains(err, "value does not match regex")
+}
+
+// MixedWriteOperationsTest tests a WriteRelationships call with mixed operations.
+func MixedWriteOperationsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	ctx := context.Background()
+
+	// Write the 100 relationships.
+	rels := make([]tuple.Relationship, 0, 100)
+	for i := 0; i < 100; i++ {
+		rels = append(rels, tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "somedoc", "viewer"),
+				Subject:  tuple.ONR("user", "user-"+strconv.Itoa(i), tuple.Ellipsis),
+			},
+		})
+	}
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationCreate, rels...)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, rels...)
+
+	// Create a WriteRelationships call with a few CREATEs, TOUCHes and DELETEs.
+	updates := make([]tuple.RelationshipUpdate, 0, 30)
+	expectedRels := make([]tuple.Relationship, 0, 105)
+
+	// Add a CREATE for 10 new relationships.
+	for i := 0; i < 10; i++ {
+		newRel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "somedoc", "viewer"),
+				Subject:  tuple.ONR("user", "user-"+strconv.Itoa(i+100), tuple.Ellipsis),
+			},
+		}
+		expectedRels = append(expectedRels, newRel)
+		updates = append(updates, tuple.Create(newRel))
+	}
+
+	// Add a TOUCH for 5 existing relationships.
+	for i := 0; i < 5; i++ {
+		updates = append(updates, tuple.Touch(tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "somedoc", "viewer"),
+				Subject:  tuple.ONR("user", "user-"+strconv.Itoa(i+50), tuple.Ellipsis),
+			},
+		}))
+	}
+
+	// Add a TOUCH for 5 new relationships.
+	for i := 0; i < 5; i++ {
+		newRel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "somedoc", "viewer"),
+				Subject:  tuple.ONR("user", "user-"+strconv.Itoa(i+110), tuple.Ellipsis),
+			},
+		}
+		expectedRels = append(expectedRels, newRel)
+		updates = append(updates, tuple.Touch(newRel))
+	}
+
+	// DELETE the first 10 relationships.
+	deletedRels := make([]tuple.Relationship, 0, 10)
+	for i := 0; i < 10; i++ {
+		rel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: tuple.ONR("document", "somedoc", "viewer"),
+				Subject:  tuple.ONR("user", "user-"+strconv.Itoa(i), tuple.Ellipsis),
+			},
+		}
+		deletedRels = append(deletedRels, rel)
+		updates = append(updates, tuple.Delete(rel))
+	}
+
+	for i := 10; i < 100; i++ {
+		expectedRels = append(expectedRels, rels[i])
+	}
+
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, updates)
+	})
+	require.NoError(err)
+
+	// Ensure the expected relationships all exist.
+	ensureRelationships(ctx, require, ds, expectedRels...)
+	ensureNotRelationships(ctx, require, ds, deletedRels...)
+}
+
 // DeleteWithLimitTest tests deleting relationships with a limit.
 func DeleteWithLimitTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
