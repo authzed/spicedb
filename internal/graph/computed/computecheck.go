@@ -110,6 +110,8 @@ func computeCheck(ctx context.Context,
 		return nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
 	}
 
+	caveatRunner := cexpr.NewCaveatRunner()
+
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
 	_, err = slicez.ForEachChunkUntil(resourceIDs, dispatchChunkSize, func(resourceIDsToCheck []string) (bool, error) {
 		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
@@ -141,7 +143,7 @@ func computeCheck(ctx context.Context,
 		}
 
 		for _, resourceID := range resourceIDsToCheck {
-			computed, err := computeCaveatedCheckResult(ctx, params, resourceID, checkResult)
+			computed, err := computeCaveatedCheckResult(ctx, caveatRunner, params, resourceID, checkResult)
 			if err != nil {
 				return false, err
 			}
@@ -153,7 +155,7 @@ func computeCheck(ctx context.Context,
 	return results, metadata, err
 }
 
-func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
+func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
 	result, ok := checkResult.ResultsByResourceId[resourceID]
 	if !ok {
 		return &v1.ResourceCheckResult{
@@ -168,7 +170,7 @@ func computeCaveatedCheckResult(ctx context.Context, params CheckParameters, res
 	ds := datastoremw.MustFromContext(ctx)
 	reader := ds.SnapshotReader(params.AtRevision)
 
-	caveatResult, err := cexpr.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
+	caveatResult, err := runner.RunCaveatExpression(ctx, result.Expression, params.CaveatContext, reader, cexpr.RunCaveatExpressionNoDebugging)
 	if err != nil {
 		return nil, err
 	}
