@@ -130,11 +130,13 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestBulkDeleteRelationships", runner(tester, BulkDeleteRelationshipsTest))
 	t.Run("TestDeleteCaveatedTuple", runner(tester, DeleteCaveatedTupleTest))
 	t.Run("TestDeleteWithLimit", runner(tester, DeleteWithLimitTest))
+	t.Run("TestDeleteWithInvalidPrefix", runner(tester, DeleteWithInvalidPrefixTest))
 	t.Run("TestQueryRelationshipsWithVariousFilters", runner(tester, QueryRelationshipsWithVariousFiltersTest))
 	t.Run("TestDeleteRelationshipsWithVariousFilters", runner(tester, DeleteRelationshipsWithVariousFiltersTest))
 	t.Run("TestTouchTypedAlreadyExistingWithoutCaveat", runner(tester, TypedTouchAlreadyExistingTest))
 	t.Run("TestTouchTypedAlreadyExistingWithCaveat", runner(tester, TypedTouchAlreadyExistingWithCaveatTest))
 	t.Run("TestRelationshipExpiration", runner(tester, RelationshipExpirationTest))
+	t.Run("TestMixedWriteOperations", runner(tester, MixedWriteOperationsTest))
 
 	t.Run("TestMultipleReadsInRWT", runner(tester, MultipleReadsInRWTTest))
 	t.Run("TestConcurrentWriteSerialization", runner(tester, ConcurrentWriteSerializationTest))
@@ -198,6 +200,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestUpdateRelationshipCounter", runner(tester, UpdateRelationshipCounterTest))
 	t.Run("TestDeleteAllData", runner(tester, DeleteAllDataTest))
 	t.Run("TestRelationshipCounterOverExpired", runner(tester, RelationshipCounterOverExpiredTest))
+	t.Run("TestRegisterRelationshipCountersInParallel", runner(tester, RegisterRelationshipCountersInParallelTest))
 }
 
 func OnlyGCTests(t *testing.T, tester DatastoreTester, concurrent bool) {
