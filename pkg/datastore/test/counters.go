@@ -2,6 +2,8 @@ package test
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -63,6 +65,41 @@ func RelationshipCounterOverExpiredTest(t *testing.T, tester DatastoreTester) {
 	count, err := reader.CountRelationships(context.Background(), "document")
 	require.NoError(t, err)
 	require.Equal(t, expectedCount, count)
+}
+
+func RegisterRelationshipCountersInParallelTest(t *testing.T, tester DatastoreTester) {
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(t, err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require.New(t))
+
+	// Run multiple registrations of the counter in parallel and ensure only
+	// one succeeds.
+	var numSucceeded atomic.Int32
+	var numFailed atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			_, err := ds.ReadWriteTx(context.Background(), func(ctx context.Context, tx datastore.ReadWriteTransaction) error {
+				return tx.RegisterCounter(ctx, "document", &core.RelationshipFilter{
+					ResourceType: testfixtures.DocumentNS.Name,
+				})
+			})
+			if err != nil {
+				require.Contains(t, err.Error(), "counter with name `document` already registered")
+				numFailed.Add(1)
+			} else {
+				numSucceeded.Add(1)
+			}
+			wg.Done()
+		}()
+	}
+
+	// Wait for all goroutines to finish.
+	wg.Wait()
+	require.Equal(t, int32(1), numSucceeded.Load())
+	require.Equal(t, int32(9), numFailed.Load())
 }
 
 func RelationshipCountersTest(t *testing.T, tester DatastoreTester) {
