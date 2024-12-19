@@ -5,6 +5,9 @@ import (
 	"slices"
 	"sort"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
@@ -40,6 +43,9 @@ func (crr *CursoredLookupResources2) LookupResources2(
 	req ValidatedLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 ) error {
+	ctx, span := tracer.Start(stream.Context(), "lookupResources2")
+	defer span.End()
+
 	if req.TerminalSubject == nil {
 		return spiceerrors.MustBugf("no terminal subject given to lookup resources dispatch")
 	}
@@ -57,7 +63,6 @@ func (crr *CursoredLookupResources2) LookupResources2(
 		sort.Strings(req.SubjectIds)
 	}
 
-	ctx := stream.Context()
 	limits := newLimitTracker(req.OptionalLimit)
 	ci, err := newCursorInformation(req.OptionalCursor, limits, dispatchVersion)
 	if err != nil {
@@ -105,6 +110,9 @@ func (crr *CursoredLookupResources2) afterSameType(
 	req ValidatedLookupResources2Request,
 	parentStream dispatch.LookupResources2Stream,
 ) error {
+	ctx, span := tracer.Start(ctx, "lookupViaReachability")
+	defer span.End()
+
 	dispatched := NewSyncONRSet()
 
 	// Load the type system and reachability graph to find the entrypoints for the reachability.
@@ -127,6 +135,15 @@ func (crr *CursoredLookupResources2) afterSameType(
 	// For each entrypoint, load the necessary data and re-dispatch if a subproblem was found.
 	return withParallelizedStreamingIterableInCursor(ctx, ci, entrypoints, parentStream, crr.concurrencyLimit,
 		func(ctx context.Context, ci cursorInformation, entrypoint typesystem.ReachabilityEntrypoint, stream dispatch.LookupResources2Stream) error {
+			ds, err := entrypoint.DebugString()
+			spiceerrors.DebugAssert(func() bool {
+				return err == nil
+			}, "Error in entrypoint.DebugString()")
+			ctx, span := tracer.Start(ctx, "entrypoint", trace.WithAttributes(
+				attribute.String("entrypoint", ds),
+			))
+			defer span.End()
+
 			switch entrypoint.EntrypointKind() {
 			case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
 				return crr.lookupRelationEntrypoint(ctx, ci, entrypoint, rg, reader, req, stream, dispatched)
@@ -265,6 +282,14 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 	ctx context.Context,
 	config redispatchOverDatabaseConfig2,
 ) error {
+	ctx, span := tracer.Start(ctx, "datastorequery", trace.WithAttributes(
+		attribute.String("source-resource-type-namespace", config.sourceResourceType.Namespace),
+		attribute.String("source-resource-type-relation", config.sourceResourceType.Relation),
+		attribute.String("subjects-filter-subject-type", config.subjectsFilter.SubjectType),
+		attribute.Int("subjects-filter-subject-ids-count", len(config.subjectsFilter.OptionalSubjectIds)),
+	))
+	defer span.End()
+
 	return withDatastoreCursorInCursor(ctx, config.ci, config.parentStream, config.concurrencyLimit,
 		// Find the target resources for the subject.
 		func(queryCursor options.Cursor) ([]itemAndPostCursor[dispatchableResourcesSubjectMap2], error) {
@@ -454,6 +479,11 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 		// Nothing more to do.
 		return nil
 	}
+
+	ctx, span := tracer.Start(ctx, "redispatchOrReport", trace.WithAttributes(
+		attribute.Int("found-resources-count", foundResources.len()),
+	))
+	defer span.End()
 
 	// Check for entrypoints for the new found resource type.
 	hasResourceEntrypoints, err := rg.HasOptimizedEntrypointsForSubjectToResource(ctx, foundResourceType, parentRequest.ResourceRelation)

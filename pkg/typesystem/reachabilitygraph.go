@@ -116,18 +116,27 @@ func (re ReachabilityEntrypoint) String() string {
 }
 
 func (re ReachabilityEntrypoint) MustDebugString() string {
+	ds, err := re.DebugString()
+	if err != nil {
+		panic(err)
+	}
+
+	return ds
+}
+
+func (re ReachabilityEntrypoint) DebugString() (string, error) {
 	switch re.EntrypointKind() {
 	case core.ReachabilityEntrypoint_RELATION_ENTRYPOINT:
-		return fmt.Sprintf("relation-entrypoint: %s#%s", re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+		return "relation-entrypoint: " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
 
 	case core.ReachabilityEntrypoint_TUPLESET_TO_USERSET_ENTRYPOINT:
-		return fmt.Sprintf("ttu-entrypoint: %s#%s | %s | %s#%s", re.parentRelation.Namespace, re.parentRelation.Relation, re.re.TuplesetRelation, re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+		return "ttu-entrypoint: " + re.re.TuplesetRelation + " -> " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
 
 	case core.ReachabilityEntrypoint_COMPUTED_USERSET_ENTRYPOINT:
-		return fmt.Sprintf("computed-entrypoint: %s#%s", re.re.TargetRelation.Namespace, re.re.TargetRelation.Relation)
+		return "computed-userset-entrypoint: " + re.re.TargetRelation.Namespace + "#" + re.re.TargetRelation.Relation, nil
 
 	default:
-		panic("unknown relation entrypoint kind")
+		return "", fmt.Errorf("unknown entrypoint kind %v", re.EntrypointKind())
 	}
 }
 

@@ -5,6 +5,9 @@ import (
 	"strconv"
 	"sync"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/graph/computed"
 	"github.com/authzed/spicedb/internal/graph/hints"
@@ -103,6 +106,11 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 		return nil
 	}
 
+	ctx, span := tracer.Start(ctx, "lr2Check", trace.WithAttributes(
+		attribute.Int("resource-id-count", len(resourceIDsToCheck)),
+	))
+	defer span.End()
+
 	checkHints := make([]*v1.CheckHint, 0, len(resourceIDsToCheck))
 	for _, resourceID := range resourceIDsToCheck {
 		checkHint, err := hints.HintForEntrypoint(
@@ -192,6 +200,11 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 		return nil
 	}
 	rdc.lock.Unlock()
+
+	ctx, span := tracer.Start(ctx, "lr2Dispatch", trace.WithAttributes(
+		attribute.Int("resource-id-count", len(resourceIDsToDispatch)),
+	))
+	defer span.End()
 
 	// NOTE: Since we extracted a custom section from the cursor at the beginning of this run, we have to add
 	// the starting index to the cursor to ensure that the next run starts from the correct place, and we have
