@@ -122,6 +122,49 @@ func BulkUploadAlreadyExistsSameCallErrorTest(t *testing.T, tester DatastoreTest
 	grpcutil.RequireStatus(t, codes.AlreadyExists, err)
 }
 
+func BulkUploadWithCaveats(t *testing.T, tester DatastoreTester) {
+	tc := 10
+	require := require.New(t)
+	ctx := context.Background()
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
+	bulkSource := testfixtures.NewBulkRelationshipGenerator(
+		testfixtures.DocumentNS.Name,
+		"caveated_viewer",
+		testfixtures.UserNS.Name,
+		tc,
+		t,
+	)
+	bulkSource.WithCaveat = true
+
+	// This is statically defined so we can cast straight.
+	uintTc, _ := safecast.ToUint64(tc)
+	lastRevision, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		loaded, err := rwt.BulkLoad(ctx, bulkSource)
+		require.NoError(err)
+		require.Equal(uintTc, loaded)
+		return err
+	})
+	require.NoError(err)
+
+	iter, err := ds.SnapshotReader(lastRevision).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: testfixtures.DocumentNS.Name,
+	})
+	require.NoError(err)
+
+	for found, err := range iter {
+		require.NoError(err)
+		require.Nil(found.OptionalExpiration)
+		require.NotNil(found.OptionalCaveat)
+		require.NotEmpty(found.OptionalCaveat.CaveatName)
+		require.NotNil(found.OptionalCaveat.Context)
+		require.Equal(map[string]any{"secret": "1235"}, found.OptionalCaveat.Context.AsMap())
+	}
+}
+
 func BulkUploadWithExpiration(t *testing.T, tester DatastoreTester) {
 	tc := 10
 	require := require.New(t)
