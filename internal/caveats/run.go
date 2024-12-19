@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"maps"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -13,6 +16,8 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
+
+var tracer = otel.Tracer("spicedb/internal/caveats/run")
 
 // RunCaveatExpressionDebugOption are the options for running caveat expression evaluation
 // with debugging enabled or disabled.
@@ -26,125 +31,101 @@ const (
 	RunCaveatExpressionWithDebugInformation RunCaveatExpressionDebugOption = 1
 )
 
-// RunCaveatExpression runs a caveat expression over the given context and returns the result.
-func RunCaveatExpression(
+// RunSingleCaveatExpression runs a caveat expression over the given context and returns the result.
+// This instantiates its own CaveatRunner, and should therefore only be used in one-off situations.
+func RunSingleCaveatExpression(
 	ctx context.Context,
 	expr *core.CaveatExpression,
 	context map[string]any,
 	reader datastore.CaveatReader,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
-	env := caveats.NewEnvironment()
-	return runExpression(ctx, env, expr, context, reader, debugOption)
+	runner := NewCaveatRunner()
+	return runner.RunCaveatExpression(ctx, expr, context, reader, debugOption)
 }
 
-// ExpressionResult is the result of a caveat expression being run.
-type ExpressionResult interface {
-	// Value is the resolved value for the expression. For partially applied expressions, this value will be false.
-	Value() bool
-
-	// IsPartial returns whether the expression was only partially applied.
-	IsPartial() bool
-
-	// MissingVarNames returns the names of the parameters missing from the context.
-	MissingVarNames() ([]string, error)
+// CaveatRunner is a helper for running caveats, providing a cache for deserialized caveats.
+type CaveatRunner struct {
+	caveatDefs          map[string]*core.CaveatDefinition
+	deserializedCaveats map[string]*caveats.CompiledCaveat
 }
 
-type syntheticResult struct {
-	value           bool
-	isPartialResult bool
-
-	op                  core.CaveatOperation_Operation
-	exprResultsForDebug []ExpressionResult
-	missingVarNames     *mapz.Set[string]
+// NewCaveatRunner creates a new CaveatRunner.
+func NewCaveatRunner() *CaveatRunner {
+	return &CaveatRunner{
+		caveatDefs:          map[string]*core.CaveatDefinition{},
+		deserializedCaveats: map[string]*caveats.CompiledCaveat{},
+	}
 }
 
-func (sr syntheticResult) Value() bool {
-	return sr.value
-}
+// RunCaveatExpression runs a caveat expression over the given context and returns the result.
+func (cr *CaveatRunner) RunCaveatExpression(
+	ctx context.Context,
+	expr *core.CaveatExpression,
+	context map[string]any,
+	reader datastore.CaveatReader,
+	debugOption RunCaveatExpressionDebugOption,
+) (ExpressionResult, error) {
+	ctx, span := tracer.Start(ctx, "RunCaveatExpression")
+	defer span.End()
 
-func (sr syntheticResult) IsPartial() bool {
-	return sr.isPartialResult
-}
-
-func (sr syntheticResult) MissingVarNames() ([]string, error) {
-	if sr.isPartialResult {
-		if sr.missingVarNames != nil {
-			return sr.missingVarNames.AsSlice(), nil
-		}
-
-		missingVarNames := mapz.NewSet[string]()
-		for _, exprResult := range sr.exprResultsForDebug {
-			if exprResult.IsPartial() {
-				found, err := exprResult.MissingVarNames()
-				if err != nil {
-					return nil, err
-				}
-
-				missingVarNames.Extend(found)
-			}
-		}
-
-		return missingVarNames.AsSlice(), nil
+	if err := cr.PopulateCaveatDefinitionsForExpr(ctx, expr, reader); err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("not a partial value")
+	env := caveats.NewEnvironment()
+	return cr.runExpressionWithCaveats(ctx, env, expr, context, debugOption)
 }
 
-func isFalseResult(result ExpressionResult) bool {
-	return !result.Value() && !result.IsPartial()
-}
+// PopulateCaveatDefinitionsForExpr populates the CaveatRunner's cache with the definitions
+// referenced in the given caveat expression.
+func (cr *CaveatRunner) PopulateCaveatDefinitionsForExpr(ctx context.Context, expr *core.CaveatExpression, reader datastore.CaveatReader) error {
+	ctx, span := tracer.Start(ctx, "PopulateCaveatDefinitions")
+	defer span.End()
 
-func isTrueResult(result ExpressionResult) bool {
-	return result.Value() && !result.IsPartial()
-}
-
-func runExpression(
-	ctx context.Context,
-	env *caveats.Environment,
-	expr *core.CaveatExpression,
-	context map[string]any,
-	reader datastore.CaveatReader,
-	debugOption RunCaveatExpressionDebugOption,
-) (ExpressionResult, error) {
 	// Collect all referenced caveat definitions in the expression.
 	caveatNames := mapz.NewSet[string]()
 	collectCaveatNames(expr, caveatNames)
 
+	span.AddEvent("collected caveat names")
+	span.SetAttributes(attribute.StringSlice("caveat-names", caveatNames.AsSlice()))
+
 	if caveatNames.IsEmpty() {
-		return nil, fmt.Errorf("received empty caveat expression")
+		return fmt.Errorf("received empty caveat expression")
+	}
+
+	// Remove any caveats already loaded.
+	for name := range cr.caveatDefs {
+		caveatNames.Delete(name)
+	}
+
+	if caveatNames.IsEmpty() {
+		return nil
 	}
 
 	// Bulk lookup all of the referenced caveat definitions.
 	caveatDefs, err := reader.LookupCaveatsWithNames(ctx, caveatNames.AsSlice())
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	lc := loadedCaveats{
-		caveatDefs:          map[string]*core.CaveatDefinition{},
-		deserializedCaveats: map[string]*caveats.CompiledCaveat{},
-	}
+	span.AddEvent("looked up caveats")
 
 	for _, cd := range caveatDefs {
-		lc.caveatDefs[cd.Definition.GetName()] = cd.Definition
+		cr.caveatDefs[cd.Definition.GetName()] = cd.Definition
 	}
 
-	return runExpressionWithCaveats(ctx, env, expr, context, lc, debugOption)
+	return nil
 }
 
-type loadedCaveats struct {
-	caveatDefs          map[string]*core.CaveatDefinition
-	deserializedCaveats map[string]*caveats.CompiledCaveat
-}
-
-func (lc loadedCaveats) Get(caveatDefName string) (*core.CaveatDefinition, *caveats.CompiledCaveat, error) {
-	caveat, ok := lc.caveatDefs[caveatDefName]
+// get retrieves a caveat definition and its deserialized form. The caveat name must be
+// present in the CaveatRunner's cache.
+func (cr *CaveatRunner) get(caveatDefName string) (*core.CaveatDefinition, *caveats.CompiledCaveat, error) {
+	caveat, ok := cr.caveatDefs[caveatDefName]
 	if !ok {
 		return nil, nil, datastore.NewCaveatNameNotFoundErr(caveatDefName)
 	}
 
-	deserialized, ok := lc.deserializedCaveats[caveatDefName]
+	deserialized, ok := cr.deserializedCaveats[caveatDefName]
 	if ok {
 		return caveat, deserialized, nil
 	}
@@ -159,20 +140,36 @@ func (lc loadedCaveats) Get(caveatDefName string) (*core.CaveatDefinition, *cave
 		return caveat, nil, err
 	}
 
-	lc.deserializedCaveats[caveatDefName] = justDeserialized
+	cr.deserializedCaveats[caveatDefName] = justDeserialized
 	return caveat, justDeserialized, nil
 }
 
-func runExpressionWithCaveats(
+func collectCaveatNames(expr *core.CaveatExpression, caveatNames *mapz.Set[string]) {
+	if expr.GetCaveat() != nil {
+		caveatNames.Add(expr.GetCaveat().CaveatName)
+		return
+	}
+
+	cop := expr.GetOperation()
+	for _, child := range cop.Children {
+		collectCaveatNames(child, caveatNames)
+	}
+}
+
+func (cr *CaveatRunner) runExpressionWithCaveats(
 	ctx context.Context,
 	env *caveats.Environment,
 	expr *core.CaveatExpression,
 	context map[string]any,
-	loadedCaveats loadedCaveats,
 	debugOption RunCaveatExpressionDebugOption,
 ) (ExpressionResult, error) {
+	ctx, span := tracer.Start(ctx, "runExpressionWithCaveats")
+	defer span.End()
+
 	if expr.GetCaveat() != nil {
-		caveat, compiled, err := loadedCaveats.Get(expr.GetCaveat().CaveatName)
+		span.SetAttributes(attribute.String("caveat-name", expr.GetCaveat().CaveatName))
+
+		caveat, compiled, err := cr.get(expr.GetCaveat().CaveatName)
 		if err != nil {
 			return nil, err
 		}
@@ -210,6 +207,8 @@ func runExpressionWithCaveats(
 	}
 
 	cop := expr.GetOperation()
+	span.SetAttributes(attribute.String("caveat-operation", cop.Op.String()))
+
 	var currentResult ExpressionResult = syntheticResult{
 		value:           cop.Op == core.CaveatOperation_AND,
 		isPartialResult: false,
@@ -311,7 +310,7 @@ func runExpressionWithCaveats(
 	}
 
 	for _, child := range cop.Children {
-		childResult, err := runExpressionWithCaveats(ctx, env, child, context, loadedCaveats, debugOption)
+		childResult, err := cr.runExpressionWithCaveats(ctx, env, child, context, debugOption)
 		if err != nil {
 			return nil, err
 		}
@@ -361,14 +360,63 @@ func runExpressionWithCaveats(
 	return currentResult, nil
 }
 
-func collectCaveatNames(expr *core.CaveatExpression, caveatNames *mapz.Set[string]) {
-	if expr.GetCaveat() != nil {
-		caveatNames.Add(expr.GetCaveat().CaveatName)
-		return
+// ExpressionResult is the result of a caveat expression being run.
+type ExpressionResult interface {
+	// Value is the resolved value for the expression. For partially applied expressions, this value will be false.
+	Value() bool
+
+	// IsPartial returns whether the expression was only partially applied.
+	IsPartial() bool
+
+	// MissingVarNames returns the names of the parameters missing from the context.
+	MissingVarNames() ([]string, error)
+}
+
+type syntheticResult struct {
+	value           bool
+	isPartialResult bool
+
+	op                  core.CaveatOperation_Operation
+	exprResultsForDebug []ExpressionResult
+	missingVarNames     *mapz.Set[string]
+}
+
+func (sr syntheticResult) Value() bool {
+	return sr.value
+}
+
+func (sr syntheticResult) IsPartial() bool {
+	return sr.isPartialResult
+}
+
+func (sr syntheticResult) MissingVarNames() ([]string, error) {
+	if sr.isPartialResult {
+		if sr.missingVarNames != nil {
+			return sr.missingVarNames.AsSlice(), nil
+		}
+
+		missingVarNames := mapz.NewSet[string]()
+		for _, exprResult := range sr.exprResultsForDebug {
+			if exprResult.IsPartial() {
+				found, err := exprResult.MissingVarNames()
+				if err != nil {
+					return nil, err
+				}
+
+				missingVarNames.Extend(found)
+			}
+		}
+
+		return missingVarNames.AsSlice(), nil
 	}
 
-	cop := expr.GetOperation()
-	for _, child := range cop.Children {
-		collectCaveatNames(child, caveatNames)
-	}
+	return nil, fmt.Errorf("not a partial value")
+}
+
+func isFalseResult(result ExpressionResult) bool {
+	return !result.Value() && !result.IsPartial()
+}
+
+func isTrueResult(result ExpressionResult) bool {
+	return result.Value() && !result.IsPartial()
 }

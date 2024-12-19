@@ -814,7 +814,7 @@ func foundSubjectToResolvedSubject(ctx context.Context, foundSubject *dispatch.F
 	if foundSubject.GetCaveatExpression() != nil {
 		permissionship = v1.LookupPermissionship_LOOKUP_PERMISSIONSHIP_CONDITIONAL_PERMISSION
 
-		cr, err := cexpr.RunCaveatExpression(ctx, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
+		cr, err := cexpr.RunSingleCaveatExpression(ctx, foundSubject.GetCaveatExpression(), caveatContext, ds, cexpr.RunCaveatExpressionNoDebugging)
 		if err != nil {
 			return nil, err
 		}

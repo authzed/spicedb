@@ -288,6 +288,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 			rsm := newResourcesSubjectMap2WithCapacity(config.sourceResourceType, uint32(crr.dispatchChunkSize))
 			toBeHandled := make([]itemAndPostCursor[dispatchableResourcesSubjectMap2], 0)
 			currentCursor := queryCursor
+			caveatRunner := caveats.NewCaveatRunner()
 
 			for tpl := it.Next(); tpl != nil; tpl = it.Next() {
 				if it.Err() != nil {
@@ -299,7 +300,7 @@ func (crr *CursoredLookupResources2) redispatchOrReportOverDatabaseQuery(
 				// If a caveat exists on the relationship, run it and filter the results, marking those that have missing context.
 				if tpl.Caveat != nil && tpl.Caveat.CaveatName != "" {
 					caveatExpr := caveats.CaveatAsExpr(tpl.Caveat)
-					runResult, err := caveats.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), config.reader, caveats.RunCaveatExpressionNoDebugging)
+					runResult, err := caveatRunner.RunCaveatExpression(ctx, caveatExpr, config.parentRequest.Context.AsMap(), config.reader, caveats.RunCaveatExpressionNoDebugging)
 					if err != nil {
 						return nil, err
 					}

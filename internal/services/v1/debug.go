@@ -92,7 +92,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 	var caveatEvalInfo *v1.CaveatEvalInfo
 	if permissionship == v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION && len(partialResults) == 1 {
 		partialCheckResult := partialResults[0]
-		computedResult, err := cexpr.RunCaveatExpression(ctx, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
+		computedResult, err := cexpr.RunSingleCaveatExpression(ctx, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
 		if err != nil {
 			return nil, err
 		}

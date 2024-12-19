@@ -476,7 +476,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 
-					result, err := caveats.RunCaveatExpression(context.Background(), tc.expression, tc.context, reader, debugOption)
+					result, err := caveats.RunSingleCaveatExpression(context.Background(), tc.expression, tc.context, reader, debugOption)
 					req.NoError(err)
 					req.Equal(tc.expectedValue, result.Value())
 
@@ -520,7 +520,7 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 
 	reader := ds.SnapshotReader(headRevision)
 
-	result, err := caveats.RunCaveatExpression(
+	result, err := caveats.RunSingleCaveatExpression(
 		context.Background(),
 		caveatexpr("some_caveat"),
 		map[string]any{},
@@ -549,7 +549,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 
 	reader := ds.SnapshotReader(headRevision)
 
-	_, err = caveats.RunCaveatExpression(
+	_, err = caveats.RunSingleCaveatExpression(
 		context.Background(),
 		caveatexpr("some_caveat"),
 		map[string]any{
