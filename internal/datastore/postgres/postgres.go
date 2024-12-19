@@ -182,7 +182,8 @@ func newPostgresDatastore(
 
 	// Setup the config for each of the read and write pools.
 	readPoolConfig := pgConfig.Copy()
-	err = config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	includeQueryParametersInTraces := config.includeQueryParametersInTraces
+	err = config.readPoolOpts.ConfigurePgx(readPoolConfig, includeQueryParametersInTraces)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 	}
@@ -195,7 +196,7 @@ func newPostgresDatastore(
 	var writePoolConfig *pgxpool.Config
 	if isPrimary {
 		writePoolConfig = pgConfig.Copy()
-		err = config.writePoolOpts.ConfigurePgx(writePoolConfig)
+		err = config.writePoolOpts.ConfigurePgx(writePoolConfig, includeQueryParametersInTraces)
 		if err != nil {
 			return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, pgURL)
 		}
@@ -377,21 +378,22 @@ type pgDatastore struct {
 	*revisions.CachedOptimizedRevisions
 	*common.MigrationValidator
 
-	dburl                   string
-	readPool, writePool     pgxcommon.ConnPooler
-	watchBufferLength       uint16
-	watchBufferWriteTimeout time.Duration
-	optimizedRevisionQuery  string
-	validTransactionQuery   string
-	gcWindow                time.Duration
-	gcInterval              time.Duration
-	gcTimeout               time.Duration
-	analyzeBeforeStatistics bool
-	readTxOptions           pgx.TxOptions
-	maxRetries              uint8
-	watchEnabled            bool
-	isPrimary               bool
-	inStrictReadMode        bool
+	dburl                          string
+	readPool, writePool            pgxcommon.ConnPooler
+	watchBufferLength              uint16
+	watchBufferWriteTimeout        time.Duration
+	optimizedRevisionQuery         string
+	validTransactionQuery          string
+	gcWindow                       time.Duration
+	gcInterval                     time.Duration
+	gcTimeout                      time.Duration
+	analyzeBeforeStatistics        bool
+	readTxOptions                  pgx.TxOptions
+	maxRetries                     uint8
+	watchEnabled                   bool
+	isPrimary                      bool
+	inStrictReadMode               bool
+	includeQueryParametersInTraces bool
 
 	credentialsProvider datastore.CredentialsProvider
 
@@ -652,7 +654,7 @@ func errorRetryable(err error) bool {
 }
 
 func (pgd *pgDatastore) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
-	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl, pgd.credentialsProvider)
+	pgDriver, err := migrations.NewAlembicPostgresDriver(ctx, pgd.dburl, pgd.credentialsProvider, pgd.includeQueryParametersInTraces)
 	if err != nil {
 		return datastore.ReadyState{}, err
 	}

@@ -24,10 +24,11 @@ type postgresOptions struct {
 	maxRetries              uint8
 	filterMaximumIDCount    uint16
 
-	enablePrometheusStats   bool
-	analyzeBeforeStatistics bool
-	gcEnabled               bool
-	readStrictMode          bool
+	enablePrometheusStats          bool
+	analyzeBeforeStatistics        bool
+	gcEnabled                      bool
+	readStrictMode                 bool
+	includeQueryParametersInTraces bool
 
 	migrationPhase    string
 	allowedMigrations []string
@@ -67,6 +68,7 @@ const (
 	defaultCredentialsProviderName           = ""
 	defaultReadStrictMode                    = false
 	defaultFilterMaximumIDCount              = 100
+	defaultIncludeQueryParametersInTraces    = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -75,20 +77,21 @@ type Option func(*postgresOptions)
 
 func generateConfig(options []Option) (postgresOptions, error) {
 	computed := postgresOptions{
-		gcWindow:                    defaultGarbageCollectionWindow,
-		gcInterval:                  defaultGarbageCollectionInterval,
-		gcMaxOperationTime:          defaultGarbageCollectionMaxOperationTime,
-		watchBufferLength:           defaultWatchBufferLength,
-		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
-		revisionQuantization:        defaultQuantization,
-		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		enablePrometheusStats:       defaultEnablePrometheusStats,
-		maxRetries:                  defaultMaxRetries,
-		gcEnabled:                   defaultGCEnabled,
-		credentialsProviderName:     defaultCredentialsProviderName,
-		readStrictMode:              defaultReadStrictMode,
-		queryInterceptor:            nil,
-		filterMaximumIDCount:        defaultFilterMaximumIDCount,
+		gcWindow:                       defaultGarbageCollectionWindow,
+		gcInterval:                     defaultGarbageCollectionInterval,
+		gcMaxOperationTime:             defaultGarbageCollectionMaxOperationTime,
+		watchBufferLength:              defaultWatchBufferLength,
+		watchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
+		revisionQuantization:           defaultQuantization,
+		maxRevisionStalenessPercent:    defaultMaxRevisionStalenessPercent,
+		enablePrometheusStats:          defaultEnablePrometheusStats,
+		maxRetries:                     defaultMaxRetries,
+		gcEnabled:                      defaultGCEnabled,
+		credentialsProviderName:        defaultCredentialsProviderName,
+		readStrictMode:                 defaultReadStrictMode,
+		queryInterceptor:               nil,
+		filterMaximumIDCount:           defaultFilterMaximumIDCount,
+		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 	}
 
 	for _, option := range options {
@@ -376,4 +379,9 @@ func CredentialsProviderName(credentialsProviderName string) Option {
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
 func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 	return func(po *postgresOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
+}
+
+// IncludeQueryParametersInTraces is a flag to set whether to include query parameters in OTEL traces
+func IncludeQueryParametersInTraces(includeQueryParametersInTraces bool) Option {
+	return func(po *postgresOptions) { po.includeQueryParametersInTraces = includeQueryParametersInTraces }
 }

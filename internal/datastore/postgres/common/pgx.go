@@ -168,7 +168,7 @@ func ParseConfigWithInstrumentation(url string) (*pgx.ConnConfig, error) {
 	}
 
 	ConfigurePGXLogger(connConfig)
-	ConfigureOTELTracer(connConfig)
+	ConfigureOTELTracer(connConfig, false)
 
 	return connConfig, nil
 }
@@ -281,8 +281,16 @@ func IsSerializationError(err error) bool {
 }
 
 // ConfigureOTELTracer adds OTEL tracing to a pgx.ConnConfig
-func ConfigureOTELTracer(connConfig *pgx.ConnConfig) {
-	addTracer(connConfig, otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName()))
+func ConfigureOTELTracer(connConfig *pgx.ConnConfig, includeQueryParameters bool) {
+	options := []otelpgx.Option{
+		otelpgx.WithTrimSQLInSpanName(),
+	}
+
+	if includeQueryParameters {
+		options = append(options, otelpgx.WithIncludeQueryParameters())
+	}
+
+	addTracer(connConfig, otelpgx.NewTracer(options...))
 }
 
 func addTracer(connConfig *pgx.ConnConfig, tracer pgx.QueryTracer) {
@@ -343,7 +351,7 @@ type PoolOptions struct {
 }
 
 // ConfigurePgx applies PoolOptions to a pgx connection pool confiugration.
-func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) error {
+func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config, includeQueryParametersInTraces bool) error {
 	if opts.MaxOpenConns != nil {
 		maxConns, err := safecast.ToInt32(*opts.MaxOpenConns)
 		if err != nil {
@@ -385,7 +393,7 @@ func (opts PoolOptions) ConfigurePgx(pgxConfig *pgxpool.Config) error {
 	}
 
 	ConfigurePGXLogger(pgxConfig.ConnConfig)
-	ConfigureOTELTracer(pgxConfig.ConnConfig)
+	ConfigureOTELTracer(pgxConfig.ConnConfig, includeQueryParametersInTraces)
 	return nil
 }
 

@@ -29,7 +29,7 @@ type AlembicPostgresDriver struct {
 }
 
 // NewAlembicPostgresDriver creates a new driver with active connections to the database specified.
-func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvider datastore.CredentialsProvider) (*AlembicPostgresDriver, error) {
+func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvider datastore.CredentialsProvider, includeQueryParametersInTraces bool) (*AlembicPostgresDriver, error) {
 	ctx, span := tracer.Start(ctx, "NewAlembicPostgresDriver")
 	defer span.End()
 
@@ -38,7 +38,7 @@ func NewAlembicPostgresDriver(ctx context.Context, url string, credentialsProvid
 		return nil, err
 	}
 	pgxcommon.ConfigurePGXLogger(connConfig)
-	pgxcommon.ConfigureOTELTracer(connConfig)
+	pgxcommon.ConfigureOTELTracer(connConfig, includeQueryParametersInTraces)
 
 	if credentialsProvider != nil {
 		log.Ctx(ctx).Debug().Str("name", credentialsProvider.Name()).Msg("using credentials provider")
