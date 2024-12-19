@@ -14,9 +14,9 @@ NodeTypeFile
       input-source = basic caveat test
       start-rune = 23
       caveat-definition-expression =>
-        NodeTypeCaveatExpression
-          caveat-expression-expressionstr = somecondition == 42 && somebool && somestring == 'hello'
+        NodeType(20)
           end-rune = 154
+          expression = somecondition == 42 && somebool && somestring == 'hello'
           input-source = basic caveat test
           start-rune = 99
       parameters =>

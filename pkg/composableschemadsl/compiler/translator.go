@@ -162,12 +162,12 @@ func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core
 	}
 
 	// caveat expression.
-	expressionStringNode, err := defNode.Lookup(dslshape.NodeCaveatDefinitionPredicateExpession)
+	expressionStringNode, err := defNode.Lookup(dslshape.NodeOpaqueBraceExpressionPredicateExpression)
 	if err != nil {
 		return nil, defNode.WithSourceErrorf(definitionName, "invalid expression: %w", err)
 	}
 
-	expressionString, err := expressionStringNode.GetString(dslshape.NodeCaveatExpressionPredicateExpression)
+	expressionString, err := expressionStringNode.GetString(dslshape.NodeOpaqueBraceExpressionPredicateExpression)
 	if err != nil {
 		return nil, defNode.WithSourceErrorf(expressionString, "invalid expression: %w", err)
 	}

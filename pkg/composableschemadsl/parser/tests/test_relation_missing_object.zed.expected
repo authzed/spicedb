@@ -1,0 +1,23 @@
+NodeTypeFile
+  end-rune = 18
+  input-source = test syntax relation syntax missing object
+  start-rune = 0
+  child-node =>
+    NodeType(21)
+      end-rune = 18
+      input-source = test syntax relation syntax missing object
+      start-rune = 0
+      test-name = DocumentTest
+      child-node =>
+        NodeTypeError
+          end-rune = 18
+          error-message = Expected end of statement or definition, found: TokenTypeKeyword
+          error-source = relationships
+          input-source = test syntax relation syntax missing object
+          start-rune = 22
+    NodeTypeError
+      end-rune = 18
+      error-message = Unexpected token at root level: TokenTypeKeyword
+      error-source = relationships
+      input-source = test syntax relation syntax missing object
+      start-rune = 22
