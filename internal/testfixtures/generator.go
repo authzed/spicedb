@@ -7,7 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/authzed/spicedb/pkg/datastore"
+	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -39,6 +42,7 @@ func NewBulkRelationshipGenerator(objectType, relation, subjectType string, coun
 		relation,
 		subjectType,
 		false,
+		false,
 	}
 }
 
@@ -49,6 +53,7 @@ type BulkRelationshipGenerator struct {
 	relation       string
 	subjectType    string
 	WithExpiration bool
+	WithCaveat     bool
 }
 
 func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationship, error) {
@@ -61,6 +66,21 @@ func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationsh
 	if btg.WithExpiration {
 		exp := time.Now().Add(24 * time.Hour)
 		expiration = &exp
+	}
+
+	var caveat *corev1.ContextualizedCaveat
+	if btg.WithCaveat {
+		c, err := structpb.NewStruct(map[string]interface{}{
+			"secret": "1235",
+		})
+		if err != nil {
+			btg.t.Fatalf("failed to create struct: %v", err)
+		}
+
+		caveat = &corev1.ContextualizedCaveat{
+			CaveatName: "test",
+			Context:    c,
+		}
 	}
 
 	return &tuple.Relationship{
@@ -76,6 +96,7 @@ func (btg *BulkRelationshipGenerator) Next(_ context.Context) (*tuple.Relationsh
 				Relation:   datastore.Ellipsis,
 			},
 		},
+		OptionalCaveat:     caveat,
 		OptionalExpiration: expiration,
 	}, nil
 }

@@ -161,8 +161,9 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestBulkUploadErrors", runner(tester, BulkUploadErrorsTest))
 	t.Run("TestBulkUploadAlreadyExistsError", runner(tester, BulkUploadAlreadyExistsErrorTest))
 	t.Run("TestBulkUploadAlreadyExistsSameCallError", runner(tester, BulkUploadAlreadyExistsSameCallErrorTest))
-	t.Run("BulkUploadEditCaveat", runner(tester, BulkUploadEditCaveat))
-	t.Run("BulkUploadWithExpiration", runner(tester, BulkUploadWithExpiration))
+	t.Run("TestBulkUploadEditCaveat", runner(tester, BulkUploadEditCaveat))
+	t.Run("TestBulkUploadWithCaveats", runner(tester, BulkUploadWithCaveats))
+	t.Run("TestBulkUploadWithExpiration", runner(tester, BulkUploadWithExpiration))
 
 	if !except.Stats() {
 		t.Run("TestStats", runner(tester, StatsTest))
