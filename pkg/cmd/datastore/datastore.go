@@ -107,11 +107,12 @@ type Config struct {
 	FilterMaximumIDCount        uint16        `debugmap:"hidden" default:"100"`
 
 	// Options
-	ReadConnPool           ConnPoolConfig `debugmap:"visible"`
-	WriteConnPool          ConnPoolConfig `debugmap:"visible"`
-	ReadOnly               bool           `debugmap:"visible"`
-	EnableDatastoreMetrics bool           `debugmap:"visible"`
-	DisableStats           bool           `debugmap:"visible"`
+	ReadConnPool                   ConnPoolConfig `debugmap:"visible"`
+	WriteConnPool                  ConnPoolConfig `debugmap:"visible"`
+	ReadOnly                       bool           `debugmap:"visible"`
+	EnableDatastoreMetrics         bool           `debugmap:"visible"`
+	DisableStats                   bool           `debugmap:"visible"`
+	IncludeQueryParametersInTraces bool           `debugmap:"visible"`
 
 	// Read Replicas
 	ReadReplicaConnPool                ConnPoolConfig `debugmap:"visible"`
@@ -247,6 +248,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Uint16Var(&opts.WatchBufferLength, flagName("datastore-watch-buffer-length"), 1024, "how large the watch buffer should be before blocking")
 	flagSet.DurationVar(&opts.WatchBufferWriteTimeout, flagName("datastore-watch-buffer-write-timeout"), 1*time.Second, "how long the watch buffer should queue before forcefully disconnecting the reader")
 	flagSet.DurationVar(&opts.WatchConnectTimeout, flagName("datastore-watch-connect-timeout"), 1*time.Second, "how long the watch connection should wait before timing out (cockroachdb driver only)")
+	flagSet.BoolVar(&opts.IncludeQueryParametersInTraces, flagName("datastore-include-query-parameters-in-traces"), false, "include query parameters in traces (postgres and CRDB drivers only)")
 
 	flagSet.BoolVar(&opts.RelationshipIntegrityEnabled, flagName("datastore-relationship-integrity-enabled"), false, "enables relationship integrity checks. only supported on CRDB")
 	flagSet.StringVar(&opts.RelationshipIntegrityCurrentKey.KeyID, flagName("datastore-relationship-integrity-current-key-id"), "", "current key id for relationship integrity checks")
@@ -315,6 +317,7 @@ func DefaultDatastoreConfig() *Config {
 		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
 		RelationshipIntegrityExpiredKeys: []string{},
 		AllowedMigrations:                []string{},
+		IncludeQueryParametersInTraces:   false,
 	}
 }
 
@@ -509,6 +512,7 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 		crdb.AllowedMigrations(opts.AllowedMigrations),
+		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 	)
 }
 
@@ -549,6 +553,7 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		postgres.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 	}, nil
 }
 

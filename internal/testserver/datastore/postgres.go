@@ -148,7 +148,7 @@ func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore
 	for i := 1; i <= retryCount; i++ {
 		connectStr := b.NewDatabase(t)
 
-		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr, datastore.NoCredentialsProvider)
+		migrationDriver, err := pgmigrations.NewAlembicPostgresDriver(context.Background(), connectStr, datastore.NoCredentialsProvider, false)
 		if err == nil {
 			ctx := context.WithValue(context.Background(), migrate.BackfillBatchSize, uint64(1000))
 			require.NoError(t, pgmigrations.DatabaseMigrations.Run(ctx, migrationDriver, b.targetMigration, migrate.LiveRun))

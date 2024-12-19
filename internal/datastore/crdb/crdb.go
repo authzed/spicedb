@@ -103,11 +103,12 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
 
+	includeQueryParametersInTraces := config.includeQueryParametersInTraces
 	readPoolConfig, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	err = config.readPoolOpts.ConfigurePgx(readPoolConfig)
+	err = config.readPoolOpts.ConfigurePgx(readPoolConfig, includeQueryParametersInTraces)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
@@ -116,7 +117,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}
-	err = config.writePoolOpts.ConfigurePgx(writePoolConfig)
+	err = config.writePoolOpts.ConfigurePgx(writePoolConfig, includeQueryParametersInTraces)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, errUnableToInstantiate, err, url)
 	}

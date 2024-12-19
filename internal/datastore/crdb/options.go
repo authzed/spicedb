@@ -12,22 +12,23 @@ type crdbOptions struct {
 	readPoolOpts, writePoolOpts pgxcommon.PoolOptions
 	connectRate                 time.Duration
 
-	watchBufferLength           uint16
-	watchBufferWriteTimeout     time.Duration
-	watchConnectTimeout         time.Duration
-	revisionQuantization        time.Duration
-	followerReadDelay           time.Duration
-	maxRevisionStalenessPercent float64
-	gcWindow                    time.Duration
-	maxRetries                  uint8
-	overlapStrategy             string
-	overlapKey                  string
-	enableConnectionBalancing   bool
-	analyzeBeforeStatistics     bool
-	filterMaximumIDCount        uint16
-	enablePrometheusStats       bool
-	withIntegrity               bool
-	allowedMigrations           []string
+	watchBufferLength              uint16
+	watchBufferWriteTimeout        time.Duration
+	watchConnectTimeout            time.Duration
+	revisionQuantization           time.Duration
+	followerReadDelay              time.Duration
+	maxRevisionStalenessPercent    float64
+	gcWindow                       time.Duration
+	maxRetries                     uint8
+	overlapStrategy                string
+	overlapKey                     string
+	enableConnectionBalancing      bool
+	analyzeBeforeStatistics        bool
+	filterMaximumIDCount           uint16
+	enablePrometheusStats          bool
+	withIntegrity                  bool
+	includeQueryParametersInTraces bool
+	allowedMigrations              []string
 }
 
 const (
@@ -50,11 +51,12 @@ const (
 	defaultOverlapKey      = "defaultsynckey"
 	defaultOverlapStrategy = overlapStrategyStatic
 
-	defaultEnablePrometheusStats     = false
-	defaultEnableConnectionBalancing = true
-	defaultConnectRate               = 100 * time.Millisecond
-	defaultFilterMaximumIDCount      = 100
-	defaultWithIntegrity             = false
+	defaultEnablePrometheusStats          = false
+	defaultEnableConnectionBalancing      = true
+	defaultConnectRate                    = 100 * time.Millisecond
+	defaultFilterMaximumIDCount           = 100
+	defaultWithIntegrity                  = false
+	defaultIncludeQueryParametersInTraces = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -63,21 +65,22 @@ type Option func(*crdbOptions)
 
 func generateConfig(options []Option) (crdbOptions, error) {
 	computed := crdbOptions{
-		gcWindow:                    24 * time.Hour,
-		watchBufferLength:           defaultWatchBufferLength,
-		watchBufferWriteTimeout:     defaultWatchBufferWriteTimeout,
-		watchConnectTimeout:         defaultWatchConnectTimeout,
-		revisionQuantization:        defaultRevisionQuantization,
-		followerReadDelay:           defaultFollowerReadDelay,
-		maxRevisionStalenessPercent: defaultMaxRevisionStalenessPercent,
-		maxRetries:                  defaultMaxRetries,
-		overlapKey:                  defaultOverlapKey,
-		overlapStrategy:             defaultOverlapStrategy,
-		enablePrometheusStats:       defaultEnablePrometheusStats,
-		enableConnectionBalancing:   defaultEnableConnectionBalancing,
-		connectRate:                 defaultConnectRate,
-		filterMaximumIDCount:        defaultFilterMaximumIDCount,
-		withIntegrity:               defaultWithIntegrity,
+		gcWindow:                       24 * time.Hour,
+		watchBufferLength:              defaultWatchBufferLength,
+		watchBufferWriteTimeout:        defaultWatchBufferWriteTimeout,
+		watchConnectTimeout:            defaultWatchConnectTimeout,
+		revisionQuantization:           defaultRevisionQuantization,
+		followerReadDelay:              defaultFollowerReadDelay,
+		maxRevisionStalenessPercent:    defaultMaxRevisionStalenessPercent,
+		maxRetries:                     defaultMaxRetries,
+		overlapKey:                     defaultOverlapKey,
+		overlapStrategy:                defaultOverlapStrategy,
+		enablePrometheusStats:          defaultEnablePrometheusStats,
+		enableConnectionBalancing:      defaultEnableConnectionBalancing,
+		connectRate:                    defaultConnectRate,
+		filterMaximumIDCount:           defaultFilterMaximumIDCount,
+		withIntegrity:                  defaultWithIntegrity,
+		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 	}
 
 	for _, option := range options {
@@ -344,4 +347,9 @@ func WithIntegrity(withIntegrity bool) Option {
 // the health check (head migration is always allowed).
 func AllowedMigrations(allowedMigrations []string) Option {
 	return func(po *crdbOptions) { po.allowedMigrations = allowedMigrations }
+}
+
+// IncludeQueryParametersInTraces marks whether query parameters should be included in traces.
+func IncludeQueryParametersInTraces(includeQueryParametersInTraces bool) Option {
+	return func(po *crdbOptions) { po.includeQueryParametersInTraces = includeQueryParametersInTraces }
 }

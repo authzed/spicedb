@@ -44,6 +44,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.ReadOnly = c.ReadOnly
 		to.EnableDatastoreMetrics = c.EnableDatastoreMetrics
 		to.DisableStats = c.DisableStats
+		to.IncludeQueryParametersInTraces = c.IncludeQueryParametersInTraces
 		to.ReadReplicaConnPool = c.ReadReplicaConnPool
 		to.ReadReplicaURIs = c.ReadReplicaURIs
 		to.ReadReplicaCredentialsProviderName = c.ReadReplicaCredentialsProviderName
@@ -95,6 +96,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["ReadOnly"] = helpers.DebugValue(c.ReadOnly, false)
 	debugMap["EnableDatastoreMetrics"] = helpers.DebugValue(c.EnableDatastoreMetrics, false)
 	debugMap["DisableStats"] = helpers.DebugValue(c.DisableStats, false)
+	debugMap["IncludeQueryParametersInTraces"] = helpers.DebugValue(c.IncludeQueryParametersInTraces, false)
 	debugMap["ReadReplicaConnPool"] = helpers.DebugValue(c.ReadReplicaConnPool, false)
 	debugMap["ReadReplicaURIs"] = helpers.SensitiveDebugValue(c.ReadReplicaURIs)
 	debugMap["ReadReplicaCredentialsProviderName"] = helpers.DebugValue(c.ReadReplicaCredentialsProviderName, false)
@@ -235,6 +237,13 @@ func WithEnableDatastoreMetrics(enableDatastoreMetrics bool) ConfigOption {
 func WithDisableStats(disableStats bool) ConfigOption {
 	return func(c *Config) {
 		c.DisableStats = disableStats
+	}
+}
+
+// WithIncludeQueryParametersInTraces returns an option that can set IncludeQueryParametersInTraces on a Config
+func WithIncludeQueryParametersInTraces(includeQueryParametersInTraces bool) ConfigOption {
+	return func(c *Config) {
+		c.IncludeQueryParametersInTraces = includeQueryParametersInTraces
 	}
 }
 
