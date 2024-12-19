@@ -103,6 +103,10 @@ type dispatchableResourcesSubjectMap2 struct {
 	resourcesSubjectMap2
 }
 
+func (rsm dispatchableResourcesSubjectMap2) len() int {
+	return rsm.resourcesAndSubjects.Len()
+}
+
 func (rsm dispatchableResourcesSubjectMap2) isEmpty() bool {
 	return rsm.resourcesAndSubjects.IsEmpty()
 }
