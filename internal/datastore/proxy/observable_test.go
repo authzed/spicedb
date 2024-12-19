@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/test"
@@ -12,7 +13,7 @@ import (
 type observableTest struct{}
 
 func (obs observableTest) New(revisionQuantization, _, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
-	db, err := memdb.NewMemdbDatastore(watchBufferLength, revisionQuantization, gcWindow)
+	db, err := dsfortesting.NewMemDBDatastoreForTesting(watchBufferLength, revisionQuantization, gcWindow)
 	if err != nil {
 		return nil, err
 	}

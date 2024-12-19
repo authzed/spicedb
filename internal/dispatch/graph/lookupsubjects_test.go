@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/dispatch"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -194,7 +195,7 @@ func TestLookupSubjectsMaxDepth(t *testing.T) {
 	t.Parallel()
 	require := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	require.NoError(err)
 
 	ds, _ := testfixtures.StandardDatastoreWithSchema(rawDS, require)
@@ -997,7 +998,7 @@ func TestLookupSubjectsOverSchema(t *testing.T) {
 
 			dispatcher := NewLocalOnlyDispatcher(10, 100)
 
-			ds, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			require.NoError(err)
 
 			ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, require)

@@ -34,6 +34,8 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.Limit = q.Limit
 		to.Sort = q.Sort
 		to.After = q.After
+		to.SkipCaveats = q.SkipCaveats
+		to.SkipExpiration = q.SkipExpiration
 	}
 }
 
@@ -43,6 +45,8 @@ func (q QueryOptions) DebugMap() map[string]any {
 	debugMap["Limit"] = helpers.DebugValue(q.Limit, false)
 	debugMap["Sort"] = helpers.DebugValue(q.Sort, false)
 	debugMap["After"] = helpers.DebugValue(q.After, false)
+	debugMap["SkipCaveats"] = helpers.DebugValue(q.SkipCaveats, false)
+	debugMap["SkipExpiration"] = helpers.DebugValue(q.SkipExpiration, false)
 	return debugMap
 }
 
@@ -80,6 +84,20 @@ func WithSort(sort SortOrder) QueryOptionsOption {
 func WithAfter(after Cursor) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.After = after
+	}
+}
+
+// WithSkipCaveats returns an option that can set SkipCaveats on a QueryOptions
+func WithSkipCaveats(skipCaveats bool) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.SkipCaveats = skipCaveats
+	}
+}
+
+// WithSkipExpiration returns an option that can set SkipExpiration on a QueryOptions
+func WithSkipExpiration(skipExpiration bool) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.SkipExpiration = skipExpiration
 	}
 }
 

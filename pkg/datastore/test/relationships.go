@@ -1113,10 +1113,12 @@ func RecreateRelationshipsAfterDeleteWithFilter(t *testing.T, tester DatastoreTe
 // QueryRelationshipsWithVariousFiltersTest tests various relationship filters for query relationships.
 func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTester) {
 	tcs := []struct {
-		name          string
-		filter        datastore.RelationshipsFilter
-		relationships []string
-		expected      []string
+		name              string
+		filter            datastore.RelationshipsFilter
+		withoutCaveats    bool
+		withoutExpiration bool
+		relationships     []string
+		expected          []string
 	}{
 		{
 			name: "resource type",
@@ -1476,6 +1478,37 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			},
 		},
 		{
+			name: "resource type with caveats",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom[firstcaveat]",
+				"document:second#viewer@user:tom[secondcaveat]",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{"document:first#viewer@user:tom[firstcaveat]", "document:second#viewer@user:tom[secondcaveat]"},
+		},
+		{
+			name: "resource type with caveats and context",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom[firstcaveat:{\"foo\":\"bar\"}]",
+				"document:second#viewer@user:tom[secondcaveat]",
+				"document:third#viewer@user:tom[secondcaveat:{\"bar\":\"baz\"}]",
+				"folder:secondfolder#viewer@user:tom",
+				"folder:someotherfolder#viewer@user:tom",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom[firstcaveat:{\"foo\":\"bar\"}]",
+				"document:second#viewer@user:tom[secondcaveat]",
+				"document:third#viewer@user:tom[secondcaveat:{\"bar\":\"baz\"}]",
+			},
+		},
+		{
 			name: "relationship expiration",
 			filter: datastore.RelationshipsFilter{
 				OptionalResourceType: "document",
@@ -1521,6 +1554,24 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			},
 		},
 		{
+			name: "no caveats and no expiration",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#viewer@user:tom",
+				"document:first#viewer@user:fred",
+				"document:first#viewer@user:sarah",
+			},
+			expected: []string{
+				"document:first#viewer@user:tom",
+				"document:first#viewer@user:fred",
+				"document:first#viewer@user:sarah",
+			},
+			withoutCaveats:    true,
+			withoutExpiration: true,
+		},
+		{
 			name: "multiple subject IDs with subject type",
 			filter: datastore.RelationshipsFilter{
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
@@ -1544,7 +1595,20 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			},
 		},
 		{
-			name: "multiple subject filters",
+			name: "relationships with expiration",
+			filter: datastore.RelationshipsFilter{
+				OptionalResourceType: "document",
+			},
+			relationships: []string{
+				"document:first#expiring_viewer@user:tom[expiration:2020-01-01T00:00:00Z]",
+				"document:first#expiring_viewer@user:fred[expiration:2321-01-01T00:00:00Z]",
+			},
+			expected: []string{
+				"document:first#expiring_viewer@user:fred[expiration:2321-01-01T00:00:00Z]",
+			},
+		},
+		{
+			name: "multiple subject filters with multiple ids",
 			filter: datastore.RelationshipsFilter{
 				OptionalSubjectsSelectors: []datastore.SubjectsSelector{
 					{
@@ -1574,19 +1638,6 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 				"folder:secondfolder#viewer@anotheruser:jerry",
 			},
 		},
-		{
-			name: "relationships with expiration",
-			filter: datastore.RelationshipsFilter{
-				OptionalResourceType: "document",
-			},
-			relationships: []string{
-				"document:first#expiring_viewer@user:tom[expiration:2020-01-01T00:00:00Z]",
-				"document:first#expiring_viewer@user:fred[expiration:2321-01-01T00:00:00Z]",
-			},
-			expected: []string{
-				"document:first#expiring_viewer@user:fred[expiration:2321-01-01T00:00:00Z]",
-			},
-		},
 	}
 
 	for _, tc := range tcs {
@@ -1610,7 +1661,7 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			require.NoError(err)
 
 			reader := ds.SnapshotReader(headRev)
-			iter, err := reader.QueryRelationships(ctx, tc.filter)
+			iter, err := reader.QueryRelationships(ctx, tc.filter, options.WithSkipCaveats(tc.withoutCaveats), options.WithSkipExpiration(tc.withoutExpiration))
 			require.NoError(err)
 
 			var results []string
@@ -1622,28 +1673,6 @@ func QueryRelationshipsWithVariousFiltersTest(t *testing.T, tester DatastoreTest
 			require.ElementsMatch(tc.expected, results)
 		})
 	}
-}
-
-// TypedTouchAlreadyExistingTest tests touching a relationship twice, when valid type information is provided.
-func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
-	require := require.New(t)
-
-	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
-	require.NoError(err)
-
-	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
-	ctx := context.Background()
-
-	tpl1, err := tuple.Parse("document:foo#viewer@user:tom")
-	require.NoError(err)
-
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
-	require.NoError(err)
-	ensureRelationships(ctx, require, ds, tpl1)
-
-	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
-	require.NoError(err)
-	ensureRelationships(ctx, require, ds, tpl1)
 }
 
 // RelationshipExpirationTest tests expiration on relationships.
@@ -1699,6 +1728,28 @@ func RelationshipExpirationTest(t *testing.T, tester DatastoreTester) {
 	require.NoError(err)
 	ensureRelationships(ctx, require, ds, rel4)
 	ensureReverseRelationships(ctx, require, ds, rel4)
+}
+
+// TypedTouchAlreadyExistingTest tests touching a relationship twice, when valid type information is provided.
+func TypedTouchAlreadyExistingTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	rawDS, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ds, _ := testfixtures.StandardDatastoreWithData(rawDS, require)
+	ctx := context.Background()
+
+	tpl1, err := tuple.Parse("document:foo#viewer@user:tom")
+	require.NoError(err)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, tpl1)
+
+	_, err = common.WriteRelationships(ctx, ds, tuple.UpdateOperationTouch, tpl1)
+	require.NoError(err)
+	ensureRelationships(ctx, require, ds, tpl1)
 }
 
 // TypedTouchAlreadyExistingWithCaveatTest tests touching a relationship twice, when valid type information is provided.
