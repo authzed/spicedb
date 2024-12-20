@@ -62,14 +62,18 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 	var integrityHash []byte
 	var timestamp time.Time
 
+	span.AddEvent("Selecting columns")
 	colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryRels, err)
 	}
 
+	span.AddEvent("Returning iterator", trace.WithAttributes(attribute.Int("column-count", len(colsToSelect))))
 	return func(yield func(tuple.Relationship, error) bool) {
+		span.AddEvent("Issuing query to database")
 		err := tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
 			span.AddEvent("Query issued to database")
+
 			var r Rows = rows
 			if crwe, ok := r.(closeRowsWithError); ok {
 				defer LogOnError(ctx, crwe.Close)
@@ -85,6 +89,10 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 
 				if err := rows.Scan(colsToSelect...); err != nil {
 					return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("scan err: %w", err))
+				}
+
+				if relCount == 0 {
+					span.AddEvent("First row scanned")
 				}
 
 				var caveat *corev1.ContextualizedCaveat
@@ -136,7 +144,7 @@ func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder 
 				}
 			}
 
-			span.AddEvent("Rels loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
+			span.AddEvent("Relationships loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
 			if err := rows.Err(); err != nil {
 				return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("rows err: %w", err))
 			}
