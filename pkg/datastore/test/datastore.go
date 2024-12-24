@@ -113,6 +113,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 	t.Run("TestNamespaceMultiDelete", runner(tester, NamespaceMultiDeleteTest))
 	t.Run("TestEmptyNamespaceDelete", runner(tester, EmptyNamespaceDeleteTest))
 	t.Run("TestStableNamespaceReadWrite", runner(tester, StableNamespaceReadWriteTest))
+	t.Run("TestNamespaceDeleteInvalidNamespace", runner(tester, NamespaceDeleteInvalidNamespaceTest))
 
 	t.Run("TestSimple", runner(tester, SimpleTest))
 	t.Run("TestObjectIDs", runner(tester, ObjectIDsTest))
