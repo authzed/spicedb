@@ -3,6 +3,7 @@ package spanner
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	slogzerolog "github.com/samber/slog-zerolog/v2"
 	"go.opencensus.io/plugin/ocgrpc"
 	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -150,12 +152,14 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		spannerOpts = append(spannerOpts, option.WithCredentialsJSON(config.credentialsJSON))
 	}
 
+	slogger := slog.New(slogzerolog.Option{Level: slog.LevelDebug, Logger: &log.Logger}.NewZerologHandler())
 	spannerOpts = append(spannerOpts,
 		option.WithCredentialsFile(config.credentialsFilePath),
 		option.WithGRPCConnectionPool(max(config.readMaxOpen, config.writeMaxOpen)),
 		option.WithGRPCDialOption(
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		),
+		option.WithLogger(slogger),
 	)
 
 	client, err := spanner.NewClientWithConfig(
