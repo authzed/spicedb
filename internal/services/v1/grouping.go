@@ -19,6 +19,7 @@ type groupingParameters struct {
 	atRevision           datastore.Revision
 	maximumAPIDepth      uint32
 	maxCaveatContextSize int
+	withTracing          bool
 }
 
 // groupItems takes a slice of CheckBulkPermissionsRequestItem and groups them based
@@ -55,12 +56,17 @@ func checkParametersFromCheckBulkPermissionsRequestItem(
 	params groupingParameters,
 	caveatContext map[string]any,
 ) *computed.CheckParameters {
+	debugOption := computed.NoDebugging
+	if params.withTracing {
+		debugOption = computed.BasicDebuggingEnabled
+	}
+
 	return &computed.CheckParameters{
 		ResourceType:  tuple.RR(bc.Resource.ObjectType, bc.Permission),
 		Subject:       tuple.ONR(bc.Subject.Object.ObjectType, bc.Subject.Object.ObjectId, normalizeSubjectRelation(bc.Subject)),
 		CaveatContext: caveatContext,
 		AtRevision:    params.atRevision,
 		MaximumDepth:  params.maximumAPIDepth,
-		DebugOption:   computed.NoDebugging,
+		DebugOption:   debugOption,
 	}
 }

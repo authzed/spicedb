@@ -58,10 +58,15 @@ func ComputeCheck(
 	resourceID string,
 	dispatchChunkSize uint16,
 ) (*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
-	resultsMap, meta, err := computeCheck(ctx, d, params, []string{resourceID}, dispatchChunkSize)
+	resultsMap, meta, di, err := computeCheck(ctx, d, params, []string{resourceID}, dispatchChunkSize)
 	if err != nil {
 		return nil, meta, err
 	}
+
+	spiceerrors.DebugAssert(func() bool {
+		return (len(di) == 0 && meta.DebugInfo == nil) || (len(di) == 1 && meta.DebugInfo != nil)
+	}, "mismatch in debug information returned from computeCheck")
+
 	return resultsMap[resourceID], meta, err
 }
 
@@ -73,7 +78,7 @@ func ComputeBulkCheck(
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
-) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
 	return computeCheck(ctx, d, params, resourceIDs, dispatchChunkSize)
 }
 
@@ -82,18 +87,12 @@ func computeCheck(ctx context.Context,
 	params CheckParameters,
 	resourceIDs []string,
 	dispatchChunkSize uint16,
-) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, error) {
+) (map[string]*v1.ResourceCheckResult, *v1.ResponseMeta, []*v1.DebugInformation, error) {
 	debugging := v1.DispatchCheckRequest_NO_DEBUG
 	if params.DebugOption == BasicDebuggingEnabled {
 		debugging = v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING
-		if len(resourceIDs) > 1 {
-			return nil, nil, spiceerrors.MustBugf("debugging can only be enabled for a single resource ID")
-		}
 	} else if params.DebugOption == TraceDebuggingEnabled {
 		debugging = v1.DispatchCheckRequest_ENABLE_TRACE_DEBUGGING
-		if len(resourceIDs) > 1 {
-			return nil, nil, spiceerrors.MustBugf("debugging can only be enabled for a single resource ID")
-		}
 	}
 
 	setting := v1.DispatchCheckRequest_REQUIRE_ALL_RESULTS
@@ -107,12 +106,13 @@ func computeCheck(ctx context.Context,
 
 	bf, err := v1.NewTraversalBloomFilter(uint(params.MaximumDepth))
 	if err != nil {
-		return nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
+		return nil, nil, nil, spiceerrors.MustBugf("failed to create new traversal bloom filter")
 	}
 
 	caveatRunner := cexpr.NewCaveatRunner()
 
 	// TODO(jschorr): Should we make this run in parallel via the preloadedTaskRunner?
+	debugInfo := make([]*v1.DebugInformation, 0)
 	_, err = slicez.ForEachChunkUntil(resourceIDs, dispatchChunkSize, func(resourceIDsToCheck []string) (bool, error) {
 		checkResult, err := d.DispatchCheck(ctx, &v1.DispatchCheckRequest{
 			ResourceRelation: params.ResourceType.ToCoreRR(),
@@ -128,6 +128,10 @@ func computeCheck(ctx context.Context,
 			CheckHints: params.CheckHints,
 		})
 
+		if checkResult.Metadata.DebugInfo != nil {
+			debugInfo = append(debugInfo, checkResult.Metadata.DebugInfo)
+		}
+
 		if len(resourceIDs) == 1 {
 			metadata = checkResult.Metadata
 		} else {
@@ -135,6 +139,7 @@ func computeCheck(ctx context.Context,
 				DispatchCount:       metadata.DispatchCount + checkResult.Metadata.DispatchCount,
 				DepthRequired:       max(metadata.DepthRequired, checkResult.Metadata.DepthRequired),
 				CachedDispatchCount: metadata.CachedDispatchCount + checkResult.Metadata.CachedDispatchCount,
+				DebugInfo:           nil,
 			}
 		}
 
@@ -152,7 +157,7 @@ func computeCheck(ctx context.Context,
 
 		return true, nil
 	})
-	return results, metadata, err
+	return results, metadata, debugInfo, err
 }
 
 func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner, params CheckParameters, resourceID string, checkResult *v1.DispatchCheckResponse) (*v1.ResourceCheckResult, error) {
@@ -179,6 +184,7 @@ func computeCaveatedCheckResult(ctx context.Context, runner *cexpr.CaveatRunner,
 		missingFields, _ := caveatResult.MissingVarNames()
 		return &v1.ResourceCheckResult{
 			Membership:        v1.ResourceCheckResult_CAVEATED_MEMBER,
+			Expression:        result.Expression,
 			MissingExprFields: missingFields,
 		}, nil
 	}

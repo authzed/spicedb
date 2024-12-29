@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"go.opentelemetry.io/otel"
@@ -116,7 +117,9 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 	debugInfo := resolved.Resp.Metadata.DebugInfo
 	if debugInfo == nil {
 		debugInfo = &v1.DebugInformation{
-			Check: &v1.CheckDebugTrace{},
+			Check: &v1.CheckDebugTrace{
+				TraceId: uuid.NewString(),
+			},
 		}
 	}
 
@@ -1194,7 +1197,9 @@ func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.Res
 	}
 
 	debugInfo := &v1.DebugInformation{
-		Check: &v1.CheckDebugTrace{},
+		Check: &v1.CheckDebugTrace{
+			TraceId: uuid.NewString(),
+		},
 	}
 
 	if existing.DebugInfo != nil {

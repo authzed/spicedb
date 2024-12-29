@@ -128,7 +128,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
-	resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
+	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
 		ResourceType:  tuple.FromCoreRelationReference(rdc.newSubjectType),
 		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),

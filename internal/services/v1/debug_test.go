@@ -2,6 +2,7 @@ package v1_test
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -542,6 +543,384 @@ func TestCheckPermissionWithDebug(t *testing.T) {
 						rda(req, debugInfo)
 					}
 				})
+			}
+		})
+	}
+}
+
+type bulkCheckItem struct {
+	toCheck string
+	rda     []rda
+}
+
+type frameInfo struct {
+	resourceType   string
+	resourceIDs    []string
+	permission     string
+	permissionship v1.CheckDebugTrace_Permissionship
+}
+
+func expectOrderedFrames(frames ...frameInfo) rda {
+	return func(req *require.Assertions, debugInfo *v1.DebugInformation) {
+		expectFrames(req, frames, debugInfo.Check)
+	}
+}
+
+func expectFrames(req *require.Assertions, frames []frameInfo, check *v1.CheckDebugTrace) {
+	if len(frames) == 0 {
+		return
+	}
+
+	frame := frames[0]
+	req.Equal(frame.resourceType, check.Resource.ObjectType)
+	req.Equal(frame.resourceIDs, strings.Split(check.Resource.ObjectId, ","))
+	req.Equal(frame.permission, check.Permission)
+	req.Equal(frame.permissionship, check.Result)
+
+	remainingFrames := frames[1:]
+	if len(remainingFrames) > 0 {
+		req.NotNil(check.GetSubProblems(), "expected subproblems")
+		expectFrames(req, remainingFrames, check.GetSubProblems().Traces[0])
+	}
+}
+
+func TestBulkCheckPermissionWithDebug(t *testing.T) {
+	tcs := []struct {
+		name          string
+		schema        string
+		relationships []tuple.Relationship
+		toTest        []bulkCheckItem
+	}{
+		{
+			"basic batching",
+			`definition user {}
+			
+			 definition document {
+				relation viewer: user
+				permission view = viewer + nil
+			 }
+			`,
+			[]tuple.Relationship{
+				tuple.MustParse("document:first#viewer@user:tom"),
+				tuple.MustParse("document:second#viewer@user:tom"),
+			},
+			[]bulkCheckItem{
+				{
+					toCheck: "document:first#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+						),
+					},
+				},
+				{
+					toCheck: "document:second#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+						),
+					},
+				},
+			},
+		},
+		{
+			"batching with positive and negative",
+			`definition user {}
+			
+			 definition document {
+				relation viewer: user
+				permission view = viewer + nil
+			 }
+			`,
+			[]tuple.Relationship{
+				tuple.MustParse("document:first#viewer@user:tom"),
+			},
+			[]bulkCheckItem{
+				{
+					toCheck: "document:first#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
+					},
+				},
+				{
+					toCheck: "document:second#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
+					},
+				},
+			},
+		},
+		{
+			"multiple batching within the same request",
+			`definition user {}
+			
+			 definition document {
+				relation viewer: user
+				permission view = viewer + nil
+			 }
+			`,
+			[]tuple.Relationship{
+				tuple.MustParse("document:first#viewer@user:tom"),
+			},
+			(func() []bulkCheckItem {
+				// 100 IDs is the default batch size, so 99 + `first`.
+				docsSlice := make([]string, 0, 99)
+				docsSlice = append(docsSlice, "first")
+				for i := 0; i < 99; i++ {
+					docsSlice = append(docsSlice, fmt.Sprintf("doc-%d", i))
+				}
+
+				items := []bulkCheckItem{
+					{
+						toCheck: "document:first#view@user:tom",
+						rda: []rda{
+							expectOrderedFrames(
+								frameInfo{
+									resourceType:   "document",
+									resourceIDs:    []string{"first"},
+									permission:     "view",
+									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+								},
+								frameInfo{
+									resourceType:   "document",
+									resourceIDs:    docsSlice,
+									permission:     "view",
+									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								},
+								frameInfo{
+									resourceType:   "document",
+									resourceIDs:    docsSlice,
+									permission:     "viewer",
+									permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+								},
+							),
+						},
+					},
+				}
+
+				for i := 0; i < 500; i++ {
+					items = append(items, bulkCheckItem{
+						toCheck: fmt.Sprintf("document:doc-%d#view@user:tom", i),
+						rda:     nil,
+					})
+				}
+
+				return items
+			})(),
+		},
+		{
+			"caveated branch",
+			`definition user {}
+
+		 	 caveat somecaveat(somecondition int) {
+		 		somecondition == 42
+			 }
+
+			 definition document {
+				relation viewer: user with somecaveat
+				permission view = viewer + nil
+			 }
+			`,
+			[]tuple.Relationship{
+				tuple.MustParse(`document:first#viewer@user:tom[somecaveat:{"somecondition": 41}]`),
+				tuple.MustParse(`document:second#viewer@user:tom[somecaveat:{"somecondition": 42}]`),
+				tuple.MustParse(`document:third#viewer@user:tom[somecaveat]`),
+			},
+			[]bulkCheckItem{
+				{
+					toCheck: "document:first#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_NO_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second", "third"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second", "third"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
+					},
+				},
+				{
+					toCheck: "document:second#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"second"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_HAS_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second", "third"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second", "third"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
+					},
+				},
+				{
+					toCheck: "document:third#view@user:tom",
+					rda: []rda{
+						expectOrderedFrames(
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"third"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second", "third"},
+								permission:     "view",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+							frameInfo{
+								resourceType:   "document",
+								resourceIDs:    []string{"first", "second", "third"},
+								permission:     "viewer",
+								permissionship: v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED,
+							},
+						),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			req := require.New(t)
+			conn, cleanup, _, revision := testserver.NewTestServer(req, 5*time.Second, memdb.DisableGC, true,
+				func(ds datastore.Datastore, require *require.Assertions) (datastore.Datastore, datastore.Revision) {
+					return tf.DatastoreFromSchemaAndTestRelationships(ds, tc.schema, tc.relationships, req)
+				})
+
+			client := v1.NewPermissionsServiceClient(conn)
+			t.Cleanup(cleanup)
+
+			ctx := context.Background()
+			ctx = requestmeta.AddRequestHeaders(ctx, requestmeta.RequestDebugInformation)
+
+			items := make([]*v1.CheckBulkPermissionsRequestItem, 0, len(tc.toTest))
+			for _, bci := range tc.toTest {
+				parsed := tuple.MustParseV1Rel(bci.toCheck)
+				items = append(items, &v1.CheckBulkPermissionsRequestItem{
+					Resource:   parsed.Resource,
+					Permission: parsed.Relation,
+					Subject:    parsed.Subject,
+				})
+			}
+
+			checkResp, err := client.CheckBulkPermissions(ctx, &v1.CheckBulkPermissionsRequest{
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_AtLeastAsFresh{
+						AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+					},
+				},
+				WithTracing: true,
+				Items:       items,
+			})
+			require.NoError(t, err)
+
+			for idx, bci := range tc.toTest {
+				pair := checkResp.GetPairs()[idx]
+				debugInfo := pair.GetItem().DebugTrace
+
+				for _, rda := range bci.rda {
+					rda(req, debugInfo)
+				}
 			}
 		})
 	}

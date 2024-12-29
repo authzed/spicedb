@@ -458,7 +458,7 @@ func (crs *checkingResourceStream) runProcess(alwaysProcess bool) (bool, error) 
 	}
 
 	// Issue the bulk check over all the resources.
-	results, checkResultMetadata, err := computed.ComputeBulkCheck(
+	results, checkResultMetadata, _, err := computed.ComputeBulkCheck(
 		crs.ctx,
 		crs.checker,
 		computed.CheckParameters{

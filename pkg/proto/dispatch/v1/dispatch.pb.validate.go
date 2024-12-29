@@ -4245,6 +4245,8 @@ func (m *CheckDebugTrace) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for TraceId
+
 	if len(errors) > 0 {
 		return CheckDebugTraceMultiError(errors)
 	}

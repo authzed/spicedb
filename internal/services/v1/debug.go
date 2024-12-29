@@ -13,6 +13,7 @@ import (
 	dispatch "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
@@ -28,14 +29,24 @@ func ConvertCheckDispatchDebugInformation(
 		return nil, nil
 	}
 
-	caveats, err := reader.ListAllCaveats(ctx)
+	schema, err := getFullSchema(ctx, reader)
 	if err != nil {
 		return nil, err
 	}
 
+	return convertCheckDispatchDebugInformationWithSchema(ctx, caveatContext, debugInfo, reader, schema)
+}
+
+// getFullSchema returns the full schema from the reader.
+func getFullSchema(ctx context.Context, reader datastore.Reader) (string, error) {
+	caveats, err := reader.ListAllCaveats(ctx)
+	if err != nil {
+		return "", err
+	}
+
 	namespaces, err := reader.ListAllNamespaces(ctx)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	defs := make([]compiler.SchemaDefinition, 0, len(namespaces)+len(caveats))
@@ -48,9 +59,19 @@ func ConvertCheckDispatchDebugInformation(
 
 	schema, _, err := generator.GenerateSchema(defs)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
+	return schema, nil
+}
+
+func convertCheckDispatchDebugInformationWithSchema(
+	ctx context.Context,
+	caveatContext map[string]any,
+	debugInfo *dispatch.DebugInformation,
+	reader datastore.Reader,
+	schema string,
+) (*v1.DebugInformation, error) {
 	converted, err := convertCheckTrace(ctx, caveatContext, debugInfo.Check, reader)
 	if err != nil {
 		return nil, err
@@ -90,8 +111,15 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 	}
 
 	var caveatEvalInfo *v1.CaveatEvalInfo
-	if permissionship == v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION && len(partialResults) == 1 {
+
+	// NOTE: Bulk check gives the *fully resolved* results, rather than the result pre-caveat
+	// evaluation. In that case, we skip re-evaluating here.
+	// TODO(jschorr): Add support for evaluating *each* result distinctly.
+	if permissionship == v1.CheckDebugTrace_PERMISSIONSHIP_CONDITIONAL_PERMISSION && len(partialResults) == 1 &&
+		len(partialResults[0].MissingExprFields) == 0 {
 		partialCheckResult := partialResults[0]
+		spiceerrors.DebugAssertNotNil(partialCheckResult.Expression, "got nil caveat expression")
+
 		computedResult, err := cexpr.RunSingleCaveatExpression(ctx, partialCheckResult.Expression, caveatContext, reader, cexpr.RunCaveatExpressionWithDebugInformation)
 		if err != nil {
 			return nil, err
@@ -128,6 +156,17 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		}
 	}
 
+	// If there is more than a single result, mark the overall permissionship
+	// as unspecified if *all* results needed to be true and at least one is not.
+	if len(ct.Request.ResourceIds) > 1 && ct.Request.ResultsSetting == dispatch.DispatchCheckRequest_REQUIRE_ALL_RESULTS {
+		for _, resourceID := range ct.Request.ResourceIds {
+			if result, ok := ct.Results[resourceID]; !ok || result.Membership != dispatch.ResourceCheckResult_MEMBER {
+				permissionship = v1.CheckDebugTrace_PERMISSIONSHIP_UNSPECIFIED
+				break
+			}
+		}
+	}
+
 	if len(ct.SubProblems) > 0 {
 		subProblems := make([]*v1.CheckDebugTrace, 0, len(ct.SubProblems))
 		for _, subProblem := range ct.SubProblems {
@@ -144,6 +183,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 		})
 
 		return &v1.CheckDebugTrace{
+			TraceOperationId: ct.TraceId,
 			Resource: &v1.ObjectReference{
 				ObjectType: ct.Request.ResourceRelation.Namespace,
 				ObjectId:   strings.Join(ct.Request.ResourceIds, ","),
@@ -169,6 +209,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 	}
 
 	return &v1.CheckDebugTrace{
+		TraceOperationId: ct.TraceId,
 		Resource: &v1.ObjectReference{
 			ObjectType: ct.Request.ResourceRelation.Namespace,
 			ObjectId:   strings.Join(ct.Request.ResourceIds, ","),
