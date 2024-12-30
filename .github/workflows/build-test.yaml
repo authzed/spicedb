@@ -102,7 +102,7 @@ jobs:
 
   datastore:
     name: "Datastore Tests"
-    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    runs-on: "buildjet-8vcpu-ubuntu-2204"
     needs: "paths-filter"
     strategy:
       fail-fast: false
