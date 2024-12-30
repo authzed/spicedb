@@ -82,7 +82,7 @@ require (
 	github.com/rs/xid v1.6.0
 	github.com/rs/zerolog v1.33.0
 	github.com/samber/lo v1.47.0
-	github.com/samber/slog-zerolog/v2 v2.6.0 // indirect
+	github.com/samber/slog-zerolog/v2 v2.7.2
 	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/scylladb/go-set v1.0.2
 	github.com/sean-/sysexits v1.0.0
@@ -332,7 +332,7 @@ require (
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/sagikazarmark/locafero v0.3.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
-	github.com/samber/slog-common v0.17.0 // indirect
+	github.com/samber/slog-common v0.18.0 // indirect
 	github.com/sanposhiho/wastedassign/v2 v2.0.7 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
