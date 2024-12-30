@@ -11,6 +11,7 @@ import (
 	"github.com/authzed/spicedb/internal/caveats"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
+	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 )
 
@@ -476,7 +477,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 				t.Run(fmt.Sprintf("%v", debugOption), func(t *testing.T) {
 					req := require.New(t)
 
-					result, err := caveats.RunCaveatExpression(context.Background(), tc.expression, tc.context, reader, debugOption)
+					result, err := caveats.RunSingleCaveatExpression(context.Background(), tc.expression, tc.context, reader, debugOption)
 					req.NoError(err)
 					req.Equal(tc.expectedValue, result.Value())
 
@@ -520,7 +521,7 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 
 	reader := ds.SnapshotReader(headRevision)
 
-	result, err := caveats.RunCaveatExpression(
+	result, err := caveats.RunSingleCaveatExpression(
 		context.Background(),
 		caveatexpr("some_caveat"),
 		map[string]any{},
@@ -549,7 +550,7 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 
 	reader := ds.SnapshotReader(headRevision)
 
-	_, err = caveats.RunCaveatExpression(
+	_, err = caveats.RunSingleCaveatExpression(
 		context.Background(),
 		caveatexpr("some_caveat"),
 		map[string]any{
@@ -560,4 +561,70 @@ func TestRunCaveatWithEmptyMap(t *testing.T) {
 	)
 	req.Error(err)
 	req.True(errors.As(err, &caveats.EvaluationError{}))
+}
+
+func TestRunCaveatMultipleTimes(t *testing.T) {
+	req := require.New(t)
+
+	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	req.NoError(err)
+
+	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
+				caveat some_caveat(themap map<any>) {
+					themap.first == 42
+				}
+
+				caveat another_caveat(somecondition int) {
+					somecondition == 42
+				}
+				`, nil, req)
+
+	headRevision, err := ds.HeadRevision(context.Background())
+	req.NoError(err)
+
+	reader := ds.SnapshotReader(headRevision)
+
+	runner := caveats.NewCaveatRunner()
+
+	// Run the first caveat.
+	result, err := runner.RunCaveatExpression(context.Background(), caveatexpr("some_caveat"), map[string]any{
+		"themap": map[string]any{
+			"first": 42,
+		},
+	}, reader, caveats.RunCaveatExpressionNoDebugging)
+	req.NoError(err)
+	req.True(result.Value())
+
+	// Run the first caveat again, giving a reader that will error if it is used, ensuring
+	// the cache is used.
+	result, err = runner.RunCaveatExpression(context.Background(), caveatexpr("some_caveat"), map[string]any{
+		"themap": map[string]any{
+			"first": 41,
+		},
+	}, noCaveatsReader{reader}, caveats.RunCaveatExpressionNoDebugging)
+	req.NoError(err)
+	req.False(result.Value())
+
+	// Run the second caveat.
+	result, err = runner.RunCaveatExpression(context.Background(), caveatexpr("another_caveat"), map[string]any{
+		"somecondition": int64(42),
+	}, reader, caveats.RunCaveatExpressionNoDebugging)
+	req.NoError(err)
+	req.True(result.Value())
+}
+
+type noCaveatsReader struct {
+	datastore.Reader
+}
+
+func (f noCaveatsReader) ReadCaveatByName(ctx context.Context, name string) (caveat *core.CaveatDefinition, lastWritten datastore.Revision, err error) {
+	return nil, nil, errors.New("should not be called")
+}
+
+func (f noCaveatsReader) LookupCaveatsWithNames(ctx context.Context, names []string) ([]datastore.RevisionedCaveat, error) {
+	return nil, errors.New("should not be called")
+}
+
+func (f noCaveatsReader) ListAllCaveats(ctx context.Context) ([]datastore.RevisionedCaveat, error) {
+	return nil, errors.New("should not be called")
 }
