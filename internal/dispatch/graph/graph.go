@@ -359,7 +359,9 @@ func (ld *localDispatcher) DispatchLookupResources2(
 ) error {
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
 		attribute.String("resource-type", tuple.StringCoreRR(req.ResourceRelation)),
-		attribute.String("subject", tuple.StringCoreONR(req.TerminalSubject)),
+		attribute.String("subject-type", tuple.StringCoreRR(req.SubjectRelation)),
+		attribute.StringSlice("subject-ids", req.SubjectIds),
+		attribute.String("terminal-subject", tuple.StringCoreONR(req.TerminalSubject)),
 	))
 	defer span.End()
 
