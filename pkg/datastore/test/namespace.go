@@ -237,6 +237,47 @@ func EmptyNamespaceDeleteTest(t *testing.T, tester DatastoreTester) {
 	require.True(errors.As(err, &datastore.NamespaceNotFoundError{}))
 }
 
+// NamespaceDeleteInvalidNamespaceTest tests deleting an invalid namespace in the datastore.
+func NamespaceDeleteInvalidNamespaceTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	schemaString := `definition user {}
+
+definition document {
+	relation viewer: user
+}`
+
+	// Compile namespace to write to the datastore.
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: schemaString,
+	}, compiler.AllowUnprefixedObjectType())
+	require.NoError(err)
+	require.Equal(2, len(compiled.OrderedDefinitions))
+
+	// Write the namespace definition to the datastore.
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 1)
+	require.NoError(err)
+
+	ctx := context.Background()
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		err := rwt.WriteCaveats(ctx, compiled.CaveatDefinitions)
+		if err != nil {
+			return err
+		}
+
+		return rwt.WriteNamespaces(ctx, compiled.ObjectDefinitions...)
+	})
+	require.NoError(err)
+
+	// Attempt to delete the invalid namespace.
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.DeleteNamespaces(ctx, "invalid")
+	})
+	require.Error(err)
+	require.ErrorContains(err, "not found")
+}
+
 // StableNamespaceReadWriteTest tests writing a namespace to the datastore and reading it back,
 // ensuring that it does not change in any way and that the deserialized data matches that stored.
 func StableNamespaceReadWriteTest(t *testing.T, tester DatastoreTester) {

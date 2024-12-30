@@ -68,6 +68,32 @@ type RevisionChanges struct {
 	Metadata *structpb.Struct
 }
 
+func (rc *RevisionChanges) DebugString() string {
+	if rc.IsCheckpoint {
+		return "[checkpoint]"
+	}
+
+	debugString := ""
+
+	for _, relChange := range rc.RelationshipChanges {
+		debugString += relChange.DebugString() + "\n"
+	}
+
+	for _, def := range rc.ChangedDefinitions {
+		debugString += fmt.Sprintf("Definition: %T:%s\n", def, def.GetName())
+	}
+
+	for _, ns := range rc.DeletedNamespaces {
+		debugString += fmt.Sprintf("DeletedNamespace: %s\n", ns)
+	}
+
+	for _, caveat := range rc.DeletedCaveats {
+		debugString += fmt.Sprintf("DeletedCaveat: %s\n", caveat)
+	}
+
+	return debugString
+}
+
 func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("revision", rc.Revision.String())
 	e.Bool("is-checkpoint", rc.IsCheckpoint)

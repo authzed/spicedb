@@ -15,6 +15,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -372,7 +373,23 @@ func (rwt spannerReadWriteTXN) WriteNamespaces(_ context.Context, newConfigs ...
 }
 
 func (rwt spannerReadWriteTXN) DeleteNamespaces(ctx context.Context, nsNames ...string) error {
+	namespaces, err := rwt.LookupNamespacesWithNames(ctx, nsNames)
+	if err != nil {
+		return fmt.Errorf(errUnableToDeleteConfig, err)
+	}
+
+	if len(namespaces) != len(nsNames) {
+		expectedNamespaceNames := mapz.NewSet[string](nsNames...)
+		for _, ns := range namespaces {
+			expectedNamespaceNames.Delete(ns.Definition.Name)
+		}
+
+		return fmt.Errorf(errUnableToDeleteConfig, fmt.Errorf("namespaces not found: %v", expectedNamespaceNames.AsSlice()))
+	}
+
 	for _, nsName := range nsNames {
+		// Ensure the namespace exists.
+
 		relFilter := &v1.RelationshipFilter{ResourceType: nsName}
 		if _, err := deleteWithFilter(ctx, rwt.spannerRWT, relFilter); err != nil {
 			return fmt.Errorf(errUnableToDeleteConfig, err)

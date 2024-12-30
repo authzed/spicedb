@@ -312,7 +312,7 @@ func (rwt *memdbReadWriteTx) DeleteNamespaces(_ context.Context, nsNames ...stri
 		}
 
 		if foundRaw == nil {
-			return fmt.Errorf("unable to find namespace to delete")
+			return fmt.Errorf("namespace not found")
 		}
 
 		if err := tx.Delete(tableNamespace, foundRaw); err != nil {
