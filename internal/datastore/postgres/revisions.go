@@ -71,7 +71,7 @@ const (
 	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
-	queryLatestXID            = `SELECT max(xid) FROM relation_tuple_transaction;`
+	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {

@@ -523,7 +523,7 @@ func (pgd *pgDatastore) repairTransactionIDs(ctx context.Context, outputProgress
 	currentMaximumID := 0
 	if err := conn.QueryRow(ctx, queryCurrentTransactionID).Scan(&currentMaximumID); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
+			return fmt.Errorf("could not get current transaction ID: %w", err)
 		}
 	}
 
@@ -531,7 +531,7 @@ func (pgd *pgDatastore) repairTransactionIDs(ctx context.Context, outputProgress
 	referencedMaximumID := 0
 	if err := conn.QueryRow(ctx, queryLatestXID).Scan(&referencedMaximumID); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
+			return fmt.Errorf("could not get maximum transaction ID: %w", err)
 		}
 	}
 
