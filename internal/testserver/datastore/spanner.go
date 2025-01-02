@@ -16,6 +16,7 @@ import (
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/spanner/migrations"
@@ -41,6 +42,10 @@ func RunSpannerForTesting(t testing.TB, bridgeNetworkName string, targetMigratio
 		Tag:          "1.5.11",
 		ExposedPorts: []string{"9010/tcp"},
 		NetworkID:    bridgeNetworkName,
+	}, func(config *docker.HostConfig) {
+		// set AutoRemove to true so that stopped container goes away by itself
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	require.NoError(t, err)
 
