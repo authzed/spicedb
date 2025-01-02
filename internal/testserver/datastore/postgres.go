@@ -81,6 +81,10 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		ExposedPorts: []string{POSTGRES_TEST_PORT + "/tcp"},
 		NetworkID:    bridgeNetworkName,
 		Cmd:          cmd,
+	}, func(config *docker.HostConfig) {
+		// set AutoRemove to true so that stopped container goes away by itself
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	require.NoError(t, err)
 
