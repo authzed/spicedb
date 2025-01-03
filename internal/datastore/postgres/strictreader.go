@@ -60,6 +60,6 @@ func (srqf strictReaderQueryFuncs) addAssertToSQL(sql string) string {
 	// argument error and a message indicating that the xid "is in the future". If the transaction
 	// does exist, but has not yet been committed (or aborted), the call to `pg_xact_status` will return
 	// "in progress". rewriteError will catch these cases and return a RevisionUnavailableError.
-	assertion := fmt.Sprintf(`do $$ begin assert (select pg_xact_status(%d::text::xid8) != 'in progress'), 'replica missing revision';end;$$;`, srqf.revision.snapshot.xmin-1)
-	return assertion + sql
+	assertion := fmt.Sprintf(`; do $$ begin assert (select pg_xact_status(%d::text::xid8) != 'in progress'), 'replica missing revision';end;$$`, srqf.revision.snapshot.xmin-1)
+	return sql + assertion
 }
