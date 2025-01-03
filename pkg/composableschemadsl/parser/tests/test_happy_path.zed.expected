@@ -1,0 +1,23 @@
+NodeTypeFile
+  end-rune = 26
+  input-source = test syntax happy path test
+  start-rune = 0
+  child-node =>
+    NodeType(21)
+      end-rune = 26
+      input-source = test syntax happy path test
+      start-rune = 0
+      test-name = DocumentCaveatedTest
+      child-node =>
+        NodeTypeError
+          end-rune = 26
+          error-message = Expected end of statement or definition, found: TokenTypeKeyword
+          error-source = relationships
+          input-source = test syntax happy path test
+          start-rune = 30
+    NodeTypeError
+      end-rune = 26
+      error-message = Unexpected token at root level: TokenTypeKeyword
+      error-source = relationships
+      input-source = test syntax happy path test
+      start-rune = 30
