@@ -1,0 +1,86 @@
+NodeTypeFile
+  end-rune = 143
+  input-source = local imports with import all asterisk
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 26
+      import-all-definitions = 1
+      input-source = local imports with import all asterisk
+      start-rune = 0
+      path-segment =>
+        NodeTypeIdentifier
+          end-rune = 9
+          identifier-value = path
+          input-source = local imports with import all asterisk
+          start-rune = 6
+        NodeTypeIdentifier
+          end-rune = 12
+          identifier-value = to
+          input-source = local imports with import all asterisk
+          start-rune = 11
+        NodeTypeIdentifier
+          end-rune = 17
+          identifier-value = user
+          input-source = local imports with import all asterisk
+          start-rune = 14
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 142
+      input-source = local imports with import all asterisk
+      start-rune = 29
+      child-node =>
+        NodeTypeRelation
+          end-rune = 73
+          input-source = local imports with import all asterisk
+          relation-name = user
+          start-rune = 55
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 73
+              input-source = local imports with import all asterisk
+              start-rune = 70
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 73
+                  input-source = local imports with import all asterisk
+                  start-rune = 70
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 103
+          input-source = local imports with import all asterisk
+          relation-name = persona
+          start-rune = 79
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 103
+              input-source = local imports with import all asterisk
+              start-rune = 97
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 103
+                  input-source = local imports with import all asterisk
+                  start-rune = 97
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 140
+          input-source = local imports with import all asterisk
+          relation-name = view
+          start-rune = 109
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 140
+              input-source = local imports with import all asterisk
+              start-rune = 127
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 130
+                  identifier-value = user
+                  input-source = local imports with import all asterisk
+                  start-rune = 127
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 140
+                  identifier-value = persona
+                  input-source = local imports with import all asterisk
+                  start-rune = 134
