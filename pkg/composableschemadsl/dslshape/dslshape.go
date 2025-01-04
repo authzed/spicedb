@@ -198,5 +198,5 @@ const (
 	NodeImportPredicateSource         = "import-source"
 	NodeImportPredicatePathSegment    = "path-segment"
 	NodeImportPredicateDefinitionName = "imported-definition"
-	NodeImportPredicateImportAll = "import-all-definitions"
+	NodeImportPredicateImportAll      = "import-all-definitions"
 )
