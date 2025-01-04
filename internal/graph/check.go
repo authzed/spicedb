@@ -18,6 +18,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -311,6 +312,12 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	hasDirectSubject := false
 	hasWildcardSubject := false
 
+	directSubjectOrWildcardCanHaveCaveats := false
+	directSubjectOrWildcardCanHaveExpiration := false
+
+	nonTerminalsCanHaveCaveats := false
+	nonTerminalsCanHaveExpiration := false
+
 	defer func() {
 		if hasNonTerminals {
 			span.SetName("non terminal")
@@ -334,6 +341,14 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
 				hasDirectSubject = true
 			}
+
+			if allowedDirectRelation.RequiredCaveat != nil {
+				directSubjectOrWildcardCanHaveCaveats = true
+			}
+
+			if allowedDirectRelation.RequiredExpiration != nil {
+				directSubjectOrWildcardCanHaveExpiration = true
+			}
 		}
 
 		// If the relation found is not an ellipsis, then this is a nested relation that
@@ -343,6 +358,12 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// relations can reach the target subject type.
 		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
 			hasNonTerminals = true
+			if allowedDirectRelation.RequiredCaveat != nil {
+				nonTerminalsCanHaveCaveats = true
+			}
+			if allowedDirectRelation.RequiredExpiration != nil {
+				nonTerminalsCanHaveExpiration = true
+			}
 		}
 	}
 
@@ -381,7 +402,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := ds.QueryRelationships(ctx, filter)
+		it, err := ds.QueryRelationships(ctx, filter,
+			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
+			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
+		)
 		if err != nil {
 			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 		}
@@ -430,7 +454,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := ds.QueryRelationships(ctx, filter)
+	it, err := ds.QueryRelationships(ctx, filter,
+		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
+		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
+	)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
@@ -624,6 +651,56 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	return combineResultWithFoundResources(result, membershipSet)
 }
 
+// queryOptionsForArrowRelation returns query options such as SkipCaveats and SkipExpiration if *none* of the subject
+// types of the given relation support caveats or expiration.
+func (cc *ConcurrentChecker) queryOptionsForArrowRelation(ctx context.Context, reader datastore.Reader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
+	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
+	nsDefs, err := reader.LookupNamespacesWithNames(ctx, []string{namespaceName})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(nsDefs) != 1 {
+		return nil, nil
+	}
+
+	var relation *core.Relation
+	for _, rel := range nsDefs[0].Definition.Relation {
+		if rel.Name == relationName {
+			relation = rel
+			break
+		}
+	}
+
+	if relation == nil || relation.TypeInformation == nil {
+		return nil, nil
+	}
+
+	hasCaveats := false
+	hasExpiration := false
+
+	for _, allowedDirectRelation := range relation.TypeInformation.GetAllowedDirectRelations() {
+		if allowedDirectRelation.RequiredCaveat != nil {
+			hasCaveats = true
+		}
+
+		if allowedDirectRelation.RequiredExpiration != nil {
+			hasExpiration = true
+		}
+	}
+
+	opts := make([]options.QueryOptionsOption, 0, 2)
+	if !hasCaveats {
+		opts = append(opts, options.WithSkipCaveats(true))
+	}
+
+	if !hasExpiration {
+		opts = append(opts, options.WithSkipExpiration(true))
+	}
+
+	return opts, nil
+}
+
 func filterForFoundMemberResource(resourceRelation *core.RelationReference, resourceIds []string, subject *core.ObjectAndRelation) (*MembershipSet, []string) {
 	if resourceRelation.Namespace != subject.Namespace || resourceRelation.Relation != subject.Relation {
 		return nil, resourceIds
@@ -674,11 +751,16 @@ func checkIntersectionTupleToUserset(
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	queryOpts, err := cc.queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	if err != nil {
+		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
+	}
+
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      crc.filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
-	})
+	}, queryOpts...)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
@@ -835,11 +917,17 @@ func checkTupleToUserset[T relation](
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+
+	queryOpts, err := cc.queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	if err != nil {
+		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
+	}
+
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
-	})
+	}, queryOpts...)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -28,6 +29,8 @@ type postgresOptions struct {
 	analyzeBeforeStatistics        bool
 	gcEnabled                      bool
 	readStrictMode                 bool
+	expirationDisabled             bool
+	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 
 	migrationPhase    string
@@ -68,7 +71,9 @@ const (
 	defaultCredentialsProviderName           = ""
 	defaultReadStrictMode                    = false
 	defaultFilterMaximumIDCount              = 100
+	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces    = false
+	defaultExpirationDisabled                = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -91,7 +96,9 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		readStrictMode:                 defaultReadStrictMode,
 		queryInterceptor:               nil,
 		filterMaximumIDCount:           defaultFilterMaximumIDCount,
+		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
+		expirationDisabled:             defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -384,4 +391,20 @@ func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 // IncludeQueryParametersInTraces is a flag to set whether to include query parameters in OTEL traces
 func IncludeQueryParametersInTraces(includeQueryParametersInTraces bool) Option {
 	return func(po *postgresOptions) { po.includeQueryParametersInTraces = includeQueryParametersInTraces }
+}
+
+// WithColumnOptimization sets the column optimization option for the datastore.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(po *postgresOptions) {
+		if isEnabled {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
+}
+
+// WithExpirationDisabled disables support for relationship expiration.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *postgresOptions) { po.expirationDisabled = isDisabled }
 }

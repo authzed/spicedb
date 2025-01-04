@@ -166,6 +166,10 @@ type Config struct {
 	// Migrations
 	MigrationPhase    string   `debugmap:"visible"`
 	AllowedMigrations []string `debugmap:"visible"`
+
+	// Expermimental
+	ExperimentalColumnOptimization           bool `debugmap:"visible"`
+	EnableExperimentalRelationshipExpiration bool `debugmap:"visible"`
 }
 
 //go:generate go run github.com/ecordell/optgen -sensitive-field-name-matches uri,secure -output zz_generated.relintegritykey.options.go . RelIntegrityKey
@@ -271,53 +275,57 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 		return fmt.Errorf("failed to mark flag as hidden: %w", err)
 	}
 
+	flagSet.BoolVar(&opts.ExperimentalColumnOptimization, flagName("datastore-experimental-column-optimization"), false, "enable experimental column optimization")
+
 	return nil
 }
 
 func DefaultDatastoreConfig() *Config {
 	return &Config{
-		Engine:                           MemoryEngine,
-		GCWindow:                         24 * time.Hour,
-		LegacyFuzzing:                    -1,
-		RevisionQuantization:             5 * time.Second,
-		MaxRevisionStalenessPercent:      .1, // 10%
-		ReadConnPool:                     *DefaultReadConnPool(),
-		WriteConnPool:                    *DefaultWriteConnPool(),
-		ReadReplicaConnPool:              *DefaultReadConnPool(),
-		ReadReplicaURIs:                  []string{},
-		ReadOnly:                         false,
-		MaxRetries:                       10,
-		OverlapKey:                       "key",
-		OverlapStrategy:                  "static",
-		ConnectRate:                      100 * time.Millisecond,
-		EnableConnectionBalancing:        true,
-		GCInterval:                       3 * time.Minute,
-		GCMaxOperationTime:               1 * time.Minute,
-		WatchBufferLength:                1024,
-		WatchBufferWriteTimeout:          1 * time.Second,
-		WatchConnectTimeout:              1 * time.Second,
-		EnableDatastoreMetrics:           true,
-		DisableStats:                     false,
-		BootstrapFiles:                   []string{},
-		BootstrapTimeout:                 10 * time.Second,
-		BootstrapOverwrite:               false,
-		RequestHedgingEnabled:            false,
-		RequestHedgingInitialSlowValue:   10000000,
-		RequestHedgingMaxRequests:        1_000_000,
-		RequestHedgingQuantile:           0.95,
-		SpannerCredentialsFile:           "",
-		SpannerEmulatorHost:              "",
-		TablePrefix:                      "",
-		MigrationPhase:                   "",
-		FollowerReadDelay:                4_800 * time.Millisecond,
-		SpannerMinSessions:               100,
-		SpannerMaxSessions:               400,
-		FilterMaximumIDCount:             100,
-		RelationshipIntegrityEnabled:     false,
-		RelationshipIntegrityCurrentKey:  RelIntegrityKey{},
-		RelationshipIntegrityExpiredKeys: []string{},
-		AllowedMigrations:                []string{},
-		IncludeQueryParametersInTraces:   false,
+		Engine:                                   MemoryEngine,
+		GCWindow:                                 24 * time.Hour,
+		LegacyFuzzing:                            -1,
+		RevisionQuantization:                     5 * time.Second,
+		MaxRevisionStalenessPercent:              .1, // 10%
+		ReadConnPool:                             *DefaultReadConnPool(),
+		WriteConnPool:                            *DefaultWriteConnPool(),
+		ReadReplicaConnPool:                      *DefaultReadConnPool(),
+		ReadReplicaURIs:                          []string{},
+		ReadOnly:                                 false,
+		MaxRetries:                               10,
+		OverlapKey:                               "key",
+		OverlapStrategy:                          "static",
+		ConnectRate:                              100 * time.Millisecond,
+		EnableConnectionBalancing:                true,
+		GCInterval:                               3 * time.Minute,
+		GCMaxOperationTime:                       1 * time.Minute,
+		WatchBufferLength:                        1024,
+		WatchBufferWriteTimeout:                  1 * time.Second,
+		WatchConnectTimeout:                      1 * time.Second,
+		EnableDatastoreMetrics:                   true,
+		DisableStats:                             false,
+		BootstrapFiles:                           []string{},
+		BootstrapTimeout:                         10 * time.Second,
+		BootstrapOverwrite:                       false,
+		RequestHedgingEnabled:                    false,
+		RequestHedgingInitialSlowValue:           10000000,
+		RequestHedgingMaxRequests:                1_000_000,
+		RequestHedgingQuantile:                   0.95,
+		SpannerCredentialsFile:                   "",
+		SpannerEmulatorHost:                      "",
+		TablePrefix:                              "",
+		MigrationPhase:                           "",
+		FollowerReadDelay:                        4_800 * time.Millisecond,
+		SpannerMinSessions:                       100,
+		SpannerMaxSessions:                       400,
+		FilterMaximumIDCount:                     100,
+		RelationshipIntegrityEnabled:             false,
+		RelationshipIntegrityCurrentKey:          RelIntegrityKey{},
+		RelationshipIntegrityExpiredKeys:         []string{},
+		AllowedMigrations:                        []string{},
+		ExperimentalColumnOptimization:           false,
+		IncludeQueryParametersInTraces:           false,
+		EnableExperimentalRelationshipExpiration: false,
 	}
 }
 
@@ -512,7 +520,9 @@ func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, er
 		crdb.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		crdb.WithIntegrity(opts.RelationshipIntegrityEnabled),
 		crdb.AllowedMigrations(opts.AllowedMigrations),
+		crdb.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		crdb.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
+		crdb.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
 	)
 }
 
@@ -553,7 +563,9 @@ func commonPostgresDatastoreOptions(opts Config) ([]postgres.Option, error) {
 		postgres.WithEnablePrometheusStats(opts.EnableDatastoreMetrics),
 		postgres.MaxRetries(maxRetries),
 		postgres.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		postgres.WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		postgres.IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
+		postgres.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
 	}, nil
 }
 
@@ -636,6 +648,8 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.MigrationPhase(opts.MigrationPhase),
 		spanner.AllowedMigrations(opts.AllowedMigrations),
 		spanner.FilterMaximumIDCount(opts.FilterMaximumIDCount),
+		spanner.WithColumnOptimization(opts.ExperimentalColumnOptimization),
+		spanner.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
 	)
 }
 
@@ -680,6 +694,8 @@ func commonMySQLDatastoreOptions(opts Config) ([]mysql.Option, error) {
 		mysql.RevisionQuantization(opts.RevisionQuantization),
 		mysql.FilterMaximumIDCount(opts.FilterMaximumIDCount),
 		mysql.AllowedMigrations(opts.AllowedMigrations),
+		mysql.WithColumnOptimization(opts.ExperimentalColumnOptimization),
+		mysql.WithExpirationDisabled(!opts.EnableExperimentalRelationshipExpiration),
 	}, nil
 }
 

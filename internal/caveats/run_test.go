@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/caveats"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -448,7 +449,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := require.New(t)
 
-			rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+			rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 			req.NoError(err)
 
 			ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -507,7 +508,7 @@ func TestRunCaveatExpressions(t *testing.T) {
 func TestRunCaveatWithMissingMap(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
@@ -536,7 +537,7 @@ func TestRunCaveatWithMissingMap(t *testing.T) {
 func TestRunCaveatWithEmptyMap(t *testing.T) {
 	req := require.New(t)
 
-	rawDS, err := memdb.NewMemdbDatastore(0, 0, memdb.DisableGC)
+	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 0, memdb.DisableGC)
 	req.NoError(err)
 
 	ds, _ := testfixtures.DatastoreFromSchemaAndTestRelationships(rawDS, `
