@@ -147,28 +147,16 @@ func NewSchemaQueryFiltererWithStartingQuery(schema SchemaInformation, startingQ
 	}
 }
 
-// WithAdditionalFilter returns a new SchemaQueryFilterer with an additional filter applied to the query.
+// WithAdditionalFilter returns the SchemaQueryFilterer with an additional filter applied to the query.
 func (sqf SchemaQueryFilterer) WithAdditionalFilter(filter func(original sq.SelectBuilder) sq.SelectBuilder) SchemaQueryFilterer {
-	return SchemaQueryFilterer{
-		schema:                 sqf.schema,
-		queryBuilder:           filter(sqf.queryBuilder),
-		filteringColumnTracker: sqf.filteringColumnTracker,
-		filterMaximumIDCount:   sqf.filterMaximumIDCount,
-		isCustomQuery:          sqf.isCustomQuery,
-		extraFields:            sqf.extraFields,
-	}
+	sqf.queryBuilder = filter(sqf.queryBuilder)
+	return sqf
 }
 
+// WithFromSuffix returns the SchemaQueryFilterer with a suffix added to the FROM clause.
 func (sqf SchemaQueryFilterer) WithFromSuffix(fromSuffix string) SchemaQueryFilterer {
-	return SchemaQueryFilterer{
-		schema:                 sqf.schema,
-		queryBuilder:           sqf.queryBuilder,
-		filteringColumnTracker: sqf.filteringColumnTracker,
-		filterMaximumIDCount:   sqf.filterMaximumIDCount,
-		isCustomQuery:          sqf.isCustomQuery,
-		extraFields:            sqf.extraFields,
-		fromSuffix:             fromSuffix,
-	}
+	sqf.fromSuffix = fromSuffix
+	return sqf
 }
 
 func (sqf SchemaQueryFilterer) UnderlyingQueryBuilder() sq.SelectBuilder {
@@ -338,7 +326,7 @@ func (sqf SchemaQueryFilterer) recordColumnValue(colName string, colValue string
 	}
 }
 
-func (sqf SchemaQueryFilterer) recordMutableColumnValue(colName string) {
+func (sqf SchemaQueryFilterer) recordVaryingColumnValue(colName string) {
 	sqf.filteringColumnTracker[colName] = ColumnTracker{SingleValue: nil}
 }
 
@@ -507,9 +495,9 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 	// can differ for each branch.
 	// TODO(jschorr): Optimize this further where applicable.
 	if len(selectors) > 1 {
-		sqf.recordMutableColumnValue(sqf.schema.ColUsersetNamespace)
-		sqf.recordMutableColumnValue(sqf.schema.ColUsersetObjectID)
-		sqf.recordMutableColumnValue(sqf.schema.ColUsersetRelation)
+		sqf.recordVaryingColumnValue(sqf.schema.ColUsersetNamespace)
+		sqf.recordVaryingColumnValue(sqf.schema.ColUsersetObjectID)
+		sqf.recordVaryingColumnValue(sqf.schema.ColUsersetRelation)
 	}
 
 	for _, selector := range selectors {
@@ -551,7 +539,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 		if !selector.RelationFilter.IsEmpty() {
 			if selector.RelationFilter.OnlyNonEllipsisRelations {
 				selectorClause = append(selectorClause, sq.NotEq{sqf.schema.ColUsersetRelation: datastore.Ellipsis})
-				sqf.recordMutableColumnValue(sqf.schema.ColUsersetRelation)
+				sqf.recordVaryingColumnValue(sqf.schema.ColUsersetRelation)
 			} else {
 				relations := make([]string, 0, 2)
 				if selector.RelationFilter.IncludeEllipsisRelation {
