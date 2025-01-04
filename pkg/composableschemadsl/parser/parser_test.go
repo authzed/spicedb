@@ -129,6 +129,9 @@ func TestParser(t *testing.T) {
 		{"local imports with malformed import path test", "localimport_malformed_import_path"},
 		{"local imports with path missing leading period test", "localimport_path_missing_leading_period"},
 		{"local imports with typo in import separator test", "localimport_typo_in_import_separator"},
+		{"local imports with import all asterisk", "localimport_with_import_all"},
+		{"local imports with import all asterisk and import identifiers", "localimport_with_import_all_and_imports"},
+		{"local imports with import identifiers and import all asterisk", "localimport_with_imports_and_import_all"},
 	}
 
 	for _, test := range parserTests {

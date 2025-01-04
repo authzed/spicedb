@@ -645,7 +645,13 @@ func (p *sourceParser) consumeImport() AstNode {
 		return importNode
 	}
 
-	// Consume alternating identifiers and commas until we reach the end of the import statement
+	// Look for a * to indicate "import all"
+	if _, ok := p.tryConsume(lexer.TokenTypeStar); ok {
+		importNode.MustDecorateWithInt(dslshape.NodeImportPredicateImportAll, 1)
+		return importNode
+	}
+
+	// Else consume alternating identifiers and commas until we reach the end of the import statement
 	for {
 		definitionNode, ok := p.consumeIdentifierLiteral()
 		// We connect the node so that the error information is retained, then break the loop

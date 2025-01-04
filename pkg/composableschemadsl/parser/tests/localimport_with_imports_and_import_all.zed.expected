@@ -1,0 +1,53 @@
+NodeTypeFile
+  end-rune = 39
+  input-source = local imports with import identifiers and import all asterisk
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 39
+      input-source = local imports with import identifiers and import all asterisk
+      start-rune = 0
+      imported-definition =>
+        NodeTypeIdentifier
+          end-rune = 29
+          identifier-value = user
+          input-source = local imports with import identifiers and import all asterisk
+          start-rune = 26
+        NodeTypeIdentifier
+          end-rune = 38
+          identifier-value = persona
+          input-source = local imports with import identifiers and import all asterisk
+          start-rune = 32
+        NodeTypeIdentifier
+          end-rune = 39
+          input-source = local imports with import identifiers and import all asterisk
+          start-rune = 41
+          child-node =>
+            NodeTypeError
+              end-rune = 39
+              error-message = Expected identifier, found token TokenTypeStar
+              error-source = *
+              input-source = local imports with import identifiers and import all asterisk
+              start-rune = 41
+      path-segment =>
+        NodeTypeIdentifier
+          end-rune = 9
+          identifier-value = path
+          input-source = local imports with import identifiers and import all asterisk
+          start-rune = 6
+        NodeTypeIdentifier
+          end-rune = 12
+          identifier-value = to
+          input-source = local imports with import identifiers and import all asterisk
+          start-rune = 11
+        NodeTypeIdentifier
+          end-rune = 17
+          identifier-value = user
+          input-source = local imports with import identifiers and import all asterisk
+          start-rune = 14
+    NodeTypeError
+      end-rune = 39
+      error-message = Unexpected token at root level: TokenTypeStar
+      error-source = *
+      input-source = local imports with import identifiers and import all asterisk
+      start-rune = 41
