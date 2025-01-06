@@ -684,14 +684,40 @@ type RelationshipsQueryBuilder struct {
 	baseQueryBuilder SchemaQueryFilterer
 }
 
+// withCaveats returns true if caveats should be included in the query.
+func (b RelationshipsQueryBuilder) withCaveats() bool {
+	return !b.SkipCaveats || b.Schema.ColumnOptimization == ColumnOptimizationOptionNone
+}
+
+// withExpiration returns true if expiration should be included in the query.
+func (b RelationshipsQueryBuilder) withExpiration() bool {
+	return !b.SkipExpiration && !b.Schema.ExpirationDisabled
+}
+
+// withIntegrityColumns returns true if integrity columns should be included in the query.
+func (b RelationshipsQueryBuilder) withIntegrityColumns() bool {
+	return b.Schema.WithIntegrityColumns
+}
+
+// columnCount returns the number of columns that will be selected in the query.
+func (b RelationshipsQueryBuilder) columnCount() int {
+	columnCount := relationshipStandardColumnCount
+	if b.withCaveats() {
+		columnCount += relationshipCaveatColumnCount
+	}
+	if b.withExpiration() {
+		columnCount += relationshipExpirationColumnCount
+	}
+	if b.withIntegrityColumns() {
+		columnCount += relationshipIntegrityColumnCount
+	}
+	return columnCount
+}
+
 // SelectSQL returns the SQL and arguments necessary for reading relationships.
 func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 	// Set the column names to select.
-	columnCount := 9
-	if b.Schema.WithIntegrityColumns {
-		columnCount += 3
-	}
-	columnNamesToSelect := make([]string, 0, columnCount)
+	columnNamesToSelect := make([]string, 0, b.columnCount())
 
 	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColNamespace)
 	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColObjectID)
@@ -700,11 +726,11 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetObjectID)
 	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetRelation)
 
-	if !b.SkipCaveats || b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+	if b.withCaveats() {
 		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColCaveatName, b.Schema.ColCaveatContext)
 	}
 
-	if !b.SkipExpiration && !b.Schema.ExpirationDisabled {
+	if b.withExpiration() {
 		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColExpiration)
 	}
 
@@ -775,11 +801,7 @@ func ColumnsToSelect[CN any, CC any, EC any](
 	integrityHash *[]byte,
 	timestamp *time.Time,
 ) ([]any, error) {
-	columnCount := 9
-	if b.Schema.WithIntegrityColumns {
-		columnCount += 3
-	}
-	colsToSelect := make([]any, 0, columnCount)
+	colsToSelect := make([]any, 0, b.columnCount())
 
 	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColNamespace, resourceObjectType)
 	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColObjectID, resourceObjectID)
@@ -788,11 +810,11 @@ func ColumnsToSelect[CN any, CC any, EC any](
 	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetObjectID, subjectObjectID)
 	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetRelation, subjectRelation)
 
-	if !b.SkipCaveats || b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+	if b.withCaveats() {
 		colsToSelect = append(colsToSelect, caveatName, caveatCtx)
 	}
 
-	if !b.SkipExpiration && !b.Schema.ExpirationDisabled {
+	if b.withExpiration() {
 		colsToSelect = append(colsToSelect, expiration)
 	}
 

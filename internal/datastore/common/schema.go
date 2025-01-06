@@ -6,6 +6,13 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
+const (
+	relationshipStandardColumnCount   = 6 // ColNamespace, ColObjectID, ColRelation, ColUsersetNamespace, ColUsersetObjectID, ColUsersetRelation
+	relationshipCaveatColumnCount     = 2 // ColCaveatName, ColCaveatContext
+	relationshipExpirationColumnCount = 1 // ColExpiration
+	relationshipIntegrityColumnCount  = 3 // ColIntegrityKeyID, ColIntegrityHash, ColIntegrityTimestamp
+)
+
 // SchemaInformation holds the schema information from the SQL datastore implementation.
 //
 //go:generate go run github.com/ecordell/optgen -output schema_options.go . SchemaInformation
@@ -18,9 +25,11 @@ type SchemaInformation struct {
 	ColUsersetNamespace string `debugmap:"visible"`
 	ColUsersetObjectID  string `debugmap:"visible"`
 	ColUsersetRelation  string `debugmap:"visible"`
-	ColCaveatName       string `debugmap:"visible"`
-	ColCaveatContext    string `debugmap:"visible"`
-	ColExpiration       string `debugmap:"visible"`
+
+	ColCaveatName    string `debugmap:"visible"`
+	ColCaveatContext string `debugmap:"visible"`
+
+	ColExpiration string `debugmap:"visible"`
 
 	ColIntegrityKeyID     string `debugmap:"visible"`
 	ColIntegrityHash      string `debugmap:"visible"`
