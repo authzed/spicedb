@@ -32,12 +32,12 @@ test DocumentCaveatedTest {
   }
   assertions {
     // TODO
-    post:one is    view_as_fan    user:beatrice when {"likes": true}  // Positive assertion
-    post:one is not    view_as_fan   user:beatrice when {"likes": false} // Negative assertion
-    post:one is conditional    view_as_fan   user:beatrice                  // Conditional assertion
+    post:one is    view_as_fan for    user:beatrice when {"likes": true}  // Positive assertion
+    post:one is not    view_as_fan for   user:beatrice when {"likes": false} // Negative assertion
+    post:one is conditional    view_as_fan for   user:beatrice                  // Conditional assertion
 
-    post:one is    view_temporarily    user:claire when {"current_day": "tuesday"}
-    post:one is not    view_temporarily   user:claire when {"current_day": "wednesday"}
+    post:one is    view_temporarily for    user:claire when {"current_day": "tuesday"}
+    post:one is not    view_temporarily for   user:claire when {"current_day": "wednesday"}
   }
   expected {
     post:one view {
