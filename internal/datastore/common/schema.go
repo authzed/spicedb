@@ -15,7 +15,7 @@ const (
 
 // SchemaInformation holds the schema information from the SQL datastore implementation.
 //
-//go:generate go run github.com/ecordell/optgen -output schema_options.go . SchemaInformation
+//go:generate go run github.com/ecordell/optgen -output zz_generated.schema_options.go . SchemaInformation
 type SchemaInformation struct {
 	RelationshipTableName string `debugmap:"visible"`
 
@@ -47,8 +47,8 @@ type SchemaInformation struct {
 	// ColumnOptimization is the optimization to use for columns in the schema, if any.
 	ColumnOptimization ColumnOptimizationOption `debugmap:"visible"`
 
-	// WithIntegrityColumns is a flag to indicate if the schema has integrity columns.
-	WithIntegrityColumns bool `debugmap:"visible"`
+	// IntegrityEnabled is a flag to indicate if the schema has integrity columns.
+	IntegrityEnabled bool `debugmap:"visible"`
 
 	// ExpirationDisabled is a flag to indicate whether expiration support is disabled.
 	ExpirationDisabled bool `debugmap:"visible"`
@@ -102,7 +102,7 @@ func (si SchemaInformation) mustValidate() {
 		panic("ColExpiration is required")
 	}
 
-	if si.WithIntegrityColumns {
+	if si.IntegrityEnabled {
 		if si.ColIntegrityKeyID == "" {
 			panic("ColIntegrityKeyID is required")
 		}

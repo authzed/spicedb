@@ -223,7 +223,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		common.WithPlaceholderFormat(sq.Dollar),
 		common.WithNowFunction("NOW"),
 		common.WithColumnOptimization(config.columnOptimizationOption),
-		common.WithWithIntegrityColumns(config.withIntegrity),
+		common.WithIntegrityEnabled(config.withIntegrity),
 		common.WithExpirationDisabled(config.expirationDisabled),
 	)
 

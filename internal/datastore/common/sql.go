@@ -75,15 +75,15 @@ const (
 	// ColumnOptimizationOptionNone is the default option, which does not optimize the static columns.
 	ColumnOptimizationOptionNone
 
-	// ColumnOptimizationOptionStaticValue is an option that optimizes the column for a static value.
+	// ColumnOptimizationOptionStaticValues is an option that optimizes columns for static values.
 	ColumnOptimizationOptionStaticValues
 )
 
-type ColumnTracker struct {
+type columnTracker struct {
 	SingleValue *string
 }
 
-type columnTrackerMap map[string]ColumnTracker
+type columnTrackerMap map[string]columnTracker
 
 func (ctm columnTrackerMap) hasStaticValue(columnName string) bool {
 	if r, ok := ctm[columnName]; ok && r.SingleValue != nil {
@@ -119,7 +119,7 @@ func NewSchemaQueryFiltererForRelationshipsSelect(schema SchemaInformation, filt
 	return SchemaQueryFilterer{
 		schema:                 schema,
 		queryBuilder:           queryBuilder,
-		filteringColumnTracker: map[string]ColumnTracker{},
+		filteringColumnTracker: map[string]columnTracker{},
 		filterMaximumIDCount:   filterMaximumIDCount,
 		isCustomQuery:          false,
 		extraFields:            extraFields,
@@ -140,7 +140,7 @@ func NewSchemaQueryFiltererWithStartingQuery(schema SchemaInformation, startingQ
 	return SchemaQueryFilterer{
 		schema:                 schema,
 		queryBuilder:           startingQuery,
-		filteringColumnTracker: map[string]ColumnTracker{},
+		filteringColumnTracker: map[string]columnTracker{},
 		filterMaximumIDCount:   filterMaximumIDCount,
 		isCustomQuery:          true,
 		extraFields:            nil,
@@ -163,12 +163,12 @@ func (sqf SchemaQueryFilterer) UnderlyingQueryBuilder() sq.SelectBuilder {
 	spiceerrors.DebugAssert(func() bool {
 		return sqf.isCustomQuery
 	}, "UnderlyingQueryBuilder should only be called on custom queries")
-	return sqf.queryBuilderWithExpirationFilter(false)
+	return sqf.queryBuilderWithMaybeExpirationFilter(false)
 }
 
-// queryBuilderWithExpirationFilter returns the query builder with the expiration filter applied, when necessary.
+// queryBuilderWithMaybeExpirationFilter returns the query builder with the expiration filter applied, when necessary.
 // Note that this adds the clause to the existing builder.
-func (sqf SchemaQueryFilterer) queryBuilderWithExpirationFilter(skipExpiration bool) sq.SelectBuilder {
+func (sqf SchemaQueryFilterer) queryBuilderWithMaybeExpirationFilter(skipExpiration bool) sq.SelectBuilder {
 	if sqf.schema.ExpirationDisabled || skipExpiration {
 		return sqf.queryBuilder
 	}
@@ -319,15 +319,15 @@ func (sqf SchemaQueryFilterer) recordColumnValue(colName string, colValue string
 	existing, ok := sqf.filteringColumnTracker[colName]
 	if ok {
 		if existing.SingleValue != nil && *existing.SingleValue != colValue {
-			sqf.filteringColumnTracker[colName] = ColumnTracker{SingleValue: nil}
+			sqf.filteringColumnTracker[colName] = columnTracker{SingleValue: nil}
 		}
 	} else {
-		sqf.filteringColumnTracker[colName] = ColumnTracker{SingleValue: &colValue}
+		sqf.filteringColumnTracker[colName] = columnTracker{SingleValue: &colValue}
 	}
 }
 
 func (sqf SchemaQueryFilterer) recordVaryingColumnValue(colName string) {
-	sqf.filteringColumnTracker[colName] = ColumnTracker{SingleValue: nil}
+	sqf.filteringColumnTracker[colName] = columnTracker{SingleValue: nil}
 }
 
 // FilterToResourceID returns a new SchemaQueryFilterer that is limited to resources with the
@@ -491,7 +491,7 @@ func (sqf SchemaQueryFilterer) MustFilterWithSubjectsSelectors(selectors ...data
 func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastore.SubjectsSelector) (SchemaQueryFilterer, error) {
 	selectorsOrClause := sq.Or{}
 
-	// If there is more than a single filter, record all the subjects as mutable, as the subjects returned
+	// If there is more than a single filter, record all the subjects as varying, as the subjects returned
 	// can differ for each branch.
 	// TODO(jschorr): Optimize this further where applicable.
 	if len(selectors) > 1 {
@@ -694,9 +694,9 @@ func (b RelationshipsQueryBuilder) withExpiration() bool {
 	return !b.SkipExpiration && !b.Schema.ExpirationDisabled
 }
 
-// withIntegrityColumns returns true if integrity columns should be included in the query.
-func (b RelationshipsQueryBuilder) withIntegrityColumns() bool {
-	return b.Schema.WithIntegrityColumns
+// integrityEnabled returns true if integrity columns should be included in the query.
+func (b RelationshipsQueryBuilder) integrityEnabled() bool {
+	return b.Schema.IntegrityEnabled
 }
 
 // columnCount returns the number of columns that will be selected in the query.
@@ -708,7 +708,7 @@ func (b RelationshipsQueryBuilder) columnCount() int {
 	if b.withExpiration() {
 		columnCount += relationshipExpirationColumnCount
 	}
-	if b.withIntegrityColumns() {
+	if b.integrityEnabled() {
 		columnCount += relationshipIntegrityColumnCount
 	}
 	return columnCount
@@ -734,7 +734,7 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColExpiration)
 	}
 
-	if b.Schema.WithIntegrityColumns {
+	if b.integrityEnabled() {
 		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColIntegrityKeyID, b.Schema.ColIntegrityHash, b.Schema.ColIntegrityTimestamp)
 	}
 
@@ -742,14 +742,14 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 		columnNamesToSelect = append(columnNamesToSelect, "1")
 	}
 
-	sqlBuilder := b.baseQueryBuilder.queryBuilderWithExpirationFilter(b.SkipExpiration)
+	sqlBuilder := b.baseQueryBuilder.queryBuilderWithMaybeExpirationFilter(b.SkipExpiration)
 	sqlBuilder = sqlBuilder.Columns(columnNamesToSelect...)
 
 	return sqlBuilder.ToSql()
 }
 
 // FilteringValuesForTesting returns the filtering values. For test use only.
-func (b RelationshipsQueryBuilder) FilteringValuesForTesting() map[string]ColumnTracker {
+func (b RelationshipsQueryBuilder) FilteringValuesForTesting() map[string]columnTracker {
 	return maps.Clone(b.filteringValues)
 }
 
@@ -818,7 +818,7 @@ func ColumnsToSelect[CN any, CC any, EC any](
 		colsToSelect = append(colsToSelect, expiration)
 	}
 
-	if b.Schema.WithIntegrityColumns {
+	if b.Schema.IntegrityEnabled {
 		colsToSelect = append(colsToSelect, integrityKeyID, integrityHash, timestamp)
 	}
 

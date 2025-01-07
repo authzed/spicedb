@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/authzed/spicedb/pkg/datastore/options"
 
@@ -803,7 +804,7 @@ func TestSchemaQueryFilterer(t *testing.T) {
 
 					require.ElementsMatch(t, expected.staticCols, foundStaticColumns)
 
-					ran.queryBuilder = ran.queryBuilderWithExpirationFilter(test.withExpirationDisabled).Columns("*")
+					ran.queryBuilder = ran.queryBuilderWithMaybeExpirationFilter(test.withExpirationDisabled).Columns("*")
 
 					sql, args, err := ran.queryBuilder.ToSql()
 					require.NoError(t, err)
@@ -822,49 +823,58 @@ func TestExecuteQuery(t *testing.T) {
 		options                []options.QueryOptionsOption
 		expectedSQL            string
 		expectedArgs           []any
+		expectedStaticColCount int
 		expectedSkipCaveats    bool
 		expectedSkipExpiration bool
 		withExpirationDisabled bool
+		withIntegrityEnabled   bool
+		fromSuffix             string
+		limit                  uint64
 	}{
 		{
 			name: "filter by static resource type",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype")
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype"},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by static resource type and resource ID",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj")
 			},
-			expectedSQL:  "SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someobj"},
+			expectedSQL:            "SELECT relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj"},
+			expectedStaticColCount: 2,
 		},
 		{
 			name: "filter by static resource type and resource ID prefix",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").MustFilterWithResourceIDPrefix("someprefix")
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id LIKE ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someprefix%"},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id LIKE ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someprefix%"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by static resource type and resource IDs",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").MustFilterToResourceIDs([]string{"someobj", "anotherobj"})
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id IN (?,?) AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someobj", "anotherobj"},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id IN (?,?) AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "anotherobj"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by static resource type, resource ID and relation",
 			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
 				return filterer.FilterToResourceType("sometype").FilterToResourceID("someobj").FilterToRelation("somerel")
 			},
-			expectedSQL:  "SELECT subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someobj", "somerel"},
+			expectedSQL:            "SELECT subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "somerel"},
+			expectedStaticColCount: 3,
 		},
 		{
 			name: "filter by static resource type, resource ID, relation and subject type",
@@ -873,8 +883,9 @@ func TestExecuteQuery(t *testing.T) {
 					SubjectType: "subns",
 				})
 			},
-			expectedSQL:  "SELECT subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someobj", "somerel", "subns"},
+			expectedSQL:            "SELECT subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns"},
+			expectedStaticColCount: 4,
 		},
 		{
 			name: "filter by static resource type, resource ID, relation, subject type and subject ID",
@@ -884,8 +895,9 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			expectedSQL:  "SELECT subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someobj", "somerel", "subns", "subid"},
+			expectedSQL:            "SELECT subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns", "subid"},
+			expectedStaticColCount: 5,
 		},
 		{
 			name: "filter by static resource type, resource ID, relation, subject type, subject ID and subject relation",
@@ -898,8 +910,9 @@ func TestExecuteQuery(t *testing.T) {
 					},
 				})
 			},
-			expectedSQL:  "SELECT caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedSQL:            "SELECT caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedStaticColCount: 6,
 		},
 		{
 			name: "filter by static everything without caveats",
@@ -915,9 +928,10 @@ func TestExecuteQuery(t *testing.T) {
 			options: []options.QueryOptionsOption{
 				options.WithSkipCaveats(true),
 			},
-			expectedSkipCaveats: true,
-			expectedSQL:         "SELECT expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs:        []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedSkipCaveats:    true,
+			expectedSQL:            "SELECT expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedStaticColCount: 6,
 		},
 		{
 			name: "filter by static everything (except one field) without caveats",
@@ -933,9 +947,10 @@ func TestExecuteQuery(t *testing.T) {
 			options: []options.QueryOptionsOption{
 				options.WithSkipCaveats(true),
 			},
-			expectedSkipCaveats: true,
-			expectedSQL:         "SELECT object_id, expiration FROM relationtuples WHERE ns = ? AND object_id IN (?,?) AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs:        []any{"sometype", "someobj", "anotherobj", "somerel", "subns", "subid", "subrel"},
+			expectedSkipCaveats:    true,
+			expectedSQL:            "SELECT object_id, expiration FROM relationtuples WHERE ns = ? AND object_id IN (?,?) AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "anotherobj", "somerel", "subns", "subid", "subrel"},
+			expectedStaticColCount: 5,
 		},
 		{
 			name: "filter by static resource type with no caveats",
@@ -945,9 +960,10 @@ func TestExecuteQuery(t *testing.T) {
 			options: []options.QueryOptionsOption{
 				options.WithSkipCaveats(true),
 			},
-			expectedSkipCaveats: true,
-			expectedSQL:         "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, expiration FROM relationtuples WHERE ns = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs:        []any{"sometype"},
+			expectedSkipCaveats:    true,
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, expiration FROM relationtuples WHERE ns = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by just subject type",
@@ -956,8 +972,9 @@ func TestExecuteQuery(t *testing.T) {
 					SubjectType: "subns",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"subns"},
+			expectedSQL:            "SELECT ns, object_id, relation, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"subns"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by just subject type and subject ID",
@@ -967,8 +984,9 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"subns", "subid"},
+			expectedSQL:            "SELECT ns, object_id, relation, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"subns", "subid"},
+			expectedStaticColCount: 2,
 		},
 		{
 			name: "filter by just subject type and subject relation",
@@ -980,8 +998,9 @@ func TestExecuteQuery(t *testing.T) {
 					},
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_object_id, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"subns", "subrel"},
+			expectedSQL:            "SELECT ns, object_id, relation, subject_object_id, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"subns", "subrel"},
+			expectedStaticColCount: 2,
 		},
 		{
 			name: "filter by just subject type and subject ID and relation",
@@ -994,8 +1013,9 @@ func TestExecuteQuery(t *testing.T) {
 					},
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"subns", "subid", "subrel"},
+			expectedSQL:            "SELECT ns, object_id, relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"subns", "subid", "subrel"},
+			expectedStaticColCount: 3,
 		},
 		{
 			name: "filter by multiple subject types, but static subject ID",
@@ -1008,8 +1028,9 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectId: "subid",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_ns = ? AND subject_object_id = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"subns", "subid", "anothersubns", "subid"},
+			expectedSQL:            "SELECT ns, object_id, relation, subject_ns, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE subject_ns = ? AND subject_object_id = ? AND subject_ns = ? AND subject_object_id = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"subns", "subid", "anothersubns", "subid"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "multiple subjects filters with just types",
@@ -1020,8 +1041,9 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectType: "anothersubjectype",
 				})
 			},
-			expectedSQL:  "SELECT ns, object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?)) AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"somesubjectype", "anothersubjectype"},
+			expectedSQL:            "SELECT ns, object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?)) AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"somesubjectype", "anothersubjectype"},
+			expectedStaticColCount: 0,
 		},
 		{
 			name: "multiple subjects filters with just types and static resource type",
@@ -1032,8 +1054,9 @@ func TestExecuteQuery(t *testing.T) {
 					OptionalSubjectType: "anothersubjectype",
 				}).FilterToResourceType("sometype")
 			},
-			expectedSQL:  "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?)) AND ns = ? AND (expiration IS NULL OR expiration > NOW())",
-			expectedArgs: []any{"somesubjectype", "anothersubjectype", "sometype"},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, expiration FROM relationtuples WHERE ((subject_ns = ?) OR (subject_ns = ?)) AND ns = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"somesubjectype", "anothersubjectype", "sometype"},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by static resource type with expiration disabled",
@@ -1043,6 +1066,7 @@ func TestExecuteQuery(t *testing.T) {
 			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ?",
 			expectedArgs:           []any{"sometype"},
 			withExpirationDisabled: true,
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by static resource type with expiration skipped",
@@ -1056,6 +1080,7 @@ func TestExecuteQuery(t *testing.T) {
 			options: []options.QueryOptionsOption{
 				options.WithSkipExpiration(true),
 			},
+			expectedStaticColCount: 1,
 		},
 		{
 			name: "filter by static resource type with expiration skipped and disabled",
@@ -1069,6 +1094,182 @@ func TestExecuteQuery(t *testing.T) {
 			options: []options.QueryOptionsOption{
 				options.WithSkipExpiration(true),
 			},
+			expectedStaticColCount: 1,
+		},
+		{
+			name: "with from suffix",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype")
+			},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples as of tomorrow WHERE ns = ?",
+			expectedArgs:           []any{"sometype"},
+			withExpirationDisabled: true,
+			fromSuffix:             "as of tomorrow",
+			expectedStaticColCount: 1,
+		},
+		{
+			name: "with limit",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype")
+			},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context FROM relationtuples WHERE ns = ? LIMIT 65",
+			expectedArgs:           []any{"sometype"},
+			withExpirationDisabled: true,
+			limit:                  65,
+			expectedStaticColCount: 1,
+		},
+		{
+			name: "with integrity",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype")
+			},
+			expectedSQL:            "SELECT object_id, relation, subject_ns, subject_object_id, subject_relation, caveat, caveat_context, integrity_key_id, integrity_hash, integrity_timestamp FROM relationtuples WHERE ns = ?",
+			expectedArgs:           []any{"sometype"},
+			withExpirationDisabled: true,
+			withIntegrityEnabled:   true,
+			expectedStaticColCount: 1,
+		},
+		{
+			name: "all columns static with caveats",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").
+					FilterToResourceID("someobj").
+					FilterToRelation("somerel").
+					FilterToSubjectFilter(&v1.SubjectFilter{
+						SubjectType:       "subns",
+						OptionalSubjectId: "subid",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrel",
+						},
+					})
+			},
+			expectedSQL:            "SELECT caveat, caveat_context FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			withExpirationDisabled: true,
+			expectedSkipExpiration: true,
+			options: []options.QueryOptionsOption{
+				options.WithSkipExpiration(true),
+			},
+			expectedStaticColCount: 6,
+		},
+		{
+			name: "all columns static with expiration",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").
+					FilterToResourceID("someobj").
+					FilterToRelation("somerel").
+					FilterToSubjectFilter(&v1.SubjectFilter{
+						SubjectType:       "subns",
+						OptionalSubjectId: "subid",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrel",
+						},
+					})
+			},
+			expectedSQL:         "SELECT expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:        []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedSkipCaveats: true,
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+			},
+			expectedStaticColCount: 6,
+		},
+		{
+			name: "all columns static with caveats and expiration",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").
+					FilterToResourceID("someobj").
+					FilterToRelation("somerel").
+					FilterToSubjectFilter(&v1.SubjectFilter{
+						SubjectType:       "subns",
+						OptionalSubjectId: "subid",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrel",
+						},
+					})
+			},
+			expectedSQL:            "SELECT caveat, caveat_context, expiration FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND (expiration IS NULL OR expiration > NOW())",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			expectedStaticColCount: 6,
+		},
+		{
+			name: "all columns static without caveats",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				return filterer.FilterToResourceType("sometype").
+					FilterToResourceID("someobj").
+					FilterToRelation("somerel").
+					FilterToSubjectFilter(&v1.SubjectFilter{
+						SubjectType:       "subns",
+						OptionalSubjectId: "subid",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrel",
+						},
+					})
+			},
+			expectedSQL:            "SELECT 1 FROM relationtuples WHERE ns = ? AND object_id = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ?",
+			expectedArgs:           []any{"sometype", "someobj", "somerel", "subns", "subid", "subrel"},
+			withExpirationDisabled: true,
+			expectedSkipExpiration: true,
+			expectedSkipCaveats:    true,
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+				options.WithSkipExpiration(true),
+			},
+			expectedStaticColCount: -1,
+		},
+		{
+			name: "one column not static",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				f := filterer.FilterToResourceType("sometype").
+					FilterToRelation("somerel").
+					FilterToSubjectFilter(&v1.SubjectFilter{
+						SubjectType:       "subns",
+						OptionalSubjectId: "subid",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrel",
+						},
+					})
+
+				f2, _ := f.FilterToResourceIDs([]string{"foo", "bar"})
+				return f2
+			},
+			expectedSQL:            "SELECT object_id FROM relationtuples WHERE ns = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND object_id IN (?,?)",
+			expectedArgs:           []any{"sometype", "somerel", "subns", "subid", "subrel", "foo", "bar"},
+			withExpirationDisabled: true,
+			expectedSkipExpiration: true,
+			expectedSkipCaveats:    true,
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+				options.WithSkipExpiration(true),
+			},
+			expectedStaticColCount: 5,
+		},
+		{
+			name: "resource ID prefix",
+			run: func(filterer SchemaQueryFilterer) SchemaQueryFilterer {
+				f := filterer.FilterToResourceType("sometype").
+					FilterToRelation("somerel").
+					FilterToSubjectFilter(&v1.SubjectFilter{
+						SubjectType:       "subns",
+						OptionalSubjectId: "subid",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrel",
+						},
+					})
+
+				f2, _ := f.FilterWithResourceIDPrefix("foo")
+				return f2
+			},
+			expectedSQL:            "SELECT object_id FROM relationtuples WHERE ns = ? AND relation = ? AND subject_ns = ? AND subject_object_id = ? AND subject_relation = ? AND object_id LIKE ?",
+			expectedArgs:           []any{"sometype", "somerel", "subns", "subid", "subrel", "foo%"},
+			withExpirationDisabled: true,
+			expectedSkipExpiration: true,
+			expectedSkipCaveats:    true,
+			options: []options.QueryOptionsOption{
+				options.WithSkipCaveats(true),
+				options.WithSkipExpiration(true),
+			},
+			expectedStaticColCount: 5,
 		},
 	}
 
@@ -1087,13 +1288,22 @@ func TestExecuteQuery(t *testing.T) {
 						WithColCaveatName("caveat"),
 						WithColCaveatContext("caveat_context"),
 						WithColExpiration("expiration"),
+						WithColIntegrityHash("integrity_hash"),
+						WithColIntegrityKeyID("integrity_key_id"),
+						WithColIntegrityTimestamp("integrity_timestamp"),
 						WithPlaceholderFormat(sq.Question),
 						WithPaginationFilterType(filterType),
 						WithColumnOptimization(ColumnOptimizationOptionStaticValues),
 						WithNowFunction("NOW"),
+						WithIntegrityEnabled(tc.withIntegrityEnabled),
 						WithExpirationDisabled(tc.withExpirationDisabled),
 					)
 					filterer := NewSchemaQueryFiltererForRelationshipsSelect(*schema, 100)
+					filterer = filterer.WithFromSuffix(tc.fromSuffix)
+					if tc.limit > 0 {
+						filterer = filterer.limit(tc.limit)
+					}
+
 					ran := tc.run(filterer)
 
 					var wasRun bool
@@ -1107,6 +1317,46 @@ func TestExecuteQuery(t *testing.T) {
 							require.Equal(t, tc.expectedArgs, args)
 							require.Equal(t, tc.expectedSkipCaveats, builder.SkipCaveats)
 							require.Equal(t, tc.expectedSkipExpiration, builder.SkipExpiration)
+
+							// 6 standard columns for relationships:
+							// ns, object_id, relation, subject_ns, subject_object_id, subject_relation
+							expectedColCount := 6 - tc.expectedStaticColCount
+							if !tc.expectedSkipCaveats {
+								// caveat, caveat_context
+								expectedColCount += 2
+							}
+							if !tc.expectedSkipExpiration && !tc.withExpirationDisabled {
+								// expiration
+								expectedColCount++
+							}
+							if tc.withIntegrityEnabled {
+								// integrity_key_id, integrity_hash, integrity_timestamp
+								expectedColCount += 3
+							}
+
+							if tc.expectedStaticColCount == -1 {
+								// SELECT 1
+								expectedColCount = 1
+							}
+
+							var resourceObjectType string
+							var resourceObjectID string
+							var resourceRelation string
+							var subjectObjectType string
+							var subjectObjectID string
+							var subjectRelation string
+							var caveatName *string
+							var caveatCtx map[string]any
+							var expiration *time.Time
+
+							var integrityKeyID string
+							var integrityHash []byte
+							var timestamp time.Time
+
+							colsToSelect, err := ColumnsToSelect(builder, &resourceObjectType, &resourceObjectID, &resourceRelation, &subjectObjectType, &subjectObjectID, &subjectRelation, &caveatName, &caveatCtx, &expiration, &integrityKeyID, &integrityHash, &timestamp)
+							require.NoError(t, err)
+							require.Equal(t, expectedColCount, len(colsToSelect))
+
 							return nil, nil
 						},
 					}
@@ -1117,4 +1367,40 @@ func TestExecuteQuery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewSchemaQueryFiltererWithStartingQuery(t *testing.T) {
+	schema := NewSchemaInformationWithOptions(
+		WithRelationshipTableName("relationtuples"),
+		WithColNamespace("ns"),
+		WithColObjectID("object_id"),
+		WithColRelation("relation"),
+		WithColUsersetNamespace("subject_ns"),
+		WithColUsersetObjectID("subject_object_id"),
+		WithColUsersetRelation("subject_relation"),
+		WithColCaveatName("caveat"),
+		WithColCaveatContext("caveat_context"),
+		WithColExpiration("expiration"),
+		WithPlaceholderFormat(sq.Question),
+		WithPaginationFilterType(TupleComparison),
+		WithColumnOptimization(ColumnOptimizationOptionStaticValues),
+		WithNowFunction("NOW"),
+		WithExpirationDisabled(true),
+	)
+
+	sql := sq.StatementBuilder.PlaceholderFormat(sq.AtP)
+	query := sql.Select("COUNT(*)").From("sometable")
+	filterer := NewSchemaQueryFiltererWithStartingQuery(*schema, query, 50)
+	filterer = filterer.MustFilterToResourceIDs([]string{"someid"})
+	filterer = filterer.WithAdditionalFilter(func(original sq.SelectBuilder) sq.SelectBuilder {
+		return original.Where("somecoolclause")
+	})
+
+	sqlQuery, args, err := filterer.UnderlyingQueryBuilder().ToSql()
+	require.NoError(t, err)
+
+	expectedSQL := "SELECT COUNT(*) FROM sometable WHERE object_id IN (@p1) AND somecoolclause"
+	expectedArgs := []any{"someid"}
+	require.Equal(t, expectedSQL, sqlQuery)
+	require.Equal(t, expectedArgs, args)
 }

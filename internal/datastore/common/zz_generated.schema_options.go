@@ -48,7 +48,7 @@ func (s *SchemaInformation) ToOption() SchemaInformationOption {
 		to.PlaceholderFormat = s.PlaceholderFormat
 		to.NowFunction = s.NowFunction
 		to.ColumnOptimization = s.ColumnOptimization
-		to.WithIntegrityColumns = s.WithIntegrityColumns
+		to.IntegrityEnabled = s.IntegrityEnabled
 		to.ExpirationDisabled = s.ExpirationDisabled
 	}
 }
@@ -73,7 +73,7 @@ func (s SchemaInformation) DebugMap() map[string]any {
 	debugMap["PlaceholderFormat"] = helpers.DebugValue(s.PlaceholderFormat, false)
 	debugMap["NowFunction"] = helpers.DebugValue(s.NowFunction, false)
 	debugMap["ColumnOptimization"] = helpers.DebugValue(s.ColumnOptimization, false)
-	debugMap["WithIntegrityColumns"] = helpers.DebugValue(s.WithIntegrityColumns, false)
+	debugMap["IntegrityEnabled"] = helpers.DebugValue(s.IntegrityEnabled, false)
 	debugMap["ExpirationDisabled"] = helpers.DebugValue(s.ExpirationDisabled, false)
 	return debugMap
 }
@@ -213,10 +213,10 @@ func WithColumnOptimization(columnOptimization ColumnOptimizationOption) SchemaI
 	}
 }
 
-// WithWithIntegrityColumns returns an option that can set WithIntegrityColumns on a SchemaInformation
-func WithWithIntegrityColumns(withIntegrityColumns bool) SchemaInformationOption {
+// WithIntegrityEnabled returns an option that can set IntegrityEnabled on a SchemaInformation
+func WithIntegrityEnabled(integrityEnabled bool) SchemaInformationOption {
 	return func(s *SchemaInformation) {
-		s.WithIntegrityColumns = withIntegrityColumns
+		s.IntegrityEnabled = integrityEnabled
 	}
 }
 
