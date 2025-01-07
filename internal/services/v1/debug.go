@@ -205,6 +205,7 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 				},
 			},
 			Duration: ct.Duration,
+			Source:   ct.SourceId,
 		}, nil
 	}
 
@@ -229,5 +230,6 @@ func convertCheckTrace(ctx context.Context, caveatContext map[string]any, ct *di
 			WasCachedResult: ct.IsCachedResult,
 		},
 		Duration: ct.Duration,
+		Source:   ct.SourceId,
 	}, nil
 }

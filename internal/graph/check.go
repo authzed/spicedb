@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
+	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
@@ -113,14 +114,24 @@ func (cc *ConcurrentChecker) Check(ctx context.Context, req ValidatedCheckReques
 		return resolved.Resp, resolved.Err
 	}
 
+	nodeID, err := nodeid.FromContext(ctx)
+	if err != nil {
+		// NOTE: we ignore this error here as if the node ID is missing, the debug
+		// trace is still valid.
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	// Add debug information if requested.
 	debugInfo := resolved.Resp.Metadata.DebugInfo
 	if debugInfo == nil {
 		debugInfo = &v1.DebugInformation{
 			Check: &v1.CheckDebugTrace{
-				TraceId: uuid.NewString(),
+				TraceId:  uuid.NewString(),
+				SourceId: nodeID,
 			},
 		}
+	} else if debugInfo.Check != nil && debugInfo.Check.SourceId == "" {
+		debugInfo.Check.SourceId = nodeID
 	}
 
 	// Remove the traversal bloom from the debug request to save some data over the

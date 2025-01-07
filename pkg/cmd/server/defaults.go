@@ -39,6 +39,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	consistencymw "github.com/authzed/spicedb/pkg/middleware/consistency"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
+	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/middleware/serverversion"
 	"github.com/authzed/spicedb/pkg/releases"
@@ -164,6 +165,7 @@ var alwaysDebugOption = grpclog.WithLevels(func(code codes.Code) grpclog.Level {
 
 const (
 	DefaultMiddlewareRequestID     = "requestid"
+	DefaultMiddlewareNodeID        = "nodeid"
 	DefaultMiddlewareLog           = "log"
 	DefaultMiddlewareGRPCLog       = "grpclog"
 	DefaultMiddlewareOTelGRPC      = "otelgrpc"
@@ -297,6 +299,11 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareNodeID).
+			WithInterceptor(nodeid.UnaryServerInterceptor("")).
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareOTelGRPC).
 			WithInterceptor(otelgrpc.UnaryServerInterceptor()). // nolint: staticcheck
 			Done(),
@@ -367,6 +374,11 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareLog).
 			WithInterceptor(logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID"))).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareNodeID).
+			WithInterceptor(nodeid.StreamServerInterceptor("")).
 			Done(),
 
 		NewStreamMiddleware().
@@ -448,6 +460,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 	grpcMetricsUnaryInterceptor, grpcMetricsStreamingInterceptor := GRPCMetrics(disableGRPCLatencyHistogram)
 	return []grpc.UnaryServerInterceptor{
 			requestid.UnaryServerInterceptor(requestid.GenerateIfMissing(true)),
+			nodeid.UnaryServerInterceptor(""),
 			logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
 			grpclog.UnaryServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsUnaryInterceptor,
@@ -456,6 +469,7 @@ func DefaultDispatchMiddleware(logger zerolog.Logger, authFunc grpcauth.AuthFunc
 			servicespecific.UnaryServerInterceptor,
 		}, []grpc.StreamServerInterceptor{
 			requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true)),
+			nodeid.StreamServerInterceptor(""),
 			logmw.StreamServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID")),
 			grpclog.StreamServerInterceptor(InterceptorLogger(logger), dispatchDefaultCodeToLevel, durationFieldOption, traceIDFieldOption),
 			grpcMetricsStreamingInterceptor,
