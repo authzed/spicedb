@@ -13,6 +13,8 @@ import (
 
 type Test mg.Namespace
 
+var emptyEnv map[string]string
+
 // All Runs all test suites
 func (t Test) All() error {
 	ds := Testds{}
@@ -94,51 +96,80 @@ type Testds mg.Namespace
 
 // Crdb Run datastore tests for crdb
 func (Testds) Crdb() error {
-	return datastoreTest("crdb")
+	return datastoreTest("crdb", emptyEnv)
 }
 
 // Spanner Run datastore tests for spanner
 func (Testds) Spanner() error {
-	return datastoreTest("spanner")
+	return datastoreTest("spanner", emptyEnv)
 }
 
 // Postgres Run datastore tests for postgres
-func (Testds) Postgres() error {
-	return datastoreTest("postgres", "postgres")
+func (tds Testds) Postgres() error {
+	return tds.postgres("")
+}
+
+func (tds Testds) PostgresVer(version string) error {
+	return tds.postgres(version)
+}
+
+func (Testds) postgres(version string) error {
+	return datastoreTest("postgres", map[string]string{
+		"POSTGRES_TEST_VERSION": version,
+	}, "postgres")
 }
 
 // Pgbouncer Run datastore tests for postgres with Pgbouncer
-func (Testds) Pgbouncer() error {
-	return datastoreTest("postgres", "pgbouncer")
+func (tds Testds) Pgbouncer() error {
+	return tds.pgbouncer("")
+}
+
+func (tds Testds) PgbouncerVer(version string) error {
+	return tds.pgbouncer(version)
+}
+
+func (Testds) pgbouncer(version string) error {
+	return datastoreTest("postgres", map[string]string{
+		"POSTGRES_TEST_VERSION": version,
+	}, "pgbouncer")
 }
 
 // Mysql Run datastore tests for mysql
 func (Testds) Mysql() error {
-	return datastoreTest("mysql")
+	return datastoreTest("mysql", emptyEnv)
 }
 
-func datastoreTest(datastore string, tags ...string) error {
+func datastoreTest(datastore string, env map[string]string, tags ...string) error {
 	mergedTags := append([]string{"ci", "docker"}, tags...)
 	tagString := strings.Join(mergedTags, ",")
 	mg.Deps(checkDocker)
-	return goTest(fmt.Sprintf("./internal/datastore/%s/...", datastore), "-tags", tagString, "-timeout", "10m")
+	return goDirTestWithEnv(".", fmt.Sprintf("./internal/datastore/%s/...", datastore), env, "-tags", tagString, "-timeout", "10m")
 }
 
 type Testcons mg.Namespace
 
 // Crdb Run consistency tests for crdb
 func (Testcons) Crdb() error {
-	return consistencyTest("cockroachdb")
+	return consistencyTest("cockroachdb", emptyEnv)
 }
 
 // Spanner Run consistency tests for spanner
 func (Testcons) Spanner() error {
-	return consistencyTest("spanner")
+	return consistencyTest("spanner", emptyEnv)
 }
 
-// Postgres Run consistency tests for postgres
-func (Testcons) Postgres() error {
-	return consistencyTest("postgres")
+func (tc Testcons) Postgres() error {
+	return tc.postgres("")
+}
+
+func (tc Testcons) PostgresVer(version string) error {
+	return tc.postgres(version)
+}
+
+func (Testcons) postgres(version string) error {
+	return datastoreTest("postgres", map[string]string{
+		"POSTGRES_TEST_VERSION": version,
+	}, "postgres")
 }
 
 // Pgbouncer Run consistency tests for postgres with pgbouncer
@@ -148,14 +179,20 @@ func (Testcons) Pgbouncer() error {
 	return nil
 }
 
-// Mysql Run consistency tests for mysql
-func (Testcons) Mysql() error {
-	return consistencyTest("mysql")
+func (Testcons) PgbouncerVer(version string) error {
+	println("postgres+pgbouncer consistency tests are not implemented")
+	return nil
 }
 
-func consistencyTest(datastore string) error {
+// Mysql Run consistency tests for mysql
+func (Testcons) Mysql() error {
+	return consistencyTest("mysql", emptyEnv)
+}
+
+func consistencyTest(datastore string, env map[string]string) error {
 	mg.Deps(checkDocker)
-	return goTest("./internal/services/integrationtesting/...",
+	return goDirTestWithEnv(".", "./internal/services/integrationtesting/...",
+		env,
 		"-tags", "ci,docker,datastoreconsistency",
 		"-timeout", "10m",
 		"-run", fmt.Sprintf("TestConsistencyPerDatastore/%s", datastore))
