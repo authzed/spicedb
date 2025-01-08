@@ -31,7 +31,6 @@ test DocumentCaveatedTest {
     post:one expiring_reader user:job with only_on_selected_day:{"selected_day": "wednesday"} and expiration:"2025-01-25"
   }
   assertions {
-    // TODO
     post:one is    view_as_fan for    user:beatrice when {"likes": true}  // Positive assertion
     post:one is not    view_as_fan for   user:beatrice when {"likes": false} // Negative assertion
     post:one is conditional    view_as_fan for   user:beatrice                  // Conditional assertion
