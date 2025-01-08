@@ -83,7 +83,7 @@ var keywords = map[string]struct{}{
 	"all":        {},
 	"any":        {},
 	// caveat syntax
-	"and": {},
+	"and":        {},
 	"expiration": {},
 	// Test keywords
 	"test":          {},
