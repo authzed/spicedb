@@ -35,11 +35,12 @@ const (
 )
 
 func (cr *crdbReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
-	query := cr.fromWithAsOfSystemTime(readCaveat.Where(sq.Eq{colCaveatName: name}), tableCaveat)
+	query := cr.addFromToQuery(readCaveat.Where(sq.Eq{colCaveatName: name}), tableCaveat)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, datastore.NoRevision, fmt.Errorf(errReadCaveat, name, err)
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 
 	var definitionBytes []byte
 	var timestamp time.Time
@@ -79,7 +80,7 @@ type bytesAndTimestamp struct {
 }
 
 func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) ([]datastore.RevisionedCaveat, error) {
-	caveatsWithNames := cr.fromWithAsOfSystemTime(listCaveat, tableCaveat)
+	caveatsWithNames := cr.addFromToQuery(listCaveat, tableCaveat)
 	if len(caveatNames) > 0 {
 		caveatsWithNames = caveatsWithNames.Where(sq.Eq{colCaveatName: caveatNames})
 	}
@@ -88,6 +89,7 @@ func (cr *crdbReader) lookupCaveats(ctx context.Context, caveatNames []string) (
 	if err != nil {
 		return nil, fmt.Errorf(errListCaveats, err)
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 
 	var allDefinitionBytes []bytesAndTimestamp
 

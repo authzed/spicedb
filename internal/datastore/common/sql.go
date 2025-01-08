@@ -666,6 +666,7 @@ func (exc QueryRelationshipsExecutor) ExecuteQuery(
 		Schema:           query.schema,
 		SkipCaveats:      queryOpts.SkipCaveats,
 		SkipExpiration:   queryOpts.SkipExpiration,
+		sqlAssertion:     queryOpts.SQLAssertion,
 		filteringValues:  query.filteringColumnTracker,
 		baseQueryBuilder: query,
 	}
@@ -682,6 +683,7 @@ type RelationshipsQueryBuilder struct {
 
 	filteringValues  columnTrackerMap
 	baseQueryBuilder SchemaQueryFilterer
+	sqlAssertion     options.Assertion
 }
 
 // withCaveats returns true if caveats should be included in the query.
@@ -745,7 +747,16 @@ func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
 	sqlBuilder := b.baseQueryBuilder.queryBuilderWithMaybeExpirationFilter(b.SkipExpiration)
 	sqlBuilder = sqlBuilder.Columns(columnNamesToSelect...)
 
-	return sqlBuilder.ToSql()
+	sql, args, err := sqlBuilder.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	if b.sqlAssertion != nil {
+		b.sqlAssertion(sql)
+	}
+
+	return sql, args, nil
 }
 
 // FilteringValuesForTesting returns the filtering values. For test use only.

@@ -40,9 +40,8 @@ type closeRows interface {
 }
 
 // QueryRelationships queries relationships for the given query and transaction.
-func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder RelationshipsQueryBuilder, span trace.Span, tx Querier[R]) (datastore.RelationshipIterator, error) {
-	defer span.End()
-
+func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R]) (datastore.RelationshipIterator, error) {
+	span := trace.SpanFromContext(ctx)
 	sqlString, args, err := builder.SelectSQL()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryRels, err)

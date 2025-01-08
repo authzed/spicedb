@@ -41,6 +41,8 @@ func ToRelationship(c Cursor) *tuple.Relationship {
 	return (*tuple.Relationship)(c)
 }
 
+type Assertion func(sql string)
+
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
 	Limit          *uint64   `debugmap:"visible"`
@@ -48,6 +50,7 @@ type QueryOptions struct {
 	After          Cursor    `debugmap:"visible"`
 	SkipCaveats    bool      `debugmap:"visible"`
 	SkipExpiration bool      `debugmap:"visible"`
+	SQLAssertion   Assertion `debugmap:"visible"`
 }
 
 // ReverseQueryOptions are the options that can affect the results of a reverse query.

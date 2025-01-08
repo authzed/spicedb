@@ -351,13 +351,16 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	executor := common.QueryRelationshipsExecutor{
 		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool),
 	}
-
-	withAsOfSystemTime := func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
-		return query.From(tableName + " AS OF SYSTEM TIME " + rev.String())
+	return &crdbReader{
+		schema:               cds.schema,
+		query:                cds.readPool,
+		executor:             executor,
+		keyer:                noOverlapKeyer,
+		overlapKeySet:        nil,
+		filterMaximumIDCount: cds.filterMaximumIDCount,
+		withIntegrity:        cds.supportsIntegrity,
+		atSpecificRevision:   rev.String(),
 	}
-
-	asOfSystemTimeSuffix := "AS OF SYSTEM TIME " + rev.String()
-	return &crdbReader{cds.readPool, executor, noOverlapKeyer, nil, withAsOfSystemTime, asOfSystemTimeSuffix, cds.filterMaximumIDCount, cds.schema, cds.supportsIntegrity}
 }
 
 func (cds *crdbDatastore) ReadWriteTx(
@@ -399,20 +402,19 @@ func (cds *crdbDatastore) ReadWriteTx(
 			return fmt.Errorf("error writing metadata: %w", err)
 		}
 
+		reader := &crdbReader{
+			schema:               cds.schema,
+			query:                querier,
+			executor:             executor,
+			keyer:                cds.writeOverlapKeyer,
+			overlapKeySet:        cds.overlapKeyInit(ctx),
+			filterMaximumIDCount: cds.filterMaximumIDCount,
+			withIntegrity:        cds.supportsIntegrity,
+			atSpecificRevision:   "", // No AS OF SYSTEM TIME for writes
+		}
+
 		rwt := &crdbReadWriteTXN{
-			&crdbReader{
-				querier,
-				executor,
-				cds.writeOverlapKeyer,
-				cds.overlapKeyInit(ctx),
-				func(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
-					return query.From(tableName)
-				},
-				"", // No AS OF SYSTEM TIME for writes
-				cds.filterMaximumIDCount,
-				cds.schema,
-				cds.supportsIntegrity,
-			},
+			reader,
 			tx,
 			0,
 		}

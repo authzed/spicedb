@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -16,6 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
 const (
@@ -38,15 +40,42 @@ var (
 )
 
 type crdbReader struct {
-	query                  pgxcommon.DBFuncQuerier
-	executor               common.QueryRelationshipsExecutor
-	keyer                  overlapKeyer
-	overlapKeySet          keySet
-	fromWithAsOfSystemTime func(query sq.SelectBuilder, tableName string) sq.SelectBuilder
-	asOfSystemTimeSuffix   string
-	filterMaximumIDCount   uint16
-	schema                 common.SchemaInformation
-	withIntegrity          bool
+	schema               common.SchemaInformation
+	query                pgxcommon.DBFuncQuerier
+	executor             common.QueryRelationshipsExecutor
+	keyer                overlapKeyer
+	overlapKeySet        keySet
+	filterMaximumIDCount uint16
+	withIntegrity        bool
+	atSpecificRevision   string
+}
+
+const asOfSystemTime = "AS OF SYSTEM TIME"
+
+func (cr *crdbReader) addFromToQuery(query sq.SelectBuilder, tableName string) sq.SelectBuilder {
+	if cr.atSpecificRevision == "" {
+		return query.From(tableName)
+	}
+
+	return query.From(tableName + " " + asOfSystemTime + " " + cr.atSpecificRevision)
+}
+
+func (cr *crdbReader) fromSuffix() string {
+	if cr.atSpecificRevision == "" {
+		return ""
+	}
+
+	return " " + asOfSystemTime + " " + cr.atSpecificRevision
+}
+
+func (cr *crdbReader) assertHasExpectedAsOfSystemTime(sql string) {
+	spiceerrors.DebugAssert(func() bool {
+		if cr.atSpecificRevision == "" {
+			return !strings.Contains(sql, "AS OF SYSTEM TIME")
+		} else {
+			return strings.Contains(sql, "AS OF SYSTEM TIME")
+		}
+	}, "mismatch in AS OF SYSTEM TIME in query: %s", sql)
 }
 
 func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int, error) {
@@ -64,7 +93,7 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 		return 0, err
 	}
 
-	query := cr.fromWithAsOfSystemTime(countRels, cr.schema.RelationshipTableName)
+	query := cr.addFromToQuery(countRels, cr.schema.RelationshipTableName)
 	builder, err := common.NewSchemaQueryFiltererWithStartingQuery(cr.schema, query, cr.filterMaximumIDCount).FilterWithRelationshipsFilter(relFilter)
 	if err != nil {
 		return 0, err
@@ -74,6 +103,7 @@ func (cr *crdbReader) CountRelationships(ctx context.Context, name string) (int,
 	if err != nil {
 		return 0, err
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 
 	var count int
 	err = cr.query.QueryRowFunc(ctx, func(ctx context.Context, row pgx.Row) error {
@@ -93,7 +123,7 @@ func (cr *crdbReader) LookupCounters(ctx context.Context) ([]datastore.Relations
 }
 
 func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName string) ([]datastore.RelationshipCounter, error) {
-	query := cr.fromWithAsOfSystemTime(queryCounters, tableRelationshipCounter)
+	query := cr.addFromToQuery(queryCounters, tableRelationshipCounter)
 	if optionalFilterName != noFilterOnCounterName {
 		query = query.Where(sq.Eq{colCounterName: optionalFilterName})
 	}
@@ -102,6 +132,7 @@ func (cr *crdbReader) lookupCounters(ctx context.Context, optionalFilterName str
 	if err != nil {
 		return nil, err
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 
 	var counters []datastore.RelationshipCounter
 	err = cr.query.QueryFunc(ctx, func(ctx context.Context, rows pgx.Rows) error {
@@ -165,10 +196,11 @@ func (cr *crdbReader) ReadNamespaceByName(
 }
 
 func (cr *crdbReader) ListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
-	nsDefs, err := loadAllNamespaces(ctx, cr.query, cr.fromWithAsOfSystemTime)
+	nsDefs, sql, err := loadAllNamespaces(ctx, cr.query, cr.addFromToQuery)
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToListNamespaces, err)
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 	return nsDefs, nil
 }
 
@@ -188,9 +220,13 @@ func (cr *crdbReader) QueryRelationships(
 	filter datastore.RelationshipsFilter,
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
-	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(cr.schema, cr.filterMaximumIDCount).WithFromSuffix(cr.asOfSystemTimeSuffix).FilterWithRelationshipsFilter(filter)
+	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(cr.schema, cr.filterMaximumIDCount).WithFromSuffix(cr.fromSuffix()).FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
+	}
+
+	if spiceerrors.DebugAssertionsEnabled {
+		opts = append(opts, options.WithSQLAssertion(cr.assertHasExpectedAsOfSystemTime))
 	}
 
 	return cr.executor.ExecuteQuery(ctx, qBuilder, opts...)
@@ -202,34 +238,43 @@ func (cr *crdbReader) ReverseQueryRelationships(
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(cr.schema, cr.filterMaximumIDCount).
-		WithFromSuffix(cr.asOfSystemTimeSuffix).
+		WithFromSuffix(cr.fromSuffix()).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
 		return nil, err
 	}
 
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
-
 	if queryOpts.ResRelation != nil {
 		qBuilder = qBuilder.
 			FilterToResourceType(queryOpts.ResRelation.Namespace).
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
+	eopts := []options.QueryOptionsOption{
+		options.WithLimit(queryOpts.LimitForReverse),
+		options.WithAfter(queryOpts.AfterForReverse),
+		options.WithSort(queryOpts.SortForReverse),
+	}
+
+	if spiceerrors.DebugAssertionsEnabled {
+		eopts = append(eopts, options.WithSQLAssertion(cr.assertHasExpectedAsOfSystemTime))
+	}
+
 	return cr.executor.ExecuteQuery(
 		ctx,
 		qBuilder,
-		options.WithLimit(queryOpts.LimitForReverse),
-		options.WithAfter(queryOpts.AfterForReverse),
-		options.WithSort(queryOpts.SortForReverse))
+		eopts...,
+	)
 }
 
 func (cr crdbReader) loadNamespace(ctx context.Context, tx pgxcommon.DBFuncQuerier, nsName string) (*core.NamespaceDefinition, time.Time, error) {
-	query := cr.fromWithAsOfSystemTime(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
+	query := cr.addFromToQuery(queryReadNamespace, tableNamespace).Where(sq.Eq{colNamespace: nsName})
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 
 	var config []byte
 	var timestamp time.Time
@@ -258,11 +303,12 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 		clause = append(clause, sq.Eq{colNamespace: nsName})
 	}
 
-	query := cr.fromWithAsOfSystemTime(queryReadNamespace, tableNamespace).Where(clause)
+	query := cr.addFromToQuery(queryReadNamespace, tableNamespace).Where(clause)
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, err
 	}
+	cr.assertHasExpectedAsOfSystemTime(sql)
 
 	var nsDefs []datastore.RevisionedNamespace
 
@@ -297,11 +343,11 @@ func (cr crdbReader) lookupNamespaces(ctx context.Context, tx pgxcommon.DBFuncQu
 	return nsDefs, nil
 }
 
-func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, error) {
+func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuilder func(sq.SelectBuilder, string) sq.SelectBuilder) ([]datastore.RevisionedNamespace, string, error) {
 	query := fromBuilder(queryReadNamespace, tableNamespace)
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return nil, err
+		return nil, sql, err
 	}
 
 	var nsDefs []datastore.RevisionedNamespace
@@ -331,10 +377,10 @@ func loadAllNamespaces(ctx context.Context, tx pgxcommon.DBFuncQuerier, fromBuil
 		return nil
 	}, sql, args...)
 	if err != nil {
-		return nil, err
+		return nil, sql, err
 	}
 
-	return nsDefs, nil
+	return nsDefs, sql, nil
 }
 
 func (cr *crdbReader) addOverlapKey(namespace string) {

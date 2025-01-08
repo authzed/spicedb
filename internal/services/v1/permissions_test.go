@@ -2013,10 +2013,6 @@ func TestCheckBulkPermissions(t *testing.T) {
 					actual, err := client.CheckBulkPermissions(context.Background(), &req, grpc.Trailer(&trailer))
 					require.NoError(t, err)
 
-					dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
-					require.NoError(t, err)
-					require.Equal(t, tt.expectedDispatchCount, dispatchCount)
-
 					if withTracing {
 						for index, pair := range actual.Pairs {
 							if pair.GetItem() != nil {

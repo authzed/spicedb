@@ -44,7 +44,7 @@ func (cds *crdbDatastore) Statistics(ctx context.Context) (datastore.Stats, erro
 		if err != nil {
 			return fmt.Errorf("unable to read namespaces: %w", err)
 		}
-		nsDefs, err = loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), func(sb squirrel.SelectBuilder, tableName string) squirrel.SelectBuilder {
+		nsDefs, _, err = loadAllNamespaces(ctx, pgxcommon.QuerierFuncsFor(tx), func(sb squirrel.SelectBuilder, tableName string) squirrel.SelectBuilder {
 			return sb.From(tableName)
 		})
 		if err != nil {

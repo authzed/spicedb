@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
@@ -446,8 +445,8 @@ func (aqt asQueryableTx) QueryFunc(ctx context.Context, f func(context.Context, 
 		return err
 	}
 
-	if rows.Err() != nil {
-		return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
 	return f(ctx, rows)
@@ -470,8 +469,7 @@ func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
 	// Prepared statements are also not used given they perform poorly on environments where connections have
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-		span := trace.SpanFromContext(ctx)
-		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, span, asQueryableTx{tx})
+		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, asQueryableTx{tx})
 	}
 }
 

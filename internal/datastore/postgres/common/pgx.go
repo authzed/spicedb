@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -24,8 +23,7 @@ import (
 // NewPGXQueryRelationshipsExecutor creates an executor that uses the pgx library to make the specified queries.
 func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier) common.ExecuteReadRelsQueryFunc {
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-		span := trace.SpanFromContext(ctx)
-		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, span, querier)
+		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, querier)
 	}
 }
 

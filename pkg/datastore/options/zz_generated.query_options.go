@@ -36,6 +36,7 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.After = q.After
 		to.SkipCaveats = q.SkipCaveats
 		to.SkipExpiration = q.SkipExpiration
+		to.SQLAssertion = q.SQLAssertion
 	}
 }
 
@@ -47,6 +48,7 @@ func (q QueryOptions) DebugMap() map[string]any {
 	debugMap["After"] = helpers.DebugValue(q.After, false)
 	debugMap["SkipCaveats"] = helpers.DebugValue(q.SkipCaveats, false)
 	debugMap["SkipExpiration"] = helpers.DebugValue(q.SkipExpiration, false)
+	debugMap["SQLAssertion"] = helpers.DebugValue(q.SQLAssertion, false)
 	return debugMap
 }
 
@@ -98,6 +100,13 @@ func WithSkipCaveats(skipCaveats bool) QueryOptionsOption {
 func WithSkipExpiration(skipExpiration bool) QueryOptionsOption {
 	return func(q *QueryOptions) {
 		q.SkipExpiration = skipExpiration
+	}
+}
+
+// WithSQLAssertion returns an option that can set SQLAssertion on a QueryOptions
+func WithSQLAssertion(sQLAssertion Assertion) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.SQLAssertion = sQLAssertion
 	}
 }
 
