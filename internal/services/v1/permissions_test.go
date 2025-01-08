@@ -308,6 +308,7 @@ func TestCheckPermissions(t *testing.T) {
 									require.Equal(tuple.V1StringObjectRef(tc.resource), tuple.V1StringObjectRef(debugInfo.Check.Resource))
 									require.Equal(tc.permission, debugInfo.Check.Permission)
 									require.Equal(tuple.V1StringSubjectRef(tc.subject), tuple.V1StringSubjectRef(debugInfo.Check.Subject))
+									require.NotEmpty(debugInfo.Check.Source, "source in debug trace is empty")
 								} else {
 									require.Nil(encodedDebugInfo)
 								}
@@ -2038,6 +2039,8 @@ func TestCheckBulkPermissions(t *testing.T) {
 								require.NotNil(t, pair.GetItem().DebugTrace, "missing debug trace in response for item %v", pair.GetItem())
 								require.True(t, pair.GetItem().DebugTrace.Check != nil, "missing check trace in response for item %v", pair.GetItem())
 								require.Equal(t, parsed.Resource.ObjectID, pair.GetItem().DebugTrace.Check.Resource.ObjectId, "resource in debug trace does not match")
+								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.TraceOperationId, "trace operation ID in debug trace is empty")
+								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.Source, "source in debug trace is empty")
 							}
 						}
 					} else {

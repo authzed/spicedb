@@ -202,12 +202,18 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		}
 
 		// NOTE: we return debug information here to ensure tooling can see the cycle.
+		nodeID, nerr := nodeid.FromContext(ctx)
+		if nerr != nil {
+			log.Err(nerr).Msg("failed to get nodeID from context")
+		}
+
 		return &v1.DispatchCheckResponse{
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: 0,
 				DebugInfo: &v1.DebugInformation{
 					Check: &v1.CheckDebugTrace{
-						Request: req,
+						Request:  req,
+						SourceId: nodeID,
 					},
 				},
 			},

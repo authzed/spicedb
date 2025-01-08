@@ -753,7 +753,7 @@ func checkIntersectionTupleToUserset(
 		}
 
 		resultsByDispatchedSubject[result.relationType].UnionWith(result.Resp.ResultsByResourceId)
-		combinedMetadata = combineResponseMetadata(combinedMetadata, result.Resp.Metadata)
+		combinedMetadata = combineResponseMetadata(ctx, combinedMetadata, result.Resp.Metadata)
 	}
 
 	// For each resource ID, check that there exist some sort of permission for *each* subject. If not, then the
@@ -884,11 +884,11 @@ func checkTupleToUserset[T relation](
 	), hintsToReturn)
 }
 
-func withDistinctMetadata(result CheckResult) CheckResult {
+func withDistinctMetadata(ctx context.Context, result CheckResult) CheckResult {
 	// NOTE: This is necessary to ensure unique debug information on the request and that debug
 	// information from the child metadata is *not* copied over.
 	clonedResp := result.Resp.CloneVT()
-	clonedResp.Metadata = combineResponseMetadata(emptyMetadata, clonedResp.Metadata)
+	clonedResp.Metadata = combineResponseMetadata(ctx, emptyMetadata, clonedResp.Metadata)
 	return CheckResult{
 		Resp: clonedResp,
 		Err:  result.Err,
@@ -944,7 +944,7 @@ func union[T any](
 	}
 
 	if len(children) == 1 {
-		return withDistinctMetadata(handler(ctx, crc, children[0]))
+		return withDistinctMetadata(ctx, handler(ctx, crc, children[0]))
 	}
 
 	resultChan := make(chan CheckResult, len(children))
@@ -959,7 +959,7 @@ func union[T any](
 		select {
 		case result := <-resultChan:
 			log.Ctx(ctx).Trace().Object("anyResult", result.Resp).Send()
-			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
@@ -991,7 +991,7 @@ func all[T any](
 	}
 
 	if len(children) == 1 {
-		return withDistinctMetadata(handler(ctx, crc, children[0]))
+		return withDistinctMetadata(ctx, handler(ctx, crc, children[0]))
 	}
 
 	responseMetadata := emptyMetadata
@@ -1010,7 +1010,7 @@ func all[T any](
 	for i := 0; i < len(children); i++ {
 		select {
 		case result := <-resultChan:
-			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return checkResultError(result.Err, responseMetadata)
 			}
@@ -1077,7 +1077,7 @@ func difference[T any](
 	// Wait for the base set to return.
 	select {
 	case base := <-baseChan:
-		responseMetadata = combineResponseMetadata(responseMetadata, base.Resp.Metadata)
+		responseMetadata = combineResponseMetadata(ctx, responseMetadata, base.Resp.Metadata)
 
 		if base.Err != nil {
 			return checkResultError(base.Err, responseMetadata)
@@ -1096,7 +1096,7 @@ func difference[T any](
 	for i := 1; i < len(children); i++ {
 		select {
 		case sub := <-othersChan:
-			responseMetadata = combineResponseMetadata(responseMetadata, sub.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, sub.Resp.Metadata)
 
 			if sub.Err != nil {
 				return checkResultError(sub.Err, responseMetadata)
@@ -1196,7 +1196,7 @@ func combineResultWithFoundResources(result CheckResult, foundResources *Members
 	}
 }
 
-func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
+func combineResponseMetadata(ctx context.Context, existing *v1.ResponseMeta, responseMetadata *v1.ResponseMeta) *v1.ResponseMeta {
 	combined := &v1.ResponseMeta{
 		DispatchCount:       existing.DispatchCount + responseMetadata.DispatchCount,
 		DepthRequired:       max(existing.DepthRequired, responseMetadata.DepthRequired),
@@ -1207,9 +1207,15 @@ func combineResponseMetadata(existing *v1.ResponseMeta, responseMetadata *v1.Res
 		return combined
 	}
 
+	nodeID, err := nodeid.FromContext(ctx)
+	if err != nil {
+		log.Err(err).Msg("failed to get nodeID from context")
+	}
+
 	debugInfo := &v1.DebugInformation{
 		Check: &v1.CheckDebugTrace{
-			TraceId: uuid.NewString(),
+			TraceId:  uuid.NewString(),
+			SourceId: nodeID,
 		},
 	}
 

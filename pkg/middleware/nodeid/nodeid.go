@@ -30,7 +30,9 @@ func ContextWithHandle(ctx context.Context) context.Context {
 func FromContext(ctx context.Context) (string, error) {
 	if c := ctx.Value(nodeIDKey); c != nil {
 		handle := c.(*nodeIDHandle)
-		return handle.nodeID, nil
+		if handle.nodeID != "" {
+			return handle.nodeID, nil
+		}
 	}
 
 	if defaultNodeID == "" {

@@ -345,7 +345,7 @@ func expandSetOperation(
 	for _, resultChan := range resultChans {
 		select {
 		case result := <-resultChan:
-			responseMetadata = combineResponseMetadata(responseMetadata, result.Resp.Metadata)
+			responseMetadata = combineResponseMetadata(ctx, responseMetadata, result.Resp.Metadata)
 			if result.Err != nil {
 				return expandResultError(result.Err, responseMetadata)
 			}
