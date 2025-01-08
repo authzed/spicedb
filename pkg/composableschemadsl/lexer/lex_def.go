@@ -82,6 +82,8 @@ var keywords = map[string]struct{}{
 	"import":     {},
 	"all":        {},
 	"any":        {},
+	// caveat syntax
+	"and": {},
 	// Test keywords
 	"test":          {},
 	"relationships": {},
@@ -89,6 +91,10 @@ var keywords = map[string]struct{}{
 	"expected":      {},
 	"is":            {},
 	"of":            {},
+	"not":           {},
+	"conditional":   {},
+	"when":          {},
+	"for":           {},
 }
 
 // IsKeyword returns whether the specified input string is a reserved keyword.

@@ -66,6 +66,19 @@ var lexerTests = []lexerTest{
 	{"keyword", "import", []Lexeme{{TokenTypeKeyword, 0, "import", ""}, tEOF}},
 	{"keyword", "all", []Lexeme{{TokenTypeKeyword, 0, "all", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
+	{"keyword", "and", []Lexeme{{TokenTypeKeyword, 0, "and", ""}, tEOF}},
+	// Test keywords
+	{"keyword", "test", []Lexeme{{TokenTypeKeyword, 0, "test", ""}, tEOF}},
+	{"keyword", "relationships", []Lexeme{{TokenTypeKeyword, 0, "relationships", ""}, tEOF}},
+	{"keyword", "assertions", []Lexeme{{TokenTypeKeyword, 0, "assertions", ""}, tEOF}},
+	{"keyword", "expected", []Lexeme{{TokenTypeKeyword, 0, "expected", ""}, tEOF}},
+	{"keyword", "is", []Lexeme{{TokenTypeKeyword, 0, "is", ""}, tEOF}},
+	{"keyword", "of", []Lexeme{{TokenTypeKeyword, 0, "of", ""}, tEOF}},
+	{"keyword", "not", []Lexeme{{TokenTypeKeyword, 0, "not", ""}, tEOF}},
+	{"keyword", "conditional", []Lexeme{{TokenTypeKeyword, 0, "conditional", ""}, tEOF}},
+	{"keyword", "when", []Lexeme{{TokenTypeKeyword, 0, "when", ""}, tEOF}},
+	{"keyword", "for", []Lexeme{{TokenTypeKeyword, 0, "for", ""}, tEOF}},
+
 	{"identifier", "define", []Lexeme{{TokenTypeIdentifier, 0, "define", ""}, tEOF}},
 	{"typepath", "foo/bar", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
