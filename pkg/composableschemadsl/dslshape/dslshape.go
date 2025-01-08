@@ -216,13 +216,14 @@ const (
 
 	NodeTestPredicateName = "test-name"
 
-	NodeTestPredicateSubject       = "subject"
-	NodeTestPredicateObject        = "object"
-	NodeTestPredicateRelation      = "relation"
-	NodeTestPredicatePermission    = "permission"
-	NodeTestPredicateAssertionType = "assertion-type"
-	NodeTestPredicateCaveatName    = "caveat-name"
-	NodeTestPredicateCaveatContext = "caveat-context"
+	NodeTestPredicateSubject        = "subject"
+	NodeTestPredicateObject         = "object"
+	NodeTestPredicateRelation       = "relation"
+	NodeTestPredicatePermission     = "permission"
+	NodeTestPredicateAssertionType  = "assertion-type"
+	NodeTestPredicateCaveatName     = "caveat-name"
+	NodeTestPredicateCaveatContext  = "caveat-context"
+	NodeTestPredicateExpirationTime = "expiration-time"
 
 	NodeTestObjectPredicateObjectType = "object-type"
 	NodeTestObjectPredicateObjectID   = "object-id"
