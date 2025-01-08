@@ -260,4 +260,6 @@ message CheckDebugTrace {
   bool is_cached_result = 4;
   repeated CheckDebugTrace sub_problems = 5;
   google.protobuf.Duration duration = 6;
+  string trace_id = 7;
+  string source_id = 8;
 }

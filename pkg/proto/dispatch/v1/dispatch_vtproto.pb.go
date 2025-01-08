@@ -659,6 +659,8 @@ func (m *CheckDebugTrace) CloneVT() *CheckDebugTrace {
 	r.ResourceRelationType = m.ResourceRelationType
 	r.IsCachedResult = m.IsCachedResult
 	r.Duration = (*durationpb.Duration)((*durationpb1.Duration)(m.Duration).CloneVT())
+	r.TraceId = m.TraceId
+	r.SourceId = m.SourceId
 	if rhs := m.Results; rhs != nil {
 		tmpContainer := make(map[string]*ResourceCheckResult, len(rhs))
 		for k, v := range rhs {
@@ -1583,6 +1585,12 @@ func (this *CheckDebugTrace) EqualVT(that *CheckDebugTrace) bool {
 		}
 	}
 	if !(*durationpb1.Duration)(this.Duration).EqualVT((*durationpb1.Duration)(that.Duration)) {
+		return false
+	}
+	if this.TraceId != that.TraceId {
+		return false
+	}
+	if this.SourceId != that.SourceId {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -3314,6 +3322,20 @@ func (m *CheckDebugTrace) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.SourceId) > 0 {
+		i -= len(m.SourceId)
+		copy(dAtA[i:], m.SourceId)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SourceId)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.TraceId) > 0 {
+		i -= len(m.TraceId)
+		copy(dAtA[i:], m.TraceId)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TraceId)))
+		i--
+		dAtA[i] = 0x3a
+	}
 	if m.Duration != nil {
 		size, err := (*durationpb1.Duration)(m.Duration).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -4105,6 +4127,14 @@ func (m *CheckDebugTrace) SizeVT() (n int) {
 	}
 	if m.Duration != nil {
 		l = (*durationpb1.Duration)(m.Duration).SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.TraceId)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.SourceId)
+	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -8474,6 +8504,70 @@ func (m *CheckDebugTrace) UnmarshalVT(dAtA []byte) error {
 			if err := (*durationpb1.Duration)(m.Duration).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TraceId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TraceId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SourceId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
