@@ -2,12 +2,11 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// addGCIndexForRelationTupleTransaction adds a missing index to relation_tuple_transaction table
+// indexForRelationTupleTransaction adds a missing index to relation_tuple_transaction table
 // to support garbage collection. This is in support of the query for selecting the most recent
 // transaction: `SELECT xid, snapshot FROM relation_tuple_transaction WHERE timestamp < $1 ORDER BY xid DESC LIMIT 1`
 //
@@ -21,17 +20,13 @@ import (
 // Planning Time: 0.098 ms
 // Execution Time: 5706.192 ms
 // (6 rows)
-const addGCIndexForRelationTupleTransaction = `CREATE INDEX CONCURRENTLY 
-	IF NOT EXISTS ix_relation_tuple_transaction_xid_desc_timestamp
-	ON relation_tuple_transaction (xid DESC, timestamp);`
+const indexForRelationTupleTransaction = `
+	relation_tuple_transaction (xid DESC, timestamp);`
 
 func init() {
-	if err := DatabaseMigrations.Register("add-index-for-transaction-gc", "add-expiration-support",
+	if err := DatabaseMigrations.Register("add-index-for-transaction-gc", "add-expiration-cleanup-index",
 		func(ctx context.Context, conn *pgx.Conn) error {
-			if _, err := conn.Exec(ctx, addGCIndexForRelationTupleTransaction); err != nil {
-				return fmt.Errorf("failed to add missing GC index: %w", err)
-			}
-			return nil
+			return createIndexConcurrently(ctx, conn, "ix_relation_tuple_transaction_xid_desc_timestamp", indexForRelationTupleTransaction)
 		},
 		noTxMigration); err != nil {
 		panic("failed to register migration: " + err.Error())
