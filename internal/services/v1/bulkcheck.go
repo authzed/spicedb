@@ -200,6 +200,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 							Results:  localResults,
 							Duration: durationpb.New(time.Duration(0)),
 							TraceId:  uuid.New().String(),
+							SourceId: debugInfo.Check.SourceId,
 						},
 					}
 

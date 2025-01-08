@@ -16,7 +16,9 @@ import (
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cache"
+	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -182,11 +184,17 @@ func (cd *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRe
 			cd.checkFromCacheCounter.Inc()
 			// If debugging is requested, add the req and the response to the trace.
 			if req.Debug == v1.DispatchCheckRequest_ENABLE_BASIC_DEBUGGING {
+				nodeID, err := nodeid.FromContext(ctx)
+				if err != nil {
+					log.Err(err).Msg("failed to get nodeID from context")
+				}
+
 				response.Metadata.DebugInfo = &v1.DebugInformation{
 					Check: &v1.CheckDebugTrace{
 						Request:        req,
 						Results:        maps.Clone(response.ResultsByResourceId),
 						IsCachedResult: true,
+						SourceId:       nodeID,
 					},
 				}
 			}
