@@ -794,7 +794,12 @@ func (p *sourceParser) consumeTestRelation() AstNode {
 	relationNode.Connect(dslshape.NodeTestPredicateSubject, subjectNode)
 
 	// optional caveat consumption
-	if p.tryConsumeKeyword("with") {
+	if !p.tryConsumeKeyword("with") {
+		// If we don't see the caveat marker, we stop parsing
+		return relationNode
+	}
+
+	if !p.isKeyword("expiration") {
 		caveatName, ok := p.consumeIdentifier()
 		if !ok {
 			return relationNode
@@ -802,15 +807,38 @@ func (p *sourceParser) consumeTestRelation() AstNode {
 		relationNode.MustDecorate(dslshape.NodeTestPredicateCaveatName, caveatName)
 
 		// optional caveat context
-		if p.isToken(lexer.TokenTypeLeftBrace) {
+		if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
 			caveatContextNode, ok := p.consumeOpaqueBraceExpression()
 			if !ok {
 				return relationNode
 			}
 			relationNode.Connect(dslshape.NodeTestPredicateCaveatContext, caveatContextNode)
 		}
+
+		// This looks a little funky, but it's to account for the fact that we can
+		// have a caveat or an expiration or both, and that we expect a particular order,
+		// and means that we don't have to write a loop here to account for the various
+		// possibilities.
+		if !p.tryConsumeKeyword("and") {
+			return relationNode
+		}
 	}
 
+	if p.isKeyword("expiration") {
+		// Don't have to error check here because we've already
+		// looked before we leapt
+		p.consumeKeyword("expiration")
+		if _, ok := p.consume(lexer.TokenTypeColon); !ok {
+			return relationNode
+		}
+
+		// Get the datetime string
+		dateString, ok := p.consume(lexer.TokenTypeString)
+		if !ok {
+			return relationNode
+		}
+		relationNode.MustDecorate(dslshape.NodeTestPredicateExpirationTime, dateString.Value)
+	}
 	return relationNode
 }
 
