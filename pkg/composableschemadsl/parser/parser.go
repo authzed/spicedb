@@ -879,10 +879,15 @@ func (p *sourceParser) consumeTestAssertion() AstNode {
 	}
 	assertionNode.Connect(dslshape.NodeTestPredicateObject, objectNode)
 
+	// is
+	if ok := p.consumeKeyword("is"); !ok {
+		return assertionNode
+	}
+
 	// assertion type
-	if _, ok := p.tryConsume(lexer.TokenTypeExclamationPoint); ok {
+	if ok := p.tryConsumeKeyword("not"); ok {
 		assertionNode.MustDecorate(dslshape.NodeTestPredicateAssertionType, "negative")
-} else if _, ok := p.tryConsume(lexer.TokenTypeQuestionMark); ok {
+	} else if ok := p.tryConsumeKeyword("conditional"); ok {
 		assertionNode.MustDecorate(dslshape.NodeTestPredicateAssertionType, "conditional")
 	} else {
 		// If no marker, it's a positive assertion
@@ -896,6 +901,11 @@ func (p *sourceParser) consumeTestAssertion() AstNode {
 	}
 	assertionNode.MustDecorate(dslshape.NodeTestPredicatePermission, permission)
 
+	// for
+	if ok := p.consumeKeyword("for"); !ok {
+		return assertionNode
+	}
+
 	// subject consumption
 	subjectNode, ok := p.consumeTestObject()
 	if !ok {
@@ -904,7 +914,7 @@ func (p *sourceParser) consumeTestAssertion() AstNode {
 	assertionNode.Connect(dslshape.NodeTestPredicateSubject, subjectNode)
 
 	// optional caveat context
-	if p.isToken(lexer.TokenTypeLeftBrace) {
+	if ok := p.tryConsumeKeyword("when"); ok {
 		caveatContextNode, ok := p.consumeOpaqueBraceExpression()
 		if !ok {
 			return assertionNode
