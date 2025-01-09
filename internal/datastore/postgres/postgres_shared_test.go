@@ -29,6 +29,7 @@ import (
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/test"
 	"github.com/authzed/spicedb/pkg/migrate"
 	"github.com/authzed/spicedb/pkg/namespace"
@@ -394,7 +395,7 @@ func SerializationErrorTest(t *testing.T, ds datastore.Datastore) {
 		}
 		rwt.(*pgReadWriteTXN).tx = txWithSerializationError{rwt.(*pgReadWriteTXN).tx}
 		return rwt.WriteRelationships(ctx, updates)
-	})
+	}, options.WithDisableRetries(true) /* ensures the error is returned immediately */)
 
 	require.Contains(err.Error(), "unable to write relationships due to a serialization error")
 }
