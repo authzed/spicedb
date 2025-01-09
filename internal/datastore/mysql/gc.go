@@ -33,8 +33,8 @@ func (mds *Datastore) LockForGCRun(ctx context.Context) (bool, error) {
 	return mds.tryAcquireLock(ctx, gcRunLock)
 }
 
-func (mds *Datastore) UnlockAfterGCRun(ctx context.Context) error {
-	return mds.releaseLock(ctx, gcRunLock)
+func (mds *Datastore) UnlockAfterGCRun() error {
+	return mds.releaseLock(context.Background(), gcRunLock)
 }
 
 func (mds *Datastore) Now(ctx context.Context) (time.Time, error) {
