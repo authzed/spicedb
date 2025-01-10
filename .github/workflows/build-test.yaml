@@ -186,6 +186,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        datastore: ["postgres"]
         pgversion: ["13.8", "14", "15", "16", "17"]
     steps:
       - uses: "actions/checkout@v4"
