@@ -20,12 +20,11 @@ type cachePrefix string
 // Define the various prefixes for the cache entries. These must *all* be unique and must *all*
 // also be placed into the cachePrefixes slice below.
 const (
-	checkViaRelationPrefix   cachePrefix = "cr"
-	checkViaCanonicalPrefix  cachePrefix = "cc"
-	lookupPrefix             cachePrefix = "l"
-	expandPrefix             cachePrefix = "e"
-	reachableResourcesPrefix cachePrefix = "rr"
-	lookupSubjectsPrefix     cachePrefix = "ls"
+	checkViaRelationPrefix  cachePrefix = "cr"
+	checkViaCanonicalPrefix cachePrefix = "cc"
+	lookupPrefix            cachePrefix = "l"
+	expandPrefix            cachePrefix = "e"
+	lookupSubjectsPrefix    cachePrefix = "ls"
 )
 
 var cachePrefixes = []cachePrefix{
@@ -33,7 +32,6 @@ var cachePrefixes = []cachePrefix{
 	checkViaCanonicalPrefix,
 	lookupPrefix,
 	expandPrefix,
-	reachableResourcesPrefix,
 	lookupSubjectsPrefix,
 }
 
@@ -70,28 +68,6 @@ func checkRequestToKeyWithCanonical(req *v1.DispatchCheckRequest, canonicalKey s
 func expandRequestToKey(req *v1.DispatchExpandRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
 	return dispatchCacheKeyHash(expandPrefix, req.Metadata.AtRevision, option,
 		hashableOnr{req.ResourceAndRelation},
-	)
-}
-
-// reachableResourcesRequestToKey converts a reachable resources request into a cache key
-func reachableResourcesRequestToKey(req *v1.DispatchReachableResourcesRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
-	return dispatchCacheKeyHash(reachableResourcesPrefix, req.Metadata.AtRevision, option,
-		hashableRelationReference{req.ResourceRelation},
-		hashableRelationReference{req.SubjectRelation},
-		hashableIds(req.SubjectIds),
-		hashableCursor{req.OptionalCursor},
-		hashableLimit(req.OptionalLimit),
-	)
-}
-
-// lookupResourcesRequestToKey converts a lookup request into a cache key
-func lookupResourcesRequestToKey(req *v1.DispatchLookupResourcesRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
-	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
-		hashableRelationReference{req.ObjectRelation},
-		hashableOnr{req.Subject},
-		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
-		hashableCursor{req.OptionalCursor},
-		hashableLimit(req.OptionalLimit),
 	)
 }
 

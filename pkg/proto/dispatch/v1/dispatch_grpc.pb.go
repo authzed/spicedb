@@ -19,12 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	DispatchService_DispatchCheck_FullMethodName              = "/dispatch.v1.DispatchService/DispatchCheck"
-	DispatchService_DispatchExpand_FullMethodName             = "/dispatch.v1.DispatchService/DispatchExpand"
-	DispatchService_DispatchReachableResources_FullMethodName = "/dispatch.v1.DispatchService/DispatchReachableResources"
-	DispatchService_DispatchLookupResources_FullMethodName    = "/dispatch.v1.DispatchService/DispatchLookupResources"
-	DispatchService_DispatchLookupSubjects_FullMethodName     = "/dispatch.v1.DispatchService/DispatchLookupSubjects"
-	DispatchService_DispatchLookupResources2_FullMethodName   = "/dispatch.v1.DispatchService/DispatchLookupResources2"
+	DispatchService_DispatchCheck_FullMethodName            = "/dispatch.v1.DispatchService/DispatchCheck"
+	DispatchService_DispatchExpand_FullMethodName           = "/dispatch.v1.DispatchService/DispatchExpand"
+	DispatchService_DispatchLookupSubjects_FullMethodName   = "/dispatch.v1.DispatchService/DispatchLookupSubjects"
+	DispatchService_DispatchLookupResources2_FullMethodName = "/dispatch.v1.DispatchService/DispatchLookupResources2"
 )
 
 // DispatchServiceClient is the client API for DispatchService service.
@@ -33,8 +31,6 @@ const (
 type DispatchServiceClient interface {
 	DispatchCheck(ctx context.Context, in *DispatchCheckRequest, opts ...grpc.CallOption) (*DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, in *DispatchExpandRequest, opts ...grpc.CallOption) (*DispatchExpandResponse, error)
-	DispatchReachableResources(ctx context.Context, in *DispatchReachableResourcesRequest, opts ...grpc.CallOption) (DispatchService_DispatchReachableResourcesClient, error)
-	DispatchLookupResources(ctx context.Context, in *DispatchLookupResourcesRequest, opts ...grpc.CallOption) (DispatchService_DispatchLookupResourcesClient, error)
 	DispatchLookupSubjects(ctx context.Context, in *DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (DispatchService_DispatchLookupSubjectsClient, error)
 	DispatchLookupResources2(ctx context.Context, in *DispatchLookupResources2Request, opts ...grpc.CallOption) (DispatchService_DispatchLookupResources2Client, error)
 }
@@ -65,72 +61,8 @@ func (c *dispatchServiceClient) DispatchExpand(ctx context.Context, in *Dispatch
 	return out, nil
 }
 
-func (c *dispatchServiceClient) DispatchReachableResources(ctx context.Context, in *DispatchReachableResourcesRequest, opts ...grpc.CallOption) (DispatchService_DispatchReachableResourcesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[0], DispatchService_DispatchReachableResources_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &dispatchServiceDispatchReachableResourcesClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type DispatchService_DispatchReachableResourcesClient interface {
-	Recv() (*DispatchReachableResourcesResponse, error)
-	grpc.ClientStream
-}
-
-type dispatchServiceDispatchReachableResourcesClient struct {
-	grpc.ClientStream
-}
-
-func (x *dispatchServiceDispatchReachableResourcesClient) Recv() (*DispatchReachableResourcesResponse, error) {
-	m := new(DispatchReachableResourcesResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *dispatchServiceClient) DispatchLookupResources(ctx context.Context, in *DispatchLookupResourcesRequest, opts ...grpc.CallOption) (DispatchService_DispatchLookupResourcesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[1], DispatchService_DispatchLookupResources_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &dispatchServiceDispatchLookupResourcesClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type DispatchService_DispatchLookupResourcesClient interface {
-	Recv() (*DispatchLookupResourcesResponse, error)
-	grpc.ClientStream
-}
-
-type dispatchServiceDispatchLookupResourcesClient struct {
-	grpc.ClientStream
-}
-
-func (x *dispatchServiceDispatchLookupResourcesClient) Recv() (*DispatchLookupResourcesResponse, error) {
-	m := new(DispatchLookupResourcesResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *dispatchServiceClient) DispatchLookupSubjects(ctx context.Context, in *DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (DispatchService_DispatchLookupSubjectsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[2], DispatchService_DispatchLookupSubjects_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[0], DispatchService_DispatchLookupSubjects_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +94,7 @@ func (x *dispatchServiceDispatchLookupSubjectsClient) Recv() (*DispatchLookupSub
 }
 
 func (c *dispatchServiceClient) DispatchLookupResources2(ctx context.Context, in *DispatchLookupResources2Request, opts ...grpc.CallOption) (DispatchService_DispatchLookupResources2Client, error) {
-	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[3], DispatchService_DispatchLookupResources2_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &DispatchService_ServiceDesc.Streams[1], DispatchService_DispatchLookupResources2_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +131,6 @@ func (x *dispatchServiceDispatchLookupResources2Client) Recv() (*DispatchLookupR
 type DispatchServiceServer interface {
 	DispatchCheck(context.Context, *DispatchCheckRequest) (*DispatchCheckResponse, error)
 	DispatchExpand(context.Context, *DispatchExpandRequest) (*DispatchExpandResponse, error)
-	DispatchReachableResources(*DispatchReachableResourcesRequest, DispatchService_DispatchReachableResourcesServer) error
-	DispatchLookupResources(*DispatchLookupResourcesRequest, DispatchService_DispatchLookupResourcesServer) error
 	DispatchLookupSubjects(*DispatchLookupSubjectsRequest, DispatchService_DispatchLookupSubjectsServer) error
 	DispatchLookupResources2(*DispatchLookupResources2Request, DispatchService_DispatchLookupResources2Server) error
 	mustEmbedUnimplementedDispatchServiceServer()
@@ -215,12 +145,6 @@ func (UnimplementedDispatchServiceServer) DispatchCheck(context.Context, *Dispat
 }
 func (UnimplementedDispatchServiceServer) DispatchExpand(context.Context, *DispatchExpandRequest) (*DispatchExpandResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DispatchExpand not implemented")
-}
-func (UnimplementedDispatchServiceServer) DispatchReachableResources(*DispatchReachableResourcesRequest, DispatchService_DispatchReachableResourcesServer) error {
-	return status.Errorf(codes.Unimplemented, "method DispatchReachableResources not implemented")
-}
-func (UnimplementedDispatchServiceServer) DispatchLookupResources(*DispatchLookupResourcesRequest, DispatchService_DispatchLookupResourcesServer) error {
-	return status.Errorf(codes.Unimplemented, "method DispatchLookupResources not implemented")
 }
 func (UnimplementedDispatchServiceServer) DispatchLookupSubjects(*DispatchLookupSubjectsRequest, DispatchService_DispatchLookupSubjectsServer) error {
 	return status.Errorf(codes.Unimplemented, "method DispatchLookupSubjects not implemented")
@@ -275,48 +199,6 @@ func _DispatchService_DispatchExpand_Handler(srv interface{}, ctx context.Contex
 		return srv.(DispatchServiceServer).DispatchExpand(ctx, req.(*DispatchExpandRequest))
 	}
 	return interceptor(ctx, in, info, handler)
-}
-
-func _DispatchService_DispatchReachableResources_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(DispatchReachableResourcesRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(DispatchServiceServer).DispatchReachableResources(m, &dispatchServiceDispatchReachableResourcesServer{stream})
-}
-
-type DispatchService_DispatchReachableResourcesServer interface {
-	Send(*DispatchReachableResourcesResponse) error
-	grpc.ServerStream
-}
-
-type dispatchServiceDispatchReachableResourcesServer struct {
-	grpc.ServerStream
-}
-
-func (x *dispatchServiceDispatchReachableResourcesServer) Send(m *DispatchReachableResourcesResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _DispatchService_DispatchLookupResources_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(DispatchLookupResourcesRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(DispatchServiceServer).DispatchLookupResources(m, &dispatchServiceDispatchLookupResourcesServer{stream})
-}
-
-type DispatchService_DispatchLookupResourcesServer interface {
-	Send(*DispatchLookupResourcesResponse) error
-	grpc.ServerStream
-}
-
-type dispatchServiceDispatchLookupResourcesServer struct {
-	grpc.ServerStream
-}
-
-func (x *dispatchServiceDispatchLookupResourcesServer) Send(m *DispatchLookupResourcesResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _DispatchService_DispatchLookupSubjects_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -378,16 +260,6 @@ var DispatchService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "DispatchReachableResources",
-			Handler:       _DispatchService_DispatchReachableResources_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "DispatchLookupResources",
-			Handler:       _DispatchService_DispatchLookupResources_Handler,
-			ServerStreams: true,
-		},
 		{
 			StreamName:    "DispatchLookupSubjects",
 			Handler:       _DispatchService_DispatchLookupSubjects_Handler,

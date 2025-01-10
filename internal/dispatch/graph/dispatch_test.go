@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const veryLargeLimit = 1000000000
+
 func TestDispatchChunking(t *testing.T) {
 	t.Parallel()
 	schema := `
@@ -55,14 +57,16 @@ func TestDispatchChunking(t *testing.T) {
 		}
 	})
 
-	t.Run("lookup-resources", func(t *testing.T) {
+	t.Run("lookup-resources2", func(t *testing.T) {
 		t.Parallel()
 
 		for _, tpl := range resources[:1] {
-			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResourcesResponse](ctx)
-			err := dispatcher.DispatchLookupResources(&v1.DispatchLookupResourcesRequest{
-				ObjectRelation: RR(tpl.Resource.ObjectType, "view").ToCoreRR(),
-				Subject:        tuple.CoreONR(tpl.Subject.ObjectType, tpl.Subject.ObjectID, graph.Ellipsis),
+			stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](ctx)
+			err := dispatcher.DispatchLookupResources2(&v1.DispatchLookupResources2Request{
+				ResourceRelation: RR(tpl.Resource.ObjectType, "view").ToCoreRR(),
+				SubjectRelation:  RR(tpl.Subject.ObjectType, graph.Ellipsis).ToCoreRR(),
+				SubjectIds:       []string{tpl.Subject.ObjectID},
+				TerminalSubject:  tuple.CoreONR(tpl.Subject.ObjectType, tpl.Subject.ObjectID, graph.Ellipsis),
 				Metadata: &v1.ResolverMeta{
 					AtRevision:     revision.String(),
 					DepthRemaining: 50,

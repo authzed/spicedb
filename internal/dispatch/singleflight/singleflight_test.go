@@ -365,14 +365,6 @@ func (m mockDispatcher) DispatchExpand(_ context.Context, _ *v1.DispatchExpandRe
 	return &v1.DispatchExpandResponse{}, nil
 }
 
-func (m mockDispatcher) DispatchReachableResources(_ *v1.DispatchReachableResourcesRequest, _ dispatch.ReachableResourcesStream) error {
-	return nil
-}
-
-func (m mockDispatcher) DispatchLookupResources(_ *v1.DispatchLookupResourcesRequest, _ dispatch.LookupResourcesStream) error {
-	return nil
-}
-
 func (m mockDispatcher) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ dispatch.LookupResources2Stream) error {
 	return nil
 }

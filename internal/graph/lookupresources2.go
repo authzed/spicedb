@@ -23,6 +23,11 @@ import (
 	"github.com/authzed/spicedb/pkg/typesystem"
 )
 
+// dispatchVersion defines the "version" of this dispatcher. Must be incremented
+// anytime an incompatible change is made to the dispatcher itself or its cursor
+// production.
+const dispatchVersion = 1
+
 func NewCursoredLookupResources2(dl dispatch.LookupResources2, dc dispatch.Check, concurrencyLimit uint16, dispatchChunkSize uint16) *CursoredLookupResources2 {
 	return &CursoredLookupResources2{dl, dc, concurrencyLimit, dispatchChunkSize}
 }

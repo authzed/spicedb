@@ -97,8 +97,6 @@ func NewLocalOnlyDispatcherWithLimits(concurrencyLimits ConcurrencyLimits, dispa
 
 	d.checker = graph.NewConcurrentChecker(d, concurrencyLimits.Check, chunkSize)
 	d.expander = graph.NewConcurrentExpander(d)
-	d.reachableResourcesHandler = graph.NewCursoredReachableResources(d, concurrencyLimits.ReachableResources, chunkSize)
-	d.lookupResourcesHandler = graph.NewCursoredLookupResources(d, d, concurrencyLimits.LookupResources, chunkSize)
 	d.lookupSubjectsHandler = graph.NewConcurrentLookupSubjects(d, concurrencyLimits.LookupSubjects, chunkSize)
 	d.lookupResourcesHandler2 = graph.NewCursoredLookupResources2(d, d, concurrencyLimits.LookupResources, chunkSize)
 
@@ -117,28 +115,22 @@ func NewDispatcher(redispatcher dispatch.Dispatcher, concurrencyLimits Concurren
 
 	checker := graph.NewConcurrentChecker(redispatcher, concurrencyLimits.Check, chunkSize)
 	expander := graph.NewConcurrentExpander(redispatcher)
-	reachableResourcesHandler := graph.NewCursoredReachableResources(redispatcher, concurrencyLimits.ReachableResources, chunkSize)
-	lookupResourcesHandler := graph.NewCursoredLookupResources(redispatcher, redispatcher, concurrencyLimits.LookupResources, chunkSize)
 	lookupSubjectsHandler := graph.NewConcurrentLookupSubjects(redispatcher, concurrencyLimits.LookupSubjects, chunkSize)
 	lookupResourcesHandler2 := graph.NewCursoredLookupResources2(redispatcher, redispatcher, concurrencyLimits.LookupResources, chunkSize)
 
 	return &localDispatcher{
-		checker:                   checker,
-		expander:                  expander,
-		reachableResourcesHandler: reachableResourcesHandler,
-		lookupResourcesHandler:    lookupResourcesHandler,
-		lookupSubjectsHandler:     lookupSubjectsHandler,
-		lookupResourcesHandler2:   lookupResourcesHandler2,
+		checker:                 checker,
+		expander:                expander,
+		lookupSubjectsHandler:   lookupSubjectsHandler,
+		lookupResourcesHandler2: lookupResourcesHandler2,
 	}
 }
 
 type localDispatcher struct {
-	checker                   *graph.ConcurrentChecker
-	expander                  *graph.ConcurrentExpander
-	reachableResourcesHandler *graph.CursoredReachableResources
-	lookupResourcesHandler    *graph.CursoredLookupResources
-	lookupSubjectsHandler     *graph.ConcurrentLookupSubjects
-	lookupResourcesHandler2   *graph.CursoredLookupResources2
+	checker                 *graph.ConcurrentChecker
+	expander                *graph.ConcurrentExpander
+	lookupSubjectsHandler   *graph.ConcurrentLookupSubjects
+	lookupResourcesHandler2 *graph.CursoredLookupResources2
 }
 
 func (ld *localDispatcher) loadNamespace(ctx context.Context, nsName string, revision datastore.Revision) (*core.NamespaceDefinition, error) {
@@ -309,80 +301,6 @@ func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchE
 		DispatchExpandRequest: req,
 		Revision:              revision,
 	}, relation)
-}
-
-// DispatchReachableResources implements dispatch.ReachableResources interface
-func (ld *localDispatcher) DispatchReachableResources(
-	req *v1.DispatchReachableResourcesRequest,
-	stream dispatch.ReachableResourcesStream,
-) error {
-	nodeID, err := nodeid.FromContext(stream.Context())
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
-
-	resourceType := tuple.StringCoreRR(req.ResourceRelation)
-	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
-	spanName := "DispatchReachableResources → " + resourceType + "@" + subjectRelation
-	ctx, span := tracer.Start(stream.Context(), spanName, trace.WithAttributes(
-		attribute.String("resource-type", resourceType),
-		attribute.String("subject-type", subjectRelation),
-		attribute.StringSlice("subject-ids", req.SubjectIds),
-		attribute.String("node-id", nodeID),
-	))
-	defer span.End()
-
-	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		return err
-	}
-
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
-	if err != nil {
-		return err
-	}
-
-	return ld.reachableResourcesHandler.ReachableResources(
-		graph.ValidatedReachableResourcesRequest{
-			DispatchReachableResourcesRequest: req,
-			Revision:                          revision,
-		},
-		dispatch.StreamWithContext(ctx, stream),
-	)
-}
-
-// DispatchLookupResources implements dispatch.LookupResources interface
-func (ld *localDispatcher) DispatchLookupResources(
-	req *v1.DispatchLookupResourcesRequest,
-	stream dispatch.LookupResourcesStream,
-) error {
-	nodeID, err := nodeid.FromContext(stream.Context())
-	if err != nil {
-		log.Err(err).Msg("failed to get node ID")
-	}
-
-	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources", trace.WithAttributes(
-		attribute.String("resource-type", tuple.StringCoreRR(req.ObjectRelation)),
-		attribute.String("subject", tuple.StringCoreONR(req.Subject)),
-		attribute.String("node-id", nodeID),
-	))
-	defer span.End()
-
-	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		return err
-	}
-
-	revision, err := ld.parseRevision(ctx, req.Metadata.AtRevision)
-	if err != nil {
-		return err
-	}
-
-	return ld.lookupResourcesHandler.LookupResources(
-		graph.ValidatedLookupResourcesRequest{
-			DispatchLookupResourcesRequest: req,
-			Revision:                       revision,
-		},
-		dispatch.StreamWithContext(ctx, stream),
-	)
 }
 
 func (ld *localDispatcher) DispatchLookupResources2(

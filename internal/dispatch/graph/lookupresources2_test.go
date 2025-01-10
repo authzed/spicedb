@@ -1428,3 +1428,78 @@ func possibleRes(resourceID string) *v1.PossibleResource {
 		ResourceId: resourceID,
 	}
 }
+
+func joinTuples(first []tuple.Relationship, others ...[]tuple.Relationship) []tuple.Relationship {
+	current := first
+	for _, second := range others {
+		current = append(current, second...)
+	}
+	return current
+}
+
+func genRelsWithOffset(resourceName string, relation string, subjectName string, subjectID string, offset int, number int) []tuple.Relationship {
+	return genRelsWithCaveat(resourceName, relation, subjectName, subjectID, "", nil, offset, number)
+}
+
+func genRels(resourceName string, relation string, subjectName string, subjectID string, number int) []tuple.Relationship {
+	return genRelsWithOffset(resourceName, relation, subjectName, subjectID, 0, number)
+}
+
+func genSubjectRels(resourceName string, relation string, subjectName string, subjectRelation string, number int) []tuple.Relationship {
+	rels := make([]tuple.Relationship, 0, number)
+	for i := 0; i < number; i++ {
+		rel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i), relation),
+				Subject:  ONR(subjectName, fmt.Sprintf("%s-%d", subjectName, i), subjectRelation),
+			},
+		}
+		rels = append(rels, rel)
+	}
+
+	return rels
+}
+
+func genRelsWithCaveat(resourceName string, relation string, subjectName string, subjectID string, caveatName string, context map[string]any, offset int, number int) []tuple.Relationship {
+	return genRelsWithCaveatAndSubjectRelation(resourceName, relation, subjectName, subjectID, "...", caveatName, context, offset, number)
+}
+
+func genRelsWithCaveatAndSubjectRelation(resourceName string, relation string, subjectName string, subjectID string, subjectRelation string, caveatName string, context map[string]any, offset int, number int) []tuple.Relationship {
+	rels := make([]tuple.Relationship, 0, number)
+	for i := 0; i < number; i++ {
+		rel := tuple.Relationship{
+			RelationshipReference: tuple.RelationshipReference{
+				Resource: ONR(resourceName, fmt.Sprintf("%s-%d", resourceName, i+offset), relation),
+				Subject:  ONR(subjectName, subjectID, subjectRelation),
+			},
+		}
+
+		if caveatName != "" {
+			rel = tuple.MustWithCaveat(rel, caveatName, context)
+		}
+		rels = append(rels, rel)
+	}
+	return rels
+}
+
+func genResourceIds(resourceName string, number int) []string {
+	resourceIDs := make([]string, 0, number)
+	for i := 0; i < number; i++ {
+		resourceIDs = append(resourceIDs, fmt.Sprintf("%s-%d", resourceName, i))
+	}
+	return resourceIDs
+}
+
+func processResults(stream *dispatch.CollectingDispatchStream[*v1.DispatchLookupResources2Response]) ([]*v1.PossibleResource, uint32, uint32, uint32) {
+	foundResources := []*v1.PossibleResource{}
+	var maxDepthRequired uint32
+	var maxDispatchCount uint32
+	var maxCachedDispatchCount uint32
+	for _, result := range stream.Results() {
+		foundResources = append(foundResources, result.Resource)
+		maxDepthRequired = max(maxDepthRequired, result.Metadata.DepthRequired)
+		maxDispatchCount = max(maxDispatchCount, result.Metadata.DispatchCount)
+		maxCachedDispatchCount = max(maxCachedDispatchCount, result.Metadata.CachedDispatchCount)
+	}
+	return foundResources, maxDepthRequired, maxDispatchCount, maxCachedDispatchCount
+}

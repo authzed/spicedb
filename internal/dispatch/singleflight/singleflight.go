@@ -135,14 +135,6 @@ func (d *Dispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandR
 	return v, err
 }
 
-func (d *Dispatcher) DispatchReachableResources(req *v1.DispatchReachableResourcesRequest, stream dispatch.ReachableResourcesStream) error {
-	return d.delegate.DispatchReachableResources(req, stream)
-}
-
-func (d *Dispatcher) DispatchLookupResources(req *v1.DispatchLookupResourcesRequest, stream dispatch.LookupResourcesStream) error {
-	return d.delegate.DispatchLookupResources(req, stream)
-}
-
 func (d *Dispatcher) DispatchLookupResources2(req *v1.DispatchLookupResources2Request, stream dispatch.LookupResources2Stream) error {
 	return d.delegate.DispatchLookupResources2(req, stream)
 }
