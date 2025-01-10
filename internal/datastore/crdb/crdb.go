@@ -210,6 +210,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		CommonDecoder:           revisions.CommonDecoder{Kind: revisions.HybridLogicalClock},
 		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		dburl:                   url,
+		version:                 version,
 		watchBufferLength:       config.watchBufferLength,
 		watchBufferWriteTimeout: config.watchBufferWriteTimeout,
 		watchConnectTimeout:     config.watchConnectTimeout,
@@ -297,6 +298,7 @@ type crdbDatastore struct {
 	*common.MigrationValidator
 
 	dburl                   string
+	version                 crdbVersion
 	readPool, writePool     *pool.RetryPool
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
@@ -558,6 +560,13 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 	defer cancel()
 	time.AfterFunc(1*time.Second, cancel)
 
+	var query string
+	if cds.version.Major >= 22 {
+		query = fmt.Sprintf(cds.beginChangefeedQuery, cds.tableTupleName(), head, "1s", "1s")
+	} else {
+		query = fmt.Sprintf(cds.beginChangefeedQuery, cds.tableTupleName(), head, "1s")
+	}
+
 	_ = cds.writePool.ExecFunc(streamCtx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
 		if err != nil && errors.Is(err, context.Canceled) {
 			features.Watch.Status = datastore.FeatureSupported
@@ -567,7 +576,7 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
 		}
 		return nil
-	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.tableTupleName(), head, "1s"))
+	}, query)
 
 	<-streamCtx.Done()
 
