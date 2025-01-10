@@ -177,7 +177,7 @@ type spicedbHandle struct {
 	cleanup          func()
 }
 
-const retryCount = 5
+const retryCount = 8
 
 func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string, withExistingSchema bool) (*spicedbHandle, error) {
 	for i := 0; i < retryCount; i++ {
@@ -186,7 +186,7 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			return nil, fmt.Errorf("could not connect to docker: %w", err)
 		}
 
-		pool.MaxWait = 30 * time.Second
+		pool.MaxWait = 60 * time.Second
 
 		resource, err := pool.RunWithOptions(containerOpts)
 		if err != nil {
