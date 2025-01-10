@@ -508,7 +508,6 @@ func TestReadBulkRelationships(t *testing.T) {
 
 			for _, delta := range testTimedeltas {
 				delta := delta
-				
 
 				t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
 					for _, tc := range testCases {
@@ -531,7 +530,7 @@ func TestReadBulkRelationships(t *testing.T) {
 								return
 							}
 
-							require.NoError(err)							
+							require.NoError(err)
 							require.NotNil(resp)
 							require.Equal(len(tc.expected), len(resp.Pairs))
 
