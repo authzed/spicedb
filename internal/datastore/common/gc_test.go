@@ -23,6 +23,8 @@ type fakeGC struct {
 	deleter      gcDeleter
 	metrics      gcMetrics
 	lock         sync.RWMutex
+	wasLocked    bool
+	wasUnlocked  bool
 }
 
 type gcMetrics struct {
@@ -39,11 +41,19 @@ func newFakeGC(deleter gcDeleter) fakeGC {
 	}
 }
 
-func (*fakeGC) LockForGCRun(ctx context.Context) (bool, error) {
+func (gc *fakeGC) LockForGCRun(ctx context.Context) (bool, error) {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	gc.wasLocked = true
 	return true, nil
 }
 
-func (*fakeGC) UnlockAfterGCRun(ctx context.Context) error {
+func (gc *fakeGC) UnlockAfterGCRun() error {
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	gc.wasUnlocked = true
 	return nil
 }
 
@@ -226,4 +236,28 @@ func TestGCFailureBackoffReset(t *testing.T) {
 	// If it is not reset, the last exponential backoff interval will not give
 	// the GC enough time to run.
 	require.Greater(t, gc.GetMetrics().markedCompleteCount, 20, "Next interval was not reset with backoff")
+}
+
+func TestGCUnlockOnTimeout(t *testing.T) {
+	gc := newFakeGC(alwaysErrorDeleter{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		interval := 10 * time.Millisecond
+		window := 10 * time.Second
+		timeout := 1 * time.Millisecond
+
+		require.Error(t, StartGarbageCollector(ctx, &gc, interval, window, timeout))
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	require.False(t, gc.HasGCRun(), "GC should not have run")
+
+	gc.lock.Lock()
+	defer gc.lock.Unlock()
+
+	require.True(t, gc.wasLocked, "GC should have been locked")
+	require.True(t, gc.wasUnlocked, "GC should have been unlocked")
 }

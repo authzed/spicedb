@@ -908,7 +908,7 @@ func TestComputeBulkCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, _, err := computed.ComputeBulkCheck(ctx, dispatch,
+	resp, _, _, err := computed.ComputeBulkCheck(ctx, dispatch,
 		computed.CheckParameters{
 			ResourceType:  tuple.RR("document", "view"),
 			Subject:       tuple.ONR("user", "tom", "..."),

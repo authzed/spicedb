@@ -17,6 +17,7 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	datastoremw "github.com/authzed/spicedb/internal/middleware/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -177,10 +178,17 @@ func (ld *localDispatcher) lookupRelation(_ context.Context, ns *core.NamespaceD
 func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
 	resourceType := tuple.StringCoreRR(req.ResourceRelation)
 	spanName := "DispatchCheck → " + resourceType + "@" + req.Subject.Namespace + "#" + req.Subject.Relation
+
+	nodeID, err := nodeid.FromContext(ctx)
+	if err != nil {
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	ctx, span := tracer.Start(ctx, spanName, trace.WithAttributes(
 		attribute.String("resource-type", resourceType),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
 		attribute.String("subject", tuple.StringCoreONR(req.Subject)),
+		attribute.String("node-id", nodeID),
 	))
 	defer span.End()
 
@@ -194,12 +202,18 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 		}
 
 		// NOTE: we return debug information here to ensure tooling can see the cycle.
+		nodeID, nerr := nodeid.FromContext(ctx)
+		if nerr != nil {
+			log.Err(nerr).Msg("failed to get nodeID from context")
+		}
+
 		return &v1.DispatchCheckResponse{
 			Metadata: &v1.ResponseMeta{
 				DispatchCount: 0,
 				DebugInfo: &v1.DebugInformation{
 					Check: &v1.CheckDebugTrace{
-						Request: req,
+						Request:  req,
+						SourceId: nodeID,
 					},
 				},
 			},
@@ -261,8 +275,14 @@ func (ld *localDispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCh
 
 // DispatchExpand implements dispatch.Expand interface
 func (ld *localDispatcher) DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest) (*v1.DispatchExpandResponse, error) {
+	nodeID, err := nodeid.FromContext(ctx)
+	if err != nil {
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	ctx, span := tracer.Start(ctx, "DispatchExpand", trace.WithAttributes(
 		attribute.String("start", tuple.StringCoreONR(req.ResourceAndRelation)),
+		attribute.String("node-id", nodeID),
 	))
 	defer span.End()
 
@@ -296,6 +316,11 @@ func (ld *localDispatcher) DispatchReachableResources(
 	req *v1.DispatchReachableResourcesRequest,
 	stream dispatch.ReachableResourcesStream,
 ) error {
+	nodeID, err := nodeid.FromContext(stream.Context())
+	if err != nil {
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	resourceType := tuple.StringCoreRR(req.ResourceRelation)
 	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
 	spanName := "DispatchReachableResources → " + resourceType + "@" + subjectRelation
@@ -303,6 +328,7 @@ func (ld *localDispatcher) DispatchReachableResources(
 		attribute.String("resource-type", resourceType),
 		attribute.String("subject-type", subjectRelation),
 		attribute.StringSlice("subject-ids", req.SubjectIds),
+		attribute.String("node-id", nodeID),
 	))
 	defer span.End()
 
@@ -329,9 +355,15 @@ func (ld *localDispatcher) DispatchLookupResources(
 	req *v1.DispatchLookupResourcesRequest,
 	stream dispatch.LookupResourcesStream,
 ) error {
+	nodeID, err := nodeid.FromContext(stream.Context())
+	if err != nil {
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources", trace.WithAttributes(
 		attribute.String("resource-type", tuple.StringCoreRR(req.ObjectRelation)),
 		attribute.String("subject", tuple.StringCoreONR(req.Subject)),
+		attribute.String("node-id", nodeID),
 	))
 	defer span.End()
 
@@ -357,11 +389,17 @@ func (ld *localDispatcher) DispatchLookupResources2(
 	req *v1.DispatchLookupResources2Request,
 	stream dispatch.LookupResources2Stream,
 ) error {
+	nodeID, err := nodeid.FromContext(stream.Context())
+	if err != nil {
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	ctx, span := tracer.Start(stream.Context(), "DispatchLookupResources2", trace.WithAttributes(
 		attribute.String("resource-type", tuple.StringCoreRR(req.ResourceRelation)),
 		attribute.String("subject-type", tuple.StringCoreRR(req.SubjectRelation)),
 		attribute.StringSlice("subject-ids", req.SubjectIds),
 		attribute.String("terminal-subject", tuple.StringCoreONR(req.TerminalSubject)),
+		attribute.String("node-id", nodeID),
 	))
 	defer span.End()
 
@@ -388,6 +426,11 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 	req *v1.DispatchLookupSubjectsRequest,
 	stream dispatch.LookupSubjectsStream,
 ) error {
+	nodeID, err := nodeid.FromContext(stream.Context())
+	if err != nil {
+		log.Err(err).Msg("failed to get node ID")
+	}
+
 	resourceType := tuple.StringCoreRR(req.ResourceRelation)
 	subjectRelation := tuple.StringCoreRR(req.SubjectRelation)
 	spanName := "DispatchLookupSubjects → " + resourceType + "@" + subjectRelation
@@ -396,6 +439,7 @@ func (ld *localDispatcher) DispatchLookupSubjects(
 		attribute.String("resource-type", resourceType),
 		attribute.String("subject-type", subjectRelation),
 		attribute.StringSlice("resource-ids", req.ResourceIds),
+		attribute.String("node-id", nodeID),
 	))
 	defer span.End()
 

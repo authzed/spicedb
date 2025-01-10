@@ -25,8 +25,8 @@ func (pgd *pgDatastore) LockForGCRun(ctx context.Context) (bool, error) {
 	return pgd.tryAcquireLock(ctx, gcRunLock)
 }
 
-func (pgd *pgDatastore) UnlockAfterGCRun(ctx context.Context) error {
-	return pgd.releaseLock(ctx, gcRunLock)
+func (pgd *pgDatastore) UnlockAfterGCRun() error {
+	return pgd.releaseLock(context.Background(), gcRunLock)
 }
 
 func (pgd *pgDatastore) HasGCRun() bool {

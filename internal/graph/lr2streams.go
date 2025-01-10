@@ -128,7 +128,7 @@ func (rdc *checkAndDispatchRunner) runChecker(ctx context.Context, startingIndex
 
 	// NOTE: we are checking the containing permission here, *not* the target relation, as
 	// the goal is to shear for the containing permission.
-	resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
+	resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, rdc.checkDispatcher, computed.CheckParameters{
 		ResourceType:  tuple.FromCoreRelationReference(rdc.newSubjectType),
 		Subject:       tuple.FromCoreObjectAndRelation(rdc.parentRequest.TerminalSubject),
 		CaveatContext: rdc.parentRequest.Context.AsMap(),
@@ -223,7 +223,7 @@ func (rdc *checkAndDispatchRunner) runDispatch(
 			return err
 		}
 
-		if err := publishResultToParentStream(result, rdc.ci, responsePartialCursor, adjustedResources, nil, isFirstPublishCall, checkMetadata, rdc.parentStream); err != nil {
+		if err := publishResultToParentStream(ctx, result, rdc.ci, responsePartialCursor, adjustedResources, nil, isFirstPublishCall, checkMetadata, rdc.parentStream); err != nil {
 			return err
 		}
 		isFirstPublishCall = false
@@ -264,7 +264,7 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 		default:
 		}
 
-		if err := publishResultToParentStream(result, ci, ci.responsePartialCursor(), foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
+		if err := publishResultToParentStream(ctx, result, ci, ci.responsePartialCursor(), foundResources, nil, isFirstPublishCall, emptyMetadata, parentStream); err != nil {
 			return err
 		}
 		isFirstPublishCall = false
@@ -277,6 +277,7 @@ func unfilteredLookupResourcesDispatchStreamForEntrypoint(
 // publishResultToParentStream publishes the result of a lookup resources call to the parent stream,
 // mapped via foundResources.
 func publishResultToParentStream(
+	ctx context.Context,
 	result *v1.DispatchLookupResources2Response,
 	ci cursorInformation,
 	responseCursor *v1.Cursor,
@@ -309,7 +310,7 @@ func publishResultToParentStream(
 	metadata := result.Metadata
 	if isFirstPublishCall {
 		metadata = addCallToResponseMetadata(metadata)
-		metadata = combineResponseMetadata(metadata, additionalMetadata)
+		metadata = combineResponseMetadata(ctx, metadata, additionalMetadata)
 	} else {
 		metadata = addAdditionalDepthRequired(metadata)
 	}

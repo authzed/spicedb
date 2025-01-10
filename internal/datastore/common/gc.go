@@ -80,17 +80,38 @@ func RegisterGCMetrics() error {
 // GarbageCollector represents any datastore that supports external garbage
 // collection.
 type GarbageCollector interface {
+	// HasGCRun returns true if a garbage collection run has been completed.
 	HasGCRun() bool
+
+	// MarkGCCompleted marks that a garbage collection run has been completed.
 	MarkGCCompleted()
+
+	// ResetGCCompleted resets the state of the garbage collection run.
 	ResetGCCompleted()
 
+	// LockForGCRun attempts to acquire a lock for garbage collection. This lock
+	// is typically done at the datastore level, to ensure that no other nodes are
+	// running garbage collection at the same time.
 	LockForGCRun(ctx context.Context) (bool, error)
-	UnlockAfterGCRun(ctx context.Context) error
 
+	// UnlockAfterGCRun releases the lock after a garbage collection run.
+	// NOTE: this method does not take a context, as the context used for the
+	// reset of the GC run can be canceled/timed out and the unlock will still need to happen.
+	UnlockAfterGCRun() error
+
+	// ReadyState returns the current state of the datastore.
 	ReadyState(context.Context) (datastore.ReadyState, error)
+
+	// Now returns the current time from the datastore.
 	Now(context.Context) (time.Time, error)
+
+	// TxIDBefore returns the highest transaction ID before the provided time.
 	TxIDBefore(context.Context, time.Time) (datastore.Revision, error)
+
+	// DeleteBeforeTx deletes all data before the provided transaction ID.
 	DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (DeletionCounts, error)
+
+	// DeleteExpiredRels deletes all relationships that have expired.
 	DeleteExpiredRels(ctx context.Context) (int64, error)
 }
 
@@ -196,7 +217,7 @@ func RunGarbageCollection(gc GarbageCollector, window, timeout time.Duration) er
 	}
 
 	defer func() {
-		err := gc.UnlockAfterGCRun(ctx)
+		err := gc.UnlockAfterGCRun()
 		if err != nil {
 			log.Error().
 				Err(err).
