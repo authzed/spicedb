@@ -38,10 +38,10 @@ type container struct {
 
 type postgresTester struct {
 	container
-	hostConn             *pgx.Conn
 	creds                string
 	targetMigration      string
 	pgbouncerProxy       *container
+	pool                 *dockertest.Pool
 	useContainerHostname bool
 }
 
@@ -98,13 +98,10 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		creds:                POSTGRES_TEST_USER + ":" + POSTGRES_TEST_PASSWORD,
 		targetMigration:      targetMigration,
 		useContainerHostname: bridgeSupplied,
+		pool:                 pool,
 	}
 
 	t.Cleanup(func() {
-		if builder.hostConn != nil {
-			require.NoError(t, builder.hostConn.Close(context.Background()))
-		}
-
 		require.NoError(t, pool.Purge(postgres))
 	})
 
@@ -112,8 +109,6 @@ func RunPostgresForTestingWithCommitTimestamps(t testing.TB, bridgeNetworkName s
 		// if we are running with pgbouncer enabled then set it up
 		builder.runPgbouncerForTesting(t, pool, bridgeNetworkName)
 	}
-
-	builder.hostConn = builder.initializeHostConnection(t, pool)
 
 	return builder
 }
@@ -124,10 +119,14 @@ func (b *postgresTester) NewDatabase(t testing.TB) string {
 
 	newDBName := "db" + uniquePortion
 
-	_, err = b.hostConn.Exec(context.Background(), "CREATE DATABASE "+newDBName)
+	ctx := context.Background()
+	conn := b.initializeHostConnection(t)
+	defer conn.Close(ctx)
+
+	_, err = conn.Exec(ctx, "CREATE DATABASE "+newDBName)
 	require.NoError(t, err)
 
-	row := b.hostConn.QueryRow(context.Background(), "SELECT datname FROM pg_catalog.pg_database WHERE datname = $1", newDBName)
+	row := conn.QueryRow(ctx, "SELECT datname FROM pg_catalog.pg_database WHERE datname = $1", newDBName)
 	var dbName string
 	err = row.Scan(&dbName)
 	require.NoError(t, err)
@@ -218,10 +217,10 @@ func (b *postgresTester) runPgbouncerForTesting(t testing.TB, pool *dockertest.P
 	}
 }
 
-func (b *postgresTester) initializeHostConnection(t testing.TB, pool *dockertest.Pool) (conn *pgx.Conn) {
+func (b *postgresTester) initializeHostConnection(t testing.TB) (conn *pgx.Conn) {
 	hostname, port := b.getHostHostnameAndPort()
 	uri := fmt.Sprintf("postgresql://%s@%s:%s/?sslmode=disable", b.creds, hostname, port)
-	err := pool.Retry(func() error {
+	err := b.pool.Retry(func() error {
 		var err error
 		ctx, cancelConnect := context.WithTimeout(context.Background(), dockerBootTimeout)
 		defer cancelConnect()

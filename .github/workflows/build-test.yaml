@@ -100,14 +100,14 @@ jobs:
       - name: "Integration tests"
         run: "go run mage.go test:integration"
 
-  datastore:
-    name: "Datastore Tests"
+  datastoreinttest:
+    name: "Datastore Integration Tests"
     runs-on: "buildjet-8vcpu-ubuntu-2204"
     needs: "paths-filter"
     strategy:
       fail-fast: false
       matrix:
-        datastore: ["crdb", "mysql", "postgres", "spanner", "pgbouncer"]
+        datastore: ["crdb", "mysql", "spanner"]
     steps:
       - uses: "actions/checkout@v4"
         if: |
@@ -125,10 +125,86 @@ jobs:
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testds:${{ matrix.datastore }}"
+
+  datastoreconstest:
+    name: "Datastore Consistency Tests"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    strategy:
+      fail-fast: false
+      matrix:
+        datastore: ["crdb", "mysql", "spanner"]
+    steps:
+      - uses: "actions/checkout@v4"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "authzed/actions/setup-go@main"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "docker/login-action@v3"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - name: "Consistency tests"
         if: |
           needs.paths-filter.outputs.codechange == 'true'
         run: "go run mage.go testcons:${{ matrix.datastore }}"
+
+  pgdatastoreinttest:
+    name: "Datastore Integration Tests"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    strategy:
+      fail-fast: false
+      matrix:
+        datastore: ["postgres", "pgbouncer"]
+        pgversion: ["13.8", "14", "15", "16", "17"]
+    steps:
+      - uses: "actions/checkout@v4"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "authzed/actions/setup-go@main"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "docker/login-action@v3"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Integration tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        run: "go run mage.go testds:${{ matrix.datastore }}ver ${{ matrix.pgversion }}"
+
+  pgdatastoreconstest:
+    name: "Datastore Consistency Tests"
+    runs-on: "buildjet-4vcpu-ubuntu-2204"
+    needs: "paths-filter"
+    strategy:
+      fail-fast: false
+      matrix:
+        datastore: ["postgres"]
+        pgversion: ["13.8", "14", "15", "16", "17"]
+    steps:
+      - uses: "actions/checkout@v4"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "authzed/actions/setup-go@main"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+      - uses: "docker/login-action@v3"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - name: "Consistency tests"
+        if: |
+          needs.paths-filter.outputs.codechange == 'true'
+        run: "go run mage.go testcons:postgresver ${{ matrix.pgversion }}"
 
   e2e:
     name: "E2E"

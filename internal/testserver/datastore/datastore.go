@@ -4,6 +4,7 @@
 package datastore
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -63,7 +64,11 @@ func RunDatastoreEngineWithBridge(t testing.TB, engine string, bridgeNetworkName
 	case "cockroachdb":
 		return RunCRDBForTesting(t, bridgeNetworkName)
 	case "postgres":
-		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head, version.MinimumSupportedPostgresVersion, false)
+		ver := os.Getenv("POSTGRES_TEST_VERSION")
+		if ver == "" {
+			ver = version.LatestTestedPostgresVersion
+		}
+		return RunPostgresForTesting(t, bridgeNetworkName, migrate.Head, ver, false)
 	case "mysql":
 		return RunMySQLForTesting(t, bridgeNetworkName)
 	case "spanner":

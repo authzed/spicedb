@@ -5,9 +5,11 @@ package postgres
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/postgres/version"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 
 	"github.com/jackc/pgx/v5"
@@ -15,56 +17,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func postgresTestVersion() string {
+	ver := os.Getenv("POSTGRES_TEST_VERSION")
+	if ver != "" {
+		return ver
+	}
+
+	return version.LatestTestedPostgresVersion
+}
+
+var postgresConfig = postgresTestConfig{"head", "", postgresTestVersion(), false}
+
 func TestPostgresDatastore(t *testing.T) {
-	testPostgresDatastore(t, postgresConfigs)
+	testPostgresDatastore(t, postgresConfig)
 }
 
 func TestPostgresDatastoreWithoutCommitTimestamps(t *testing.T) {
-	testPostgresDatastoreWithoutCommitTimestamps(t, postgresConfigs)
+	testPostgresDatastoreWithoutCommitTimestamps(t, postgresConfig)
 }
 
 func TestPostgresDatastoreGC(t *testing.T) {
-	for _, config := range postgresConfigs {
-		pgbouncerStr := ""
-		if config.pgbouncer {
-			pgbouncerStr = "pgbouncer-"
-		}
-		t.Run(fmt.Sprintf("%spostgres-gc-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
-			t.Parallel()
-
-			b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
-
-			t.Run("GarbageCollection", createDatastoreTest(
-				b,
-				GarbageCollectionTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
-				MigrationPhase(config.migrationPhase),
-			))
-
-			t.Run("GarbageCollectionByTime", createDatastoreTest(
-				b,
-				GarbageCollectionByTimeTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
-				MigrationPhase(config.migrationPhase),
-			))
-
-			t.Run("ChunkedGarbageCollection", createDatastoreTest(
-				b,
-				ChunkedGarbageCollectionTest,
-				RevisionQuantization(0),
-				GCWindow(1*time.Millisecond),
-				GCInterval(veryLargeGCInterval),
-				WatchBufferLength(1),
-				MigrationPhase(config.migrationPhase),
-			))
-		})
+	config := postgresConfig
+	pgbouncerStr := ""
+	if config.pgbouncer {
+		pgbouncerStr = "pgbouncer-"
 	}
+	t.Run(fmt.Sprintf("%spostgres-gc-%s-%s-%s", pgbouncerStr, config.pgVersion, config.targetMigration, config.migrationPhase), func(t *testing.T) {
+		t.Parallel()
+
+		b := testdatastore.RunPostgresForTesting(t, "", config.targetMigration, config.pgVersion, config.pgbouncer)
+
+		t.Run("GarbageCollection", createDatastoreTest(
+			b,
+			GarbageCollectionTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+		))
+
+		t.Run("GarbageCollectionByTime", createDatastoreTest(
+			b,
+			GarbageCollectionByTimeTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+		))
+
+		t.Run("ChunkedGarbageCollection", createDatastoreTest(
+			b,
+			ChunkedGarbageCollectionTest,
+			RevisionQuantization(0),
+			GCWindow(1*time.Millisecond),
+			GCInterval(veryLargeGCInterval),
+			WatchBufferLength(1),
+			MigrationPhase(config.migrationPhase),
+		))
+	})
 }
 
 func TestDefaultQueryExecMode(t *testing.T) {

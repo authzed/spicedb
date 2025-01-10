@@ -25,6 +25,11 @@ func goDirTest(dir string, path string, args ...string) error {
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
+func goDirTestWithEnv(dir string, path string, env map[string]string, args ...string) error {
+	testArgs := append([]string{"test", "-failfast", "-count=1"}, args...)
+	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
+}
+
 // check if docker is installed and running
 func checkDocker() error {
 	if !hasBinary("docker") {
