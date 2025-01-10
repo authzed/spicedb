@@ -125,6 +125,25 @@ func TestAllMethodsReturnMetadata(t *testing.T) {
 
 				return trailer
 			},
+			"ReadBulkRelationships": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
+				var trailer metadata.MD
+				_, err := client.ReadBulkRelationships(context.Background(), &v1.ReadBulkRelationshipsRequest{
+					Consistency: &v1.Consistency{
+						Requirement: &v1.Consistency_AtLeastAsFresh{
+							AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+						},
+					},
+					Items: []*v1.ReadBulkRelationshipsRequestItem{
+						{
+							RelationshipFilter: &v1.RelationshipFilter{
+								ResourceType: "document",
+							},
+						},
+					},
+				}, grpc.Trailer(&trailer))
+				require.NoError(t, err)
+				return trailer
+			},
 			"LookupResources": func(t *testing.T, client v1.PermissionsServiceClient) metadata.MD {
 				var trailer metadata.MD
 				stream, err := client.LookupResources(ctx, &v1.LookupResourcesRequest{

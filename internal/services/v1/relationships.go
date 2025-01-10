@@ -350,7 +350,6 @@ func (ps *permissionServer) ReadBulkRelationships(ctx context.Context, req *v1.R
 			if err := validateRelationshipsFilter(ctx, item.RelationshipFilter, ds); err != nil {
 				return ps.rewriteError(ctx, err)
 			}
-
 			limit := uint64(0)
 			pageSize := ps.config.MaxDatastoreReadPageSize
 			if item.OptionalLimit > 0 {
@@ -359,7 +358,6 @@ func (ps *permissionServer) ReadBulkRelationships(ctx context.Context, req *v1.R
 					pageSize = limit
 				}
 			}
-
 			dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(item.RelationshipFilter)
 			if err != nil {
 				return ps.rewriteError(ctx, fmt.Errorf("error filtering: %w", err))
@@ -376,12 +374,13 @@ func (ps *permissionServer) ReadBulkRelationships(ctx context.Context, req *v1.R
 			if err != nil {
 				return ps.rewriteError(ctx, err)
 			}
+			bulkResponseMutex.Lock()
+			defer bulkResponseMutex.Unlock()
 
 			for rel, err := range it {
 				if err != nil {
 					return ps.rewriteError(ctx, fmt.Errorf("error when reading tuples: %w", err))
 				}
-
 				dispatchCursor.Sections[0] = tuple.StringWithoutCaveatOrExpiration(rel)
 				encodedCursor, err := cursor.EncodeFromDispatchCursor(dispatchCursor, rbrRequestHash, atRevision, nil)
 				if err != nil {
@@ -403,10 +402,6 @@ func (ps *permissionServer) ReadBulkRelationships(ctx context.Context, req *v1.R
 						Relationships: responseRelation,
 					},
 				}
-
-				bulkResponseMutex.Lock()
-				defer bulkResponseMutex.Unlock()
-
 				itemHash, exists := itemHashes[item]
 				if !exists {
 					return ps.rewriteError(ctx, errors.New("missing item hash"))

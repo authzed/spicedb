@@ -362,6 +362,205 @@ func TestReadRelationships(t *testing.T) {
 	}
 }
 
+func TestReadBulkRelationships(t *testing.T) {
+	testCases := []struct {
+		name         string
+		request      *v1.ReadBulkRelationshipsRequest
+		expectedCode codes.Code
+		expected     []map[string]struct{}
+	}{
+		{
+			"empty request",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{},
+			},
+			codes.OK,
+			[]map[string]struct{}{},
+		},
+		{
+			"single namespace filter",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: tf.DocumentNS.Name,
+						},
+					},
+				},
+			},
+			codes.OK,
+			[]map[string]struct{}{
+				{
+					"document:ownerplan#viewer@user:owner":                       {},
+					"document:companyplan#parent@folder:company":                 {},
+					"document:masterplan#parent@folder:strategy":                 {},
+					"document:masterplan#owner@user:product_manager":             {},
+					"document:masterplan#viewer@user:eng_lead":                   {},
+					"document:masterplan#parent@folder:plans":                    {},
+					"document:healthplan#parent@folder:plans":                    {},
+					"document:specialplan#editor@user:multiroleguy":              {},
+					"document:specialplan#viewer_and_editor@user:multiroleguy":   {},
+					"document:specialplan#viewer_and_editor@user:missingrolegal": {},
+					"document:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==#owner@user:base64YWZzZGZh-ZHNmZHPwn5iK8J+YivC/fmIrwn5iK==": {},
+					"document:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong#owner@user:veryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryveryverylong": {},
+				},
+			},
+		},
+		{
+			"multiple filters",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType:       tf.DocumentNS.Name,
+							OptionalResourceId: "masterplan",
+						},
+					},
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType:       tf.DocumentNS.Name,
+							OptionalResourceId: "healthplan",
+						},
+					},
+				},
+			},
+			codes.OK,
+			[]map[string]struct{}{
+				{
+					"document:masterplan#parent@folder:strategy":     {},
+					"document:masterplan#parent@folder:plans":        {},
+					"document:masterplan#owner@user:product_manager": {},
+					"document:masterplan#viewer@user:eng_lead":       {},
+				},
+				{
+					"document:healthplan#parent@folder:plans": {},
+				},
+			},
+		},
+		{
+			"invalid filter",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							OptionalResourceId:       "auditors",
+							OptionalResourceIdPrefix: "aud",
+						},
+					},
+				},
+			},
+			codes.InvalidArgument,
+			nil,
+		},
+		{
+			"missing namespace",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: "doesnotexist",
+						},
+					},
+				},
+			},
+			codes.FailedPrecondition,
+			nil,
+		},
+		{
+			"duplicate filters",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType:       tf.DocumentNS.Name,
+							OptionalResourceId: "masterplan",
+						},
+					},
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType:       tf.DocumentNS.Name,
+							OptionalResourceId: "masterplan",
+						},
+					},
+				},
+			},
+			codes.OK,
+			[]map[string]struct{}{
+				{
+					"document:masterplan#parent@folder:strategy":     {},
+					"document:masterplan#parent@folder:plans":        {},
+					"document:masterplan#owner@user:product_manager": {},
+					"document:masterplan#viewer@user:eng_lead":       {},
+				},
+				{
+					"document:masterplan#parent@folder:strategy":     {},
+					"document:masterplan#parent@folder:plans":        {},
+					"document:masterplan#owner@user:product_manager": {},
+					"document:masterplan#viewer@user:eng_lead":       {},
+				},
+			},
+		},
+	}
+
+	for _, pageSize := range []int{0, 1, 5, 10} {
+		pageSize := pageSize
+		t.Run(fmt.Sprintf("page%d_", pageSize), func(t *testing.T) {
+
+			for _, delta := range testTimedeltas {
+				delta := delta
+				
+
+				t.Run(fmt.Sprintf("fuzz%d", delta/time.Millisecond), func(t *testing.T) {
+					for _, tc := range testCases {
+						tc := tc
+						t.Run(tc.name, func(t *testing.T) {
+							require := require.New(t)
+							conn, cleanup, _, revision := testserver.NewTestServer(require, delta, memdb.DisableGC, true, tf.StandardDatastoreWithData)
+							client := v1.NewPermissionsServiceClient(conn)
+							t.Cleanup(cleanup)
+							resp, err := client.ReadBulkRelationships(context.Background(), &v1.ReadBulkRelationshipsRequest{
+								Consistency: &v1.Consistency{
+									Requirement: &v1.Consistency_AtLeastAsFresh{
+										AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+									},
+								},
+								Items: tc.request.Items,
+							})
+							if tc.expectedCode != codes.OK {
+								grpcutil.RequireStatus(t, tc.expectedCode, err)
+								return
+							}
+
+							require.NoError(err)							
+							require.NotNil(resp)
+							require.Equal(len(tc.expected), len(resp.Pairs))
+
+							for i, expectedSet := range tc.expected {
+
+								require.NotNil(resp.Pairs[i])
+								require.NotNil(resp.Pairs[i].Response.(*v1.ReadBulkRelationshipsPair_Item))
+								require.NotNil(resp.Pairs[i].Response.(*v1.ReadBulkRelationshipsPair_Item).Item)
+
+								relationship := resp.Pairs[i].Response.(*v1.ReadBulkRelationshipsPair_Item).Item.Relationships
+								require.NotNil(relationship)
+
+								dsFilter, err := datastore.RelationshipsFilterFromPublicFilter(tc.request.Items[i].RelationshipFilter)
+								require.NoError(err)
+
+								require.True(dsFilter.Test(tuple.FromV1Relationship(relationship)))
+
+								relString := tuple.MustV1RelString(relationship)
+								_, found := expectedSet[relString]
+								require.True(found, "relationship was not expected: %s", relString)
+							}
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestWriteRelationships(t *testing.T) {
 	require := require.New(t)
 

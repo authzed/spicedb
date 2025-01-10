@@ -813,3 +813,148 @@ func TestCheckBulkPermissionsItemWIDHashStability(t *testing.T) {
 		})
 	}
 }
+
+func TestReadBulkRelationshipsItemHashStability(t *testing.T) {
+	tcs := []struct {
+		name         string
+		request      *v1.ReadBulkRelationshipsRequestItem
+		expectedHash string
+	}{
+		{
+			"basic read item",
+			&v1.ReadBulkRelationshipsRequestItem{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType: "someresourcetype",
+				},
+			},
+			"0a0e721527f9e3b2",
+		},
+		{
+			"full read item",
+			&v1.ReadBulkRelationshipsRequestItem{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"0375e86e0c72f281",
+		},
+		{
+			"different resource type",
+			&v1.ReadBulkRelationshipsRequestItem{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType:       "someresourcetype2",
+					OptionalResourceId: "foo",
+					OptionalRelation:   "somerelation",
+					OptionalSubjectFilter: &v1.SubjectFilter{
+						SubjectType:       "somesubjectype",
+						OptionalSubjectId: "somesubject",
+						OptionalRelation: &v1.SubjectFilter_RelationFilter{
+							Relation: "subrelation",
+						},
+					},
+				},
+				OptionalLimit: 1000,
+			},
+			"a7d3548f8303f0ba",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			verr := tc.request.Validate()
+			require.NoError(t, verr)
+
+			hash, err := computeReadRelationshipsRequestItemHash(tc.request)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedHash, hash)
+		})
+	}
+}
+
+func TestReadBulkRelationshipsHashStability(t *testing.T) {
+	tcs := []struct {
+		name         string
+		request      *v1.ReadBulkRelationshipsRequest
+		expectedHash string
+	}{
+		{
+			"empty request",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{},
+			},
+			"af82b1e607102e94",
+		},
+		{
+			"single item request",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: "someresourcetype",
+						},
+					},
+				},
+			},
+			"b081a18f9cddfd10",
+		},
+		{
+			"multiple items request",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: "someresourcetype",
+						},
+					},
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: "someresourcetype2",
+						},
+					},
+				},
+			},
+			"05a97a8116abea20",
+		},
+		{
+			"request with consistency",
+			&v1.ReadBulkRelationshipsRequest{
+				Items: []*v1.ReadBulkRelationshipsRequestItem{
+					{
+						RelationshipFilter: &v1.RelationshipFilter{
+							ResourceType: "someresourcetype",
+						},
+					},
+				},
+				Consistency: &v1.Consistency{
+					Requirement: &v1.Consistency_FullyConsistent{
+						FullyConsistent: true,
+					},
+				},
+			},
+			"e92c0be47a00ca39",
+		},
+	}
+
+	for _, tc := range tcs {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			verr := tc.request.Validate()
+			require.NoError(t, verr)
+
+			hash, err := computeReadBulkRelationshipsHash(tc.request)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedHash, hash)
+		})
+	}
+}
