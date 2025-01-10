@@ -2,8 +2,10 @@ package nodeid
 
 import (
 	"context"
+	"fmt"
 	"os"
 
+	"github.com/cespare/xxhash/v2"
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
 )
@@ -40,7 +42,14 @@ func FromContext(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		defaultNodeID = spiceDBPrefix + hostname
+
+		// Hash the hostname to get the final default node ID.
+		hasher := xxhash.New()
+		if _, err := hasher.WriteString(hostname); err != nil {
+			return "", fmt.Errorf("failed to hash hostname: %w", err)
+		}
+
+		defaultNodeID = spiceDBPrefix + fmt.Sprintf("%x", hasher.Sum(nil))
 	}
 
 	if err := setInContext(ctx, defaultNodeID); err != nil {
