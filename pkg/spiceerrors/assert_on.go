@@ -8,6 +8,8 @@ import (
 	"runtime"
 )
 
+const DebugAssertionsEnabled = true
+
 // DebugAssert panics if the condition is false in CI builds.
 func DebugAssert(condition func() bool, format string, args ...any) {
 	if !condition() {

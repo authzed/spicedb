@@ -17,7 +17,7 @@ import (
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/testserver"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
@@ -31,7 +31,7 @@ const defaultConnBufferSize = humanize.MiByte
 func TestMemdbSteelThreads(t *testing.T) {
 	for _, tc := range steelThreadTestCases {
 		t.Run(tc.name, func(t *testing.T) {
-			emptyDS, err := memdb.NewMemdbDatastore(0, 5*time.Second, 2*time.Hour)
+			emptyDS, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 2*time.Hour)
 			require.NoError(t, err)
 
 			runSteelThreadTest(t, tc, emptyDS)

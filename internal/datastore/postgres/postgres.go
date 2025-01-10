@@ -316,6 +316,24 @@ func newPostgresDatastore(
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
 
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName(tableTuple),
+		common.WithColNamespace(colNamespace),
+		common.WithColObjectID(colObjectID),
+		common.WithColRelation(colRelation),
+		common.WithColUsersetNamespace(colUsersetNamespace),
+		common.WithColUsersetObjectID(colUsersetObjectID),
+		common.WithColUsersetRelation(colUsersetRelation),
+		common.WithColCaveatName(colCaveatContextName),
+		common.WithColCaveatContext(colCaveatContext),
+		common.WithColExpiration(colExpiration),
+		common.WithPaginationFilterType(common.TupleComparison),
+		common.WithPlaceholderFormat(sq.Dollar),
+		common.WithNowFunction("NOW"),
+		common.WithColumnOptimization(config.columnOptimizationOption),
+		common.WithExpirationDisabled(config.expirationDisabled),
+	)
+
 	datastore := &pgDatastore{
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
@@ -341,6 +359,7 @@ func newPostgresDatastore(
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
+		schema:                  *schema,
 	}
 
 	if isPrimary && config.readStrictMode {
@@ -393,6 +412,7 @@ type pgDatastore struct {
 	watchEnabled                   bool
 	isPrimary                      bool
 	inStrictReadMode               bool
+	schema                         common.SchemaInformation
 	includeQueryParametersInTraces bool
 
 	credentialsProvider datastore.CredentialsProvider
@@ -416,8 +436,8 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		queryFuncs = strictReaderQueryFuncs{wrapped: queryFuncs, revision: rev}
 	}
 
-	executor := common.QueryExecutor{
-		Executor: pgxcommon.NewPGXExecutor(queryFuncs),
+	executor := common.QueryRelationshipsExecutor{
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
 	}
 
 	return &pgReader{
@@ -425,6 +445,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 		executor,
 		buildLivingObjectFilterForRevision(rev),
 		pgd.filterMaximumIDCount,
+		pgd.schema,
 	}
 }
 
@@ -458,8 +479,8 @@ func (pgd *pgDatastore) ReadWriteTx(
 			}
 
 			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
-			executor := common.QueryExecutor{
-				Executor: pgxcommon.NewPGXExecutor(queryFuncs),
+			executor := common.QueryRelationshipsExecutor{
+				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
 			}
 
 			rwt := &pgReadWriteTXN{
@@ -468,6 +489,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 					executor,
 					currentlyLivingObjects,
 					pgd.filterMaximumIDCount,
+					pgd.schema,
 				},
 				tx,
 				newXID,

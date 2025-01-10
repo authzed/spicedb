@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
@@ -27,8 +28,10 @@ type crdbOptions struct {
 	filterMaximumIDCount           uint16
 	enablePrometheusStats          bool
 	withIntegrity                  bool
-	includeQueryParametersInTraces bool
 	allowedMigrations              []string
+	columnOptimizationOption       common.ColumnOptimizationOption
+	includeQueryParametersInTraces bool
+	expirationDisabled             bool
 }
 
 const (
@@ -56,7 +59,9 @@ const (
 	defaultConnectRate                    = 100 * time.Millisecond
 	defaultFilterMaximumIDCount           = 100
 	defaultWithIntegrity                  = false
+	defaultColumnOptimizationOption       = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces = false
+	defaultExpirationDisabled             = false
 )
 
 // Option provides the facility to configure how clients within the CRDB
@@ -80,7 +85,9 @@ func generateConfig(options []Option) (crdbOptions, error) {
 		connectRate:                    defaultConnectRate,
 		filterMaximumIDCount:           defaultFilterMaximumIDCount,
 		withIntegrity:                  defaultWithIntegrity,
+		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
+		expirationDisabled:             defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -352,4 +359,20 @@ func AllowedMigrations(allowedMigrations []string) Option {
 // IncludeQueryParametersInTraces marks whether query parameters should be included in traces.
 func IncludeQueryParametersInTraces(includeQueryParametersInTraces bool) Option {
 	return func(po *crdbOptions) { po.includeQueryParametersInTraces = includeQueryParametersInTraces }
+}
+
+// WithColumnOptimization configures the column optimization option for the datastore.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(po *crdbOptions) {
+		if isEnabled {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
+}
+
+// WithExpirationDisabled configures the datastore to disable relationship expiration.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *crdbOptions) { po.expirationDisabled = isDisabled }
 }

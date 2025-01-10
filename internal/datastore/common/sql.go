@@ -2,8 +2,10 @@ package common
 
 import (
 	"context"
+	"maps"
 	"math"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -47,115 +49,157 @@ var (
 	tracer = otel.Tracer("spicedb/internal/datastore/common")
 )
 
-// PaginationFilterType is an enumerator
+// PaginationFilterType is an enumerator for pagination filter types.
 type PaginationFilterType uint8
 
 const (
+	PaginationFilterTypeUnknown PaginationFilterType = iota
+
 	// TupleComparison uses a comparison with a compound key,
 	// e.g. (namespace, object_id, relation) > ('ns', '123', 'viewer')
 	// which is not compatible with all datastores.
-	TupleComparison PaginationFilterType = iota
+	TupleComparison = 1
 
 	// ExpandedLogicComparison comparison uses a nested tree of ANDs and ORs to properly
 	// filter out already received relationships. Useful for databases that do not support
 	// tuple comparison, or do not execute it efficiently
-	ExpandedLogicComparison
+	ExpandedLogicComparison = 2
 )
 
-// SchemaInformation holds the schema information from the SQL datastore implementation.
-type SchemaInformation struct {
-	colNamespace         string
-	colObjectID          string
-	colRelation          string
-	colUsersetNamespace  string
-	colUsersetObjectID   string
-	colUsersetRelation   string
-	colCaveatName        string
-	colExpiration        string
-	paginationFilterType PaginationFilterType
-	nowFunction          string
+// ColumnOptimizationOption is an enumerator for column optimization options.
+type ColumnOptimizationOption int
+
+const (
+	ColumnOptimizationOptionUnknown ColumnOptimizationOption = iota
+
+	// ColumnOptimizationOptionNone is the default option, which does not optimize the static columns.
+	ColumnOptimizationOptionNone
+
+	// ColumnOptimizationOptionStaticValues is an option that optimizes columns for static values.
+	ColumnOptimizationOptionStaticValues
+)
+
+type columnTracker struct {
+	SingleValue *string
 }
 
-func NewSchemaInformation(
-	colNamespace,
-	colObjectID,
-	colRelation,
-	colUsersetNamespace,
-	colUsersetObjectID,
-	colUsersetRelation,
-	colCaveatName string,
-	colExpiration string,
-	paginationFilterType PaginationFilterType,
-	nowFunction string,
-) SchemaInformation {
-	return SchemaInformation{
-		colNamespace,
-		colObjectID,
-		colRelation,
-		colUsersetNamespace,
-		colUsersetObjectID,
-		colUsersetRelation,
-		colCaveatName,
-		colExpiration,
-		paginationFilterType,
-		nowFunction,
+type columnTrackerMap map[string]columnTracker
+
+func (ctm columnTrackerMap) hasStaticValue(columnName string) bool {
+	if r, ok := ctm[columnName]; ok && r.SingleValue != nil {
+		return true
 	}
+	return false
 }
 
 // SchemaQueryFilterer wraps a SchemaInformation and SelectBuilder to give an opinionated
 // way to build query objects.
 type SchemaQueryFilterer struct {
-	schema                SchemaInformation
-	queryBuilder          sq.SelectBuilder
-	filteringColumnCounts map[string]int
-	filterMaximumIDCount  uint16
+	schema                 SchemaInformation
+	queryBuilder           sq.SelectBuilder
+	filteringColumnTracker columnTrackerMap
+	filterMaximumIDCount   uint16
+	isCustomQuery          bool
+	extraFields            []string
+	fromSuffix             string
 }
 
-// NewSchemaQueryFilterer creates a new SchemaQueryFilterer object.
-func NewSchemaQueryFilterer(schema SchemaInformation, initialQuery sq.SelectBuilder, filterMaximumIDCount uint16) SchemaQueryFilterer {
+// NewSchemaQueryFiltererForRelationshipsSelect creates a new SchemaQueryFilterer object for selecting
+// relationships. This method will automatically filter the columns retrieved from the database, only
+// selecting the columns that are not already specified with a single static value in the query.
+func NewSchemaQueryFiltererForRelationshipsSelect(schema SchemaInformation, filterMaximumIDCount uint16, extraFields ...string) SchemaQueryFilterer {
+	schema.debugValidate()
+
 	if filterMaximumIDCount == 0 {
 		filterMaximumIDCount = 100
 		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
 	}
 
-	// Filter out any expired relationships.
-	initialQuery = initialQuery.Where(sq.Or{
-		sq.Eq{schema.colExpiration: nil},
-		sq.Expr(schema.colExpiration + " > " + schema.nowFunction + "()"),
-	})
-
+	queryBuilder := sq.StatementBuilder.PlaceholderFormat(schema.PlaceholderFormat).Select()
 	return SchemaQueryFilterer{
-		schema:                schema,
-		queryBuilder:          initialQuery,
-		filteringColumnCounts: map[string]int{},
-		filterMaximumIDCount:  filterMaximumIDCount,
+		schema:                 schema,
+		queryBuilder:           queryBuilder,
+		filteringColumnTracker: map[string]columnTracker{},
+		filterMaximumIDCount:   filterMaximumIDCount,
+		isCustomQuery:          false,
+		extraFields:            extraFields,
 	}
 }
 
+// NewSchemaQueryFiltererWithStartingQuery creates a new SchemaQueryFilterer object for selecting
+// relationships, with a custom starting query. Unlike NewSchemaQueryFiltererForRelationshipsSelect,
+// this method will not auto-filter the columns retrieved from the database.
+func NewSchemaQueryFiltererWithStartingQuery(schema SchemaInformation, startingQuery sq.SelectBuilder, filterMaximumIDCount uint16) SchemaQueryFilterer {
+	schema.debugValidate()
+
+	if filterMaximumIDCount == 0 {
+		filterMaximumIDCount = 100
+		log.Warn().Msg("SchemaQueryFilterer: filterMaximumIDCount not set, defaulting to 100")
+	}
+
+	return SchemaQueryFilterer{
+		schema:                 schema,
+		queryBuilder:           startingQuery,
+		filteringColumnTracker: map[string]columnTracker{},
+		filterMaximumIDCount:   filterMaximumIDCount,
+		isCustomQuery:          true,
+		extraFields:            nil,
+	}
+}
+
+// WithAdditionalFilter returns the SchemaQueryFilterer with an additional filter applied to the query.
+func (sqf SchemaQueryFilterer) WithAdditionalFilter(filter func(original sq.SelectBuilder) sq.SelectBuilder) SchemaQueryFilterer {
+	sqf.queryBuilder = filter(sqf.queryBuilder)
+	return sqf
+}
+
+// WithFromSuffix returns the SchemaQueryFilterer with a suffix added to the FROM clause.
+func (sqf SchemaQueryFilterer) WithFromSuffix(fromSuffix string) SchemaQueryFilterer {
+	sqf.fromSuffix = fromSuffix
+	return sqf
+}
+
 func (sqf SchemaQueryFilterer) UnderlyingQueryBuilder() sq.SelectBuilder {
-	return sqf.queryBuilder
+	spiceerrors.DebugAssert(func() bool {
+		return sqf.isCustomQuery
+	}, "UnderlyingQueryBuilder should only be called on custom queries")
+	return sqf.queryBuilderWithMaybeExpirationFilter(false)
+}
+
+// queryBuilderWithMaybeExpirationFilter returns the query builder with the expiration filter applied, when necessary.
+// Note that this adds the clause to the existing builder.
+func (sqf SchemaQueryFilterer) queryBuilderWithMaybeExpirationFilter(skipExpiration bool) sq.SelectBuilder {
+	if sqf.schema.ExpirationDisabled || skipExpiration {
+		return sqf.queryBuilder
+	}
+
+	// Filter out any expired relationships.
+	return sqf.queryBuilder.Where(sq.Or{
+		sq.Eq{sqf.schema.ColExpiration: nil},
+		sq.Expr(sqf.schema.ColExpiration + " > " + sqf.schema.NowFunction + "()"),
+	})
 }
 
 func (sqf SchemaQueryFilterer) TupleOrder(order options.SortOrder) SchemaQueryFilterer {
 	switch order {
 	case options.ByResource:
 		sqf.queryBuilder = sqf.queryBuilder.OrderBy(
-			sqf.schema.colNamespace,
-			sqf.schema.colObjectID,
-			sqf.schema.colRelation,
-			sqf.schema.colUsersetNamespace,
-			sqf.schema.colUsersetObjectID,
-			sqf.schema.colUsersetRelation,
+			sqf.schema.ColNamespace,
+			sqf.schema.ColObjectID,
+			sqf.schema.ColRelation,
+			sqf.schema.ColUsersetNamespace,
+			sqf.schema.ColUsersetObjectID,
+			sqf.schema.ColUsersetRelation,
 		)
 
 	case options.BySubject:
 		sqf.queryBuilder = sqf.queryBuilder.OrderBy(
-			sqf.schema.colUsersetNamespace,
-			sqf.schema.colUsersetObjectID,
-			sqf.schema.colUsersetRelation,
-			sqf.schema.colNamespace,
-			sqf.schema.colObjectID,
-			sqf.schema.colRelation,
+			sqf.schema.ColUsersetNamespace,
+			sqf.schema.ColUsersetObjectID,
+			sqf.schema.ColUsersetRelation,
+			sqf.schema.ColNamespace,
+			sqf.schema.ColObjectID,
+			sqf.schema.ColRelation,
 		)
 	}
 
@@ -174,47 +218,47 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 	columnsAndValues := map[options.SortOrder][]nameAndValue{
 		options.ByResource: {
 			{
-				sqf.schema.colNamespace, cursor.Resource.ObjectType,
+				sqf.schema.ColNamespace, cursor.Resource.ObjectType,
 			},
 			{
-				sqf.schema.colObjectID, cursor.Resource.ObjectID,
+				sqf.schema.ColObjectID, cursor.Resource.ObjectID,
 			},
 			{
-				sqf.schema.colRelation, cursor.Resource.Relation,
+				sqf.schema.ColRelation, cursor.Resource.Relation,
 			},
 			{
-				sqf.schema.colUsersetNamespace, cursor.Subject.ObjectType,
+				sqf.schema.ColUsersetNamespace, cursor.Subject.ObjectType,
 			},
 			{
-				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectID,
+				sqf.schema.ColUsersetObjectID, cursor.Subject.ObjectID,
 			},
 			{
-				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
+				sqf.schema.ColUsersetRelation, cursor.Subject.Relation,
 			},
 		},
 		options.BySubject: {
 			{
-				sqf.schema.colUsersetNamespace, cursor.Subject.ObjectType,
+				sqf.schema.ColUsersetNamespace, cursor.Subject.ObjectType,
 			},
 			{
-				sqf.schema.colUsersetObjectID, cursor.Subject.ObjectID,
+				sqf.schema.ColUsersetObjectID, cursor.Subject.ObjectID,
 			},
 			{
-				sqf.schema.colNamespace, cursor.Resource.ObjectType,
+				sqf.schema.ColNamespace, cursor.Resource.ObjectType,
 			},
 			{
-				sqf.schema.colObjectID, cursor.Resource.ObjectID,
+				sqf.schema.ColObjectID, cursor.Resource.ObjectID,
 			},
 			{
-				sqf.schema.colRelation, cursor.Resource.Relation,
+				sqf.schema.ColRelation, cursor.Resource.Relation,
 			},
 			{
-				sqf.schema.colUsersetRelation, cursor.Subject.Relation,
+				sqf.schema.ColUsersetRelation, cursor.Subject.Relation,
 			},
 		},
 	}[order]
 
-	switch sqf.schema.paginationFilterType {
+	switch sqf.schema.PaginationFilterType {
 	case TupleComparison:
 		// For performance reasons, remove any column names that have static values in the query.
 		columnNames := make([]string, 0, len(columnsAndValues))
@@ -222,7 +266,7 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 		comparisonSlotCount := 0
 
 		for _, cav := range columnsAndValues {
-			if sqf.filteringColumnCounts[cav.name] != 1 {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
 				columnNames = append(columnNames, cav.name)
 				valueSlots = append(valueSlots, cav.value)
 				comparisonSlotCount++
@@ -242,10 +286,10 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 		orClause := sq.Or{}
 
 		for index, cav := range columnsAndValues {
-			if sqf.filteringColumnCounts[cav.name] != 1 {
+			if !sqf.filteringColumnTracker.hasStaticValue(cav.name) {
 				andClause := sq.And{}
 				for _, previous := range columnsAndValues[0:index] {
-					if sqf.filteringColumnCounts[previous.name] != 1 {
+					if !sqf.filteringColumnTracker.hasStaticValue(previous.name) {
 						andClause = append(andClause, sq.Eq{previous.name: previous.value})
 					}
 				}
@@ -266,25 +310,31 @@ func (sqf SchemaQueryFilterer) After(cursor options.Cursor, order options.SortOr
 // FilterToResourceType returns a new SchemaQueryFilterer that is limited to resources of the
 // specified type.
 func (sqf SchemaQueryFilterer) FilterToResourceType(resourceType string) SchemaQueryFilterer {
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colNamespace: resourceType})
-	sqf.recordColumnValue(sqf.schema.colNamespace)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColNamespace: resourceType})
+	sqf.recordColumnValue(sqf.schema.ColNamespace, resourceType)
 	return sqf
 }
 
-func (sqf SchemaQueryFilterer) recordColumnValue(colName string) {
-	if value, ok := sqf.filteringColumnCounts[colName]; ok {
-		sqf.filteringColumnCounts[colName] = value + 1
-		return
+func (sqf SchemaQueryFilterer) recordColumnValue(colName string, colValue string) {
+	existing, ok := sqf.filteringColumnTracker[colName]
+	if ok {
+		if existing.SingleValue != nil && *existing.SingleValue != colValue {
+			sqf.filteringColumnTracker[colName] = columnTracker{SingleValue: nil}
+		}
+	} else {
+		sqf.filteringColumnTracker[colName] = columnTracker{SingleValue: &colValue}
 	}
+}
 
-	sqf.filteringColumnCounts[colName] = 1
+func (sqf SchemaQueryFilterer) recordVaryingColumnValue(colName string) {
+	sqf.filteringColumnTracker[colName] = columnTracker{SingleValue: nil}
 }
 
 // FilterToResourceID returns a new SchemaQueryFilterer that is limited to resources with the
 // specified ID.
 func (sqf SchemaQueryFilterer) FilterToResourceID(objectID string) SchemaQueryFilterer {
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colObjectID: objectID})
-	sqf.recordColumnValue(sqf.schema.colObjectID)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColObjectID: objectID})
+	sqf.recordColumnValue(sqf.schema.ColObjectID, objectID)
 	return sqf
 }
 
@@ -309,7 +359,7 @@ func (sqf SchemaQueryFilterer) FilterWithResourceIDPrefix(prefix string) (Schema
 	prefix = strings.ReplaceAll(prefix, `\`, `\\`)
 	prefix = strings.ReplaceAll(prefix, "_", `\_`)
 
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.colObjectID: prefix + "%"})
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Like{sqf.schema.ColObjectID: prefix + "%"})
 
 	// NOTE: we do *not* record the use of the resource ID column here, because it is not used
 	// statically and thus is necessary for sorting operations.
@@ -332,7 +382,7 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (Schema
 	}, "cannot have more than %d resource IDs in a single filter", sqf.filterMaximumIDCount)
 
 	var builder strings.Builder
-	builder.WriteString(sqf.schema.colObjectID)
+	builder.WriteString(sqf.schema.ColObjectID)
 	builder.WriteString(" IN (")
 	args := make([]any, 0, len(resourceIds))
 
@@ -342,7 +392,7 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (Schema
 		}
 
 		args = append(args, resourceID)
-		sqf.recordColumnValue(sqf.schema.colObjectID)
+		sqf.recordColumnValue(sqf.schema.ColObjectID, resourceID)
 	}
 
 	builder.WriteString("?")
@@ -358,8 +408,8 @@ func (sqf SchemaQueryFilterer) FilterToResourceIDs(resourceIds []string) (Schema
 // FilterToRelation returns a new SchemaQueryFilterer that is limited to resources with the
 // specified relation.
 func (sqf SchemaQueryFilterer) FilterToRelation(relation string) SchemaQueryFilterer {
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colRelation: relation})
-	sqf.recordColumnValue(sqf.schema.colRelation)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColRelation: relation})
+	sqf.recordColumnValue(sqf.schema.ColRelation, relation)
 	return sqf
 }
 
@@ -417,9 +467,10 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 	}
 
 	if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionHasExpiration {
-		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.colExpiration: nil})
+		csqf.queryBuilder = csqf.queryBuilder.Where(sq.NotEq{csqf.schema.ColExpiration: nil})
+		spiceerrors.DebugAssert(func() bool { return !sqf.schema.ExpirationDisabled }, "expiration filter requested but schema does not support expiration")
 	} else if filter.OptionalExpirationOption == datastore.ExpirationFilterOptionNoExpiration {
-		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.colExpiration: nil})
+		csqf.queryBuilder = csqf.queryBuilder.Where(sq.Eq{csqf.schema.ColExpiration: nil})
 	}
 
 	return csqf, nil
@@ -440,12 +491,21 @@ func (sqf SchemaQueryFilterer) MustFilterWithSubjectsSelectors(selectors ...data
 func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastore.SubjectsSelector) (SchemaQueryFilterer, error) {
 	selectorsOrClause := sq.Or{}
 
+	// If there is more than a single filter, record all the subjects as varying, as the subjects returned
+	// can differ for each branch.
+	// TODO(jschorr): Optimize this further where applicable.
+	if len(selectors) > 1 {
+		sqf.recordVaryingColumnValue(sqf.schema.ColUsersetNamespace)
+		sqf.recordVaryingColumnValue(sqf.schema.ColUsersetObjectID)
+		sqf.recordVaryingColumnValue(sqf.schema.ColUsersetRelation)
+	}
+
 	for _, selector := range selectors {
 		selectorClause := sq.And{}
 
 		if len(selector.OptionalSubjectType) > 0 {
-			selectorClause = append(selectorClause, sq.Eq{sqf.schema.colUsersetNamespace: selector.OptionalSubjectType})
-			sqf.recordColumnValue(sqf.schema.colUsersetNamespace)
+			selectorClause = append(selectorClause, sq.Eq{sqf.schema.ColUsersetNamespace: selector.OptionalSubjectType})
+			sqf.recordColumnValue(sqf.schema.ColUsersetNamespace, selector.OptionalSubjectType)
 		}
 
 		if len(selector.OptionalSubjectIds) > 0 {
@@ -454,7 +514,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 			}, "cannot have more than %d subject IDs in a single filter", sqf.filterMaximumIDCount)
 
 			var builder strings.Builder
-			builder.WriteString(sqf.schema.colUsersetObjectID)
+			builder.WriteString(sqf.schema.ColUsersetObjectID)
 			builder.WriteString(" IN (")
 			args := make([]any, 0, len(selector.OptionalSubjectIds))
 
@@ -464,7 +524,7 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 				}
 
 				args = append(args, subjectID)
-				sqf.recordColumnValue(sqf.schema.colUsersetObjectID)
+				sqf.recordColumnValue(sqf.schema.ColUsersetObjectID, subjectID)
 			}
 
 			builder.WriteString("?")
@@ -478,8 +538,8 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 
 		if !selector.RelationFilter.IsEmpty() {
 			if selector.RelationFilter.OnlyNonEllipsisRelations {
-				selectorClause = append(selectorClause, sq.NotEq{sqf.schema.colUsersetRelation: datastore.Ellipsis})
-				sqf.recordColumnValue(sqf.schema.colUsersetRelation)
+				selectorClause = append(selectorClause, sq.NotEq{sqf.schema.ColUsersetRelation: datastore.Ellipsis})
+				sqf.recordVaryingColumnValue(sqf.schema.ColUsersetRelation)
 			} else {
 				relations := make([]string, 0, 2)
 				if selector.RelationFilter.IncludeEllipsisRelation {
@@ -492,14 +552,14 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 
 				if len(relations) == 1 {
 					relName := relations[0]
-					selectorClause = append(selectorClause, sq.Eq{sqf.schema.colUsersetRelation: relName})
-					sqf.recordColumnValue(sqf.schema.colUsersetRelation)
+					selectorClause = append(selectorClause, sq.Eq{sqf.schema.ColUsersetRelation: relName})
+					sqf.recordColumnValue(sqf.schema.ColUsersetRelation, relName)
 				} else {
 					orClause := sq.Or{}
 					for _, relationName := range relations {
 						dsRelationName := stringz.DefaultEmpty(relationName, datastore.Ellipsis)
-						orClause = append(orClause, sq.Eq{sqf.schema.colUsersetRelation: dsRelationName})
-						sqf.recordColumnValue(sqf.schema.colUsersetRelation)
+						orClause = append(orClause, sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
+						sqf.recordColumnValue(sqf.schema.ColUsersetRelation, dsRelationName)
 					}
 
 					selectorClause = append(selectorClause, orClause)
@@ -517,27 +577,27 @@ func (sqf SchemaQueryFilterer) FilterWithSubjectsSelectors(selectors ...datastor
 // FilterToSubjectFilter returns a new SchemaQueryFilterer that is limited to resources with
 // subjects that match the specified filter.
 func (sqf SchemaQueryFilterer) FilterToSubjectFilter(filter *v1.SubjectFilter) SchemaQueryFilterer {
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colUsersetNamespace: filter.SubjectType})
-	sqf.recordColumnValue(sqf.schema.colUsersetNamespace)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetNamespace: filter.SubjectType})
+	sqf.recordColumnValue(sqf.schema.ColUsersetNamespace, filter.SubjectType)
 
 	if filter.OptionalSubjectId != "" {
-		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colUsersetObjectID: filter.OptionalSubjectId})
-		sqf.recordColumnValue(sqf.schema.colUsersetObjectID)
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetObjectID: filter.OptionalSubjectId})
+		sqf.recordColumnValue(sqf.schema.ColUsersetObjectID, filter.OptionalSubjectId)
 	}
 
 	if filter.OptionalRelation != nil {
 		dsRelationName := stringz.DefaultEmpty(filter.OptionalRelation.Relation, datastore.Ellipsis)
 
-		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colUsersetRelation: dsRelationName})
-		sqf.recordColumnValue(sqf.schema.colUsersetRelation)
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColUsersetRelation: dsRelationName})
+		sqf.recordColumnValue(sqf.schema.ColUsersetRelation, datastore.Ellipsis)
 	}
 
 	return sqf
 }
 
 func (sqf SchemaQueryFilterer) FilterWithCaveatName(caveatName string) SchemaQueryFilterer {
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.colCaveatName: caveatName})
-	sqf.recordColumnValue(sqf.schema.colCaveatName)
+	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColCaveatName: caveatName})
+	sqf.recordColumnValue(sqf.schema.ColCaveatName, caveatName)
 	return sqf
 }
 
@@ -547,21 +607,30 @@ func (sqf SchemaQueryFilterer) limit(limit uint64) SchemaQueryFilterer {
 	return sqf
 }
 
-// QueryExecutor is a tuple query runner shared by SQL implementations of the datastore.
-type QueryExecutor struct {
-	Executor ExecuteQueryFunc
+// QueryRelationshipsExecutor is a relationships query runner shared by SQL implementations of the datastore.
+type QueryRelationshipsExecutor struct {
+	Executor ExecuteReadRelsQueryFunc
 }
 
+// ExecuteReadRelsQueryFunc is a function that can be used to execute a single rendered SQL query.
+type ExecuteReadRelsQueryFunc func(ctx context.Context, builder RelationshipsQueryBuilder) (datastore.RelationshipIterator, error)
+
 // ExecuteQuery executes the query.
-func (tqs QueryExecutor) ExecuteQuery(
+func (exc QueryRelationshipsExecutor) ExecuteQuery(
 	ctx context.Context,
 	query SchemaQueryFilterer,
 	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
+	if query.isCustomQuery {
+		return nil, spiceerrors.MustBugf("ExecuteQuery should not be called on custom queries")
+	}
+
 	queryOpts := options.NewQueryOptionsWithOptions(opts...)
 
+	// Add sort order.
 	query = query.TupleOrder(queryOpts.Sort)
 
+	// Add cursor.
 	if queryOpts.After != nil {
 		if queryOpts.Sort == options.Unsorted {
 			return nil, datastore.ErrCursorsWithoutSorting
@@ -570,6 +639,7 @@ func (tqs QueryExecutor) ExecuteQuery(
 		query = query.After(queryOpts.After, queryOpts.Sort)
 	}
 
+	// Add limit.
 	var limit uint64
 	// NOTE: we use a uint here because it lines up with the
 	// assignments in this function, but we set it to MaxInt64
@@ -580,20 +650,193 @@ func (tqs QueryExecutor) ExecuteQuery(
 		limit = *queryOpts.Limit
 	}
 
-	toExecute := query.limit(limit)
-
-	// Run the query.
-	sql, args, err := toExecute.queryBuilder.ToSql()
-	if err != nil {
-		return nil, err
+	if limit < math.MaxInt64 {
+		query = query.limit(limit)
 	}
 
-	return tqs.Executor(ctx, sql, args)
+	// Add FROM clause.
+	from := query.schema.RelationshipTableName
+	if query.fromSuffix != "" {
+		from += " " + query.fromSuffix
+	}
+
+	query.queryBuilder = query.queryBuilder.From(from)
+
+	builder := RelationshipsQueryBuilder{
+		Schema:           query.schema,
+		SkipCaveats:      queryOpts.SkipCaveats,
+		SkipExpiration:   queryOpts.SkipExpiration,
+		sqlAssertion:     queryOpts.SQLAssertion,
+		filteringValues:  query.filteringColumnTracker,
+		baseQueryBuilder: query,
+	}
+
+	return exc.Executor(ctx, builder)
 }
 
-// ExecuteQueryFunc is a function that can be used to execute a single rendered SQL query.
-type ExecuteQueryFunc func(ctx context.Context, sql string, args []any) (datastore.RelationshipIterator, error)
+// RelationshipsQueryBuilder is a builder for producing the SQL and arguments necessary for reading
+// relationships.
+type RelationshipsQueryBuilder struct {
+	Schema         SchemaInformation
+	SkipCaveats    bool
+	SkipExpiration bool
 
-// TxCleanupFunc is a function that should be executed when the caller of
-// TransactionFactory is done with the transaction.
-type TxCleanupFunc func(context.Context)
+	filteringValues  columnTrackerMap
+	baseQueryBuilder SchemaQueryFilterer
+	sqlAssertion     options.Assertion
+}
+
+// withCaveats returns true if caveats should be included in the query.
+func (b RelationshipsQueryBuilder) withCaveats() bool {
+	return !b.SkipCaveats || b.Schema.ColumnOptimization == ColumnOptimizationOptionNone
+}
+
+// withExpiration returns true if expiration should be included in the query.
+func (b RelationshipsQueryBuilder) withExpiration() bool {
+	return !b.SkipExpiration && !b.Schema.ExpirationDisabled
+}
+
+// integrityEnabled returns true if integrity columns should be included in the query.
+func (b RelationshipsQueryBuilder) integrityEnabled() bool {
+	return b.Schema.IntegrityEnabled
+}
+
+// columnCount returns the number of columns that will be selected in the query.
+func (b RelationshipsQueryBuilder) columnCount() int {
+	columnCount := relationshipStandardColumnCount
+	if b.withCaveats() {
+		columnCount += relationshipCaveatColumnCount
+	}
+	if b.withExpiration() {
+		columnCount += relationshipExpirationColumnCount
+	}
+	if b.integrityEnabled() {
+		columnCount += relationshipIntegrityColumnCount
+	}
+	return columnCount
+}
+
+// SelectSQL returns the SQL and arguments necessary for reading relationships.
+func (b RelationshipsQueryBuilder) SelectSQL() (string, []any, error) {
+	// Set the column names to select.
+	columnNamesToSelect := make([]string, 0, b.columnCount())
+
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColNamespace)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColObjectID)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColRelation)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetNamespace)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetObjectID)
+	columnNamesToSelect = b.checkColumn(columnNamesToSelect, b.Schema.ColUsersetRelation)
+
+	if b.withCaveats() {
+		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColCaveatName, b.Schema.ColCaveatContext)
+	}
+
+	if b.withExpiration() {
+		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColExpiration)
+	}
+
+	if b.integrityEnabled() {
+		columnNamesToSelect = append(columnNamesToSelect, b.Schema.ColIntegrityKeyID, b.Schema.ColIntegrityHash, b.Schema.ColIntegrityTimestamp)
+	}
+
+	if len(columnNamesToSelect) == 0 {
+		columnNamesToSelect = append(columnNamesToSelect, "1")
+	}
+
+	sqlBuilder := b.baseQueryBuilder.queryBuilderWithMaybeExpirationFilter(b.SkipExpiration)
+	sqlBuilder = sqlBuilder.Columns(columnNamesToSelect...)
+
+	sql, args, err := sqlBuilder.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	if b.sqlAssertion != nil {
+		b.sqlAssertion(sql)
+	}
+
+	return sql, args, nil
+}
+
+// FilteringValuesForTesting returns the filtering values. For test use only.
+func (b RelationshipsQueryBuilder) FilteringValuesForTesting() map[string]columnTracker {
+	return maps.Clone(b.filteringValues)
+}
+
+func (b RelationshipsQueryBuilder) checkColumn(columns []string, colName string) []string {
+	if b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+		return append(columns, colName)
+	}
+
+	if !b.filteringValues.hasStaticValue(colName) {
+		return append(columns, colName)
+	}
+
+	return columns
+}
+
+func (b RelationshipsQueryBuilder) staticValueOrAddColumnForSelect(colsToSelect []any, colName string, field *string) []any {
+	if b.Schema.ColumnOptimization == ColumnOptimizationOptionNone {
+		// If column optimization is disabled, always add the column to the list of columns to select.
+		colsToSelect = append(colsToSelect, field)
+		return colsToSelect
+	}
+
+	// If the value is static, set the field to it and return.
+	if found, ok := b.filteringValues[colName]; ok && found.SingleValue != nil {
+		*field = *found.SingleValue
+		return colsToSelect
+	}
+
+	// Otherwise, add the column to the list of columns to select, as the value is not static.
+	colsToSelect = append(colsToSelect, field)
+	return colsToSelect
+}
+
+// ColumnsToSelect returns the columns to select for a given query. The columns provided are
+// the references to the slots in which the values for each relationship will be placed.
+func ColumnsToSelect[CN any, CC any, EC any](
+	b RelationshipsQueryBuilder,
+	resourceObjectType *string,
+	resourceObjectID *string,
+	resourceRelation *string,
+	subjectObjectType *string,
+	subjectObjectID *string,
+	subjectRelation *string,
+	caveatName *CN,
+	caveatCtx *CC,
+	expiration EC,
+
+	integrityKeyID *string,
+	integrityHash *[]byte,
+	timestamp *time.Time,
+) ([]any, error) {
+	colsToSelect := make([]any, 0, b.columnCount())
+
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColNamespace, resourceObjectType)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColObjectID, resourceObjectID)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColRelation, resourceRelation)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetNamespace, subjectObjectType)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetObjectID, subjectObjectID)
+	colsToSelect = b.staticValueOrAddColumnForSelect(colsToSelect, b.Schema.ColUsersetRelation, subjectRelation)
+
+	if b.withCaveats() {
+		colsToSelect = append(colsToSelect, caveatName, caveatCtx)
+	}
+
+	if b.withExpiration() {
+		colsToSelect = append(colsToSelect, expiration)
+	}
+
+	if b.Schema.IntegrityEnabled {
+		colsToSelect = append(colsToSelect, integrityKeyID, integrityHash, timestamp)
+	}
+
+	if len(colsToSelect) == 0 {
+		var unused int
+		colsToSelect = append(colsToSelect, &unused)
+	}
+
+	return colsToSelect, nil
+}

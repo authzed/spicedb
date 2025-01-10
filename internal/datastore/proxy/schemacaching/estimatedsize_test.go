@@ -14,6 +14,7 @@ import (
 	"github.com/ccoveille/go-safecast"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/datastore/memdb"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/validationfile"
@@ -46,7 +47,7 @@ func TestEstimatedDefinitionSizes(t *testing.T) {
 		filePath := filePath
 		t.Run(path.Base(filePath), func(t *testing.T) {
 			require := require.New(t)
-			ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, memdb.DisableGC)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, memdb.DisableGC)
 			require.NoError(err)
 
 			fullyResolved, _, err := validationfile.PopulateFromFiles(context.Background(), ds, []string{filePath})

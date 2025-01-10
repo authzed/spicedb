@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 )
 
@@ -26,6 +27,8 @@ type spannerOptions struct {
 	migrationPhase              string
 	allowedMigrations           []string
 	filterMaximumIDCount        uint16
+	columnOptimizationOption    common.ColumnOptimizationOption
+	expirationDisabled          bool
 }
 
 type migrationPhase uint8
@@ -49,6 +52,8 @@ const (
 	defaultDisableStats                = false
 	maxRevisionQuantization            = 24 * time.Hour
 	defaultFilterMaximumIDCount        = 100
+	defaultColumnOptimizationOption    = common.ColumnOptimizationOptionNone
+	defaultExpirationDisabled          = false
 )
 
 // Option provides the facility to configure how clients within the Spanner
@@ -72,6 +77,8 @@ func generateConfig(options []Option) (spannerOptions, error) {
 		maxSessions:                 400,
 		migrationPhase:              "", // no migration
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
+		columnOptimizationOption:    defaultColumnOptimizationOption,
+		expirationDisabled:          defaultExpirationDisabled,
 	}
 
 	for _, option := range options {
@@ -223,4 +230,23 @@ func AllowedMigrations(allowedMigrations []string) Option {
 // FilterMaximumIDCount is the maximum number of IDs that can be used to filter IDs in queries
 func FilterMaximumIDCount(filterMaximumIDCount uint16) Option {
 	return func(po *spannerOptions) { po.filterMaximumIDCount = filterMaximumIDCount }
+}
+
+// WithColumnOptimization configures the Spanner driver to optimize the columns
+// in the underlying tables.
+func WithColumnOptimization(isEnabled bool) Option {
+	return func(po *spannerOptions) {
+		if isEnabled {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionStaticValues
+		} else {
+			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
+		}
+	}
+}
+
+// WithExpirationDisabled disables relationship expiration support in the Spanner.
+func WithExpirationDisabled(isDisabled bool) Option {
+	return func(po *spannerOptions) {
+		po.expirationDisabled = isDisabled
+	}
 }

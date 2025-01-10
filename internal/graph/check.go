@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/namespace"
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
@@ -321,14 +323,14 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	// 2) the wildcard form of the target subject, if a wildcard is allowed on this relation
 	// 3) Otherwise, any non-terminal (non-`...`) subjects, if allowed on this relation, to be
 	//    redispatched outward
-	hasNonTerminals := false
-	hasDirectSubject := false
-	hasWildcardSubject := false
+	totalNonTerminals := 0
+	totalDirectSubjects := 0
+	totalWildcardSubjects := 0
 
 	defer func() {
-		if hasNonTerminals {
+		if totalNonTerminals > 0 {
 			span.SetName("non terminal")
-		} else if hasDirectSubject {
+		} else if totalDirectSubjects > 0 {
 			span.SetName("terminal")
 		} else {
 			span.SetName("wildcard subject")
@@ -337,6 +339,11 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	log.Ctx(ctx).Trace().Object("direct", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
 
+	directSubjectsAndWildcardsWithoutCaveats := 0
+	directSubjectsAndWildcardsWithoutExpiration := 0
+	nonTerminalsWithoutCaveats := 0
+	nonTerminalsWithoutExpiration := 0
+
 	for _, allowedDirectRelation := range relation.GetTypeInformation().GetAllowedDirectRelations() {
 		// If the namespace of the allowed direct relation matches the subject type, there are two
 		// cases to optimize:
@@ -344,9 +351,17 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// 2) Finding a wildcard for the subject type+relation
 		if allowedDirectRelation.GetNamespace() == crc.parentReq.Subject.Namespace {
 			if allowedDirectRelation.GetPublicWildcard() != nil {
-				hasWildcardSubject = true
+				totalWildcardSubjects++
 			} else if allowedDirectRelation.GetRelation() == crc.parentReq.Subject.Relation {
-				hasDirectSubject = true
+				totalDirectSubjects++
+			}
+
+			if allowedDirectRelation.RequiredCaveat == nil {
+				directSubjectsAndWildcardsWithoutCaveats++
+			}
+
+			if allowedDirectRelation.RequiredExpiration == nil {
+				directSubjectsAndWildcardsWithoutExpiration++
 			}
 		}
 
@@ -356,9 +371,19 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		// TODO(jschorr): Use type information to *further* optimize this query around which nested
 		// relations can reach the target subject type.
 		if allowedDirectRelation.GetRelation() != tuple.Ellipsis {
-			hasNonTerminals = true
+			totalNonTerminals++
+			if allowedDirectRelation.RequiredCaveat == nil {
+				nonTerminalsWithoutCaveats++
+			}
+			if allowedDirectRelation.RequiredExpiration == nil {
+				nonTerminalsWithoutExpiration++
+			}
 		}
 	}
+
+	nonTerminalsCanHaveCaveats := totalNonTerminals != nonTerminalsWithoutCaveats
+	nonTerminalsCanHaveExpiration := totalNonTerminals != nonTerminalsWithoutExpiration
+	hasNonTerminals := totalNonTerminals > 0
 
 	foundResources := NewMembershipSet()
 
@@ -369,7 +394,12 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		directDispatchQueryHistogram.Observe(queryCount)
 	}()
 
+	hasDirectSubject := totalDirectSubjects > 0
+	hasWildcardSubject := totalWildcardSubjects > 0
 	if hasDirectSubject || hasWildcardSubject {
+		directSubjectOrWildcardCanHaveCaveats := directSubjectsAndWildcardsWithoutCaveats != (totalDirectSubjects + totalWildcardSubjects)
+		directSubjectOrWildcardCanHaveExpiration := directSubjectsAndWildcardsWithoutExpiration != (totalDirectSubjects + totalWildcardSubjects)
+
 		subjectSelectors := []datastore.SubjectsSelector{}
 
 		if hasDirectSubject {
@@ -395,7 +425,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 			OptionalSubjectsSelectors: subjectSelectors,
 		}
 
-		it, err := ds.QueryRelationships(ctx, filter)
+		it, err := ds.QueryRelationships(ctx, filter,
+			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
+			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
+		)
 		if err != nil {
 			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 		}
@@ -444,7 +477,10 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		},
 	}
 
-	it, err := ds.QueryRelationships(ctx, filter)
+	it, err := ds.QueryRelationships(ctx, filter,
+		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
+		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
+	)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
@@ -638,6 +674,73 @@ func (cc *ConcurrentChecker) checkComputedUserset(ctx context.Context, crc curre
 	return combineResultWithFoundResources(result, membershipSet)
 }
 
+type Traits struct {
+	HasCaveats    bool
+	HasExpiration bool
+}
+
+// TraitsForArrowRelation returns traits such as HasCaveats and HasExpiration if *any* of the subject
+// types of the given relation support caveats or expiration.
+func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namespaceName string, relationName string) (Traits, error) {
+	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
+	nsDefs, err := reader.LookupNamespacesWithNames(ctx, []string{namespaceName})
+	if err != nil {
+		return Traits{}, err
+	}
+
+	if len(nsDefs) != 1 {
+		return Traits{}, fmt.Errorf("namespace %q not found", namespaceName)
+	}
+
+	var relation *core.Relation
+	for _, rel := range nsDefs[0].Definition.Relation {
+		if rel.Name == relationName {
+			relation = rel
+			break
+		}
+	}
+
+	if relation == nil || relation.TypeInformation == nil {
+		return Traits{}, fmt.Errorf("relation %q not found", relationName)
+	}
+
+	hasCaveats := false
+	hasExpiration := false
+
+	for _, allowedDirectRelation := range relation.TypeInformation.GetAllowedDirectRelations() {
+		if allowedDirectRelation.RequiredCaveat != nil {
+			hasCaveats = true
+		}
+
+		if allowedDirectRelation.RequiredExpiration != nil {
+			hasExpiration = true
+		}
+	}
+
+	return Traits{
+		HasCaveats:    hasCaveats,
+		HasExpiration: hasExpiration,
+	}, nil
+}
+
+func queryOptionsForArrowRelation(ctx context.Context, ds datastore.Reader, namespaceName string, relationName string) ([]options.QueryOptionsOption, error) {
+	traits, err := TraitsForArrowRelation(ctx, ds, namespaceName, relationName)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []options.QueryOptionsOption{}
+	if !traits.HasCaveats {
+		opts = append(opts, options.WithSkipCaveats(true))
+	}
+
+	if !traits.HasExpiration {
+		opts = append(opts, options.WithSkipExpiration(true))
+	}
+
+	return opts, nil
+}
+
 func filterForFoundMemberResource(resourceRelation *core.RelationReference, resourceIds []string, subject *core.ObjectAndRelation) (*MembershipSet, []string) {
 	if resourceRelation.Namespace != subject.Namespace || resourceRelation.Relation != subject.Relation {
 		return nil, resourceIds
@@ -688,11 +791,16 @@ func checkIntersectionTupleToUserset(
 	// Query for the subjects over which to walk the TTU.
 	log.Ctx(ctx).Trace().Object("intersectionttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	if err != nil {
+		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
+	}
+
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      crc.filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
-	})
+	}, queryOpts...)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}
@@ -849,11 +957,17 @@ func checkTupleToUserset[T relation](
 
 	log.Ctx(ctx).Trace().Object("ttu", crc.parentReq).Send()
 	ds := datastoremw.MustFromContext(ctx).SnapshotReader(crc.parentReq.Revision)
+
+	queryOpts, err := queryOptionsForArrowRelation(ctx, ds, crc.parentReq.ResourceRelation.Namespace, ttu.GetTupleset().GetRelation())
+	if err != nil {
+		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
+	}
+
 	it, err := ds.QueryRelationships(ctx, datastore.RelationshipsFilter{
 		OptionalResourceType:     crc.parentReq.ResourceRelation.Namespace,
 		OptionalResourceIds:      filteredResourceIDs,
 		OptionalResourceRelation: ttu.GetTupleset().GetRelation(),
-	})
+	}, queryOpts...)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)
 	}

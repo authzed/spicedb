@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -58,7 +58,7 @@ var expiredKeyForTesting = KeyConfig{
 }
 
 func TestWriteWithPredefinedIntegrity(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
@@ -76,7 +76,7 @@ func TestWriteWithPredefinedIntegrity(t *testing.T) {
 }
 
 func TestReadWithMissingIntegrity(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
 	// Write a relationship to the underlying datastore without integrity information.
@@ -108,7 +108,7 @@ func TestReadWithMissingIntegrity(t *testing.T) {
 }
 
 func TestBasicIntegrityFailureDueToInvalidHashVersion(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
@@ -157,7 +157,7 @@ func TestBasicIntegrityFailureDueToInvalidHashVersion(t *testing.T) {
 }
 
 func TestBasicIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
 	pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)
@@ -206,7 +206,7 @@ func TestBasicIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 }
 
 func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
 	// Create a proxy with the to-be-expired key and write some relationships.
@@ -245,7 +245,7 @@ func TestBasicIntegrityFailureDueToWriteWithExpiredKey(t *testing.T) {
 }
 
 func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
-	ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 	require.NoError(t, err)
 
 	headRev, err := ds.HeadRevision(context.Background())
@@ -289,7 +289,7 @@ func TestWatchIntegrityFailureDueToInvalidHashSignature(t *testing.T) {
 func BenchmarkQueryRelsWithIntegrity(b *testing.B) {
 	for _, withIntegrity := range []bool{true, false} {
 		b.Run(fmt.Sprintf("withIntegrity=%t", withIntegrity), func(b *testing.B) {
-			ds, err := memdb.NewMemdbDatastore(0, 5*time.Second, 1*time.Hour)
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 5*time.Second, 1*time.Hour)
 			require.NoError(b, err)
 
 			pds, err := NewRelationshipIntegrityProxy(ds, DefaultKeyForTesting, nil)

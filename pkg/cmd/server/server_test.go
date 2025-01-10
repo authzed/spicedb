@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/authzed/spicedb/internal/datastore/memdb"
+	"github.com/authzed/spicedb/internal/datastore/dsfortesting"
 	"github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
@@ -26,7 +26,7 @@ func TestServerGracefulTermination(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
 	c := ConfigWithOptions(
@@ -164,7 +164,7 @@ func TestServerGracefulTerminationOnError(t *testing.T) {
 	defer goleak.VerifyNone(t, append(testutil.GoLeakIgnores(), goleak.IgnoreCurrent())...)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ds, err := memdb.NewMemdbDatastore(0, 1*time.Second, 10*time.Second)
+	ds, err := dsfortesting.NewMemDBDatastoreForTesting(0, 1*time.Second, 10*time.Second)
 	require.NoError(t, err)
 
 	c := ConfigWithOptions(&Config{

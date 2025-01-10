@@ -151,11 +151,11 @@ func (r *memdbReader) QueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.Limit)
+		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.Limit, queryOpts.SkipCaveats, queryOpts.SkipExpiration)
 		return iter, nil
 
 	case options.BySubject:
-		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.Limit)
+		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.Limit, queryOpts.SkipCaveats, queryOpts.SkipExpiration)
 
 	default:
 		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.Sort)
@@ -214,11 +214,11 @@ func (r *memdbReader) ReverseQueryRelationships(
 		fallthrough
 
 	case options.ByResource:
-		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse)
+		iter := newMemdbTupleIterator(r.now, filteredIterator, queryOpts.LimitForReverse, false, false)
 		return iter, nil
 
 	case options.BySubject:
-		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse)
+		return newSubjectSortedIterator(r.now, filteredIterator, queryOpts.LimitForReverse, false, false)
 
 	default:
 		return nil, spiceerrors.MustBugf("unsupported sort order: %v", queryOpts.SortForReverse)
@@ -476,7 +476,7 @@ func makeCursorFilterFn(after options.Cursor, order options.SortOrder) func(tpl 
 	return noopCursorFilter
 }
 
-func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uint64) (datastore.RelationshipIterator, error) {
+func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uint64, skipCaveats bool, skipExpiration bool) (datastore.RelationshipIterator, error) {
 	results := make([]tuple.Relationship, 0)
 
 	// Coalesce all of the results into memory
@@ -488,6 +488,14 @@ func newSubjectSortedIterator(now time.Time, it memdb.ResultIterator, limit *uin
 
 		if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {
 			continue
+		}
+
+		if skipCaveats && rt.OptionalCaveat != nil {
+			return nil, spiceerrors.MustBugf("unexpected caveat in result for relationship: %v", rt)
+		}
+
+		if skipExpiration && rt.OptionalExpiration != nil {
+			return nil, spiceerrors.MustBugf("unexpected expiration in result for relationship: %v", rt)
 		}
 
 		results = append(results, rt)
@@ -526,7 +534,7 @@ func eq(lhsNamespace, lhsObjectID, lhsRelation string, rhs tuple.ObjectAndRelati
 	return lhsNamespace == rhs.ObjectType && lhsObjectID == rhs.ObjectID && lhsRelation == rhs.Relation
 }
 
-func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64) datastore.RelationshipIterator {
+func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64, skipCaveats bool, skipExpiration bool) datastore.RelationshipIterator {
 	var count uint64
 	return func(yield func(tuple.Relationship, error) bool) {
 		for {
@@ -545,6 +553,16 @@ func newMemdbTupleIterator(now time.Time, it memdb.ResultIterator, limit *uint64
 					return
 				}
 				continue
+			}
+
+			if skipCaveats && rt.OptionalCaveat != nil {
+				yield(rt, fmt.Errorf("unexpected caveat in result for relationship: %v", rt))
+				return
+			}
+
+			if skipExpiration && rt.OptionalExpiration != nil {
+				yield(rt, fmt.Errorf("unexpected expiration in result for relationship: %v", rt))
+				return
 			}
 
 			if rt.OptionalExpiration != nil && rt.OptionalExpiration.Before(now) {

@@ -18,8 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	datastoreinternal "github.com/authzed/spicedb/internal/datastore"
@@ -29,7 +27,6 @@ import (
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
-	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 const (
@@ -246,6 +243,24 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		-1*config.gcWindow.Seconds(),
 	)
 
+	schema := common.NewSchemaInformationWithOptions(
+		common.WithRelationshipTableName(driver.RelationTuple()),
+		common.WithColNamespace(colNamespace),
+		common.WithColObjectID(colObjectID),
+		common.WithColRelation(colRelation),
+		common.WithColUsersetNamespace(colUsersetNamespace),
+		common.WithColUsersetObjectID(colUsersetObjectID),
+		common.WithColUsersetRelation(colUsersetRelation),
+		common.WithColCaveatName(colCaveatName),
+		common.WithColCaveatContext(colCaveatContext),
+		common.WithColExpiration(colExpiration),
+		common.WithPaginationFilterType(common.ExpandedLogicComparison),
+		common.WithPlaceholderFormat(sq.Question),
+		common.WithNowFunction("NOW"),
+		common.WithColumnOptimization(config.columnOptimizationOption),
+		common.WithExpirationDisabled(config.expirationDisabled),
+	)
+
 	store := &Datastore{
 		MigrationValidator:      common.NewMigrationValidator(headMigration, config.allowedMigrations),
 		db:                      db,
@@ -267,6 +282,7 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		readTxOptions:           &sql.TxOptions{Isolation: sql.LevelSerializable, ReadOnly: true},
 		maxRetries:              config.maxRetries,
 		analyzeBeforeStats:      config.analyzeBeforeStats,
+		schema:                  *schema,
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
 			maxRevisionStaleness,
 		),
@@ -316,7 +332,7 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 		return tx, tx.Rollback, nil
 	}
 
-	executor := common.QueryExecutor{
+	executor := common.QueryRelationshipsExecutor{
 		Executor: newMySQLExecutor(mds.db),
 	}
 
@@ -326,6 +342,7 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 		executor,
 		buildLivingObjectFilterForRevision(rev),
 		mds.filterMaximumIDCount,
+		mds.schema,
 	}
 }
 
@@ -358,7 +375,7 @@ func (mds *Datastore) ReadWriteTx(
 				return tx, noCleanup, nil
 			}
 
-			executor := common.QueryExecutor{
+			executor := common.QueryRelationshipsExecutor{
 				Executor: newMySQLExecutor(tx),
 			}
 
@@ -369,6 +386,7 @@ func (mds *Datastore) ReadWriteTx(
 					executor,
 					currentlyLivingObjects,
 					mds.filterMaximumIDCount,
+					mds.schema,
 				},
 				mds.driver.RelationTuple(),
 				tx,
@@ -417,7 +435,24 @@ type querier interface {
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 }
 
-func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
+type asQueryableTx struct {
+	tx querier
+}
+
+func (aqt asQueryableTx) QueryFunc(ctx context.Context, f func(context.Context, common.Rows) error, sql string, args ...any) error {
+	rows, err := aqt.tx.QueryContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return f(ctx, rows)
+}
+
+func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
 	// This implementation does not create a transaction because it's redundant for single statements, and it avoids
 	// the network overhead and reduce contention on the connection pool. From MySQL docs:
 	//
@@ -433,82 +468,8 @@ func newMySQLExecutor(tx querier) common.ExecuteQueryFunc {
 	//
 	// Prepared statements are also not used given they perform poorly on environments where connections have
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
-	return func(ctx context.Context, sqlQuery string, args []interface{}) (datastore.RelationshipIterator, error) {
-		return func(yield func(tuple.Relationship, error) bool) {
-			span := trace.SpanFromContext(ctx)
-
-			rows, err := tx.QueryContext(ctx, sqlQuery, args...)
-			if err != nil {
-				yield(tuple.Relationship{}, fmt.Errorf(errUnableToQueryTuples, err))
-				return
-			}
-			defer common.LogOnError(ctx, rows.Close)
-
-			span.AddEvent("Query issued to database")
-
-			relCount := 0
-
-			defer func() {
-				span.AddEvent("Relationships loaded", trace.WithAttributes(attribute.Int("relCount", relCount)))
-			}()
-
-			for rows.Next() {
-				var resourceObjectType string
-				var resourceObjectID string
-				var relation string
-				var subjectObjectType string
-				var subjectObjectID string
-				var subjectRelation string
-				var caveatName string
-				var caveatContext structpbWrapper
-				var expiration *time.Time
-				err := rows.Scan(
-					&resourceObjectType,
-					&resourceObjectID,
-					&relation,
-					&subjectObjectType,
-					&subjectObjectID,
-					&subjectRelation,
-					&caveatName,
-					&caveatContext,
-					&expiration,
-				)
-				if err != nil {
-					yield(tuple.Relationship{}, fmt.Errorf(errUnableToQueryTuples, err))
-					return
-				}
-
-				caveat, err := common.ContextualizedCaveatFrom(caveatName, caveatContext)
-				if err != nil {
-					yield(tuple.Relationship{}, fmt.Errorf(errUnableToQueryTuples, err))
-					return
-				}
-
-				relCount++
-				if !yield(tuple.Relationship{
-					RelationshipReference: tuple.RelationshipReference{
-						Resource: tuple.ObjectAndRelation{
-							ObjectType: resourceObjectType,
-							ObjectID:   resourceObjectID,
-							Relation:   relation,
-						},
-						Subject: tuple.ObjectAndRelation{
-							ObjectType: subjectObjectType,
-							ObjectID:   subjectObjectID,
-							Relation:   subjectRelation,
-						},
-					},
-					OptionalCaveat:     caveat,
-					OptionalExpiration: expiration,
-				}, nil) {
-					return
-				}
-			}
-			if err := rows.Err(); err != nil {
-				yield(tuple.Relationship{}, fmt.Errorf(errUnableToQueryTuples, err))
-				return
-			}
-		}, nil
+	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
+		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, asQueryableTx{tx})
 	}
 }
 
@@ -529,6 +490,7 @@ type Datastore struct {
 	watchBufferWriteTimeout time.Duration
 	maxRetries              uint8
 	filterMaximumIDCount    uint16
+	schema                  common.SchemaInformation
 
 	optimizedRevisionQuery string
 	validTransactionQuery  string
