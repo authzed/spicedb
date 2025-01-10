@@ -53,22 +53,6 @@ func (ds *dispatchServer) DispatchExpand(ctx context.Context, req *dispatchv1.Di
 	return resp, rewriteGraphError(ctx, err)
 }
 
-func (ds *dispatchServer) DispatchReachableResources(
-	req *dispatchv1.DispatchReachableResourcesRequest,
-	resp dispatchv1.DispatchService_DispatchReachableResourcesServer,
-) error {
-	return ds.localDispatch.DispatchReachableResources(req,
-		dispatch.WrapGRPCStream[*dispatchv1.DispatchReachableResourcesResponse](resp))
-}
-
-func (ds *dispatchServer) DispatchLookupResources(
-	req *dispatchv1.DispatchLookupResourcesRequest,
-	resp dispatchv1.DispatchService_DispatchLookupResourcesServer,
-) error {
-	return ds.localDispatch.DispatchLookupResources(req,
-		dispatch.WrapGRPCStream[*dispatchv1.DispatchLookupResourcesResponse](resp))
-}
-
 func (ds *dispatchServer) DispatchLookupResources2(
 	req *dispatchv1.DispatchLookupResources2Request,
 	resp dispatchv1.DispatchService_DispatchLookupResources2Server,

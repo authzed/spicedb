@@ -2,6 +2,7 @@ package graph
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -9,6 +10,26 @@ import (
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
+
+type syncONRSet struct {
+	sync.Mutex
+	items map[string]struct{}
+}
+
+func (s *syncONRSet) Add(onr *core.ObjectAndRelation) bool {
+	key := tuple.StringONR(tuple.FromCoreObjectAndRelation(onr))
+	s.Lock()
+	_, existed := s.items[key]
+	if !existed {
+		s.items[key] = struct{}{}
+	}
+	s.Unlock()
+	return !existed
+}
+
+func NewSyncONRSet() *syncONRSet {
+	return &syncONRSet{items: make(map[string]struct{})}
+}
 
 // resourcesSubjectMap2 is a multimap which tracks mappings from found resource IDs
 // to the subject IDs (may be more than one) for each, as well as whether the mapping

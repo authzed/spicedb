@@ -162,14 +162,6 @@ func (ddm delegateDispatchMock) DispatchExpand(_ context.Context, _ *v1.Dispatch
 	return &v1.DispatchExpandResponse{}, nil
 }
 
-func (ddm delegateDispatchMock) DispatchReachableResources(_ *v1.DispatchReachableResourcesRequest, _ dispatch.ReachableResourcesStream) error {
-	return nil
-}
-
-func (ddm delegateDispatchMock) DispatchLookupResources(_ *v1.DispatchLookupResourcesRequest, _ dispatch.LookupResourcesStream) error {
-	return nil
-}
-
 func (ddm delegateDispatchMock) DispatchLookupResources2(_ *v1.DispatchLookupResources2Request, _ dispatch.LookupResources2Stream) error {
 	return nil
 }

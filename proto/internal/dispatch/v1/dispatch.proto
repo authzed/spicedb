@@ -12,12 +12,7 @@ service DispatchService {
   rpc DispatchCheck(DispatchCheckRequest) returns (DispatchCheckResponse) {}
   rpc DispatchExpand(DispatchExpandRequest) returns (DispatchExpandResponse) {}
 
-  rpc DispatchReachableResources(DispatchReachableResourcesRequest) returns (stream DispatchReachableResourcesResponse) {}
-
-  rpc DispatchLookupResources(DispatchLookupResourcesRequest) returns (stream DispatchLookupResourcesResponse) {}
   rpc DispatchLookupSubjects(DispatchLookupSubjectsRequest) returns (stream DispatchLookupSubjectsResponse) {}
-
-
   rpc DispatchLookupResources2(DispatchLookupResources2Request) returns (stream DispatchLookupResources2Response) {}
 }
 
@@ -125,80 +120,6 @@ message PossibleResource {
 message DispatchLookupResources2Response {
   PossibleResource resource = 1;
   ResponseMeta metadata = 2;
-  Cursor after_response_cursor = 3;
-}
-
-message DispatchReachableResourcesRequest {
-  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
-
-  core.v1.RelationReference resource_relation = 2 [(validate.rules).message.required = true];
-  core.v1.RelationReference subject_relation = 3 [(validate.rules).message.required = true];
-  repeated string subject_ids = 4;
-
-  // optional_cursor, if the specified, is the cursor at which to resume returning results. Note
-  // that reachableresources can return duplicates.
-  Cursor optional_cursor = 5;
-
-  // optional_limit, if given, specifies a limit on the number of resources returned.
-  uint32 optional_limit = 6;
-}
-
-message ReachableResource {
-  enum ResultStatus {
-    /**
-     * REQUIRES_CHECK indicates that the resource is reachable but a Check is required to
-     * determine if the resource is actually found for the user.
-     */
-    REQUIRES_CHECK = 0;
-
-    /**
-     * HAS_PERMISSION indicates that the resource is both reachable and found for the permission
-     * for the subject.
-     */
-    HAS_PERMISSION = 1;
-  }
-
-  string resource_id = 1;
-  ResultStatus result_status = 2;
-  repeated string for_subject_ids = 3;
-}
-
-message DispatchReachableResourcesResponse {
-  ReachableResource resource = 1;
-  ResponseMeta metadata = 2;
-  Cursor after_response_cursor = 3;
-}
-
-message DispatchLookupResourcesRequest {
-  ResolverMeta metadata = 1 [(validate.rules).message.required = true];
-
-  core.v1.RelationReference object_relation = 2 [(validate.rules).message.required = true];
-  core.v1.ObjectAndRelation subject = 3 [(validate.rules).message.required = true];
-  google.protobuf.Struct context = 5;
-
-  // optional_limit, if given, specifies a limit on the number of resources returned.
-  uint32 optional_limit = 4;
-
-  // optional_cursor, if the specified, is the cursor at which to resume returning results. Note
-  // that lookupresources can return duplicates.
-  Cursor optional_cursor = 6;
-}
-
-message ResolvedResource {
-  enum Permissionship {
-    UNKNOWN = 0;
-    HAS_PERMISSION = 1;
-    CONDITIONALLY_HAS_PERMISSION = 2;
-  }
-
-  string resource_id = 1;
-  Permissionship permissionship = 2;
-  repeated string missing_required_context = 3;
-}
-
-message DispatchLookupResourcesResponse {
-  ResponseMeta metadata = 1;
-  ResolvedResource resolved_resource = 2;
   Cursor after_response_cursor = 3;
 }
 

@@ -27,7 +27,10 @@ import (
 	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-var ONR = tuple.ONR
+var (
+	ONR = tuple.ONR
+	RR  = tuple.RR
+)
 
 func TestSimpleCheck(t *testing.T) {
 	t.Parallel()

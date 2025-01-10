@@ -36,8 +36,6 @@ func init() {
 type ClusterClient interface {
 	DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest, opts ...grpc.CallOption) (*v1.DispatchCheckResponse, error)
 	DispatchExpand(ctx context.Context, req *v1.DispatchExpandRequest, opts ...grpc.CallOption) (*v1.DispatchExpandResponse, error)
-	DispatchReachableResources(ctx context.Context, in *v1.DispatchReachableResourcesRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchReachableResourcesClient, error)
-	DispatchLookupResources(ctx context.Context, in *v1.DispatchLookupResourcesRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResourcesClient, error)
 	DispatchLookupResources2(ctx context.Context, in *v1.DispatchLookupResources2Request, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupResources2Client, error)
 	DispatchLookupSubjects(ctx context.Context, in *v1.DispatchLookupSubjectsRequest, opts ...grpc.CallOption) (v1.DispatchService_DispatchLookupSubjectsClient, error)
 }
@@ -396,106 +394,6 @@ func (cr *clusterDispatcher) DispatchExpand(ctx context.Context, req *v1.Dispatc
 
 	err = adjustMetadataForDispatch(resp.Metadata)
 	return resp, err
-}
-
-func (cr *clusterDispatcher) DispatchReachableResources(
-	req *v1.DispatchReachableResourcesRequest,
-	stream dispatch.ReachableResourcesStream,
-) error {
-	requestKey, err := cr.keyHandler.ReachableResourcesDispatchKey(stream.Context(), req)
-	if err != nil {
-		return err
-	}
-
-	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
-	stream = dispatch.StreamWithContext(ctx, stream)
-
-	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		return err
-	}
-
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
-	defer cancelFn()
-
-	client, err := cr.clusterClient.DispatchReachableResources(withTimeout, req)
-	if err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-withTimeout.Done():
-			return withTimeout.Err()
-
-		default:
-			result, err := client.Recv()
-			if errors.Is(err, io.EOF) {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
-			merr := adjustMetadataForDispatch(result.Metadata)
-			if merr != nil {
-				return merr
-			}
-
-			serr := stream.Publish(result)
-			if serr != nil {
-				return serr
-			}
-		}
-	}
-}
-
-func (cr *clusterDispatcher) DispatchLookupResources(
-	req *v1.DispatchLookupResourcesRequest,
-	stream dispatch.LookupResourcesStream,
-) error {
-	requestKey, err := cr.keyHandler.LookupResourcesDispatchKey(stream.Context(), req)
-	if err != nil {
-		return err
-	}
-
-	ctx := context.WithValue(stream.Context(), consistent.CtxKey, requestKey)
-	stream = dispatch.StreamWithContext(ctx, stream)
-
-	if err := dispatch.CheckDepth(ctx, req); err != nil {
-		return err
-	}
-
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
-	defer cancelFn()
-
-	client, err := cr.clusterClient.DispatchLookupResources(withTimeout, req)
-	if err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-withTimeout.Done():
-			return withTimeout.Err()
-
-		default:
-			result, err := client.Recv()
-			if errors.Is(err, io.EOF) {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
-			merr := adjustMetadataForDispatch(result.Metadata)
-			if merr != nil {
-				return merr
-			}
-
-			serr := stream.Publish(result)
-			if serr != nil {
-				return serr
-			}
-		}
-	}
 }
 
 func (cr *clusterDispatcher) DispatchLookupResources2(
