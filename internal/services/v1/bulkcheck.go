@@ -7,7 +7,6 @@ import (
 	"time"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
-	"github.com/google/uuid"
 	"github.com/jzelinskie/stringz"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -199,7 +198,7 @@ func (bc *bulkChecker) checkBulkPermissions(ctx context.Context, req *v1.CheckBu
 							},
 							Results:  localResults,
 							Duration: durationpb.New(time.Duration(0)),
-							TraceId:  uuid.New().String(),
+							TraceId:  graph.NewTraceID(),
 							SourceId: debugInfo.Check.SourceId,
 						},
 					}
