@@ -541,7 +541,7 @@ func (crr *CursoredLookupResources2) redispatchOrReport(
 							checkHints = append(checkHints, checkHint)
 						}
 
-						resultsByResourceID, checkMetadata, err := computed.ComputeBulkCheck(ctx, crr.dc, computed.CheckParameters{
+						resultsByResourceID, checkMetadata, _, err := computed.ComputeBulkCheck(ctx, crr.dc, computed.CheckParameters{
 							ResourceType:  tuple.FromCoreRelationReference(parentRequest.ResourceRelation),
 							Subject:       tuple.FromCoreObjectAndRelation(parentRequest.TerminalSubject),
 							CaveatContext: parentRequest.Context.AsMap(),

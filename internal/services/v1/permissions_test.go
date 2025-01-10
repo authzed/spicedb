@@ -308,6 +308,7 @@ func TestCheckPermissions(t *testing.T) {
 									require.Equal(tuple.V1StringObjectRef(tc.resource), tuple.V1StringObjectRef(debugInfo.Check.Resource))
 									require.Equal(tc.permission, debugInfo.Check.Permission)
 									require.Equal(tuple.V1StringSubjectRef(tc.subject), tuple.V1StringSubjectRef(debugInfo.Check.Subject))
+									require.NotEmpty(debugInfo.Check.Source, "source in debug trace is empty")
 								} else {
 									require.Nil(encodedDebugInfo)
 								}
@@ -1971,64 +1972,82 @@ func TestCheckBulkPermissions(t *testing.T) {
 	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			req := v1.CheckBulkPermissionsRequest{
-				Consistency: &v1.Consistency{
-					Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
-				},
-				Items: make([]*v1.CheckBulkPermissionsRequestItem, 0, len(tt.requests)),
-			}
-
-			for _, r := range tt.requests {
-				req.Items = append(req.Items, mustRelToCheckBulkRequestItem(r))
-			}
-
-			expected := make([]*v1.CheckBulkPermissionsPair, 0, len(tt.response))
-			for _, r := range tt.response {
-				reqRel, err := tuple.ParseV1Rel(r.req)
-				require.NoError(t, err)
-
-				resp := &v1.CheckBulkPermissionsPair_Item{
-					Item: &v1.CheckBulkPermissionsResponseItem{
-						Permissionship: r.resp,
-					},
-				}
-				pair := &v1.CheckBulkPermissionsPair{
-					Request: &v1.CheckBulkPermissionsRequestItem{
-						Resource:   reqRel.Resource,
-						Permission: reqRel.Relation,
-						Subject:    reqRel.Subject,
-					},
-					Response: resp,
-				}
-				if reqRel.OptionalCaveat != nil {
-					pair.Request.Context = reqRel.OptionalCaveat.Context
-				}
-				if len(r.partial) > 0 {
-					resp.Item.PartialCaveatInfo = &v1.PartialCaveatInfo{
-						MissingRequiredContext: r.partial,
+			for _, withTracing := range []bool{true, false} {
+				t.Run(fmt.Sprintf("withTracing=%t", withTracing), func(t *testing.T) {
+					req := v1.CheckBulkPermissionsRequest{
+						Consistency: &v1.Consistency{
+							Requirement: &v1.Consistency_FullyConsistent{FullyConsistent: true},
+						},
+						Items:       make([]*v1.CheckBulkPermissionsRequestItem, 0, len(tt.requests)),
+						WithTracing: withTracing,
 					}
-				}
 
-				if r.err != nil {
-					rewritten := shared.RewriteError(context.Background(), r.err, &shared.ConfigForErrors{})
-					s, ok := status.FromError(rewritten)
-					require.True(t, ok, "expected provided error to be status")
-					pair.Response = &v1.CheckBulkPermissionsPair_Error{
-						Error: s.Proto(),
+					for _, r := range tt.requests {
+						req.Items = append(req.Items, mustRelToCheckBulkRequestItem(r))
 					}
-				}
-				expected = append(expected, pair)
+
+					expected := make([]*v1.CheckBulkPermissionsPair, 0, len(tt.response))
+					for _, r := range tt.response {
+						reqRel, err := tuple.ParseV1Rel(r.req)
+						require.NoError(t, err)
+
+						resp := &v1.CheckBulkPermissionsPair_Item{
+							Item: &v1.CheckBulkPermissionsResponseItem{
+								Permissionship: r.resp,
+							},
+						}
+						pair := &v1.CheckBulkPermissionsPair{
+							Request: &v1.CheckBulkPermissionsRequestItem{
+								Resource:   reqRel.Resource,
+								Permission: reqRel.Relation,
+								Subject:    reqRel.Subject,
+							},
+							Response: resp,
+						}
+						if reqRel.OptionalCaveat != nil {
+							pair.Request.Context = reqRel.OptionalCaveat.Context
+						}
+						if len(r.partial) > 0 {
+							resp.Item.PartialCaveatInfo = &v1.PartialCaveatInfo{
+								MissingRequiredContext: r.partial,
+							}
+						}
+
+						if r.err != nil {
+							rewritten := shared.RewriteError(context.Background(), r.err, &shared.ConfigForErrors{})
+							s, ok := status.FromError(rewritten)
+							require.True(t, ok, "expected provided error to be status")
+							pair.Response = &v1.CheckBulkPermissionsPair_Error{
+								Error: s.Proto(),
+							}
+						}
+						expected = append(expected, pair)
+					}
+
+					var trailer metadata.MD
+					actual, err := client.CheckBulkPermissions(context.Background(), &req, grpc.Trailer(&trailer))
+					require.NoError(t, err)
+
+					dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
+					require.NoError(t, err)
+					require.Equal(t, tt.expectedDispatchCount, dispatchCount)
+
+					if withTracing {
+						for index, pair := range actual.Pairs {
+							if pair.GetItem() != nil {
+								parsed := tuple.MustParse(tt.requests[index])
+								require.NotNil(t, pair.GetItem().DebugTrace, "missing debug trace in response for item %v", pair.GetItem())
+								require.True(t, pair.GetItem().DebugTrace.Check != nil, "missing check trace in response for item %v", pair.GetItem())
+								require.Equal(t, parsed.Resource.ObjectID, pair.GetItem().DebugTrace.Check.Resource.ObjectId, "resource in debug trace does not match")
+								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.TraceOperationId, "trace operation ID in debug trace is empty")
+								require.NotEmpty(t, pair.GetItem().DebugTrace.Check.Source, "source in debug trace is empty")
+							}
+						}
+					} else {
+						testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")
+					}
+				})
 			}
-
-			var trailer metadata.MD
-			actual, err := client.CheckBulkPermissions(context.Background(), &req, grpc.Trailer(&trailer))
-			require.NoError(t, err)
-
-			dispatchCount, err := responsemeta.GetIntResponseTrailerMetadata(trailer, responsemeta.DispatchedOperationsCount)
-			require.NoError(t, err)
-			require.Equal(t, tt.expectedDispatchCount, dispatchCount)
-
-			testutil.RequireProtoSlicesEqual(t, expected, actual.Pairs, nil, "response bulk check pairs did not match")
 		})
 	}
 }

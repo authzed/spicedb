@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/authzed/spicedb/pkg/datastore"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 
 	sq "github.com/Masterminds/squirrel"
@@ -116,7 +117,7 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 		return nil
 	}
 	write := writeCaveat
-	writtenCaveatNames := make([]string, 0, len(caveats))
+	writtenCaveatNames := mapz.NewSet[string]()
 	for _, caveat := range caveats {
 		definitionBytes, err := caveat.MarshalVT()
 		if err != nil {
@@ -124,11 +125,13 @@ func (rwt *pgReadWriteTXN) WriteCaveats(ctx context.Context, caveats []*core.Cav
 		}
 		valuesToWrite := []any{caveat.Name, definitionBytes}
 		write = write.Values(valuesToWrite...)
-		writtenCaveatNames = append(writtenCaveatNames, caveat.Name)
+		if !writtenCaveatNames.Add(caveat.Name) {
+			return fmt.Errorf("duplicate caveat name %q", caveat.Name)
+		}
 	}
 
 	// mark current caveats as deleted
-	err := rwt.deleteCaveatsFromNames(ctx, writtenCaveatNames)
+	err := rwt.deleteCaveatsFromNames(ctx, writtenCaveatNames.AsSlice())
 	if err != nil {
 		return fmt.Errorf(errWriteCaveats, err)
 	}

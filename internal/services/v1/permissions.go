@@ -170,12 +170,13 @@ func (ps *permissionServer) CheckBulkPermissions(ctx context.Context, req *v1.Ch
 	return res, nil
 }
 
-func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult) *v1.CheckBulkPermissionsPair_Item {
+func pairItemFromCheckResult(checkResult *dispatch.ResourceCheckResult, debugTrace *v1.DebugInformation) *v1.CheckBulkPermissionsPair_Item {
 	permissionship, partialCaveat := checkResultToAPITypes(checkResult)
 	return &v1.CheckBulkPermissionsPair_Item{
 		Item: &v1.CheckBulkPermissionsResponseItem{
 			Permissionship:    permissionship,
 			PartialCaveatInfo: partialCaveat,
+			DebugTrace:        debugTrace,
 		},
 	}
 }
