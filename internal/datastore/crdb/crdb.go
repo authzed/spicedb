@@ -577,24 +577,26 @@ func (cds *crdbDatastore) features(ctx context.Context) (*datastore.Features, er
 		return nil, err
 	}
 
-	// streams don't return at all if they succeed, so the only way to know
-	// it was created successfully is to wait a bit and then cancel
-	streamCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	time.AfterFunc(1*time.Second, cancel)
-
-	_ = cds.writePool.ExecFunc(streamCtx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
-		if err != nil && errors.Is(err, context.Canceled) {
-			features.Watch.Status = datastore.FeatureSupported
-			features.Watch.Reason = ""
-		} else if err != nil {
-			features.Watch.Status = datastore.FeatureUnsupported
-			features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
+	// Start a changefeed with an invalid value. If we get back an invalid value error (SQLSTATE 22023)
+	// then we know that the datastore supports watch. If we get back any other error, then we know that
+	// the datastore does not support watch emits or there is a permissions issue.
+	_ = cds.writePool.ExecFunc(ctx, func(ctx context.Context, tag pgconn.CommandTag, err error) error {
+		if err == nil {
+			return spiceerrors.MustBugf("expected an error, but got none")
 		}
-		return nil
-	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "1s"))
 
-	<-streamCtx.Done()
+		var pgerr *pgconn.PgError
+		if errors.As(err, &pgerr) {
+			if pgerr.Code == "22023" {
+				features.Watch.Status = datastore.FeatureSupported
+				return nil
+			}
+		}
+
+		features.Watch.Status = datastore.FeatureUnsupported
+		features.Watch.Reason = fmt.Sprintf("Range feeds must be enabled in CockroachDB and the user must have permission to create them in order to enable the Watch API: %s", err.Error())
+		return nil
+	}, fmt.Sprintf(cds.beginChangefeedQuery, cds.schema.RelationshipTableName, head, "-1s"))
 
 	return &features, nil
 }
