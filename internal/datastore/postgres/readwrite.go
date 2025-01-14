@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	log "github.com/authzed/spicedb/internal/logging"
 	"strings"
 
 	"github.com/ccoveille/go-safecast"
@@ -181,6 +182,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 	deleteClauses := sq.Or{}
 
 	tenantID := tenantIDFromContext(ctx)
+	log.Debug().Str("tenantID", tenantID).Msg("write relationships")
 
 	// Determine the set of relation+subject types for whom a "simplified" TOUCH operation can be used. A
 	// simplified TOUCH operation is one in which the relationship does not support caveats for the subject

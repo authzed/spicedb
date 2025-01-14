@@ -58,6 +58,38 @@ func TestRelationshipsWithTenantID(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+		"with tenant ID in ctx": {
+			schema: `
+				definition user {}
+				definition resource {
+					relation parent: resource
+					relation viewer: user
+					permission can_view = viewer + parent->view
+				}`,
+			engine: postgres.Engine,
+			ctx: func() context.Context {
+				return context.WithValue(context.Background(), "tenantID", "test-tenant")
+			},
+			runOp: func(t *testing.T, client v1.PermissionsServiceClient, ctx context.Context) {
+				_, err := client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
+					Updates: []*v1.RelationshipUpdate{
+						{
+							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
+						},
+						{
+							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
+						},
+						{
+							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
+						},
+					},
+				})
+				require.NoError(t, err)
+			},
+		},
 	}
 
 	for name, test := range tests {
