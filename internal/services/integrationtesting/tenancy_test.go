@@ -90,6 +90,14 @@ func TestRelationshipsWithTenantID(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
+
+				_, err = client.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
+					RelationshipFilter: &v1.RelationshipFilter{
+						ResourceType:       "resource",
+						OptionalResourceId: "foo",
+					},
+				})
+				require.NoError(t, err)
 			},
 		},
 	}
