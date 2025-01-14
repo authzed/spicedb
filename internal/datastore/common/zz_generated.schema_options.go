@@ -41,6 +41,7 @@ func (s *SchemaInformation) ToOption() SchemaInformationOption {
 		to.ColCaveatName = s.ColCaveatName
 		to.ColCaveatContext = s.ColCaveatContext
 		to.ColExpiration = s.ColExpiration
+		to.ColTenantID = s.ColTenantID
 		to.ColIntegrityKeyID = s.ColIntegrityKeyID
 		to.ColIntegrityHash = s.ColIntegrityHash
 		to.ColIntegrityTimestamp = s.ColIntegrityTimestamp
@@ -66,6 +67,7 @@ func (s SchemaInformation) DebugMap() map[string]any {
 	debugMap["ColCaveatName"] = helpers.DebugValue(s.ColCaveatName, false)
 	debugMap["ColCaveatContext"] = helpers.DebugValue(s.ColCaveatContext, false)
 	debugMap["ColExpiration"] = helpers.DebugValue(s.ColExpiration, false)
+	debugMap["ColTenantID"] = helpers.DebugValue(s.ColTenantID, false)
 	debugMap["ColIntegrityKeyID"] = helpers.DebugValue(s.ColIntegrityKeyID, false)
 	debugMap["ColIntegrityHash"] = helpers.DebugValue(s.ColIntegrityHash, false)
 	debugMap["ColIntegrityTimestamp"] = helpers.DebugValue(s.ColIntegrityTimestamp, false)
@@ -161,6 +163,13 @@ func WithColCaveatContext(colCaveatContext string) SchemaInformationOption {
 func WithColExpiration(colExpiration string) SchemaInformationOption {
 	return func(s *SchemaInformation) {
 		s.ColExpiration = colExpiration
+	}
+}
+
+// WithColTenantID returns an option that can set ColTenantID on a SchemaInformation
+func WithColTenantID(colTenantID string) SchemaInformationOption {
+	return func(s *SchemaInformation) {
+		s.ColTenantID = colTenantID
 	}
 }
 

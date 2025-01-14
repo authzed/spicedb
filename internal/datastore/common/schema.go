@@ -30,6 +30,7 @@ type SchemaInformation struct {
 	ColCaveatContext string `debugmap:"visible"`
 
 	ColExpiration string `debugmap:"visible"`
+	ColTenantID   string `debugmap:"visible"`
 
 	ColIntegrityKeyID     string `debugmap:"visible"`
 	ColIntegrityHash      string `debugmap:"visible"`
