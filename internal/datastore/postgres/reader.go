@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 
@@ -155,8 +154,8 @@ func (r *pgReader) QueryRelationships(
 	if err != nil {
 		return nil, err
 	}
-
-	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
+	tenantedQueryBuilder := qBuilder.FilterWithTenantIDFilter(ctx)
+	return r.executor.ExecuteQuery(ctx, tenantedQueryBuilder, opts...)
 }
 
 func (r *pgReader) ReverseQueryRelationships(
