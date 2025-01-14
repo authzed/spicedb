@@ -4,3 +4,4 @@ completions/
 .vscode/settings.json
 .env.local
 coverage.txt
+.local-env

@@ -1,0 +1,58 @@
+networks:
+  spicedb_network:
+    driver: bridge
+
+services:
+  database:
+    image: postgres:13-alpine
+    container_name: database
+    environment:
+      - POSTGRES_USER=spicedb
+      - POSTGRES_PASSWORD=spicedb
+      - POSTGRES_DB=spicedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ".local-env/postgres:/var/lib/postgresql/data"
+    networks:
+      - "spicedb_network"
+
+  spicedb-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spicedb-migrate
+    depends_on:
+      - database
+    command: [
+      "migrate", "head",
+      "--datastore-engine", "postgres",
+      "--datastore-conn-uri", "postgres://spicedb:spicedb@database:5432/spicedb?sslmode=disable"
+    ]
+    restart: "on-failure"
+    healthcheck:
+      test: ["CMD", "migrate", "head"]
+    networks:
+      - "spicedb_network"
+
+  spicedb-instance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spicedb
+    depends_on:
+      spicedb-migrate:
+        condition: service_completed_successfully
+    command: [
+      "serve",
+      "--grpc-preshared-key", "spicedb",
+      "--datastore-engine", "postgres",
+      "--datastore-conn-uri", "postgres://spicedb:spicedb@database:5432/spicedb?sslmode=disable",
+      "--log-level", "trace",
+      "--metrics-addr", ":4040"
+    ]
+    ports:
+      - "4040:4040"
+      - "50051:50051"
+    networks:
+      - "spicedb_network"
