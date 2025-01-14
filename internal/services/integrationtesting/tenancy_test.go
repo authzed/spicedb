@@ -21,45 +21,12 @@ import (
 type simpleTestCase struct {
 	schema string
 	engine string
-	ctx    func() context.Context
-	runOp  func(t *testing.T, client v1.PermissionsServiceClient, ctx context.Context)
+	runOp  func(t *testing.T, client v1.PermissionsServiceClient)
 }
 
 func TestRelationshipsWithTenantID(t *testing.T) {
 	tests := map[string]simpleTestCase{
-		"without tenant ID in ctx": {
-			schema: `
-				definition user {} 
-				definition resource {
-					relation parent: resource
-					relation viewer: user
-					permission can_view = viewer + parent->view
-				}`,
-			engine: postgres.Engine,
-			ctx: func() context.Context {
-				return context.Background()
-			},
-			runOp: func(t *testing.T, client v1.PermissionsServiceClient, ctx context.Context) {
-				_, err := client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
-					Updates: []*v1.RelationshipUpdate{
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
-						},
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
-						},
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
-						},
-					},
-				})
-				require.NoError(t, err)
-			},
-		},
-		"with tenant ID in ctx": {
+		"write and read from same tenant": {
 			schema: `
 				definition user {}
 				definition resource {
@@ -68,12 +35,50 @@ func TestRelationshipsWithTenantID(t *testing.T) {
 					permission can_view = viewer + parent->view
 				}`,
 			engine: postgres.Engine,
-			ctx: func() context.Context {
-				md := metadata.Pairs("tenantID", "test-tenant")
-				return metadata.NewOutgoingContext(context.Background(), md)
+			runOp: func(t *testing.T, client v1.PermissionsServiceClient) {
+				testTenantMd := metadata.Pairs("tenantID", "test-tenant")
+				testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
+
+				_, err := client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
+					Updates: []*v1.RelationshipUpdate{
+						{
+							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
+						},
+						{
+							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
+						},
+						{
+							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
+						},
+					},
+				})
+				require.NoError(t, err)
+				_, err = client.ReadRelationships(testTenantCtx, &v1.ReadRelationshipsRequest{
+					RelationshipFilter: &v1.RelationshipFilter{
+						ResourceType:       "resource",
+						OptionalResourceId: "foo",
+					},
+				})
+				require.NoError(t, err)
 			},
-			runOp: func(t *testing.T, client v1.PermissionsServiceClient, ctx context.Context) {
-				_, err := client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{
+		},
+		"write and read from different tenants": {
+			schema: `
+				definition user {}
+				definition resource {
+					relation parent: resource
+					relation viewer: user
+					permission can_view = viewer + parent->view
+				}`,
+			engine: postgres.Engine,
+			runOp: func(t *testing.T, client v1.PermissionsServiceClient) {
+				testTenantMd := metadata.Pairs("tenantID", "test-tenant")
+				testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
+
+				_, err := client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
 					Updates: []*v1.RelationshipUpdate{
 						{
 							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
@@ -91,13 +96,17 @@ func TestRelationshipsWithTenantID(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, err = client.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
+				otherTenantMd := metadata.Pairs("tenantID", "other-tenant")
+				otherTenantCtx := metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+
+				readResponse, err := client.ReadRelationships(otherTenantCtx, &v1.ReadRelationshipsRequest{
 					RelationshipFilter: &v1.RelationshipFilter{
 						ResourceType:       "resource",
 						OptionalResourceId: "foo",
 					},
 				})
 				require.NoError(t, err)
+				require.NotNil(t, readResponse)
 			},
 		},
 	}
@@ -116,13 +125,13 @@ func TestRelationshipsWithTenantID(t *testing.T) {
 			t.Cleanup(cleanup)
 
 			schemaClient := v1.NewSchemaServiceClient(connections[0])
-			_, err := schemaClient.WriteSchema(test.ctx(), &v1.WriteSchemaRequest{
+			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
 				Schema: test.schema,
 			})
 			require.NoError(t, err)
 
 			client := v1.NewPermissionsServiceClient(connections[0])
-			test.runOp(t, client, test.ctx())
+			test.runOp(t, client)
 		})
 	}
 }
