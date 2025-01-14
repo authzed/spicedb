@@ -64,8 +64,9 @@ func (onr ObjectAndRelation) String() string {
 // of a relationship that are not the integrity or caveat and thus form the unique
 // identifier of the relationship.
 type RelationshipReference struct {
-	Resource ObjectAndRelation
-	Subject  ObjectAndRelation
+	Resource         ObjectAndRelation
+	Subject          ObjectAndRelation
+	OptionalTenantID string
 }
 
 // Relationship represents a relationship between two objects.

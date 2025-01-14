@@ -65,6 +65,7 @@ const (
 	colCaveatContextName = "caveat_name"
 	colCaveatContext     = "caveat_context"
 	colExpiration        = "expiration"
+	colTenantID          = "tenant_id"
 
 	colCounterName         = "name"
 	colCounterFilter       = "serialized_filter"

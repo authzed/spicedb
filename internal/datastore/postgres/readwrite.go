@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	log "github.com/authzed/spicedb/internal/logging"
 	"strings"
 
 	"github.com/ccoveille/go-safecast"
@@ -54,6 +55,7 @@ var (
 		colCaveatContextName,
 		colCaveatContext,
 		colExpiration,
+		colTenantID,
 	)
 
 	deleteTuple     = psql.Update(tableTuple).Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
@@ -103,6 +105,7 @@ func appendForInsertion(builder sq.InsertBuilder, tpl tuple.Relationship) sq.Ins
 		caveatName,
 		caveatContext, // PGX driver serializes map[string]any to JSONB type columns,
 		tpl.OptionalExpiration,
+		tpl.OptionalTenantID,
 	}
 
 	return builder.Values(valuesToWrite...)
@@ -178,6 +181,9 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 
 	deleteClauses := sq.Or{}
 
+	tenantID := tenantIDFromContext(ctx)
+	log.Debug().Str("tenantID", tenantID).Msg("write relationships")
+
 	// Determine the set of relation+subject types for whom a "simplified" TOUCH operation can be used. A
 	// simplified TOUCH operation is one in which the relationship does not support caveats for the subject
 	// type. In such cases, the "DELETE" operation is unnecessary because the relationship does not support
@@ -192,6 +198,7 @@ func (rwt *pgReadWriteTXN) WriteRelationships(ctx context.Context, mutations []t
 	// Parse the updates, building inserts for CREATE/TOUCH and deletes for DELETE.
 	for _, mut := range mutations {
 		rel := mut.Relationship
+		rel.OptionalTenantID = tenantID
 
 		switch mut.Operation {
 		case tuple.UpdateOperationCreate:
