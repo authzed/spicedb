@@ -13,6 +13,7 @@ import (
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
 	"github.com/stretchr/testify/require"
+	metadata "google.golang.org/grpc/metadata"
 	"testing"
 	"time"
 )
@@ -68,7 +69,8 @@ func TestRelationshipsWithTenantID(t *testing.T) {
 				}`,
 			engine: postgres.Engine,
 			ctx: func() context.Context {
-				return context.WithValue(context.Background(), "tenantID", "test-tenant")
+				md := metadata.Pairs("tenantID", "test-tenant")
+				return metadata.NewOutgoingContext(context.Background(), md)
 			},
 			runOp: func(t *testing.T, client v1.PermissionsServiceClient, ctx context.Context) {
 				_, err := client.WriteRelationships(ctx, &v1.WriteRelationshipsRequest{

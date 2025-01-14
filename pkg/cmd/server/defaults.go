@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 	"net/http"
 	"net/http/pprof"
 	"sync"
@@ -172,6 +173,7 @@ const (
 	DefaultMiddlewareGRPCAuth      = "grpcauth"
 	DefaultMiddlewareGRPCProm      = "grpcprom"
 	DefaultMiddlewareServerVersion = "serverversion"
+	DefaultMiddlewareTenantID      = "tenantid"
 
 	DefaultInternalMiddlewareDispatch       = "dispatch"
 	DefaultInternalMiddlewareDatastore      = "datastore"
@@ -294,6 +296,11 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareTenantID).
+			WithInterceptor(tenantid.UnaryServerInterceptor()).
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultMiddlewareLog).
 			WithInterceptor(logmw.UnaryServerInterceptor(logmw.ExtractMetadataField(string(requestmeta.RequestIDKey), "requestID"))).
 			Done(),
@@ -369,6 +376,11 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareRequestID).
 			WithInterceptor(requestid.StreamServerInterceptor(requestid.GenerateIfMissing(true))).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareTenantID).
+			WithInterceptor(tenantid.StreamServerInterceptor()).
 			Done(),
 
 		NewStreamMiddleware().

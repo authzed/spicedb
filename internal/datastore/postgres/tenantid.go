@@ -1,13 +1,12 @@
 package postgres
 
-import "context"
-
-type tenantIDKeyType string
-
-const tenantIDKey tenantIDKeyType = "tenantID"
+import (
+	"context"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
+)
 
 func tenantIDFromContext(ctx context.Context) string {
-	value := ctx.Value(tenantIDKey)
+	value := ctx.Value(tenantid.CtxTenantIDKey)
 	if value == nil {
 		return ""
 	}
