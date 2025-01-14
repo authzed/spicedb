@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"sort"
 	"strconv"
+	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -53,6 +55,50 @@ func computeReadRelationshipsRequestHash(req *v1.ReadRelationshipsRequest) (stri
 		"subject-relation":     srf,
 		"subject-resource-id":  osf.OptionalSubjectId,
 		"limit":                req.OptionalLimit,
+	})
+}
+
+func computeReadRelationshipsRequestItemHash(req *v1.ReadBulkRelationshipsRequestItem) (string, error) {
+	osf := req.RelationshipFilter.OptionalSubjectFilter
+	if osf == nil {
+		osf = &v1.SubjectFilter{}
+	}
+
+	srf := "(none)"
+	if osf.OptionalRelation != nil {
+		srf = osf.OptionalRelation.Relation
+	}
+
+	return computeCallHash("v1.readrelationships", nil, map[string]any{
+		"filter-resource-type": req.RelationshipFilter.ResourceType,
+		"filter-relation":      req.RelationshipFilter.OptionalRelation,
+		"filter-resource-id":   req.RelationshipFilter.OptionalResourceId,
+		"subject-type":         osf.SubjectType,
+		"subject-relation":     srf,
+		"subject-resource-id":  osf.OptionalSubjectId,
+		"limit":                req.OptionalLimit,
+	})
+}
+
+func computeReadBulkRelationshipsHash(req *v1.ReadBulkRelationshipsRequest) (string, error) {
+	itemHashes := make([]string, 0, len(req.Items))
+
+	for _, item := range req.Items {
+		if item == nil {
+			continue
+		}
+
+		itemHash, err := computeReadRelationshipsRequestItemHash(item)
+		if err != nil {
+			return "", err
+		}
+		itemHashes = append(itemHashes, itemHash)
+	}
+
+	sort.Strings(itemHashes)
+
+	return computeCallHash("v1.readbulkrelationships", req.Consistency, map[string]any{
+		"items": strings.Join(itemHashes, ","),
 	})
 }
 
