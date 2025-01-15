@@ -437,7 +437,8 @@ func (cr *clusterDispatcher) DispatchLookupSubjects(
 		return err
 	}
 
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	withTenantIDCtx := tenantid.OutgoingContextWithTenantID(ctx, tenantid.FromContext(ctx))
+	withTimeout, cancelFn := context.WithTimeout(withTenantIDCtx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
 	client, err := cr.clusterClient.DispatchLookupSubjects(withTimeout, req)
