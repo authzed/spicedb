@@ -9,10 +9,10 @@ NodeTypeFile
       input-source = caveat with keyword parameter test
       start-rune = 0
       caveat-definition-expression =>
-        NodeTypeCaveatExpression
-          caveat-expression-expressionstr = someMap.isSubtreeOf(anotherMap)
-
+        NodeType(20)
           end-rune = 93
+          expression = someMap.isSubtreeOf(anotherMap)
+
           input-source = caveat with keyword parameter test
           start-rune = 62
       parameters =>

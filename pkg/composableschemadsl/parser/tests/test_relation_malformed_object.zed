@@ -1,0 +1,5 @@
+test DocumentTest {
+  relationships {
+    post: somerelation user:beatrice
+  }
+}

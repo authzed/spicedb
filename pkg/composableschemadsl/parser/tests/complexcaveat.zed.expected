@@ -14,13 +14,13 @@ NodeTypeFile
       input-source = complex caveat test
       start-rune = 23
       caveat-definition-expression =>
-        NodeTypeCaveatExpression
-          caveat-expression-expressionstr = somecondition == 42 && somebool || something == "hi there" &&
+        NodeType(20)
+          end-rune = 189
+          expression = somecondition == 42 && somebool || something == "hi there" &&
   ({
     "themap": 42
   }).contains("whatever")
 
-          end-rune = 189
           input-source = complex caveat test
           start-rune = 80
       parameters =>
@@ -52,10 +52,10 @@ NodeTypeFile
       input-source = complex caveat test
       start-rune = 193
       caveat-definition-expression =>
-        NodeTypeCaveatExpression
-          caveat-expression-expressionstr = somelist.contains("hiya") && somemap?.foo
-
+        NodeType(20)
           end-rune = 300
+          expression = somelist.contains("hiya") && somemap?.foo
+
           input-source = complex caveat test
           start-rune = 259
       parameters =>

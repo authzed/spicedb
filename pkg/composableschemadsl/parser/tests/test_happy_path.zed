@@ -1,0 +1,23 @@
+test DocumentCaveatedTest {
+  relationships {
+    post:one reader user:beatrice
+    post:one caveated_reader user:beatrice with likes_harry_potter
+    post:one temporary_reader user:claire with temporary_reader {"selected_day": "tuesday"}
+  }
+  assertions {
+    post:one    view_as_fan    user:beatrice {"likes": true}  // Positive assertion
+    post:one    !view_as_fan   user:beatrice {"likes": false} // Negative assertion
+    post:one    ?view_as_fan   user:beatrice                  // Conditional assertion
+
+    post:one    view_temporarily    user:claire {"current_day": "tuesday"}
+    post:one    !view_temporarily   user:claire {"current_day": "wednesday"}
+  }
+  expected {
+    post:one view {
+      user:beatrice is reader of post:one
+    }
+    post:one view_as_fan {
+      user:beatrice[...] is caveated_reader of post:one
+    }
+  }
+}

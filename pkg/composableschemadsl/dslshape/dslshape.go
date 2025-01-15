@@ -37,6 +37,21 @@ const (
 	NodeTypeCaveatTypeReference // A type reference for a caveat parameter.
 
 	NodeTypeImport
+
+	// A balanced brace-enclosed expression. Represents both caveat CELs and caveat JSON context.
+	NodeTypeOpaqueBraceExpression
+
+	NodeTypeTest
+	NodeTypeTestRelations
+	NodeTypeTestRelation
+	NodeTypeTestObject
+	NodeTypeTestPermission
+	NodeTypeTestNegativePermission
+	NodeTypeTestAssertions
+	NodeTypeTestAssertion
+	NodeTypeTestExpectedRelations
+	NodeTypeTestExpectedRelation
+	NodeTypeTestExpectedRelationSource
 )
 
 const (
@@ -198,4 +213,24 @@ const (
 	NodeImportPredicateSource         = "import-source"
 	NodeImportPredicatePathSegment    = "path-segment"
 	NodeImportPredicateDefinitionName = "imported-definition"
+
+	NodeTestPredicateName = "test-name"
+
+	NodeTestPredicateSubject        = "subject"
+	NodeTestPredicateObject         = "object"
+	NodeTestPredicateRelation       = "relation"
+	NodeTestPredicatePermission     = "permission"
+	NodeTestPredicateAssertionType  = "assertion-type"
+	NodeTestPredicateCaveatName     = "caveat-name"
+	NodeTestPredicateCaveatContext  = "caveat-context"
+	NodeTestPredicateExpirationTime = "expiration-time"
+
+	NodeTestObjectPredicateObjectType = "object-type"
+	NodeTestObjectPredicateObjectID   = "object-id"
+	// Used for both positive and negative permissions
+	NodeTestRelationPermissionPredicateName = "permission-name"
+
+	NodeTestExpectedRelationSourcePredicateCaveatAnnotation = "caveat-annotation"
+
+	NodeOpaqueBraceExpressionPredicateExpression = "expression"
 )

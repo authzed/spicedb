@@ -65,6 +65,9 @@ Loop:
 		case p.isKeyword("from"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
 
+		case p.isKeyword("test"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeTest())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -120,7 +123,7 @@ func (p *sourceParser) consumeCaveat() AstNode {
 		return defNode
 	}
 
-	exprNode, ok := p.consumeCaveatExpression()
+	exprNode, ok := p.consumeOpaqueBraceExpression()
 	if !ok {
 		return defNode
 	}
@@ -136,13 +139,16 @@ func (p *sourceParser) consumeCaveat() AstNode {
 	return defNode
 }
 
-func (p *sourceParser) consumeCaveatExpression() (AstNode, bool) {
-	exprNode := p.startNode(dslshape.NodeTypeCaveatExpression)
+// Consume from an opening brace to a closing brace, returning all tokens as a single string.
+// Used for caveat CEL expressions and test JSON expressions.
+// Keeps track of brace balance.
+// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
+// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
+// here.
+func (p *sourceParser) consumeOpaqueBraceExpression() (AstNode, bool) {
+	exprNode := p.startNode(dslshape.NodeTypeOpaqueBraceExpression)
 	defer p.mustFinishNode()
 
-	// Special Logic Note: Since CEL is its own language, we consume here until we have a matching
-	// close brace, and then pass ALL the found tokens to CEL's own parser to attach the expression
-	// here.
 	braceDepth := 1 // Starting at 1 from the open brace above
 	var startToken *commentedLexeme
 	var endToken *commentedLexeme
@@ -182,7 +188,7 @@ consumer:
 	}
 
 	caveatExpression := p.input[startToken.Position : int(endToken.Position)+len(endToken.Value)]
-	exprNode.MustDecorate(dslshape.NodeCaveatExpressionPredicateExpression, caveatExpression)
+	exprNode.MustDecorate(dslshape.NodeOpaqueBraceExpressionPredicateExpression, caveatExpression)
 	return exprNode, true
 }
 
@@ -664,4 +670,410 @@ func (p *sourceParser) consumeImport() AstNode {
 	}
 
 	return importNode
+}
+
+func (p *sourceParser) consumeTest() AstNode {
+	testNode := p.startNode(dslshape.NodeTypeTest)
+	defer p.mustFinishNode()
+
+	// These are how we enforce that there is at most one of
+	// each of these three
+	var consumedRelations, consumedAssertions, consumedExpected bool
+
+	// test ...
+	p.consumeKeyword("test")
+
+	testName, ok := p.consumeIdentifier()
+	if !ok {
+		return testNode
+	}
+	testNode.MustDecorate(dslshape.NodeTestPredicateName, testName)
+
+	// {
+	_, ok = p.consume(lexer.TokenTypeLeftBrace)
+	if !ok {
+		return testNode
+	}
+
+	// top-levels for test
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+		// relations ...
+		// assertions ...
+		// expected ...
+		switch {
+		case p.isKeyword("relations"):
+			if consumedRelations {
+				p.emitErrorf("%s", "at most one relations block is permitted")
+				return testNode
+			}
+			testNode.Connect(dslshape.NodePredicateChild, p.consumeTestRelations())
+			consumedRelations = true
+		case p.isKeyword("assertions"):
+			if consumedAssertions {
+				p.emitErrorf("%s", "at most one assertions block is permitted")
+				return testNode
+			}
+			testNode.Connect(dslshape.NodePredicateChild, p.consumeTestAssertions())
+			consumedAssertions = true
+		case p.isKeyword("expected"):
+			if consumedExpected {
+				p.emitErrorf("%s", "at most one expected block is permitted")
+				return testNode
+			}
+			testNode.Connect(dslshape.NodePredicateChild, p.consumeTestExpectedRelations())
+			consumedExpected = true
+		}
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return testNode
+}
+
+func (p *sourceParser) consumeTestRelations() AstNode {
+	relationsNode := p.startNode(dslshape.NodeTypeTestRelations)
+	defer p.mustFinishNode()
+
+	// relations ...
+	p.consumeKeyword("relations")
+
+	// {
+	if _, ok := p.consume(lexer.TokenTypeLeftBrace); !ok {
+		return relationsNode
+	}
+
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+
+		relationsNode.Connect(dslshape.NodePredicateChild, p.consumeTestRelation())
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return relationsNode
+}
+
+func (p *sourceParser) consumeTestRelation() AstNode {
+	relationNode := p.startNode(dslshape.NodeTypeTestRelation)
+	defer p.mustFinishNode()
+
+	// A relation looks like:
+	// object:foo relation subject:bar
+	// object consumption
+	objectNode, ok := p.consumeTestObject()
+	if !ok {
+		return relationNode
+	}
+	relationNode.Connect(dslshape.NodeTestPredicateObject, objectNode)
+
+	// relation consumption
+	relation, ok := p.consumeIdentifier()
+	if !ok {
+		return relationNode
+	}
+	relationNode.MustDecorate(dslshape.NodeTestPredicateRelation, relation)
+
+	// subject consumption
+	subjectNode, ok := p.consumeTestObject()
+	if !ok {
+		return relationNode
+	}
+	relationNode.Connect(dslshape.NodeTestPredicateSubject, subjectNode)
+
+	// optional caveat consumption
+	if !p.tryConsumeKeyword("with") {
+		// If we don't see the caveat marker, we stop parsing
+		return relationNode
+	}
+
+	if !p.isKeyword("expiration") {
+		caveatName, ok := p.consumeIdentifier()
+		if !ok {
+			return relationNode
+		}
+		relationNode.MustDecorate(dslshape.NodeTestPredicateCaveatName, caveatName)
+
+		// optional caveat context
+		if _, ok := p.tryConsume(lexer.TokenTypeColon); ok {
+			caveatContextNode, ok := p.consumeOpaqueBraceExpression()
+			if !ok {
+				return relationNode
+			}
+			relationNode.Connect(dslshape.NodeTestPredicateCaveatContext, caveatContextNode)
+		}
+
+		// This looks a little funky, but it's to account for the fact that we can
+		// have a caveat or an expiration or both, and that we expect a particular order,
+		// and means that we don't have to write a loop here to account for the various
+		// possibilities.
+		if !p.tryConsumeKeyword("and") {
+			return relationNode
+		}
+	}
+
+	if p.isKeyword("expiration") {
+		// Don't have to error check here because we've already
+		// looked before we leapt
+		p.consumeKeyword("expiration")
+		if _, ok := p.consume(lexer.TokenTypeColon); !ok {
+			return relationNode
+		}
+
+		// Get the datetime string
+		dateString, ok := p.consume(lexer.TokenTypeString)
+		if !ok {
+			return relationNode
+		}
+		relationNode.MustDecorate(dslshape.NodeTestPredicateExpirationTime, dateString.Value)
+	}
+	return relationNode
+}
+
+// Consumes an objectType:objectId pair and returns a test object node with
+// object type and ID
+func (p *sourceParser) consumeTestObject() (AstNode, bool) {
+	objectNode := p.startNode(dslshape.NodeTypeTestObject)
+	defer p.mustFinishNode()
+
+	objectType, ok := p.consumeIdentifier()
+	if !ok {
+		return objectNode, false
+	}
+	objectNode.MustDecorate(dslshape.NodeTestObjectPredicateObjectType, objectType)
+
+	_, ok = p.consume(lexer.TokenTypeColon)
+	if !ok {
+		return objectNode, false
+	}
+
+	objectID, ok := p.consumeIdentifier()
+	if !ok {
+		return objectNode, false
+	}
+	objectNode.MustDecorate(dslshape.NodeTestObjectPredicateObjectID, objectID)
+	return objectNode, true
+}
+
+func (p *sourceParser) consumeTestAssertions() AstNode {
+	assertionsNode := p.startNode(dslshape.NodeTypeTestAssertions)
+	defer p.mustFinishNode()
+
+	// relations ...
+	p.consumeKeyword("relations")
+
+	// {
+	if _, ok := p.consume(lexer.TokenTypeLeftBrace); !ok {
+		return assertionsNode
+	}
+
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+
+		assertionsNode.Connect(dslshape.NodePredicateChild, p.consumeTestAssertion())
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return assertionsNode
+}
+
+func (p *sourceParser) consumeTestAssertion() AstNode {
+	assertionNode := p.startNode(dslshape.NodeTypeTestAssertion)
+	defer p.mustFinishNode()
+
+	// object consumption
+	objectNode, ok := p.consumeTestObject()
+	if !ok {
+		return assertionNode
+	}
+	assertionNode.Connect(dslshape.NodeTestPredicateObject, objectNode)
+
+	// is
+	if ok := p.consumeKeyword("is"); !ok {
+		return assertionNode
+	}
+
+	// assertion type
+	if ok := p.tryConsumeKeyword("not"); ok {
+		assertionNode.MustDecorate(dslshape.NodeTestPredicateAssertionType, "negative")
+	} else if ok := p.tryConsumeKeyword("conditional"); ok {
+		assertionNode.MustDecorate(dslshape.NodeTestPredicateAssertionType, "conditional")
+	} else {
+		// If no marker, it's a positive assertion
+		assertionNode.MustDecorate(dslshape.NodeTestPredicateAssertionType, "positive")
+	}
+
+	// permission consumption
+	permission, ok := p.consumeIdentifier()
+	if !ok {
+		return assertionNode
+	}
+	assertionNode.MustDecorate(dslshape.NodeTestPredicatePermission, permission)
+
+	// for
+	if ok := p.consumeKeyword("for"); !ok {
+		return assertionNode
+	}
+
+	// subject consumption
+	subjectNode, ok := p.consumeTestObject()
+	if !ok {
+		return assertionNode
+	}
+	assertionNode.Connect(dslshape.NodeTestPredicateSubject, subjectNode)
+
+	// optional caveat context
+	if ok := p.tryConsumeKeyword("when"); ok {
+		caveatContextNode, ok := p.consumeOpaqueBraceExpression()
+		if !ok {
+			return assertionNode
+		}
+		assertionNode.Connect(dslshape.NodeTestPredicateCaveatContext, caveatContextNode)
+	}
+
+	return assertionNode
+}
+
+func (p *sourceParser) consumeTestExpectedRelations() AstNode {
+	expectedRelationsNode := p.startNode(dslshape.NodeTypeTestExpectedRelations)
+	defer p.mustFinishNode()
+
+	// {
+	if _, ok := p.consume(lexer.TokenTypeLeftBrace); !ok {
+		return expectedRelationsNode
+	}
+
+	for {
+		// }
+		if _, ok := p.tryConsume(lexer.TokenTypeRightBrace); ok {
+			break
+		}
+
+		expectedRelationsNode.Connect(dslshape.NodePredicateChild, p.consumeTestExpectedRelation())
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+	return expectedRelationsNode
+}
+
+func (p *sourceParser) consumeTestExpectedRelation() AstNode {
+	expectedRelationNode := p.startNode(dslshape.NodeTypeTestExpectedRelation)
+	defer p.mustFinishNode()
+
+	// object consumption
+	objectNode, ok := p.consumeTestObject()
+	if !ok {
+		return expectedRelationNode
+	}
+	expectedRelationNode.Connect(dslshape.NodeTestPredicateObject, objectNode)
+
+	// permission consumption
+	permission, ok := p.consumeIdentifier()
+	if !ok {
+		return expectedRelationNode
+	}
+	expectedRelationNode.MustDecorate(dslshape.NodeTestPredicatePermission, permission)
+
+	// (
+	if _, ok := p.consume(lexer.TokenTypeLeftParen); !ok {
+		return expectedRelationNode
+	}
+
+	for {
+		// )
+		if _, ok := p.tryConsume(lexer.TokenTypeRightParen); ok {
+			break
+		}
+
+		expectedRelationNode.Connect(dslshape.NodePredicateChild, p.consumeTestExpectedRelationSource())
+
+		ok := p.consumeStatementTerminator()
+		if !ok {
+			break
+		}
+	}
+
+	return expectedRelationNode
+}
+
+func (p *sourceParser) consumeTestExpectedRelationSource() AstNode {
+	expectedRelationSourceNode := p.startNode(dslshape.NodeTypeTestExpectedRelationSource)
+	defer p.mustFinishNode()
+
+	// subject consumption
+	subjectNode, ok := p.consumeTestObject()
+	if !ok {
+		return expectedRelationSourceNode
+	}
+	expectedRelationSourceNode.Connect(dslshape.NodeTestPredicateSubject, subjectNode)
+
+	// optional context indicator
+	if p.isToken(lexer.TokenTypeLeftBracket) {
+		ok := p.consumeContextIndicator()
+		if !ok {
+			return expectedRelationSourceNode
+		}
+		expectedRelationSourceNode.MustDecorateWithInt(dslshape.NodeTestExpectedRelationSourcePredicateCaveatAnnotation, 1)
+	}
+
+	// is
+	if !p.consumeKeyword("is") {
+		return expectedRelationSourceNode
+	}
+
+	// relation consumption
+	relation, ok := p.consumeIdentifier()
+	if !ok {
+		return expectedRelationSourceNode
+	}
+	expectedRelationSourceNode.MustDecorate(dslshape.NodeTestPredicatePermission, relation)
+
+	// of
+	if !p.consumeKeyword("of") {
+		return expectedRelationSourceNode
+	}
+
+	// object consumption
+	objectNode, ok := p.consumeTestObject()
+	if !ok {
+		return expectedRelationSourceNode
+	}
+	expectedRelationSourceNode.Connect(dslshape.NodeTestPredicateObject, objectNode)
+
+	return expectedRelationSourceNode
+}
+
+func (p *sourceParser) consumeContextIndicator() bool {
+	if _, ok := p.consume(lexer.TokenTypeLeftBracket); !ok {
+		return false
+	}
+	if _, ok := p.consume(lexer.TokenTypeEllipsis); !ok {
+		return false
+	}
+	if _, ok := p.consume(lexer.TokenTypeRightBracket); !ok {
+		return false
+	}
+	return true
 }
