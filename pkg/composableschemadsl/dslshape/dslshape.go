@@ -194,8 +194,5 @@ const (
 	//
 	// NodeTypeImport
 	//
-	// TODO: still need to figure out what form this should take - full path? relative path?
-	NodeImportPredicateSource         = "import-source"
-	NodeImportPredicatePathSegment    = "path-segment"
-	NodeImportPredicateDefinitionName = "imported-definition"
+	NodeImportPredicatePath = "import-path"
 )

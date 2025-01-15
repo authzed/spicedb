@@ -1,4 +1,4 @@
-from .definitions.user.user import user
+import "definitions/user/user.zed"
 
 definition resource {
   relation viewer: user

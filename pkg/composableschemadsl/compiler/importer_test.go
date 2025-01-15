@@ -110,3 +110,23 @@ func TestImportCycleCausesError(t *testing.T) {
 
 	require.ErrorContains(t, err, "circular import")
 }
+
+func TestEscapeAttemptCausesError(t *testing.T) {
+	t.Parallel()
+
+	workingDir, err := os.Getwd()
+	require.NoError(t, err)
+	test := importerTest{"", "escape-attempt"}
+
+	sourceFolder := path.Join(workingDir, test.relativePath())
+
+	inputSchema := test.input()
+
+	_, err = compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("schema"),
+		SchemaString: inputSchema,
+	}, compiler.AllowUnprefixedObjectType(),
+		compiler.SourceFolder(sourceFolder))
+
+	require.ErrorContains(t, err, "must stay within")
+}

@@ -697,23 +697,14 @@ func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.All
 }
 
 func translateImport(tctx translationContext, importNode *dslNode, names *mapz.Set[string]) (*CompiledSchema, error) {
-	// NOTE: this function currently just grabs everything that's in the target file.
-	// TODO: only grab the requested definitions
-	pathNodes := importNode.List(dslshape.NodeImportPredicatePathSegment)
-	pathSegments := make([]string, 0, len(pathNodes))
-
-	// Get the filepath segments out of the AST nodes
-	for _, pathSegmentNode := range pathNodes {
-		segment, err := pathSegmentNode.GetString(dslshape.NodeIdentiferPredicateValue)
-		if err != nil {
-			return nil, err
-		}
-		pathSegments = append(pathSegments, segment)
+	path, err := importNode.GetString(dslshape.NodeImportPredicatePath)
+	if err != nil {
+		return nil, err
 	}
 
 	compiledSchema, err := importFile(importContext{
 		names:                names,
-		pathSegments:         pathSegments,
+		path:                 path,
 		sourceFolder:         tctx.sourceFolder,
 		globallyVisitedFiles: tctx.globallyVisitedFiles,
 		locallyVisitedFiles:  tctx.locallyVisitedFiles,

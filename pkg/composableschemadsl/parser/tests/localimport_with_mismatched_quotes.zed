@@ -1,4 +1,4 @@
-from path.to.user import user, persona
+import "path/to/user.zed'
 
 definition resource {
     relation user: user
