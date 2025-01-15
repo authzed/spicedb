@@ -98,15 +98,54 @@ func TestCheckPermission(t *testing.T) {
 				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
 			}
 			response, err := client.CheckPermission(readCtx, &v1.CheckPermissionRequest{
-				Resource: &v1.ObjectReference{
-					ObjectType: "resource",
-					ObjectId:   "foo",
-				},
+				Resource:   &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
 				Permission: "view",
-				Subject: &v1.SubjectReference{
-					Object: &v1.ObjectReference{
-						ObjectType: "user",
-						ObjectId:   "tom",
+				Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "tom"}},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			permissionShip := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+			if !test.readFromSameTenant {
+				permissionShip = v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
+			}
+			assert.Equal(t, permissionShip, response.GetPermissionship())
+		})
+	}
+}
+
+func TestCheckBulkPermissions(t *testing.T) {
+	tests := map[string]struct {
+		tenantID           string
+		readFromSameTenant bool
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+		},
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+			response, err := client.CheckBulkPermissions(readCtx, &v1.CheckBulkPermissionsRequest{
+				Items: []*v1.CheckBulkPermissionsRequestItem{
+					{
+						Resource:   &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
+						Permission: "view",
+						Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "tom"}},
+					},
+					{
+						Resource:   &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
+						Permission: "view",
+						Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "jill"}},
 					},
 				},
 			})
@@ -116,7 +155,10 @@ func TestCheckPermission(t *testing.T) {
 			if !test.readFromSameTenant {
 				permissionShip = v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
 			}
-			assert.Equal(t, permissionShip, response.GetPermissionship())
+			pairs := response.GetPairs()
+			for _, pair := range pairs {
+				assert.Equal(t, permissionShip, pair.GetItem().GetPermissionship())
+			}
 		})
 	}
 }
