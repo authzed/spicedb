@@ -103,6 +103,10 @@ func (si SchemaInformation) mustValidate() {
 		panic("ColExpiration is required")
 	}
 
+	if si.ColTenantID == "" {
+		panic("ColTenantID is required")
+	}
+
 	if si.IntegrityEnabled {
 		if si.ColIntegrityKeyID == "" {
 			panic("ColIntegrityKeyID is required")

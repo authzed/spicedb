@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -17,8 +18,11 @@ import (
 // killing database connections that should otherwise go back to the connection
 // pool.
 func SeparateContextWithTracing(ctx context.Context) context.Context {
+	tenantID := tenantid.FromContext(ctx)
+	ctxWithTenantID := tenantid.ContextWithTenantID(context.Background(), tenantID)
+
 	span := trace.SpanFromContext(ctx)
-	ctxWithObservability := trace.ContextWithSpan(context.Background(), span)
+	ctxWithObservability := trace.ContextWithSpan(ctxWithTenantID, span)
 
 	loggerFromContext := log.Ctx(ctx)
 	if loggerFromContext != nil {
