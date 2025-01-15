@@ -1,0 +1,26 @@
+name: build-tenancy-test.yaml
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  DOCKERHUB_PUBLIC_ACCESS_TOKEN: "dckr_pat_8AEETZWxu8f7FvJUk9NrpyX_ZEQ"
+  DOCKERHUB_PUBLIC_USER: "spicedbgithubactions"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23
+      - uses: "docker/login-action@v3"
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
+      - run: go test ./internal/services/integrationtesting/tenancy_test.go -tags ci,docker -timeout 15m

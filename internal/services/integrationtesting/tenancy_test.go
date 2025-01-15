@@ -45,58 +45,12 @@ func TestReadRelationships(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			b := testdatastore.RunDatastoreEngine(t, postgres.Engine)
-			ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
-				dsconfig.WithWatchBufferLength(0),
-				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
-				dsconfig.WithRevisionQuantization(10),
-				dsconfig.WithMaxRetries(50),
-				dsconfig.WithRequestHedgingEnabled(false)))
-
-			connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
-			t.Cleanup(cleanup)
-
-			schemaClient := v1.NewSchemaServiceClient(connections[0])
-			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
-				Schema: `
-					definition user {}
-					definition resource {
-						relation parent: resource
-						relation viewer: user
-						permission view = viewer + parent->view
-					}`,
-			})
-			require.NoError(t, err)
-
-			client := v1.NewPermissionsServiceClient(connections[0])
-
-			testTenantMd := metadata.Pairs("tenantID", test.tenantID)
-			testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
-
-			_, err = client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
-				Updates: []*v1.RelationshipUpdate{
-					{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
-					},
-					{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
-					},
-					{
-						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-						Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
-					},
-				},
-			})
-			require.NoError(t, err)
-
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
 			readCtx := testTenantCtx
 			if !test.readFromSameTenant {
 				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
 				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
 			}
-
 			readResponse, err := client.ReadRelationships(readCtx, &v1.ReadRelationshipsRequest{
 				RelationshipFilter: &v1.RelationshipFilter{
 					ResourceType: "resource",
@@ -118,4 +72,200 @@ func TestReadRelationships(t *testing.T) {
 			test.assertRelationships(t, relationships)
 		})
 	}
+}
+
+func TestCheckPermission(t *testing.T) {
+	tests := map[string]struct {
+		tenantID           string
+		readFromSameTenant bool
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+		},
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+			response, err := client.CheckPermission(readCtx, &v1.CheckPermissionRequest{
+				Resource:   &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
+				Permission: "view",
+				Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "tom"}},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			permissionShip := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+			if !test.readFromSameTenant {
+				permissionShip = v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
+			}
+			assert.Equal(t, permissionShip, response.GetPermissionship())
+		})
+	}
+}
+
+func TestCheckBulkPermissions(t *testing.T) {
+	tests := map[string]struct {
+		tenantID           string
+		readFromSameTenant bool
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+		},
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+			response, err := client.CheckBulkPermissions(readCtx, &v1.CheckBulkPermissionsRequest{
+				Items: []*v1.CheckBulkPermissionsRequestItem{
+					{
+						Resource:   &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
+						Permission: "view",
+						Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "tom"}},
+					},
+					{
+						Resource:   &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
+						Permission: "view",
+						Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "jill"}},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			permissionShip := v1.CheckPermissionResponse_PERMISSIONSHIP_HAS_PERMISSION
+			if !test.readFromSameTenant {
+				permissionShip = v1.CheckPermissionResponse_PERMISSIONSHIP_NO_PERMISSION
+			}
+			pairs := response.GetPairs()
+			for _, pair := range pairs {
+				assert.Equal(t, permissionShip, pair.GetItem().GetPermissionship())
+			}
+		})
+	}
+}
+
+func TestLookupResources(t *testing.T) {
+	tests := map[string]struct {
+		tenantID           string
+		readFromSameTenant bool
+		assertResources    func(t *testing.T, resourceIds []string)
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+			assertResources: func(t *testing.T, resourceIds []string) {
+				assert.Len(t, resourceIds, 2)
+				assert.Contains(t, resourceIds, "foo")
+				assert.Contains(t, resourceIds, "bar")
+			},
+		},
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+			assertResources: func(t *testing.T, resourceIds []string) {
+				assert.Len(t, resourceIds, 0)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+			response, err := client.LookupResources(readCtx, &v1.LookupResourcesRequest{
+				ResourceObjectType: "resource",
+				Permission:         "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "jill"},
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			resourceIds := make([]string, 0)
+			for {
+				recv, recvErr := response.Recv()
+				if recvErr != nil {
+					if recvErr == io.EOF {
+						break
+					} else {
+						require.NoError(t, recvErr)
+					}
+				}
+				resourceIds = append(resourceIds, recv.GetResourceObjectId())
+			}
+			test.assertResources(t, resourceIds)
+		})
+	}
+}
+
+func setupTenancyTest(t *testing.T, tenantID string) (context.Context, v1.PermissionsServiceClient) {
+	b := testdatastore.RunDatastoreEngine(t, postgres.Engine)
+	ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+		dsconfig.WithWatchBufferLength(0),
+		dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
+		dsconfig.WithRevisionQuantization(10),
+		dsconfig.WithMaxRetries(50),
+		dsconfig.WithRequestHedgingEnabled(false)))
+
+	connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
+	t.Cleanup(cleanup)
+
+	schemaClient := v1.NewSchemaServiceClient(connections[0])
+	_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
+		Schema: `
+			definition user {}
+			definition resource {
+				relation parent: resource
+				relation viewer: user
+				permission view = viewer + parent->view
+			}`,
+	})
+	require.NoError(t, err)
+
+	client := v1.NewPermissionsServiceClient(connections[0])
+
+	testTenantMd := metadata.Pairs("tenantID", tenantID)
+	testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
+
+	_, err = client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
+		Updates: []*v1.RelationshipUpdate{
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
+			},
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
+			},
+			{
+				Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+				Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return testTenantCtx, client
 }
