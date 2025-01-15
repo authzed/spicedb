@@ -328,6 +328,7 @@ func newPostgresDatastore(
 		common.WithColCaveatName(colCaveatContextName),
 		common.WithColCaveatContext(colCaveatContext),
 		common.WithColExpiration(colExpiration),
+		common.WithColTenantID(colTenantID),
 		common.WithPaginationFilterType(common.TupleComparison),
 		common.WithPlaceholderFormat(sq.Dollar),
 		common.WithNowFunction("NOW"),

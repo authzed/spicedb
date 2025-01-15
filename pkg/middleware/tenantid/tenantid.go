@@ -2,12 +2,24 @@ package tenantid
 
 import (
 	"context"
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 const CtxTenantIDKey = "tenantID"
+
+func FromContext(ctx context.Context) string {
+	tenantID, ok := ctx.Value(CtxTenantIDKey).(string)
+	if !ok {
+		return ""
+	}
+	return tenantID
+}
+
+func ContextWithTenantID(ctx context.Context, tenantID string) context.Context {
+	return context.WithValue(ctx, CtxTenantIDKey, tenantID)
+}
 
 func UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
@@ -40,7 +52,7 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 				ctx = context.WithValue(ctx, CtxTenantIDKey, tenantID[0])
 			}
 		}
-		wrapped := grpc_middleware.WrapServerStream(stream)
+		wrapped := grpcmiddleware.WrapServerStream(stream)
 		wrapped.WrappedContext = ctx
 		return handler(srv, wrapped)
 	}
