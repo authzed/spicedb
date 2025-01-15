@@ -17,6 +17,18 @@ services:
     networks:
       - "spicedb_network"
 
+  database-metrics:
+    image: wrouesnel/postgres_exporter
+    container_name: database-metrics
+    depends_on:
+      - database
+    environment:
+      - DATA_SOURCE_NAME=postgresql://spicedb:spicedb@database:5432/spicedb?sslmode=disable
+    ports:
+      - "9187:9187"
+    networks:
+      - "spicedb_network"
+
   spicedb-migrate:
     build:
       context: .
