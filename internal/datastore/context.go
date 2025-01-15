@@ -39,6 +39,10 @@ func NewSeparatingContextDatastoreProxy(d datastore.Datastore) datastore.StrictR
 
 type ctxProxy struct{ delegate datastore.Datastore }
 
+func (p *ctxProxy) UniqueID(ctx context.Context) (string, error) {
+	return p.delegate.UniqueID(SeparateContextWithTracing(ctx))
+}
+
 func (p *ctxProxy) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,

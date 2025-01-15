@@ -197,6 +197,10 @@ func (r *relationshipIntegrityProxy) OptimizedRevision(ctx context.Context) (dat
 	return r.ds.OptimizedRevision(ctx)
 }
 
+func (r *relationshipIntegrityProxy) UniqueID(ctx context.Context) (string, error) {
+	return r.ds.UniqueID(ctx)
+}
+
 func (r *relationshipIntegrityProxy) ReadyState(ctx context.Context) (datastore.ReadyState, error) {
 	return r.ds.ReadyState(ctx)
 }

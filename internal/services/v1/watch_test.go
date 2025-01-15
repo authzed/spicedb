@@ -210,7 +210,7 @@ func TestWatch(t *testing.T) {
 			t.Cleanup(cleanup)
 			client := v1.NewWatchServiceClient(conn)
 
-			cursor := zedtoken.MustNewFromRevision(revision)
+			cursor := zedtoken.MustNewFromRevisionForTesting(revision)
 			if tc.startCursor != nil {
 				cursor = tc.startCursor
 			}
