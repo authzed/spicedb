@@ -1,0 +1,18 @@
+name: build-tenancy-test.yaml
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23
+      - run: internal/services/integrationtesting/tenancy_test.go -tags ci,docker -timeout 15m
