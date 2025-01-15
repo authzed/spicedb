@@ -283,7 +283,8 @@ func dispatchStreamingRequest[Q requestMessageWithCursor, R responseMessageWithC
 	stream dispatch.Stream[R],
 	handler func(context.Context, ClusterClient) (receiver[R], error),
 ) error {
-	withTimeout, cancelFn := context.WithTimeout(ctx, cr.dispatchOverallTimeout)
+	withTenantIDCtx := tenantid.OutgoingContextWithTenantID(ctx, tenantid.FromContext(ctx))
+	withTimeout, cancelFn := context.WithTimeout(withTenantIDCtx, cr.dispatchOverallTimeout)
 	defer cancelFn()
 
 	client, err := handler(withTimeout, cr.clusterClient)

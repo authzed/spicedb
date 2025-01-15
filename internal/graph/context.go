@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -20,6 +21,9 @@ func branchContext(ctx context.Context) (context.Context, func(cancelErr error))
 	// Add datastore to the context.
 	ds := datastoremw.FromContext(ctx)
 	detachedContext = datastoremw.ContextWithDatastore(detachedContext, ds)
+
+	tenantId := tenantid.FromContext(ctx)
+	detachedContext = tenantid.ContextWithTenantID(detachedContext, tenantId)
 
 	// Add logging to the context.
 	loggerFromContext := log.Ctx(ctx)
