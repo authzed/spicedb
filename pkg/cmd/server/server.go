@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 	"io"
 	"net"
 	"net/http"
@@ -668,9 +669,14 @@ func (c *completedServerConfig) Run(ctx context.Context) error {
 		grpc.ChainStreamInterceptor(c.streamingMiddleware...),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()))
 
+	dispatchGRPCServer := c.dispatchGRPCServer.WithOpts(
+		grpc.ChainUnaryInterceptor(tenantid.UnaryServerInterceptor()),
+		grpc.ChainStreamInterceptor(tenantid.StreamServerInterceptor()),
+	)
+
 	g.Go(c.healthManager.Checker(ctx))
 	g.Go(grpcServer.Listen(ctx))
-	g.Go(c.dispatchGRPCServer.Listen(ctx))
+	g.Go(dispatchGRPCServer.Listen(ctx))
 	g.Go(c.gatewayServer.ListenAndServe)
 	g.Go(c.metricsServer.ListenAndServe)
 	g.Go(func() error { return c.telemetryReporter(ctx) })
