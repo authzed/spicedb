@@ -4,7 +4,7 @@ networks:
 
 services:
   database:
-    image: postgres:13-alpine
+    image: postgres:16-alpine
     container_name: database
     environment:
       - POSTGRES_USER=spicedb
