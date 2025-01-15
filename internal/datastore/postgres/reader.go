@@ -169,7 +169,6 @@ func (r *pgReader) ReverseQueryRelationships(
 	if err != nil {
 		return nil, err
 	}
-
 	queryOpts := options.NewReverseQueryOptionsWithOptions(opts...)
 
 	if queryOpts.ResRelation != nil {
@@ -178,8 +177,10 @@ func (r *pgReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
+	tenantedQueryBuilder := qBuilder.FilterWithTenantIDFilter(ctx)
+
 	return r.executor.ExecuteQuery(ctx,
-		qBuilder,
+		tenantedQueryBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
