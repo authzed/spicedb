@@ -15,4 +15,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 1.23
+      - uses: "docker/login-action@v3"
+        with:
+          username: "${{ env.DOCKERHUB_PUBLIC_USER }}"
+          password: "${{ env.DOCKERHUB_PUBLIC_ACCESS_TOKEN }}"
       - run: internal/services/integrationtesting/tenancy_test.go -tags ci,docker -timeout 15m

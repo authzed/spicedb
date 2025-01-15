@@ -163,6 +163,63 @@ func TestCheckBulkPermissions(t *testing.T) {
 	}
 }
 
+func TestLookupResources(t *testing.T) {
+	tests := map[string]struct {
+		tenantID           string
+		readFromSameTenant bool
+		assertResources    func(t *testing.T, resourceIds []string)
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+			assertResources: func(t *testing.T, resourceIds []string) {
+				assert.Len(t, resourceIds, 2)
+				assert.Contains(t, resourceIds, "foo")
+				assert.Contains(t, resourceIds, "bar")
+			},
+		},
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+			assertResources: func(t *testing.T, resourceIds []string) {
+				assert.Len(t, resourceIds, 0)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+			response, err := client.LookupResources(readCtx, &v1.LookupResourcesRequest{
+				ResourceObjectType: "resource",
+				Permission:         "view",
+				Subject: &v1.SubjectReference{
+					Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "jill"},
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			resourceIds := make([]string, 0)
+			for {
+				recv, recvErr := response.Recv()
+				if recvErr != nil {
+					if recvErr == io.EOF {
+						break
+					} else {
+						require.NoError(t, recvErr)
+					}
+				}
+				resourceIds = append(resourceIds, recv.GetResourceObjectId())
+			}
+			test.assertResources(t, resourceIds)
+		})
+	}
+}
+
 func setupTenancyTest(t *testing.T, tenantID string) (context.Context, v1.PermissionsServiceClient) {
 	b := testdatastore.RunDatastoreEngine(t, postgres.Engine)
 	ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
