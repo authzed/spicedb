@@ -220,6 +220,61 @@ func TestLookupResources(t *testing.T) {
 	}
 }
 
+func TestLookupSubjects(t *testing.T) {
+	tests := map[string]struct {
+		tenantID           string
+		readFromSameTenant bool
+		assertSubjects     func(t *testing.T, subjectIds []string)
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+			assertSubjects: func(t *testing.T, subjectIds []string) {
+				assert.Len(t, subjectIds, 2)
+				assert.Contains(t, subjectIds, "tom")
+				assert.Contains(t, subjectIds, "jill")
+			},
+		},
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+			assertSubjects: func(t *testing.T, subjectIds []string) {
+				assert.Len(t, subjectIds, 0)
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			testTenantCtx, client := setupTenancyTest(t, test.tenantID)
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+			response, err := client.LookupSubjects(readCtx, &v1.LookupSubjectsRequest{
+				Resource:          &v1.ObjectReference{ObjectType: "resource", ObjectId: "foo"},
+				Permission:        "view",
+				SubjectObjectType: "user",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			subjects := make([]string, 0)
+			for {
+				recv, recvErr := response.Recv()
+				if recvErr != nil {
+					if recvErr == io.EOF {
+						break
+					} else {
+						require.NoError(t, recvErr)
+					}
+				}
+				subjects = append(subjects, recv.GetSubject().GetSubjectObjectId())
+			}
+			test.assertSubjects(t, subjects)
+		})
+	}
+}
+
 func setupTenancyTest(t *testing.T, tenantID string) (context.Context, v1.PermissionsServiceClient) {
 	b := testdatastore.RunDatastoreEngine(t, postgres.Engine)
 	ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
