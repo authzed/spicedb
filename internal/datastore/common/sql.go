@@ -478,11 +478,10 @@ func (sqf SchemaQueryFilterer) FilterWithRelationshipsFilter(filter datastore.Re
 }
 
 func (sqf SchemaQueryFilterer) FilterWithTenantIDFilter(ctx context.Context) SchemaQueryFilterer {
-	tenantID, ok := ctx.Value(tenantid.CtxTenantIDKey).(string)
-	if !ok || tenantID == "" {
-		return sqf
+	tenantID := tenantid.FromContext(ctx)
+	if tenantID != "" {
+		sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColTenantID: tenantID})
 	}
-	sqf.queryBuilder = sqf.queryBuilder.Where(sq.Eq{sqf.schema.ColTenantID: tenantID})
 	return sqf
 }
 

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -214,10 +215,12 @@ func (r *observableReader) ReadNamespaceByName(ctx context.Context, nsName strin
 }
 
 func (r *observableReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, options ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	tenantID := tenantid.FromContext(ctx)
 	ctx, closer := observe(ctx, "QueryRelationships", trace.WithAttributes(
 		attribute.String("resourceType", filter.OptionalResourceType),
 		attribute.String("resourceRelation", filter.OptionalResourceRelation),
 		attribute.String("caveatName", filter.OptionalCaveatName),
+		attribute.String("tenantID", tenantID),
 	))
 
 	iterator, err := r.delegate.QueryRelationships(ctx, filter, options...)

@@ -12,126 +12,110 @@ import (
 	"github.com/authzed/spicedb/internal/testserver/datastore/config"
 	dsconfig "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metadata "google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/metadata"
+	"io"
 	"testing"
 	"time"
 )
 
-type simpleTestCase struct {
-	schema string
-	engine string
-	runOp  func(t *testing.T, client v1.PermissionsServiceClient)
-}
-
-func TestRelationshipsWithTenantID(t *testing.T) {
-	tests := map[string]simpleTestCase{
-		"write and read from same tenant": {
-			schema: `
-				definition user {}
-				definition resource {
-					relation parent: resource
-					relation viewer: user
-					permission can_view = viewer + parent->view
-				}`,
-			engine: postgres.Engine,
-			runOp: func(t *testing.T, client v1.PermissionsServiceClient) {
-				testTenantMd := metadata.Pairs("tenantID", "test-tenant")
-				testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
-
-				_, err := client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
-					Updates: []*v1.RelationshipUpdate{
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
-						},
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
-						},
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
-						},
-					},
-				})
-				require.NoError(t, err)
-				_, err = client.ReadRelationships(testTenantCtx, &v1.ReadRelationshipsRequest{
-					RelationshipFilter: &v1.RelationshipFilter{
-						ResourceType:       "resource",
-						OptionalResourceId: "foo",
-					},
-				})
-				require.NoError(t, err)
+func TestReadRelationships(t *testing.T) {
+	tests := map[string]struct {
+		tenantID            string
+		readFromSameTenant  bool
+		assertRelationships func(t *testing.T, relationships []*v1.Relationship)
+	}{
+		"same tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: true,
+			assertRelationships: func(t *testing.T, relationships []*v1.Relationship) {
+				assert.Len(t, relationships, 3)
 			},
 		},
-		"write and read from different tenants": {
-			schema: `
-				definition user {}
-				definition resource {
-					relation parent: resource
-					relation viewer: user
-					permission can_view = viewer + parent->view
-				}`,
-			engine: postgres.Engine,
-			runOp: func(t *testing.T, client v1.PermissionsServiceClient) {
-				testTenantMd := metadata.Pairs("tenantID", "test-tenant")
-				testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
-
-				_, err := client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
-					Updates: []*v1.RelationshipUpdate{
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
-						},
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
-						},
-						{
-							Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
-							Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
-						},
-					},
-				})
-				require.NoError(t, err)
-
-				otherTenantMd := metadata.Pairs("tenantID", "other-tenant")
-				otherTenantCtx := metadata.NewOutgoingContext(context.Background(), otherTenantMd)
-
-				readResponse, err := client.ReadRelationships(otherTenantCtx, &v1.ReadRelationshipsRequest{
-					RelationshipFilter: &v1.RelationshipFilter{
-						ResourceType:       "resource",
-						OptionalResourceId: "foo",
-					},
-				})
-				require.NoError(t, err)
-				require.NotNil(t, readResponse)
+		"other tenant": {
+			tenantID:           uuid.Must(uuid.NewV4()).String(),
+			readFromSameTenant: false,
+			assertRelationships: func(t *testing.T, relationships []*v1.Relationship) {
+				assert.Len(t, relationships, 0)
 			},
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			engine := testdatastore.RunDatastoreEngine(t, test.engine)
-			ds := engine.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+			b := testdatastore.RunDatastoreEngine(t, postgres.Engine)
+			ds := b.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 				dsconfig.WithWatchBufferLength(0),
 				dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 				dsconfig.WithRevisionQuantization(10),
 				dsconfig.WithMaxRetries(50),
-				dsconfig.WithRequestHedgingEnabled(false),
-			))
+				dsconfig.WithRequestHedgingEnabled(false)))
+
 			connections, cleanup := testserver.TestClusterWithDispatch(t, 1, ds)
 			t.Cleanup(cleanup)
 
 			schemaClient := v1.NewSchemaServiceClient(connections[0])
 			_, err := schemaClient.WriteSchema(context.Background(), &v1.WriteSchemaRequest{
-				Schema: test.schema,
+				Schema: `
+					definition user {}
+					definition resource {
+						relation parent: resource
+						relation viewer: user
+						permission view = viewer + parent->view
+					}`,
 			})
 			require.NoError(t, err)
 
 			client := v1.NewPermissionsServiceClient(connections[0])
-			test.runOp(t, client)
+
+			testTenantMd := metadata.Pairs("tenantID", test.tenantID)
+			testTenantCtx := metadata.NewOutgoingContext(context.Background(), testTenantMd)
+
+			_, err = client.WriteRelationships(testTenantCtx, &v1.WriteRelationshipsRequest{
+				Updates: []*v1.RelationshipUpdate{
+					{
+						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+						Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#viewer@user:tom")),
+					},
+					{
+						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+						Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:foo#parent@resource:bar")),
+					},
+					{
+						Operation:    v1.RelationshipUpdate_OPERATION_CREATE,
+						Relationship: tuple.ToV1Relationship(tuple.MustParse("resource:bar#viewer@user:jill")),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			readCtx := testTenantCtx
+			if !test.readFromSameTenant {
+				otherTenantMd := metadata.Pairs("tenantID", uuid.Must(uuid.NewV4()).String())
+				readCtx = metadata.NewOutgoingContext(context.Background(), otherTenantMd)
+			}
+
+			readResponse, err := client.ReadRelationships(readCtx, &v1.ReadRelationshipsRequest{
+				RelationshipFilter: &v1.RelationshipFilter{
+					ResourceType: "resource",
+				},
+			})
+			require.NoError(t, err)
+			relationships := make([]*v1.Relationship, 0)
+			for {
+				recv, recvErr := readResponse.Recv()
+				if recvErr != nil {
+					if recvErr == io.EOF {
+						break
+					} else {
+						require.NoError(t, recvErr)
+					}
+				}
+				relationships = append(relationships, recv.Relationship)
+			}
+			test.assertRelationships(t, relationships)
 		})
 	}
 }
