@@ -1,4 +1,4 @@
-from .indirection import user
+import "indirection.zed"
 
 definition resource {
   relation viewer: user

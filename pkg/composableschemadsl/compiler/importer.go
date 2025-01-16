@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 
@@ -13,14 +14,12 @@ import (
 )
 
 type importContext struct {
-	pathSegments         []string
+	path                 string
 	sourceFolder         string
 	names                *mapz.Set[string]
 	locallyVisitedFiles  *mapz.Set[string]
 	globallyVisitedFiles *mapz.Set[string]
 }
-
-const SchemaFileSuffix = ".zed"
 
 type CircularImportError struct {
 	error
@@ -28,8 +27,10 @@ type CircularImportError struct {
 }
 
 func importFile(importContext importContext) (*CompiledSchema, error) {
-	relativeFilepath := constructFilePath(importContext.pathSegments)
-	filePath := path.Join(importContext.sourceFolder, relativeFilepath)
+	if err := validateFilepath(importContext.path); err != nil {
+		return nil, err
+	}
+	filePath := path.Join(importContext.sourceFolder, importContext.path)
 
 	newSourceFolder := filepath.Dir(filePath)
 
@@ -84,6 +85,18 @@ func importFile(importContext importContext) (*CompiledSchema, error) {
 	)
 }
 
-func constructFilePath(segments []string) string {
-	return path.Join(segments...) + SchemaFileSuffix
+// Take a filepath and ensure that it's local to the current context.
+func validateFilepath(path string) error {
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("path %s contains '..'; paths must stay within their directory and this is likely an error", path)
+	}
+	// NOTE: This is slightly overly restrictive; it should theoretically be possible
+	// to take a given filepath and figure out whether it's local to the context where
+	// the compiler is being invoked, rather than whether it's local to the source
+	// folder of the current context. The assumption is that that won't matter
+	// right now, and we can fix it if we need to.
+	if !filepath.IsLocal(path) {
+		return fmt.Errorf("import path %s does not stay within its folder", path)
+	}
+	return nil
 }

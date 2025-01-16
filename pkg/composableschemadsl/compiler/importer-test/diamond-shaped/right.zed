@@ -1,1 +1,1 @@
-from .subjects import persona
+import "subjects.zed"

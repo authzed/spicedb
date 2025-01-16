@@ -62,7 +62,6 @@ var lexerTests = []lexerTest{
 	{"keyword", "permission", []Lexeme{{TokenTypeKeyword, 0, "permission", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
 	{"keyword", "with", []Lexeme{{TokenTypeKeyword, 0, "with", ""}, tEOF}},
-	{"keyword", "from", []Lexeme{{TokenTypeKeyword, 0, "from", ""}, tEOF}},
 	{"keyword", "import", []Lexeme{{TokenTypeKeyword, 0, "import", ""}, tEOF}},
 	{"keyword", "all", []Lexeme{{TokenTypeKeyword, 0, "all", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},

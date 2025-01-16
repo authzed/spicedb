@@ -1,0 +1,75 @@
+NodeTypeFile
+  end-rune = 267
+  input-source = local imports with quotes within quotes on import test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 150
+      import-path = path/to/'"user.zed
+      input-source = local imports with quotes within quotes on import test
+      start-rune = 120
+      child-node =>
+        NodeTypeComment
+          comment-value = // NOTE: this is mostly to validate parser behavior; this path
+        NodeTypeComment
+          comment-value = // would be treated as invalid by the compiler/importer.
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 266
+      input-source = local imports with quotes within quotes on import test
+      start-rune = 153
+      child-node =>
+        NodeTypeRelation
+          end-rune = 197
+          input-source = local imports with quotes within quotes on import test
+          relation-name = user
+          start-rune = 179
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 197
+              input-source = local imports with quotes within quotes on import test
+              start-rune = 194
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 197
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 194
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 227
+          input-source = local imports with quotes within quotes on import test
+          relation-name = persona
+          start-rune = 203
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 227
+              input-source = local imports with quotes within quotes on import test
+              start-rune = 221
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 227
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 221
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 264
+          input-source = local imports with quotes within quotes on import test
+          relation-name = view
+          start-rune = 233
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 264
+              input-source = local imports with quotes within quotes on import test
+              start-rune = 251
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 254
+                  identifier-value = user
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 251
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 264
+                  identifier-value = persona
+                  input-source = local imports with quotes within quotes on import test
+                  start-rune = 258
