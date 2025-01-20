@@ -9,12 +9,13 @@ import (
 	"github.com/jzelinskie/cobrautil/v2/cobrazerolog"
 	"github.com/spf13/cobra"
 
+	mcobra "github.com/muesli/mango-cobra"
+	"github.com/muesli/roff"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/cmd/server"
 	"github.com/authzed/spicedb/pkg/cmd/testserver"
 	"github.com/authzed/spicedb/pkg/releases"
-	mcobra "github.com/muesli/mango-cobra"
-	"github.com/muesli/roff"
 )
 
 var ErrParsing = errors.New("parsing error")
