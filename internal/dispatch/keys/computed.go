@@ -1,7 +1,9 @@
 package keys
 
 import (
+	"context"
 	"github.com/authzed/spicedb/pkg/caveats"
+	"github.com/authzed/spicedb/pkg/middleware/tenantid"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
@@ -36,10 +38,16 @@ var cachePrefixes = []cachePrefix{
 }
 
 // checkRequestToKey converts a check request into a cache key based on the relation
-func checkRequestToKey(req *v1.DispatchCheckRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+func checkRequestToKey(ctx context.Context, req *v1.DispatchCheckRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	requestIds := make([]string, 0, len(req.ResourceIds))
+	requestIds = append(requestIds, req.ResourceIds...)
+	tenantId := tenantid.FromContext(ctx)
+	if tenantId != "" {
+		requestIds = append(requestIds, tenantId)
+	}
 	return dispatchCacheKeyHash(checkViaRelationPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ResourceRelation},
-		hashableIds(req.ResourceIds),
+		hashableIds(requestIds),
 		hashableOnr{req.Subject},
 		hashableResultSetting(req.ResultsSetting),
 	)
@@ -72,11 +80,17 @@ func expandRequestToKey(req *v1.DispatchExpandRequest, option dispatchCacheKeyHa
 }
 
 // lookupResourcesRequest2ToKey converts a lookup request into a cache key
-func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+func lookupResourcesRequest2ToKey(ctx context.Context, req *v1.DispatchLookupResources2Request, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	requestIds := make([]string, 0, len(req.SubjectIds))
+	requestIds = append(requestIds, req.SubjectIds...)
+	tenantId := tenantid.FromContext(ctx)
+	if tenantId != "" {
+		requestIds = append(requestIds, tenantId)
+	}
 	return dispatchCacheKeyHash(lookupPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
-		hashableIds(req.SubjectIds),
+		hashableIds(requestIds),
 		hashableOnr{req.TerminalSubject},
 		hashableContext{HashableContext: caveats.HashableContext{Struct: req.Context}}, // NOTE: context is included here because lookup does a single dispatch
 		hashableCursor{req.OptionalCursor},
@@ -85,10 +99,16 @@ func lookupResourcesRequest2ToKey(req *v1.DispatchLookupResources2Request, optio
 }
 
 // lookupSubjectsRequestToKey converts a lookup subjects request into a cache key
-func lookupSubjectsRequestToKey(req *v1.DispatchLookupSubjectsRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+func lookupSubjectsRequestToKey(ctx context.Context, req *v1.DispatchLookupSubjectsRequest, option dispatchCacheKeyHashComputeOption) DispatchCacheKey {
+	requestIds := make([]string, 0, len(req.ResourceIds))
+	requestIds = append(requestIds, req.ResourceIds...)
+	tenantId := tenantid.FromContext(ctx)
+	if tenantId != "" {
+		requestIds = append(requestIds, tenantId)
+	}
 	return dispatchCacheKeyHash(lookupSubjectsPrefix, req.Metadata.AtRevision, option,
 		hashableRelationReference{req.ResourceRelation},
 		hashableRelationReference{req.SubjectRelation},
-		hashableIds(req.ResourceIds),
+		hashableIds(requestIds),
 	)
 }
