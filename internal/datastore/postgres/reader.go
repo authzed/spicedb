@@ -149,13 +149,13 @@ func (r *pgReader) QueryRelationships(
 	opts ...options.QueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
+		FilterWithTenantIDFilter(ctx).
 		WithAdditionalFilter(r.aliveFilter).
 		FilterWithRelationshipsFilter(filter)
 	if err != nil {
 		return nil, err
 	}
-	tenantedQueryBuilder := qBuilder.FilterWithTenantIDFilter(ctx)
-	return r.executor.ExecuteQuery(ctx, tenantedQueryBuilder, opts...)
+	return r.executor.ExecuteQuery(ctx, qBuilder, opts...)
 }
 
 func (r *pgReader) ReverseQueryRelationships(
@@ -164,6 +164,7 @@ func (r *pgReader) ReverseQueryRelationships(
 	opts ...options.ReverseQueryOptionsOption,
 ) (iter datastore.RelationshipIterator, err error) {
 	qBuilder, err := common.NewSchemaQueryFiltererForRelationshipsSelect(r.schema, r.filterMaximumIDCount).
+		FilterWithTenantIDFilter(ctx).
 		WithAdditionalFilter(r.aliveFilter).
 		FilterWithSubjectsSelectors(subjectsFilter.AsSelector())
 	if err != nil {
@@ -177,10 +178,8 @@ func (r *pgReader) ReverseQueryRelationships(
 			FilterToRelation(queryOpts.ResRelation.Relation)
 	}
 
-	tenantedQueryBuilder := qBuilder.FilterWithTenantIDFilter(ctx)
-
 	return r.executor.ExecuteQuery(ctx,
-		tenantedQueryBuilder,
+		qBuilder,
 		options.WithLimit(queryOpts.LimitForReverse),
 		options.WithAfter(queryOpts.AfterForReverse),
 		options.WithSort(queryOpts.SortForReverse),
