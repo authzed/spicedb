@@ -14,16 +14,16 @@ func init() {
 	err := DatabaseMigrations.Register(
 		"add-tenant-id-column-to-relation-tuple-table",
 		"add-index-for-transaction-gc",
-		noNonatomicMigration,
-		func(ctx context.Context, tx pgx.Tx) error {
-			if _, err := tx.Exec(ctx, addTenantIDColumnToRelationTupleTable); err != nil {
+		func(ctx context.Context, conn *pgx.Conn) error {
+			if _, err := conn.Exec(ctx, addTenantIDColumnToRelationTupleTable); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(ctx, createIndexForRelationTupleTenantID); err != nil {
+			if _, err := conn.Exec(ctx, createIndexForRelationTupleTenantID); err != nil {
 				return err
 			}
 			return nil
 		},
+		noTxMigration,
 	)
 	if err != nil {
 		panic("failed to register migration: " + err.Error())
