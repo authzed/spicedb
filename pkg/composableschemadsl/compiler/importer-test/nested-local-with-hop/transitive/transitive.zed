@@ -1,1 +1,1 @@
-from .user.user import user
+import "user/user.zed"

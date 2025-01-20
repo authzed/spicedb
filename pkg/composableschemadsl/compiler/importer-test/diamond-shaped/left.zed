@@ -1,1 +1,1 @@
-from .subjects import user
+import "subjects.zed"

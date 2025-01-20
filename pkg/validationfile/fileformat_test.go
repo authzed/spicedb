@@ -101,6 +101,18 @@ validation:
 	}
 }
 
+func TestDecodeValidationFileWithoutSchema(t *testing.T) {
+	_, err := DecodeValidationFile([]byte(`schemaFile: >-
+  someschemafilehere.zed
+
+relationships: >-
+  document:firstdoc#writer@user:tom
+`))
+	errWithSource, ok := spiceerrors.AsWithSourceError(err)
+	require.False(t, ok)
+	require.Nil(t, errWithSource)
+}
+
 func TestDecodeRelationshipsErrorLineNumber(t *testing.T) {
 	_, err := DecodeValidationFile([]byte(`schema: >-
   definition user {}

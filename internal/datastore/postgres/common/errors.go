@@ -17,12 +17,19 @@ const (
 	pgSerializationFailure      = "40001"
 	pgTransactionAborted        = "25P02"
 	pgReadOnlyTransaction       = "25006"
+	pgQueryCanceled             = "57014"
 )
 
 var (
 	createConflictDetailsRegex              = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
 	createConflictDetailsRegexWithoutCaveat = regexp.MustCompile(`^Key (.+)=\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\) already exists`)
 )
+
+// IsQueryCanceledError returns true if the error is a Postgres error indicating a query was canceled.
+func IsQueryCanceledError(err error) bool {
+	var pgerr *pgconn.PgError
+	return errors.As(err, &pgerr) && pgerr.Code == pgQueryCanceled
+}
 
 // IsConstraintFailureError returns true if the error is a Postgres error indicating a constraint
 // failure.

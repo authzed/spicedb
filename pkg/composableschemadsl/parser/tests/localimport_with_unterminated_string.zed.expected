@@ -1,0 +1,24 @@
+NodeTypeFile
+  end-rune = 5
+  input-source = local imports with unterminated string on import test
+  start-rune = 0
+  child-node =>
+    NodeTypeImport
+      end-rune = 5
+      input-source = local imports with unterminated string on import test
+      start-rune = 0
+      child-node =>
+        NodeTypeError
+          end-rune = 5
+          error-message = Expected quote-delimited string, found token TokenTypeError
+          error-source = 
+
+          input-source = local imports with unterminated string on import test
+          start-rune = 7
+    NodeTypeError
+      end-rune = 5
+      error-message = Unexpected token at root level: TokenTypeError
+      error-source = 
+
+      input-source = local imports with unterminated string on import test
+      start-rune = 7

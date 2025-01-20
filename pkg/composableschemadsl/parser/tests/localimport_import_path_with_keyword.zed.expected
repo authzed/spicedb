@@ -1,50 +1,70 @@
 NodeTypeFile
-  end-rune = 20
+  end-rune = 149
   input-source = local imports with keyword in import path test
   start-rune = 0
   child-node =>
     NodeTypeImport
-      end-rune = 10
+      end-rune = 32
+      import-path = path/definition/user.zed
       input-source = local imports with keyword in import path test
       start-rune = 0
-      child-node =>
-        NodeTypeError
-          end-rune = 10
-          error-message = Expected keyword import, found token TokenTypeKeyword
-          error-source = definition
-          input-source = local imports with keyword in import path test
-          start-rune = 11
-      path-segment =>
-        NodeTypeIdentifier
-          end-rune = 9
-          identifier-value = path
-          input-source = local imports with keyword in import path test
-          start-rune = 6
-        NodeTypeIdentifier
-          end-rune = 10
-          input-source = local imports with keyword in import path test
-          start-rune = 11
-          child-node =>
-            NodeTypeError
-              end-rune = 10
-              error-message = Expected identifier, found token TokenTypeKeyword
-              error-source = definition
-              input-source = local imports with keyword in import path test
-              start-rune = 11
     NodeTypeDefinition
-      end-rune = 20
+      definition-name = resource
+      end-rune = 148
       input-source = local imports with keyword in import path test
-      start-rune = 11
+      start-rune = 35
       child-node =>
-        NodeTypeError
-          end-rune = 20
-          error-message = Expected identifier, found token TokenTypePeriod
-          error-source = .
+        NodeTypeRelation
+          end-rune = 79
           input-source = local imports with keyword in import path test
-          start-rune = 21
-    NodeTypeError
-      end-rune = 20
-      error-message = Unexpected token at root level: TokenTypePeriod
-      error-source = .
-      input-source = local imports with keyword in import path test
-      start-rune = 21
+          relation-name = user
+          start-rune = 61
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 79
+              input-source = local imports with keyword in import path test
+              start-rune = 76
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 79
+                  input-source = local imports with keyword in import path test
+                  start-rune = 76
+                  type-name = user
+        NodeTypeRelation
+          end-rune = 109
+          input-source = local imports with keyword in import path test
+          relation-name = persona
+          start-rune = 85
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 109
+              input-source = local imports with keyword in import path test
+              start-rune = 103
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 109
+                  input-source = local imports with keyword in import path test
+                  start-rune = 103
+                  type-name = persona
+        NodeTypePermission
+          end-rune = 146
+          input-source = local imports with keyword in import path test
+          relation-name = view
+          start-rune = 115
+          compute-expression =>
+            NodeTypeUnionExpression
+              end-rune = 146
+              input-source = local imports with keyword in import path test
+              start-rune = 133
+              left-expr =>
+                NodeTypeIdentifier
+                  end-rune = 136
+                  identifier-value = user
+                  input-source = local imports with keyword in import path test
+                  start-rune = 133
+              right-expr =>
+                NodeTypeIdentifier
+                  end-rune = 146
+                  identifier-value = persona
+                  input-source = local imports with keyword in import path test
+                  start-rune = 140

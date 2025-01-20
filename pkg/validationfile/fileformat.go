@@ -39,6 +39,9 @@ type ValidationFile struct {
 	// ValidationTuples are the validation tuples, in tuple string syntax.
 	// Deprecated: only for internal use. Use `relationships`.
 	ValidationTuples []string `yaml:"validation_tuples"`
+
+	// Schema file represents the path specified for the schema file
+	SchemaFile string `yaml:"schemaFile"`
 }
 
 // ParseAssertionsBlock parses the given contents as an assertions block.

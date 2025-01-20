@@ -1,5 +1,5 @@
-from .left import user
-from .right import persona
+import "left.zed"
+import "right.zed"
 
 definition resource {
   relation viewer: user
