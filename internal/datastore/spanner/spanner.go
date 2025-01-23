@@ -122,13 +122,15 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	}
 
 	// TODO(jschorr): Replace with OpenTelemetry instrumentation once available.
-	err = spanner.EnableStatViews() // nolint: staticcheck
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
-	}
-	err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
+	if config.enableDatastoreMetrics {
+		err = spanner.EnableStatViews() // nolint: staticcheck
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
+		}
+		err = spanner.EnableGfeLatencyAndHeaderMissingCountViews() // nolint: staticcheck
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable spanner GFE metrics: %w", err)
+		}
 	}
 
 	// Register Spanner client gRPC metrics (include round-trip latency, received/sent bytes...)

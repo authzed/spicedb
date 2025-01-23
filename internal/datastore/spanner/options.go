@@ -29,6 +29,7 @@ type spannerOptions struct {
 	filterMaximumIDCount        uint16
 	columnOptimizationOption    common.ColumnOptimizationOption
 	expirationDisabled          bool
+	enableDatastoreMetrics      bool
 }
 
 type migrationPhase uint8
@@ -173,6 +174,12 @@ func CredentialsJSON(json []byte) Option {
 func EmulatorHost(uri string) Option {
 	return func(so *spannerOptions) {
 		so.emulatorHost = uri
+	}
+}
+
+func EnableDatastoreMetrics(enable bool) Option {
+	return func(po *spannerOptions) {
+		po.enableDatastoreMetrics = enable
 	}
 }
 
