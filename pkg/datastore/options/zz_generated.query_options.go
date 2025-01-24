@@ -2,6 +2,7 @@
 package options
 
 import (
+	queryshape "github.com/authzed/spicedb/pkg/datastore/queryshape"
 	defaults "github.com/creasty/defaults"
 	helpers "github.com/ecordell/optgen/helpers"
 	structpb "google.golang.org/protobuf/types/known/structpb"
@@ -36,7 +37,9 @@ func (q *QueryOptions) ToOption() QueryOptionsOption {
 		to.After = q.After
 		to.SkipCaveats = q.SkipCaveats
 		to.SkipExpiration = q.SkipExpiration
-		to.SQLAssertion = q.SQLAssertion
+		to.SQLCheckAssertion = q.SQLCheckAssertion
+		to.SQLExplainCallback = q.SQLExplainCallback
+		to.QueryShape = q.QueryShape
 	}
 }
 
@@ -48,7 +51,9 @@ func (q QueryOptions) DebugMap() map[string]any {
 	debugMap["After"] = helpers.DebugValue(q.After, false)
 	debugMap["SkipCaveats"] = helpers.DebugValue(q.SkipCaveats, false)
 	debugMap["SkipExpiration"] = helpers.DebugValue(q.SkipExpiration, false)
-	debugMap["SQLAssertion"] = helpers.DebugValue(q.SQLAssertion, false)
+	debugMap["SQLCheckAssertion"] = helpers.DebugValue(q.SQLCheckAssertion, false)
+	debugMap["SQLExplainCallback"] = helpers.DebugValue(q.SQLExplainCallback, false)
+	debugMap["QueryShape"] = helpers.DebugValue(q.QueryShape, false)
 	return debugMap
 }
 
@@ -103,10 +108,24 @@ func WithSkipExpiration(skipExpiration bool) QueryOptionsOption {
 	}
 }
 
-// WithSQLAssertion returns an option that can set SQLAssertion on a QueryOptions
-func WithSQLAssertion(sQLAssertion Assertion) QueryOptionsOption {
+// WithSQLCheckAssertion returns an option that can set SQLCheckAssertion on a QueryOptions
+func WithSQLCheckAssertion(sQLCheckAssertion SQLCheckAssertion) QueryOptionsOption {
 	return func(q *QueryOptions) {
-		q.SQLAssertion = sQLAssertion
+		q.SQLCheckAssertion = sQLCheckAssertion
+	}
+}
+
+// WithSQLExplainCallback returns an option that can set SQLExplainCallback on a QueryOptions
+func WithSQLExplainCallback(sQLExplainCallback SQLExplainCallback) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.SQLExplainCallback = sQLExplainCallback
+	}
+}
+
+// WithQueryShape returns an option that can set QueryShape on a QueryOptions
+func WithQueryShape(queryShape queryshape.Shape) QueryOptionsOption {
+	return func(q *QueryOptions) {
+		q.QueryShape = queryShape
 	}
 }
 
@@ -138,6 +157,8 @@ func (r *ReverseQueryOptions) ToOption() ReverseQueryOptionsOption {
 		to.LimitForReverse = r.LimitForReverse
 		to.SortForReverse = r.SortForReverse
 		to.AfterForReverse = r.AfterForReverse
+		to.SQLExplainCallbackForReverse = r.SQLExplainCallbackForReverse
+		to.QueryShapeForReverse = r.QueryShapeForReverse
 	}
 }
 
@@ -148,6 +169,8 @@ func (r ReverseQueryOptions) DebugMap() map[string]any {
 	debugMap["LimitForReverse"] = helpers.DebugValue(r.LimitForReverse, false)
 	debugMap["SortForReverse"] = helpers.DebugValue(r.SortForReverse, false)
 	debugMap["AfterForReverse"] = helpers.DebugValue(r.AfterForReverse, false)
+	debugMap["SQLExplainCallbackForReverse"] = helpers.DebugValue(r.SQLExplainCallbackForReverse, false)
+	debugMap["QueryShapeForReverse"] = helpers.DebugValue(r.QueryShapeForReverse, false)
 	return debugMap
 }
 
@@ -192,6 +215,20 @@ func WithSortForReverse(sortForReverse SortOrder) ReverseQueryOptionsOption {
 func WithAfterForReverse(afterForReverse Cursor) ReverseQueryOptionsOption {
 	return func(r *ReverseQueryOptions) {
 		r.AfterForReverse = afterForReverse
+	}
+}
+
+// WithSQLExplainCallbackForReverse returns an option that can set SQLExplainCallbackForReverse on a ReverseQueryOptions
+func WithSQLExplainCallbackForReverse(sQLExplainCallbackForReverse SQLExplainCallback) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.SQLExplainCallbackForReverse = sQLExplainCallbackForReverse
+	}
+}
+
+// WithQueryShapeForReverse returns an option that can set QueryShapeForReverse on a ReverseQueryOptions
+func WithQueryShapeForReverse(queryShapeForReverse queryshape.Shape) ReverseQueryOptionsOption {
+	return func(r *ReverseQueryOptions) {
+		r.QueryShapeForReverse = queryShapeForReverse
 	}
 }
 
