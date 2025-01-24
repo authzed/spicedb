@@ -35,6 +35,9 @@ type SchemaInformation struct {
 	ColIntegrityHash      string `debugmap:"visible"`
 	ColIntegrityTimestamp string `debugmap:"visible"`
 
+	// Indexes are the indexes to use for this schema.
+	Indexes []IndexDefinition `debugmap:"visible"`
+
 	// PaginationFilterType is the type of pagination filter to use for this schema.
 	PaginationFilterType PaginationFilterType `debugmap:"visible"`
 
@@ -100,6 +103,10 @@ func (si SchemaInformation) mustValidate() {
 
 	if si.ColExpiration == "" {
 		panic("ColExpiration is required")
+	}
+
+	if len(si.Indexes) == 0 {
+		panic("At least one index is required")
 	}
 
 	if si.IntegrityEnabled {
