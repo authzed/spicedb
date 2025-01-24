@@ -1,0 +1,66 @@
+NodeTypeFile
+  end-rune = 131
+  input-source = partials with malformed partial reference
+  start-rune = 0
+  child-node =>
+    NodeTypePartial
+      end-rune = 70
+      input-source = partials with malformed partial reference
+      partial-name = view_partial
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 43
+          input-source = partials with malformed partial reference
+          relation-name = user
+          start-rune = 25
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 43
+              input-source = partials with malformed partial reference
+              start-rune = 40
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 43
+                  input-source = partials with malformed partial reference
+                  start-rune = 40
+                  type-name = user
+        NodeTypePermission
+          end-rune = 68
+          input-source = partials with malformed partial reference
+          relation-name = view
+          start-rune = 47
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 68
+              identifier-value = user
+              input-source = partials with malformed partial reference
+              start-rune = 65
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 90
+      input-source = partials with malformed partial reference
+      start-rune = 73
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 131
+      input-source = partials with malformed partial reference
+      start-rune = 93
+      child-node =>
+        NodeTypePartialReference
+          end-rune = 131
+          input-source = partials with malformed partial reference
+          partial-reference-name = view_partial
+          start-rune = 117
+        NodeTypeError
+          end-rune = 131
+          error-message = Expected end of statement or definition, found: TokenTypeIdentifier
+          error-source = and_something_else
+          input-source = partials with malformed partial reference
+          start-rune = 133
+    NodeTypeError
+      end-rune = 131
+      error-message = Unexpected token at root level: TokenTypeIdentifier
+      error-source = and_something_else
+      input-source = partials with malformed partial reference
+      start-rune = 133

@@ -28,11 +28,13 @@ func _() {
 	_ = x[NodeTypeNilExpression-17]
 	_ = x[NodeTypeCaveatTypeReference-18]
 	_ = x[NodeTypeImport-19]
+	_ = x[NodeTypePartial-20]
+	_ = x[NodeTypePartialReference-21]
 }
 
-const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReferenceNodeTypeImport"
+const _NodeType_name = "NodeTypeErrorNodeTypeFileNodeTypeCommentNodeTypeDefinitionNodeTypeCaveatDefinitionNodeTypeCaveatParameterNodeTypeCaveatExpressionNodeTypeRelationNodeTypePermissionNodeTypeTypeReferenceNodeTypeSpecificTypeReferenceNodeTypeCaveatReferenceNodeTypeUnionExpressionNodeTypeIntersectExpressionNodeTypeExclusionExpressionNodeTypeArrowExpressionNodeTypeIdentifierNodeTypeNilExpressionNodeTypeCaveatTypeReferenceNodeTypeImportNodeTypePartialNodeTypePartialReference"
 
-var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 129, 145, 163, 184, 213, 236, 259, 286, 313, 336, 354, 375, 402, 416}
+var _NodeType_index = [...]uint16{0, 13, 25, 40, 58, 82, 105, 129, 145, 163, 184, 213, 236, 259, 286, 313, 336, 354, 375, 402, 416, 431, 455}
 
 func (i NodeType) String() string {
 	if i < 0 || i >= NodeType(len(_NodeType_index)-1) {

@@ -1,0 +1,54 @@
+NodeTypeFile
+  end-rune = 134
+  input-source = partials happy path
+  start-rune = 0
+  child-node =>
+    NodeTypePartial
+      end-rune = 70
+      input-source = partials happy path
+      partial-name = view_partial
+      start-rune = 0
+      child-node =>
+        NodeTypeRelation
+          end-rune = 43
+          input-source = partials happy path
+          relation-name = user
+          start-rune = 25
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 43
+              input-source = partials happy path
+              start-rune = 40
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 43
+                  input-source = partials happy path
+                  start-rune = 40
+                  type-name = user
+        NodeTypePermission
+          end-rune = 68
+          input-source = partials happy path
+          relation-name = view
+          start-rune = 47
+          compute-expression =>
+            NodeTypeIdentifier
+              end-rune = 68
+              identifier-value = user
+              input-source = partials happy path
+              start-rune = 65
+    NodeTypeDefinition
+      definition-name = user
+      end-rune = 90
+      input-source = partials happy path
+      start-rune = 73
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 133
+      input-source = partials happy path
+      start-rune = 93
+      child-node =>
+        NodeTypePartialReference
+          end-rune = 131
+          input-source = partials happy path
+          partial-reference-name = view_partial
+          start-rune = 117
