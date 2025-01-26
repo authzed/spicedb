@@ -9,7 +9,6 @@ import (
 
 	"github.com/authzed/spicedb/pkg/caveats"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
-	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/diff"
 	caveatdiff "github.com/authzed/spicedb/pkg/diff/caveats"
 	nsdiff "github.com/authzed/spicedb/pkg/diff/namespace"
@@ -18,7 +17,6 @@ import (
 	iv1 "github.com/authzed/spicedb/pkg/proto/impl/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
-	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
 type schemaFilters struct {
@@ -180,8 +178,7 @@ func convertDiff(
 	diff *diff.SchemaDiff,
 	existingSchema *diff.DiffableSchema,
 	comparisonSchema *diff.DiffableSchema,
-	atRevision datastore.Revision,
-) (*v1.ExperimentalDiffSchemaResponse, error) {
+) ([]*v1.ExpSchemaDiff, error) {
 	size := len(diff.AddedNamespaces) + len(diff.RemovedNamespaces) + len(diff.AddedCaveats) + len(diff.RemovedCaveats) + len(diff.ChangedNamespaces) + len(diff.ChangedCaveats)
 	diffs := make([]*v1.ExpSchemaDiff, 0, size)
 
@@ -513,10 +510,7 @@ func convertDiff(
 		}
 	}
 
-	return &v1.ExperimentalDiffSchemaResponse{
-		Diffs:  diffs,
-		ReadAt: zedtoken.MustNewFromRevision(atRevision),
-	}, nil
+	return diffs, nil
 }
 
 // namespaceAPIReprForName builds an API representation of a namespace.
