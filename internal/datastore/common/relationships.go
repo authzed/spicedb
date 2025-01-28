@@ -39,7 +39,7 @@ type closeRows interface {
 	Close()
 }
 
-func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R]) error {
+func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R], explainable datastore.Explainable) error {
 	if builder.sqlExplainCallback == nil {
 		return nil
 	}
@@ -49,6 +49,11 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 
 	// Run the query with EXPLAIN ANALYZE.
 	sqlString, args, err := builder.SelectSQL()
+	if err != nil {
+		return fmt.Errorf(errUnableToQueryRels, err)
+	}
+
+	explainString, explainArgs, err := explainable.BuildExplainQuery(sqlString, args)
 	if err != nil {
 		return fmt.Errorf(errUnableToQueryRels, err)
 	}
@@ -65,7 +70,7 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 
 		builder.sqlExplainCallback(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
 		return nil
-	}, "EXPLAIN ANALYZE "+sqlString, args...)
+	}, explainString, explainArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToQueryRels, err)
 	}
@@ -74,14 +79,14 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 }
 
 // QueryRelationships queries relationships for the given query and transaction.
-func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R]) (datastore.RelationshipIterator, error) {
+func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R], explainable datastore.Explainable) (datastore.RelationshipIterator, error) {
 	span := trace.SpanFromContext(ctx)
 	sqlString, args, err := builder.SelectSQL()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryRels, err)
 	}
 
-	if err := runExplainIfNecessary(ctx, builder, tx); err != nil {
+	if err := runExplainIfNecessary(ctx, builder, tx, explainable); err != nil {
 		return nil, err
 	}
 

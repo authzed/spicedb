@@ -21,9 +21,9 @@ import (
 )
 
 // NewPGXQueryRelationshipsExecutor creates an executor that uses the pgx library to make the specified queries.
-func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier) common.ExecuteReadRelsQueryFunc {
+func NewPGXQueryRelationshipsExecutor(querier DBFuncQuerier, explainable datastore.Explainable) common.ExecuteReadRelsQueryFunc {
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, querier)
+		return common.QueryRelationships[pgx.Rows, map[string]any](ctx, builder, querier, explainable)
 	}
 }
 

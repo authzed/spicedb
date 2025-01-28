@@ -9,6 +9,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/queryshape"
+	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -16,15 +17,27 @@ import (
 // NewIndexCheckingDatastoreProxy returns a datastore proxy that runs EXPLAIN ANALYZE on all
 // relationships queries and ensures that the index(es) used within match those defined in the
 // schema for the datastore.
-func NewIndexCheckingDatastoreProxy(d datastore.Datastore) datastore.Datastore {
+func NewIndexCheckingDatastoreProxy(d datastore.SQLDatastore) datastore.Datastore {
 	return &indexcheckingProxy{delegate: d}
 }
 
-type indexcheckingProxy struct{ delegate datastore.Datastore }
+// WrapWithIndexCheckingDatastoreProxyIfApplicable wraps the provided datastore with an
+// index-checking proxy if the datastore is an SQLDatastore.
+func WrapWithIndexCheckingDatastoreProxyIfApplicable(ds datastore.Datastore) datastore.Datastore {
+	if unwrapped, ok := ds.(datastore.UnwrappableDatastore); ok {
+		if sqlds, ok := unwrapped.Unwrap().(datastore.SQLDatastore); ok {
+			return NewIndexCheckingDatastoreProxy(sqlds)
+		}
+	}
+
+	return ds
+}
+
+type indexcheckingProxy struct{ delegate datastore.SQLDatastore }
 
 func (p *indexcheckingProxy) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	delegateReader := p.delegate.SnapshotReader(rev)
-	return &indexcheckingReader{delegateReader}
+	return &indexcheckingReader{p.delegate, delegateReader}
 }
 
 func (p *indexcheckingProxy) ReadWriteTx(
@@ -33,7 +46,7 @@ func (p *indexcheckingProxy) ReadWriteTx(
 	opts ...options.RWTOptionsOption,
 ) (datastore.Revision, error) {
 	return p.delegate.ReadWriteTx(ctx, func(ctx context.Context, delegateRWT datastore.ReadWriteTransaction) error {
-		return f(ctx, &indexcheckingRWT{&indexcheckingReader{delegateRWT}, delegateRWT})
+		return f(ctx, &indexcheckingRWT{&indexcheckingReader{p.delegate, delegateRWT}, delegateRWT})
 	}, opts...)
 }
 
@@ -53,7 +66,7 @@ func (p *indexcheckingProxy) RevisionFromString(serialized string) (datastore.Re
 	return p.delegate.RevisionFromString(serialized)
 }
 
-func (p *indexcheckingProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (p *indexcheckingProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	return p.delegate.Watch(ctx, afterRevision, options)
 }
 
@@ -79,7 +92,10 @@ func (p *indexcheckingProxy) ReadyState(ctx context.Context) (datastore.ReadySta
 
 func (p *indexcheckingProxy) Close() error { return p.delegate.Close() }
 
-type indexcheckingReader struct{ delegate datastore.Reader }
+type indexcheckingReader struct {
+	parent   datastore.SQLDatastore
+	delegate datastore.Reader
+}
 
 func (r *indexcheckingReader) CountRelationships(ctx context.Context, name string) (int, error) {
 	return r.delegate.CountRelationships(ctx, name)
@@ -113,19 +129,37 @@ func (r *indexcheckingReader) ReadNamespaceByName(ctx context.Context, nsName st
 	return r.delegate.ReadNamespaceByName(ctx, nsName)
 }
 
+func (r *indexcheckingReader) mustEnsureIndexes(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) {
+	// If no indexes are expected, there is nothing to check.
+	if len(expectedIndexes.ExpectedIndexNames) == 0 {
+		return
+	}
+
+	parsed, err := r.parent.ParseExplain(explain)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse explain output: %s", err))
+	}
+
+	// If an index is not used (perhaps because the data is too small), the query is still valid.
+	if len(parsed.IndexesUsed) == 0 {
+		return
+	}
+
+	// Otherwise, ensure the index used is one of the expected indexes.
+	indexesUsed := mapz.NewSet(parsed.IndexesUsed...)
+	indexesExpected := mapz.NewSet(expectedIndexes.ExpectedIndexNames...)
+	if indexesExpected.Intersect(indexesUsed).IsEmpty() {
+		panic(fmt.Sprintf("expected index(es) %v for query shape %v not used: %s", expectedIndexes.ExpectedIndexNames, shape, explain))
+	}
+}
+
 func (r *indexcheckingReader) QueryRelationships(ctx context.Context, filter datastore.RelationshipsFilter, opts ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	opts = append(opts, options.WithSQLExplainCallback(func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) {
-		fmt.Println("SQL:", sql)
-		fmt.Println(explain)
-	}))
+	opts = append(opts, options.WithSQLExplainCallback(r.mustEnsureIndexes))
 	return r.delegate.QueryRelationships(ctx, filter, opts...)
 }
 
 func (r *indexcheckingReader) ReverseQueryRelationships(ctx context.Context, subjectsFilter datastore.SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	opts = append(opts, options.WithSQLExplainCallbackForReverse(func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes options.SQLIndexInformation) {
-		fmt.Println("SQL:", sql)
-		fmt.Println(explain)
-	}))
+	opts = append(opts, options.WithSQLExplainCallbackForReverse(r.mustEnsureIndexes))
 	return r.delegate.ReverseQueryRelationships(ctx, subjectsFilter, opts...)
 }
 
@@ -166,7 +200,7 @@ func (rwt *indexcheckingRWT) DeleteNamespaces(ctx context.Context, nsNames ...st
 	return rwt.delegate.DeleteNamespaces(ctx, nsNames...)
 }
 
-func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (bool, error) {
+func (rwt *indexcheckingRWT) DeleteRelationships(ctx context.Context, filter *v1.RelationshipFilter, options ...options.DeleteOptionsOption) (uint64, bool, error) {
 	return rwt.delegate.DeleteRelationships(ctx, filter, options...)
 }
 

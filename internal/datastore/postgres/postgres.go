@@ -29,6 +29,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/migrations"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -41,36 +42,7 @@ func init() {
 }
 
 const (
-	Engine                   = "postgres"
-	tableNamespace           = "namespace_config"
-	tableTransaction         = "relation_tuple_transaction"
-	tableTuple               = "relation_tuple"
-	tableCaveat              = "caveat"
-	tableRelationshipCounter = "relationship_counter"
-
-	colXID               = "xid"
-	colTimestamp         = "timestamp"
-	colMetadata          = "metadata"
-	colNamespace         = "namespace"
-	colConfig            = "serialized_config"
-	colCreatedXid        = "created_xid"
-	colDeletedXid        = "deleted_xid"
-	colSnapshot          = "snapshot"
-	colObjectID          = "object_id"
-	colRelation          = "relation"
-	colUsersetNamespace  = "userset_namespace"
-	colUsersetObjectID   = "userset_object_id"
-	colUsersetRelation   = "userset_relation"
-	colCaveatName        = "name"
-	colCaveatDefinition  = "definition"
-	colCaveatContextName = "caveat_name"
-	colCaveatContext     = "caveat_context"
-	colExpiration        = "expiration"
-
-	colCounterName         = "name"
-	colCounterFilter       = "serialized_filter"
-	colCounterCurrentCount = "current_count"
-	colCounterSnapshot     = "updated_revision_snapshot"
+	Engine = "postgres"
 
 	errUnableToInstantiate = "unable to instantiate datastore"
 
@@ -100,12 +72,12 @@ var (
 	psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	getRevision = psql.
-			Select(colXID, colSnapshot).
-			From(tableTransaction).
-			OrderByClause(fmt.Sprintf("%s DESC", colXID)).
+			Select(schema.ColXID, schema.ColSnapshot).
+			From(schema.TableTransaction).
+			OrderByClause(fmt.Sprintf("%s DESC", schema.ColXID)).
 			Limit(1)
 
-	createTxn = psql.Insert(tableTransaction).Columns(colMetadata)
+	createTxn = psql.Insert(schema.TableTransaction).Columns(schema.ColMetadata)
 
 	getNow = psql.Select("NOW()")
 
@@ -304,11 +276,11 @@ func newPostgresDatastore(
 
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
-		colXID,
-		tableTransaction,
-		colTimestamp,
+		schema.ColXID,
+		schema.TableTransaction,
+		schema.ColTimestamp,
 		quantizationPeriodNanos,
-		colSnapshot,
+		schema.ColSnapshot,
 		followerReadDelayNanos,
 	)
 
@@ -316,43 +288,25 @@ func newPostgresDatastore(
 	if config.revisionHeartbeatEnabled {
 		revisionHeartbeatQuery = fmt.Sprintf(
 			insertHeartBeatRevision,
-			colXID,
-			tableTransaction,
-			colTimestamp,
+			schema.ColXID,
+			schema.TableTransaction,
+			schema.ColTimestamp,
 			quantizationPeriodNanos,
-			colSnapshot,
+			schema.ColSnapshot,
 		)
 	}
 
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
-		colXID,
-		tableTransaction,
-		colTimestamp,
+		schema.ColXID,
+		schema.TableTransaction,
+		schema.ColTimestamp,
 		config.gcWindow.Seconds(),
-		colSnapshot,
+		schema.ColSnapshot,
 	)
 
 	maxRevisionStaleness := time.Duration(float64(config.revisionQuantization.Nanoseconds())*
 		config.maxRevisionStalenessPercent) * time.Nanosecond
-
-	schema := common.NewSchemaInformationWithOptions(
-		common.WithRelationshipTableName(tableTuple),
-		common.WithColNamespace(colNamespace),
-		common.WithColObjectID(colObjectID),
-		common.WithColRelation(colRelation),
-		common.WithColUsersetNamespace(colUsersetNamespace),
-		common.WithColUsersetObjectID(colUsersetObjectID),
-		common.WithColUsersetRelation(colUsersetRelation),
-		common.WithColCaveatName(colCaveatContextName),
-		common.WithColCaveatContext(colCaveatContext),
-		common.WithColExpiration(colExpiration),
-		common.WithPaginationFilterType(common.TupleComparison),
-		common.WithPlaceholderFormat(sq.Dollar),
-		common.WithNowFunction("NOW"),
-		common.WithColumnOptimization(config.columnOptimizationOption),
-		common.WithExpirationDisabled(config.expirationDisabled),
-	)
 
 	datastore := &pgDatastore{
 		CachedOptimizedRevisions: revisions.NewCachedOptimizedRevisions(
@@ -380,7 +334,7 @@ func newPostgresDatastore(
 		isPrimary:               isPrimary,
 		inStrictReadMode:        config.readStrictMode,
 		filterMaximumIDCount:    config.filterMaximumIDCount,
-		schema:                  *schema,
+		schema:                  *schema.Schema(config.columnOptimizationOption, config.expirationDisabled),
 		quantizationPeriodNanos: quantizationPeriodNanos,
 	}
 
@@ -471,7 +425,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	}
 
 	executor := common.QueryRelationshipsExecutor{
-		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs, pgd),
 	}
 
 	return &pgReader{
@@ -514,7 +468,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 
 			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
 			executor := common.QueryRelationshipsExecutor{
-				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
+				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs, pgd),
 			}
 
 			rwt := &pgReadWriteTXN{
@@ -824,12 +778,12 @@ func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
 func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer {
 	createdBeforeTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
-		colCreatedXid,
+		schema.ColCreatedXid,
 	), revision.snapshot, true)
 
 	deletedAfterTXN := sq.Expr(fmt.Sprintf(
 		snapshotAlive,
-		colDeletedXid,
+		schema.ColDeletedXid,
 	), revision.snapshot, false)
 
 	return func(original sq.SelectBuilder) sq.SelectBuilder {
@@ -838,7 +792,7 @@ func buildLivingObjectFilterForRevision(revision postgresRevision) queryFilterer
 }
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
-	return original.Where(sq.Eq{colDeletedXid: liveDeletedTxnID})
+	return original.Where(sq.Eq{schema.ColDeletedXid: liveDeletedTxnID})
 }
 
 // DefaultQueryExecMode parses a Postgres URI and determines if a default_query_exec_mode

@@ -66,9 +66,6 @@ func (si SchemaInformation) expectedIndexesForShape(shape queryshape.Shape) opti
 		if index.matchesShape(shape) {
 			expectedIndexes.ExpectedIndexNames = append(expectedIndexes.ExpectedIndexNames, index.Name)
 		}
-		if index.matchesShapeForOnly(shape) {
-			expectedIndexes.ExpectedIndexOnlyNames = append(expectedIndexes.ExpectedIndexOnlyNames, index.Name)
-		}
 	}
 	return expectedIndexes
 }
@@ -119,10 +116,6 @@ func (si SchemaInformation) mustValidate() {
 
 	if si.ColExpiration == "" {
 		panic("ColExpiration is required")
-	}
-
-	if len(si.Indexes) == 0 {
-		panic("At least one index is required")
 	}
 
 	if si.IntegrityEnabled {

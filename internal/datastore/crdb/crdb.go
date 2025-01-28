@@ -349,7 +349,7 @@ type crdbDatastore struct {
 
 func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	executor := common.QueryRelationshipsExecutor{
-		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool),
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(cds.readPool, cds),
 	}
 	return &crdbReader{
 		schema:               cds.schema,
@@ -382,7 +382,7 @@ func (cds *crdbDatastore) ReadWriteTx(
 	err := cds.writePool.BeginFunc(ctx, func(tx pgx.Tx) error {
 		querier := pgxcommon.QuerierFuncsFor(tx)
 		executor := common.QueryRelationshipsExecutor{
-			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier),
+			Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(querier, cds),
 		}
 
 		// Write metadata onto the transaction.

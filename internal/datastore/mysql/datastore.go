@@ -346,7 +346,7 @@ func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	}
 
 	executor := common.QueryRelationshipsExecutor{
-		Executor: newMySQLExecutor(mds.db),
+		Executor: newMySQLExecutor(mds.db, mds),
 	}
 
 	return &mysqlReader{
@@ -389,7 +389,7 @@ func (mds *Datastore) ReadWriteTx(
 			}
 
 			executor := common.QueryRelationshipsExecutor{
-				Executor: newMySQLExecutor(tx),
+				Executor: newMySQLExecutor(tx, mds),
 			}
 
 			rwt := &mysqlReadWriteTXN{
@@ -465,7 +465,7 @@ func (aqt asQueryableTx) QueryFunc(ctx context.Context, f func(context.Context, 
 	return f(ctx, rows)
 }
 
-func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
+func newMySQLExecutor(tx querier, explainable datastore.Explainable) common.ExecuteReadRelsQueryFunc {
 	// This implementation does not create a transaction because it's redundant for single statements, and it avoids
 	// the network overhead and reduce contention on the connection pool. From MySQL docs:
 	//
@@ -482,7 +482,7 @@ func newMySQLExecutor(tx querier) common.ExecuteReadRelsQueryFunc {
 	// Prepared statements are also not used given they perform poorly on environments where connections have
 	// short lifetime (e.g. to gracefully handle load-balancer connection drain)
 	return func(ctx context.Context, builder common.RelationshipsQueryBuilder) (datastore.RelationshipIterator, error) {
-		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, asQueryableTx{tx})
+		return common.QueryRelationships[common.Rows, structpbWrapper](ctx, builder, asQueryableTx{tx}, explainable)
 	}
 }
 

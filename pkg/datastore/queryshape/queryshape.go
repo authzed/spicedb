@@ -14,4 +14,8 @@ const (
 	// CheckPermissionSelectDirectSubjects indicates that the query is a permission check
 	// that selects direct subjects.
 	CheckPermissionSelectDirectSubjects
+
+	// CheckPermissionSelectIndirectSubjects indicates that the query is a permission check
+	// that selects indirect subjects.
+	CheckPermissionSelectIndirectSubjects
 )
