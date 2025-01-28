@@ -12,6 +12,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
 // NewCheckingReplicatedDatastore creates a new datastore that writes to the provided primary and reads
@@ -305,32 +306,83 @@ func (rr *strictReadReplicatedReader) LookupCaveatsWithNames(ctx context.Context
 	return caveats, err
 }
 
+type queryHandler[F any, O any] func(
+	ctx context.Context,
+	filter F,
+	options ...O,
+) (datastore.RelationshipIterator, error)
+
+func queryRelationships[F any, O any](
+	ctx context.Context,
+	rr *strictReadReplicatedReader,
+	filter F,
+	options []O,
+	handler func(datastore.Reader) queryHandler[F, O],
+) (datastore.RelationshipIterator, error) {
+	sr := rr.replica.SnapshotReader(rr.rev)
+	it, err := handler(sr)(ctx, filter, options...)
+
+	// Check for a RevisionUnavailableError, which indicates the replica does not contain the requested
+	// revision. In this case, use the primary instead. This may not be returned on this call from
+	// wrapped datastores that defer the actual query until the iterator is used.
+	if err != nil {
+		if errors.As(err, &common.RevisionUnavailableError{}) {
+			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+			return handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
+		}
+		return nil, err
+	}
+
+	return func(yield func(tuple.Relationship, error) bool) {
+		for result, err := range it {
+			if err != nil {
+				if errors.As(err, &common.RevisionUnavailableError{}) {
+					log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+					pit, err := handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
+					if err != nil {
+						yield(tuple.Relationship{}, err)
+						return
+					}
+					for presult, perr := range pit {
+						if !yield(presult, perr) {
+							return
+						}
+					}
+					return
+				}
+
+				if !yield(tuple.Relationship{}, err) {
+					return
+				}
+			}
+
+			if !yield(result, nil) {
+				return
+			}
+		}
+	}, nil
+}
+
 func (rr *strictReadReplicatedReader) QueryRelationships(
 	ctx context.Context,
 	filter datastore.RelationshipsFilter,
-	options ...options.QueryOptionsOption,
+	opts ...options.QueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
-	relationships, err := sr.QueryRelationships(ctx, filter, options...)
-	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
-		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).QueryRelationships(ctx, filter, options...)
-	}
-	return relationships, err
+	return queryRelationships(ctx, rr, filter, opts,
+		func(reader datastore.Reader) queryHandler[datastore.RelationshipsFilter, options.QueryOptionsOption] {
+			return reader.QueryRelationships
+		})
 }
 
 func (rr *strictReadReplicatedReader) ReverseQueryRelationships(
 	ctx context.Context,
 	subjectsFilter datastore.SubjectsFilter,
-	options ...options.ReverseQueryOptionsOption,
+	opts ...options.ReverseQueryOptionsOption,
 ) (datastore.RelationshipIterator, error) {
-	sr := rr.replica.SnapshotReader(rr.rev)
-	relationships, err := sr.ReverseQueryRelationships(ctx, subjectsFilter, options...)
-	if err != nil && errors.As(err, &common.RevisionUnavailableError{}) {
-		log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-		return rr.primary.SnapshotReader(rr.rev).ReverseQueryRelationships(ctx, subjectsFilter, options...)
-	}
-	return relationships, err
+	return queryRelationships(ctx, rr, subjectsFilter, opts,
+		func(reader datastore.Reader) queryHandler[datastore.SubjectsFilter, options.ReverseQueryOptionsOption] {
+			return reader.ReverseQueryRelationships
+		})
 }
 
 func (rr *strictReadReplicatedReader) ReadNamespaceByName(ctx context.Context, nsName string) (ns *core.NamespaceDefinition, lastWritten datastore.Revision, err error) {
