@@ -10,6 +10,7 @@ import (
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
+	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -26,15 +27,15 @@ type pgReader struct {
 type queryFilterer func(original sq.SelectBuilder) sq.SelectBuilder
 
 var (
-	countRels = psql.Select("COUNT(*)").From(tableTuple)
+	countRels = psql.Select("COUNT(*)").From(schema.TableTuple)
 
 	readNamespace = psql.
-			Select(colConfig, colCreatedXid).
-			From(tableNamespace)
+			Select(schema.ColConfig, schema.ColCreatedXid).
+			From(schema.TableNamespace)
 
 	readCounters = psql.
-			Select(colCounterName, colCounterFilter, colCounterCurrentCount, colCounterSnapshot).
-			From(tableRelationshipCounter)
+			Select(schema.ColCounterName, schema.ColCounterFilter, schema.ColCounterCurrentCount, schema.ColCounterSnapshot).
+			From(schema.TableRelationshipCounter)
 )
 
 const (
@@ -98,7 +99,7 @@ func (r *pgReader) LookupCounters(ctx context.Context) ([]datastore.Relationship
 func (r *pgReader) lookupCounters(ctx context.Context, optionalName string) ([]datastore.RelationshipCounter, error) {
 	query := readCounters
 	if optionalName != noFilterOnCounterName {
-		query = query.Where(sq.Eq{colCounterName: optionalName})
+		query = query.Where(sq.Eq{schema.ColCounterName: optionalName})
 	}
 
 	sql, args, err := r.aliveFilter(query).ToSql()
@@ -206,7 +207,7 @@ func (r *pgReader) loadNamespace(ctx context.Context, namespace string, tx pgxco
 	defer span.End()
 
 	defs, err := loadAllNamespaces(ctx, tx, func(original sq.SelectBuilder) sq.SelectBuilder {
-		return filterer(original).Where(sq.Eq{colNamespace: namespace})
+		return filterer(original).Where(sq.Eq{schema.ColNamespace: namespace})
 	})
 	if err != nil {
 		return nil, postgresRevision{}, err
@@ -235,7 +236,7 @@ func (r *pgReader) LookupNamespacesWithNames(ctx context.Context, nsNames []stri
 
 	clause := sq.Or{}
 	for _, nsName := range nsNames {
-		clause = append(clause, sq.Eq{colNamespace: nsName})
+		clause = append(clause, sq.Eq{schema.ColNamespace: nsName})
 	}
 
 	nsDefsWithRevisions, err := loadAllNamespaces(ctx, r.query, func(original sq.SelectBuilder) sq.SelectBuilder {
