@@ -39,12 +39,50 @@ type closeRows interface {
 	Close()
 }
 
+func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R]) error {
+	if builder.sqlExplainCallback == nil {
+		return nil
+	}
+
+	// Determine the expected index names via the schema.
+	expectedIndexes := builder.Schema.expectedIndexesForShape(builder.queryShape)
+
+	// Run the query with EXPLAIN ANALYZE.
+	sqlString, args, err := builder.SelectSQL()
+	if err != nil {
+		return fmt.Errorf(errUnableToQueryRels, err)
+	}
+
+	err = tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
+		explainString := ""
+		for rows.Next() {
+			var explain string
+			if err := rows.Scan(&explain); err != nil {
+				return fmt.Errorf(errUnableToQueryRels, fmt.Errorf("scan err: %w", err))
+			}
+			explainString += explain + "\n"
+		}
+
+		builder.sqlExplainCallback(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
+		return nil
+	}, "EXPLAIN ANALYZE "+sqlString, args...)
+	if err != nil {
+		return fmt.Errorf(errUnableToQueryRels, err)
+	}
+
+	return nil
+}
+
 // QueryRelationships queries relationships for the given query and transaction.
 func QueryRelationships[R Rows, C ~map[string]any](ctx context.Context, builder RelationshipsQueryBuilder, tx Querier[R]) (datastore.RelationshipIterator, error) {
 	span := trace.SpanFromContext(ctx)
 	sqlString, args, err := builder.SelectSQL()
 	if err != nil {
 		return nil, fmt.Errorf(errUnableToQueryRels, err)
+	}
+
+	if err := runExplainIfNecessary(ctx, builder, tx); err != nil {
+		return nil, err
 	}
 
 	var resourceObjectType string
