@@ -128,6 +128,11 @@ func TestParser(t *testing.T) {
 		{"local imports with unterminated string on import test", "localimport_with_unterminated_string"},
 		{"local imports with mismatched quotes on import test", "localimport_with_mismatched_quotes"},
 		{"local imports with keyword in import path test", "localimport_import_path_with_keyword"},
+		{"top-level block with unrecognized keyword", "nonsense_top_level_block"},
+		{"partials happy path", "partials"},
+		{"partials with malformed partial reference", "partials_with_malformed_partial_reference"},
+		{"partials with malformed reference splat", "partials_with_malformed_reference_splat"},
+		{"partials with malformed partial block", "partials_with_malformed_partial_block"},
 	}
 
 	for _, test := range parserTests {

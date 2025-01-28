@@ -65,6 +65,7 @@ var lexerTests = []lexerTest{
 	{"keyword", "import", []Lexeme{{TokenTypeKeyword, 0, "import", ""}, tEOF}},
 	{"keyword", "all", []Lexeme{{TokenTypeKeyword, 0, "all", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
+	{"keyword", "partial", []Lexeme{{TokenTypeKeyword, 0, "partial", ""}, tEOF}},
 	{"identifier", "define", []Lexeme{{TokenTypeIdentifier, 0, "define", ""}, tEOF}},
 	{"typepath", "foo/bar", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},

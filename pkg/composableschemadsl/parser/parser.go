@@ -65,6 +65,9 @@ Loop:
 		case p.isKeyword("import"):
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeImport())
 
+		case p.isKeyword("partial"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumePartial())
+
 		default:
 			p.emitErrorf("Unexpected token at root level: %v", p.currentToken.Kind)
 			break Loop
@@ -264,10 +267,39 @@ func (p *sourceParser) consumeDefinition() AstNode {
 
 	defNode.MustDecorate(dslshape.NodeDefinitionPredicateName, definitionName)
 
-	// {
-	_, ok = p.consume(lexer.TokenTypeLeftBrace)
+	p.consumeDefinitionOrPartialImpl(defNode)
+
+	return defNode
+}
+
+// consumePartial attempts to consume a single schema partial.
+// ```partial somepartial { ... }```
+func (p *sourceParser) consumePartial() AstNode {
+	partialNode := p.startNode(dslshape.NodeTypePartial)
+	defer p.mustFinishNode()
+
+	// partial ...
+	p.consumeKeyword("partial")
+	definitionName, ok := p.consumeTypePath()
 	if !ok {
-		return defNode
+		return partialNode
+	}
+
+	partialNode.MustDecorate(dslshape.NodePartialPredicateName, definitionName)
+
+	p.consumeDefinitionOrPartialImpl(partialNode)
+
+	return partialNode
+}
+
+// consumeDefinitionOrPartialImpl does the work of parsing and consuming
+// the internals of a given definition or partial.
+// Definitions and partials have the same set of allowable internals.
+func (p *sourceParser) consumeDefinitionOrPartialImpl(node AstNode) AstNode {
+	// {
+	_, ok := p.consume(lexer.TokenTypeLeftBrace)
+	if !ok {
+		return node
 	}
 
 	// Relations and permissions.
@@ -281,10 +313,13 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		// permission ...
 		switch {
 		case p.isKeyword("relation"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumeRelation())
+			node.Connect(dslshape.NodePredicateChild, p.consumeRelation())
 
 		case p.isKeyword("permission"):
-			defNode.Connect(dslshape.NodePredicateChild, p.consumePermission())
+			node.Connect(dslshape.NodePredicateChild, p.consumePermission())
+
+		case p.isToken(lexer.TokenTypeEllipsis):
+			node.Connect(dslshape.NodePredicateChild, p.consumePartialReference())
 		}
 
 		ok := p.consumeStatementTerminator()
@@ -293,7 +328,7 @@ func (p *sourceParser) consumeDefinition() AstNode {
 		}
 	}
 
-	return defNode
+	return node
 }
 
 // consumeRelation consumes a relation.
@@ -595,6 +630,21 @@ func (p *sourceParser) tryConsumeNilExpression() (AstNode, bool) {
 	p.consumeKeyword("nil")
 	defer p.mustFinishNode()
 	return node, true
+}
+
+func (p *sourceParser) consumePartialReference() AstNode {
+	partialReferenceNode := p.startNode(dslshape.NodeTypePartialReference)
+	defer p.mustFinishNode()
+
+	p.consume(lexer.TokenTypeEllipsis)
+	identifier, ok := p.consumeIdentifier()
+	if !ok {
+		return partialReferenceNode
+	}
+
+	partialReferenceNode.MustDecorate(dslshape.NodePartialReferencePredicateName, identifier)
+
+	return partialReferenceNode
 }
 
 func (p *sourceParser) consumeImport() AstNode {
