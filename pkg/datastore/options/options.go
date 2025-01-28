@@ -48,8 +48,19 @@ func ToRelationship(c Cursor) *tuple.Relationship {
 // Assertions will only be run during testing and only apply in datastores that support SQL.
 type SQLCheckAssertion func(sql string)
 
+// SQLIndexInformation holds the expected index names and index-only names for a SQL query.
+type SQLIndexInformation struct {
+	// ExpectedIndexNames are the name(s) of the index(es) that are expected to be used by this
+	// SQL query.
+	ExpectedIndexNames []string
+
+	// ExpectedIndexOnlyNames are the name(s) of the index(es) that are expected to be used by this
+	// SQL query, but for index-only lookups.
+	ExpectedIndexOnlyNames []string
+}
+
 // SQLExplainCallback is a callback invoked with the explain plan of the SQL query string.
-type SQLExplainCallback func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string)
+type SQLExplainCallback func(ctx context.Context, sql string, args []any, shape queryshape.Shape, explain string, expectedIndexes SQLIndexInformation)
 
 // QueryOptions are the options that can affect the results of a normal forward query.
 type QueryOptions struct {
