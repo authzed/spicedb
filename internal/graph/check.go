@@ -682,17 +682,13 @@ type Traits struct {
 // types of the given relation support caveats or expiration.
 func TraitsForArrowRelation(ctx context.Context, reader datastore.Reader, namespaceName string, relationName string) (Traits, error) {
 	// TODO(jschorr): Change to use the type system once we wire it through Check dispatch.
-	nsDefs, err := reader.LookupNamespacesWithNames(ctx, []string{namespaceName})
+	nsDef, _, err := reader.ReadNamespaceByName(ctx, namespaceName)
 	if err != nil {
 		return Traits{}, err
 	}
 
-	if len(nsDefs) != 1 {
-		return Traits{}, fmt.Errorf("namespace %q not found", namespaceName)
-	}
-
 	var relation *core.Relation
-	for _, rel := range nsDefs[0].Definition.Relation {
+	for _, rel := range nsDef.Relation {
 		if rel.Name == relationName {
 			relation = rel
 			break
