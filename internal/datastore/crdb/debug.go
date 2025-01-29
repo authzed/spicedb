@@ -4,6 +4,10 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 )
 
+func (cds *crdbDatastore) PreExplainStatements() []string {
+	return nil
+}
+
 func (cds *crdbDatastore) BuildExplainQuery(sql string, args []interface{}) (string, []any, error) {
 	return "EXPLAIN ANALYZE " + sql, args, nil
 }

@@ -711,6 +711,9 @@ type Explainable interface {
 
 	// ParseExplain parses the output of an EXPLAIN statement.
 	ParseExplain(explain string) (ParsedExplain, error)
+
+	// PreExplainStatements returns any statements that should be run before the EXPLAIN statement.
+	PreExplainStatements() []string
 }
 
 // SQLDatastore is an interface for datastores that support SQL-based operations.

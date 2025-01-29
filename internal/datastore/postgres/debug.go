@@ -18,6 +18,10 @@ type plan struct {
 	IndexName string `json:"Index Name"`
 }
 
+func (pgd *pgDatastore) PreExplainStatements() []string {
+	return nil
+}
+
 func (pgd *pgDatastore) BuildExplainQuery(sql string, args []interface{}) (string, []any, error) {
 	return "EXPLAIN (FORMAT JSON) " + sql, args, nil
 }
