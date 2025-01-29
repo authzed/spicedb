@@ -2,8 +2,9 @@ package compiler
 
 import (
 	"bufio"
-	"errors"
+	"container/list"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/ccoveille/go-safecast"
@@ -20,14 +21,16 @@ import (
 )
 
 type translationContext struct {
-	objectTypePrefix     *string
-	mapper               input.PositionMapper
-	schemaString         string
-	skipValidate         bool
-	existingNames        *mapz.Set[string]
-	locallyVisitedFiles  *mapz.Set[string]
-	globallyVisitedFiles *mapz.Set[string]
-	sourceFolder         string
+	objectTypePrefix *string
+	mapper           input.PositionMapper
+	schemaString     string
+	skipValidate     bool
+	existingNames    *mapz.Set[string]
+	// The mapping of partial name -> relations represented by the partial
+	compiledPartials map[string][]*core.Relation
+	// A mapping of partial name -> partial DSL nodes whose resolution depends on
+	// the resolution of the named partial
+	unresolvedPartials *mapz.MultiMap[string, *dslNode]
 }
 
 func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
@@ -57,6 +60,14 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 	// Copy the name set so that we're not mutating the parent's context
 	// as we do our walk
 	names := tctx.existingNames.Copy()
+
+	// Do an initial pass to translate partials and add them to the
+	// translation context. This ensures that they're available for
+	// subsequent reference in definition compilation.
+	err := collectPartials(tctx, root)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, topLevelNode := range root.GetChildren() {
 		switch topLevelNode.GetType() {
@@ -92,17 +103,6 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 			}
 
 			orderedDefinitions = append(orderedDefinitions, def)
-
-		case dslshape.NodeTypeImport:
-			compiled, err := translateImport(tctx, topLevelNode, names)
-			if err != nil {
-				return nil, err
-			}
-			// NOTE: name collision validation happens in the recursive compilation process,
-			// so we don't need an explicit check here and we can just add our definitions.
-			caveatDefinitions = append(caveatDefinitions, compiled.CaveatDefinitions...)
-			objectDefinitions = append(objectDefinitions, compiled.ObjectDefinitions...)
-			orderedDefinitions = append(orderedDefinitions, compiled.OrderedDefinitions...)
 		}
 	}
 
@@ -227,18 +227,10 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 		return nil, defNode.WithSourceErrorf(definitionName, "invalid definition name: %w", err)
 	}
 
-	relationsAndPermissions := []*core.Relation{}
-	for _, relationOrPermissionNode := range defNode.GetChildren() {
-		if relationOrPermissionNode.GetType() == dslshape.NodeTypeComment {
-			continue
-		}
-
-		relationOrPermission, err := translateRelationOrPermission(tctx, relationOrPermissionNode)
-		if err != nil {
-			return nil, err
-		}
-
-		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
+	errorOnMissingReference := true
+	relationsAndPermissions, _, err := translateRelationsAndPermissions(tctx, defNode, errorOnMissingReference)
+	if err != nil {
+		return nil, err
 	}
 
 	nspath, err := tctx.prefixedPath(definitionName)
@@ -271,6 +263,39 @@ func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core
 	}
 
 	return ns, nil
+}
+
+// NOTE: This function behaves differently based on an errorOnMissingReference flag.
+// A value of true treats that as an error state, since all partials should be resolved when translating definitions,
+// where the false value returns the name of the partial for collection for future processing
+// when translating partials.
+func translateRelationsAndPermissions(tctx translationContext, astNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, string, error) {
+	relationsAndPermissions := []*core.Relation{}
+	for _, definitionChildNode := range astNode.GetChildren() {
+		if definitionChildNode.GetType() == dslshape.NodeTypeComment {
+			continue
+		}
+
+		if definitionChildNode.GetType() == dslshape.NodeTypePartialReference {
+			partialContents, unresolvedPartial, err := translatePartialReference(tctx, definitionChildNode, errorOnMissingReference)
+			if err != nil {
+				return nil, "", err
+			}
+			if unresolvedPartial != "" {
+				return nil, unresolvedPartial, nil
+			}
+			relationsAndPermissions = append(relationsAndPermissions, partialContents...)
+			continue
+		}
+
+		relationOrPermission, err := translateRelationOrPermission(tctx, definitionChildNode)
+		if err != nil {
+			return nil, "", err
+		}
+
+		relationsAndPermissions = append(relationsAndPermissions, relationOrPermission)
+	}
+	return relationsAndPermissions, "", nil
 }
 
 func getSourcePosition(dslNode *dslNode, mapper input.PositionMapper) *core.SourcePosition {
@@ -696,27 +721,161 @@ func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.All
 	return nil
 }
 
-func translateImport(tctx translationContext, importNode *dslNode, names *mapz.Set[string]) (*CompiledSchema, error) {
-	path, err := importNode.GetString(dslshape.NodeImportPredicatePath)
-	if err != nil {
-		return nil, err
-	}
+type importResolutionContext struct {
+	// The global set of files we've visited in the import process.
+	// If these collide we short circuit, preventing duplicate imports.
+	globallyVisitedFiles *mapz.Set[string]
+	// The set of files that we've visited on a particular leg of the recursion.
+	// This allows for detection of circular imports.
+	// NOTE: This depends on an assumption that a depth-first search will always
+	// find a cycle, even if we're otherwise marking globally visited nodes.
+	locallyVisitedFiles *mapz.Set[string]
+	sourceFolder        string
+}
 
-	compiledSchema, err := importFile(importContext{
-		names:                names,
-		path:                 path,
-		sourceFolder:         tctx.sourceFolder,
-		globallyVisitedFiles: tctx.globallyVisitedFiles,
-		locallyVisitedFiles:  tctx.locallyVisitedFiles,
-	})
-	if err != nil {
-		var circularImportError *CircularImportError
-		if errors.As(err, &circularImportError) {
-			// NOTE: The "%s" is an empty format string to keep with the form of WithSourceErrorf
-			return nil, importNode.WithSourceErrorf(circularImportError.filePath, "%s", circularImportError.error.Error())
+// Takes a parsed schema and recursively translates import syntax and replaces
+// import nodes with parsed nodes from the target files
+func translateImports(itctx importResolutionContext, root *dslNode) error {
+	// We create a new list so that we can maintain the order
+	// of imported nodes
+	importedDefinitionNodes := list.New()
+
+	for _, topLevelNode := range root.GetChildren() {
+		// Process import nodes; ignore the others
+		if topLevelNode.GetType() == dslshape.NodeTypeImport {
+			// Do the handling of recursive imports etc here
+			importPath, err := topLevelNode.GetString(dslshape.NodeImportPredicatePath)
+			if err != nil {
+				return err
+			}
+
+			if err := validateFilepath(importPath); err != nil {
+				return err
+			}
+			filePath := filepath.Join(itctx.sourceFolder, importPath)
+
+			newSourceFolder := filepath.Dir(filePath)
+
+			currentLocallyVisitedFiles := itctx.locallyVisitedFiles.Copy()
+
+			if ok := currentLocallyVisitedFiles.Add(filePath); !ok {
+				// If we've already visited the file on this particular branch walk, it's
+				// a circular import issue.
+				return &CircularImportError{
+					error:    fmt.Errorf("circular import detected: %s has been visited on this branch", filePath),
+					filePath: filePath,
+				}
+			}
+
+			if ok := itctx.globallyVisitedFiles.Add(filePath); !ok {
+				// If the file has already been visited, we short-circuit the import process
+				// by not reading the schema file in and compiling a schema with an empty string.
+				// This prevents duplicate definitions from ending up in the output, as well
+				// as preventing circular imports.
+				log.Debug().Str("filepath", filePath).Msg("file %s has already been visited in another part of the walk")
+				return nil
+			}
+
+			// Do the actual import here
+			// This is a new node provided by the translateImport
+			parsedImportRoot, err := importFile(filePath)
+			if err != nil {
+				return err
+			}
+
+			// We recurse on that node to resolve any further imports
+			err = translateImports(importResolutionContext{
+				sourceFolder:         newSourceFolder,
+				locallyVisitedFiles:  currentLocallyVisitedFiles,
+				globallyVisitedFiles: itctx.globallyVisitedFiles,
+			}, parsedImportRoot)
+			if err != nil {
+				return err
+			}
+
+			// And then append the definition to the list of definitions to be added
+			for _, importedNode := range parsedImportRoot.GetChildren() {
+				if importedNode.GetType() != dslshape.NodeTypeImport {
+					importedDefinitionNodes.PushBack(importedNode)
+				}
+			}
 		}
-		return nil, err
 	}
 
-	return compiledSchema, nil
+	// finally, take the list of definitions to add and prepend them
+	// (effectively hoists definitions)
+	root.ConnectAndHoistMany(dslshape.NodePredicateChild, importedDefinitionNodes)
+
+	return nil
+}
+
+func collectPartials(tctx translationContext, rootNode *dslNode) error {
+	for _, topLevelNode := range rootNode.GetChildren() {
+		if topLevelNode.GetType() == dslshape.NodeTypePartial {
+			err := translatePartial(tctx, topLevelNode)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if tctx.unresolvedPartials.Len() != 0 {
+		return fmt.Errorf("could not resolve partials: [%s]. this may indicate a circular reference", strings.Join(tctx.unresolvedPartials.Keys(), ", "))
+	}
+	return nil
+}
+
+// This function modifies the translation context, so we don't need to return anything from it.
+func translatePartial(tctx translationContext, partialNode *dslNode) error {
+	partialName, err := partialNode.GetString(dslshape.NodePartialPredicateName)
+	if err != nil {
+		return err
+	}
+	// This needs to return the unresolved name.
+	errorOnMissingReference := false
+	relationsAndPermissions, unresolvedPartial, err := translateRelationsAndPermissions(tctx, partialNode, errorOnMissingReference)
+	if err != nil {
+		return err
+	}
+	if unresolvedPartial != "" {
+		tctx.unresolvedPartials.Add(unresolvedPartial, partialNode)
+		return nil
+	}
+
+	tctx.compiledPartials[partialName] = relationsAndPermissions
+
+	// Since we've successfully compiled a partial, check the unresolved partials to see if any other partial was
+	// waiting on this partial
+	// NOTE: we're making an assumption here that a partial can't end up back in the same
+	// list of unresolved partials - if it hangs again in a different spot, it will end up in a different
+	// list of unresolved partials.
+	waitingPartials, _ := tctx.unresolvedPartials.Get(partialName)
+	for _, waitingPartialNode := range waitingPartials {
+		err := translatePartial(tctx, waitingPartialNode)
+		if err != nil {
+			return err
+		}
+	}
+	// Clear out this partial's key from the unresolved partials if it's not already empty.
+	tctx.unresolvedPartials.RemoveKey(partialName)
+	return nil
+}
+
+// NOTE: we treat partial references in definitions and partials differently because a missing partial
+// reference in definition compilation is an error state, where a missing partial reference in a
+// partial definition is an indeterminate state.
+func translatePartialReference(tctx translationContext, partialReferenceNode *dslNode, errorOnMissingReference bool) ([]*core.Relation, string, error) {
+	name, err := partialReferenceNode.GetString(dslshape.NodePartialReferencePredicateName)
+	if err != nil {
+		return nil, "", err
+	}
+	relationsAndPermissions, ok := tctx.compiledPartials[name]
+	if !ok {
+		if errorOnMissingReference {
+			return nil, "", partialReferenceNode.Errorf("could not find partial reference with name %s", name)
+		}
+		// If the partial isn't present and we're not throwing an error, we return the name of the missing partial
+		// This behavior supports partial collection
+		return nil, name, nil
+	}
+	return relationsAndPermissions, "", nil
 }
