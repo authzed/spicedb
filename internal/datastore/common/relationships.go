@@ -63,7 +63,7 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 		return fmt.Errorf(errUnableToQueryRels, err)
 	}
 
-	explainString, explainArgs, err := explainable.BuildExplainQuery(sqlString, args)
+	explainSQL, explainArgs, err := explainable.BuildExplainQuery(sqlString, args)
 	if err != nil {
 		return fmt.Errorf(errUnableToQueryRels, err)
 	}
@@ -77,10 +77,13 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 			}
 			explainString += explain + "\n"
 		}
+		if explainString == "" {
+			return fmt.Errorf("received empty explain")
+		}
 
 		builder.sqlExplainCallback(ctx, sqlString, args, builder.queryShape, explainString, expectedIndexes)
 		return nil
-	}, explainString, explainArgs...)
+	}, explainSQL, explainArgs...)
 	if err != nil {
 		return fmt.Errorf(errUnableToQueryRels, err)
 	}
