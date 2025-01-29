@@ -132,12 +132,12 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		return nil, fmt.Errorf(errUnableToInstantiate, err)
 	}
 
-	parsedURI, err := mysql.ParseDSN(uri)
+	mysqlConfig, err := mysql.ParseDSN(uri)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: could not parse connection URI", err, uri)
 	}
 
-	if !parsedURI.ParseTime {
+	if !mysqlConfig.ParseTime {
 		return nil, errors.New("error in NewMySQLDatastore: connection URI for MySQL datastore must include `parseTime=true` as a query parameter; see https://spicedb.dev/d/parse-time-mysql for more details")
 	}
 
@@ -150,13 +150,16 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		}
 	}
 
-	err = mysqlCommon.MaybeAddCredentialsProviderHook(parsedURI, credentialsProvider)
+	err = mysqlCommon.MaybeAddCredentialsProviderHook(mysqlConfig, credentialsProvider)
 	if err != nil {
 		return nil, err
 	}
 
+	// Feed our logger through to the Connector
+	mysqlConfig.Logger = debugLogger{}
+
 	// Call NewConnector with the existing parsed configuration to preserve the BeforeConnect added by the CredentialsProvider
-	connector, err := mysql.NewConnector(parsedURI)
+	connector, err := mysql.NewConnector(mysqlConfig)
 	if err != nil {
 		return nil, common.RedactAndLogSensitiveConnString(ctx, "NewMySQLDatastore: failed to create connector", err, uri)
 	}
@@ -668,4 +671,10 @@ func buildLivingObjectFilterForRevision(revision datastore.Revision) queryFilter
 
 func currentlyLivingObjects(original sq.SelectBuilder) sq.SelectBuilder {
 	return original.Where(sq.Eq{colDeletedTxn: liveDeletedTxnID})
+}
+
+type debugLogger struct{}
+
+func (debugLogger) Print(v ...any) {
+	log.Logger.Debug().CallerSkipFrame(1).Str("datastore", "mysql").Msg(fmt.Sprint(v...))
 }
