@@ -855,6 +855,36 @@ func TestTranslateExpansionTree(t *testing.T) {
 	}
 }
 
+func TestLookupSubjectsWithConcreteLimit(t *testing.T) {
+	conn, cleanup, _, revision := testserver.NewTestServer(require.New(t), testTimedeltas[0], memdb.DisableGC, true, tf.StandardDatastoreWithData)
+	client := v1.NewPermissionsServiceClient(conn)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+
+	lsClient, err := client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: "document",
+			ObjectId:   "masterplan",
+		},
+		Permission:        "view",
+		SubjectObjectType: "user",
+		Consistency: &v1.Consistency{
+			Requirement: &v1.Consistency_AtLeastAsFresh{
+				AtLeastAsFresh: zedtoken.MustNewFromRevision(revision),
+			},
+		},
+		OptionalConcreteLimit: 2,
+	})
+	require.NoError(t, err)
+	for {
+		_, err := lsClient.Recv()
+		require.Error(t, err)
+		grpcutil.RequireStatus(t, codes.Unimplemented, err)
+		return
+	}
+}
+
 func TestLookupSubjects(t *testing.T) {
 	testCases := []struct {
 		resource        *v1.ObjectReference
