@@ -2,6 +2,7 @@ package schema
 
 import (
 	"github.com/authzed/spicedb/internal/datastore/common"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 )
 
 // IndexForwardRelationships is an index for forward relationships. It is used for
@@ -10,6 +11,10 @@ import (
 var IndexForwardRelationships = common.IndexDefinition{
 	Name:       `ix_relationship_covering_index_by_resource`,
 	ColumnsSQL: `relation_tuple (namespace, relation, object_id, userset_namespace, userset_relation, userset_object_id) INCLUDE (expiration, created_xid, deleted_xid)`,
+	Shapes: []queryshape.Shape{
+		queryshape.CheckPermissionSelectDirectSubjects,
+		queryshape.CheckPermissionSelectIndirectSubjects,
+	},
 }
 
 // IndexBackwardRelationships is an index for backward relationships. It is used for
@@ -17,6 +22,10 @@ var IndexForwardRelationships = common.IndexDefinition{
 var IndexBackwardRelationships = common.IndexDefinition{
 	Name:       `ix_relationship_covering_index_by_subject`,
 	ColumnsSQL: `relation_tuple (userset_namespace, userset_relation, userset_object_id, namespace, relation, object_id) INCLUDE (expiration, created_xid, deleted_xid)`,
+	Shapes: []queryshape.Shape{
+		queryshape.CheckPermissionSelectDirectSubjects,
+		queryshape.CheckPermissionSelectIndirectSubjects,
+	},
 }
 
 // IndexWatchAPI is an index for the Watch API. It is used for the Watch API, and provides

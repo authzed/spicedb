@@ -391,7 +391,7 @@ func (pgd *pgDatastore) SnapshotReader(revRaw datastore.Revision) datastore.Read
 	}
 
 	executor := common.QueryRelationshipsExecutor{
-		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
+		Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs, pgd),
 	}
 
 	return &pgReader{
@@ -434,7 +434,7 @@ func (pgd *pgDatastore) ReadWriteTx(
 
 			queryFuncs := pgxcommon.QuerierFuncsFor(pgd.readPool)
 			executor := common.QueryRelationshipsExecutor{
-				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs),
+				Executor: pgxcommon.NewPGXQueryRelationshipsExecutor(queryFuncs, pgd),
 			}
 
 			rwt := &pgReadWriteTXN{

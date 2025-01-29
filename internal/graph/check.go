@@ -481,6 +481,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	it, err := ds.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
 		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
+		options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects),
 	)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)

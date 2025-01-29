@@ -58,7 +58,7 @@ func TestNonMemdbSteelThreads(t *testing.T) {
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false)))
 
-					ds = proxy.NewIndexCheckingDatastoreProxy(ds)
+					ds = proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(ds)
 					runSteelThreadTest(t, tc, ds)
 				})
 			}

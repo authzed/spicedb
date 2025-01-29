@@ -3,9 +3,10 @@ package migrations
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
-	"github.com/jackc/pgx/v5"
 )
 
 func registerIndexMigration(index common.IndexDefinition, currentStep string, previousStep string) {

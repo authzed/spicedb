@@ -2,6 +2,7 @@ package schema
 
 import (
 	sq "github.com/Masterminds/squirrel"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 )
 

@@ -57,8 +57,7 @@ func TestConsistencyPerDatastore(t *testing.T) {
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false)))
-
-					ds := proxy.NewIndexCheckingDatastoreProxy(baseds)
+					ds := proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
 					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
 					dispatcher := graph.NewLocalOnlyDispatcher(10, 100)
