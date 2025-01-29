@@ -12,18 +12,10 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/datastore/revisionparsing"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
+	"github.com/authzed/spicedb/pkg/tuple"
 )
 
-func TestReplicatedReaderWithOnlyPrimary(t *testing.T) {
-	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
-
-	replicated, err := NewStrictReplicatedDatastore(primary)
-	require.NoError(t, err)
-
-	require.Equal(t, primary, replicated)
-}
-
-func TestReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) {
+func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) {
 	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
 	replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
 
@@ -47,7 +39,7 @@ func TestReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) 
 	require.True(t, reader.(*checkingStableReader).chosePrimaryForTest)
 }
 
-func TestReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
+func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
 	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
 	replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
 
@@ -198,12 +190,12 @@ func (fakeSnapshotReader) ListAllNamespaces(context.Context) ([]datastore.Revisi
 	return nil, nil
 }
 
-func (fakeSnapshotReader) QueryRelationships(context.Context, datastore.RelationshipsFilter, ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return nil, fmt.Errorf("not implemented")
+func (fsr fakeSnapshotReader) QueryRelationships(context.Context, datastore.RelationshipsFilter, ...options.QueryOptionsOption) (datastore.RelationshipIterator, error) {
+	return fakeIterator(fsr), nil
 }
 
-func (fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
-	return nil, fmt.Errorf("not implemented")
+func (fsr fakeSnapshotReader) ReverseQueryRelationships(context.Context, datastore.SubjectsFilter, ...options.ReverseQueryOptionsOption) (datastore.RelationshipIterator, error) {
+	return fakeIterator(fsr), nil
 }
 
 func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string) (int, error) {
@@ -212,4 +204,30 @@ func (fakeSnapshotReader) CountRelationships(ctx context.Context, filter string)
 
 func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.RelationshipCounter, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func fakeIterator(fsr fakeSnapshotReader) datastore.RelationshipIterator {
+	return func(yield func(tuple.Relationship, error) bool) {
+		if fsr.isPrimary {
+			if !yield(tuple.MustParse("resource:123#viewer@user:tom"), nil) {
+				return
+			}
+			if !yield(tuple.MustParse("resource:456#viewer@user:tom"), nil) {
+				return
+			}
+			return
+		}
+
+		if fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
+			yield(tuple.Relationship{}, common.NewRevisionUnavailableError(fmt.Errorf("revision not available")))
+			return
+		}
+
+		if !yield(tuple.MustParse("resource:123#viewer@user:tom"), nil) {
+			return
+		}
+		if !yield(tuple.MustParse("resource:456#viewer@user:tom"), nil) {
+			return
+		}
+	}
 }
