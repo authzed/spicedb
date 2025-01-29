@@ -47,6 +47,16 @@ func runExplainIfNecessary[R Rows](ctx context.Context, builder RelationshipsQue
 	// Determine the expected index names via the schema.
 	expectedIndexes := builder.Schema.expectedIndexesForShape(builder.queryShape)
 
+	// Run any pre-explain statements.
+	for _, statement := range explainable.PreExplainStatements() {
+		if err := tx.QueryFunc(ctx, func(ctx context.Context, rows R) error {
+			rows.Next()
+			return nil
+		}, statement); err != nil {
+			return fmt.Errorf(errUnableToQueryRels, err)
+		}
+	}
+
 	// Run the query with EXPLAIN ANALYZE.
 	sqlString, args, err := builder.SelectSQL()
 	if err != nil {
