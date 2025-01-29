@@ -545,6 +545,10 @@ func (ps *permissionServer) LookupResources(req *v1.LookupResourcesRequest, resp
 func (ps *permissionServer) LookupSubjects(req *v1.LookupSubjectsRequest, resp v1.PermissionsService_LookupSubjectsServer) error {
 	ctx := resp.Context()
 
+	if req.OptionalConcreteLimit != 0 {
+		return ps.rewriteError(ctx, status.Errorf(codes.Unimplemented, "concrete limit is not yet supported"))
+	}
+
 	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
 	if err != nil {
 		return ps.rewriteError(ctx, err)
