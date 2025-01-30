@@ -25,6 +25,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	pgversion "github.com/authzed/spicedb/internal/datastore/postgres/version"
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/testfixtures"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -233,6 +234,16 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			t.Run("TestStrictReadMode", createReplicaDatastoreTest(
 				b,
 				StrictReadModeTest,
+				RevisionQuantization(0),
+				GCWindow(1000*time.Second),
+				GCInterval(veryLargeGCInterval),
+				WatchBufferLength(50),
+				MigrationPhase(config.migrationPhase),
+			))
+
+			t.Run("TestStrictReadModeFallback", createReplicaDatastoreTest(
+				b,
+				StrictReadModeFallbackTest,
 				RevisionQuantization(0),
 				GCWindow(1000*time.Second),
 				GCInterval(veryLargeGCInterval),
@@ -1566,6 +1577,60 @@ func LockingTest(t *testing.T, ds datastore.Datastore, ds2 datastore.Datastore) 
 	// Release the first lock.
 	err = pds.releaseLock(ctx, 42)
 	require.NoError(t, err)
+}
+
+func StrictReadModeFallbackTest(t *testing.T, primaryDS datastore.Datastore, unwrappedReplicaDS datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Write some relationships.
+	_, err := primaryDS.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		rtu := tuple.Touch(tuple.MustParse("resource:123#reader@user:456"))
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{rtu})
+	})
+	require.NoError(err)
+
+	// Get the HEAD revision.
+	lowestRevision, err := primaryDS.HeadRevision(ctx)
+	require.NoError(err)
+
+	// Wrap the replica DS.
+	replicaDS, err := proxy.NewStrictReplicatedDatastore(primaryDS, unwrappedReplicaDS.(datastore.StrictReadDatastore))
+	require.NoError(err)
+
+	// Perform a read at the head revision, which should succeed.
+	reader := replicaDS.SnapshotReader(lowestRevision)
+	it, err := reader.QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	})
+	require.NoError(err)
+
+	found, err := datastore.IteratorToSlice(it)
+	require.NoError(err)
+	require.NotEmpty(found)
+
+	// Perform a read at a manually constructed revision beyond head, which should fallback to the primary.
+	badRev := postgresRevision{
+		snapshot: pgSnapshot{
+			// NOTE: the struct defines this value as uint64, but the underlying
+			// revision is defined as an int64, so we run into an overflow issue
+			// if we try and use a big uint64.
+			xmin: 123456789,
+			xmax: 123456789,
+		},
+	}
+
+	limit := uint64(50)
+	it, err = replicaDS.SnapshotReader(badRev).QueryRelationships(ctx, datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	}, options.WithLimit(&limit))
+	require.NoError(err)
+
+	found2, err := datastore.IteratorToSlice(it)
+	require.NoError(err)
+	require.Equal(len(found), len(found2))
 }
 
 func StrictReadModeTest(t *testing.T, primaryDS datastore.Datastore, replicaDS datastore.Datastore) {

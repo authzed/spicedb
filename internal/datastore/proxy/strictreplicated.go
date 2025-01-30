@@ -134,7 +134,7 @@ func queryRelationships[F any, O any](
 		return nil, err
 	}
 
-	isFirstResult := true
+	beforeResultsYielded := true
 	requiresFallback := false
 	return func(yield func(tuple.Relationship, error) bool) {
 	replicaLoop:
@@ -143,7 +143,7 @@ func queryRelationships[F any, O any](
 				// If the RevisionUnavailableError is returned on the first result, we should fallback
 				// to the primary.
 				if errors.As(err, &common.RevisionUnavailableError{}) {
-					if !isFirstResult {
+					if !beforeResultsYielded {
 						yield(tuple.Relationship{}, spiceerrors.MustBugf("RevisionUnavailableError should only be returned on the first result"))
 						return
 					}
@@ -154,9 +154,10 @@ func queryRelationships[F any, O any](
 				if !yield(tuple.Relationship{}, err) {
 					return
 				}
+				continue
 			}
 
-			isFirstResult = false
+			beforeResultsYielded = false
 			if !yield(result, nil) {
 				return
 			}

@@ -16,8 +16,8 @@ import (
 )
 
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *testing.T) {
-	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
@@ -40,8 +40,8 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnCheckRevisionFailure(t *tes
 }
 
 func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
-	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
 
 	replicated, err := NewCheckingReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
@@ -55,8 +55,8 @@ func TestCheckingReplicatedReaderFallsbackToPrimaryOnRevisionNotAvailableError(t
 func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 	for _, requireCheck := range []bool{true, false} {
 		t.Run(fmt.Sprintf("requireCheck=%v", requireCheck), func(t *testing.T) {
-			primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
-			replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
+			primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
+			replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
 
 			var ds datastore.Datastore
 			if requireCheck {
@@ -79,14 +79,14 @@ func TestReplicatedReaderReturnsExpectedError(t *testing.T) {
 }
 
 type fakeDatastore struct {
-	isPrimary bool
-	revision  datastore.Revision
+	state    string
+	revision datastore.Revision
 }
 
 func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
 	return fakeSnapshotReader{
-		revision:  revision,
-		isPrimary: f.isPrimary,
+		revision: revision,
+		state:    f.state,
 	}
 }
 
@@ -143,12 +143,12 @@ func (f fakeDatastore) IsStrictReadModeEnabled() bool {
 }
 
 type fakeSnapshotReader struct {
-	revision  datastore.Revision
-	isPrimary bool
+	revision datastore.Revision
+	state    string
 }
 
 func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNames []string) ([]datastore.RevisionedDefinition[*corev1.NamespaceDefinition], error) {
-	if fsr.isPrimary {
+	if fsr.state == "primary" {
 		return []datastore.RevisionedDefinition[*corev1.NamespaceDefinition]{
 			{
 				Definition: &corev1.NamespaceDefinition{
@@ -159,7 +159,7 @@ func (fsr fakeSnapshotReader) LookupNamespacesWithNames(_ context.Context, nsNam
 		}, nil
 	}
 
-	if !fsr.isPrimary && fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
+	if fsr.revision.GreaterThan(revisionparsing.MustParseRevisionForTest("2")) {
 		return nil, common.NewRevisionUnavailableError(fmt.Errorf("revision not available"))
 	}
 
@@ -208,11 +208,27 @@ func (fakeSnapshotReader) LookupCounters(ctx context.Context) ([]datastore.Relat
 
 func fakeIterator(fsr fakeSnapshotReader) datastore.RelationshipIterator {
 	return func(yield func(tuple.Relationship, error) bool) {
-		if fsr.isPrimary {
+		if fsr.state == "primary" {
 			if !yield(tuple.MustParse("resource:123#viewer@user:tom"), nil) {
 				return
 			}
 			if !yield(tuple.MustParse("resource:456#viewer@user:tom"), nil) {
+				return
+			}
+			return
+		}
+
+		if fsr.state == "replica-with-normal-error" {
+			if !yield(tuple.MustParse("resource:123#viewer@user:tom"), nil) {
+				return
+			}
+			if !yield(tuple.MustParse("resource:456#viewer@user:tom"), nil) {
+				return
+			}
+			if !yield(tuple.Relationship{}, fmt.Errorf("raising an expected error")) {
+				return
+			}
+			if !yield(tuple.MustParse("resource:789#viewer@user:tom"), nil) {
 				return
 			}
 			return
