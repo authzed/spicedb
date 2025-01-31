@@ -35,6 +35,15 @@ func (tn *dslNode) Connect(predicate string, other parser.AstNode) {
 	tn.children[predicate].PushBack(other)
 }
 
+// Used to preserve import order when doing import operations on AST
+func (tn *dslNode) ConnectAndHoistMany(predicate string, other *list.List) {
+	if tn.children[predicate] == nil {
+		tn.children[predicate] = list.New()
+	}
+
+	tn.children[predicate].PushFrontList(other)
+}
+
 func (tn *dslNode) MustDecorate(property string, value string) parser.AstNode {
 	if _, ok := tn.properties[property]; ok {
 		panic(fmt.Sprintf("Existing key for property %s\n\tNode: %v", property, tn.properties))
