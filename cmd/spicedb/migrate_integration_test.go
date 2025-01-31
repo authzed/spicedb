@@ -44,7 +44,7 @@ func TestMigrate(t *testing.T) {
 
 		t.Run(engineKey, func(t *testing.T) {
 			engineKey := engineKey
-			t.Parallel()
+
 			r := testdatastore.RunDatastoreEngineWithBridge(t, engineKey, bridgeNetworkName)
 			db := r.NewDatabase(t)
 

@@ -11,7 +11,7 @@ import (
 )
 
 func TestStrictReplicatedReaderWithOnlyPrimary(t *testing.T) {
-	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
 
 	replicated, err := NewStrictReplicatedDatastore(primary)
 	require.NoError(t, err)
@@ -20,8 +20,8 @@ func TestStrictReplicatedReaderWithOnlyPrimary(t *testing.T) {
 }
 
 func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *testing.T) {
-	primary := fakeDatastore{true, revisionparsing.MustParseRevisionForTest("2")}
-	replica := fakeDatastore{false, revisionparsing.MustParseRevisionForTest("1")}
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
+	replica := fakeDatastore{"replica", revisionparsing.MustParseRevisionForTest("1")}
 
 	replicated, err := NewStrictReplicatedDatastore(primary, replica)
 	require.NoError(t, err)
@@ -86,4 +86,32 @@ func TestStrictReplicatedQueryFallsbackToPrimaryOnRevisionNotAvailableError(t *t
 	revfound, err = datastore.IteratorToSlice(rit)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(revfound))
+}
+
+func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
+	primary := fakeDatastore{"primary", revisionparsing.MustParseRevisionForTest("2")}
+	replica := fakeDatastore{"replica-with-normal-error", revisionparsing.MustParseRevisionForTest("1")}
+
+	replicated, err := NewStrictReplicatedDatastore(primary, replica)
+	require.NoError(t, err)
+
+	// Query the replicated, which should return the error.
+	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
+	iter, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+		OptionalResourceType: "resource",
+	})
+	require.NoError(t, err)
+
+	relsCollected := 0
+	var errFound error
+	for _, err := range iter {
+		if err != nil {
+			errFound = err
+		} else {
+			relsCollected++
+		}
+	}
+
+	require.Equal(t, 3, relsCollected)
+	require.ErrorContains(t, errFound, "raising an expected error")
 }
