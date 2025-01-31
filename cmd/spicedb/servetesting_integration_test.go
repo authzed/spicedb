@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"github.com/authzed/grpcutil"
 	"github.com/google/uuid"
 	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -240,7 +242,22 @@ func newTester(t *testing.T, containerOpts *dockertest.RunOptions, token string,
 			return err
 		})
 		if err != nil {
-			fmt.Printf("got error on startup: %v\n", err)
+			stream := new(bytes.Buffer)
+
+			waitCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			lerr := pool.Client.Logs(docker.LogsOptions{
+				Context:      waitCtx,
+				OutputStream: stream,
+				ErrorStream:  stream,
+				Stdout:       true,
+				Stderr:       true,
+				Container:    resource.Container.ID,
+			})
+			require.NoError(t, lerr)
+
+			fmt.Printf("got error on startup: %v\ncontainer logs: %s\n", err, stream.String())
 			cleanup()
 			continue
 		}
