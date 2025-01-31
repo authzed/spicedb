@@ -24,6 +24,7 @@ import (
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	"github.com/authzed/spicedb/internal/datastore/crdb/schema"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -47,42 +48,7 @@ var (
 )
 
 const (
-	Engine                   = "cockroachdb"
-	tableNamespace           = "namespace_config"
-	tableTuple               = "relation_tuple"
-	tableTupleWithIntegrity  = "relation_tuple_with_integrity"
-	tableTransactions        = "transactions"
-	tableCaveat              = "caveat"
-	tableRelationshipCounter = "relationship_counter"
-	tableTransactionMetadata = "transaction_metadata"
-
-	colNamespace      = "namespace"
-	colConfig         = "serialized_config"
-	colTimestamp      = "timestamp"
-	colTransactionKey = "key"
-
-	colObjectID = "object_id"
-	colRelation = "relation"
-
-	colUsersetNamespace = "userset_namespace"
-	colUsersetObjectID  = "userset_object_id"
-	colUsersetRelation  = "userset_relation"
-
-	colCaveatName        = "name"
-	colCaveatDefinition  = "definition"
-	colCaveatContextName = "caveat_name"
-	colCaveatContext     = "caveat_context"
-	colExpiration        = "expires_at"
-
-	colIntegrityHash  = "integrity_hash"
-	colIntegrityKeyID = "integrity_key_id"
-
-	colCounterName             = "name"
-	colCounterSerializedFilter = "serialized_filter"
-	colCounterCurrentCount     = "current_count"
-	colCounterUpdatedAt        = "updated_at_timestamp"
-	colExpiresAt               = "expires_at"
-	colMetadata                = "metadata"
+	Engine = "cockroachdb"
 
 	errUnableToInstantiate = "unable to instantiate datastore"
 	errRevision            = "unable to find revision: %w"
@@ -200,33 +166,6 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		return nil, fmt.Errorf("invalid head migration found for cockroach: %w", err)
 	}
 
-	relTableName := tableTuple
-	if config.withIntegrity {
-		relTableName = tableTupleWithIntegrity
-	}
-
-	schema := common.NewSchemaInformationWithOptions(
-		common.WithRelationshipTableName(relTableName),
-		common.WithColNamespace(colNamespace),
-		common.WithColObjectID(colObjectID),
-		common.WithColRelation(colRelation),
-		common.WithColUsersetNamespace(colUsersetNamespace),
-		common.WithColUsersetObjectID(colUsersetObjectID),
-		common.WithColUsersetRelation(colUsersetRelation),
-		common.WithColCaveatName(colCaveatContextName),
-		common.WithColCaveatContext(colCaveatContext),
-		common.WithColExpiration(colExpiration),
-		common.WithColIntegrityKeyID(colIntegrityKeyID),
-		common.WithColIntegrityHash(colIntegrityHash),
-		common.WithColIntegrityTimestamp(colTimestamp),
-		common.WithPaginationFilterType(common.ExpandedLogicComparison),
-		common.WithPlaceholderFormat(sq.Dollar),
-		common.WithNowFunction("NOW"),
-		common.WithColumnOptimization(config.columnOptimizationOption),
-		common.WithIntegrityEnabled(config.withIntegrity),
-		common.WithExpirationDisabled(config.expirationDisabled),
-	)
-
 	ds := &crdbDatastore{
 		RemoteClockRevisions: revisions.NewRemoteClockRevisions(
 			config.gcWindow,
@@ -248,7 +187,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		filterMaximumIDCount:    config.filterMaximumIDCount,
 		supportsIntegrity:       config.withIntegrity,
 		gcWindow:                config.gcWindow,
-		schema:                  *schema,
+		schema:                  *schema.Schema(config.columnOptimizationOption, config.withIntegrity, config.expirationDisabled),
 	}
 	ds.RemoteClockRevisions.SetNowFunc(ds.headRevisionInternal)
 
@@ -393,8 +332,8 @@ func (cds *crdbDatastore) ReadWriteTx(
 		metadata[spicedbTransactionKey] = true
 
 		expiresAt := time.Now().Add(cds.gcWindow).Add(1 * time.Minute)
-		insertTransactionMetadata := psql.Insert(tableTransactionMetadata).
-			Columns(colExpiresAt, colMetadata).
+		insertTransactionMetadata := psql.Insert(schema.TableTransactionMetadata).
+			Columns(schema.ColExpiresAt, schema.ColMetadata).
 			Values(expiresAt, metadata)
 
 		sql, args, err := insertTransactionMetadata.ToSql()
