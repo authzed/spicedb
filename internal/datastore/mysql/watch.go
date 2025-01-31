@@ -280,7 +280,6 @@ func (mds *Datastore) loadRelationshipChanges(ctx context.Context, afterRevision
 				return
 			}
 		}
-
 	}
 	if err = rows.Err(); err != nil {
 		return
@@ -335,12 +334,11 @@ func (mds *Datastore) loadNamespaceChanges(ctx context.Context, afterRevision ui
 				return
 			}
 		}
-		if createdTxn > afterRevision && createdTxn <= newRevision {
+		if deletedTxn > afterRevision && deletedTxn <= newRevision {
 			if err = stagedChanges.AddDeletedNamespace(ctx, revisions.NewForTransactionID(deletedTxn), loaded.Name); err != nil {
 				return
 			}
 		}
-
 	}
 
 	if err = rows.Err(); err != nil {
@@ -400,7 +398,7 @@ func (mds *Datastore) loadCaveatChanges(ctx context.Context, afterRevision uint6
 				return
 			}
 		}
-		if createdTxn > afterRevision && createdTxn <= newRevision {
+		if deletedTxn > afterRevision && deletedTxn <= newRevision {
 			if err = stagedChanges.AddDeletedCaveat(ctx, revisions.NewForTransactionID(deletedTxn), loaded.Name); err != nil {
 				return
 			}
