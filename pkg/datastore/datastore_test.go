@@ -586,6 +586,10 @@ func (f fakeDatastore) Unwrap() Datastore {
 	return f.delegate
 }
 
+func (f fakeDatastore) MetricsID() (string, error) {
+	return "fake", nil
+}
+
 func (f fakeDatastore) SnapshotReader(_ Revision) Reader {
 	return nil
 }

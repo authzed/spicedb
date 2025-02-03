@@ -424,6 +424,10 @@ type pgDatastore struct {
 	filterMaximumIDCount uint16
 }
 
+func (pgd *pgDatastore) MetricsID() (string, error) {
+	return common.MetricsIDFromURL(pgd.dburl)
+}
+
 func (pgd *pgDatastore) IsStrictReadModeEnabled() bool {
 	return pgd.inStrictReadMode
 }

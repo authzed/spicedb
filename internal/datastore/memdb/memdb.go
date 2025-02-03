@@ -100,6 +100,10 @@ type snapshot struct {
 	db       *memdb.MemDB
 }
 
+func (mdb *memdbDatastore) MetricsID() (string, error) {
+	return "memdb-" + mdb.uniqueID, nil
+}
+
 func (mdb *memdbDatastore) SnapshotReader(dr datastore.Revision) datastore.Reader {
 	mdb.RLock()
 	defer mdb.RUnlock()
