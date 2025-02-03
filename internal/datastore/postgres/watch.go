@@ -65,13 +65,13 @@ func (pgd *pgDatastore) Watch(
 	ctx context.Context,
 	afterRevisionRaw datastore.Revision,
 	options datastore.WatchOptions,
-) (<-chan *datastore.RevisionChanges, <-chan error) {
+) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = pgd.watchBufferLength
 	}
 
-	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if !pgd.watchEnabled {
@@ -97,7 +97,7 @@ func (pgd *pgDatastore) Watch(
 		watchBufferWriteTimeout = pgd.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) bool {
+	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
@@ -151,7 +151,7 @@ func (pgd *pgDatastore) Watch(
 
 				for _, changeToWrite := range changesToWrite {
 					changeToWrite := changeToWrite
-					if !sendChange(&changeToWrite) {
+					if !sendChange(changeToWrite) {
 						return
 					}
 				}
@@ -174,7 +174,7 @@ func (pgd *pgDatastore) Watch(
 				// move revisions forward outside of changes, these could be necessary if the caller is
 				// watching only a *subset* of changes.
 				if requestedCheckpoints {
-					if !sendChange(&datastore.RevisionChanges{
+					if !sendChange(datastore.RevisionChanges{
 						Revision:     currentTxn,
 						IsCheckpoint: true,
 					}) {
@@ -196,7 +196,7 @@ func (pgd *pgDatastore) Watch(
 					}
 
 					if optionalHeadRevision.GreaterThan(currentTxn) {
-						if !sendChange(&datastore.RevisionChanges{
+						if !sendChange(datastore.RevisionChanges{
 							Revision:     *optionalHeadRevision,
 							IsCheckpoint: true,
 						}) {

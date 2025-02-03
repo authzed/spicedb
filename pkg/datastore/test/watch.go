@@ -140,7 +140,7 @@ func WatchTest(t *testing.T, tester DatastoreTester) {
 func VerifyUpdates(
 	require *require.Assertions,
 	testUpdates [][]tuple.RelationshipUpdate,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -182,7 +182,7 @@ func VerifyUpdates(
 func VerifyUpdatesWithMetadata(
 	require *require.Assertions,
 	testUpdates []updateWithMetadata,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -530,7 +530,7 @@ func WatchWithDeleteTest(t *testing.T, tester DatastoreTester) {
 
 func verifyNoUpdates(
 	require *require.Assertions,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -729,7 +729,7 @@ func WatchAllTest(t *testing.T, tester DatastoreTester) {
 func verifyMixedUpdates(
 	require *require.Assertions,
 	expectedUpdates [][]string,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 	errchan <-chan error,
 	expectDisconnect bool,
 ) {
@@ -911,7 +911,7 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 func verifyCheckpointUpdate(
 	require *require.Assertions,
 	expectedRevision datastore.Revision,
-	changes <-chan *datastore.RevisionChanges,
+	changes <-chan datastore.RevisionChanges,
 ) {
 	var relChangeEmitted, schemaChangeEmitted bool
 	changeWait := time.NewTimer(waitForChangesTimeout)

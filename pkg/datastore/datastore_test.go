@@ -610,8 +610,8 @@ func (f fakeDatastore) RevisionFromString(_ string) (Revision, error) {
 	return nil, nil
 }
 
-func (f fakeDatastore) Watch(_ context.Context, _ Revision, _ WatchOptions) (<-chan *RevisionChanges, <-chan error) {
-	return nil, nil
+func (f fakeDatastore) Watch(_ context.Context, _ Revision, _ WatchOptions) (<-chan RevisionChanges, <-chan error) {
+	panic("should never be called")
 }
 
 func (f fakeDatastore) ReadyState(_ context.Context) (ReadyState, error) {

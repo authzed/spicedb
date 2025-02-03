@@ -56,7 +56,7 @@ func (p *singleflightProxy) RevisionFromString(serialized string) (datastore.Rev
 	return p.delegate.RevisionFromString(serialized)
 }
 
-func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (p *singleflightProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	return p.delegate.Watch(ctx, afterRevision, options)
 }
 

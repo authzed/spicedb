@@ -65,13 +65,13 @@ type changeDetails struct {
 	}
 }
 
-func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (cds *crdbDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = cds.watchBufferLength
 	}
 
-	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	features, err := cds.Features(ctx)
@@ -102,7 +102,7 @@ func (cds *crdbDatastore) watch(
 	ctx context.Context,
 	afterRevision datastore.Revision,
 	opts datastore.WatchOptions,
-	updates chan *datastore.RevisionChanges,
+	updates chan datastore.RevisionChanges,
 	errs chan error,
 ) {
 	defer close(updates)
@@ -173,7 +173,7 @@ func (cds *crdbDatastore) watch(
 		watchBufferWriteTimeout = cds.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) error {
+	sendChange := func(change datastore.RevisionChanges) error {
 		select {
 		case updates <- change:
 			return nil
@@ -252,7 +252,7 @@ func (s streamingChangeProvider) AddRelationshipChange(ctx context.Context, rev 
 		return spiceerrors.MustBugf("unknown change operation")
 	}
 
-	return s.sendChange(&changes)
+	return s.sendChange(changes)
 }
 
 func (s streamingChangeProvider) AddChangedDefinition(_ context.Context, rev revisions.HLCRevision, def datastore.SchemaDefinition) error {
@@ -265,7 +265,7 @@ func (s streamingChangeProvider) AddChangedDefinition(_ context.Context, rev rev
 		ChangedDefinitions: []datastore.SchemaDefinition{def},
 	}
 
-	return s.sendChange(&changes)
+	return s.sendChange(changes)
 }
 
 func (s streamingChangeProvider) AddDeletedNamespace(_ context.Context, rev revisions.HLCRevision, namespaceName string) error {
@@ -278,7 +278,7 @@ func (s streamingChangeProvider) AddDeletedNamespace(_ context.Context, rev revi
 		DeletedNamespaces: []string{namespaceName},
 	}
 
-	return s.sendChange(&changes)
+	return s.sendChange(changes)
 }
 
 func (s streamingChangeProvider) AddDeletedCaveat(_ context.Context, rev revisions.HLCRevision, caveatName string) error {
@@ -291,7 +291,7 @@ func (s streamingChangeProvider) AddDeletedCaveat(_ context.Context, rev revisio
 		DeletedCaveats: []string{caveatName},
 	}
 
-	return s.sendChange(&changes)
+	return s.sendChange(changes)
 }
 
 func (s streamingChangeProvider) SetRevisionMetadata(_ context.Context, rev revisions.HLCRevision, metadata map[string]any) error {
@@ -306,14 +306,14 @@ func (s streamingChangeProvider) SetRevisionMetadata(_ context.Context, rev revi
 			Metadata: parsedMetadata,
 		}
 
-		return s.sendChange(&changes)
+		return s.sendChange(changes)
 	}
 
 	return nil
 }
 
 type (
-	sendChangeFunc func(change *datastore.RevisionChanges) error
+	sendChangeFunc func(change datastore.RevisionChanges) error
 	sendErrorFunc  func(err error)
 )
 
@@ -404,14 +404,14 @@ func (cds *crdbDatastore) processChanges(ctx context.Context, changes pgx.Rows, 
 					}
 				}
 
-				if err := sendChange(&revChange); err != nil {
+				if err := sendChange(revChange); err != nil {
 					sendError(err)
 					return
 				}
 			}
 
 			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
-				if err := sendChange(&datastore.RevisionChanges{
+				if err := sendChange(datastore.RevisionChanges{
 					Revision:     rev,
 					IsCheckpoint: true,
 				}); err != nil {
