@@ -68,7 +68,7 @@ type RevisionChanges struct {
 	Metadata *structpb.Struct
 }
 
-func (rc *RevisionChanges) DebugString() string {
+func (rc RevisionChanges) DebugString() string {
 	if rc.IsCheckpoint {
 		return "[checkpoint]"
 	}
@@ -94,7 +94,7 @@ func (rc *RevisionChanges) DebugString() string {
 	return debugString
 }
 
-func (rc *RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
+func (rc RevisionChanges) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("revision", rc.Revision.String())
 	e.Bool("is-checkpoint", rc.IsCheckpoint)
 	e.Array("deleted-namespaces", strArray(rc.DeletedNamespaces))
@@ -651,7 +651,7 @@ type ReadOnlyDatastore interface {
 	// Watch notifies the caller about changes to the datastore, based on the specified options.
 	//
 	// All events following afterRevision will be sent to the caller.
-	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan *RevisionChanges, <-chan error)
+	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan RevisionChanges, <-chan error)
 
 	// ReadyState returns a state indicating whether the datastore is ready to accept data.
 	// Datastores that require database schema creation will return not-ready until the migrations
