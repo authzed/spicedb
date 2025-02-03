@@ -6,10 +6,29 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
+)
+
+var (
+	checkingReplicatedTotalReaderCount = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore_replica",
+		Name:      "checking_replicated_reader_total",
+		Help:      "total number of readers created by the checking replica proxy",
+	})
+
+	checkingReplicatedReplicaReaderCount = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore_replica",
+		Name:      "checking_replicated_replica_reader_total",
+		Help:      "number of readers created by the checking replica proxy that are using the replica",
+	})
 )
 
 // NewCheckingReplicatedDatastore creates a new datastore that writes to the provided primary and reads
@@ -186,6 +205,8 @@ func (rr *checkingStableReader) LookupCounters(ctx context.Context) ([]datastore
 func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 	var finalError error
 	rr.choose.Do(func() {
+		checkingReplicatedTotalReaderCount.Inc()
+
 		// If the revision is not known to the replica, use the primary instead.
 		if err := rr.replica.CheckRevision(ctx, rr.rev); err != nil {
 			var irr datastore.InvalidRevisionError
@@ -202,6 +223,7 @@ func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 		}
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica contains the requested revision")
 
+		checkingReplicatedReplicaReaderCount.Inc()
 		rr.chosenReader = rr.replica.SnapshotReader(rr.rev)
 		rr.chosePrimaryForTest = false
 	})
