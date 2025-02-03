@@ -89,6 +89,238 @@ func TestCompile(t *testing.T) {
 			},
 		},
 		{
+			"simple partial",
+			withTenantPrefix,
+			`partial view_partial {
+				relation user: user;
+			}
+
+			definition simple {
+				...view_partial
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"more complex partial",
+			withTenantPrefix,
+			`
+			definition user {}
+			definition organization {}
+
+			partial view_partial {
+				relation user: user;
+				permission view = user
+			}
+
+			definition resource {
+				relation organization: organization
+				permission manage = organization
+
+				...view_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/user"),
+				namespace.Namespace("sometenant/organization"),
+				namespace.Namespace("sometenant/resource",
+					namespace.MustRelation("organization", nil,
+						namespace.AllowedRelation("sometenant/organization", "..."),
+					),
+					namespace.MustRelation("manage",
+						namespace.Union(
+							namespace.ComputedUserset("organization"),
+						),
+					),
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+					namespace.MustRelation("view",
+						namespace.Union(
+							namespace.ComputedUserset("user"),
+						),
+					),
+				),
+			},
+		},
+		{
+			"partial defined after reference",
+			withTenantPrefix,
+			`definition simple {
+				...view_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"transitive partials",
+			withTenantPrefix,
+			`
+			partial view_partial {
+				relation user: user;
+			}
+
+			partial transitive_partial {
+				...view_partial
+			}
+
+			definition simple {
+				...view_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"transitive partials out of order",
+			withTenantPrefix,
+			`
+			partial transitive_partial {
+				...view_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}
+
+			definition simple {
+				...view_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"transitive partials in reverse order",
+			withTenantPrefix,
+			`
+			definition simple {
+				...view_partial
+			}
+
+			partial transitive_partial {
+				...view_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"forking transitive partials out of order",
+			withTenantPrefix,
+			`
+			partial transitive_partial {
+				...view_partial
+				...group_partial
+			}
+
+			partial view_partial {
+				relation user: user;
+			}
+
+			partial group_partial {
+				relation group: group;
+			}
+
+			definition simple {
+				...transitive_partial
+			}
+			`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("user", nil,
+						namespace.AllowedRelation("sometenant/user", "..."),
+					),
+					namespace.MustRelation("group", nil,
+						namespace.AllowedRelation("sometenant/group", "..."),
+					),
+				),
+			},
+		},
+		{
+			"circular reference in partials",
+			withTenantPrefix,
+			`
+			partial one_partial {
+				...another_partial
+			}
+
+			partial another_partial {
+				...one_partial
+			}
+
+			definition simple {
+				...one_partial
+			}
+			`,
+			"could not resolve partials",
+			[]SchemaDefinition{},
+		},
+		{
+			"definition reference to nonexistent partial",
+			withTenantPrefix,
+			`
+			definition simple {
+				...some_partial
+			}
+			`,
+			"could not find partial reference",
+			[]SchemaDefinition{},
+		},
+		{
+			"definition reference to another definition errors",
+			withTenantPrefix,
+			`
+			definition some_definition {}
+
+			definition simple {
+				...some_definition
+			}
+			`,
+			"could not find partial reference",
+			[]SchemaDefinition{},
+		},
+		{
 			"explicit relation",
 			withTenantPrefix,
 			`definition simple {
