@@ -629,6 +629,11 @@ func (wo WatchOptions) WithCheckpointInterval(interval time.Duration) WatchOptio
 
 // ReadOnlyDatastore is an interface for reading relationships from the datastore.
 type ReadOnlyDatastore interface {
+	// MetricsID returns an identifier for the datastore for use in metrics.
+	// This identifier is typically the hostname of the datastore (where applicable)
+	// and may not be unique; callers should not rely on uniqueness.
+	MetricsID() (string, error)
+
 	// SnapshotReader creates a read-only handle that reads the datastore at the specified revision.
 	// Any errors establishing the reader will be returned by subsequent calls.
 	SnapshotReader(Revision) Reader

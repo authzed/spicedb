@@ -24,12 +24,12 @@ var (
 		Help:      "total number of reads made by the strict read replicated datastore",
 	})
 
-	strictReadReplicatedFallbackQueryCount = promauto.NewCounter(prometheus.CounterOpts{
+	strictReadReplicatedFallbackQueryCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "strict_replicated_fallback_query_total",
 		Help:      "number of queries that have fallen back to the primary datastore",
-	})
+	}, []string{"replica"})
 )
 
 // NewStrictReplicatedDatastore creates a new datastore that writes to the provided primary and reads
@@ -76,10 +76,17 @@ type strictReplicatedDatastore struct {
 // Any errors establishing the reader will be returned by subsequent calls.
 func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
 	replica := selectReplica(rd.replicas, &rd.lastReplica)
+	replicaID, err := replica.MetricsID()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to get replica metrics ID")
+		replicaID = "unknown"
+	}
+
 	return &strictReadReplicatedReader{
-		rev:     revision,
-		replica: replica,
-		primary: rd.Datastore,
+		rev:       revision,
+		replica:   replica,
+		replicaID: replicaID,
+		primary:   rd.Datastore,
 	}
 }
 
@@ -91,9 +98,10 @@ func (rd *strictReplicatedDatastore) SnapshotReader(revision datastore.Revision)
 // read mode enabled, to ensure the query will fail with a RevisionUnavailableError if the revision is
 // not available.
 type strictReadReplicatedReader struct {
-	rev     datastore.Revision
-	replica datastore.ReadOnlyDatastore
-	primary datastore.Datastore
+	rev       datastore.Revision
+	replica   datastore.ReadOnlyDatastore
+	replicaID string
+	primary   datastore.Datastore
 }
 
 func (rr *strictReadReplicatedReader) ReadCaveatByName(ctx context.Context, name string) (*core.CaveatDefinition, datastore.Revision, error) {
@@ -149,7 +157,7 @@ func queryRelationships[F any, O any](
 	if err != nil {
 		if errors.As(err, &common.RevisionUnavailableError{}) {
 			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-			strictReadReplicatedFallbackQueryCount.Inc()
+			strictReadReplicatedFallbackQueryCount.WithLabelValues(rr.replicaID).Inc()
 			return handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
 		}
 		return nil, err
@@ -166,7 +174,7 @@ func queryRelationships[F any, O any](
 	if err != nil {
 		if errors.As(err, &common.RevisionUnavailableError{}) {
 			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
-			strictReadReplicatedFallbackQueryCount.Inc()
+			strictReadReplicatedFallbackQueryCount.WithLabelValues(rr.replicaID).Inc()
 			return handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
 		}
 		return nil, err

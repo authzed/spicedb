@@ -363,6 +363,10 @@ func (cds *crdbDatastore) SnapshotReader(rev datastore.Revision) datastore.Reade
 	}
 }
 
+func (cds *crdbDatastore) MetricsID() (string, error) {
+	return common.MetricsIDFromURL(cds.dburl)
+}
+
 func (cds *crdbDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,

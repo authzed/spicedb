@@ -23,12 +23,19 @@ var (
 		Help:      "total number of readers created by the checking replica proxy",
 	})
 
-	checkingReplicatedReplicaReaderCount = promauto.NewCounter(prometheus.CounterOpts{
+	checkingReplicatedReplicaReaderCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "spicedb",
 		Subsystem: "datastore_replica",
 		Name:      "checking_replicated_replica_reader_total",
 		Help:      "number of readers created by the checking replica proxy that are using the replica",
-	})
+	}, []string{"replica"})
+
+	readReplicatedSelectedReplicaCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore_replica",
+		Name:      "selected_replica_total",
+		Help:      "the selected replica in a read replicated datastore",
+	}, []string{"replica"})
 )
 
 // NewCheckingReplicatedDatastore creates a new datastore that writes to the provided primary and reads
@@ -89,6 +96,12 @@ type checkingReplicatedDatastore struct {
 // Any errors establishing the reader will be returned by subsequent calls.
 func (rd *checkingReplicatedDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
 	replica := selectReplica(rd.replicas, &rd.lastReplica)
+	replicaID, err := replica.MetricsID()
+	if err != nil {
+		log.Warn().Err(err).Msg("unable to determine metrics ID for replica")
+		replicaID = "unknown"
+	}
+	readReplicatedSelectedReplicaCount.WithLabelValues(replicaID).Inc()
 	return &checkingStableReader{
 		rev:     revision,
 		replica: replica,
@@ -223,7 +236,13 @@ func (rr *checkingStableReader) determineSource(ctx context.Context) error {
 		}
 		log.Trace().Str("revision", rr.rev.String()).Msg("replica contains the requested revision")
 
-		checkingReplicatedReplicaReaderCount.Inc()
+		metricsID, err := rr.replica.MetricsID()
+		if err != nil {
+			log.Warn().Err(err).Msg("unable to determine metrics ID for replica")
+			metricsID = "unknown"
+		}
+
+		checkingReplicatedReplicaReaderCount.WithLabelValues(metricsID).Inc()
 		rr.chosenReader = rr.replica.SnapshotReader(rr.rev)
 		rr.chosePrimaryForTest = false
 	})

@@ -22,6 +22,10 @@ func (dm *MockDatastore) SnapshotReader(rev datastore.Revision) datastore.Reader
 	return args.Get(0).(datastore.Reader)
 }
 
+func (dm *MockDatastore) MetricsID() (string, error) {
+	return "mock", nil
+}
+
 func (dm *MockDatastore) ReadWriteTx(
 	ctx context.Context,
 	f datastore.TxUserFunc,

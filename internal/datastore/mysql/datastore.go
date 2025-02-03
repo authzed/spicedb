@@ -331,6 +331,10 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 	return store, nil
 }
 
+func (mds *Datastore) MetricsID() (string, error) {
+	return common.MetricsIDFromURL(mds.url)
+}
+
 func (mds *Datastore) SnapshotReader(rev datastore.Revision) datastore.Reader {
 	createTxFunc := func(ctx context.Context) (*sql.Tx, txCleanupFunc, error) {
 		tx, err := mds.db.BeginTx(ctx, mds.readTxOptions)
