@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
@@ -12,6 +15,22 @@ import (
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 	"github.com/authzed/spicedb/pkg/tuple"
+)
+
+var (
+	strictReadReplicatedTotalQueryCount = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore_replica",
+		Name:      "strict_replicated_query_total",
+		Help:      "total number of reads made by the strict read replicated datastore",
+	})
+
+	strictReadReplicatedFallbackQueryCount = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "spicedb",
+		Subsystem: "datastore_replica",
+		Name:      "strict_replicated_fallback_query_total",
+		Help:      "number of queries that have fallen back to the primary datastore",
+	})
 )
 
 // NewStrictReplicatedDatastore creates a new datastore that writes to the provided primary and reads
@@ -121,6 +140,8 @@ func queryRelationships[F any, O any](
 	options []O,
 	handler func(datastore.Reader) queryHandler[F, O],
 ) (datastore.RelationshipIterator, error) {
+	strictReadReplicatedTotalQueryCount.Inc()
+
 	sr := rr.replica.SnapshotReader(rr.rev)
 	it, err := handler(sr)(ctx, filter, options...)
 	// Check for a RevisionUnavailableError, which indicates the replica does not contain the requested
@@ -129,6 +150,7 @@ func queryRelationships[F any, O any](
 	if err != nil {
 		if errors.As(err, &common.RevisionUnavailableError{}) {
 			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+			strictReadReplicatedFallbackQueryCount.Inc()
 			return handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
 		}
 		return nil, err
@@ -165,6 +187,7 @@ func queryRelationships[F any, O any](
 
 		if requiresFallback {
 			log.Trace().Str("revision", rr.rev.String()).Msg("replica does not contain the requested revision, using primary")
+			strictReadReplicatedFallbackQueryCount.Inc()
 			pit, err := handler(rr.primary.SnapshotReader(rr.rev))(ctx, filter, options...)
 			if err != nil {
 				yield(tuple.Relationship{}, err)
