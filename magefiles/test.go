@@ -95,8 +95,18 @@ func (Test) Wasm() error {
 type Testds mg.Namespace
 
 // Crdb Run datastore tests for crdb
-func (Testds) Crdb() error {
-	return datastoreTest("crdb", emptyEnv)
+func (tds Testds) Crdb() error {
+	return tds.crdb("")
+}
+
+func (tds Testds) CrdbVer(version string) error {
+	return tds.crdb(version)
+}
+
+func (Testds) crdb(version string) error {
+	return datastoreTest("crdb", map[string]string{
+		"CRDB_TEST_VERSION": version,
+	})
 }
 
 // Spanner Run datastore tests for spanner
@@ -149,8 +159,18 @@ func datastoreTest(datastore string, env map[string]string, tags ...string) erro
 type Testcons mg.Namespace
 
 // Crdb Run consistency tests for crdb
-func (Testcons) Crdb() error {
-	return consistencyTest("cockroachdb", emptyEnv)
+func (tc Testcons) Crdb() error {
+	return tc.crdb("")
+}
+
+func (tc Testcons) CrdbVer(version string) error {
+	return tc.crdb(version)
+}
+
+func (Testcons) crdb(version string) error {
+	return consistencyTest("crdb", map[string]string{
+		"CRDB_TEST_VERSION": version,
+	})
 }
 
 // Spanner Run consistency tests for spanner
@@ -167,9 +187,9 @@ func (tc Testcons) PostgresVer(version string) error {
 }
 
 func (Testcons) postgres(version string) error {
-	return datastoreTest("postgres", map[string]string{
+	return consistencyTest("postgres", map[string]string{
 		"POSTGRES_TEST_VERSION": version,
-	}, "postgres")
+	})
 }
 
 // Pgbouncer Run consistency tests for postgres with pgbouncer
