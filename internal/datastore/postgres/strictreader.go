@@ -43,15 +43,22 @@ func (srqf strictReaderQueryFuncs) rewriteError(err error) error {
 		return nil
 	}
 
-	var pgerr *pgconn.PgError
-	if errors.As(err, &pgerr) {
-		if (pgerr.Code == pgInvalidArgument && strings.Contains(pgerr.Message, "is in the future")) ||
-			strings.Contains(pgerr.Message, "replica missing revision") {
-			return common.NewRevisionUnavailableError(fmt.Errorf("revision %s is not available on the replica", srqf.revision.String()))
-		}
+	if srqf.isReplicationLagError(err) {
+		return common.NewRevisionUnavailableError(fmt.Errorf("revision %s is not available on the replica", srqf.revision.String()))
 	}
 
 	return err
+}
+
+func (srqf strictReaderQueryFuncs) isReplicationLagError(err error) bool {
+	var pgerr *pgconn.PgError
+	if errors.As(err, &pgerr) {
+		return (pgerr.Code == pgInvalidArgument && strings.Contains(pgerr.Message, "is in the future")) ||
+			strings.Contains(pgerr.Message, "replica missing revision") ||
+			pgxcommon.IsSerializationError(err)
+	}
+
+	return false
 }
 
 func (srqf strictReaderQueryFuncs) addAssertToSelectSQL(sql string) string {
