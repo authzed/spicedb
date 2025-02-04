@@ -15,7 +15,7 @@ type Test mg.Namespace
 
 var emptyEnv map[string]string
 
-// All Runs all test suites
+// All Runs all test suites and generates a combined coverage report
 func (t Test) All() error {
 	ds := Testds{}
 	c := Testcons{}
@@ -27,7 +27,7 @@ func (t Test) All() error {
 
 // UnitCover Runs the unit tests and generates a coverage report
 func (t Test) UnitCover() error {
-	if err := t.unit(true); err != nil {
+	if err := t.Unit(); err != nil {
 		return err
 	}
 	fmt.Println("Running coverage...")
@@ -36,15 +36,8 @@ func (t Test) UnitCover() error {
 
 // Unit Runs the unit tests
 func (t Test) Unit() error {
-	return t.unit(false)
-}
-
-func (Test) unit(coverage bool) error {
 	fmt.Println("running unit tests")
 	args := []string{"-tags", "ci,skipintegrationtests", "-race", "-timeout", "10m", "-count=1"}
-	if coverage {
-		args = append(args, "-covermode=atomic", "-coverprofile=coverage.txt")
-	}
 	return goTest("./...", args...)
 }
 

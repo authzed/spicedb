@@ -21,12 +21,24 @@ func goTest(path string, args ...string) error {
 
 // run go test in a directory
 func goDirTest(dir string, path string, args ...string) error {
-	testArgs := append([]string{"test", "-failfast", "-count=1"}, args...)
+	testArgs := append([]string{
+		"test",
+		"-covermode=atomic",
+		"-coverprofile=coverage.txt",
+		"-failfast",
+		"-count=1",
+	}, args...)
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
 func goDirTestWithEnv(dir string, path string, env map[string]string, args ...string) error {
-	testArgs := append([]string{"test", "-failfast", "-count=1"}, args...)
+	testArgs := append([]string{
+		"test",
+		"-covermode=atomic",
+		"-coverprofile=coverage.txt",
+		"-failfast",
+		"-count=1",
+	}, args...)
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
 }
 
