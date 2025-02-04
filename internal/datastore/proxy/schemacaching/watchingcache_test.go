@@ -333,6 +333,10 @@ type fakeDatastore struct {
 	lock sync.RWMutex
 }
 
+func (fds *fakeDatastore) MetricsID() (string, error) {
+	return "fake", nil
+}
+
 func (fds *fakeDatastore) updateNamespace(name string, def *corev1.NamespaceDefinition, revision datastore.Revision) {
 	fds.lock.Lock()
 	defer fds.lock.Unlock()

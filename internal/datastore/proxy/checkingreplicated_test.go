@@ -83,6 +83,10 @@ type fakeDatastore struct {
 	revision datastore.Revision
 }
 
+func (f fakeDatastore) MetricsID() (string, error) {
+	return "fake", nil
+}
+
 func (f fakeDatastore) SnapshotReader(revision datastore.Revision) datastore.Reader {
 	return fakeSnapshotReader{
 		revision: revision,
