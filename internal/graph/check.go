@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/taskrunner"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/genutil/mapz"
 	"github.com/authzed/spicedb/pkg/middleware/nodeid"
 	nspkg "github.com/authzed/spicedb/pkg/namespace"
@@ -427,6 +428,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 		it, err := ds.QueryRelationships(ctx, filter,
 			options.WithSkipCaveats(!directSubjectOrWildcardCanHaveCaveats),
 			options.WithSkipExpiration(!directSubjectOrWildcardCanHaveExpiration),
+			options.WithQueryShape(queryshape.CheckPermissionSelectDirectSubjects),
 		)
 		if err != nil {
 			return checkResultError(NewCheckFailureErr(err), emptyMetadata)
@@ -479,6 +481,7 @@ func (cc *ConcurrentChecker) checkDirect(ctx context.Context, crc currentRequest
 	it, err := ds.QueryRelationships(ctx, filter,
 		options.WithSkipCaveats(!nonTerminalsCanHaveCaveats),
 		options.WithSkipExpiration(!nonTerminalsCanHaveExpiration),
+		options.WithQueryShape(queryshape.CheckPermissionSelectIndirectSubjects),
 	)
 	if err != nil {
 		return checkResultError(NewCheckFailureErr(err), emptyMetadata)

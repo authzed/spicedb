@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/services/integrationtesting/consistencytestutil"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
@@ -50,12 +51,13 @@ func TestConsistencyPerDatastore(t *testing.T) {
 					}
 
 					rde := testdatastore.RunDatastoreEngine(t, engineID)
-					ds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
+					baseds := rde.NewDatastore(t, config.DatastoreConfigInitFunc(t,
 						dsconfig.WithWatchBufferLength(0),
 						dsconfig.WithGCWindow(time.Duration(90_000_000_000_000)),
 						dsconfig.WithRevisionQuantization(10),
 						dsconfig.WithMaxRetries(50),
 						dsconfig.WithRequestHedgingEnabled(false)))
+					ds := proxy.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
 					cad := consistencytestutil.BuildDataAndCreateClusterForTesting(t, filePath, ds)
 					dispatcher := graph.NewLocalOnlyDispatcher(10, 100)

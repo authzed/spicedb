@@ -3,6 +3,8 @@ package common
 import (
 	sq "github.com/Masterminds/squirrel"
 
+	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/datastore/queryshape"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
 
@@ -35,6 +37,9 @@ type SchemaInformation struct {
 	ColIntegrityHash      string `debugmap:"visible"`
 	ColIntegrityTimestamp string `debugmap:"visible"`
 
+	// Indexes are the indexes to use for this schema.
+	Indexes []IndexDefinition `debugmap:"visible"`
+
 	// PaginationFilterType is the type of pagination filter to use for this schema.
 	PaginationFilterType PaginationFilterType `debugmap:"visible"`
 
@@ -52,6 +57,17 @@ type SchemaInformation struct {
 
 	// ExpirationDisabled is a flag to indicate whether expiration support is disabled.
 	ExpirationDisabled bool `debugmap:"visible"`
+}
+
+// expectedIndexesForShape returns the expected index names for a given query shape.
+func (si SchemaInformation) expectedIndexesForShape(shape queryshape.Shape) options.SQLIndexInformation {
+	expectedIndexes := options.SQLIndexInformation{}
+	for _, index := range si.Indexes {
+		if index.matchesShape(shape) {
+			expectedIndexes.ExpectedIndexNames = append(expectedIndexes.ExpectedIndexNames, index.Name)
+		}
+	}
+	return expectedIndexes
 }
 
 func (si SchemaInformation) debugValidate() {
