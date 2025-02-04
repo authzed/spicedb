@@ -99,7 +99,7 @@ require (
 	go.opentelemetry.io/otel v1.33.0
 	go.opentelemetry.io/otel/sdk v1.33.0
 	go.opentelemetry.io/otel/trace v1.33.0
-	go.uber.org/atomic v1.11.0
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/mod v0.22.0
