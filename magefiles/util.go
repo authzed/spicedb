@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -24,7 +25,7 @@ func goDirTest(dir string, path string, args ...string) error {
 	testArgs := append([]string{
 		"test",
 		"-covermode=atomic",
-		"-coverprofile=coverage.txt",
+		fmt.Sprintf("-coverprofile=coverage-%s.txt", sanitizePath(path)),
 		"-failfast",
 		"-count=1",
 	}, args...)
@@ -35,7 +36,7 @@ func goDirTestWithEnv(dir string, path string, env map[string]string, args ...st
 	testArgs := append([]string{
 		"test",
 		"-covermode=atomic",
-		"-coverprofile=coverage.txt",
+		fmt.Sprintf("-coverprofile=coverage-%s.txt", sanitizePath(path)),
 		"-failfast",
 		"-count=1",
 	}, args...)
@@ -221,4 +222,46 @@ func run(dir string, env map[string]string, stdout, stderr io.Writer, cmd string
 	}
 	err = c.Run()
 	return sh.CmdRan(err), sh.ExitStatus(err), err
+}
+
+func sanitizePath(path string) string {
+	parts := strings.Split(strings.TrimPrefix(path, "./"), "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "..." && parts[i] != "" {
+			return strings.ReplaceAll(parts[i], "/", "-")
+		}
+	}
+	return "all"
+}
+
+func combineCoverage() error {
+	files, err := filepath.Glob("coverage-*.txt")
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no coverage files found")
+	}
+
+	f, err := os.Create("coverage.txt")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	args := []string{"run", "github.com/wadey/gocovmerge@latest"}
+	args = append(args, files...)
+
+	err = RunSh(goCmdForTests(), WithV(), WithStdout(f))(args...)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
