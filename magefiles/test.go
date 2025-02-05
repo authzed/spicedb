@@ -22,7 +22,7 @@ func (t Test) All() error {
 	mg.Deps(t.Unit, t.Integration, t.Steelthread, t.Image, t.Analyzers,
 		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
 		c.Crdb, c.Spanner, c.Postgres, c.Mysql)
-	return nil
+	return combineCoverage()
 }
 
 // UnitCover Runs the unit tests and generates a coverage report
@@ -31,7 +31,7 @@ func (t Test) UnitCover() error {
 		return err
 	}
 	fmt.Println("Running coverage...")
-	return sh.RunV("go", "tool", "cover", "-html=coverage.txt")
+	return sh.RunV("go", "tool", "cover", "-html=coverage-unit.txt")
 }
 
 // Unit Runs the unit tests
