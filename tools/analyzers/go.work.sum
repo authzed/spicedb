@@ -850,8 +850,8 @@ cloud.google.com/go/documentai v1.23.0 h1:Gxrx8dgCjEPsJGjsI6wPdaURNG9tniQv7xDGQm
 cloud.google.com/go/documentai v1.23.0/go.mod h1:LKs22aDHbJv7ufXuPypzRO7rG3ALLJxzdCXDPutw4Qc=
 cloud.google.com/go/documentai v1.23.2 h1:IAKWBngDFTxABdAH52uAn0osPDemyegyRmf5IQKznHw=
 cloud.google.com/go/documentai v1.23.2/go.mod h1:Q/wcRT+qnuXOpjAkvOV4A+IeQl04q2/ReT7SSbytLSo=
-cloud.google.com/go/documentai v1.23.5 h1:KAlzT+q8qvRxAmhsJUvLtfFHH0PNvz3M79H6CgVBKL8=
-cloud.google.com/go/documentai v1.23.5/go.mod h1:ghzBsyVTiVdkfKaUCum/9bGBEyBjDO4GfooEcYKhN+g=
+cloud.google.com/go/documentai v1.23.6 h1:KAlzT+q8qvRxAmhsJUvLtfFHH0PNvz3M79H6CgVBKL8=
+cloud.google.com/go/documentai v1.23.6/go.mod h1:ghzBsyVTiVdkfKaUCum/9bGBEyBjDO4GfooEcYKhN+g=
 cloud.google.com/go/documentai v1.23.7 h1:hlYieOXUwiJ7HpBR/vEPfr8nfSxveLVzbqbUkSK0c/4=
 cloud.google.com/go/documentai v1.23.7/go.mod h1:ghzBsyVTiVdkfKaUCum/9bGBEyBjDO4GfooEcYKhN+g=
 cloud.google.com/go/documentai v1.25.0 h1:lI62GMEEPO6vXJI9hj+G9WjOvnR0hEjvjokrnex4cxA=
