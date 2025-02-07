@@ -1,0 +1,50 @@
+NodeTypeFile
+  end-rune = 78
+  input-source = invalid use expiration test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 13
+      input-source = invalid use expiration test
+      start-rune = 0
+      use-flag-name = expiration
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 78
+      input-source = invalid use expiration test
+      start-rune = 16
+      child-node =>
+        NodeTypeRelation
+          end-rune = 78
+          input-source = invalid use expiration test
+          relation-name = editor
+          start-rune = 42
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 78
+              input-source = invalid use expiration test
+              start-rune = 59
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 78
+                  input-source = invalid use expiration test
+                  start-rune = 59
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = somecaveat
+                      end-rune = 78
+                      input-source = invalid use expiration test
+                      start-rune = 69
+        NodeTypeError
+          end-rune = 78
+          error-message = Expected end of statement or definition, found: TokenTypeKeyword
+          error-source = expiration
+          input-source = invalid use expiration test
+          start-rune = 80
+    NodeTypeError
+      end-rune = 78
+      error-message = Unexpected token at root level: TokenTypeKeyword
+      error-source = expiration
+      input-source = invalid use expiration test
+      start-rune = 80
