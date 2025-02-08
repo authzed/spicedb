@@ -1,15 +1,15 @@
-FROM golang:1.23.5-alpine3.20 AS spicedb-builder
+FROM golang:1.23.6-alpine3.20 AS spicedb-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 go build -v ./cmd/...
 
-FROM golang:1.23.5-alpine3.20 AS health-probe-builder
+FROM golang:1.23.6-alpine3.20 AS health-probe-builder
 WORKDIR /go/src/app
 RUN apk update && apk add --no-cache git
 RUN git clone https://github.com/authzed/grpc-health-probe.git
 WORKDIR /go/src/app/grpc-health-probe
-RUN git checkout 6d38dca5b401cd800e34400522721b895a70df7f
+RUN git checkout master
 RUN CGO_ENABLED=0 go install -a -tags netgo -ldflags=-w
 
 FROM cgr.dev/chainguard/static:latest

@@ -45,18 +45,18 @@ type commentedLexeme struct {
 
 // sourceParser holds the state of the parser.
 type sourceParser struct {
-	source        input.Source         // the name of the input; used only for error reports
-	input         string               // the input string itself
-	lex           *lexer.PeekableLexer // a reference to the lexer used for tokenization
-	builder       NodeBuilder          // the builder function for creating AstNode instances
-	nodes         *nodeStack           // the stack of the current nodes
-	currentToken  commentedLexeme      // the current token
-	previousToken commentedLexeme      // the previous token
+	source        input.Source           // the name of the input; used only for error reports
+	input         string                 // the input string itself
+	lex           *lexer.FlaggableLexler // a reference to the lexer used for tokenization
+	builder       NodeBuilder            // the builder function for creating AstNode instances
+	nodes         *nodeStack             // the stack of the current nodes
+	currentToken  commentedLexeme        // the current token
+	previousToken commentedLexeme        // the previous token
 }
 
 // buildParser returns a new sourceParser instance.
 func buildParser(lx *lexer.Lexer, builder NodeBuilder, source input.Source, input string) *sourceParser {
-	l := lexer.NewPeekableLexer(lx)
+	l := lexer.NewFlaggableLexler(lx)
 	return &sourceParser{
 		source:        source,
 		input:         input,
@@ -177,6 +177,20 @@ func (p *sourceParser) emitErrorf(format string, args ...interface{}) {
 		errorNode.MustDecorate(dslshape.NodePredicateErrorSource, p.currentToken.Value)
 	}
 	p.currentNode().Connect(dslshape.NodePredicateChild, errorNode)
+}
+
+// consumeVariableKeyword consumes an expected keyword token or adds an error node.
+// This is useful when you want a keyword but don't want to enumerate the possibile keywords
+// (e.g. in use statements)
+func (p *sourceParser) consumeVariableKeyword() (string, bool) {
+	if !p.isToken(lexer.TokenTypeKeyword) {
+		p.emitErrorf("Expected keyword, found token %v", p.currentToken.Kind)
+		return "", false
+	}
+
+	token := p.currentToken
+	p.consumeToken()
+	return token.Value, true
 }
 
 // consumeKeyword consumes an expected keyword token or adds an error node.
