@@ -1,0 +1,6 @@
+use expiration
+
+definition resource {
+    relation viewer: user with expiration
+    relation editor: user with somecaveat and expiration
+}
