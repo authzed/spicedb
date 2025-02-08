@@ -3,6 +3,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -25,7 +27,7 @@ func goDirTest(dir string, path string, args ...string) error {
 	testArgs := append([]string{
 		"test",
 		"-covermode=atomic",
-		fmt.Sprintf("-coverprofile=coverage-%s.txt", sanitizePath(path)),
+		fmt.Sprintf("-coverprofile=coverage-%s.txt", hashPath(path)),
 		"-failfast",
 		"-count=1",
 	}, args...)
@@ -36,7 +38,7 @@ func goDirTestWithEnv(dir string, path string, env map[string]string, args ...st
 	testArgs := append([]string{
 		"test",
 		"-covermode=atomic",
-		fmt.Sprintf("-coverprofile=coverage-%s.txt", sanitizePath(path)),
+		fmt.Sprintf("-coverprofile=coverage-%s.txt", hashPath(path)),
 		"-failfast",
 		"-count=1",
 	}, args...)
@@ -224,14 +226,9 @@ func run(dir string, env map[string]string, stdout, stderr io.Writer, cmd string
 	return sh.CmdRan(err), sh.ExitStatus(err), err
 }
 
-func sanitizePath(path string) string {
-	parts := strings.Split(strings.TrimPrefix(path, "./"), "/")
-	for i := len(parts) - 1; i >= 0; i-- {
-		if parts[i] != "..." && parts[i] != "" {
-			return strings.ReplaceAll(parts[i], "/", "-")
-		}
-	}
-	return "all"
+func hashPath(path string) string {
+	h := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(h[:])
 }
 
 func combineCoverage() error {
