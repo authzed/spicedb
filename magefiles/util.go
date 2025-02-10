@@ -26,8 +26,6 @@ func goTest(path string, args ...string) error {
 func goDirTest(dir string, path string, args ...string) error {
 	testArgs := append([]string{
 		"test",
-		"-covermode=atomic",
-		fmt.Sprintf("-coverprofile=coverage-%s.txt", hashPath(path)),
 		"-failfast",
 		"-count=1",
 	}, args...)
@@ -37,8 +35,6 @@ func goDirTest(dir string, path string, args ...string) error {
 func goDirTestWithEnv(dir string, path string, env map[string]string, args ...string) error {
 	testArgs := append([]string{
 		"test",
-		"-covermode=atomic",
-		fmt.Sprintf("-coverprofile=coverage-%s.txt", hashPath(path)),
 		"-failfast",
 		"-count=1",
 	}, args...)
