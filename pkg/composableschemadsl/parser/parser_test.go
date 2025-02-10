@@ -123,6 +123,10 @@ func TestParser(t *testing.T) {
 		{"arrow illegal function test", "arrowillegalfunc"},
 		{"caveat with keyword parameter test", "caveatwithkeywordparam"},
 		{"use expiration test", "useexpiration"},
+		// NOTE: a duplicate use statement should be an error at the level
+		// of the compiler, but should not be an error at the level
+		// of the parser.
+		{"duplicate use statement test", "duplicate_use_statement"},
 		{"use expiration keyword test", "useexpirationkeyword"},
 		{"expiration non-keyword test", "expirationnonkeyword"},
 		{"invalid use", "invaliduse"},

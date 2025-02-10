@@ -1,28 +1,28 @@
 package lexer
 
-// FlaggableLexler wraps a lexer, automatically translating tokens based on flags, if any.
-type FlaggableLexler struct {
+// FlaggableLexer wraps a lexer, automatically translating tokens based on flags, if any.
+type FlaggableLexer struct {
 	lex                *Lexer                 // a reference to the lexer used for tokenization
 	enabledFlags       map[string]transformer // flags that are enabled
 	seenDefinition     bool
 	afterUseIdentifier bool
 }
 
-// NewFlaggableLexler returns a new FlaggableLexler for the given lexer.
-func NewFlaggableLexler(lex *Lexer) *FlaggableLexler {
-	return &FlaggableLexler{
+// NewFlaggableLexer returns a new FlaggableLexer for the given lexer.
+func NewFlaggableLexer(lex *Lexer) *FlaggableLexer {
+	return &FlaggableLexer{
 		lex:          lex,
 		enabledFlags: map[string]transformer{},
 	}
 }
 
 // Close stops the lexer from running.
-func (l *FlaggableLexler) Close() {
+func (l *FlaggableLexer) Close() {
 	l.lex.Close()
 }
 
 // NextToken returns the next token found in the lexer.
-func (l *FlaggableLexler) NextToken() Lexeme {
+func (l *FlaggableLexer) NextToken() Lexeme {
 	nextToken := l.lex.nextToken()
 
 	// Look for `use somefeature`

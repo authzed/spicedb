@@ -1,5 +1,5 @@
 NodeTypeFile
-  end-rune = 22
+  end-rune = 37
   input-source = use after definition
   start-rune = 0
   child-node =>
@@ -8,9 +8,14 @@ NodeTypeFile
       end-rune = 21
       input-source = use after definition
       start-rune = 0
-    NodeTypeError
-      end-rune = 22
-      error-message = Unexpected token at root level: TokenTypeKeyword
-      error-source = use
+    NodeTypeUseFlag
+      end-rune = 37
       input-source = use after definition
       start-rune = 24
+      use-flag-name = expiration
+      child-node =>
+        NodeTypeError
+          end-rune = 37
+          error-message = `use` expressions must be declared before any definition
+          input-source = use after definition
+          start-rune = 38

@@ -62,7 +62,7 @@ func TestFlaggableLexer(t *testing.T) {
 }
 
 func performFlaggedLex(t *lexerTest) (tokens []Lexeme) {
-	lexer := NewFlaggableLexler(Lex(input.Source(t.name), t.input))
+	lexer := NewFlaggableLexer(Lex(input.Source(t.name), t.input))
 	for {
 		token := lexer.NextToken()
 		tokens = append(tokens, token)
