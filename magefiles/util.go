@@ -3,8 +3,7 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -13,31 +12,50 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
 
 // run go test in the root
-func goTest(path string, args ...string) error {
-	return goDirTest(".", path, args...)
+func goTest(ctx context.Context, path string, args ...string) error {
+	return goDirTest(ctx, ".", path, args...)
 }
 
 // run go test in a directory
-func goDirTest(dir string, path string, args ...string) error {
+func goDirTest(ctx context.Context, dir string, path string, args ...string) error {
 	testArgs := append([]string{
 		"test",
 		"-failfast",
 		"-count=1",
 	}, args...)
+	if cover, _ := ctx.Value("cover").(bool); cover {
+		if err := os.MkdirAll("coverage", 0o755); err != nil {
+			return fmt.Errorf("failed to create coverage directory: %w", err)
+		}
+		testArgs = append(testArgs, []string{
+			"-covermode=atomic",
+			fmt.Sprintf("-coverprofile=coverage-%s.txt", uuid.New().String()),
+		}...)
+	}
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
-func goDirTestWithEnv(dir string, path string, env map[string]string, args ...string) error {
+func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[string]string, args ...string) error {
 	testArgs := append([]string{
 		"test",
 		"-failfast",
 		"-count=1",
 	}, args...)
+	if cover, _ := ctx.Value("cover").(bool); cover {
+		if err := os.MkdirAll("coverage", 0o755); err != nil {
+			return fmt.Errorf("failed to create coverage directory: %w", err)
+		}
+		testArgs = append(testArgs, []string{
+			"-covermode=atomic",
+			fmt.Sprintf("-coverprofile=coverage-%s.txt", uuid.New().String()),
+		}...)
+	}
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
 }
 
@@ -222,11 +240,6 @@ func run(dir string, env map[string]string, stdout, stderr io.Writer, cmd string
 	return sh.CmdRan(err), sh.ExitStatus(err), err
 }
 
-func hashPath(path string) string {
-	h := sha256.Sum256([]byte(path))
-	return hex.EncodeToString(h[:])
-}
-
 func combineCoverage() error {
 	files, err := filepath.Glob("coverage-*.txt")
 	if err != nil {
@@ -248,12 +261,6 @@ func combineCoverage() error {
 	err = RunSh(goCmdForTests(), WithV(), WithStdout(f))(args...)
 	if err != nil {
 		return err
-	}
-
-	for _, file := range files {
-		if err := os.Remove(file); err != nil {
-			return err
-		}
 	}
 
 	return nil
