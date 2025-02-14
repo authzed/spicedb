@@ -1,0 +1,5 @@
+use expiration
+
+caveat expiration(someparam int) {
+    someparam == 42
+}

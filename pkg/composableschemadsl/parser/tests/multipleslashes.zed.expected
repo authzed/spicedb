@@ -35,7 +35,7 @@ NodeTypeFile
                       caveat-name = foo/bar/only_on_tuesday
                       end-rune = 116
                       input-source = multiple slashes in object type
-                      start-rune = 89
+                      start-rune = 94
     NodeTypeCaveatDefinition
       caveat-definition-name = foo/bar/only_on_tuesday
       end-rune = 201

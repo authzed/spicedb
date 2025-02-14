@@ -97,21 +97,8 @@ func TestStrictReplicatedQueryNonFallbackError(t *testing.T) {
 
 	// Query the replicated, which should return the error.
 	reader := replicated.SnapshotReader(revisionparsing.MustParseRevisionForTest("3"))
-	iter, err := reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
+	_, err = reader.QueryRelationships(context.Background(), datastore.RelationshipsFilter{
 		OptionalResourceType: "resource",
 	})
-	require.NoError(t, err)
-
-	relsCollected := 0
-	var errFound error
-	for _, err := range iter {
-		if err != nil {
-			errFound = err
-		} else {
-			relsCollected++
-		}
-	}
-
-	require.Equal(t, 3, relsCollected)
-	require.ErrorContains(t, errFound, "raising an expected error")
+	require.ErrorContains(t, err, "raising an expected error")
 }

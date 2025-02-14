@@ -1,0 +1,22 @@
+NodeTypeFile
+  end-rune = 36
+  input-source = invalid use
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 12
+      input-source = invalid use
+      start-rune = 0
+      child-node =>
+        NodeTypeError
+          end-rune = 12
+          error-message = Unknown use flag: `something`. Options are: expiration
+          error-source = 
+
+          input-source = invalid use
+          start-rune = 13
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 36
+      input-source = invalid use
+      start-rune = 15

@@ -1,0 +1,71 @@
+NodeTypeFile
+  end-rune = 153
+  input-source = duplicate use statement test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 13
+      input-source = duplicate use statement test
+      start-rune = 0
+      use-flag-name = expiration
+    NodeTypeUseFlag
+      end-rune = 28
+      input-source = duplicate use statement test
+      start-rune = 15
+      use-flag-name = expiration
+    NodeTypeDefinition
+      definition-name = resource
+      end-rune = 152
+      input-source = duplicate use statement test
+      start-rune = 31
+      child-node =>
+        NodeTypeRelation
+          end-rune = 93
+          input-source = duplicate use statement test
+          relation-name = viewer
+          start-rune = 57
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 93
+              input-source = duplicate use statement test
+              start-rune = 74
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 93
+                  input-source = duplicate use statement test
+                  start-rune = 74
+                  type-name = user
+                  trait =>
+                    NodeTypeTraitReference
+                      end-rune = 93
+                      input-source = duplicate use statement test
+                      start-rune = 84
+                      trait-name = expiration
+        NodeTypeRelation
+          end-rune = 150
+          input-source = duplicate use statement test
+          relation-name = editor
+          start-rune = 99
+          allowed-types =>
+            NodeTypeTypeReference
+              end-rune = 150
+              input-source = duplicate use statement test
+              start-rune = 116
+              type-ref-type =>
+                NodeTypeSpecificTypeReference
+                  end-rune = 150
+                  input-source = duplicate use statement test
+                  start-rune = 116
+                  type-name = user
+                  caveat =>
+                    NodeTypeCaveatReference
+                      caveat-name = somecaveat
+                      end-rune = 135
+                      input-source = duplicate use statement test
+                      start-rune = 126
+                  trait =>
+                    NodeTypeTraitReference
+                      end-rune = 150
+                      input-source = duplicate use statement test
+                      start-rune = 141
+                      trait-name = expiration

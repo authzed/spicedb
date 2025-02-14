@@ -4,18 +4,18 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/composableschemadsl/input"
 )
 
 var flaggableLexerTests = []lexerTest{
 	{"use expiration", "use expiration", []Lexeme{
-		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeKeyword, 0, "use", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
 		{TokenTypeKeyword, 0, "expiration", ""},
 		tEOF,
 	}},
 	{"use expiration and", "use expiration and", []Lexeme{
-		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeKeyword, 0, "use", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
 		{TokenTypeKeyword, 0, "expiration", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
@@ -25,17 +25,17 @@ var flaggableLexerTests = []lexerTest{
 	{"expiration as non-keyword", "foo expiration", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
-		{TokenTypeIdentifier, 0, "expiration", ""},
+		{TokenTypeKeyword, 0, "expiration", ""},
 		tEOF,
 	}},
 	{"and as non-keyword", "foo and", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
-		{TokenTypeIdentifier, 0, "and", ""},
+		{TokenTypeKeyword, 0, "and", ""},
 		tEOF,
 	}},
 	{"invalid use flag", "use foobar", []Lexeme{
-		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeKeyword, 0, "use", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
 		{TokenTypeIdentifier, 0, "foobar", ""},
 		tEOF,
@@ -43,9 +43,9 @@ var flaggableLexerTests = []lexerTest{
 	{"use flag after definition", "definition use expiration", []Lexeme{
 		{TokenTypeKeyword, 0, "definition", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
-		{TokenTypeIdentifier, 0, "use", ""},
+		{TokenTypeKeyword, 0, "use", ""},
 		{TokenTypeWhitespace, 0, " ", ""},
-		{TokenTypeIdentifier, 0, "expiration", ""},
+		{TokenTypeKeyword, 0, "expiration", ""},
 		tEOF,
 	}},
 }

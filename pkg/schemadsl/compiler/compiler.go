@@ -107,7 +107,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		return nil, err
 	}
 
-	compiled, err := translate(translationContext{
+	compiled, err := translate(&translationContext{
 		objectTypePrefix: cfg.objectTypePrefix,
 		mapper:           mapper,
 		schemaString:     schema.SchemaString,
