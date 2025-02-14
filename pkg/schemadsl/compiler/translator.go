@@ -24,9 +24,10 @@ type translationContext struct {
 	schemaString     string
 	skipValidate     bool
 	allowedFlags     []string
+	enabledFlags     []string
 }
 
-func (tctx translationContext) prefixedPath(definitionName string) (string, error) {
+func (tctx *translationContext) prefixedPath(definitionName string) (string, error) {
 	var prefix, name string
 	if err := stringz.SplitInto(definitionName, "/", &prefix, &name); err != nil {
 		if tctx.objectTypePrefix == nil {
@@ -45,7 +46,7 @@ func (tctx translationContext) prefixedPath(definitionName string) (string, erro
 
 const Ellipsis = "..."
 
-func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) {
+func translate(tctx *translationContext, root *dslNode) (*CompiledSchema, error) {
 	orderedDefinitions := make([]SchemaDefinition, 0, len(root.GetChildren()))
 	var objectDefinitions []*core.NamespaceDefinition
 	var caveatDefinitions []*core.CaveatDefinition
@@ -57,7 +58,10 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 
 		switch definitionNode.GetType() {
 		case dslshape.NodeTypeUseFlag:
-			// Skip the flags.
+			err := translateUseFlag(tctx, definitionNode)
+			if err != nil {
+				return nil, err
+			}
 			continue
 
 		case dslshape.NodeTypeCaveatDefinition:
@@ -95,7 +99,7 @@ func translate(tctx translationContext, root *dslNode) (*CompiledSchema, error) 
 	}, nil
 }
 
-func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core.CaveatDefinition, error) {
+func translateCaveatDefinition(tctx *translationContext, defNode *dslNode) (*core.CaveatDefinition, error) {
 	definitionName, err := defNode.GetString(dslshape.NodeCaveatDefinitionPredicateName)
 	if err != nil {
 		return nil, defNode.WithSourceErrorf(definitionName, "invalid definition name: %w", err)
@@ -177,7 +181,7 @@ func translateCaveatDefinition(tctx translationContext, defNode *dslNode) (*core
 	return def, nil
 }
 
-func translateCaveatTypeReference(tctx translationContext, typeRefNode *dslNode) (*caveattypes.VariableType, error) {
+func translateCaveatTypeReference(tctx *translationContext, typeRefNode *dslNode) (*caveattypes.VariableType, error) {
 	typeName, err := typeRefNode.GetString(dslshape.NodeCaveatTypeReferencePredicateType)
 	if err != nil {
 		return nil, typeRefNode.WithSourceErrorf(typeName, "invalid type name: %w", err)
@@ -201,7 +205,7 @@ func translateCaveatTypeReference(tctx translationContext, typeRefNode *dslNode)
 	return constructedType, nil
 }
 
-func translateObjectDefinition(tctx translationContext, defNode *dslNode) (*core.NamespaceDefinition, error) {
+func translateObjectDefinition(tctx *translationContext, defNode *dslNode) (*core.NamespaceDefinition, error) {
 	definitionName, err := defNode.GetString(dslshape.NodeDefinitionPredicateName)
 	if err != nil {
 		return nil, defNode.WithSourceErrorf(definitionName, "invalid definition name: %w", err)
@@ -300,7 +304,7 @@ func normalizeComment(value string) string {
 	return strings.Join(lines, "\n")
 }
 
-func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNode) (*core.Relation, error) {
+func translateRelationOrPermission(tctx *translationContext, relOrPermNode *dslNode) (*core.Relation, error) {
 	switch relOrPermNode.GetType() {
 	case dslshape.NodeTypeRelation:
 		rel, err := translateRelation(tctx, relOrPermNode)
@@ -325,7 +329,7 @@ func translateRelationOrPermission(tctx translationContext, relOrPermNode *dslNo
 	}
 }
 
-func translateRelation(tctx translationContext, relationNode *dslNode) (*core.Relation, error) {
+func translateRelation(tctx *translationContext, relationNode *dslNode) (*core.Relation, error) {
 	relationName, err := relationNode.GetString(dslshape.NodePredicateName)
 	if err != nil {
 		return nil, relationNode.Errorf("invalid relation name: %w", err)
@@ -355,7 +359,7 @@ func translateRelation(tctx translationContext, relationNode *dslNode) (*core.Re
 	return relation, nil
 }
 
-func translatePermission(tctx translationContext, permissionNode *dslNode) (*core.Relation, error) {
+func translatePermission(tctx *translationContext, permissionNode *dslNode) (*core.Relation, error) {
 	permissionName, err := permissionNode.GetString(dslshape.NodePredicateName)
 	if err != nil {
 		return nil, permissionNode.Errorf("invalid permission name: %w", err)
@@ -385,7 +389,7 @@ func translatePermission(tctx translationContext, permissionNode *dslNode) (*cor
 	return permission, nil
 }
 
-func translateBinary(tctx translationContext, expressionNode *dslNode) (*core.SetOperation_Child, *core.SetOperation_Child, error) {
+func translateBinary(tctx *translationContext, expressionNode *dslNode) (*core.SetOperation_Child, *core.SetOperation_Child, error) {
 	leftChild, err := expressionNode.Lookup(dslshape.NodeExpressionPredicateLeftExpr)
 	if err != nil {
 		return nil, nil, err
@@ -409,7 +413,7 @@ func translateBinary(tctx translationContext, expressionNode *dslNode) (*core.Se
 	return leftOperation, rightOperation, nil
 }
 
-func translateExpression(tctx translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
+func translateExpression(tctx *translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
 	translated, err := translateExpressionDirect(tctx, expressionNode)
 	if err != nil {
 		return translated, err
@@ -437,7 +441,7 @@ func collapseOps(op *core.SetOperation_Child, handler func(rewrite *core.Userset
 	return collapsed
 }
 
-func translateExpressionDirect(tctx translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
+func translateExpressionDirect(tctx *translationContext, expressionNode *dslNode) (*core.UsersetRewrite, error) {
 	// For union and intersection, we collapse a tree of binary operations into a flat list containing child
 	// operations of the *same* type.
 	translate := func(
@@ -483,7 +487,7 @@ func translateExpressionDirect(tctx translationContext, expressionNode *dslNode)
 	}
 }
 
-func translateExpressionOperation(tctx translationContext, expressionOpNode *dslNode) (*core.SetOperation_Child, error) {
+func translateExpressionOperation(tctx *translationContext, expressionOpNode *dslNode) (*core.SetOperation_Child, error) {
 	translated, err := translateExpressionOperationDirect(tctx, expressionOpNode)
 	if err != nil {
 		return translated, err
@@ -493,7 +497,7 @@ func translateExpressionOperation(tctx translationContext, expressionOpNode *dsl
 	return translated, nil
 }
 
-func translateExpressionOperationDirect(tctx translationContext, expressionOpNode *dslNode) (*core.SetOperation_Child, error) {
+func translateExpressionOperationDirect(tctx *translationContext, expressionOpNode *dslNode) (*core.SetOperation_Child, error) {
 	switch expressionOpNode.GetType() {
 	case dslshape.NodeTypeIdentifier:
 		referencedRelationName, err := expressionOpNode.GetString(dslshape.NodeIdentiferPredicateValue)
@@ -560,7 +564,7 @@ func translateExpressionOperationDirect(tctx translationContext, expressionOpNod
 	}
 }
 
-func translateAllowedRelations(tctx translationContext, typeRefNode *dslNode) ([]*core.AllowedRelation, error) {
+func translateAllowedRelations(tctx *translationContext, typeRefNode *dslNode) ([]*core.AllowedRelation, error) {
 	switch typeRefNode.GetType() {
 	case dslshape.NodeTypeTypeReference:
 		references := []*core.AllowedRelation{}
@@ -586,7 +590,7 @@ func translateAllowedRelations(tctx translationContext, typeRefNode *dslNode) ([
 	}
 }
 
-func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNode) (*core.AllowedRelation, error) {
+func translateSpecificTypeReference(tctx *translationContext, typeRefNode *dslNode) (*core.AllowedRelation, error) {
 	typePath, err := typeRefNode.GetString(dslshape.NodeSpecificReferencePredicateType)
 	if err != nil {
 		return nil, typeRefNode.Errorf("invalid type name: %w", err)
@@ -669,7 +673,7 @@ func translateSpecificTypeReference(tctx translationContext, typeRefNode *dslNod
 	return ref, nil
 }
 
-func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
+func addWithCaveats(tctx *translationContext, typeRefNode *dslNode, ref *core.AllowedRelation) error {
 	caveats := typeRefNode.List(dslshape.NodeSpecificReferencePredicateCaveat)
 	if len(caveats) == 0 {
 		return nil
@@ -692,5 +696,18 @@ func addWithCaveats(tctx translationContext, typeRefNode *dslNode, ref *core.All
 	ref.RequiredCaveat = &core.AllowedCaveat{
 		CaveatName: nspath,
 	}
+	return nil
+}
+
+// Translate use node and add flag to list of enabled flags
+func translateUseFlag(tctx *translationContext, useFlagNode *dslNode) error {
+	flagName, err := useFlagNode.GetString(dslshape.NodeUseFlagPredicateName)
+	if err != nil {
+		return err
+	}
+	if slices.Contains(tctx.enabledFlags, flagName) {
+		return useFlagNode.Errorf("found duplicate use flag: %s", flagName)
+	}
+	tctx.enabledFlags = append(tctx.enabledFlags, flagName)
 	return nil
 }

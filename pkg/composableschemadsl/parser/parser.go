@@ -48,12 +48,6 @@ Loop:
 			break Loop
 		}
 
-		if !hasSeenDefinition {
-			if p.isKeyword("use") {
-				rootNode.Connect(dslshape.NodePredicateChild, p.consumeUseFlag())
-			}
-		}
-
 		// Consume a statement terminator if one was found.
 		p.tryConsumeStatementTerminator()
 
@@ -66,6 +60,9 @@ Loop:
 		// caveat somecaveat (...) { ... }
 
 		switch {
+		case p.isKeyword("use"):
+			rootNode.Connect(dslshape.NodePredicateChild, p.consumeUseFlag(hasSeenDefinition))
+
 		case p.isKeyword("definition"):
 			hasSeenDefinition = true
 			rootNode.Connect(dslshape.NodePredicateChild, p.consumeDefinition())
@@ -251,7 +248,7 @@ func (p *sourceParser) consumeCaveatTypeReference() AstNode {
 
 // consumeUseFlag attempts to consume a use flag.
 // ``` use flagname ```
-func (p *sourceParser) consumeUseFlag() AstNode {
+func (p *sourceParser) consumeUseFlag(afterDefinition bool) AstNode {
 	useNode := p.startNode(dslshape.NodeTypeUseFlag)
 	defer p.mustFinishNode()
 
@@ -275,6 +272,16 @@ func (p *sourceParser) consumeUseFlag() AstNode {
 	}
 
 	useNode.MustDecorate(dslshape.NodeUseFlagPredicateName, useFlag)
+
+	// NOTE: we conduct this check in `consumeFlag` rather than at
+	// the callsite to keep the callsite clean.
+	// We also do the check after consumption to ensure that the parser continues
+	// moving past the use expression.
+	if afterDefinition {
+		p.emitErrorf("`use` expressions must be declared before any definition")
+		return useNode
+	}
+
 	return useNode
 }
 
