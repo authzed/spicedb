@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	CRDBTestVersionTag = "v23.1.16"
-
 	enableRangefeeds = `SET CLUSTER SETTING kv.rangefeed.enabled = true;`
 )
 
@@ -34,7 +32,7 @@ type crdbTester struct {
 }
 
 // RunCRDBForTesting returns a RunningEngineForTest for CRDB
-func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForTest {
+func RunCRDBForTesting(t testing.TB, bridgeNetworkName string, crdbVersion string) RunningEngineForTest {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -42,7 +40,7 @@ func RunCRDBForTesting(t testing.TB, bridgeNetworkName string) RunningEngineForT
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       name,
 		Repository: "mirror.gcr.io/cockroachdb/cockroach",
-		Tag:        CRDBTestVersionTag,
+		Tag:        "v" + crdbVersion,
 		Cmd:        []string{"start-single-node", "--insecure", "--max-offset=50ms"},
 		NetworkID:  bridgeNetworkName,
 	}, func(config *docker.HostConfig) {

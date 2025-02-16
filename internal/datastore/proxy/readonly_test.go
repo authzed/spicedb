@@ -117,7 +117,7 @@ func TestWatchPassthrough(t *testing.T) {
 	ctx := context.Background()
 
 	delegate.On("Watch", expectedRevision).Return(
-		make(<-chan *datastore.RevisionChanges),
+		make(<-chan datastore.RevisionChanges),
 		make(<-chan error),
 	).Times(1)
 

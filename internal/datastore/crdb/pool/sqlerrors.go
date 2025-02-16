@@ -32,7 +32,13 @@ type MaxRetryError struct {
 
 func (e *MaxRetryError) Error() string {
 	if e.MaxRetries == 0 {
-		return "retries disabled: " + e.LastErr.Error()
+		if e.LastErr != nil {
+			return "retries disabled: " + e.LastErr.Error()
+		}
+		return "retries disabled"
+	}
+	if e.LastErr == nil {
+		return fmt.Sprintf("max retries reached (%d)", e.MaxRetries)
 	}
 	return fmt.Sprintf("max retries reached (%d): %s", e.MaxRetries, e.LastErr.Error())
 }
@@ -53,10 +59,19 @@ type ResettableError struct {
 	Err error
 }
 
-func (e *ResettableError) Error() string { return "resettable error" + ": " + e.Err.Error() }
+func (e *ResettableError) Error() string {
+	if e.Err == nil {
+		return "resettable error"
+	}
+	return "resettable error" + ": " + e.Err.Error()
+}
+
 func (e *ResettableError) Unwrap() error { return e.Err }
 
 func (e *ResettableError) GRPCStatus() *status.Status {
+	if e.Err == nil {
+		return status.New(codes.Unavailable, "resettable error")
+	}
 	return spiceerrors.WithCodeAndDetails(
 		e.Unwrap(),
 		codes.Unavailable, // return unavailable so clients are know it's ok to retry
@@ -68,10 +83,18 @@ type RetryableError struct {
 	Err error
 }
 
-func (e *RetryableError) Error() string { return "retryable error" + ": " + e.Err.Error() }
+func (e *RetryableError) Error() string {
+	if e.Err == nil {
+		return "retryable error"
+	}
+	return "retryable error" + ": " + e.Err.Error()
+}
 func (e *RetryableError) Unwrap() error { return e.Err }
 
 func (e *RetryableError) GRPCStatus() *status.Status {
+	if e.Err == nil {
+		return status.New(codes.Unavailable, "resettable error")
+	}
 	return spiceerrors.WithCodeAndDetails(
 		e.Unwrap(),
 		codes.Unavailable, // return unavailable so clients are know it's ok to retry

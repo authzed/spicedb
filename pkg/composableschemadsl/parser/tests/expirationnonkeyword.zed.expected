@@ -1,0 +1,22 @@
+NodeTypeFile
+  end-rune = 5
+  input-source = expiration non-keyword test
+  start-rune = 0
+  child-node =>
+    NodeTypeCaveatDefinition
+      end-rune = 5
+      input-source = expiration non-keyword test
+      start-rune = 0
+      child-node =>
+        NodeTypeError
+          end-rune = 5
+          error-message = Expected identifier, found token TokenTypeKeyword
+          error-source = expiration
+          input-source = expiration non-keyword test
+          start-rune = 7
+    NodeTypeError
+      end-rune = 5
+      error-message = Unexpected token at root level: TokenTypeKeyword
+      error-source = expiration
+      input-source = expiration non-keyword test
+      start-rune = 7

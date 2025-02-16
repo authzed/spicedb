@@ -243,6 +243,9 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 				Content:            datastore.WatchSchema | datastore.WatchCheckpoints,
 				CheckpointInterval: p.watchHeartbeat,
 			})
+			spiceerrors.DebugAssertNotNil(ssc, "ssc is nil")
+			spiceerrors.DebugAssertNotNil(serrc, "serrc is nil")
+
 			log.Debug().Msg("schema watch started")
 
 			p.namespaceCache.startAtRevision(headRev)
@@ -261,7 +264,12 @@ func (p *watchingCachingProxy) startSync(ctx context.Context) error {
 					return
 
 				case ss := <-ssc:
-					log.Trace().Object("update", ss).Msg("received update from schema watch")
+					log.Trace().
+						Bool("is-checkpoint", ss.IsCheckpoint).
+						Int("changed-definition-count", len(ss.ChangedDefinitions)).
+						Int("deleted-namespace-count", len(ss.DeletedNamespaces)).
+						Int("deleted-caveat-count", len(ss.DeletedCaveats)).
+						Msg("received update from schema watch")
 
 					if ss.IsCheckpoint {
 						if converted, ok := ss.Revision.(revisions.WithInexactFloat64); ok {

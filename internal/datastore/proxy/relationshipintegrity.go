@@ -252,9 +252,9 @@ func (r *relationshipIntegrityProxy) validateRelationTuple(rel tuple.Relationshi
 	return nil
 }
 
-func (r *relationshipIntegrityProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (r *relationshipIntegrityProxy) Watch(ctx context.Context, afterRevision datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	resultsChan, errChan := r.ds.Watch(ctx, afterRevision, options)
-	checkedResultsChan := make(chan *datastore.RevisionChanges)
+	checkedResultsChan := make(chan datastore.RevisionChanges)
 	checkedErrChan := make(chan error, 1)
 
 	go func() {

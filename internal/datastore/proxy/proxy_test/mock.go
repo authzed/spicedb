@@ -57,9 +57,9 @@ func (dm *MockDatastore) RevisionFromString(s string) (datastore.Revision, error
 	return args.Get(0).(datastore.Revision), args.Error(1)
 }
 
-func (dm *MockDatastore) Watch(_ context.Context, afterRevision datastore.Revision, _ datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (dm *MockDatastore) Watch(_ context.Context, afterRevision datastore.Revision, _ datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	args := dm.Called(afterRevision)
-	return args.Get(0).(<-chan *datastore.RevisionChanges), args.Get(1).(<-chan error)
+	return args.Get(0).(<-chan datastore.RevisionChanges), args.Get(1).(<-chan error)
 }
 
 func (dm *MockDatastore) ReadyState(_ context.Context) (datastore.ReadyState, error) {

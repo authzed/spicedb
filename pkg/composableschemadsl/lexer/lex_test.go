@@ -66,6 +66,18 @@ var lexerTests = []lexerTest{
 	{"keyword", "all", []Lexeme{{TokenTypeKeyword, 0, "all", ""}, tEOF}},
 	{"keyword", "nil", []Lexeme{{TokenTypeKeyword, 0, "nil", ""}, tEOF}},
 	{"keyword", "partial", []Lexeme{{TokenTypeKeyword, 0, "partial", ""}, tEOF}},
+	{"keyword", "use", []Lexeme{{TokenTypeKeyword, 0, "use", ""}, tEOF}},
+	{"keyword", "expiration", []Lexeme{{TokenTypeKeyword, 0, "expiration", ""}, tEOF}},
+	{"keyword", "and", []Lexeme{{TokenTypeKeyword, 0, "and", ""}, tEOF}},
+	{"keyword", "or", []Lexeme{{TokenTypeKeyword, 0, "or", ""}, tEOF}},
+	{"keyword", "not", []Lexeme{{TokenTypeKeyword, 0, "not", ""}, tEOF}},
+	{"keyword", "under", []Lexeme{{TokenTypeKeyword, 0, "under", ""}, tEOF}},
+	{"keyword", "static", []Lexeme{{TokenTypeKeyword, 0, "static", ""}, tEOF}},
+	{"keyword", "if", []Lexeme{{TokenTypeKeyword, 0, "if", ""}, tEOF}},
+	{"keyword", "where", []Lexeme{{TokenTypeKeyword, 0, "where", ""}, tEOF}},
+	{"keyword", "private", []Lexeme{{TokenTypeKeyword, 0, "private", ""}, tEOF}},
+	{"keyword", "public", []Lexeme{{TokenTypeKeyword, 0, "public", ""}, tEOF}},
+
 	{"identifier", "define", []Lexeme{{TokenTypeIdentifier, 0, "define", ""}, tEOF}},
 	{"typepath", "foo/bar", []Lexeme{
 		{TokenTypeIdentifier, 0, "foo", ""},

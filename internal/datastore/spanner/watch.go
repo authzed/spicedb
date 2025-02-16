@@ -52,13 +52,13 @@ func parseDatabaseName(db string) (project, instance, database string, err error
 	return matches[1], matches[2], matches[3], nil
 }
 
-func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (sd *spannerDatastore) Watch(ctx context.Context, afterRevision datastore.Revision, opts datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := opts.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = sd.watchBufferLength
 	}
 
-	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if opts.EmissionStrategy == datastore.EmitImmediatelyStrategy {
@@ -76,7 +76,7 @@ func (sd *spannerDatastore) watch(
 	ctx context.Context,
 	afterRevisionRaw datastore.Revision,
 	opts datastore.WatchOptions,
-	updates chan *datastore.RevisionChanges,
+	updates chan datastore.RevisionChanges,
 	errs chan error,
 ) {
 	defer close(updates)
@@ -102,7 +102,7 @@ func (sd *spannerDatastore) watch(
 		watchBufferWriteTimeout = sd.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) bool {
+	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
@@ -361,7 +361,7 @@ func (sd *spannerDatastore) watch(
 
 				for _, revChange := range changes {
 					revChange := revChange
-					if !sendChange(&revChange) {
+					if !sendChange(revChange) {
 						return datastore.NewWatchDisconnectedErr()
 					}
 				}
@@ -369,7 +369,7 @@ func (sd *spannerDatastore) watch(
 
 			if opts.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints {
 				for _, hbr := range record.HeartbeatRecords {
-					if !sendChange(&datastore.RevisionChanges{
+					if !sendChange(datastore.RevisionChanges{
 						Revision:     revisions.NewForTime(hbr.Timestamp),
 						IsCheckpoint: true,
 					}) {

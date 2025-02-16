@@ -1,0 +1,27 @@
+NodeTypeFile
+  end-rune = 21
+  input-source = use expiration keyword test
+  start-rune = 0
+  child-node =>
+    NodeTypeUseFlag
+      end-rune = 13
+      input-source = use expiration keyword test
+      start-rune = 0
+      use-flag-name = expiration
+    NodeTypeCaveatDefinition
+      end-rune = 21
+      input-source = use expiration keyword test
+      start-rune = 16
+      child-node =>
+        NodeTypeError
+          end-rune = 21
+          error-message = Expected identifier, found token TokenTypeKeyword
+          error-source = expiration
+          input-source = use expiration keyword test
+          start-rune = 23
+    NodeTypeError
+      end-rune = 21
+      error-message = Unexpected token at root level: TokenTypeKeyword
+      error-source = expiration
+      input-source = use expiration keyword test
+      start-rune = 23

@@ -30,6 +30,7 @@ import (
 
 	crdbmigrations "github.com/authzed/spicedb/internal/datastore/crdb/migrations"
 	"github.com/authzed/spicedb/internal/datastore/crdb/pool"
+	"github.com/authzed/spicedb/internal/datastore/crdb/version"
 	"github.com/authzed/spicedb/internal/datastore/proxy"
 	"github.com/authzed/spicedb/internal/datastore/revisions"
 	"github.com/authzed/spicedb/internal/testfixtures"
@@ -54,9 +55,18 @@ func (cds *crdbDatastore) ExampleRetryableError() error {
 	}
 }
 
+func crdbTestVersion() string {
+	ver := os.Getenv("CRDB_TEST_VERSION")
+	if ver != "" {
+		return ver
+	}
+
+	return version.LatestTestedCockroachDBVersion
+}
+
 func TestCRDBDatastoreWithoutIntegrity(t *testing.T) {
 	t.Parallel()
-	b := testdatastore.RunCRDBForTesting(t, "")
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
 		ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
@@ -105,7 +115,7 @@ func TestCRDBDatastoreWithFollowerReads(t *testing.T) {
 	followerReadDelay := time.Duration(4.8 * float64(time.Second))
 	gcWindow := 100 * time.Second
 
-	engine := testdatastore.RunCRDBForTesting(t, "")
+	engine := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
 	quantizationDurations := []time.Duration{
 		0 * time.Second,
@@ -163,7 +173,7 @@ var defaultKeyForTesting = proxy.KeyConfig{
 
 func TestCRDBDatastoreWithIntegrity(t *testing.T) {
 	t.Parallel()
-	b := testdatastore.RunCRDBForTesting(t, "")
+	b := testdatastore.RunCRDBForTesting(t, "", crdbTestVersion())
 
 	test.All(t, test.DatastoreTesterFunc(func(revisionQuantization, gcInterval, gcWindow time.Duration, watchBufferLength uint16) (datastore.Datastore, error) {
 		ctx := context.Background()
@@ -409,7 +419,7 @@ func newCRDBWithUser(t *testing.T, pool *dockertest.Pool) (adminConn *pgx.Conn, 
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "mirror.gcr.io/cockroachdb/cockroach",
-		Tag:        testdatastore.CRDBTestVersionTag,
+		Tag:        "v" + crdbTestVersion(),
 		Cmd:        []string{"start-single-node", "--certs-dir", "/certs", "--accept-sql-without-tls"},
 		Mounts:     []string{certDir + ":/certs"},
 	})

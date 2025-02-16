@@ -1206,6 +1206,63 @@ func TestCompile(t *testing.T) {
 				),
 			},
 		},
+		{
+			"relation with expiration trait",
+			withTenantPrefix,
+			`use expiration
+			
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithExpiration("sometenant/user", "..."),
+					),
+				),
+			},
+		},
+		{
+			"duplicate use pragmas",
+			withTenantPrefix,
+			`
+			use expiration
+			use expiration
+
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			`found duplicate use flag`,
+			[]SchemaDefinition{},
+		},
+		{
+			"expiration use without use expiration",
+			withTenantPrefix,
+			`
+			definition simple {
+				relation viewer: user with expiration
+			}`,
+			`expiration flag is not enabled`,
+			[]SchemaDefinition{},
+		},
+		{
+			"relation with expiration trait and caveat",
+			withTenantPrefix,
+			`use expiration
+			
+			definition simple {
+				relation viewer: user with somecaveat and expiration
+			}`,
+			"",
+			[]SchemaDefinition{
+				namespace.Namespace("sometenant/simple",
+					namespace.MustRelation("viewer", nil,
+						namespace.AllowedRelationWithCaveatAndExpiration("sometenant/user", "...", namespace.AllowedCaveat("sometenant/somecaveat")),
+					),
+				),
+			},
+		},
 	}
 
 	for _, test := range tests {

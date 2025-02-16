@@ -22,13 +22,13 @@ const (
 // Watch notifies the caller about all changes to tuples.
 //
 // All events following afterRevision will be sent to the caller.
-func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan *datastore.RevisionChanges, <-chan error) {
+func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revision, options datastore.WatchOptions) (<-chan datastore.RevisionChanges, <-chan error) {
 	watchBufferLength := options.WatchBufferLength
 	if watchBufferLength <= 0 {
 		watchBufferLength = mds.watchBufferLength
 	}
 
-	updates := make(chan *datastore.RevisionChanges, watchBufferLength)
+	updates := make(chan datastore.RevisionChanges, watchBufferLength)
 	errs := make(chan error, 1)
 
 	if options.EmissionStrategy == datastore.EmitImmediatelyStrategy {
@@ -48,7 +48,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 		watchBufferWriteTimeout = mds.watchBufferWriteTimeout
 	}
 
-	sendChange := func(change *datastore.RevisionChanges) bool {
+	sendChange := func(change datastore.RevisionChanges) bool {
 		select {
 		case updates <- change:
 			return true
@@ -91,7 +91,7 @@ func (mds *Datastore) Watch(ctx context.Context, afterRevisionRaw datastore.Revi
 			// Write the staged updates to the channel
 			for _, changeToWrite := range stagedUpdates {
 				changeToWrite := changeToWrite
-				if !sendChange(&changeToWrite) {
+				if !sendChange(changeToWrite) {
 					return
 				}
 			}
