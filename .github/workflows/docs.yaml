@@ -1,0 +1,85 @@
+---
+name: "Sync Generated Docs"
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - "main"
+
+env:
+  DOCS_REPO: "authzed/docs"
+  DOCS_BRANCH: "main"
+  GENERATED_DOCS_DIR: "docs"
+  TARGET_DOCS_DIR: "pages/spicedb/docs"
+
+permissions:
+  contents: "write"
+  pull-requests: "write"
+
+jobs:
+  generate-and-sync-docs:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout source repository"
+        uses: "actions/checkout@v3"
+        with:
+          fetch-depth: 1
+
+      - name: "Set up Go"
+        uses: "actions/setup-go@v4"
+        with:
+          go-version: 1.20
+
+      - name: "Generate documentation"
+        run: |
+          cd magefiles
+          if ! mage gen:docs; then
+            echo "Documentation generation failed"
+            exit 1
+          fi
+
+      - name: "Clone docs repository"
+        run: |
+          git clone --depth 1 --branch $DOCS_BRANCH https://github.com/$DOCS_REPO.git docs-repo || {
+            echo "Failed to clone docs repository"
+            exit 1
+          }
+
+      - name: "Compare generated docs with target docs"
+        id: "compare"
+        run: |
+          rsync -r --delete $GENERATED_DOCS_DIR/ docs-repo/$TARGET_DOCS_DIR
+          cd docs-repo
+          if git diff --exit-code; then
+            echo "No changes detected in docs."
+            echo "changes_detected=false" >> $GITHUB_ENV
+          else
+            echo "Changes detected in docs."
+            echo "changes_detected=true" >> $GITHUB_ENV
+          fi
+
+      - name: "Configure Git"
+        if: "env.changes_detected == true"
+        run: |
+          cd docs-repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: "Commit and push changes if any"
+        if: "env.changes_detected == true"
+        run: |
+          cd docs-repo
+          git add $TARGET_DOCS_DIR
+          git commit -m "Update generated docs"
+          git push origin $DOCS_BRANCH
+
+      - name: "Create a pull request"
+        if: "env.changes_detected == true"
+        uses: "peter-evans/create-pull-request@v5"
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          commit-message: "Update generated docs"
+          branch: "update-generated-docs"
+          title: "Sync generated docs"
+          body: |
+            This PR updates the generated documentation files in `$TARGET_DOCS_DIR` with the latest version from the main repository.
+          base: "$DOCS_BRANCH"
