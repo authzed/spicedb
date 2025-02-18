@@ -25,7 +25,10 @@ import (
 
 type engineBuilderFunc func(ctx context.Context, options Config) (datastore.Datastore, error)
 
-const MaxReplicaCount = 16
+const (
+	MaxReplicaCount          = 16
+	DefaultFollowerReadDelay = 4_800 * time.Millisecond
+)
 
 const (
 	MemoryEngine    = "memory"
@@ -236,7 +239,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.Float64Var(&opts.RequestHedgingQuantile, flagName("datastore-request-hedging-quantile"), defaults.RequestHedgingQuantile, "quantile of historical datastore request time over which a request will be considered slow")
 	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled prometheus metrics from the datastore")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
+	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach and spanner drivers only) or read replicas (postgres and mysql drivers only)")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (cockroach driver only - see https://spicedb.dev/d/crdb-overlap for details)"`)
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
@@ -315,7 +318,7 @@ func DefaultDatastoreConfig() *Config {
 		SpannerEmulatorHost:                      "",
 		TablePrefix:                              "",
 		MigrationPhase:                           "",
-		FollowerReadDelay:                        4_800 * time.Millisecond,
+		FollowerReadDelay:                        DefaultFollowerReadDelay,
 		SpannerMinSessions:                       100,
 		SpannerMaxSessions:                       400,
 		FilterMaximumIDCount:                     100,
@@ -334,6 +337,12 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
+		// Set the default follower read delay for postgres and mysql to 0 -
+		// this should only be set if read replicas are used.
+		opts.FollowerReadDelay = 0
 	}
 
 	if opts.LegacyFuzzing >= 0 {
@@ -596,6 +605,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
 		postgres.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
+		postgres.FollowerReadDelay(opts.FollowerReadDelay),
 		postgres.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		postgres.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
@@ -731,6 +741,7 @@ func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datas
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
+		mysql.FollowerReadDelay(opts.FollowerReadDelay),
 	}
 
 	commonOptions, err := commonMySQLDatastoreOptions(opts)
