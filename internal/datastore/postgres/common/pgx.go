@@ -75,7 +75,7 @@ func ConfigurePGXLogger(connConfig *pgx.ConnConfig) {
 			// log cancellation and serialization errors at debug level
 			if errArg, ok := data["err"]; ok {
 				err, ok := errArg.(error)
-				if ok && (IsCancellationError(err) || IsSerializationError(err)) {
+				if ok && (common.IsCancellationError(err) || IsSerializationError(err)) {
 					logger.Log(ctx, tracelog.LogLevelDebug, msg, data)
 					return
 				}
@@ -118,16 +118,6 @@ func truncateLargeSQL(data map[string]any) {
 			data["args"] = argsSlice[:maxSQLArgsLen]
 		}
 	}
-}
-
-// IsCancellationError determines if an error returned by pgx has been caused by context cancellation.
-func IsCancellationError(err error) bool {
-	if errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded) ||
-		err.Error() == "conn closed" { // conns are sometimes closed async upon cancellation
-		return true
-	}
-	return false
 }
 
 func IsSerializationError(err error) bool {

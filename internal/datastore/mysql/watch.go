@@ -147,8 +147,12 @@ func (mds *Datastore) loadChanges(
 
 	rows, err := mds.db.QueryContext(ctx, sql, args...)
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
+		if errors.Is(ctx.Err(), context.Canceled) {
 			err = datastore.NewWatchCanceledErr()
+		} else if common.IsCancellationError(err) {
+			err = datastore.NewWatchCanceledErr()
+		} else if common.IsResettableError(err) {
+			err = datastore.NewWatchTemporaryErr(err)
 		}
 		return
 	}
