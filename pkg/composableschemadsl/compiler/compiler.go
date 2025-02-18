@@ -124,6 +124,7 @@ func Compile(schema InputSchema, prefix ObjectPrefixOption, opts ...Option) (*Co
 		globallyVisitedFiles: mapz.NewSet[string](),
 		locallyVisitedFiles:  mapz.NewSet[string](),
 		sourceFolder:         cfg.sourceFolder,
+		mapper:               mapper,
 	}, root)
 	if err != nil {
 		return nil, err
