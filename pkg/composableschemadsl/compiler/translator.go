@@ -763,6 +763,7 @@ type importResolutionContext struct {
 	// find a cycle, even if we're otherwise marking globally visited nodes.
 	locallyVisitedFiles *mapz.Set[string]
 	sourceFolder        string
+	mapper              input.PositionMapper
 }
 
 // Takes a parsed schema and recursively translates import syntax and replaces
@@ -812,7 +813,7 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 			// This is a new node provided by the translateImport
 			parsedImportRoot, err := importFile(filePath)
 			if err != nil {
-				return err
+				return toContextError("failed to read import in schema file", "", topLevelNode, itctx.mapper)
 			}
 
 			// We recurse on that node to resolve any further imports
@@ -820,6 +821,7 @@ func translateImports(itctx importResolutionContext, root *dslNode) error {
 				sourceFolder:         newSourceFolder,
 				locallyVisitedFiles:  currentLocallyVisitedFiles,
 				globallyVisitedFiles: itctx.globallyVisitedFiles,
+				mapper:               itctx.mapper,
 			}, parsedImportRoot)
 			if err != nil {
 				return err
