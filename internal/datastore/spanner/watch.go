@@ -94,6 +94,16 @@ func (sd *spannerDatastore) watch(
 			return
 		}
 
+		if common.IsCancellationError(err) {
+			errs <- datastore.NewWatchCanceledErr()
+			return
+		}
+
+		if common.IsResettableError(err) {
+			errs <- datastore.NewWatchTemporaryErr(err)
+			return
+		}
+
 		errs <- err
 	}
 

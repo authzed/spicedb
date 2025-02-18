@@ -12,7 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
-	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -130,8 +129,10 @@ func (pgd *pgDatastore) Watch(
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
-				} else if pgxcommon.IsCancellationError(err) {
+				} else if common.IsCancellationError(err) {
 					errs <- datastore.NewWatchCanceledErr()
+				} else if common.IsResettableError(err) {
+					errs <- datastore.NewWatchTemporaryErr(err)
 				} else {
 					errs <- err
 				}
@@ -143,6 +144,10 @@ func (pgd *pgDatastore) Watch(
 				if err != nil {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						errs <- datastore.NewWatchCanceledErr()
+					} else if common.IsCancellationError(err) {
+						errs <- datastore.NewWatchCanceledErr()
+					} else if common.IsResettableError(err) {
+						errs <- datastore.NewWatchTemporaryErr(err)
 					} else {
 						errs <- err
 					}
