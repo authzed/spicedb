@@ -56,6 +56,8 @@ github.com/agnivade/wasmbrowsertest v0.8.0 h1:ZSp3cz/J0AiaSnmDMJwZUu3zEBiE+0rkYu
 github.com/agnivade/wasmbrowsertest v0.8.0/go.mod h1:CEWQKD6CPRjw8nzQ0X1vQt696t8WQ0g1S7x35FQJFqE=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
+github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833 h1:rby2719UdmcOltB30ALyPY4Lozz9nkYSpjqnBiHXBQI=
+github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833/go.mod h1:wnimjr5RPPouIhZQ3ztDBLMUKKuUroj3U9Jy0PxeaEE=
 github.com/bufbuild/buf v1.35.1 h1:aiCi/YFOg7eXKZeveWb2ZhnmLFwUMM/FnDCM0roFp+M=
 github.com/bufbuild/buf v1.35.1/go.mod h1:SM7b5QW3FkQPNkkqIa/9UWzLOoe51la+GGZpEgH9b68=
 github.com/bufbuild/protocompile v0.14.0 h1:z3DW4IvXE5G/uTOnSQn+qwQQxvhckkTWLS/0No/o7KU=

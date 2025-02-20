@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/authzed/ctxkey"
 	"github.com/google/uuid"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -24,39 +25,38 @@ func goTest(ctx context.Context, path string, args ...string) error {
 
 // run go test in a directory
 func goDirTest(ctx context.Context, dir string, path string, args ...string) error {
-	testArgs := append([]string{
-		"test",
-		"-failfast",
-		"-count=1",
-	}, args...)
-	if cover, _ := ctx.Value("cover").(bool); cover {
-		if err := os.MkdirAll("coverage", 0o755); err != nil {
-			return fmt.Errorf("failed to create coverage directory: %w", err)
-		}
-		testArgs = append(testArgs, []string{
-			"-covermode=atomic",
-			fmt.Sprintf("-coverprofile=coverage-%s.txt", uuid.New().String()),
-		}...)
+	testArgs, err := testWithArgs(ctx, args...)
+	if err != nil {
+		return err
 	}
 	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithArgs(testArgs...))(path)
 }
 
 func goDirTestWithEnv(ctx context.Context, dir string, path string, env map[string]string, args ...string) error {
+	testArgs, err := testWithArgs(ctx, args...)
+	if err != nil {
+		return err
+	}
+	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
+}
+
+func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 	testArgs := append([]string{
 		"test",
 		"-failfast",
 		"-count=1",
 	}, args...)
-	if cover, _ := ctx.Value("cover").(bool); cover {
-		if err := os.MkdirAll("coverage", 0o755); err != nil {
-			return fmt.Errorf("failed to create coverage directory: %w", err)
+	ctxMyKey := ctxkey.New[bool]()
+	if cover := ctxMyKey.MustValue(ctx); cover {
+		if err := os.MkdirAll("coverage", 0o700); err != nil {
+			return nil, fmt.Errorf("failed to create coverage directory: %w", err)
 		}
 		testArgs = append(testArgs, []string{
 			"-covermode=atomic",
 			fmt.Sprintf("-coverprofile=coverage-%s.txt", uuid.New().String()),
 		}...)
 	}
-	return RunSh(goCmdForTests(), WithV(), WithDir(dir), WithEnv(env), WithArgs(testArgs...))(path)
+	return testArgs, nil
 }
 
 // check if docker is installed and running
@@ -264,4 +264,14 @@ func combineCoverage() error {
 	}
 
 	return nil
+}
+
+func parseCommandLineFlags() (cover bool) {
+	for _, arg := range os.Args {
+		if arg == "-cover=true" {
+			cover = true
+			break
+		}
+	}
+	return cover
 }
