@@ -721,7 +721,7 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 				Status: datastore.FeatureUnsupported,
 			},
 			ContinuousCheckpointing: datastore.Feature{
-				Status: datastore.FeatureUnsupported,
+				Status: datastore.FeatureSupported,
 			},
 			WatchEmitsImmediately: datastore.Feature{
 				Status: datastore.FeatureUnsupported,

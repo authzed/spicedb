@@ -780,6 +780,36 @@ func verifyMixedUpdates(
 	require.False(expectDisconnect, "all changes verified without expected disconnect")
 }
 
+func WatchContinuousCheckpointsTest(t *testing.T, tester DatastoreTester) {
+	require := require.New(t)
+
+	ds, err := tester.New(0, veryLargeGCInterval, veryLargeGCWindow, 16)
+	require.NoError(err)
+
+	ctx := context.Background()
+	features, err := ds.Features(ctx)
+	require.NoError(err)
+	if features.ContinuousCheckpointing.Status == datastore.FeatureUnsupported {
+		t.Skip("unsupported continuous checkpoints")
+	}
+
+	setupDatastore(ds, require)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	head, err := ds.HeadRevision(ctx)
+	require.NoError(err)
+
+	changes, errchan := ds.Watch(ctx, head, datastore.WatchOptions{
+		Content:            datastore.WatchCheckpoints,
+		CheckpointInterval: 100 * time.Millisecond,
+	})
+	require.Zero(len(errchan))
+
+	verifyCheckpointAfter(t, head, changes)
+}
+
 func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	require := require.New(t)
 
@@ -805,14 +835,14 @@ func WatchCheckpointsTest(t *testing.T, tester DatastoreTester) {
 	)
 	require.NoError(err)
 
-	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+	verifyCheckpointUpdate(t, afterTouchRevision, changes)
 
 	afterTouchRevision, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
 		return rwt.WriteNamespaces(ctx, &core.NamespaceDefinition{Name: "doesnotexist"})
 	})
 	require.NoError(err)
 
-	verifyCheckpointUpdate(require, afterTouchRevision, changes)
+	verifyCheckpointUpdate(t, afterTouchRevision, changes)
 }
 
 func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
@@ -909,16 +939,18 @@ func WatchEmissionStrategyTest(t *testing.T, tester DatastoreTester) {
 }
 
 func verifyCheckpointUpdate(
-	require *require.Assertions,
+	t *testing.T,
 	expectedRevision datastore.Revision,
 	changes <-chan datastore.RevisionChanges,
 ) {
+	t.Helper()
+
 	var relChangeEmitted, schemaChangeEmitted bool
 	changeWait := time.NewTimer(waitForChangesTimeout)
 	for {
 		select {
 		case change, ok := <-changes:
-			require.True(ok)
+			require.True(t, ok)
 			if len(change.ChangedDefinitions) > 0 {
 				schemaChangeEmitted = true
 			}
@@ -927,14 +959,37 @@ func verifyCheckpointUpdate(
 			}
 			if change.IsCheckpoint {
 				if change.Revision.Equal(expectedRevision) || change.Revision.GreaterThan(expectedRevision) {
-					require.True(relChangeEmitted || schemaChangeEmitted, "expected relationship/schema changes before checkpoint")
+					require.True(t, relChangeEmitted || schemaChangeEmitted, "expected relationship/schema changes before checkpoint")
 					return
 				}
 
 				// we received a past revision checkpoint, ignore
 			}
 		case <-changeWait.C:
-			require.Fail("Timed out", "waited for checkpoint")
+			require.Fail(t, "Timed out", "waited for checkpoint")
+		}
+	}
+}
+
+func verifyCheckpointAfter(
+	t *testing.T,
+	pastRevision datastore.Revision,
+	changes <-chan datastore.RevisionChanges,
+) {
+	t.Helper()
+
+	changeWait := time.NewTimer(waitForChangesTimeout)
+	for {
+		select {
+		case change, ok := <-changes:
+			require.True(t, ok)
+			require.Zero(t, change.ChangedDefinitions)
+			require.Zero(t, change.RelationshipChanges)
+			require.True(t, change.IsCheckpoint)
+			require.True(t, change.Revision.GreaterThan(pastRevision))
+			return
+		case <-changeWait.C:
+			require.Fail(t, "Timed out", "waited for checkpoint")
 		}
 	}
 }
