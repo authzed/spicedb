@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/authzed/ctxkey"
+
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
@@ -20,23 +22,17 @@ var emptyEnv map[string]string
 func (t Test) All() error {
 	ds := Testds{}
 	c := Testcons{}
-	ctx := context.Background()
-	cover := false
-	for _, arg := range os.Args {
-		if arg == "-cover=true" {
-			cover = true
-			break
-		}
-	}
-	ctx = context.WithValue(ctx, "cover", cover)
+	cover := parseCommandLineFlags()
+	ctxMyKey := ctxkey.New[bool]()
+	ctx := ctxMyKey.WithValue(context.Background(), cover)
 	mg.CtxDeps(ctx, t.Unit, t.Integration, t.Steelthread, t.Image, t.Analyzers,
 		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
 		c.Crdb, c.Spanner, c.Postgres, c.Mysql)
 
-	return nil
-}
+	if !cover {
+		return nil
+	}
 
-func (t Test) Combine() error {
 	return combineCoverage()
 }
 
