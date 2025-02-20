@@ -125,7 +125,7 @@ func (pgd *pgDatastore) Watch(
 		currentTxn := afterRevision
 		requestedCheckpoints := options.Content&datastore.WatchCheckpoints == datastore.WatchCheckpoints
 		for {
-			newTxns, optionalHeadRevision, err := pgd.getNewRevisions(ctx, currentTxn, requestedCheckpoints)
+			newTxns, snapshotForHighWatermark, err := pgd.getNewRevisions(ctx, currentTxn, requestedCheckpoints)
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
 					errs <- datastore.NewWatchCanceledErr()
@@ -187,29 +187,55 @@ func (pgd *pgDatastore) Watch(
 					}
 				}
 			} else {
-				// PG head revision could move outside of changes (e.g. VACUUM ANALYZE), and we still need to
-				// send a checkpoint to the client, as could have determined also via Head that changes exist and
-				// called Watch API
+				// A new transaction could have been generated outside of application changes (e.g. VACUUM ANALYZE,
+				// spicedb postgres shared with other applications). We want to make sure the Watch API reflects this
+				// by sending a checkpoint to the client.
 				//
-				// we need to compute the head revision in the same transaction where we determine any new spicedb,
-				// transactions, otherwise there could be a race that means we issue a checkpoint before we issue
-				// the corresponding changes.
+				// Using pg_current_snapshot() gives us the next candidate snapshot, but we can't send it as a
+				// checkpoint, since the next transaction that is executed will get evaluated at that snapshot, and
+				// would in turn lead to a sequence of events via Watch API that is incorrect (i.e. checkpoint at rev X,
+				// then change revision at rev X).
+				//
+				// We could determine the last committed transaction using pg_last_committed_xact(), but we wouldn't
+				// be able to determine that snapshot at which it was evaluated.
+				//
+				// We solve it by creating an actual new transaction using pg_current_xact_id(). The tradeoff is
+				// it consumes a transaction of the 2^64 XID8 transaction space. Given this only happens when
+				// there are no new transactions, and that this loop executes on a predefined interval that, it
+				// would take _very long_ (billions of years) to exhaust it. See method pgDatastore.generateCheckpoint().
+				//
+				// The computation of the new checkpoint needs to happen in the same transaction where we query
+				// if there are any new spicedb transactions, otherwise there could be a race that means we
+				// issue a checkpoint before we issue the corresponding changes.
 				if requestedCheckpoints {
-					if optionalHeadRevision == nil {
+					if snapshotForHighWatermark == nil {
 						errs <- spiceerrors.MustBugf("expected to have an optional head revision")
 						return
 					}
 
-					if optionalHeadRevision.GreaterThan(currentTxn) {
+					snapshotForHighWatermark.snapshot = snapshotForHighWatermark.snapshot.markComplete(snapshotForHighWatermark.optionalTxID.Uint64)
+					// we expect the new checkpoint to be bigger or equal than the last observed transaction.
+					// - equal: if the caller invoked afterRevision = HeadRevision, there would be no associated transaction,
+					//   so once generateCheckpoint is invoked, that snapshot will be part of a transaction,
+					//   making currentTxn == snapshotForHighWatermark
+					// - bigger: if the loop is executed again, a new transaction will be generated, and currentTxn will
+					//   no longer be pointing at HeadRevision, but instead at the last committed transaction observed.
+					if snapshotForHighWatermark.LessThan(currentTxn) {
+						errs <- spiceerrors.MustBugf("expected the generate checkpoint to be greater than the current revision")
+					}
+
+					// Do not emit a checkpoint at HeadRevision, as the expectation is Watch API starts emitting
+					// events after the revision provided.
+					if snapshotForHighWatermark.GreaterThan(currentTxn) {
 						if !sendChange(datastore.RevisionChanges{
-							Revision:     *optionalHeadRevision,
+							Revision:     *snapshotForHighWatermark,
 							IsCheckpoint: true,
 						}) {
 							return
 						}
-
-						currentTxn = *optionalHeadRevision
 					}
+
+					currentTxn = *snapshotForHighWatermark
 				}
 
 				select {
@@ -226,18 +252,10 @@ func (pgd *pgDatastore) Watch(
 	return updates, errs
 }
 
-func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision, returnHeadRevision bool) ([]postgresRevision, *postgresRevision, error) {
+func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRevision, retrieveNewHighWatermark bool) ([]postgresRevision, *postgresRevision, error) {
 	var ids []postgresRevision
-	var optionalHeadRevision *postgresRevision
-	var err error
+	var newCheckpoint *postgresRevision
 	if err := pgx.BeginTxFunc(ctx, pgd.readPool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		if returnHeadRevision {
-			optionalHeadRevision, err = pgd.getHeadRevision(ctx, tx)
-			if err != nil {
-				return fmt.Errorf("unable to get head revision: %w", err)
-			}
-		}
-
 		rows, err := tx.Query(ctx, newRevisionsQuery, afterTX.snapshot)
 		if err != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
@@ -268,12 +286,24 @@ func (pgd *pgDatastore) getNewRevisions(ctx context.Context, afterTX postgresRev
 		if rows.Err() != nil {
 			return fmt.Errorf("unable to load new revisions: %w", err)
 		}
+
+		// there are no new transactions - generate a checkpoint revision if requested
+		// it would take more than 5 billion years to exhaust this at a rate of 1 transaction ID per second,
+		// and this will be called only if no other new transactions already existed, and if checkpoints were requested
+		if len(ids) == 0 && retrieveNewHighWatermark {
+			if retrieveNewHighWatermark {
+				newCheckpoint, err = pgd.generateCheckpoint(ctx, tx)
+				if err != nil {
+					return fmt.Errorf("unable to get head revision: %w", err)
+				}
+			}
+		}
 		return nil
 	}); err != nil {
-		return nil, optionalHeadRevision, fmt.Errorf("transaction error: %w", err)
+		return nil, newCheckpoint, fmt.Errorf("transaction error: %w", err)
 	}
 
-	return ids, optionalHeadRevision, nil
+	return ids, newCheckpoint, nil
 }
 
 func (pgd *pgDatastore) loadChanges(ctx context.Context, revisions []postgresRevision, options datastore.WatchOptions) ([]datastore.RevisionChanges, error) {
