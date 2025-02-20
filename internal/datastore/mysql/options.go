@@ -28,6 +28,8 @@ const (
 	defaultFilterMaximumIDCount              = 100
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 	defaultExpirationDisabled                = false
+	// no follower delay by default, it should only be set if using read replicas
+	defaultFollowerReadDelay = 0
 )
 
 type mysqlOptions struct {
@@ -36,6 +38,7 @@ type mysqlOptions struct {
 	gcInterval                  time.Duration
 	gcMaxOperationTime          time.Duration
 	maxRevisionStalenessPercent float64
+	followerReadDelay           time.Duration
 	watchBufferLength           uint16
 	watchBufferWriteTimeout     time.Duration
 	tablePrefix                 string
@@ -77,6 +80,7 @@ func generateConfig(options []Option) (mysqlOptions, error) {
 		filterMaximumIDCount:        defaultFilterMaximumIDCount,
 		columnOptimizationOption:    defaultColumnOptimizationOption,
 		expirationDisabled:          defaultExpirationDisabled,
+		followerReadDelay:           defaultFollowerReadDelay,
 	}
 
 	for _, option := range options {
@@ -135,6 +139,14 @@ func MaxRevisionStalenessPercent(stalenessPercent float64) Option {
 	return func(mo *mysqlOptions) {
 		mo.maxRevisionStalenessPercent = stalenessPercent
 	}
+}
+
+// FollowerReadDelay is the amount of time to round down the current time when
+// reading from a read replica is expected.
+//
+// This value defaults to 0 seconds.
+func FollowerReadDelay(delay time.Duration) Option {
+	return func(mo *mysqlOptions) { mo.followerReadDelay = delay }
 }
 
 // GCWindow is the maximum age of a passed revision that will be considered

@@ -586,39 +586,59 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	testCases := []struct {
-		testName         string
-		quantization     time.Duration
-		relativeTimes    []time.Duration
-		expectedRevision uint64
+		testName          string
+		quantization      time.Duration
+		relativeTimes     []time.Duration
+		followerReadDelay time.Duration
+		expectedRevision  uint64
 	}{
 		{
 			"DefaultRevision",
 			1 * time.Second,
 			[]time.Duration{},
+			0,
 			1,
 		},
 		{
 			"OnlyPastRevisions",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second},
+			0,
 			2,
 		},
 		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			[]time.Duration{2 * time.Second},
+			0,
 			2,
 		},
 		{
 			"QuantizedLower",
 			1 * time.Second,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			0,
 			3,
+		},
+		{
+			"QuantizedRecentWithFollowerReadDelay",
+			500 * time.Millisecond,
+			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
+			2 * time.Second,
+			3,
+		},
+		{
+			"QuantizedRecentWithoutFollowerReadDelay",
+			500 * time.Millisecond,
+			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
+			0,
+			4,
 		},
 		{
 			"QuantizationDisabled",
 			1 * time.Nanosecond,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
+			0,
 			4,
 		},
 	}
@@ -669,6 +689,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				mds.driver.RelationTupleTransaction(),
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
+				tc.followerReadDelay.Nanoseconds(),
 			)
 
 			var revision uint64

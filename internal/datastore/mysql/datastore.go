@@ -230,12 +230,18 @@ func newMySQLDatastore(ctx context.Context, uri string, replicaIndex int, option
 		quantizationPeriodNanos = 1
 	}
 
+	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
+	if followerReadDelayNanos < 0 {
+		followerReadDelayNanos = 0
+	}
+
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
 		colID,
 		driver.RelationTupleTransaction(),
 		colTimestamp,
 		quantizationPeriodNanos,
+		followerReadDelayNanos,
 	)
 
 	validTransactionQuery := fmt.Sprintf(
