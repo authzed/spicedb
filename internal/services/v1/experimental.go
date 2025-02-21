@@ -492,7 +492,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	filters, err := newSchemaFilters(req.OptionalFilters)
+	filters, err := newexpSchemaFilters(req.OptionalFilters)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
@@ -500,7 +500,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	definitions := make([]*v1.ExpDefinition, 0, len(schema.ObjectDefinitions))
 	if filters.HasNamespaces() {
 		for _, ns := range schema.ObjectDefinitions {
-			def, err := namespaceAPIRepr(ns, filters)
+			def, err := expNamespaceAPIRepr(ns, filters)
 			if err != nil {
 				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 			}
@@ -514,7 +514,7 @@ func (es *experimentalServer) ExperimentalReflectSchema(ctx context.Context, req
 	caveats := make([]*v1.ExpCaveat, 0, len(schema.CaveatDefinitions))
 	if filters.HasCaveats() {
 		for _, cd := range schema.CaveatDefinitions {
-			caveat, err := caveatAPIRepr(cd, filters)
+			caveat, err := expCaveatAPIRepr(cd, filters)
 			if err != nil {
 				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 			}
@@ -543,7 +543,7 @@ func (es *experimentalServer) ExperimentalDiffSchema(ctx context.Context, req *v
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}
 
-	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	resp, err := expConvertDiff(diff, existingSchema, comparisonSchema, atRevision)
 	if err != nil {
 		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
 	}

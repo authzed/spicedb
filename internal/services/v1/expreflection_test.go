@@ -17,7 +17,7 @@ import (
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
-func TestConvertDiff(t *testing.T) {
+func TestExpConvertDiff(t *testing.T) {
 	tcs := []struct {
 		name             string
 		existingSchema   string
@@ -544,7 +544,7 @@ func TestConvertDiff(t *testing.T) {
 			diff, err := diff.DiffSchemas(es, cs)
 			require.NoError(t, err)
 
-			resp, err := convertDiff(
+			resp, err := expConvertDiff(
 				diff,
 				&es,
 				&cs,
@@ -578,24 +578,24 @@ func TestConvertDiff(t *testing.T) {
 	}
 }
 
-type filterCheck func(sf *schemaFilters) bool
+type expFilterCheck func(sf *expSchemaFilters) bool
 
-func TestSchemaFiltering(t *testing.T) {
+func TestExpSchemaFiltering(t *testing.T) {
 	tcs := []struct {
 		name     string
 		filters  []*v1.ExpSchemaFilter
-		checkers []filterCheck
+		checkers []expFilterCheck
 	}{
 		{
 			"no filters",
 			[]*v1.ExpSchemaFilter{},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("foo") },
-				func(sf *schemaFilters) bool { return sf.HasCaveat("foo") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("foo") },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveat("foo") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("document", "view") },
 			},
 		},
 		{
@@ -605,13 +605,13 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalDefinitionNameFilter: "doc",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return !sf.HasNamespace("foo") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return !sf.HasNamespace("foo") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("document", "view") },
 			},
 		},
 		{
@@ -621,11 +621,11 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalCaveatNameFilter: "somec",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return !sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat") },
-				func(sf *schemaFilters) bool { return !sf.HasCaveat("foo") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return !sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveat("somecaveat") },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveat("foo") },
 			},
 		},
 		{
@@ -638,16 +638,16 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalDefinitionNameFilter: "user",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("user") },
-				func(sf *schemaFilters) bool { return !sf.HasNamespace("foo") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("user", "viewer") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("user", "view") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("user") },
+				func(sf *expSchemaFilters) bool { return !sf.HasNamespace("foo") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("document", "view") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("user", "viewer") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("user", "view") },
 			},
 		},
 		{
@@ -660,12 +660,12 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalCaveatNameFilter: "somec2",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return !sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat") },
-				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat2") },
-				func(sf *schemaFilters) bool { return !sf.HasCaveat("foo") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return !sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveat("somecaveat") },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveat("somecaveat2") },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveat("foo") },
 			},
 		},
 		{
@@ -678,13 +678,13 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalCaveatNameFilter: "somec",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return sf.HasCaveat("somecaveat") },
-				func(sf *schemaFilters) bool { return !sf.HasNamespace("foo") },
-				func(sf *schemaFilters) bool { return !sf.HasCaveat("foo") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return sf.HasCaveat("somecaveat") },
+				func(sf *expSchemaFilters) bool { return !sf.HasNamespace("foo") },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveat("foo") },
 			},
 		},
 		{
@@ -695,12 +695,12 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalRelationNameFilter:   "v",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
-				func(sf *schemaFilters) bool { return !sf.HasRelation("document", "foo") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *expSchemaFilters) bool { return !sf.HasRelation("document", "foo") },
 			},
 		},
 		{
@@ -711,12 +711,12 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalPermissionNameFilter: "v",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("document", "view") },
-				func(sf *schemaFilters) bool { return !sf.HasPermission("document", "foo") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("document", "view") },
+				func(sf *expSchemaFilters) bool { return !sf.HasPermission("document", "foo") },
 			},
 		},
 		{
@@ -731,14 +731,14 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalRelationNameFilter:   "v",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("document", "viewer") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("document", "read") },
-				func(sf *schemaFilters) bool { return !sf.HasRelation("document", "foo") },
-				func(sf *schemaFilters) bool { return !sf.HasPermission("document", "foo") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("document", "viewer") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("document", "read") },
+				func(sf *expSchemaFilters) bool { return !sf.HasRelation("document", "foo") },
+				func(sf *expSchemaFilters) bool { return !sf.HasPermission("document", "foo") },
 			},
 		},
 		{
@@ -753,15 +753,15 @@ func TestSchemaFiltering(t *testing.T) {
 					OptionalRelationNameFilter:   "v",
 				},
 			},
-			[]filterCheck{
-				func(sf *schemaFilters) bool { return sf.HasNamespaces() },
-				func(sf *schemaFilters) bool { return !sf.HasCaveats() },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("document") },
-				func(sf *schemaFilters) bool { return sf.HasNamespace("user") },
-				func(sf *schemaFilters) bool { return sf.HasRelation("user", "viewer") },
-				func(sf *schemaFilters) bool { return sf.HasPermission("document", "read") },
-				func(sf *schemaFilters) bool { return !sf.HasRelation("document", "viewer") },
-				func(sf *schemaFilters) bool { return !sf.HasPermission("user", "read") },
+			[]expFilterCheck{
+				func(sf *expSchemaFilters) bool { return sf.HasNamespaces() },
+				func(sf *expSchemaFilters) bool { return !sf.HasCaveats() },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("document") },
+				func(sf *expSchemaFilters) bool { return sf.HasNamespace("user") },
+				func(sf *expSchemaFilters) bool { return sf.HasRelation("user", "viewer") },
+				func(sf *expSchemaFilters) bool { return sf.HasPermission("document", "read") },
+				func(sf *expSchemaFilters) bool { return !sf.HasRelation("document", "viewer") },
+				func(sf *expSchemaFilters) bool { return !sf.HasPermission("user", "read") },
 			},
 		},
 	}
@@ -769,7 +769,7 @@ func TestSchemaFiltering(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			sf, err := newSchemaFilters(tc.filters)
+			sf, err := newexpSchemaFilters(tc.filters)
 			require.NoError(t, err)
 
 			for index, check := range tc.checkers {
@@ -779,7 +779,7 @@ func TestSchemaFiltering(t *testing.T) {
 	}
 }
 
-func TestNewSchemaFilters(t *testing.T) {
+func TestExpNewexpSchemaFilters(t *testing.T) {
 	tcs := []struct {
 		name    string
 		filters []*v1.ExpSchemaFilter
@@ -886,7 +886,7 @@ func TestNewSchemaFilters(t *testing.T) {
 	for _, tc := range tcs {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := newSchemaFilters(tc.filters)
+			_, err := newexpSchemaFilters(tc.filters)
 			if tc.err == "" {
 				require.NoError(t, err)
 			} else {
