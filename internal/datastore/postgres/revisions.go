@@ -69,7 +69,8 @@ const (
 	)
 	SELECT minvalid.%[1]s, minvalid.%[5]s, pg_current_snapshot() FROM minvalid;`
 
-	queryCurrentSnapshot = `SELECT pg_current_snapshot();`
+	queryCurrentSnapshot    = `SELECT pg_current_snapshot();`
+	queryGenerateCheckpoint = `SELECT pg_current_xact_id(), pg_current_snapshot(), NOW() AT TIME ZONE 'utc';`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
 	queryLatestXID            = `SELECT max(xid)::text::integer FROM relation_tuple_transaction;`
@@ -115,6 +116,30 @@ func (pgd *pgDatastore) getHeadRevision(ctx context.Context, querier common.Quer
 	}
 
 	return &postgresRevision{snapshot: snapshot}, nil
+}
+
+// generateCheckpoints creates a new transaction for the purpose of acting as a checkpoint high watermark.
+// this calls pg_current_xact_id(), which consumes one transaction ID of the 64-bit space.
+// For perspective, it would take 584.5 years to consume the space if we were able to generate 1 XID per nanosecond.
+func (pgd *pgDatastore) generateCheckpoint(ctx context.Context, querier common.Querier) (*postgresRevision, error) {
+	var txID xid8
+	var snapshot pgSnapshot
+	var timestamp time.Time
+
+	if err := querier.QueryRow(ctx, queryGenerateCheckpoint).Scan(&txID, &snapshot, &timestamp); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf(errRevision, err)
+	}
+
+	safeTimestamp, err := safecast.ToUint64(timestamp.UnixNano())
+	if err != nil {
+		return nil, fmt.Errorf(errRevision, err)
+	}
+
+	return &postgresRevision{snapshot: snapshot, optionalTxID: txID, optionalNanosTimestamp: safeTimestamp}, nil
 }
 
 func (pgd *pgDatastore) CheckRevision(ctx context.Context, revisionRaw datastore.Revision) error {

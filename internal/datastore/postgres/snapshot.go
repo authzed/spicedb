@@ -144,6 +144,21 @@ const (
 	concurrent
 )
 
+func (cr comparisonResult) String() string {
+	switch cr {
+	case equal:
+		return "="
+	case lt:
+		return "<"
+	case gt:
+		return ">"
+	case concurrent:
+		return "~"
+	default:
+		return "?"
+	}
+}
+
 // compare will return whether we can definitely assert that one snapshot was
 // definitively created after, before, at the same time, or was executed
 // concurrent with another transaction. We assess this based on whether a
@@ -151,6 +166,9 @@ const (
 // of in-progress transactions. E.g. if one snapshot only sees txids 1 and 3 as
 // visible but another transaction sees 1-3 as visible, that transaction is
 // greater.
+// example:
+// 0:4:2   -> (1,3 visible)
+// 0:4:2,3 -> (1 visible)
 func (s pgSnapshot) compare(rhs pgSnapshot) comparisonResult {
 	rhsHasMoreInfo := rhs.anyTXVisible(s.xmax, s.xipList)
 	lhsHasMoreInfo := s.anyTXVisible(rhs.xmax, rhs.xipList)

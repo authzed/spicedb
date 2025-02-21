@@ -197,6 +197,7 @@ func AllWithExceptions(t *testing.T, tester DatastoreTester, except Categories, 
 
 	if !except.Watch() && !except.WatchCheckpoints() {
 		t.Run("TestWatchCheckpoints", runner(tester, WatchCheckpointsTest))
+		t.Run("TestWatchContinuousCheckpoints", runner(tester, WatchContinuousCheckpointsTest))
 	}
 
 	t.Run("TestRelationshipCounters", runner(tester, RelationshipCountersTest))
