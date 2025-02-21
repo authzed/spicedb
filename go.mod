@@ -19,9 +19,9 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Yiling-J/theine-go v0.6.0
-	github.com/authzed/authzed-go v1.3.0
+	github.com/authzed/authzed-go v1.3.1-0.20250221193325-56375fd9bd96
 	github.com/authzed/consistent v0.1.0
-	github.com/authzed/grpcutil v0.0.0-20240123092924-129dc0a6a6e1
+	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/aws/aws-sdk-go v1.55.6
 	github.com/aws/aws-sdk-go-v2 v1.36.1
 	github.com/aws/aws-sdk-go-v2/config v1.29.6
@@ -54,7 +54,7 @@ require (
 	github.com/gosimple/slug v1.15.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.2.0
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.0
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/influxdata/tdigest v0.0.1
@@ -84,7 +84,7 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/rs/xid v1.6.0
 	github.com/rs/zerolog v1.33.0
-	github.com/samber/lo v1.49.0
+	github.com/samber/lo v1.49.1
 	github.com/samber/slog-zerolog/v2 v2.7.3
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/scylladb/go-set v1.0.2
@@ -110,8 +110,8 @@ require (
 	golang.org/x/time v0.9.0
 	golang.org/x/vuln v1.1.4
 	google.golang.org/api v0.220.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250124145028-65684f501c47
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287
+	google.golang.org/genproto/googleapis/api v0.0.0-20250204164813-702378808489
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250219182151-9fdb1cabc7b2
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/yaml.v2 v2.4.0
@@ -392,7 +392,7 @@ require (
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
+	golang.org/x/oauth2 v0.26.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/telemetry v0.0.0-20240522233618-39ace7a40ae7 // indirect
 	golang.org/x/term v0.29.0 // indirect

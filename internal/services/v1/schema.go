@@ -2,6 +2,8 @@ package v1
 
 import (
 	"context"
+	"sort"
+	"strings"
 
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	grpcvalidate "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/validator"
@@ -15,10 +17,14 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/genutil"
+	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
 	"github.com/authzed/spicedb/pkg/schemadsl/input"
+	"github.com/authzed/spicedb/pkg/tuple"
+	"github.com/authzed/spicedb/pkg/typesystem"
 	"github.com/authzed/spicedb/pkg/zedtoken"
 )
 
@@ -154,5 +160,208 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 
 	return &v1.WriteSchemaResponse{
 		WrittenAt: zedtoken.MustNewFromRevision(revision),
+	}, nil
+}
+
+func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchemaRequest) (*v1.ReflectSchemaResponse, error) {
+	// Get the current schema.
+	schema, atRevision, err := loadCurrentSchema(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	filters, err := newSchemaFilters(req.OptionalFilters)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	definitions := make([]*v1.ReflectionDefinition, 0, len(schema.ObjectDefinitions))
+	if filters.HasNamespaces() {
+		for _, ns := range schema.ObjectDefinitions {
+			def, err := namespaceAPIRepr(ns, filters)
+			if err != nil {
+				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+			}
+
+			if def != nil {
+				definitions = append(definitions, def)
+			}
+		}
+	}
+
+	caveats := make([]*v1.ReflectionCaveat, 0, len(schema.CaveatDefinitions))
+	if filters.HasCaveats() {
+		for _, cd := range schema.CaveatDefinitions {
+			caveat, err := caveatAPIRepr(cd, filters)
+			if err != nil {
+				return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+			}
+
+			if caveat != nil {
+				caveats = append(caveats, caveat)
+			}
+		}
+	}
+
+	return &v1.ReflectSchemaResponse{
+		Definitions: definitions,
+		Caveats:     caveats,
+		ReadAt:      zedtoken.MustNewFromRevision(atRevision),
+	}, nil
+}
+
+func (ss *schemaServer) DiffSchema(ctx context.Context, req *v1.DiffSchemaRequest) (*v1.DiffSchemaResponse, error) {
+	atRevision, _, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	diff, existingSchema, comparisonSchema, err := schemaDiff(ctx, req.ComparisonSchema)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	resp, err := convertDiff(diff, existingSchema, comparisonSchema, atRevision)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	return resp, nil
+}
+
+func (ss *schemaServer) ComputablePermissions(ctx context.Context, req *v1.ComputablePermissionsRequest) (*v1.ComputablePermissionsResponse, error) {
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	relationName := req.RelationName
+	if relationName == "" {
+		relationName = tuple.Ellipsis
+	} else {
+		if _, ok := vts.GetRelation(relationName); !ok {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, relationName))
+		}
+	}
+
+	allNamespaces, err := ds.ListAllNamespaces(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	allDefinitions := make([]*core.NamespaceDefinition, 0, len(allNamespaces))
+	for _, ns := range allNamespaces {
+		allDefinitions = append(allDefinitions, ns.Definition)
+	}
+
+	rg := typesystem.ReachabilityGraphFor(vts)
+	rr, err := rg.RelationsEncounteredForSubject(ctx, allDefinitions, &core.RelationReference{
+		Namespace: req.DefinitionName,
+		Relation:  relationName,
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	relations := make([]*v1.ReflectionRelationReference, 0, len(rr))
+	for _, r := range rr {
+		if r.Namespace == req.DefinitionName && r.Relation == req.RelationName {
+			continue
+		}
+
+		if req.OptionalDefinitionNameFilter != "" && !strings.HasPrefix(r.Namespace, req.OptionalDefinitionNameFilter) {
+			continue
+		}
+
+		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		if err != nil {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+		}
+
+		relations = append(relations, &v1.ReflectionRelationReference{
+			DefinitionName: r.Namespace,
+			RelationName:   r.Relation,
+			IsPermission:   ts.IsPermission(r.Relation),
+		})
+	}
+
+	sort.Slice(relations, func(i, j int) bool {
+		if relations[i].DefinitionName == relations[j].DefinitionName {
+			return relations[i].RelationName < relations[j].RelationName
+		}
+		return relations[i].DefinitionName < relations[j].DefinitionName
+	})
+
+	return &v1.ComputablePermissionsResponse{
+		Permissions: relations,
+		ReadAt:      revisionReadAt,
+	}, nil
+}
+
+func (ss *schemaServer) DependentRelations(ctx context.Context, req *v1.DependentRelationsRequest) (*v1.DependentRelationsResponse, error) {
+	atRevision, revisionReadAt, err := consistency.RevisionFromContext(ctx)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	ds := datastoremw.MustFromContext(ctx).SnapshotReader(atRevision)
+	_, vts, err := typesystem.ReadNamespaceAndTypes(ctx, req.DefinitionName, ds)
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	_, ok := vts.GetRelation(req.PermissionName)
+	if !ok {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, typesystem.NewRelationNotFoundErr(req.DefinitionName, req.PermissionName))
+	}
+
+	if !vts.IsPermission(req.PermissionName) {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, NewNotAPermissionError(req.PermissionName))
+	}
+
+	rg := typesystem.ReachabilityGraphFor(vts)
+	rr, err := rg.RelationsEncounteredForResource(ctx, &core.RelationReference{
+		Namespace: req.DefinitionName,
+		Relation:  req.PermissionName,
+	})
+	if err != nil {
+		return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+	}
+
+	relations := make([]*v1.ReflectionRelationReference, 0, len(rr))
+	for _, r := range rr {
+		if r.Namespace == req.DefinitionName && r.Relation == req.PermissionName {
+			continue
+		}
+
+		ts, err := vts.TypeSystemForNamespace(ctx, r.Namespace)
+		if err != nil {
+			return nil, shared.RewriteErrorWithoutConfig(ctx, err)
+		}
+
+		relations = append(relations, &v1.ReflectionRelationReference{
+			DefinitionName: r.Namespace,
+			RelationName:   r.Relation,
+			IsPermission:   ts.IsPermission(r.Relation),
+		})
+	}
+
+	sort.Slice(relations, func(i, j int) bool {
+		if relations[i].DefinitionName == relations[j].DefinitionName {
+			return relations[i].RelationName < relations[j].RelationName
+		}
+
+		return relations[i].DefinitionName < relations[j].DefinitionName
+	})
+
+	return &v1.DependentRelationsResponse{
+		Relations: relations,
+		ReadAt:    revisionReadAt,
 	}, nil
 }
