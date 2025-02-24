@@ -26,8 +26,9 @@ const (
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
 	// after that. If there are no transactions newer than the quantization period,
-	// it just picks the latest transaction. It will also return the amount of
-	// nanoseconds until the next optimized revision would be selected server-side,
+	// it just picks the latest application transaction. It avoids determining the last transaction
+	// using pg_current_snapshot(), as it may move out of band (VACUUM, other workloads in the same database).
+	// It will also return the amount of nanoseconds until the next optimized revision would be selected server-side,
 	// for use with caching.
 	//
 	//   %[1] Name of xid column
@@ -37,13 +38,17 @@ const (
 	//   %[5] Name of snapshot column
 	//   %[6] Follower read delay (in nanoseconds)
 	querySelectRevision = `
-	WITH selected AS (SELECT (
-		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1)
-	) as xid)
-	SELECT selected.xid,
-	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
-	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
-	FROM selected;`
+	WITH optimized AS 
+			(SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1),
+	lastRevision AS (SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s = (SELECT max(%[3]s) FROM %[2]s))
+	
+	SELECT
+	  COALESCE(optimized.%[1]s, lastRevision.%[1]s),
+	  COALESCE(optimized.%[5]s, lastRevision.%[5]s),
+	  %[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
+	FROM lastRevision
+	LEFT JOIN optimized ON TRUE;
+	`
 
 	// queryValidTransaction will return a single row with three values:
 	//   1) the transaction ID of the minimum valid (i.e. within the GC window) transaction

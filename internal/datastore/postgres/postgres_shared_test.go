@@ -779,32 +779,46 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			1, 0,
 		},
 		{
+			"OldestInWindowIsSelected",
+			1 * time.Second,
+			0,
+			[]time.Duration{1 * time.Millisecond, 2 * time.Millisecond},
+			1, 1,
+		},
+		{
+			"ShouldObservePreviousAndCurrent",
+			1 * time.Second,
+			0,
+			[]time.Duration{-1 * time.Second, 0},
+			2, 0,
+		},
+		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
 			0,
 			[]time.Duration{2 * time.Second},
-			0, 1,
+			1, 0,
 		},
 		{
 			"QuantizedLower",
 			2 * time.Second,
 			0,
 			[]time.Duration{-4 * time.Second, -1 * time.Nanosecond, 0},
-			1, 2,
+			2, 1,
 		},
 		{
 			"QuantizedRecentWithFollowerReadDelay",
 			500 * time.Millisecond,
 			2 * time.Second,
 			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
-			1, 2,
+			2, 1,
 		},
 		{
 			"QuantizedRecentWithoutFollowerReadDelay",
 			500 * time.Millisecond,
 			0,
 			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
-			2, 1,
+			3, 0,
 		},
 		{
 			"QuantizationDisabled",
@@ -833,7 +847,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 					ctx,
 					uri,
 					primaryInstanceID,
-					RevisionQuantization(5*time.Second),
+					RevisionQuantization(tc.quantization),
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
 					FollowerReadDelay(tc.followerReadDelay),
@@ -865,21 +879,18 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				}
 			}
 
-			queryRevision := fmt.Sprintf(
-				querySelectRevision,
-				colXID,
-				tableTransaction,
-				colTimestamp,
-				tc.quantization.Nanoseconds(),
-				colSnapshot,
-				tc.followerReadDelay.Nanoseconds(),
-			)
-
 			var revision xid8
 			var snapshot pgSnapshot
-			var validFor time.Duration
-			err = conn.QueryRow(ctx, queryRevision).Scan(&revision, &snapshot, &validFor)
 			require.NoError(err)
+			pgDS, ok := ds.(*pgDatastore)
+			require.True(ok)
+			rev, _, err := pgDS.optimizedRevisionFunc(ctx)
+
+			pgRev, ok := rev.(postgresRevision)
+			require.True(ok)
+			revision = pgRev.optionalTxID
+			require.NotNil(revision)
+			snapshot = pgRev.snapshot
 
 			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
 			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
@@ -890,8 +901,8 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 			require.NoError(conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
 
 			// Subtract one from numLower because of the artificially injected first transaction row
-			require.Equal(tc.numLower, numLower-1)
-			require.Equal(tc.numHigher, numHigher)
+			require.Equal(tc.numLower, numLower-1, "incorrect number of revisions visible to snapshot, expected %d, got %d", tc.numLower, numLower-1)
+			require.Equal(tc.numHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", tc.numHigher, numHigher)
 		})
 	}
 }
