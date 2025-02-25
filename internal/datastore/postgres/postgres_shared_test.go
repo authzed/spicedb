@@ -900,7 +900,7 @@ func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest)
 		{ // the two revisions are concurrent, and given they are past the quantization window (are way in the past, around unix epoch)
 			// the function should return a revision snapshot that captures both of them
 			"ConcurrentRevisions",
-			1 * time.Second,
+			5 * time.Second,
 			0,
 			[]postgresRevision{
 				{optionalTxID: newXid8(3), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{2}}, optionalNanosTimestamp: uint64((time.Second * 1) * time.Nanosecond)},

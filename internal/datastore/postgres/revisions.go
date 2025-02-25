@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -26,8 +27,13 @@ const (
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
 	// after that. If there are no transactions newer than the quantization period,
-	// it just picks the latest application transaction. It avoids determining the last transaction
-	// using pg_current_snapshot(), as it may move out of band (VACUUM, other workloads in the same database).
+	// it will return all the transaction IDs and snapshots available in the last quantization window, so that
+	// the application derives a snapshot that includes all transactions in the last window, and thus guarantee
+	// all revisions from the previous transaction are observed.
+	//
+	// It avoids determining the high-watermark snapshot using pg_current_snapshot(), as it may move out of band
+	// (VACUUM, other workloads in the same database), which causes problems to cache quantization.
+	//
 	// It will also return the amount of nanoseconds until the next optimized revision would be selected server-side,
 	// for use with caching.
 	//
@@ -40,14 +46,13 @@ const (
 	querySelectRevision = `
 	WITH optimized AS 
 			(SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1),
-	lastRevision AS (SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s = (SELECT max(%[3]s) FROM %[2]s))
+	allRevisionsFromLastWindow AS (SELECT %[1]s, %[5]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM (SELECT max(%[3]s) FROM %[2]s)) * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc'),
+	validity AS (SELECT (%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d) AS ts)
 	
-	SELECT
-	  COALESCE(optimized.%[1]s, lastRevision.%[1]s),
-	  COALESCE(optimized.%[5]s, lastRevision.%[5]s),
-	  %[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d
-	FROM lastRevision
-	LEFT JOIN optimized ON TRUE;
+	SELECT %[1]s, %[5]s, validity.ts FROM optimized, validity
+	UNION ALL
+	SELECT %[1]s, %[5]s, validity.ts FROM allRevisionsFromLastWindow, validity
+	WHERE NOT EXISTS (SELECT 1 FROM optimized);
 	`
 
 	// queryValidTransaction will return a single row with three values:
@@ -82,17 +87,58 @@ const (
 )
 
 func (pgd *pgDatastore) optimizedRevisionFunc(ctx context.Context) (datastore.Revision, time.Duration, error) {
-	var revision xid8
-	var snapshot pgSnapshot
+	rows, err := pgd.readPool.Query(ctx, pgd.optimizedRevisionQuery)
+	if err != nil {
+		return datastore.NoRevision, 0, fmt.Errorf("faild to compute optimized revision: %w", err)
+	}
+	defer func() {
+		rows.Close()
+	}()
+
+	var resultingPgRev []postgresRevision
 	var validForNanos time.Duration
-	if err := pgd.readPool.QueryRow(ctx, pgd.optimizedRevisionQuery).
-		Scan(&revision, &snapshot, &validForNanos); err != nil {
-		return datastore.NoRevision, 0, fmt.Errorf(errRevision, err)
+	for rows.Next() {
+		var xid xid8
+		var snapshot pgSnapshot
+		if err := rows.Scan(&xid, &snapshot, &validForNanos); err != nil {
+			return datastore.NoRevision, 0, fmt.Errorf("unable to decode candidate optimized revision: %w", err)
+		}
+
+		resultingPgRev = append(resultingPgRev, postgresRevision{snapshot: snapshot, optionalTxID: xid})
+	}
+	if rows.Err() != nil {
+		return datastore.NoRevision, 0, fmt.Errorf("unable to compute optimized revision: %w", err)
 	}
 
-	snapshot = snapshot.markComplete(revision.Uint64)
+	if len(resultingPgRev) == 0 {
+		return datastore.NoRevision, 0, spiceerrors.MustBugf("unexpected optimized revision query returnzed zero rows")
+	} else if len(resultingPgRev) == 1 {
+		resultingPgRev[0].snapshot = resultingPgRev[0].snapshot.markComplete(resultingPgRev[0].optionalTxID.Uint64)
+		return resultingPgRev[0], validForNanos, nil
+	} else if len(resultingPgRev) > 1 {
+		// if there are multiple rows, it means the query didn't find an eligible quantized revision
+		// in the window defined by the current time. In this case the query will return all revisions available in
+		// the last quantization window defined by the biggest timestamp in the transactions table.
+		// We will use all those transactions to forge a synthetic pgSnapshot that observes all transaction IDs
+		// in that window.
+		syntheticRev := postgresRevision{snapshot: pgSnapshot{xmin: uint64(math.MaxUint64), xmax: 0}}
+		for _, rev := range resultingPgRev {
+			if rev.snapshot.xmin < syntheticRev.snapshot.xmin {
+				syntheticRev.snapshot.xmin = rev.snapshot.xmin
+			}
+			if rev.snapshot.xmax > syntheticRev.snapshot.xmax {
+				syntheticRev.snapshot.xmax = rev.snapshot.xmax
+			}
+		}
 
-	return postgresRevision{snapshot: snapshot, optionalTxID: revision}, validForNanos, nil
+		for _, rev := range resultingPgRev {
+			syntheticRev.snapshot = syntheticRev.snapshot.markComplete(rev.optionalTxID.Uint64)
+		}
+
+		return syntheticRev, validForNanos, nil
+	}
+
+	return datastore.NoRevision, 0, spiceerrors.MustBugf("unexpected optimized revision query result")
 }
 
 func (pgd *pgDatastore) HeadRevision(ctx context.Context) (datastore.Revision, error) {
