@@ -106,6 +106,7 @@ func TestCompare(t *testing.T) {
 		result      comparisonResult
 	}{
 		{snap(0, 4, 2), snap(0, 4, 2, 3), gt},
+		{snap(1, 4, 2), snap(1, 4, 3), concurrent},
 	}
 
 	for _, tc := range testCases {

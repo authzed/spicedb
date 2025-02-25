@@ -132,6 +132,10 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 			QuantizedRevisionTest(t, b)
 		})
 
+		t.Run("OverlappingRevision", func(t *testing.T) {
+			OverlappingRevisionTest(t, b)
+		})
+
 		t.Run("WatchNotEnabled", func(t *testing.T) {
 			WatchNotEnabledTest(t, b, config.pgVersion)
 		})
@@ -879,32 +883,112 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				}
 			}
 
-			var revision xid8
-			var snapshot pgSnapshot
-			require.NoError(err)
-			pgDS, ok := ds.(*pgDatastore)
-			require.True(ok)
-			rev, _, err := pgDS.optimizedRevisionFunc(ctx)
-
-			pgRev, ok := rev.(postgresRevision)
-			require.True(ok)
-			revision = pgRev.optionalTxID
-			require.NotNil(revision)
-			snapshot = pgRev.snapshot
-
-			queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
-			numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
-			numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
-
-			var numLower, numHigher uint64
-			require.NoError(conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)
-			require.NoError(conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
-
-			// Subtract one from numLower because of the artificially injected first transaction row
-			require.Equal(tc.numLower, numLower-1, "incorrect number of revisions visible to snapshot, expected %d, got %d", tc.numLower, numLower-1)
-			require.Equal(tc.numHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", tc.numHigher, numHigher)
+			assertRevisionLowerAndHigher(ctx, t, ds, conn, tc.numLower, tc.numHigher)
 		})
 	}
+}
+
+func OverlappingRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
+	testCases := []struct {
+		testName          string
+		quantization      time.Duration
+		followerReadDelay time.Duration
+		revisions         []postgresRevision
+		numLower          uint64
+		numHigher         uint64
+	}{
+		{ // the two revisions are concurrent, and given they are past the quantization window (are way in the past, around unix epoch)
+			// the function should return a revision snapshot that captures both of them
+			"ConcurrentRevisions",
+			1 * time.Second,
+			0,
+			[]postgresRevision{
+				{optionalTxID: newXid8(3), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{2}}, optionalNanosTimestamp: uint64((time.Second * 1) * time.Nanosecond)},
+				{optionalTxID: newXid8(2), snapshot: pgSnapshot{xmin: 1, xmax: 4, xipList: []uint64{3}}, optionalNanosTimestamp: uint64((time.Second * 2) * time.Nanosecond)},
+			},
+			2, 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			require := require.New(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			var conn *pgx.Conn
+			ds := b.NewDatastore(t, func(engine, uri string) datastore.Datastore {
+				var err error
+				conn, err = pgx.Connect(ctx, uri)
+				require.NoError(err)
+
+				RegisterTypes(conn.TypeMap())
+
+				ds, err := newPostgresDatastore(
+					ctx,
+					uri,
+					primaryInstanceID,
+					RevisionQuantization(tc.quantization),
+					GCWindow(24*time.Hour),
+					WatchBufferLength(1),
+					FollowerReadDelay(tc.followerReadDelay),
+				)
+				require.NoError(err)
+
+				return ds
+			})
+			defer ds.Close()
+
+			// set a random time zone to ensure the queries are unaffected by tz
+			_, err := conn.Exec(ctx, fmt.Sprintf("SET TIME ZONE -%d", rand.Intn(8)+1))
+			require.NoError(err)
+
+			for _, rev := range tc.revisions {
+				stmt := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+				insertTxn := stmt.Insert(tableTransaction).Columns(colXID, colSnapshot, colTimestamp)
+
+				ts := time.Unix(0, int64(rev.optionalNanosTimestamp))
+				sql, args, err := insertTxn.Values(rev.optionalTxID, rev.snapshot, ts).ToSql()
+				require.NoError(err)
+
+				_, err = conn.Exec(ctx, sql, args...)
+				require.NoError(err)
+			}
+
+			assertRevisionLowerAndHigher(ctx, t, ds, conn, tc.numLower, tc.numHigher)
+		})
+	}
+}
+
+func assertRevisionLowerAndHigher(ctx context.Context, t *testing.T, ds datastore.Datastore, conn *pgx.Conn,
+	expectedNumLower, expectedNumHigher uint64,
+) {
+	t.Helper()
+
+	var revision xid8
+	var snapshot pgSnapshot
+	pgDS, ok := ds.(*pgDatastore)
+	require.True(t, ok)
+	rev, _, err := pgDS.optimizedRevisionFunc(ctx)
+	require.NoError(t, err)
+
+	pgRev, ok := rev.(postgresRevision)
+	require.True(t, ok)
+	revision = pgRev.optionalTxID
+	require.NotNil(t, revision)
+	snapshot = pgRev.snapshot
+
+	queryFmt := "SELECT COUNT(%[1]s) FROM %[2]s WHERE pg_visible_in_snapshot(%[1]s, $1) = %[3]s;"
+	numLowerQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "true")
+	numHigherQuery := fmt.Sprintf(queryFmt, colXID, tableTransaction, "false")
+
+	var numLower, numHigher uint64
+	require.NoError(t, conn.QueryRow(ctx, numLowerQuery, snapshot).Scan(&numLower), "%s - %s", revision, snapshot)
+	require.NoError(t, conn.QueryRow(ctx, numHigherQuery, snapshot).Scan(&numHigher), "%s - %s", revision, snapshot)
+
+	// Subtract one from numLower because of the artificially injected first transaction row
+	require.Equal(t, expectedNumLower, numLower-1, "incorrect number of revisions visible to snapshot, expected %d, got %d", expectedNumLower, numLower-1)
+	require.Equal(t, expectedNumHigher, numHigher, "incorrect number of revisions invisible to snapshot, expected %d, got %d", expectedNumHigher, numHigher)
 }
 
 // ConcurrentRevisionHeadTest uses goroutines and channels to intentionally set up a pair of
