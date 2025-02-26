@@ -77,7 +77,7 @@ const (
 
 // NewNamespaceTypeSystem returns a new type system for the given namespace. Note that the type
 // system is not validated until Validate is called.
-func newDefinition(nsDef *core.NamespaceDefinition) (*Definition, error) {
+func newDefinition(ts *TypeSystem, nsDef *core.NamespaceDefinition) (*Definition, error) {
 	relationMap := make(map[string]*core.Relation, len(nsDef.GetRelation()))
 	for _, relation := range nsDef.GetRelation() {
 		_, existing := relationMap[relation.Name]
@@ -93,6 +93,7 @@ func newDefinition(nsDef *core.NamespaceDefinition) (*Definition, error) {
 	}
 
 	return &Definition{
+		ts:          ts,
 		nsDef:       nsDef,
 		relationMap: relationMap,
 	}, nil
@@ -100,6 +101,7 @@ func newDefinition(nsDef *core.NamespaceDefinition) (*Definition, error) {
 
 // TypeSystem represents typing information found in a namespace.
 type Definition struct {
+	ts          *TypeSystem
 	nsDef       *core.NamespaceDefinition
 	relationMap map[string]*core.Relation
 }

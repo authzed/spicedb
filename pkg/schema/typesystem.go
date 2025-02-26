@@ -22,18 +22,14 @@ func (ts *TypeSystem) GetDefinition(ctx context.Context, definition string) (*De
 	if v, ok := ts.definitions[definition]; ok {
 		return v, nil
 	}
-	ns, err := ts.resolver.LookupDefinition(ctx, definition)
+	ns, _, err := ts.resolver.LookupDefinition(ctx, definition)
 	if err != nil {
 		return nil, err
 	}
-	d, err := newDefinition(ns)
+	d, err := newDefinition(ts, ns)
 	if err != nil {
 		return nil, err
 	}
 	ts.definitions[definition] = d
 	return d, nil
-}
-
-func (ts *TypeSystem) BuildReachabilityGraph(ctx context.Context) {
-
 }

@@ -13,8 +13,8 @@ import (
 // Resolver is an interface defined for resolving referenced namespaces and caveats when constructing
 // and validating a type system.
 type Resolver interface {
-	// LookupNamespace lookups up a namespace.
-	LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, error)
+	// LookupNamespace lookups up a namespace, also returning whether it was pre-validated.
+	LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error)
 
 	// LookupCaveat lookups up a caveat.
 	LookupCaveat(ctx context.Context, name string) (*Caveat, error)
@@ -66,21 +66,21 @@ type resolver struct {
 	predefined PredefinedElements
 }
 
-func (r *resolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, error) {
+func (r *resolver) LookupDefinition(ctx context.Context, name string) (*core.NamespaceDefinition, bool, error) {
 	if len(r.predefined.Definitions) > 0 {
 		for _, def := range r.predefined.Definitions {
 			if def.Name == name {
-				return def, nil
+				return def, false, nil
 			}
 		}
 	}
 
 	if r.ds == nil {
-		return nil, asTypeError(NewDefinitionNotFoundErr(name))
+		return nil, false, asTypeError(NewDefinitionNotFoundErr(name))
 	}
 
 	ns, _, err := r.ds.ReadNamespaceByName(ctx, name)
-	return ns, err
+	return ns, true, err
 }
 
 func (r *resolver) WithPredefinedElements(predefined PredefinedElements) Resolver {
