@@ -5,6 +5,7 @@ import (
 	dbsql "database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"strings"
@@ -761,8 +762,39 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 	}, nil
 }
 
+const defaultMaxHeartbeatLeaderJitterPercent = 10
+
 func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
-	tick := time.NewTicker(time.Nanosecond * time.Duration(pgd.quantizationPeriodNanos))
+	heartbeatDuration := time.Nanosecond * time.Duration(pgd.quantizationPeriodNanos)
+	log.Info().Stringer("interval", heartbeatDuration).Msg("starting revision heartbeat")
+	tick := time.NewTicker(heartbeatDuration)
+
+	// Leader election. Continue trying to acquire in case the current leader died.
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		ok, err := pgd.tryAcquireLock(ctx, revisionHeartbeatLock)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed to acquire revision heartbeat lock")
+		}
+
+		if ok {
+			break
+		}
+
+		jitter := time.Duration(float64(heartbeatDuration) * rand.Float64() * defaultMaxHeartbeatLeaderJitterPercent / 100) // nolint:gosec
+		time.Sleep(jitter)
+	}
+
+	defer func() {
+		if err := pgd.releaseLock(ctx, revisionHeartbeatLock); err != nil {
+			log.Warn().Err(err).Msg("failed to release revision heartbeat lock")
+		}
+	}()
+
+	log.Info().Stringer("interval", heartbeatDuration).Msg("got elected revision heartbeat leader, starting")
 
 	for {
 		select {

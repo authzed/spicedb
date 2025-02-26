@@ -11,6 +11,9 @@ type lockID uint32
 const (
 	// gcRunLock is the lock ID for the garbage collection run.
 	gcRunLock lockID = 1
+
+	// revisionHeartbeatLock is the lock ID for the leader that will generate the heartbeat revisions.
+	revisionHeartbeatLock lockID = 2
 )
 
 func (pgd *pgDatastore) tryAcquireLock(ctx context.Context, lockID lockID) (bool, error) {
