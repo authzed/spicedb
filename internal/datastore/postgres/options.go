@@ -33,6 +33,7 @@ type postgresOptions struct {
 	expirationDisabled             bool
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
+	revisionHeartbeatEnabled       bool
 
 	migrationPhase    string
 	allowedMigrations []string
@@ -77,6 +78,7 @@ const (
 	defaultExpirationDisabled                = false
 	// no follower delay by default, it should only be set if using read replicas
 	defaultFollowerReadDelay = 0
+	defaultRevisionHeartbeat = false
 )
 
 // Option provides the facility to configure how clients within the
@@ -103,6 +105,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		expirationDisabled:             defaultExpirationDisabled,
 		followerReadDelay:              defaultFollowerReadDelay,
+		revisionHeartbeatEnabled:       defaultRevisionHeartbeat,
 	}
 
 	for _, option := range options {
@@ -419,4 +422,9 @@ func WithColumnOptimization(isEnabled bool) Option {
 // WithExpirationDisabled disables support for relationship expiration.
 func WithExpirationDisabled(isDisabled bool) Option {
 	return func(po *postgresOptions) { po.expirationDisabled = isDisabled }
+}
+
+// WithRevisionHeartbeat enables the revision heartbeat.
+func WithRevisionHeartbeat(isEnabled bool) Option {
+	return func(po *postgresOptions) { po.revisionHeartbeatEnabled = isEnabled }
 }

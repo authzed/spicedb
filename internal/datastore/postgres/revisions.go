@@ -23,6 +23,21 @@ const (
 	errCheckRevision  = "unable to check revision: %w"
 	errRevisionFormat = "invalid revision format: %w"
 
+	//   %[1] Name of xid column
+	//   %[2] Relationship tuple transaction table
+	//   %[3] Name of timestamp column
+	//   %[4] Quantization period (in nanoseconds)
+	//   %[5] Name of snapshot column
+	insertHeartBeatRevision = `
+	INSERT INTO %[2]s (%[1]s, %[5]s)
+	SELECT pg_current_xact_id(), pg_current_snapshot()
+	WHERE NOT EXISTS (
+		SELECT 1
+		FROM %[2]s rtt
+		WHERE rtt.%[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc'
+        LIMIT 1
+	);`
+
 	// querySelectRevision will round the database's timestamp down to the nearest
 	// quantization period, and then find the first transaction (and its active xmin)
 	// after that. If there are no transactions newer than the quantization period,
