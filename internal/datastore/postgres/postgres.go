@@ -295,6 +295,12 @@ func newPostgresDatastore(
 	if quantizationPeriodNanos < 1 {
 		quantizationPeriodNanos = 1
 	}
+
+	followerReadDelayNanos := config.followerReadDelay.Nanoseconds()
+	if followerReadDelayNanos < 0 {
+		followerReadDelayNanos = 0
+	}
+
 	revisionQuery := fmt.Sprintf(
 		querySelectRevision,
 		colXID,
@@ -302,6 +308,7 @@ func newPostgresDatastore(
 		colTimestamp,
 		quantizationPeriodNanos,
 		colSnapshot,
+		followerReadDelayNanos,
 	)
 
 	validTransactionQuery := fmt.Sprintf(

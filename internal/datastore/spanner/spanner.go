@@ -121,8 +121,13 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 		log.Info().Str("spanner-emulator-host", os.Getenv("SPANNER_EMULATOR_HOST")).Msg("running against spanner emulator")
 	}
 
-	// TODO(jschorr): Replace with OpenTelemetry instrumentation once available.
-	if config.enableDatastoreMetrics {
+	if config.datastoreMetricsOption == DatastoreMetricsOptionOpenTelemetry {
+		log.Info().Msg("enabling OpenTelemetry metrics for Spanner datastore")
+		spanner.EnableOpenTelemetryMetrics()
+	}
+
+	if config.datastoreMetricsOption == DatastoreMetricsOptionLegacyPrometheus {
+		log.Info().Msg("enabling legacy Prometheus metrics for Spanner datastore")
 		err = spanner.EnableStatViews() // nolint: staticcheck
 		if err != nil {
 			return nil, fmt.Errorf("failed to enable spanner session metrics: %w", err)
@@ -168,7 +173,10 @@ func NewSpannerDatastore(ctx context.Context, database string, opts ...Option) (
 	client, err := spanner.NewClientWithConfig(
 		context.Background(),
 		database,
-		spanner.ClientConfig{SessionPoolConfig: cfg},
+		spanner.ClientConfig{
+			SessionPoolConfig:    cfg,
+			DisableNativeMetrics: config.datastoreMetricsOption != DatastoreMetricsOptionNative,
+		},
 		spannerOpts...,
 	)
 	if err != nil {

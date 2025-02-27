@@ -69,6 +69,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.SpannerEmulatorHost = c.SpannerEmulatorHost
 		to.SpannerMinSessions = c.SpannerMinSessions
 		to.SpannerMaxSessions = c.SpannerMaxSessions
+		to.SpannerDatastoreMetricsOption = c.SpannerDatastoreMetricsOption
 		to.TablePrefix = c.TablePrefix
 		to.RelationshipIntegrityEnabled = c.RelationshipIntegrityEnabled
 		to.RelationshipIntegrityCurrentKey = c.RelationshipIntegrityCurrentKey
@@ -123,6 +124,7 @@ func (c Config) DebugMap() map[string]any {
 	debugMap["SpannerEmulatorHost"] = helpers.DebugValue(c.SpannerEmulatorHost, false)
 	debugMap["SpannerMinSessions"] = helpers.DebugValue(c.SpannerMinSessions, false)
 	debugMap["SpannerMaxSessions"] = helpers.DebugValue(c.SpannerMaxSessions, false)
+	debugMap["SpannerDatastoreMetricsOption"] = helpers.DebugValue(c.SpannerDatastoreMetricsOption, false)
 	debugMap["TablePrefix"] = helpers.DebugValue(c.TablePrefix, false)
 	debugMap["RelationshipIntegrityEnabled"] = helpers.DebugValue(c.RelationshipIntegrityEnabled, false)
 	debugMap["RelationshipIntegrityCurrentKey"] = helpers.DebugValue(c.RelationshipIntegrityCurrentKey, false)
@@ -444,6 +446,13 @@ func WithSpannerMinSessions(spannerMinSessions uint64) ConfigOption {
 func WithSpannerMaxSessions(spannerMaxSessions uint64) ConfigOption {
 	return func(c *Config) {
 		c.SpannerMaxSessions = spannerMaxSessions
+	}
+}
+
+// WithSpannerDatastoreMetricsOption returns an option that can set SpannerDatastoreMetricsOption on a Config
+func WithSpannerDatastoreMetricsOption(spannerDatastoreMetricsOption string) ConfigOption {
+	return func(c *Config) {
+		c.SpannerDatastoreMetricsOption = spannerDatastoreMetricsOption
 	}
 }
 

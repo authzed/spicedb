@@ -757,39 +757,59 @@ func ChunkedGarbageCollectionTest(t *testing.T, ds datastore.Datastore) {
 
 func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 	testCases := []struct {
-		testName      string
-		quantization  time.Duration
-		relativeTimes []time.Duration
-		numLower      uint64
-		numHigher     uint64
+		testName          string
+		quantization      time.Duration
+		followerReadDelay time.Duration
+		relativeTimes     []time.Duration
+		numLower          uint64
+		numHigher         uint64
 	}{
 		{
 			"DefaultRevision",
 			1 * time.Second,
+			0,
 			[]time.Duration{},
 			0, 0,
 		},
 		{
 			"OnlyPastRevisions",
 			1 * time.Second,
+			0,
 			[]time.Duration{-2 * time.Second},
 			1, 0,
 		},
 		{
 			"OnlyFutureRevisions",
 			1 * time.Second,
+			0,
 			[]time.Duration{2 * time.Second},
 			0, 1,
 		},
 		{
 			"QuantizedLower",
 			2 * time.Second,
+			0,
 			[]time.Duration{-4 * time.Second, -1 * time.Nanosecond, 0},
 			1, 2,
 		},
 		{
+			"QuantizedRecentWithFollowerReadDelay",
+			500 * time.Millisecond,
+			2 * time.Second,
+			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
+			1, 2,
+		},
+		{
+			"QuantizedRecentWithoutFollowerReadDelay",
+			500 * time.Millisecond,
+			0,
+			[]time.Duration{-4 * time.Second, -2 * time.Second, 0},
+			2, 1,
+		},
+		{
 			"QuantizationDisabled",
 			1 * time.Nanosecond,
+			0,
 			[]time.Duration{-2 * time.Second, -1 * time.Nanosecond, 0},
 			3, 0,
 		},
@@ -816,6 +836,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 					RevisionQuantization(5*time.Second),
 					GCWindow(24*time.Hour),
 					WatchBufferLength(1),
+					FollowerReadDelay(tc.followerReadDelay),
 				)
 				require.NoError(err)
 
@@ -851,6 +872,7 @@ func QuantizedRevisionTest(t *testing.T, b testdatastore.RunningEngineForTest) {
 				colTimestamp,
 				tc.quantization.Nanoseconds(),
 				colSnapshot,
+				tc.followerReadDelay.Nanoseconds(),
 			)
 
 			var revision xid8

@@ -160,6 +160,11 @@ func (cds *crdbDatastore) watch(
 			return
 		}
 
+		if strings.Contains(err.Error(), "must be after replica GC threshold") {
+			errs <- datastore.NewInvalidRevisionErr(afterRevision, datastore.RevisionStale)
+			return
+		}
+
 		if pool.IsResettableError(ctx, err) || pool.IsRetryableError(ctx, err) {
 			errs <- datastore.NewWatchTemporaryErr(err)
 			return

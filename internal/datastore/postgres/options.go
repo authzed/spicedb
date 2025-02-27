@@ -19,6 +19,7 @@ type postgresOptions struct {
 	watchBufferLength       uint16
 	watchBufferWriteTimeout time.Duration
 	revisionQuantization    time.Duration
+	followerReadDelay       time.Duration
 	gcWindow                time.Duration
 	gcInterval              time.Duration
 	gcMaxOperationTime      time.Duration
@@ -74,6 +75,8 @@ const (
 	defaultColumnOptimizationOption          = common.ColumnOptimizationOptionNone
 	defaultIncludeQueryParametersInTraces    = false
 	defaultExpirationDisabled                = false
+	// no follower delay by default, it should only be set if using read replicas
+	defaultFollowerReadDelay = 0
 )
 
 // Option provides the facility to configure how clients within the
@@ -99,6 +102,7 @@ func generateConfig(options []Option) (postgresOptions, error) {
 		columnOptimizationOption:       defaultColumnOptimizationOption,
 		includeQueryParametersInTraces: defaultIncludeQueryParametersInTraces,
 		expirationDisabled:             defaultExpirationDisabled,
+		followerReadDelay:              defaultFollowerReadDelay,
 	}
 
 	for _, option := range options {
@@ -279,6 +283,14 @@ func WatchBufferWriteTimeout(watchBufferWriteTimeout time.Duration) Option {
 // This value defaults to 5 seconds.
 func RevisionQuantization(quantization time.Duration) Option {
 	return func(po *postgresOptions) { po.revisionQuantization = quantization }
+}
+
+// FollowerReadDelay is the amount of time to round down the current time when
+// reading from a read replica is expected.
+//
+// This value defaults to 0 seconds.
+func FollowerReadDelay(delay time.Duration) Option {
+	return func(po *postgresOptions) { po.followerReadDelay = delay }
 }
 
 // MaxRevisionStalenessPercent is the amount of time, expressed as a percentage of

@@ -651,6 +651,15 @@ type ReadOnlyDatastore interface {
 	// Watch notifies the caller about changes to the datastore, based on the specified options.
 	//
 	// All events following afterRevision will be sent to the caller.
+	//
+	// Errors returned will fall into a few classes:
+	// - WatchDisconnectedError - the watch has fallen too far behind and has been disconnected.
+	// - WatchCanceledError     - the watch was canceled by the caller.
+	// - WatchDisabledError     - the watch is disabled by being unsupported by the datastore.
+	// - WatchRetryableError    - the watch is retryable, and the caller may retry after some backoff time.
+	// - InvalidRevisionError   - the revision specified has passed the datastore's watch history window and
+	//                            the watch cannot be retried.
+	// - Other errors 			- the watch should not be retried due to a fatal error.
 	Watch(ctx context.Context, afterRevision Revision, options WatchOptions) (<-chan RevisionChanges, <-chan error)
 
 	// ReadyState returns a state indicating whether the datastore is ready to accept data.

@@ -25,7 +25,10 @@ import (
 
 type engineBuilderFunc func(ctx context.Context, options Config) (datastore.Datastore, error)
 
-const MaxReplicaCount = 16
+const (
+	MaxReplicaCount          = 16
+	DefaultFollowerReadDelay = 4_800 * time.Millisecond
+)
 
 const (
 	MemoryEngine    = "memory"
@@ -144,11 +147,12 @@ type Config struct {
 	GCMaxOperationTime time.Duration `debugmap:"visible"`
 
 	// Spanner
-	SpannerCredentialsFile string `debugmap:"visible"`
-	SpannerCredentialsJSON []byte `debugmap:"sensitive"`
-	SpannerEmulatorHost    string `debugmap:"visible"`
-	SpannerMinSessions     uint64 `debugmap:"visible"`
-	SpannerMaxSessions     uint64 `debugmap:"visible"`
+	SpannerCredentialsFile        string `debugmap:"visible"`
+	SpannerCredentialsJSON        []byte `debugmap:"sensitive"`
+	SpannerEmulatorHost           string `debugmap:"visible"`
+	SpannerMinSessions            uint64 `debugmap:"visible"`
+	SpannerMaxSessions            uint64 `debugmap:"visible"`
+	SpannerDatastoreMetricsOption string `debugmap:"visible"`
 
 	// MySQL
 	TablePrefix string `debugmap:"visible"`
@@ -234,9 +238,9 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.DurationVar(&opts.RequestHedgingInitialSlowValue, flagName("datastore-request-hedging-initial-slow-value"), defaults.RequestHedgingInitialSlowValue, "initial value to use for slow datastore requests, before statistics have been collected")
 	flagSet.Uint64Var(&opts.RequestHedgingMaxRequests, flagName("datastore-request-hedging-max-requests"), defaults.RequestHedgingMaxRequests, "maximum number of historical requests to consider")
 	flagSet.Float64Var(&opts.RequestHedgingQuantile, flagName("datastore-request-hedging-quantile"), defaults.RequestHedgingQuantile, "quantile of historical datastore request time over which a request will be considered slow")
-	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled prometheus metrics from the datastore")
+	flagSet.BoolVar(&opts.EnableDatastoreMetrics, flagName("datastore-prometheus-metrics"), defaults.EnableDatastoreMetrics, "set to false to disabled metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner)")
 	// See crdb doc for info about follower reads and how it is configured: https://www.cockroachlabs.com/docs/stable/follower-reads.html
-	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), 4_800*time.Millisecond, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach driver only)")
+	flagSet.DurationVar(&opts.FollowerReadDelay, flagName("datastore-follower-read-delay-duration"), DefaultFollowerReadDelay, "amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (cockroach and spanner drivers only) or read replicas (postgres and mysql drivers only)")
 	flagSet.IntVar(&opts.MaxRetries, flagName("datastore-max-tx-retries"), 10, "number of times a retriable transaction should be retried")
 	flagSet.StringVar(&opts.OverlapStrategy, flagName("datastore-tx-overlap-strategy"), "static", `strategy to generate transaction overlap keys ("request", "prefix", "static", "insecure") (cockroach driver only - see https://spicedb.dev/d/crdb-overlap for details)"`)
 	flagSet.StringVar(&opts.OverlapKey, flagName("datastore-tx-overlap-key"), "key", "static key to touch when writing to ensure transactions overlap (only used if --datastore-tx-overlap-strategy=static is set; cockroach driver only)")
@@ -246,6 +250,7 @@ func RegisterDatastoreFlagsWithPrefix(flagSet *pflag.FlagSet, prefix string, opt
 	flagSet.StringVar(&opts.SpannerEmulatorHost, flagName("datastore-spanner-emulator-host"), "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	flagSet.Uint64Var(&opts.SpannerMinSessions, flagName("datastore-spanner-min-sessions"), 100, "minimum number of sessions across all Spanner gRPC connections the client can have at a given time")
 	flagSet.Uint64Var(&opts.SpannerMaxSessions, flagName("datastore-spanner-max-sessions"), 400, "maximum number of sessions across all Spanner gRPC connections the client can have at a given time")
+	flagSet.StringVar(&opts.SpannerDatastoreMetricsOption, flagName("datastore-spanner-metrics"), "otel", `configure the metrics that are emitted by the Spanner datastore ("none", "native", "otel", "deprecated-prometheus")`)
 	flagSet.StringVar(&opts.TablePrefix, flagName("datastore-mysql-table-prefix"), "", "prefix to add to the name of all SpiceDB database tables")
 	flagSet.StringVar(&opts.MigrationPhase, flagName("datastore-migration-phase"), "", "datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in")
 	flagSet.StringArrayVar(&opts.AllowedMigrations, flagName("datastore-allowed-migrations"), []string{}, "migration levels that will not fail the health check (in addition to the current head migration)")
@@ -315,10 +320,11 @@ func DefaultDatastoreConfig() *Config {
 		SpannerEmulatorHost:                      "",
 		TablePrefix:                              "",
 		MigrationPhase:                           "",
-		FollowerReadDelay:                        4_800 * time.Millisecond,
+		FollowerReadDelay:                        DefaultFollowerReadDelay,
 		SpannerMinSessions:                       100,
 		SpannerMaxSessions:                       400,
 		FilterMaximumIDCount:                     100,
+		SpannerDatastoreMetricsOption:            spanner.DatastoreMetricsOptionOpenTelemetry,
 		RelationshipIntegrityEnabled:             false,
 		RelationshipIntegrityCurrentKey:          RelIntegrityKey{},
 		RelationshipIntegrityExpiredKeys:         []string{},
@@ -334,6 +340,12 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	opts := DefaultDatastoreConfig()
 	for _, o := range options {
 		o(opts)
+	}
+
+	if (opts.Engine == PostgresEngine || opts.Engine == MySQLEngine) && opts.FollowerReadDelay == DefaultFollowerReadDelay {
+		// Set the default follower read delay for postgres and mysql to 0 -
+		// this should only be set if read replicas are used.
+		opts.FollowerReadDelay = 0
 	}
 
 	if opts.LegacyFuzzing >= 0 {
@@ -596,6 +608,7 @@ func newPostgresPrimaryDatastore(ctx context.Context, opts Config) (datastore.Da
 		postgres.GCEnabled(!opts.ReadOnly),
 		postgres.RevisionQuantization(opts.RevisionQuantization),
 		postgres.MaxRevisionStalenessPercent(opts.MaxRevisionStalenessPercent),
+		postgres.FollowerReadDelay(opts.FollowerReadDelay),
 		postgres.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		postgres.ReadConnsMinOpen(opts.ReadConnPool.MinOpenConns),
 		postgres.ReadConnMaxIdleTime(opts.ReadConnPool.MaxIdleTime),
@@ -629,6 +642,11 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		return nil, errors.New("read replicas are not supported for the Spanner datastore engine")
 	}
 
+	metricsOption := spanner.DatastoreMetricsOption(opts.SpannerDatastoreMetricsOption)
+	if !opts.EnableDatastoreMetrics {
+		metricsOption = spanner.DatastoreMetricsOptionNone
+	}
+
 	return spanner.NewSpannerDatastore(
 		ctx,
 		opts.URI,
@@ -641,7 +659,7 @@ func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore,
 		spanner.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		spanner.EmulatorHost(opts.SpannerEmulatorHost),
 		spanner.DisableStats(opts.DisableStats),
-		spanner.EnableDatastoreMetrics(opts.EnableDatastoreMetrics),
+		spanner.WithDatastoreMetricsOption(metricsOption),
 		spanner.ReadConnsMaxOpen(opts.ReadConnPool.MaxOpenConns),
 		spanner.WriteConnsMaxOpen(opts.WriteConnPool.MaxOpenConns),
 		spanner.MinSessionCount(opts.SpannerMinSessions),
@@ -731,6 +749,7 @@ func newMySQLPrimaryDatastore(ctx context.Context, opts Config) (datastore.Datas
 		mysql.WatchBufferLength(opts.WatchBufferLength),
 		mysql.WatchBufferWriteTimeout(opts.WatchBufferWriteTimeout),
 		mysql.CredentialsProviderName(opts.CredentialsProviderName),
+		mysql.FollowerReadDelay(opts.FollowerReadDelay),
 	}
 
 	commonOptions, err := commonMySQLDatastoreOptions(opts)
