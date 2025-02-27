@@ -312,14 +312,17 @@ func newPostgresDatastore(
 		followerReadDelayNanos,
 	)
 
-	revisionHeartbeatQuery := fmt.Sprintf(
-		insertHeartBeatRevision,
-		colXID,
-		tableTransaction,
-		colTimestamp,
-		quantizationPeriodNanos,
-		colSnapshot,
-	)
+	var revisionHeartbeatQuery string
+	if config.revisionHeartbeatEnabled {
+		revisionHeartbeatQuery = fmt.Sprintf(
+			insertHeartBeatRevision,
+			colXID,
+			tableTransaction,
+			colTimestamp,
+			quantizationPeriodNanos,
+			colSnapshot,
+		)
+	}
 
 	validTransactionQuery := fmt.Sprintf(
 		queryValidTransaction,
@@ -732,6 +735,11 @@ func (pgd *pgDatastore) Features(ctx context.Context) (*datastore.Features, erro
 }
 
 func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
+	continuousCheckpointing := datastore.FeatureUnsupported
+	if pgd.revisionHeartbeatQuery != "" {
+		continuousCheckpointing = datastore.FeatureSupported
+	}
+
 	if pgd.watchEnabled {
 		return &datastore.Features{
 			Watch: datastore.Feature{
@@ -741,7 +749,7 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 				Status: datastore.FeatureUnsupported,
 			},
 			ContinuousCheckpointing: datastore.Feature{
-				Status: datastore.FeatureSupported,
+				Status: continuousCheckpointing,
 			},
 			WatchEmitsImmediately: datastore.Feature{
 				Status: datastore.FeatureUnsupported,
@@ -765,7 +773,7 @@ func (pgd *pgDatastore) OfflineFeatures() (*datastore.Features, error) {
 const defaultMaxHeartbeatLeaderJitterPercent = 10
 
 func (pgd *pgDatastore) startRevisionHeartbeat(ctx context.Context) error {
-	heartbeatDuration := time.Nanosecond * time.Duration(pgd.quantizationPeriodNanos)
+	heartbeatDuration := max(time.Second, time.Nanosecond*time.Duration(pgd.quantizationPeriodNanos))
 	log.Info().Stringer("interval", heartbeatDuration).Msg("starting revision heartbeat")
 	tick := time.NewTicker(heartbeatDuration)
 
