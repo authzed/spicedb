@@ -9,22 +9,23 @@ import (
 	"strings"
 
 	"github.com/authzed/ctxkey"
-
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
 
 type Test mg.Namespace
 
-var emptyEnv map[string]string
+var (
+	emptyEnv map[string]string
+	ctxMyKey = ctxkey.New[bool]()
+)
 
 // All Runs all test suites
-func (t Test) All() error {
+func (t Test) All(ctx context.Context) error {
 	ds := Testds{}
 	c := Testcons{}
 	cover := parseCommandLineFlags()
-	ctxMyKey := ctxkey.New[bool]()
-	ctx := ctxMyKey.WithValue(context.Background(), cover)
+	ctx = ctxMyKey.WithValue(ctx, cover)
 	mg.CtxDeps(ctx, t.Unit, t.Integration, t.Steelthread, t.Image, t.Analyzers,
 		ds.Crdb, ds.Postgres, ds.Spanner, ds.Mysql,
 		c.Crdb, c.Spanner, c.Postgres, c.Mysql)

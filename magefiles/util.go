@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/authzed/ctxkey"
 	"github.com/google/uuid"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -46,9 +45,10 @@ func testWithArgs(ctx context.Context, args ...string) ([]string, error) {
 		"-failfast",
 		"-count=1",
 	}, args...)
-	ctxMyKey := ctxkey.New[bool]()
-	if cover := ctxMyKey.MustValue(ctx); cover {
-		if err := os.MkdirAll("coverage", 0o700); err != nil {
+
+	if cover, ok := ctxMyKey.Value(ctx); cover && ok {
+		err := os.MkdirAll("coverage", 0o700)
+		if err != nil {
 			return nil, fmt.Errorf("failed to create coverage directory: %w", err)
 		}
 		testArgs = append(testArgs, []string{

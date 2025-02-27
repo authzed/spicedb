@@ -3,4 +3,4 @@ completions/
 *.wasm
 .vscode/settings.json
 .env.local
-coverage.txt
+coverage*.txt

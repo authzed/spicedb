@@ -6,6 +6,7 @@ toolchain go1.24.0
 
 require (
 	github.com/agnivade/wasmbrowsertest v0.8.0
+	github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833
 	github.com/bufbuild/buf v1.35.1
 	github.com/ecordell/optgen v0.0.9
 	github.com/envoyproxy/protoc-gen-validate v1.0.4
@@ -27,7 +28,6 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
-	github.com/authzed/ctxkey v0.0.0-20250127172433-d71cd97e3833 // indirect
 	github.com/bufbuild/protocompile v0.14.0 // indirect
 	github.com/bufbuild/protoplugin v0.0.0-20240323223605-e2735f6c31ee // indirect
 	github.com/bufbuild/protovalidate-go v0.6.2 // indirect
